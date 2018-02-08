@@ -87,7 +87,17 @@ func (e *Editor) initMainWindow() {
 
 	widget := widgets.NewQWidget(nil, 0)
 	widget.SetContentsMargins(0, 0, 0, 0)
-	e.window.SetCentralWidget(e.view.view)
+	// layout := widgets.NewQHBoxLayout()
+	// widget.SetLayout(layout)
+	e.window.SetCentralWidget(widget)
+	// layout.AddWidget(e.view.view, 0, 0)
+	// layout.AddWidget(e.view.view2, 0, 0)
+	e.view.view.SetParent(widget)
+	e.view.view.Move2(0, 0)
+	e.view.view.Resize2(400, 600)
+	e.view.view2.SetParent(widget)
+	e.view.view2.Move2(400, 0)
+	e.view.view2.Resize2(400, 600)
 	e.window.Show()
 
 	e.initOnce.Do(func() {

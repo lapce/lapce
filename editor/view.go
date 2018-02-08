@@ -13,6 +13,7 @@ import (
 type View struct {
 	editor      *Editor
 	view        *widgets.QGraphicsView
+	view2       *widgets.QGraphicsView
 	scence      *widgets.QGraphicsScene
 	scenceLines map[int]*widgets.QGraphicsTextItem
 	cursor      *widgets.QGraphicsRectItem
@@ -42,6 +43,10 @@ func NewView(e *Editor) *View {
 		lines:       []*Line{},
 	}
 	e.view = view
+
+	view2 := widgets.NewQGraphicsView(nil)
+	view2.SetScene(view.scence)
+	view.view2 = view2
 
 	view.view.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
 		if view.xiView == nil {
