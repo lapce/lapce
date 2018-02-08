@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os/exec"
 
@@ -123,9 +124,9 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 	if err != nil {
 		return
 	}
-	// fmt.Println("-------------------------")
-	// fmt.Println(req.Method)
-	// fmt.Println(string(params))
+	fmt.Println("-------------------------")
+	fmt.Println(req.Method)
+	fmt.Println(string(params))
 	switch req.Method {
 	case "update":
 		var notification UpdateNotification
@@ -192,6 +193,16 @@ func (v *View) Scroll() {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// Click sets
+func (v *View) Click(row, col int) {
+	cmd := &EditCommand{
+		Method: "click",
+		ViewID: v.ID,
+		Params: []int{row, col, 0, 1},
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // RequestLines sets
 func (v *View) RequestLines() {
 	cmd := &EditCommand{
@@ -215,6 +226,24 @@ func (v *View) MoveUp() {
 func (v *View) MoveDown() {
 	cmd := &EditCommand{
 		Method: "move_down",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// MoveLeft is
+func (v *View) MoveLeft() {
+	cmd := &EditCommand{
+		Method: "move_left",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// MoveRight is
+func (v *View) MoveRight() {
+	cmd := &EditCommand{
+		Method: "move_right",
 		ViewID: v.ID,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
@@ -259,7 +288,34 @@ func (v *View) MoveWordLeft() {
 // InsertNewline inserts a new line
 func (v *View) InsertNewline() {
 	cmd := &EditCommand{
-		Method: "insert_new_line",
+		Method: "insert_newline",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// InsertTab inserts a new tab
+func (v *View) InsertTab() {
+	cmd := &EditCommand{
+		Method: "insert_tab",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// DeleteBackward deletes backwards
+func (v *View) DeleteBackward() {
+	cmd := &EditCommand{
+		Method: "delete_backward",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// DeleteForward deletes forwards
+func (v *View) DeleteForward() {
+	cmd := &EditCommand{
+		Method: "delete_forward",
 		ViewID: v.ID,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)

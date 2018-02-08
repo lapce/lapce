@@ -18,8 +18,6 @@ type Editor struct {
 	width  int
 	height int
 
-	row int
-
 	view *View
 
 	updates chan interface{}
@@ -55,10 +53,11 @@ func NewEditor() (*Editor, error) {
 		case *xi.UpdateNotification:
 			e.view.applyUpdate(u)
 		case *xi.ScrollTo:
-			e.row = u.Line
+			e.view.scrollto(u.Col, u.Line)
 		}
 	})
 	e.xi.HandleUpdate = e.handleUpdate
+	e.xi.HandleScrollto = e.handleScrollto
 
 	e.app = widgets.NewQApplication(0, nil)
 	e.initMainWindow()
