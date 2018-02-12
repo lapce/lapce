@@ -122,9 +122,8 @@ func (e *Editor) initMainWindow() {
 	e.topFrame = &Frame{
 		width:  e.width,
 		height: e.height,
+		editor: e,
 	}
-	e.topFrame.vTop = e.topFrame
-	e.topFrame.hTop = e.topFrame
 	e.topWin = NewWindow(e, e.topFrame)
 	e.topWin.view.Move2(0, 0)
 	e.topWin.view.Resize2(e.width, e.height)

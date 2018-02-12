@@ -15,12 +15,9 @@ type Frame struct {
 	height   int
 	x        int
 	y        int
-	f1       *Frame
-	f2       *Frame
+	editor   *Editor
 	children []*Frame
 	parent   *Frame
-	vTop     *Frame
-	hTop     *Frame
 	win      *Window
 }
 
@@ -33,19 +30,29 @@ func (f *Frame) split(vertical bool) {
 	if win == nil {
 		return
 	}
-	newFrame := &Frame{}
+	newFrame := &Frame{editor: f.editor}
 	newWin := NewWindow(win.editor, newFrame)
 	newWin.loadBuffer(win.buffer)
 
 	parent := f.parent
 	if parent != nil && parent.vertical == vertical {
 		newFrame.parent = parent
-		parent.children = append(parent.children, newFrame)
+		children := []*Frame{}
+		for _, child := range parent.children {
+			if child == f {
+				children = append(children, child)
+				children = append(children, newFrame)
+			} else {
+				children = append(children, child)
+			}
+		}
+		parent.children = children
 	} else {
 		newFrame.parent = f
 		frame := &Frame{
 			parent: f,
 			win:    win,
+			editor: f.editor,
 		}
 		win.frame = frame
 		f.children = []*Frame{}
@@ -59,69 +66,6 @@ func (f *Frame) split(vertical bool) {
 
 func (f *Frame) hasChildren() bool {
 	return f.children != nil && len(f.children) > 0
-}
-
-func (f *Frame) splitOld(vertical bool) {
-	if f.f1 != nil || f.f2 != nil {
-		// can't split again
-		return
-	}
-	if f.vTop == nil && vertical {
-		f.vTop = f
-	}
-	if f.hTop == nil && !vertical {
-		f.hTop = f
-	}
-	f.vertical = vertical
-	f.f1 = &Frame{
-		parent: f,
-		vTop:   f.vTop,
-		hTop:   f.hTop,
-	}
-	f.f2 = &Frame{
-		parent: f,
-		vTop:   f.vTop,
-		hTop:   f.hTop,
-	}
-	if vertical {
-		f.f1.height = f.height
-		f.f2.height = f.height
-	} else {
-		f.f1.width = f.width
-		f.f2.width = f.width
-	}
-	f.equal(vertical)
-
-	if f.win == nil {
-		return
-	}
-
-	win := f.win
-	f.f1.win = win
-	win.frame = f.f1
-	newWin := NewWindow(win.editor, f.f2)
-	newWin.loadBuffer(win.buffer)
-	f.win = nil
-	win.editor.organizeWins()
-	win.view.SetFocus2()
-
-	return
-}
-
-func (f *Frame) equal(vertical bool) {
-	top := f.vTop
-	if !vertical {
-		top = f.hTop
-	}
-
-	value := top.width
-	if !vertical {
-		value = top.height
-	}
-	singleValue := value / top.countSplits(vertical)
-	fmt.Println("single value is", singleValue)
-	top.setSize(vertical, singleValue)
-	top.setPos(top.x, top.y)
 }
 
 func (f *Frame) setPos(x, y int) {
@@ -140,37 +84,6 @@ func (f *Frame) setPos(x, y int) {
 			y += child.height
 		}
 	}
-}
-
-func (f *Frame) setParentValue() {
-	if f.parent == nil {
-		return
-	}
-	p := f.parent
-	if p.parent == nil {
-		return
-	}
-	w1 := 0
-	w2 := 0
-	h1 := 0
-	h2 := 0
-
-	if p.f1 != nil {
-		w1 = p.f1.width
-		h1 = p.f1.height
-	}
-	if p.f2 != nil {
-		w2 = p.f2.width
-		h2 = p.f2.height
-	}
-	if p.vertical {
-		p.width = w1 + w2
-		p.height = Max(h1, h2)
-	} else {
-		p.width = Max(w1, w2)
-		p.height = h1 + h2
-	}
-	p.setParentValue()
 }
 
 func (f *Frame) setSize(vertical bool, singleValue int) {
@@ -208,76 +121,65 @@ func (f *Frame) exchange() {
 	if parent == nil {
 		return
 	}
-	var newFrame *Frame
-	if parent.f1 == nil || parent.f2 == nil {
+	if len(parent.children) == 1 {
 		parent.exchange()
-	} else {
-		if f == parent.f1 {
-			parent.f1, parent.f2 = parent.f2, parent.f1
-			newFrame = parent.f1
-		} else {
-			if parent.parent == nil {
-				newFrame = parent.f1
-				parent.f1, parent.f2 = parent.f2, parent.f1
-			} else {
-				if parent.parent.vertical == parent.vertical {
-					if parent.parent.f1 == parent && !parent.parent.f2.hasSplit() {
-						parent.f2, parent.parent.f2 = parent.parent.f2, parent.f2
-					}
-				} else {
-					parent.parent.exchange()
-				}
-			}
-			newFrame = parent.f2
-		}
-	}
-	if f.win == nil {
 		return
 	}
-	editor := f.win.editor
-	editor.topFrame.equal(true)
-	editor.topFrame.equal(false)
-	editor.organizeWins()
-	if newFrame != nil {
-		newFrame.setFocus()
-	} else {
-		f.setFocus()
+	i := 0
+	for index, child := range parent.children {
+		if child == f {
+			i = index
+			break
+		}
 	}
+
+	if i == len(parent.children)-1 {
+		parent.children[i], parent.children[i-1] = parent.children[i-1], parent.children[i]
+	} else {
+		parent.children[i], parent.children[i+1] = parent.children[i+1], parent.children[i]
+	}
+	f.editor.equalWins()
+	parent.children[i].setFocus()
 }
 
 func (f *Frame) setFocus() {
-	if !f.hasSplit() {
-		f.win.view.SetFocus2()
+	if f.hasChildren() {
+		f.children[0].setFocus()
 		return
 	}
-	if f.f1 != nil {
-		f.f1.setFocus()
-		return
-	}
-	f.f2.setFocus()
+	f.win.view.SetFocus2()
 }
 
-func (f *Frame) close() {
+func (f *Frame) close() *Frame {
 	if f.hasChildren() {
-		return
+		return nil
 	}
 	if f.parent == nil {
-		return
+		return nil
 	}
 	parent := f.parent
 	children := []*Frame{}
-	for _, child := range parent.children {
+	i := 0
+	for index, child := range parent.children {
 		if child != f {
 			children = append(children, child)
+		} else {
+			i = index
 		}
 	}
+	var newFocus *Frame
 	parent.children = children
 	if len(children) == 0 {
-		parent.close()
+		newFocus = parent.close()
+	} else {
+		if i > 0 {
+			i--
+		}
+		newFocus = children[i]
 	}
 	win := f.win
 	if win == nil {
-		return
+		return newFocus
 	}
 	editor := win.editor
 	editor.winsRWMutext.Lock()
@@ -285,38 +187,10 @@ func (f *Frame) close() {
 	editor.winsRWMutext.Unlock()
 	win.view.Hide()
 	editor.equalWins()
-}
-
-func (f *Frame) closeOld() {
-	if f.f1 != nil || f.f2 != nil {
-		// can't close frame that has children
-		return
+	if newFocus != nil {
+		newFocus.setFocus()
 	}
-
-	parent := f.parent
-	if parent == nil {
-		return
-	}
-
-	if f == parent.f1 {
-		parent.f1 = nil
-	} else {
-		parent.f2 = nil
-	}
-	if !parent.hasSplit() {
-		parent.close()
-	}
-	if f.win == nil {
-		return
-	}
-	editor := f.win.editor
-	editor.topFrame.equal(true)
-	editor.topFrame.equal(false)
-	editor.winsRWMutext.Lock()
-	delete(editor.wins, f.win.id)
-	editor.winsRWMutext.Unlock()
-	f.win.view.Hide()
-	f.win.editor.organizeWins()
+	return newFocus
 }
 
 func (f *Frame) countSplits(vertical bool) int {
@@ -337,10 +211,6 @@ func (f *Frame) countSplits(vertical bool) int {
 		}
 	}
 	return n
-}
-
-func (f *Frame) hasSplit() bool {
-	return f.f1 != nil || f.f2 != nil
 }
 
 // Window is for displaying a buffer
