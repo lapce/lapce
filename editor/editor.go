@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"fmt"
 	"sync"
 
 	xi "github.com/dzhou121/xi-go/xi-client"
@@ -136,8 +137,19 @@ func (e *Editor) initMainWindow() {
 	})
 }
 
+func (e *Editor) equalWins() {
+	itemWidth := e.width / e.topFrame.countSplits(true)
+	e.topFrame.setSize(true, itemWidth)
+	itemHeight := e.height / e.topFrame.countSplits(false)
+	e.topFrame.setSize(false, itemHeight)
+	fmt.Println("equalWins", itemWidth, itemHeight)
+	e.topFrame.setPos(0, 0)
+	e.organizeWins()
+}
+
 func (e *Editor) organizeWins() {
 	for _, win := range e.wins {
+		fmt.Println("win move and resize", win.frame.x, win.frame.y, win.frame.width, win.frame.height)
 		win.view.Resize2(win.frame.width, win.frame.height)
 		win.view.Move2(win.frame.x, win.frame.y)
 		win.view.Hide()
