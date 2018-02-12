@@ -116,6 +116,70 @@ func (f *Frame) setSize(vertical bool, singleValue int) {
 	}
 }
 
+func (f *Frame) focusAbove() {
+	editor := f.editor
+	editor.winsRWMutext.RLock()
+	defer editor.winsRWMutext.RUnlock()
+
+	for _, win := range editor.wins {
+		y := f.y - (win.frame.y + win.frame.height)
+		x1 := f.x - win.frame.x
+		x2 := f.x - (win.frame.x + win.frame.width)
+		if y < 1 && y >= 0 && x1 >= 0 && x2 < 0 {
+			win.frame.setFocus()
+			return
+		}
+	}
+}
+
+func (f *Frame) focusBelow() {
+	editor := f.editor
+	editor.winsRWMutext.RLock()
+	defer editor.winsRWMutext.RUnlock()
+
+	for _, win := range editor.wins {
+		y := win.frame.y - (f.y + f.height)
+		x1 := f.x - win.frame.x
+		x2 := f.x - (win.frame.x + win.frame.width)
+		if y < 1 && y >= 0 && x1 >= 0 && x2 < 0 {
+			win.frame.setFocus()
+			return
+		}
+	}
+}
+
+func (f *Frame) focusLeft() {
+	editor := f.editor
+	editor.winsRWMutext.RLock()
+	defer editor.winsRWMutext.RUnlock()
+
+	for _, win := range editor.wins {
+		x := f.x - (win.frame.x + win.frame.width)
+		y1 := f.y - win.frame.y
+		y2 := f.y - (win.frame.y + win.frame.height)
+		if x < 1 && x >= 0 && y1 >= 0 && y2 < 0 {
+			win.frame.setFocus()
+			return
+		}
+	}
+}
+
+func (f *Frame) focusRight() {
+	editor := f.editor
+	editor.winsRWMutext.RLock()
+	defer editor.winsRWMutext.RUnlock()
+
+	for _, win := range editor.wins {
+		x := win.frame.x - (f.x + f.width)
+		y1 := f.y - win.frame.y
+		y2 := f.y - (win.frame.y + win.frame.height)
+		if x < 1 && x >= 0 && y1 >= 0 && y2 < 0 {
+			win.frame.setFocus()
+			return
+		}
+	}
+}
+
 func (f *Frame) exchange() {
 	parent := f.parent
 	if parent == nil {
@@ -258,6 +322,18 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 				return
 			case "X":
 				w.frame.exchange()
+				return
+			case "L":
+				w.frame.focusRight()
+				return
+			case "H":
+				w.frame.focusLeft()
+				return
+			case "J":
+				w.frame.focusBelow()
+				return
+			case "K":
+				w.frame.focusAbove()
 				return
 			}
 			return
