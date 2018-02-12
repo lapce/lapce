@@ -64,15 +64,7 @@ func (f *Frame) split(vertical bool) {
 	newWin := NewWindow(win.editor, f.f2)
 	newWin.loadBuffer(win.buffer)
 	f.win = nil
-
-	for _, win := range win.editor.wins {
-		win.view.Resize2(win.frame.width, win.frame.height)
-		win.view.Move2(win.frame.x, win.frame.y)
-		fmt.Println(win.frame.x, win.frame.y, win.frame.width, win.frame.height)
-		win.view.Hide()
-		win.view.Show()
-	}
-
+	win.editor.organizeWins()
 	win.view.SetFocus2()
 
 	return
@@ -197,16 +189,31 @@ func (f *Frame) close() {
 		// can't close frame that has children
 		return
 	}
-	if f.parent.f1 == f {
-		f.parent.f1 = nil
-	} else {
-		f.parent.f2 = nil
+
+	parent := f.parent
+	if parent == nil {
+		return
 	}
-	if !f.parent.hasSplit() {
-		f.parent.close()
+
+	if f == parent.f1 {
+		parent.f1 = nil
 	} else {
-		f.parent.equal(f.parent.vertical)
+		parent.f2 = nil
 	}
+	if !parent.hasSplit() {
+		parent.close()
+	}
+	if f.win == nil {
+		return
+	}
+	editor := f.win.editor
+	editor.topFrame.equal(true)
+	editor.topFrame.equal(false)
+	editor.winsRWMutext.Lock()
+	delete(editor.wins, f.win.id)
+	editor.winsRWMutext.Unlock()
+	f.win.view.Hide()
+	f.win.editor.organizeWins()
 }
 
 func (f *Frame) countSplits(vertical bool) int {

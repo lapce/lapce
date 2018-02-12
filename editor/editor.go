@@ -122,6 +122,8 @@ func (e *Editor) initMainWindow() {
 		width:  e.width,
 		height: e.height,
 	}
+	e.topFrame.vTop = e.topFrame
+	e.topFrame.hTop = e.topFrame
 	e.topWin = NewWindow(e, e.topFrame)
 	e.topWin.view.Move2(0, 0)
 	e.topWin.view.Resize2(e.width, e.height)
@@ -132,6 +134,15 @@ func (e *Editor) initMainWindow() {
 	e.initOnce.Do(func() {
 		close(e.init)
 	})
+}
+
+func (e *Editor) organizeWins() {
+	for _, win := range e.wins {
+		win.view.Resize2(win.frame.width, win.frame.height)
+		win.view.Move2(win.frame.x, win.frame.y)
+		win.view.Hide()
+		win.view.Show()
+	}
 }
 
 // Run the main thread
