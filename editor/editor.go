@@ -6,6 +6,7 @@ import (
 
 	xi "github.com/dzhou121/xi-go/xi-client"
 	"github.com/therecipe/qt/core"
+	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
 )
 
@@ -112,6 +113,12 @@ func (e *Editor) initMainWindow() {
 	e.window.SetWindowTitle("Gonvim")
 	e.window.SetContentsMargins(0, 0, 0, 0)
 	e.window.SetMinimumSize2(e.width, e.height)
+	e.window.ConnectResizeEvent(func(event *gui.QResizeEvent) {
+		rect := e.window.Rect()
+		e.width = rect.Width()
+		e.height = rect.Height()
+		e.equalWins()
+	})
 
 	// NewView(e)
 
