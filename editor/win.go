@@ -1,5 +1,13 @@
 package editor
 
+import (
+	"fmt"
+
+	"github.com/therecipe/qt/core"
+	"github.com/therecipe/qt/gui"
+	"github.com/therecipe/qt/widgets"
+)
+
 // Frame is
 type Frame struct {
 	vertical bool
@@ -12,11 +20,12 @@ type Frame struct {
 	parent   *Frame
 	vTop     *Frame
 	hTop     *Frame
+	win      *Window
 }
 
 func (f *Frame) split(vertical bool) {
 	if f.f1 != nil || f.f2 != nil {
-		// alreday split can't split again
+		// can't split again
 		return
 	}
 	if f.vTop == nil && vertical {
@@ -36,7 +45,37 @@ func (f *Frame) split(vertical bool) {
 		vTop:   f.vTop,
 		hTop:   f.hTop,
 	}
+	if vertical {
+		f.f1.height = f.height
+		f.f2.height = f.height
+	} else {
+		f.f1.width = f.width
+		f.f2.width = f.width
+	}
 	f.equal(vertical)
+
+	if f.win == nil {
+		return
+	}
+
+	win := f.win
+	f.f1.win = win
+	win.frame = f.f1
+	newWin := NewWindow(win.editor, f.f2)
+	newWin.loadBuffer(win.buffer)
+	f.win = nil
+
+	for _, win := range win.editor.wins {
+		win.view.Resize2(win.frame.width, win.frame.height)
+		win.view.Move2(win.frame.x, win.frame.y)
+		fmt.Println(win.frame.x, win.frame.y, win.frame.width, win.frame.height)
+		win.view.Hide()
+		win.view.Show()
+	}
+
+	win.view.SetFocus2()
+
+	return
 }
 
 func (f *Frame) equal(vertical bool) {
@@ -50,11 +89,18 @@ func (f *Frame) equal(vertical bool) {
 		value = top.height
 	}
 	singleValue := value / top.countSplits(vertical)
+	fmt.Println("single value is", singleValue)
 	top.setSize(vertical, singleValue)
 	top.setPos(top.x, top.y)
 }
 
 func (f *Frame) setPos(x, y int) {
+	if !f.hasSplit() {
+		f.x = x
+		f.y = y
+		// set pos
+		return
+	}
 	if f.f1 == nil {
 		f.f2.setPos(x, y)
 		return
@@ -72,6 +118,37 @@ func (f *Frame) setPos(x, y int) {
 	f.f2.setPos(x, y+f.f1.height)
 }
 
+func (f *Frame) setParentValue() {
+	if f.parent == nil {
+		return
+	}
+	p := f.parent
+	if p.parent == nil {
+		return
+	}
+	w1 := 0
+	w2 := 0
+	h1 := 0
+	h2 := 0
+
+	if p.f1 != nil {
+		w1 = p.f1.width
+		h1 = p.f1.height
+	}
+	if p.f2 != nil {
+		w2 = p.f2.width
+		h2 = p.f2.height
+	}
+	if p.vertical {
+		p.width = w1 + w2
+		p.height = Max(h1, h2)
+	} else {
+		p.width = Max(w1, w2)
+		p.height = h1 + h2
+	}
+	p.setParentValue()
+}
+
 func (f *Frame) setSize(vertical bool, singleValue int) {
 	if !f.hasSplit() {
 		if vertical {
@@ -79,6 +156,7 @@ func (f *Frame) setSize(vertical bool, singleValue int) {
 		} else {
 			f.height = singleValue
 		}
+		f.setParentValue()
 		// set value
 		return
 	}
@@ -151,4 +229,94 @@ func (f *Frame) countSplits(vertical bool) int {
 
 func (f *Frame) hasSplit() bool {
 	return f.f1 != nil || f.f2 != nil
+}
+
+// Window is for displaying a buffer
+type Window struct {
+	id     int
+	editor *Editor
+	view   *widgets.QGraphicsView
+	frame  *Frame
+	buffer *Buffer
+}
+
+// NewWindow creates a new window
+func NewWindow(editor *Editor, frame *Frame) *Window {
+	editor.winsRWMutext.Lock()
+	w := &Window{
+		id:     editor.winIndex,
+		editor: editor,
+		frame:  frame,
+		view:   widgets.NewQGraphicsView(nil),
+	}
+	frame.win = w
+	editor.winIndex++
+	editor.wins[w.id] = w
+	editor.winsRWMutext.Unlock()
+
+	w.view.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
+		if w.buffer == nil {
+			return
+		}
+		if event.Modifiers()&core.Qt__ControlModifier > 0 {
+			switch string(event.Key()) {
+			case "V":
+				fmt.Println("split vertical")
+				w.frame.split(true)
+				return
+			case "S":
+				fmt.Println("split horizontal")
+				w.frame.split(false)
+				return
+			case "W":
+				fmt.Println("close split")
+				w.frame.close()
+				return
+			}
+			return
+		}
+
+		switch core.Qt__Key(event.Key()) {
+		case core.Qt__Key_Return, core.Qt__Key_Enter:
+			w.buffer.xiView.InsertNewline()
+			return
+		case core.Qt__Key_Up:
+			w.buffer.xiView.MoveUp()
+			return
+		case core.Qt__Key_Down:
+			w.buffer.xiView.MoveDown()
+			return
+		case core.Qt__Key_Right:
+			w.buffer.xiView.MoveRight()
+			return
+		case core.Qt__Key_Left:
+			w.buffer.xiView.MoveLeft()
+			return
+		case core.Qt__Key_Tab, core.Qt__Key_Backtab:
+			w.buffer.xiView.InsertTab()
+			return
+		case core.Qt__Key_Backspace:
+			w.buffer.xiView.DeleteBackward()
+			return
+		case core.Qt__Key_Delete:
+			w.buffer.xiView.DeleteForward()
+			return
+		case core.Qt__Key_Escape:
+			return
+		default:
+		}
+		w.buffer.xiView.Insert(event.Text())
+	})
+	w.view.ConnectScrollContentsBy(func(dx, dy int) {
+		w.view.ScrollContentsByDefault(dx, dy)
+	})
+	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
+	w.view.SetParent(editor.centralWidget)
+
+	return w
+}
+
+func (w *Window) loadBuffer(buffer *Buffer) {
+	w.buffer = buffer
+	w.view.SetScene(buffer.scence)
 }

@@ -45,7 +45,42 @@ func TestFrameCount(t *testing.T) {
 	frame.f1.f1.f1.f1.split(true)
 	assert.Equal(t, 4, frame.f1.f2.f1.width)
 	assert.Equal(t, 4, frame.f1.f2.f2.width)
-	assert.Equal(t, 2, frame.f1.f1.f1.f1.width)
+	assert.Equal(t, 2, frame.f1.f1.f1.f1.f1.width)
 	assert.Equal(t, 2, frame.f1.f1.f1.f2.width)
 	assert.Equal(t, 2, frame.f1.f1.f2.width)
+
+	frame = &Frame{width: 6, height: 2}
+	frame.split(true)
+	frame.f1.split(false)
+	frame.f1.f1.split(true)
+
+	assert.Equal(t, 0, frame.x)
+	assert.Equal(t, 0, frame.y)
+	assert.Equal(t, 6, frame.width)
+	assert.Equal(t, 2, frame.height)
+
+	assert.Equal(t, 0, frame.f1.x)
+	assert.Equal(t, 0, frame.f1.y)
+	assert.Equal(t, 4, frame.f1.width)
+	assert.Equal(t, 2, frame.f1.height)
+
+	assert.Equal(t, 4, frame.f1.f1.width)
+	assert.Equal(t, 1, frame.f1.f1.height)
+
+	assert.Equal(t, 2, frame.f1.f1.f1.width)
+	assert.Equal(t, 1, frame.f1.f1.f1.height)
+
+	assert.Equal(t, 2, frame.f1.f1.f2.width)
+	assert.Equal(t, 1, frame.f1.f1.f2.height)
+
+	// assert.Equal(t, 2, frame.f1.f1.f1.width)
+	// assert.Equal(t, 2, frame.f1.f1.f2.width)
+
+	// assert.Equal(t, 0, frame.f1.f2.x)
+	// assert.Equal(t, 1, frame.f1.f2.y)
+	// assert.Equal(t, 4, frame.f1.f2.width)
+
+	// assert.Equal(t, 4, frame.f2.x)
+	// assert.Equal(t, 0, frame.f2.y)
+	// assert.Equal(t, 2, frame.f2.width)
 }

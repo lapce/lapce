@@ -52,6 +52,13 @@ func NewView(e *Editor) *View {
 		if view.xiView == nil {
 			return
 		}
+		if event.Modifiers()&core.Qt__ControlModifier > 0 {
+			switch string(event.Key()) {
+			case "V":
+				fmt.Println("split vertical")
+			}
+			return
+		}
 
 		switch core.Qt__Key(event.Key()) {
 		case core.Qt__Key_Return, core.Qt__Key_Enter:
