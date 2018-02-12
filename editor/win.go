@@ -148,6 +148,7 @@ func (f *Frame) setFocus() {
 		return
 	}
 	f.win.view.SetFocus2()
+	f.editor.activeWin = f.win
 }
 
 func (f *Frame) close() *Frame {
@@ -237,6 +238,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	editor.winsRWMutext.Unlock()
 
 	w.view.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
+		editor.activeWin = w
 		if w.buffer == nil {
 			return
 		}
@@ -293,6 +295,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		w.buffer.xiView.Insert(event.Text())
 	})
 	w.view.ConnectScrollContentsBy(func(dx, dy int) {
+		editor.activeWin = w
 		w.view.ScrollContentsByDefault(dx, dy)
 	})
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
@@ -304,4 +307,16 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 func (w *Window) loadBuffer(buffer *Buffer) {
 	w.buffer = buffer
 	w.view.SetScene(buffer.scence)
+}
+
+func (w *Window) scrollto(col, row int) {
+	b := w.buffer
+	w.view.EnsureVisible2(
+		b.font.fontMetrics.Width(b.lines[row].text[:col])-0.5,
+		float64(row)*b.font.lineHeight,
+		1,
+		b.font.lineHeight,
+		20,
+		20,
+	)
 }

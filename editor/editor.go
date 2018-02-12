@@ -23,6 +23,7 @@ type Editor struct {
 	buffers        map[string]*Buffer
 	buffersRWMutex sync.RWMutex
 
+	activeWin    *Window
 	winIndex     int
 	wins         map[int]*Window
 	winsRWMutext sync.RWMutex
@@ -73,7 +74,16 @@ func NewEditor() (*Editor, error) {
 			}
 			buffer.applyUpdate(u)
 		case *xi.ScrollTo:
-			// e.view.scrollto(u.Col, u.Line)
+			if e.activeWin == nil {
+				return
+			}
+			if e.activeWin.buffer == nil {
+				return
+			}
+			if e.activeWin.buffer.xiView.ID != u.ViewID {
+				return
+			}
+			e.activeWin.scrollto(u.Col, u.Line)
 		}
 	})
 	e.xi.HandleUpdate = e.handleUpdate

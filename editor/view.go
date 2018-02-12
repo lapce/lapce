@@ -114,23 +114,31 @@ func NewView(e *Editor) *View {
 }
 
 func (v *View) scrollto(col, row int) {
-	if v.cursor == nil {
-		v.cursor = v.scence.AddRect2(
-			0,
-			0,
-			1,
-			v.font.lineHeight,
-			gui.NewQPen(),
-			gui.NewQBrush3(gui.NewQColor3(0, 0, 0, 255), core.Qt__SolidPattern))
-	}
-	if row >= len(v.lines) {
-		row = len(v.lines) - 1
-	}
-	v.cursor.SetPos2(
-		v.font.fontMetrics.Width(v.lines[row].text[:col])-0.5,
-		float64(row)*v.font.lineHeight)
-	v.view.EnsureVisible3(v.cursor, 20, 20)
+	// if v.cursor == nil {
+	// 	v.cursor = v.scence.AddRect2(
+	// 		0,
+	// 		0,
+	// 		1,
+	// 		v.font.lineHeight,
+	// 		gui.NewQPen(),
+	// 		gui.NewQBrush3(gui.NewQColor3(0, 0, 0, 255), core.Qt__SolidPattern))
+	// }
+	// if row >= len(v.lines) {
+	// 	row = len(v.lines) - 1
+	// }
+	// v.cursor.SetPos2(
+	// 	v.font.fontMetrics.Width(v.lines[row].text[:col])-0.5,
+	// 	)
+	// v.view.EnsureVisible3(v.cursor, 20, 20)
 
+	v.view.EnsureVisible2(
+		v.font.fontMetrics.Width(v.lines[row].text[:col])-0.5,
+		float64(row)*v.font.lineHeight,
+		1,
+		v.font.lineHeight,
+		20,
+		20,
+	)
 }
 
 func (v *View) height() int {
