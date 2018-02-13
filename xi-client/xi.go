@@ -302,11 +302,11 @@ func (v *View) Insert(chars string) {
 }
 
 // Scroll sets
-func (v *View) Scroll() {
+func (v *View) Scroll(start, end int) {
 	cmd := &EditCommand{
 		Method: "scroll",
 		ViewID: v.ID,
-		Params: []int{0, 20},
+		Params: []int{start, end},
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }

@@ -103,7 +103,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 			ix := curLine - b.nInvalidBefore
 			if ix+n > 0 && ix < len(b.lines) {
 				for i := Max(ix, 0); i < Min(ix+n, len(b.lines)); i++ {
-					if b.lines[i] != nil {
+					if b.getLine(i) != nil {
 						inval = append(inval, []int{i + b.nInvalidBefore, i + b.nInvalidBefore + 1})
 					}
 				}
@@ -127,7 +127,6 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 				})
 			}
 		case "copy", "update":
-			n := op.N
 			nRemaining := n
 			if oldIx < b.nInvalidBefore {
 				nInvalid := Min(n, b.nInvalidBefore-oldIx)
@@ -150,10 +149,17 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 				}
 				startIx := oldIx - b.nInvalidBefore
 				if op.Op == "copy" {
-					newLines = append(newLines, b.lines[startIx:startIx+nCopy]...)
-				} else {
 					for ix := startIx; ix < startIx+nCopy; ix++ {
-						newLines = append(newLines, b.lines[ix])
+						newLines = append(newLines, b.getLine(ix))
+					}
+				} else {
+					jsonIx := n - nRemaining
+					for ix := startIx; ix < startIx+nCopy; ix++ {
+						if b.lines[ix] != nil && len(op.Lines[jsonIx].Styles) > 0 {
+							b.lines[ix].styles = op.Lines[jsonIx].Styles
+						}
+						newLines = append(newLines, b.getLine(ix))
+						jsonIx++
 					}
 				}
 				oldIx += nCopy
@@ -223,6 +229,20 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	rect.SetTop(0)
 	rect.SetWidth(rect.Width() + 20)
 	b.scence.SetSceneRect(rect)
+}
+
+func (b *Buffer) getLine(ix int) *Line {
+	if b.nInvalidBefore > 0 {
+		fmt.Println("get line invalid before")
+	}
+	if ix < b.nInvalidBefore {
+		return nil
+	}
+	ix = ix - b.nInvalidBefore
+	if ix < len(b.lines) {
+		return b.lines[ix]
+	}
+	return nil
 }
 
 func (b *Buffer) getCharFormat(styleID int) *gui.QTextCharFormat {

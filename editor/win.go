@@ -33,6 +33,10 @@ func (f *Frame) split(vertical bool) {
 	newFrame := &Frame{editor: f.editor}
 	newWin := NewWindow(win.editor, newFrame)
 	newWin.loadBuffer(win.buffer)
+	newWin.row = win.row
+	newWin.col = win.col
+	newWin.cursorX = win.cursorX
+	newWin.cursorY = win.cursorY
 
 	parent := f.parent
 	if parent != nil && parent.vertical == vertical {
@@ -61,7 +65,9 @@ func (f *Frame) split(vertical bool) {
 		f.children = append(f.children, frame, newFrame)
 	}
 	win.editor.equalWins()
-	win.view.SetFocus2()
+	newWin.view.HorizontalScrollBar().SetValue(win.view.HorizontalScrollBar().Value())
+	newWin.view.VerticalScrollBar().SetValue(win.view.VerticalScrollBar().Value())
+	f.setFocus()
 }
 
 func (f *Frame) hasChildren() bool {
@@ -295,6 +301,8 @@ type Window struct {
 	cursorY int
 	row     int
 	col     int
+	start   int
+	end     int
 }
 
 // NewWindow creates a new window
@@ -351,6 +359,8 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 			case "K":
 				w.frame.focusAbove()
 				return
+			default:
+				return
 			}
 			return
 		}
@@ -387,9 +397,10 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		w.buffer.xiView.Insert(event.Text())
 	})
 	w.view.ConnectScrollContentsBy(func(dx, dy int) {
-		editor.activeWin = w
 		w.view.ScrollContentsByDefault(dx, dy)
+		w.setScroll()
 	})
+	w.view.SetFocusPolicy(core.Qt__ClickFocus)
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
 	w.view.SetParent(editor.centralWidget)
 	w.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
@@ -400,6 +411,12 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	}
 
 	return w
+}
+
+func (w *Window) setScroll() {
+	w.start = int(float64(w.view.VerticalScrollBar().Value()) / w.buffer.font.lineHeight)
+	w.end = w.start + int(float64(w.frame.height)/w.buffer.font.lineHeight+1)
+	w.buffer.xiView.Scroll(w.start, w.end)
 }
 
 func (w *Window) loadBuffer(buffer *Buffer) {

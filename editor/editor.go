@@ -235,6 +235,7 @@ func (e *Editor) initMainWindow() {
 	e.topWin.view.Move2(0, 0)
 	e.topWin.view.Resize2(e.width, e.height)
 	e.topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/xi-editor/rust/core-lib/src/rpc.rs"))
+	e.topWin.setScroll()
 
 	e.cursor = widgets.NewQWidget(nil, 0)
 	e.cursor.Resize2(1, 20)
@@ -277,6 +278,7 @@ func (e *Editor) organizeWins() {
 		win.view.Move2(win.frame.x, win.frame.y)
 		win.view.Hide()
 		win.view.Show()
+		win.setScroll()
 	}
 }
 
