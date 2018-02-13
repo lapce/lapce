@@ -104,19 +104,13 @@ func NewEditor() (*Editor, error) {
 			e.stylesRWMutext.Unlock()
 		case *xi.Theme:
 			e.theme = u
-			bg := u.Theme.Background
 			fg := u.Theme.Foreground
-			fmt.Println("set theme", bg)
-			e.bgBrush.SetColor(gui.NewQColor3(bg.R, bg.G, bg.B, bg.A))
-			e.bgBrush.SetStyle(core.Qt__SolidPattern)
-			e.fgBrush.SetColor(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A))
-			e.fgBrush.SetStyle(core.Qt__SolidPattern)
 			e.cursor.SetStyleSheet(fmt.Sprintf("background-color: rgba(%d, %d, %d, 1);", fg.R, fg.G, fg.B))
+			scrollBarStyleSheet := e.getScrollbarStylesheet()
 			e.winsRWMutext.RLock()
 			defer e.winsRWMutext.RUnlock()
 			for _, win := range e.wins {
-				// win.buffer.scence.SetBackgroundBrush(e.bgBrush)
-				win.view.SetBackgroundBrush(e.bgBrush)
+				win.view.SetStyleSheet(scrollBarStyleSheet)
 			}
 		}
 	})
@@ -127,6 +121,74 @@ func NewEditor() (*Editor, error) {
 	e.initMainWindow()
 
 	return e, nil
+}
+
+func (e *Editor) getScrollbarStylesheet() string {
+	bg := e.theme.Theme.Background
+	guide := e.theme.Theme.LineHighlight
+	backgroundColor := fmt.Sprintf("rgba(%d, %d, %d, 1);", bg.R, bg.G, bg.B)
+	guideColor := fmt.Sprintf("rgba(%d, %d, %d, %f);", guide.R, guide.G, guide.B, float64(guide.A)/255)
+	fmt.Println(guideColor)
+	scrollBarStyleSheet := fmt.Sprintf(`
+			QWidget {
+			    background: %s;
+			}
+			QWidget#view {
+				border-right: 1px solid #000;
+				border-bottom: 1px solid #000;
+			}
+			QScrollBar:horizontal {
+			    border: 0px solid grey;
+			    background: %s;
+			    height: 10px;
+			}
+			QScrollBar::handle:horizontal {
+			    background-color: %s;
+			    min-width: 20px;
+				margin: 3px 0px 3px 0px;
+			}
+			QScrollBar::add-line:horizontal {
+			    border: 0px solid grey;
+			    background: #32CC99;
+			    width: 0;
+			    subcontrol-position: right;
+			    subcontrol-origin: margin;
+			}
+			QScrollBar::sub-line:horizontal {
+			    border: 0px solid grey;
+			    background: #32CC99;
+			    width: 0px;
+			    subcontrol-position: left;
+			    subcontrol-origin: margin;
+			}
+			QScrollBar:vertical {
+			    border: 0px solid;
+			    background: %s;
+			    width: 10px;
+                margin: 0px 0px 0px 0px;
+			}
+			QScrollBar::handle:vertical {
+			    background-color: %s;
+			    min-height: 20px;
+				margin: 0px 3px 0px 3px;
+			}
+			QScrollBar::add-line:vertical {
+			    border: 0px solid grey;
+			    background: #32CC99;
+			    height: 0;
+			    subcontrol-position: bottom;
+			    subcontrol-origin: margin;
+			}
+			QScrollBar::sub-line:vertical {
+			    border: 0px solid grey;
+			    background: #32CC99;
+			    height: 0px;
+			    subcontrol-position: top;
+			    subcontrol-origin: margin;
+			}
+			`,
+		backgroundColor, backgroundColor, guideColor, backgroundColor, guideColor)
+	return scrollBarStyleSheet
 }
 
 func (e *Editor) handleXiNotification(update interface{}) {

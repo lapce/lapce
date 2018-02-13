@@ -311,8 +311,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	editor.wins[w.id] = w
 	editor.winsRWMutext.Unlock()
 
-	w.view.SetContentsMargins(0, 0, 0, 0)
-	w.view.SetFrameShape(widgets.QFrame__NoFrame)
+	// w.view.SetFrameShape(widgets.QFrame__NoFrame)
 	w.view.ConnectMousePressEvent(func(event *gui.QMouseEvent) {
 		editor.activeWin = w
 		editor.cursor.SetParent(w.view)
@@ -393,7 +392,12 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	})
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
 	w.view.SetParent(editor.centralWidget)
-	w.view.SetBackgroundBrush(editor.bgBrush)
+	w.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
+	w.view.SetObjectName("view")
+	if editor.theme != nil {
+		scrollBarStyleSheet := editor.getScrollbarStylesheet()
+		w.view.SetStyleSheet(scrollBarStyleSheet)
+	}
 
 	return w
 }

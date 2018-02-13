@@ -201,8 +201,13 @@ type Theme struct {
 	Name  string `json:"name"`
 	Theme struct {
 		Accent      interface{} `json:"accent"`
-		ActiveGuide interface{} `json:"active_guide"`
-		Background  struct {
+		ActiveGuide struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"active_guide"`
+		Background struct {
 			A int `json:"a"`
 			B int `json:"b"`
 			G int `json:"g"`
@@ -227,7 +232,12 @@ type Theme struct {
 			G int `json:"g"`
 			R int `json:"r"`
 		} `json:"foreground"`
-		Guide                       interface{} `json:"guide"`
+		Guide struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"guide"`
 		Gutter                      interface{} `json:"gutter"`
 		GutterForeground            interface{} `json:"gutter_foreground"`
 		Highlight                   interface{} `json:"highlight"`
@@ -254,9 +264,14 @@ type Theme struct {
 		SelectionBorder     interface{} `json:"selection_border"`
 		SelectionForeground interface{} `json:"selection_foreground"`
 		Shadow              interface{} `json:"shadow"`
-		StackGuide          interface{} `json:"stack_guide"`
-		TagsForeground      interface{} `json:"tags_foreground"`
-		TagsOptions         interface{} `json:"tags_options"`
+		StackGuide          struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"stack_guide"`
+		TagsForeground interface{} `json:"tags_foreground"`
+		TagsOptions    interface{} `json:"tags_options"`
 	} `json:"theme"`
 }
 
