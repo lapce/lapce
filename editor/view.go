@@ -29,7 +29,9 @@ type View struct {
 
 // Line is
 type Line struct {
-	text string
+	text   string
+	styles []int
+	cursor []int
 }
 
 // NewView creates a new view

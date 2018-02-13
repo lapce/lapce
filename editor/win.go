@@ -211,8 +211,14 @@ func (f *Frame) setFocus() {
 		f.children[0].setFocus()
 		return
 	}
-	f.win.view.SetFocus2()
+	w := f.win
+	w.view.SetFocus2()
 	f.editor.activeWin = f.win
+	f.editor.cursor.SetParent(f.win.view)
+	f.editor.cursor.Move2(w.cursorX, w.cursorY)
+	f.editor.cursor.Hide()
+	f.editor.cursor.Show()
+	w.buffer.xiView.Click(w.row, w.col)
 }
 
 func (f *Frame) close() *Frame {
@@ -280,11 +286,15 @@ func (f *Frame) countSplits(vertical bool) int {
 
 // Window is for displaying a buffer
 type Window struct {
-	id     int
-	editor *Editor
-	view   *widgets.QGraphicsView
-	frame  *Frame
-	buffer *Buffer
+	id      int
+	editor  *Editor
+	view    *widgets.QGraphicsView
+	frame   *Frame
+	buffer  *Buffer
+	cursorX int
+	cursorY int
+	row     int
+	col     int
 }
 
 // NewWindow creates a new window
@@ -301,6 +311,13 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	editor.wins[w.id] = w
 	editor.winsRWMutext.Unlock()
 
+	w.view.SetContentsMargins(0, 0, 0, 0)
+	w.view.SetFrameShape(widgets.QFrame__NoFrame)
+	w.view.ConnectMousePressEvent(func(event *gui.QMouseEvent) {
+		editor.activeWin = w
+		editor.cursor.SetParent(w.view)
+		w.view.MousePressEventDefault(event)
+	})
 	w.view.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
 		editor.activeWin = w
 		if w.buffer == nil {
@@ -376,6 +393,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	})
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
 	w.view.SetParent(editor.centralWidget)
+	w.view.SetBackgroundBrush(editor.bgBrush)
 
 	return w
 }
@@ -387,12 +405,25 @@ func (w *Window) loadBuffer(buffer *Buffer) {
 
 func (w *Window) scrollto(col, row int) {
 	b := w.buffer
+	x := b.font.fontMetrics.Width(b.lines[row].text[:col]) - 0.5
+	y := float64(row) * b.font.lineHeight
 	w.view.EnsureVisible2(
-		b.font.fontMetrics.Width(b.lines[row].text[:col])-0.5,
-		float64(row)*b.font.lineHeight,
+		x,
+		y,
 		1,
 		b.font.lineHeight,
 		20,
 		20,
 	)
+	x -= float64(w.view.HorizontalScrollBar().Value())
+	y -= float64(w.view.VerticalScrollBar().Value())
+	w.row = row
+	w.col = col
+	w.cursorX = int(x + 0.5)
+	w.cursorY = int(y + 0.5)
+	cursor := w.editor.cursor
+	cursor.Move2(w.cursorX, w.cursorY)
+	cursor.Resize2(1, int(b.font.lineHeight+0.5))
+	cursor.Hide()
+	cursor.Show()
 }

@@ -17,9 +17,17 @@ type Editor struct {
 	scence        *widgets.QGraphicsScene
 	centralWidget *widgets.QWidget
 	signal        *editorSignal
+	cursor        *widgets.QWidget
+
+	theme   *xi.Theme
+	bgBrush *gui.QBrush
+	fgBrush *gui.QBrush
 
 	topWin   *Window
 	topFrame *Frame
+
+	styles         map[int]*Style
+	stylesRWMutext sync.RWMutex
 
 	buffers        map[string]*Buffer
 	buffersRWMutex sync.RWMutex
@@ -54,9 +62,12 @@ func NewEditor() (*Editor, error) {
 		init:    make(chan struct{}),
 		buffers: map[string]*Buffer{},
 		wins:    map[int]*Window{},
+		styles:  map[int]*Style{},
+		bgBrush: gui.NewQBrush(),
+		fgBrush: gui.NewQBrush(),
 	}
 
-	xiClient, err := xi.New()
+	xiClient, err := xi.New(e.handleXiNotification)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +96,32 @@ func NewEditor() (*Editor, error) {
 				return
 			}
 			e.activeWin.scrollto(u.Col, u.Line)
+		case *xi.Style:
+			e.stylesRWMutext.Lock()
+			e.styles[u.ID] = &Style{
+				fg: colorFromARBG(u.FgColor),
+			}
+			e.stylesRWMutext.Unlock()
+		case *xi.Theme:
+			e.theme = u
+			bg := u.Theme.Background
+			fg := u.Theme.Foreground
+			fmt.Println("set theme", bg)
+			e.bgBrush.SetColor(gui.NewQColor3(bg.R, bg.G, bg.B, bg.A))
+			e.bgBrush.SetStyle(core.Qt__SolidPattern)
+			e.fgBrush.SetColor(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A))
+			e.fgBrush.SetStyle(core.Qt__SolidPattern)
+			e.cursor.SetStyleSheet(fmt.Sprintf("background-color: rgba(%d, %d, %d, 1);", fg.R, fg.G, fg.B))
+			e.winsRWMutext.RLock()
+			defer e.winsRWMutext.RUnlock()
+			for _, win := range e.wins {
+				// win.buffer.scence.SetBackgroundBrush(e.bgBrush)
+				win.view.SetBackgroundBrush(e.bgBrush)
+			}
 		}
 	})
-	e.xi.HandleUpdate = e.handleUpdate
-	e.xi.HandleScrollto = e.handleScrollto
+	e.xi.ClientStart()
+	e.xi.SetTheme()
 
 	e.app = widgets.NewQApplication(0, nil)
 	e.initMainWindow()
@@ -96,13 +129,8 @@ func NewEditor() (*Editor, error) {
 	return e, nil
 }
 
-func (e *Editor) handleUpdate(update *xi.UpdateNotification) {
+func (e *Editor) handleXiNotification(update interface{}) {
 	e.updates <- update
-	e.signal.UpdateSignal()
-}
-
-func (e *Editor) handleScrollto(scrollto *xi.ScrollTo) {
-	e.updates <- scrollto
 	e.signal.UpdateSignal()
 }
 
@@ -144,13 +172,28 @@ func (e *Editor) initMainWindow() {
 	e.topWin = NewWindow(e, e.topFrame)
 	e.topWin.view.Move2(0, 0)
 	e.topWin.view.Resize2(e.width, e.height)
-	e.topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/Downloads/layout.txt"))
+	e.topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/xi-editor/rust/core-lib/src/rpc.rs"))
 
+	e.cursor = widgets.NewQWidget(nil, 0)
+	e.cursor.Resize2(1, 20)
+	e.cursor.SetStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+	e.cursor.Show()
+	e.topFrame.setFocus()
 	e.window.Show()
 
 	e.initOnce.Do(func() {
 		close(e.init)
 	})
+}
+
+func (e *Editor) getStyle(id int) *Style {
+	e.stylesRWMutext.RLock()
+	defer e.stylesRWMutext.RUnlock()
+	style, ok := e.styles[id]
+	if !ok {
+		return nil
+	}
+	return style
 }
 
 func (e *Editor) equalWins() {
@@ -164,6 +207,8 @@ func (e *Editor) equalWins() {
 }
 
 func (e *Editor) organizeWins() {
+	e.winsRWMutext.RLock()
+	defer e.winsRWMutext.RUnlock()
 	for _, win := range e.wins {
 		fmt.Println("win move and resize", win.frame.x, win.frame.y, win.frame.width, win.frame.height)
 		win.view.Resize2(win.frame.width, win.frame.height)

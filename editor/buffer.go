@@ -4,13 +4,24 @@ import (
 	"fmt"
 
 	xi "github.com/dzhou121/xi-go/xi-client"
+	"github.com/therecipe/qt/core"
+	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
 )
 
+// ScenceLine is
+type ScenceLine struct {
+	line       *widgets.QGraphicsTextItem
+	textCursor *gui.QTextCursor
+	document   *gui.QTextDocument
+}
+
 // Buffer is
 type Buffer struct {
+	editor      *Editor
 	scence      *widgets.QGraphicsScene
-	scenceLines map[int]*widgets.QGraphicsTextItem
+	scenceLines map[int]*ScenceLine
+	charFormat  *gui.QTextCharFormat
 	font        *Font
 
 	nInvalidBefore int
@@ -20,11 +31,40 @@ type Buffer struct {
 	xiView         *xi.View
 }
 
+// Color is
+type Color struct {
+	R int
+	G int
+	B int
+	A int
+}
+
+// Style is
+type Style struct {
+	fg *Color
+	bg *Color
+}
+
+func colorFromARBG(argb int) *Color {
+	a := (argb >> 24) & 0xff
+	r := (argb >> 16) & 0xff
+	g := (argb >> 8) & 0xff
+	b := argb & 0xff
+	return &Color{
+		A: a,
+		R: r,
+		G: g,
+		B: b,
+	}
+}
+
 // NewBuffer creates a new buffer
 func NewBuffer(editor *Editor, path string) *Buffer {
 	buffer := &Buffer{
+		editor:      editor,
 		scence:      widgets.NewQGraphicsScene(nil),
-		scenceLines: map[int]*widgets.QGraphicsTextItem{},
+		scenceLines: map[int]*ScenceLine{},
+		charFormat:  gui.NewQTextCharFormat(),
 		lines:       []*Line{},
 		font:        NewFont(),
 	}
@@ -36,6 +76,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		row := y / buffer.font.lineHeight
 		buffer.xiView.Click(int(row), int(x/buffer.font.width+0.5))
 	})
+	buffer.scence.SetBackgroundBrush(editor.bgBrush)
 	editor.buffersRWMutex.Lock()
 	editor.buffers[buffer.xiView.ID] = buffer
 	editor.buffersRWMutex.Unlock()
@@ -80,7 +121,9 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 			inval = append(inval, []int{newInvalidBefore + len(newLines), newInvalidBefore + len(newLines) + n})
 			for _, line := range op.Lines {
 				newLines = append(newLines, &Line{
-					text: line.Text,
+					text:   line.Text,
+					styles: line.Styles,
+					cursor: line.Cursor,
 				})
 			}
 		case "copy", "update":
@@ -144,46 +187,67 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		for i := start; i < end; i++ {
 			if i >= len(b.lines) {
 				scenceLine := b.getScenceLine(i)
-				b.scence.RemoveItem(scenceLine)
+				b.scence.RemoveItem(scenceLine.line)
 				delete(b.scenceLines, i)
 				continue
 			}
 			line := b.lines[i]
 			scenceLine := b.getScenceLine(i)
-			textCursor := scenceLine.TextCursor()
+			textCursor := scenceLine.textCursor
 			if line == nil {
-				textCursor.Document().Clear()
+				scenceLine.document.Clear()
 			} else {
-				textCursor.Document().SetPlainText(line.text)
-				// if len(line.text) > 3 {
-				// 	textCursor.SetPosition(1, gui.QTextCursor__MoveAnchor)
-				// 	textCursor.SetPosition(3, gui.QTextCursor__KeepAnchor)
-				// 	charFormat := gui.NewQTextCharFormat()
-				// 	// charFormat.SetBackground(gui.NewQBrush3(gui.NewQColor3(100, 100, 100, 255), core.Qt__SolidPattern))
-				// 	// charFormat.SetFontItalic(true)
-				// 	// charFormat.SetFontUnderline(true)
-				// 	charFormat.SetForeground(gui.NewQBrush3(gui.NewQColor3(100, 100, 100, 255), core.Qt__SolidPattern))
-				// 	textCursor.SetCharFormat(charFormat)
-				// 	// fmt.Println(scenceLine.TextCursor().SelectionStart())
-				// 	// fmt.Println(scenceLine.TextCursor().SelectionEnd())
-				// }
+				if len(line.styles) < 3 {
+					scenceLine.document.SetPlainText(line.text)
+				} else {
+					textCursor.Select(gui.QTextCursor__Document)
+					start := 0
+					for i := 0; i*3+2 < len(line.styles); i++ {
+						start += line.styles[i*3]
+						length := line.styles[i*3+1]
+						styleID := line.styles[i*3+2]
+						style := b.editor.getStyle(styleID)
+						if style != nil {
+							fg := style.fg
+							b.charFormat.SetForeground(gui.NewQBrush3(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A), core.Qt__SolidPattern))
+							textCursor.InsertText2(string(line.text[start:start+length]), b.charFormat)
+						}
+						start += length
+					}
+				}
 			}
 		}
 	}
 	rect := b.scence.ItemsBoundingRect()
 	rect.SetLeft(0)
 	rect.SetTop(0)
+	rect.SetWidth(rect.Width() + 20)
 	b.scence.SetSceneRect(rect)
 }
 
-func (b *Buffer) getScenceLine(i int) *widgets.QGraphicsTextItem {
+func (b *Buffer) getCharFormat(styleID int) *gui.QTextCharFormat {
+	style := b.editor.getStyle(styleID)
+	if style == nil {
+		return nil
+	}
+	fg := style.fg
+	b.charFormat.SetForeground(gui.NewQBrush3(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A), core.Qt__SolidPattern))
+	return b.charFormat
+}
+
+func (b *Buffer) getScenceLine(i int) *ScenceLine {
 	scenceLine, ok := b.scenceLines[i]
 	if ok {
 		return scenceLine
 	}
-	scenceLine = b.scence.AddText("", b.font.font)
-	scenceLine.SetPos2(0, b.font.lineHeight*float64(i)+b.font.shift)
-	scenceLine.Document().SetDocumentMargin(0)
+	line := b.scence.AddText("", b.font.font)
+	line.SetPos2(0, b.font.lineHeight*float64(i)+b.font.shift)
+	line.Document().SetDocumentMargin(0)
+	scenceLine = &ScenceLine{
+		line:       line,
+		textCursor: line.TextCursor(),
+		document:   line.Document(),
+	}
 	b.scenceLines[i] = scenceLine
 	return scenceLine
 }

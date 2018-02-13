@@ -11,14 +11,12 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 )
 
-type handleUpdateFunc func(notification *UpdateNotification)
-type handleScrolltoFunc func(scrollto *ScrollTo)
+type handleNotificationFunc func(notification interface{})
 
 // Xi represents an instance of xi-core
 type Xi struct {
-	Conn           *jsonrpc2.Conn
-	HandleUpdate   handleUpdateFunc
-	HandleScrollto handleScrolltoFunc
+	Conn               *jsonrpc2.Conn
+	handleNotification handleNotificationFunc
 }
 
 // View is a Xi view
@@ -33,7 +31,7 @@ type NewViewParams struct {
 }
 
 // New creates a Xi client
-func New() (*Xi, error) {
+func New(handleNotification handleNotificationFunc) (*Xi, error) {
 	cmd := exec.Command("xi-core")
 	inw, err := cmd.StdinPipe()
 	if err != nil {
@@ -56,10 +54,27 @@ func New() (*Xi, error) {
 		out:    outr,
 		reader: bufio.NewReader(outr),
 	}
-	xi := &Xi{}
+	xi := &Xi{
+		handleNotification: handleNotification,
+	}
 	conn := jsonrpc2.NewConn(context.Background(), stream, &handler{xi: xi})
 	xi.Conn = conn
 	return xi, nil
+}
+
+// ClientStart is
+func (x *Xi) ClientStart() {
+	params := map[string]string{}
+	params["client_extras_dir"] = "/Users/Lulu/xi-electron/src/xi/"
+	params["config_dir"] = "/Users/Lulu/xi-electron/src/xi/"
+	x.Conn.Notify(context.Background(), "client_started", &params)
+}
+
+// SetTheme sets theme
+func (x *Xi) SetTheme() {
+	params := map[string]string{}
+	params["theme_name"] = "base16-ocean.dark"
+	x.Conn.Notify(context.Background(), "set_theme", &params)
 }
 
 // NewView creats a new view
@@ -134,8 +149,8 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if err != nil {
 			return
 		}
-		if h.xi.HandleUpdate != nil {
-			h.xi.HandleUpdate(&notification)
+		if h.xi.handleNotification != nil {
+			h.xi.handleNotification(&notification)
 		}
 	case "scroll_to":
 		var scrollTo ScrollTo
@@ -143,8 +158,26 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if err != nil {
 			return
 		}
-		if h.xi.HandleScrollto != nil {
-			h.xi.HandleScrollto(&scrollTo)
+		if h.xi.handleNotification != nil {
+			h.xi.handleNotification(&scrollTo)
+		}
+	case "def_style":
+		var style Style
+		err := json.Unmarshal(params, &style)
+		if err != nil {
+			return
+		}
+		if h.xi.handleNotification != nil {
+			h.xi.handleNotification(&style)
+		}
+	case "theme_changed":
+		var theme Theme
+		err := json.Unmarshal(params, &theme)
+		if err != nil {
+			return
+		}
+		if h.xi.handleNotification != nil {
+			h.xi.handleNotification(&theme)
 		}
 	default:
 	}
@@ -155,6 +188,76 @@ type ScrollTo struct {
 	Col    int    `json:"col"`
 	Line   int    `json:"line"`
 	ViewID string `json:"view_id"`
+}
+
+// Style is
+type Style struct {
+	FgColor int `json:"fg_color"`
+	ID      int `json:"id"`
+}
+
+// Theme is
+type Theme struct {
+	Name  string `json:"name"`
+	Theme struct {
+		Accent      interface{} `json:"accent"`
+		ActiveGuide interface{} `json:"active_guide"`
+		Background  struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"background"`
+		BracketContentsForeground interface{} `json:"bracket_contents_foreground"`
+		BracketContentsOptions    interface{} `json:"bracket_contents_options"`
+		BracketsBackground        interface{} `json:"brackets_background"`
+		BracketsForeground        interface{} `json:"brackets_foreground"`
+		BracketsOptions           interface{} `json:"brackets_options"`
+		Caret                     struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"caret"`
+		FindHighlight           interface{} `json:"find_highlight"`
+		FindHighlightForeground interface{} `json:"find_highlight_foreground"`
+		Foreground              struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"foreground"`
+		Guide                       interface{} `json:"guide"`
+		Gutter                      interface{} `json:"gutter"`
+		GutterForeground            interface{} `json:"gutter_foreground"`
+		Highlight                   interface{} `json:"highlight"`
+		HighlightForeground         interface{} `json:"highlight_foreground"`
+		InactiveSelection           interface{} `json:"inactive_selection"`
+		InactiveSelectionForeground interface{} `json:"inactive_selection_foreground"`
+		LineHighlight               struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"line_highlight"`
+		MinimapBorder interface{} `json:"minimap_border"`
+		Misspelling   interface{} `json:"misspelling"`
+		PhantomCSS    interface{} `json:"phantom_css"`
+		PopupCSS      interface{} `json:"popup_css"`
+		Selection     struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"selection"`
+		SelectionBackground interface{} `json:"selection_background"`
+		SelectionBorder     interface{} `json:"selection_border"`
+		SelectionForeground interface{} `json:"selection_foreground"`
+		Shadow              interface{} `json:"shadow"`
+		StackGuide          interface{} `json:"stack_guide"`
+		TagsForeground      interface{} `json:"tags_foreground"`
+		TagsOptions         interface{} `json:"tags_options"`
+	} `json:"theme"`
 }
 
 // EditNotification is
@@ -340,9 +443,9 @@ type UpdateNotification struct {
 	Update struct {
 		Ops []struct {
 			Lines []struct {
-				Cursor []int         `json:"cursor"`
-				Styles []interface{} `json:"styles"`
-				Text   string        `json:"text"`
+				Cursor []int  `json:"cursor"`
+				Styles []int  `json:"styles"`
+				Text   string `json:"text"`
 			} `json:"lines"`
 			N  int    `json:"n"`
 			Op string `json:"op"`
