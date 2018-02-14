@@ -33,8 +33,8 @@ func NewFont() *Font {
 	f.underlinePos = fontMetrics.UnderlinePos()
 
 	f.lineSpace = float64(10)
-	f.lineHeight = f.height + f.lineSpace
-	f.shift = f.lineSpace / 2
+	f.lineHeight = float64(int(f.height + f.lineSpace + 0.5))
+	f.shift = float64(int(f.lineSpace/2 + 0.5))
 
 	return f
 }

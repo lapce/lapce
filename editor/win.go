@@ -413,9 +413,23 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	return w
 }
 
-func (w *Window) setScroll() {
+func (w *Window) update() {
 	w.start = int(float64(w.view.VerticalScrollBar().Value()) / w.buffer.font.lineHeight)
 	w.end = w.start + int(float64(w.frame.height)/w.buffer.font.lineHeight+1)
+	b := w.buffer
+	for i := w.start; i <= w.end; i++ {
+		if i >= len(b.lines) {
+			break
+		}
+		if b.lines[i] != nil && b.lines[i].invalid {
+			b.lines[i].invalid = false
+			b.updateLine(i)
+		}
+	}
+}
+
+func (w *Window) setScroll() {
+	w.update()
 	w.buffer.xiView.Scroll(w.start, w.end)
 }
 

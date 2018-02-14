@@ -88,7 +88,6 @@ func (b *Buffer) height() int {
 }
 
 func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
-	inval := [][]int{}
 	oldHeight := b.height()
 	newInvalidBefore := 0
 	newLines := []*Line{}
@@ -99,78 +98,40 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		n := op.N
 		switch op.Op {
 		case "invalidate":
-			curLine := newInvalidBefore + len(newLines) + newInvalidAfter
-			ix := curLine - b.nInvalidBefore
-			if ix+n > 0 && ix < len(b.lines) {
-				for i := Max(ix, 0); i < Min(ix+n, len(b.lines)); i++ {
-					if b.getLine(i) != nil {
-						inval = append(inval, []int{i + b.nInvalidBefore, i + b.nInvalidBefore + 1})
+			for ix := oldIx; ix < oldIx+n; ix++ {
+				if ix >= len(b.lines) {
+					newLines = append(newLines, nil)
+				} else {
+					if b.lines[ix] != nil {
+						// inval = append(inval, ix)
+						b.lines[ix].invalid = true
 					}
+					newLines = append(newLines, b.lines[ix])
 				}
-			}
-			if len(newLines) == 0 {
-				newInvalidBefore += n
-			} else {
-				newInvalidAfter += n
 			}
 		case "ins":
-			for i := 0; i < newInvalidAfter; i++ {
-				newLines = append(newLines, nil)
-			}
-			newInvalidAfter = 0
-			inval = append(inval, []int{newInvalidBefore + len(newLines), newInvalidBefore + len(newLines) + n})
 			for _, line := range op.Lines {
 				newLines = append(newLines, &Line{
-					text:   line.Text,
-					styles: line.Styles,
-					cursor: line.Cursor,
+					text:    line.Text,
+					styles:  line.Styles,
+					cursor:  line.Cursor,
+					invalid: true,
 				})
+				// inval = append(inval, ix+oldIx)
 			}
 		case "copy", "update":
-			nRemaining := n
-			if oldIx < b.nInvalidBefore {
-				nInvalid := Min(n, b.nInvalidBefore-oldIx)
-				if len(newLines) == 0 {
-					newInvalidBefore += nInvalid
-				} else {
-					newInvalidAfter += nInvalid
-				}
-				oldIx += nInvalid
-				nRemaining -= nInvalid
-			}
-			if nRemaining > 0 && oldIx < b.nInvalidBefore+len(b.lines) {
-				for i := 0; i < newInvalidAfter; i++ {
+			for ix := oldIx; ix < oldIx+n; ix++ {
+				if ix >= len(b.lines) {
 					newLines = append(newLines, nil)
-				}
-				newInvalidAfter = 0
-				nCopy := Min(nRemaining, b.nInvalidBefore+len(b.lines)-oldIx)
-				if oldIx != newInvalidBefore+len(newLines) || op.Op != "copy" {
-					inval = append(inval, []int{newInvalidBefore + len(newLines), newInvalidBefore + len(newLines) + nCopy})
-				}
-				startIx := oldIx - b.nInvalidBefore
-				if op.Op == "copy" {
-					for ix := startIx; ix < startIx+nCopy; ix++ {
-						newLines = append(newLines, b.getLine(ix))
-					}
 				} else {
-					jsonIx := n - nRemaining
-					for ix := startIx; ix < startIx+nCopy; ix++ {
-						if b.lines[ix] != nil && len(op.Lines[jsonIx].Styles) > 0 {
-							b.lines[ix].styles = op.Lines[jsonIx].Styles
-						}
-						newLines = append(newLines, b.getLine(ix))
-						jsonIx++
-					}
+					newLines = append(newLines, b.lines[ix])
 				}
-				oldIx += nCopy
-				nRemaining -= nCopy
+				if len(newLines)-1 != ix {
+					newLines[len(newLines)-1].invalid = true
+					// inval = append(inval, len(newLines)-1)
+				}
 			}
-			if len(newLines) == 0 {
-				newInvalidBefore += nRemaining
-			} else {
-				newInvalidAfter += nRemaining
-			}
-			oldIx += nRemaining
+			oldIx += n
 		case "skip":
 			oldIx += n
 		default:
@@ -184,51 +145,52 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	b.revision++
 
 	if b.height() < oldHeight {
-		inval = append(inval, []int{b.height(), oldHeight})
-	}
-	fmt.Println(inval, len(b.lines))
-	for _, invalRange := range inval {
-		start := invalRange[0]
-		end := invalRange[1]
-		for i := start; i < end; i++ {
-			if i >= len(b.lines) {
-				scenceLine := b.getScenceLine(i)
-				b.scence.RemoveItem(scenceLine.line)
-				delete(b.scenceLines, i)
-				continue
-			}
-			line := b.lines[i]
+		for i := b.height(); i < oldHeight; i++ {
 			scenceLine := b.getScenceLine(i)
-			textCursor := scenceLine.textCursor
-			if line == nil {
-				scenceLine.document.Clear()
-			} else {
-				if len(line.styles) < 3 {
-					scenceLine.document.SetPlainText(line.text)
-				} else {
-					textCursor.Select(gui.QTextCursor__Document)
-					start := 0
-					for i := 0; i*3+2 < len(line.styles); i++ {
-						start += line.styles[i*3]
-						length := line.styles[i*3+1]
-						styleID := line.styles[i*3+2]
-						style := b.editor.getStyle(styleID)
-						if style != nil {
-							fg := style.fg
-							b.charFormat.SetForeground(gui.NewQBrush3(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A), core.Qt__SolidPattern))
-							textCursor.InsertText2(string(line.text[start:start+length]), b.charFormat)
-						}
-						start += length
-					}
-				}
-			}
+			b.scence.RemoveItem(scenceLine.line)
+			delete(b.scenceLines, i)
 		}
 	}
+	b.editor.winsRWMutext.RLock()
+	for _, win := range b.editor.wins {
+		win.update()
+	}
+	b.editor.winsRWMutext.RUnlock()
+	// fmt.Println(len(b.lines), inval)
+	b.getScenceLine(len(b.lines) - 1)
 	rect := b.scence.ItemsBoundingRect()
 	rect.SetLeft(0)
 	rect.SetTop(0)
 	rect.SetWidth(rect.Width() + 20)
 	b.scence.SetSceneRect(rect)
+}
+
+func (b *Buffer) updateLine(i int) {
+	line := b.lines[i]
+	scenceLine := b.getScenceLine(i)
+	textCursor := scenceLine.textCursor
+	if line == nil {
+		scenceLine.document.Clear()
+	} else {
+		if len(line.styles) < 3 {
+			scenceLine.document.SetPlainText(line.text)
+		} else {
+			textCursor.Select(gui.QTextCursor__Document)
+			start := 0
+			for i := 0; i*3+2 < len(line.styles); i++ {
+				start += line.styles[i*3]
+				length := line.styles[i*3+1]
+				styleID := line.styles[i*3+2]
+				style := b.editor.getStyle(styleID)
+				if style != nil {
+					fg := style.fg
+					b.charFormat.SetForeground(gui.NewQBrush3(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A), core.Qt__SolidPattern))
+					textCursor.InsertText2(string(line.text[start:start+length]), b.charFormat)
+				}
+				start += length
+			}
+		}
+	}
 }
 
 func (b *Buffer) getLine(ix int) *Line {
