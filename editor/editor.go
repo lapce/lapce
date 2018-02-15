@@ -111,6 +111,7 @@ func NewEditor() (*Editor, error) {
 			defer e.winsRWMutext.RUnlock()
 			for _, win := range e.wins {
 				win.view.SetStyleSheet(scrollBarStyleSheet)
+				win.cline.SetStyleSheet(e.getClineStylesheet())
 			}
 		}
 	})
@@ -121,6 +122,15 @@ func NewEditor() (*Editor, error) {
 	e.initMainWindow()
 
 	return e, nil
+}
+
+func (e *Editor) getClineStylesheet() string {
+	if e.theme == nil {
+		return ""
+	}
+	cline := e.theme.Theme.LineHighlight
+	styleSheet := fmt.Sprintf("background-color: rgba(%d, %d, %d, %f);", cline.R, cline.G, cline.B, float64(cline.A)/255)
+	return styleSheet
 }
 
 func (e *Editor) getScrollbarStylesheet() string {
@@ -232,10 +242,8 @@ func (e *Editor) initMainWindow() {
 		editor: e,
 	}
 	e.topWin = NewWindow(e, e.topFrame)
-	e.topWin.view.Move2(0, 0)
-	e.topWin.view.Resize2(e.width, e.height)
 	e.topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/xi-editor/rust/core-lib/src/rpc.rs"))
-	e.topWin.setScroll()
+	e.equalWins()
 
 	e.cursor = widgets.NewQWidget(nil, 0)
 	e.cursor.Resize2(1, 20)
@@ -278,6 +286,9 @@ func (e *Editor) organizeWins() {
 		win.view.Move2(win.frame.x, win.frame.y)
 		win.view.Hide()
 		win.view.Show()
+		win.cline.Resize2(win.frame.width, int(win.buffer.font.lineHeight))
+		win.cline.Hide()
+		win.cline.Show()
 		win.setScroll()
 	}
 }

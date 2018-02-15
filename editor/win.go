@@ -67,6 +67,7 @@ func (f *Frame) split(vertical bool) {
 	win.editor.equalWins()
 	newWin.view.HorizontalScrollBar().SetValue(win.view.HorizontalScrollBar().Value())
 	newWin.view.VerticalScrollBar().SetValue(win.view.VerticalScrollBar().Value())
+	newWin.scrollto(newWin.col, newWin.row)
 	f.setFocus()
 }
 
@@ -295,8 +296,11 @@ type Window struct {
 	id      int
 	editor  *Editor
 	view    *widgets.QGraphicsView
+	cline   *widgets.QWidget
 	frame   *Frame
 	buffer  *Buffer
+	x       float64
+	y       float64
 	cursorX int
 	cursorY int
 	row     int
@@ -313,7 +317,32 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		editor: editor,
 		frame:  frame,
 		view:   widgets.NewQGraphicsView(nil),
+		cline:  widgets.NewQWidget(nil, 0),
 	}
+
+	w.view.ConnectEventFilter(func(watched *core.QObject, event *core.QEvent) bool {
+		if event.Type() == core.QEvent__MouseButtonPress {
+			mousePress := gui.NewQMouseEventFromPointer(event.Pointer())
+			w.view.MousePressEvent(mousePress)
+			return true
+		}
+		// else if event.Type() == core.QEvent__Wheel {
+		// 	wheelEvent := gui.NewQWheelEventFromPointer(event.Pointer())
+		// 	// delta := wheelEvent.PixelDelta()
+		// 	// w.view.ScrollContentsByDefault(delta.X(), delta.Y())
+		// 	// fmt.Println("scroll by", delta.X(), delta.Y())
+		// 	w.view.WheelEventDefault(wheelEvent)
+		// 	return true
+		// }
+		return w.view.EventFilterDefault(watched, event)
+	})
+	w.cline.SetParent(w.view)
+	w.cline.SetStyleSheet(editor.getClineStylesheet())
+	w.cline.SetFocusPolicy(core.Qt__NoFocus)
+	w.cline.InstallEventFilter(w.view)
+	w.cline.ConnectWheelEvent(func(event *gui.QWheelEvent) {
+		w.view.WheelEventDefault(event)
+	})
 	frame.win = w
 	editor.winIndex++
 	editor.wins[w.id] = w
@@ -428,8 +457,20 @@ func (w *Window) update() {
 	}
 }
 
+func (w *Window) updateCursor() {
+	w.cursorX = int(w.x+0.5) - w.view.HorizontalScrollBar().Value()
+	w.cursorY = int(w.y+0.5) - w.view.VerticalScrollBar().Value()
+	cursor := w.editor.cursor
+	cursor.Move2(w.cursorX, w.cursorY)
+	cursor.Resize2(1, int(w.buffer.font.lineHeight+0.5))
+	cursor.Hide()
+	cursor.Show()
+	w.cline.Move2(0, w.cursorY)
+}
+
 func (w *Window) setScroll() {
 	w.update()
+	w.updateCursor()
 	w.buffer.xiView.Scroll(w.start, w.end)
 }
 
@@ -440,25 +481,17 @@ func (w *Window) loadBuffer(buffer *Buffer) {
 
 func (w *Window) scrollto(col, row int) {
 	b := w.buffer
-	x := b.font.fontMetrics.Width(b.lines[row].text[:col]) - 0.5
-	y := float64(row) * b.font.lineHeight
+	w.x = b.font.fontMetrics.Width(b.lines[row].text[:col]) - 0.5
+	w.y = float64(row) * b.font.lineHeight
 	w.view.EnsureVisible2(
-		x,
-		y,
+		w.x,
+		w.y,
 		1,
 		b.font.lineHeight,
 		20,
 		20,
 	)
-	x -= float64(w.view.HorizontalScrollBar().Value())
-	y -= float64(w.view.VerticalScrollBar().Value())
 	w.row = row
 	w.col = col
-	w.cursorX = int(x + 0.5)
-	w.cursorY = int(y + 0.5)
-	cursor := w.editor.cursor
-	cursor.Move2(w.cursorX, w.cursorY)
-	cursor.Resize2(1, int(b.font.lineHeight+0.5))
-	cursor.Hide()
-	cursor.Show()
+	w.updateCursor()
 }
