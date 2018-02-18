@@ -95,7 +95,7 @@ func NewEditor() (*Editor, error) {
 			if e.activeWin.buffer.xiView.ID != u.ViewID {
 				return
 			}
-			e.activeWin.scrollto(u.Col, u.Line)
+			e.activeWin.scrollto(u.Col, u.Line, true)
 		case *xi.Style:
 			e.stylesRWMutext.Lock()
 			e.styles[u.ID] = &Style{

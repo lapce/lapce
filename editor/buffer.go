@@ -87,12 +87,41 @@ func (b *Buffer) height() int {
 	return b.nInvalidBefore + len(b.lines) + b.nInvalidAfter
 }
 
+func (b *Buffer) setNewLine(ix int, i int, winsMap map[int][]*Window) {
+	wins, ok := winsMap[ix]
+	if ok {
+		fmt.Println("wins map ix")
+		for _, win := range wins {
+			fmt.Println("win scroll to")
+			win.row = i
+		}
+	}
+}
+
 func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	oldHeight := b.height()
 	newInvalidBefore := 0
 	newLines := []*Line{}
 	newInvalidAfter := 0
 	oldIx := 0
+
+	bufWins := []*Window{}
+	winsMap := map[int][]*Window{}
+	b.editor.winsRWMutext.RLock()
+	for _, win := range b.editor.wins {
+		if win.buffer == b {
+			bufWins = append(bufWins, win)
+			if win != b.editor.activeWin {
+				wins, ok := winsMap[win.row]
+				if !ok {
+					wins = []*Window{}
+				}
+				wins = append(wins, win)
+				winsMap[win.row] = wins
+			}
+		}
+	}
+	b.editor.winsRWMutext.RUnlock()
 
 	for _, op := range update.Update.Ops {
 		n := op.N
@@ -102,14 +131,16 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 				if ix >= len(b.lines) {
 					newLines = append(newLines, nil)
 				} else {
-					if b.lines[ix] != nil {
-						// inval = append(inval, ix)
-						b.lines[ix].invalid = true
+					line := b.lines[ix]
+					newLines = append(newLines, line)
+					if line != nil {
+						line.invalid = true
+						b.setNewLine(ix, len(newLines)-1, winsMap)
 					}
-					newLines = append(newLines, b.lines[ix])
 				}
 			}
 		case "ins":
+			ix := oldIx
 			for _, line := range op.Lines {
 				newLines = append(newLines, &Line{
 					text:    line.Text,
@@ -117,18 +148,27 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					cursor:  line.Cursor,
 					invalid: true,
 				})
-				// inval = append(inval, ix+oldIx)
+				b.setNewLine(ix, len(newLines)-1, winsMap)
+				ix++
 			}
 		case "copy", "update":
 			for ix := oldIx; ix < oldIx+n; ix++ {
-				if ix >= len(b.lines) {
-					newLines = append(newLines, nil)
-				} else {
-					newLines = append(newLines, b.lines[ix])
+				var line *Line
+				if ix < len(b.lines) {
+					line = b.lines[ix]
 				}
+				if line != nil && op.Op == "update" {
+					opLine := op.Lines[ix-oldIx]
+					line.styles = opLine.Styles
+					line.cursor = opLine.Cursor
+					line.invalid = true
+				}
+				newLines = append(newLines, line)
 				if len(newLines)-1 != ix {
-					newLines[len(newLines)-1].invalid = true
-					// inval = append(inval, len(newLines)-1)
+					if line != nil {
+						line.invalid = true
+					}
+					b.setNewLine(ix, len(newLines)-1, winsMap)
 				}
 			}
 			oldIx += n
@@ -151,12 +191,14 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 			delete(b.scenceLines, i)
 		}
 	}
-	b.editor.winsRWMutext.RLock()
-	for _, win := range b.editor.wins {
+	for _, win := range bufWins {
 		win.update()
+		if win != b.editor.activeWin {
+			win.updatePos()
+			win.updateCursorPos()
+			win.updateCline()
+		}
 	}
-	b.editor.winsRWMutext.RUnlock()
-	// fmt.Println(len(b.lines), inval)
 	b.getScenceLine(len(b.lines) - 1)
 	rect := b.scence.ItemsBoundingRect()
 	rect.SetLeft(0)

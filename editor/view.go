@@ -33,6 +33,7 @@ type Line struct {
 	text    string
 	styles  []int
 	cursor  []int
+	current bool
 }
 
 // NewView creates a new view

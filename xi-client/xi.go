@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os/exec"
 
@@ -138,9 +139,9 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 	if err != nil {
 		return
 	}
-	// fmt.Println("-------------------------")
-	// fmt.Println(req.Method)
-	// fmt.Println(string(params))
+	fmt.Println("-------------------------")
+	fmt.Println(req.Method)
+	fmt.Println(string(params))
 	switch req.Method {
 	case "update":
 		var notification UpdateNotification

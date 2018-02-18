@@ -67,7 +67,7 @@ func (f *Frame) split(vertical bool) {
 	win.editor.equalWins()
 	newWin.view.HorizontalScrollBar().SetValue(win.view.HorizontalScrollBar().Value())
 	newWin.view.VerticalScrollBar().SetValue(win.view.VerticalScrollBar().Value())
-	newWin.scrollto(newWin.col, newWin.row)
+	newWin.scrollto(newWin.col, newWin.row, false)
 	f.setFocus()
 }
 
@@ -457,20 +457,23 @@ func (w *Window) update() {
 	}
 }
 
+func (w *Window) updateCline() {
+	w.cline.Move2(0, w.cursorY)
+}
+
 func (w *Window) updateCursor() {
-	w.cursorX = int(w.x+0.5) - w.view.HorizontalScrollBar().Value()
-	w.cursorY = int(w.y+0.5) - w.view.VerticalScrollBar().Value()
 	cursor := w.editor.cursor
 	cursor.Move2(w.cursorX, w.cursorY)
 	cursor.Resize2(1, int(w.buffer.font.lineHeight+0.5))
 	cursor.Hide()
 	cursor.Show()
-	w.cline.Move2(0, w.cursorY)
 }
 
 func (w *Window) setScroll() {
 	w.update()
+	w.updateCursorPos()
 	w.updateCursor()
+	w.updateCline()
 	w.buffer.xiView.Scroll(w.start, w.end)
 }
 
@@ -479,19 +482,40 @@ func (w *Window) loadBuffer(buffer *Buffer) {
 	w.view.SetScene(buffer.scence)
 }
 
-func (w *Window) scrollto(col, row int) {
+func (w *Window) updateCursorPos() {
+	w.cursorX = int(w.x+0.5) - w.view.HorizontalScrollBar().Value()
+	w.cursorY = int(w.y+0.5) - w.view.VerticalScrollBar().Value()
+}
+
+func (w *Window) updatePos() {
 	b := w.buffer
-	w.x = b.font.fontMetrics.Width(b.lines[row].text[:col]) - 0.5
+	row := w.row
+	col := w.col
+	text := b.lines[row].text
+	if col > len(text) {
+		col = len(text)
+		w.col = col
+	}
+	w.x = b.font.fontMetrics.Width(text[:col]) - 0.5
 	w.y = float64(row) * b.font.lineHeight
-	w.view.EnsureVisible2(
-		w.x,
-		w.y,
-		1,
-		b.font.lineHeight,
-		20,
-		20,
-	)
+}
+
+func (w *Window) scrollto(col, row int, jump bool) {
+	b := w.buffer
 	w.row = row
 	w.col = col
+	w.updatePos()
+	if jump {
+		w.view.EnsureVisible2(
+			w.x,
+			w.y,
+			1,
+			b.font.lineHeight,
+			20,
+			20,
+		)
+	}
+	w.updateCursorPos()
 	w.updateCursor()
+	w.updateCline()
 }
