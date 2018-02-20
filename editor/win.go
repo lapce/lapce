@@ -293,20 +293,21 @@ func (f *Frame) countSplits(vertical bool) int {
 
 // Window is for displaying a buffer
 type Window struct {
-	id      int
-	editor  *Editor
-	view    *widgets.QGraphicsView
-	cline   *widgets.QWidget
-	frame   *Frame
-	buffer  *Buffer
-	x       float64
-	y       float64
-	cursorX int
-	cursorY int
-	row     int
-	col     int
-	start   int
-	end     int
+	id        int
+	editor    *Editor
+	view      *widgets.QGraphicsView
+	cline     *widgets.QWidget
+	frame     *Frame
+	buffer    *Buffer
+	x         float64
+	y         float64
+	cursorX   int
+	cursorY   int
+	row       int
+	col       int
+	scrollCol int
+	start     int
+	end       int
 }
 
 // NewWindow creates a new window

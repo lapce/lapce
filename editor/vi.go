@@ -198,9 +198,14 @@ func (s *NormalState) down() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	for i := 0; i < count; i++ {
-		s.editor.activeWin.buffer.xiView.MoveDown()
+
+	win := s.editor.activeWin
+	row := win.row
+	row += count
+	if row < 0 {
+		row = 0
 	}
+	win.buffer.xiView.Click(row, win.scrollCol)
 }
 
 func (s *NormalState) up() {
@@ -208,9 +213,14 @@ func (s *NormalState) up() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	for i := 0; i < count; i++ {
-		s.editor.activeWin.buffer.xiView.MoveUp()
+
+	win := s.editor.activeWin
+	row := win.row
+	row -= count
+	if row < 0 {
+		row = 0
 	}
+	win.buffer.xiView.Click(row, win.scrollCol)
 }
 
 func (s *NormalState) left() {
@@ -218,13 +228,15 @@ func (s *NormalState) left() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
+	win := s.editor.activeWin
+	row := s.editor.activeWin.row
 	col := s.editor.activeWin.col
-	if count > col {
-		count = col
+	col -= count
+	if col < 0 {
+		col = 0
 	}
-	for i := 0; i < count; i++ {
-		s.editor.activeWin.buffer.xiView.MoveLeft()
-	}
+	s.editor.activeWin.buffer.xiView.Click(row, col)
+	win.scrollCol = col
 }
 
 func (s *NormalState) right() {
@@ -232,14 +244,16 @@ func (s *NormalState) right() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	col := s.editor.activeWin.col
-	maxCol := len(s.editor.activeWin.buffer.lines[s.editor.activeWin.row].text) - 1
-	if count > maxCol-col {
-		count = maxCol - col
+	win := s.editor.activeWin
+	row := win.row
+	col := win.col
+	maxCol := len(win.buffer.lines[win.row].text) - 2
+	col += count
+	if col > maxCol {
+		col = maxCol
 	}
-	for i := 0; i < count; i++ {
-		s.editor.activeWin.buffer.xiView.MoveRight()
-	}
+	win.buffer.xiView.Click(row, col)
+	win.scrollCol = col
 }
 
 func (s *NormalState) goTo() {
