@@ -82,6 +82,8 @@ func newVimNormalState(e *Editor) VimState {
 		"G":     s.goTo,
 		"<C-e>": s.scrollDown,
 		"<C-y>": s.scrollUp,
+		"<C-d>": s.pageDown,
+		"<C-u>": s.pageUp,
 	}
 
 	return s
@@ -101,8 +103,14 @@ func (s *NormalState) execute() {
 		}
 	}
 
-	if s.cmdArg.cmd == "<C-w>" {
-		s.wincmd = true
+	if !s.wincmd {
+		if s.cmdArg.cmd == "<C-w>" {
+			s.wincmd = true
+			return
+		}
+	} else {
+		s.doWincmd()
+		s.reset()
 		return
 	}
 
@@ -117,18 +125,11 @@ func (s *NormalState) execute() {
 		return
 	}
 
-	if s.wincmd {
-		s.doWincmd()
-		s.reset()
-		return
-	}
-
 	cmd, ok := s.cmds[s.cmdArg.cmd]
 	if !ok {
 		return
 	}
 	cmd()
-
 	s.reset()
 }
 
@@ -217,6 +218,10 @@ func (s *NormalState) left() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
+	col := s.editor.activeWin.col
+	if count > col {
+		count = col
+	}
 	for i := 0; i < count; i++ {
 		s.editor.activeWin.buffer.xiView.MoveLeft()
 	}
@@ -226,6 +231,11 @@ func (s *NormalState) right() {
 	count := 1
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
+	}
+	col := s.editor.activeWin.col
+	maxCol := len(s.editor.activeWin.buffer.lines[s.editor.activeWin.row].text) - 1
+	if count > maxCol-col {
+		count = maxCol - col
 	}
 	for i := 0; i < count; i++ {
 		s.editor.activeWin.buffer.xiView.MoveRight()
@@ -262,6 +272,25 @@ func (s *NormalState) scrollDown() {
 	y := int(float64(count)*s.editor.activeWin.buffer.font.lineHeight + 0.5)
 	scrollBar := s.editor.activeWin.view.VerticalScrollBar()
 	scrollBar.SetValue(scrollBar.Value() + y)
+}
+
+func (s *NormalState) pageDown() {
+	win := s.editor.activeWin
+	n := (win.end - win.start) / 2
+	row := win.row
+	row += n
+	win.buffer.xiView.GotoLine(row)
+}
+
+func (s *NormalState) pageUp() {
+	win := s.editor.activeWin
+	n := (win.end - win.start) / 2
+	row := win.row
+	row -= n
+	if row < 0 {
+		row = 0
+	}
+	win.buffer.xiView.GotoLine(row)
 }
 
 func (s *NormalState) startOfLine() {

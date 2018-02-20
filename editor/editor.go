@@ -229,7 +229,7 @@ func (e *Editor) initMainWindow() {
 	e.width = 800
 	e.height = 600
 	e.window = widgets.NewQMainWindow(nil, 0)
-	e.window.SetWindowTitle("Gonvim")
+	e.window.SetWindowTitle("Xi-go")
 	e.window.SetContentsMargins(0, 0, 0, 0)
 	e.window.SetMinimumSize2(e.width, e.height)
 	e.window.ConnectResizeEvent(func(event *gui.QResizeEvent) {
