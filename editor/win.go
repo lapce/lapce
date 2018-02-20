@@ -359,6 +359,15 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		if w.buffer == nil {
 			return
 		}
+		state, ok := editor.vimStates[editor.vimMode]
+		if !ok {
+			return
+		}
+
+		key := editor.convertKey(event)
+		state.setCmd(key)
+		state.execute()
+		return
 		if event.Modifiers()&core.Qt__ControlModifier > 0 {
 			switch string(event.Key()) {
 			case "V":
@@ -462,9 +471,9 @@ func (w *Window) updateCline() {
 }
 
 func (w *Window) updateCursor() {
+	w.editor.updateCursorShape()
 	cursor := w.editor.cursor
 	cursor.Move2(w.cursorX, w.cursorY)
-	cursor.Resize2(1, int(w.buffer.font.lineHeight+0.5))
 	cursor.Hide()
 	cursor.Show()
 }
@@ -496,7 +505,7 @@ func (w *Window) updatePos() {
 		col = len(text)
 		w.col = col
 	}
-	w.x = b.font.fontMetrics.Width(text[:col]) - 0.5
+	w.x = b.font.fontMetrics.Width(text[:col]) + 0.5
 	w.y = float64(row) * b.font.lineHeight
 }
 

@@ -48,6 +48,23 @@ type Editor struct {
 
 	init     chan struct{}
 	initOnce sync.Once
+
+	vimNormalState   *NormalState
+	vimStates        map[int]VimState
+	vimMode          int
+	vimPending       bool
+	vimPendingBuffer string
+
+	specialKeys     map[core.Qt__Key]string
+	controlModifier core.Qt__KeyboardModifier
+	cmdModifier     core.Qt__KeyboardModifier
+	shiftModifier   core.Qt__KeyboardModifier
+	altModifier     core.Qt__KeyboardModifier
+	metaModifier    core.Qt__KeyboardModifier
+	keyControl      core.Qt__Key
+	keyCmd          core.Qt__Key
+	keyAlt          core.Qt__Key
+	keyShift        core.Qt__Key
 }
 
 type editorSignal struct {
@@ -66,6 +83,8 @@ func NewEditor() (*Editor, error) {
 		bgBrush: gui.NewQBrush(),
 		fgBrush: gui.NewQBrush(),
 	}
+	e.initSpecialKeys()
+	e.vimStates = newVimStates(e)
 
 	xiClient, err := xi.New(e.handleXiNotification)
 	if err != nil {
@@ -105,7 +124,7 @@ func NewEditor() (*Editor, error) {
 		case *xi.Theme:
 			e.theme = u
 			fg := u.Theme.Foreground
-			e.cursor.SetStyleSheet(fmt.Sprintf("background-color: rgba(%d, %d, %d, 1);", fg.R, fg.G, fg.B))
+			e.cursor.SetStyleSheet(fmt.Sprintf("background-color: rgba(%d, %d, %d, 0.6);", fg.R, fg.G, fg.B))
 			scrollBarStyleSheet := e.getScrollbarStylesheet()
 			e.winsRWMutext.RLock()
 			defer e.winsRWMutext.RUnlock()
@@ -247,7 +266,7 @@ func (e *Editor) initMainWindow() {
 
 	e.cursor = widgets.NewQWidget(nil, 0)
 	e.cursor.Resize2(1, 20)
-	e.cursor.SetStyleSheet("background-color: rgba(0, 0, 0, 0.5);")
+	e.cursor.SetStyleSheet("background-color: rgba(0, 0, 0, 0.1);")
 	e.cursor.Show()
 	e.topFrame.setFocus()
 	e.window.Show()

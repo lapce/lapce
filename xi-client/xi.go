@@ -301,6 +301,19 @@ func (v *View) Insert(chars string) {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// GotoLine sets
+func (v *View) GotoLine(line int) {
+	params := map[string]int{}
+	params["line"] = line
+
+	cmd := &EditCommand{
+		Method: "goto_line",
+		ViewID: v.ID,
+		Params: params,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // Scroll sets
 func (v *View) Scroll(start, end int) {
 	cmd := &EditCommand{
@@ -367,10 +380,37 @@ func (v *View) MoveRight() {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// MoveToLeftEndOfLine is
+func (v *View) MoveToLeftEndOfLine() {
+	cmd := &EditCommand{
+		Method: "move_to_left_end_of_line",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// MoveToRightEndOfLine is
+func (v *View) MoveToRightEndOfLine() {
+	cmd := &EditCommand{
+		Method: "move_to_right_end_of_line",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // MoveToEndOfDocument is
 func (v *View) MoveToEndOfDocument() {
 	cmd := &EditCommand{
 		Method: "move_to_end_of_document",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// MoveToBeginningOfDocument is
+func (v *View) MoveToBeginningOfDocument() {
+	cmd := &EditCommand{
+		Method: "move_to_beginning_of_document",
 		ViewID: v.ID,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
