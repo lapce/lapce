@@ -479,6 +479,15 @@ func (v *View) DeleteForward() {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// DeleteToBeginningOfLine deletes
+func (v *View) DeleteToBeginningOfLine() {
+	cmd := &EditCommand{
+		Method: "delete_to_beginning_of_line",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // Line is
 type Line struct {
 	Cursor []int64       `json:"cursor"`
