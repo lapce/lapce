@@ -76,6 +76,8 @@ func newVimNormalState(e *Editor) VimState {
 		"i":     s.toInsert,
 		"a":     s.toInsertRight,
 		"A":     s.toInsertEndOfLine,
+		"o":     s.toInsertNewLine,
+		"O":     s.toInsertNewLineAbove,
 		"h":     s.left,
 		"l":     s.right,
 		"j":     s.down,
@@ -163,6 +165,16 @@ func (s *NormalState) toInsertEndOfLine() {
 	}
 	win.scrollto(maxCol, row, true)
 	win.buffer.xiView.Click(row, maxCol)
+}
+
+func (s *NormalState) toInsertNewLine() {
+	s.toInsertEndOfLine()
+	s.editor.activeWin.buffer.xiView.InsertNewline()
+}
+
+func (s *NormalState) toInsertNewLineAbove() {
+	s.up()
+	s.toInsertNewLine()
 }
 
 func (s *NormalState) esc() {
@@ -264,6 +276,8 @@ func (s *NormalState) up() {
 	if col > maxCol {
 		col = maxCol
 	}
+	win.row = row
+	win.col = col
 	if s.visualActive {
 		win.buffer.xiView.Drag(row, col)
 	} else {
@@ -444,15 +458,18 @@ func newVimInsertState(e *Editor) VimState {
 		cmdArg: &VimCmdArg{},
 	}
 	s.cmds = map[string]VimCommand{
-		"<Esc>":   s.toNormal,
-		"<Tab>":   s.tab,
-		"<Enter>": s.newLine,
-		"<C-m>":   s.newLine,
-		"<C-j>":   s.newLine,
-		"<BS>":    s.deleteBackward,
-		"<C-h>":   s.deleteBackward,
-		"<C-u>":   s.deleteToBeginningOfLine,
-		"<Del>":   s.deleteForward,
+		"<Esc>":    s.toNormal,
+		"<Tab>":    s.tab,
+		"<Enter>":  s.newLine,
+		"<C-m>":    s.newLine,
+		"<C-j>":    s.newLine,
+		"<Space>":  s.insertSpace,
+		"<lt>":     s.insertLt,
+		"<Bslash>": s.insertBslash,
+		"<BS>":     s.deleteBackward,
+		"<C-h>":    s.deleteBackward,
+		"<C-u>":    s.deleteToBeginningOfLine,
+		"<Del>":    s.deleteForward,
 	}
 	return s
 }
@@ -489,6 +506,18 @@ func (s *InsertState) tab() {
 
 func (s *InsertState) newLine() {
 	s.editor.activeWin.buffer.xiView.InsertNewline()
+}
+
+func (s *InsertState) insertSpace() {
+	s.editor.activeWin.buffer.xiView.Insert(" ")
+}
+
+func (s *InsertState) insertLt() {
+	s.editor.activeWin.buffer.xiView.Insert("<")
+}
+
+func (s *InsertState) insertBslash() {
+	s.editor.activeWin.buffer.xiView.Insert("\\")
 }
 
 func (s *InsertState) deleteForward() {
