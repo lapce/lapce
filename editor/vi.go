@@ -168,13 +168,25 @@ func (s *NormalState) toInsertEndOfLine() {
 }
 
 func (s *NormalState) toInsertNewLine() {
-	s.toInsertEndOfLine()
-	s.editor.activeWin.buffer.xiView.InsertNewline()
+	s.editor.vimMode = Insert
+	win := s.editor.activeWin
+	row := win.row + 1
+	col := 0
+	win.scrollto(col, row, true)
+	win.buffer.xiView.Click(row, col)
+	win.buffer.xiView.InsertNewline()
+	win.buffer.xiView.Click(row, col)
 }
 
 func (s *NormalState) toInsertNewLineAbove() {
-	s.up()
-	s.toInsertNewLine()
+	s.editor.vimMode = Insert
+	win := s.editor.activeWin
+	row := win.row
+	col := 0
+	win.scrollto(col, row, true)
+	win.buffer.xiView.Click(row, col)
+	win.buffer.xiView.InsertNewline()
+	win.buffer.xiView.Click(row, col)
 }
 
 func (s *NormalState) esc() {
