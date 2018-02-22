@@ -263,7 +263,7 @@ func (f *Frame) close() *Frame {
 	editor.winsRWMutext.Lock()
 	delete(editor.wins, win.id)
 	editor.winsRWMutext.Unlock()
-	win.view.Hide()
+	win.widget.Hide()
 	editor.equalWins()
 	if newFocus != nil {
 		newFocus.setFocus()
@@ -295,6 +295,8 @@ func (f *Frame) countSplits(vertical bool) int {
 type Window struct {
 	id        int
 	editor    *Editor
+	widget    *widgets.QWidget
+	gutter    *widgets.QWidget
 	view      *widgets.QGraphicsView
 	cline     *widgets.QWidget
 	frame     *Frame
@@ -319,7 +321,18 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		frame:  frame,
 		view:   widgets.NewQGraphicsView(nil),
 		cline:  widgets.NewQWidget(nil, 0),
+		widget: widgets.NewQWidget(nil, 0),
+		gutter: widgets.NewQWidget(nil, 0),
 	}
+
+	layout := widgets.NewQHBoxLayout()
+	layout.SetContentsMargins(0, 0, 0, 0)
+	layout.SetSpacing(0)
+	layout.AddWidget(w.gutter, 0, 0)
+	layout.AddWidget(w.view, 1, 0)
+	w.widget.SetContentsMargins(0, 0, 1, 1)
+	w.widget.SetLayout(layout)
+	w.gutter.SetFixedWidth(30)
 
 	w.view.ConnectEventFilter(func(watched *core.QObject, event *core.QEvent) bool {
 		if event.Type() == core.QEvent__MouseButtonPress {
@@ -327,14 +340,6 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 			w.view.MousePressEvent(mousePress)
 			return true
 		}
-		// else if event.Type() == core.QEvent__Wheel {
-		// 	wheelEvent := gui.NewQWheelEventFromPointer(event.Pointer())
-		// 	// delta := wheelEvent.PixelDelta()
-		// 	// w.view.ScrollContentsByDefault(delta.X(), delta.Y())
-		// 	// fmt.Println("scroll by", delta.X(), delta.Y())
-		// 	w.view.WheelEventDefault(wheelEvent)
-		// 	return true
-		// }
 		return w.view.EventFilterDefault(watched, event)
 	})
 	w.cline.SetParent(w.view)
@@ -356,7 +361,6 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		w.view.MousePressEventDefault(event)
 	})
 	w.view.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
-		editor.activeWin = w
 		if w.buffer == nil {
 			return
 		}
@@ -368,72 +372,6 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		key := editor.convertKey(event)
 		state.setCmd(key)
 		state.execute()
-		return
-		if event.Modifiers()&core.Qt__ControlModifier > 0 {
-			switch string(event.Key()) {
-			case "V":
-				fmt.Println("split vertical")
-				w.frame.split(true)
-				return
-			case "S":
-				fmt.Println("split horizontal")
-				w.frame.split(false)
-				return
-			case "W":
-				fmt.Println("close split")
-				w.frame.close()
-				return
-			case "X":
-				w.frame.exchange()
-				return
-			case "L":
-				w.frame.focusRight()
-				return
-			case "H":
-				w.frame.focusLeft()
-				return
-			case "J":
-				w.frame.focusBelow()
-				return
-			case "K":
-				w.frame.focusAbove()
-				return
-			default:
-				return
-			}
-			return
-		}
-
-		switch core.Qt__Key(event.Key()) {
-		case core.Qt__Key_Return, core.Qt__Key_Enter:
-			w.buffer.xiView.InsertNewline()
-			return
-		case core.Qt__Key_Up:
-			w.buffer.xiView.MoveUp()
-			return
-		case core.Qt__Key_Down:
-			w.buffer.xiView.MoveDown()
-			return
-		case core.Qt__Key_Right:
-			w.buffer.xiView.MoveRight()
-			return
-		case core.Qt__Key_Left:
-			w.buffer.xiView.MoveLeft()
-			return
-		case core.Qt__Key_Tab, core.Qt__Key_Backtab:
-			w.buffer.xiView.InsertTab()
-			return
-		case core.Qt__Key_Backspace:
-			w.buffer.xiView.DeleteBackward()
-			return
-		case core.Qt__Key_Delete:
-			w.buffer.xiView.DeleteForward()
-			return
-		case core.Qt__Key_Escape:
-			return
-		default:
-		}
-		w.buffer.xiView.Insert(event.Text())
 	})
 	w.view.ConnectScrollContentsBy(func(dx, dy int) {
 		w.view.ScrollContentsByDefault(dx, dy)
@@ -441,13 +379,14 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	})
 	w.view.SetFocusPolicy(core.Qt__ClickFocus)
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
-	w.view.SetParent(editor.centralWidget)
 	w.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
-	w.view.SetObjectName("view")
+	w.view.SetFrameStyle(0)
+	w.widget.SetObjectName("view")
 	if editor.theme != nil {
 		scrollBarStyleSheet := editor.getScrollbarStylesheet()
-		w.view.SetStyleSheet(scrollBarStyleSheet)
+		w.widget.SetStyleSheet(scrollBarStyleSheet)
 	}
+	w.widget.SetParent(editor.centralWidget)
 
 	return w
 }
@@ -472,6 +411,9 @@ func (w *Window) updateCline() {
 }
 
 func (w *Window) updateCursor() {
+	if w.editor.activeWin != w {
+		return
+	}
 	w.editor.updateCursorShape()
 	cursor := w.editor.cursor
 	cursor.Move2(w.cursorX, w.cursorY)

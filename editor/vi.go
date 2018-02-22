@@ -50,11 +50,12 @@ func newVimStates(e *Editor) map[int]VimState {
 
 // NormalState is
 type NormalState struct {
-	editor *Editor
-	wincmd bool
-	gcmd   bool
-	cmdArg *VimCmdArg
-	cmds   map[string]VimCommand
+	editor       *Editor
+	wincmd       bool
+	gcmd         bool
+	visualActive bool
+	cmdArg       *VimCmdArg
+	cmds         map[string]VimCommand
 }
 
 // VimCmdArg is
@@ -70,7 +71,8 @@ func newVimNormalState(e *Editor) VimState {
 		cmdArg: &VimCmdArg{},
 	}
 	s.cmds = map[string]VimCommand{
-		"<Esc>": s.reset,
+		"<Esc>": s.esc,
+		"<C-c>": s.esc,
 		"i":     s.toInsert,
 		"a":     s.toInsertRight,
 		"A":     s.toInsertEndOfLine,
@@ -85,6 +87,9 @@ func newVimNormalState(e *Editor) VimState {
 		"<C-y>": s.scrollUp,
 		"<C-d>": s.pageDown,
 		"<C-u>": s.pageUp,
+		"v":     s.visual,
+		"u":     s.undo,
+		"<C-r>": s.redo,
 	}
 
 	return s
@@ -95,7 +100,6 @@ func (s *NormalState) setCmd(key string) {
 }
 
 func (s *NormalState) execute() {
-	fmt.Println("normal execute", s.cmdArg.cmd)
 	i, err := strconv.Atoi(s.cmdArg.cmd)
 	if err == nil {
 		s.cmdArg.count = s.cmdArg.count*10 + i
@@ -159,6 +163,11 @@ func (s *NormalState) toInsertEndOfLine() {
 	}
 	win.scrollto(maxCol, row, true)
 	win.buffer.xiView.Click(row, maxCol)
+}
+
+func (s *NormalState) esc() {
+	s.cancelVisual()
+	s.reset()
 }
 
 func (s *NormalState) reset() {
@@ -228,7 +237,11 @@ func (s *NormalState) down() {
 	if col > maxCol {
 		col = maxCol
 	}
-	win.buffer.xiView.Click(row, col)
+	if s.visualActive {
+		win.buffer.xiView.Drag(row, col)
+	} else {
+		win.buffer.xiView.Click(row, col)
+	}
 }
 
 func (s *NormalState) up() {
@@ -251,7 +264,11 @@ func (s *NormalState) up() {
 	if col > maxCol {
 		col = maxCol
 	}
-	win.buffer.xiView.Click(row, col)
+	if s.visualActive {
+		win.buffer.xiView.Drag(row, col)
+	} else {
+		win.buffer.xiView.Click(row, col)
+	}
 }
 
 func (s *NormalState) left() {
@@ -266,7 +283,11 @@ func (s *NormalState) left() {
 	if col < 0 {
 		col = 0
 	}
-	s.editor.activeWin.buffer.xiView.Click(row, col)
+	if s.visualActive {
+		s.editor.activeWin.buffer.xiView.Drag(row, col)
+	} else {
+		s.editor.activeWin.buffer.xiView.Click(row, col)
+	}
 	win.scrollCol = col
 }
 
@@ -279,24 +300,43 @@ func (s *NormalState) right() {
 	row := win.row
 	col := win.col
 	maxCol := len(win.buffer.lines[win.row].text) - 2
+	if maxCol < 0 {
+		maxCol = 0
+	}
 	col += count
 	if col > maxCol {
 		col = maxCol
 	}
-	win.buffer.xiView.Click(row, col)
+	if s.visualActive {
+		win.buffer.xiView.Drag(row, col)
+	} else {
+		win.buffer.xiView.Click(row, col)
+	}
 	win.scrollCol = col
 }
 
 func (s *NormalState) goTo() {
+	win := s.editor.activeWin
+	row := 0
+	col := 0
+	maxRow := len(win.buffer.lines) - 1
 	if s.cmdArg.count == 0 {
 		if s.cmdArg.cmd == "G" {
-			s.editor.activeWin.buffer.xiView.MoveToEndOfDocument()
+			row = maxRow
 		} else {
-			s.editor.activeWin.buffer.xiView.MoveToBeginningOfDocument()
+			row = 0
 		}
-		return
+	} else {
+		row = s.cmdArg.count
+		if row > maxRow {
+			row = maxRow
+		}
 	}
-	s.editor.activeWin.buffer.xiView.GotoLine(s.cmdArg.count)
+	if s.visualActive {
+		win.buffer.xiView.Drag(row, col)
+	} else {
+		win.buffer.xiView.Click(row, col)
+	}
 }
 
 func (s *NormalState) scrollUp() {
@@ -339,8 +379,15 @@ func (s *NormalState) pageUp() {
 }
 
 func (s *NormalState) startOfLine() {
-	s.editor.activeWin.buffer.xiView.MoveToLeftEndOfLine()
-	s.editor.activeWin.scrollCol = 0
+	win := s.editor.activeWin
+	row := win.row
+	col := 0
+	win.scrollCol = 0
+	if s.visualActive {
+		win.buffer.xiView.Drag(row, col)
+	} else {
+		win.buffer.xiView.Click(row, col)
+	}
 }
 
 func (s *NormalState) endOfLine() {
@@ -350,8 +397,38 @@ func (s *NormalState) endOfLine() {
 	if maxCol < 0 {
 		maxCol = 0
 	}
-	win.buffer.xiView.Click(row, maxCol)
 	win.scrollCol = maxCol
+	if s.visualActive {
+		win.buffer.xiView.Drag(row, maxCol)
+	} else {
+		win.buffer.xiView.Click(row, maxCol)
+	}
+}
+
+func (s *NormalState) visual() {
+	if s.visualActive {
+		s.cancelVisual()
+		return
+	}
+	s.visualActive = true
+	s.editor.activeWin.cline.Hide()
+}
+
+func (s *NormalState) cancelVisual() {
+	if !s.visualActive {
+		return
+	}
+	s.visualActive = false
+	s.editor.activeWin.cline.Show()
+	s.editor.activeWin.buffer.xiView.CancelOperation()
+}
+
+func (s *NormalState) undo() {
+	s.editor.activeWin.buffer.xiView.Undo()
+}
+
+func (s *NormalState) redo() {
+	s.editor.activeWin.buffer.xiView.Redo()
 }
 
 // InsertState is

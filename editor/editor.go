@@ -126,10 +126,29 @@ func NewEditor() (*Editor, error) {
 			fg := u.Theme.Foreground
 			e.cursor.SetStyleSheet(fmt.Sprintf("background-color: rgba(%d, %d, %d, 0.6);", fg.R, fg.G, fg.B))
 			scrollBarStyleSheet := e.getScrollbarStylesheet()
+
+			sel := u.Theme.Selection
+			e.stylesRWMutext.Lock()
+			e.styles[0] = &Style{
+				fg: &Color{
+					R: fg.R,
+					G: fg.G,
+					B: fg.B,
+					A: fg.A,
+				},
+				bg: &Color{
+					R: sel.R,
+					G: sel.G,
+					B: sel.B,
+					A: sel.A,
+				},
+			}
+			e.stylesRWMutext.Unlock()
+
 			e.winsRWMutext.RLock()
 			defer e.winsRWMutext.RUnlock()
 			for _, win := range e.wins {
-				win.view.SetStyleSheet(scrollBarStyleSheet)
+				win.widget.SetStyleSheet(scrollBarStyleSheet)
 				win.cline.SetStyleSheet(e.getClineStylesheet())
 			}
 		}
@@ -301,10 +320,10 @@ func (e *Editor) organizeWins() {
 	defer e.winsRWMutext.RUnlock()
 	for _, win := range e.wins {
 		fmt.Println("win move and resize", win.frame.x, win.frame.y, win.frame.width, win.frame.height)
-		win.view.Resize2(win.frame.width, win.frame.height)
-		win.view.Move2(win.frame.x, win.frame.y)
-		win.view.Hide()
-		win.view.Show()
+		win.widget.Resize2(win.frame.width, win.frame.height)
+		win.widget.Move2(win.frame.x, win.frame.y)
+		win.widget.Hide()
+		win.widget.Show()
 		win.cline.Resize2(win.frame.width, int(win.buffer.font.lineHeight))
 		win.cline.Hide()
 		win.cline.Show()

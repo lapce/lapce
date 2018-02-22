@@ -334,6 +334,16 @@ func (v *View) Click(row, col int) {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// Drag sets
+func (v *View) Drag(row, col int) {
+	cmd := &EditCommand{
+		Method: "drag",
+		ViewID: v.ID,
+		Params: []int{row, col, 0},
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // RequestLines sets
 func (v *View) RequestLines() {
 	cmd := &EditCommand{
@@ -375,6 +385,15 @@ func (v *View) MoveLeft() {
 func (v *View) MoveRight() {
 	cmd := &EditCommand{
 		Method: "move_right",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// MoveRightAndModifySelection is
+func (v *View) MoveRightAndModifySelection() {
+	cmd := &EditCommand{
+		Method: "move_right_and_modify_selection",
 		ViewID: v.ID,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
@@ -483,6 +502,33 @@ func (v *View) DeleteForward() {
 func (v *View) DeleteToBeginningOfLine() {
 	cmd := &EditCommand{
 		Method: "delete_to_beginning_of_line",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// Undo is
+func (v *View) Undo() {
+	cmd := &EditCommand{
+		Method: "undo",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// Redo is
+func (v *View) Redo() {
+	cmd := &EditCommand{
+		Method: "redo",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// CancelOperation deletes forwards
+func (v *View) CancelOperation() {
+	cmd := &EditCommand{
+		Method: "cancel_operation",
 		ViewID: v.ID,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)

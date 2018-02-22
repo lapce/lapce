@@ -34,7 +34,7 @@ func NewFont() *Font {
 
 	f.lineSpace = float64(10)
 	f.lineHeight = float64(int(f.height + f.lineSpace + 0.5))
-	f.shift = float64(int(f.lineSpace/2 + 0.5))
+	f.shift = float64(int(f.lineSpace/2 + f.ascent - f.descent + 1))
 
 	return f
 }

@@ -11,9 +11,11 @@ import (
 
 // ScenceLine is
 type ScenceLine struct {
-	line       *widgets.QGraphicsTextItem
-	textCursor *gui.QTextCursor
-	document   *gui.QTextDocument
+	buffer *Buffer
+	line   *widgets.QGraphicsItem
+	rect   *core.QRectF
+	color  *gui.QColor
+	index  int
 }
 
 // Buffer is
@@ -99,7 +101,6 @@ func (b *Buffer) setNewLine(ix int, i int, winsMap map[int][]*Window) {
 }
 
 func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
-	oldHeight := b.height()
 	newInvalidBefore := 0
 	newLines := []*Line{}
 	newInvalidAfter := 0
@@ -179,18 +180,19 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		}
 	}
 
-	b.nInvalidBefore = newInvalidBefore
-	b.lines = newLines
-	b.nInvalidAfter = newInvalidAfter
-	b.revision++
-
-	if b.height() < oldHeight {
-		for i := b.height(); i < oldHeight; i++ {
+	if len(newLines) < len(b.lines) {
+		for i := len(newLines); i < len(b.lines); i++ {
 			scenceLine := b.getScenceLine(i)
 			b.scence.RemoveItem(scenceLine.line)
 			delete(b.scenceLines, i)
 		}
 	}
+
+	b.nInvalidBefore = newInvalidBefore
+	b.lines = newLines
+	b.nInvalidAfter = newInvalidAfter
+	b.revision++
+
 	for _, win := range bufWins {
 		win.update()
 		if win != b.editor.activeWin {
@@ -210,29 +212,10 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 func (b *Buffer) updateLine(i int) {
 	line := b.lines[i]
 	scenceLine := b.getScenceLine(i)
-	textCursor := scenceLine.textCursor
-	if line == nil {
-		scenceLine.document.Clear()
-	} else {
-		if len(line.styles) < 3 {
-			scenceLine.document.SetPlainText(line.text)
-		} else {
-			textCursor.Select(gui.QTextCursor__Document)
-			start := 0
-			for i := 0; i*3+2 < len(line.styles); i++ {
-				start += line.styles[i*3]
-				length := line.styles[i*3+1]
-				styleID := line.styles[i*3+2]
-				style := b.editor.getStyle(styleID)
-				if style != nil {
-					fg := style.fg
-					b.charFormat.SetForeground(gui.NewQBrush3(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A), core.Qt__SolidPattern))
-					textCursor.InsertText2(string(line.text[start:start+length]), b.charFormat)
-				}
-				start += length
-			}
-		}
-	}
+	rect := scenceLine.rect
+	rect.SetWidth(b.font.width * float64(len(line.text)))
+	scenceLine.line.PrepareGeometryChange()
+	scenceLine.line.Update(rect)
 }
 
 func (b *Buffer) getLine(ix int) *Line {
@@ -264,14 +247,67 @@ func (b *Buffer) getScenceLine(i int) *ScenceLine {
 	if ok {
 		return scenceLine
 	}
-	line := b.scence.AddText("", b.font.font)
-	line.SetPos2(0, b.font.lineHeight*float64(i)+b.font.shift)
-	line.Document().SetDocumentMargin(0)
-	scenceLine = &ScenceLine{
-		line:       line,
-		textCursor: line.TextCursor(),
-		document:   line.Document(),
+	w := 1.0
+	if b.lines[i] != nil {
+		w = b.font.width * float64(len(b.lines[i].text))
 	}
+	line := widgets.NewQGraphicsItem(nil)
+	b.scence.AddItem(line)
+	rect := core.NewQRectF4(0, 0,
+		w, b.font.lineHeight)
+	line.SetPos2(1, b.font.lineHeight*float64(i))
+	line.ConnectBoundingRect(func() *core.QRectF {
+		return rect
+	})
+	scenceLine = &ScenceLine{
+		buffer: b,
+		line:   line,
+		rect:   rect,
+		index:  i,
+		color:  gui.NewQColor(),
+	}
+	line.ConnectPaint(scenceLine.paint)
 	b.scenceLines[i] = scenceLine
 	return scenceLine
+}
+
+func (l *ScenceLine) paint(painter *gui.QPainter, option *widgets.QStyleOptionGraphicsItem, widget *widgets.QWidget) {
+	line := l.buffer.lines[l.index]
+	if line == nil {
+		return
+	}
+	if line.text == "" {
+		return
+	}
+
+	painter.SetFont(l.buffer.font.font)
+	start := 0
+	for i := 0; i*3+2 < len(line.styles); i++ {
+		start += line.styles[i*3]
+		length := line.styles[i*3+1]
+		styleID := line.styles[i*3+2]
+		x := l.buffer.font.fontMetrics.Width(string(line.text[:start]))
+		text := string(line.text[start : start+length])
+		if styleID == 0 {
+			theme := l.buffer.editor.theme
+			if theme != nil {
+				bg := theme.Theme.Selection
+				l.color.SetRgb(bg.R, bg.G, bg.B, bg.A)
+				painter.FillRect5(int(x+0.5), -1,
+					int(l.buffer.font.fontMetrics.Width(text)+0.5),
+					int(l.buffer.font.lineHeight),
+					l.color)
+			}
+		} else {
+			style := l.buffer.editor.getStyle(styleID)
+			if style != nil {
+				fg := style.fg
+				l.color.SetRgb(fg.R, fg.G, fg.B, fg.A)
+				painter.SetPen2(l.color)
+			}
+			painter.DrawText3(int(x+0.5), int(l.buffer.font.shift), text)
+		}
+		start += length
+	}
+
 }
