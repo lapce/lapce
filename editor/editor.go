@@ -173,7 +173,7 @@ func (e *Editor) getClineStylesheet() string {
 
 func (e *Editor) getScrollbarStylesheet() string {
 	bg := e.theme.Theme.Background
-	guide := e.theme.Theme.LineHighlight
+	guide := e.theme.Theme.Selection
 	backgroundColor := fmt.Sprintf("rgba(%d, %d, %d, 1);", bg.R, bg.G, bg.B)
 	guideColor := fmt.Sprintf("rgba(%d, %d, %d, %f);", guide.R, guide.G, guide.B, float64(guide.A)/255)
 	fmt.Println(guideColor)
@@ -284,6 +284,9 @@ func (e *Editor) initMainWindow() {
 	e.equalWins()
 
 	e.cursor = widgets.NewQWidget(nil, 0)
+	e.cursor.ConnectWheelEvent(func(event *gui.QWheelEvent) {
+		e.activeWin.view.WheelEventDefault(event)
+	})
 	e.cursor.Resize2(1, 20)
 	e.cursor.SetStyleSheet("background-color: rgba(0, 0, 0, 0.1);")
 	e.cursor.Show()

@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -293,36 +294,38 @@ func (f *Frame) countSplits(vertical bool) int {
 
 // Window is for displaying a buffer
 type Window struct {
-	id        int
-	editor    *Editor
-	widget    *widgets.QWidget
-	gutter    *widgets.QWidget
-	view      *widgets.QGraphicsView
-	cline     *widgets.QWidget
-	frame     *Frame
-	buffer    *Buffer
-	x         float64
-	y         float64
-	cursorX   int
-	cursorY   int
-	row       int
-	col       int
-	scrollCol int
-	start     int
-	end       int
+	id            int
+	editor        *Editor
+	widget        *widgets.QWidget
+	gutter        *widgets.QWidget
+	gutterPadding int
+	view          *widgets.QGraphicsView
+	cline         *widgets.QWidget
+	frame         *Frame
+	buffer        *Buffer
+	x             float64
+	y             float64
+	cursorX       int
+	cursorY       int
+	row           int
+	col           int
+	scrollCol     int
+	start         int
+	end           int
 }
 
 // NewWindow creates a new window
 func NewWindow(editor *Editor, frame *Frame) *Window {
 	editor.winsRWMutext.Lock()
 	w := &Window{
-		id:     editor.winIndex,
-		editor: editor,
-		frame:  frame,
-		view:   widgets.NewQGraphicsView(nil),
-		cline:  widgets.NewQWidget(nil, 0),
-		widget: widgets.NewQWidget(nil, 0),
-		gutter: widgets.NewQWidget(nil, 0),
+		id:            editor.winIndex,
+		editor:        editor,
+		frame:         frame,
+		view:          widgets.NewQGraphicsView(nil),
+		cline:         widgets.NewQWidget(nil, 0),
+		widget:        widgets.NewQWidget(nil, 0),
+		gutter:        widgets.NewQWidget(nil, 0),
+		gutterPadding: 10,
 	}
 
 	layout := widgets.NewQHBoxLayout()
@@ -333,6 +336,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	w.widget.SetContentsMargins(0, 0, 1, 1)
 	w.widget.SetLayout(layout)
 	w.gutter.SetFixedWidth(30)
+	w.gutter.ConnectPaintEvent(w.paintGutter)
 
 	w.view.ConnectEventFilter(func(watched *core.QObject, event *core.QEvent) bool {
 		if event.Type() == core.QEvent__MouseButtonPress {
@@ -404,6 +408,8 @@ func (w *Window) update() {
 			b.updateLine(i)
 		}
 	}
+	w.gutter.SetFixedWidth(int(b.font.fontMetrics.Width(strconv.Itoa(len(b.lines)))+0.5) + w.gutterPadding*2)
+	w.gutter.Update()
 }
 
 func (w *Window) updateCline() {
@@ -470,4 +476,34 @@ func (w *Window) scrollto(col, row int, jump bool) {
 	w.updateCursorPos()
 	w.updateCursor()
 	w.updateCline()
+}
+
+func (w *Window) paintGutter(event *gui.QPaintEvent) {
+	p := gui.NewQPainter2(w.gutter)
+	defer p.DestroyQPainter()
+	p.SetFont(w.buffer.font.font)
+	fg := w.editor.theme.Theme.Selection
+	fgColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
+	clineFg := w.editor.theme.Theme.Foreground
+	clineColor := gui.NewQColor3(clineFg.R, clineFg.G, clineFg.B, clineFg.A)
+	shift := int(w.buffer.font.shift+0.5) - (w.view.VerticalScrollBar().Value() - w.start*int(w.buffer.font.lineHeight))
+	for i := w.start; i < w.end; i++ {
+		if i >= len(w.buffer.lines) {
+			return
+		}
+		if i == w.row {
+			p.SetPen2(clineColor)
+		} else {
+			p.SetPen2(fgColor)
+		}
+
+		n := i
+		// if relative {
+		if w.row != i {
+			n = Abs(i - w.row)
+		}
+		// }
+		padding := w.gutterPadding + int((w.buffer.font.fontMetrics.Width(strconv.Itoa(len(w.buffer.lines)))-w.buffer.font.fontMetrics.Width(strconv.Itoa(n)))+0.5)
+		p.DrawText3(padding, (i-w.start)*int(w.buffer.font.lineHeight)+shift, strconv.Itoa(n))
+	}
 }
