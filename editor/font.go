@@ -12,6 +12,7 @@ type Font struct {
 	height       float64
 	ascent       float64
 	descent      float64
+	leading      float64
 	shift        float64
 	lineHeight   float64
 	underlinePos float64
@@ -31,10 +32,11 @@ func NewFont() *Font {
 	f.ascent = fontMetrics.Ascent()
 	f.descent = fontMetrics.Descent()
 	f.underlinePos = fontMetrics.UnderlinePos()
+	f.leading = fontMetrics.Leading()
 
 	f.lineSpace = float64(10)
 	f.lineHeight = float64(int(f.height + f.lineSpace + 0.5))
-	f.shift = float64(int(f.lineSpace/2 + f.ascent - f.descent + 1))
+	f.shift = float64(int(f.lineSpace/2 + f.ascent - f.leading + 0.5))
 
 	return f
 }
