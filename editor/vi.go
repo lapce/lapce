@@ -79,6 +79,7 @@ func newVimNormalState(e *Editor) VimState {
 		"o":     s.toInsertNewLine,
 		"O":     s.toInsertNewLineAbove,
 		"e":     s.wordEnd,
+		"b":     s.wordForward,
 		"h":     s.left,
 		"l":     s.right,
 		"j":     s.down,
@@ -200,6 +201,25 @@ func (s *NormalState) wordEnd() {
 	}
 	for i := 0; i < count; i++ {
 		win.wordEnd()
+	}
+	row := win.row
+	col := win.col
+	if s.visualActive {
+		win.buffer.xiView.Drag(row, col)
+	} else {
+		win.buffer.xiView.Click(row, col)
+	}
+	win.scrollCol = col
+}
+
+func (s *NormalState) wordForward() {
+	win := s.editor.activeWin
+	count := 1
+	if s.cmdArg.count > 0 {
+		count = s.cmdArg.count
+	}
+	for i := 0; i < count; i++ {
+		win.wordForward()
 	}
 	row := win.row
 	col := win.col

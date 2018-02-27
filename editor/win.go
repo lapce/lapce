@@ -474,6 +474,59 @@ func (w *Window) wordEnd() {
 	}
 }
 
+func (w *Window) wordForward() {
+	class := 0
+	j := 0
+	for {
+		if w.buffer.lines[w.row] == nil {
+			return
+		}
+		if j > 0 {
+			w.col = len(w.buffer.lines[w.row].text) - 1
+		}
+		text := w.buffer.lines[w.row].text[:w.col]
+		runeSlice := []rune(text)
+		var r rune
+		hasBreak := false
+		i := -1
+		for index := len(runeSlice) - 1; index >= 0; index-- {
+			i++
+			r = runeSlice[index]
+			if j == 0 && i == 0 {
+				class = utfClass(r)
+				continue
+			}
+			c := utfClass(r)
+			if j == 0 && i == 1 {
+				class = c
+				continue
+			}
+			if c == class {
+				continue
+			}
+			if class == 0 {
+				class = c
+				continue
+			}
+			hasBreak = true
+			break
+		}
+		if hasBreak {
+			w.col -= i
+			return
+		}
+		if len(runeSlice) > 0 && utfClass(runeSlice[0]) > 0 {
+			w.col = 0
+			return
+		}
+		if w.row == 0 {
+			return
+		}
+		w.row--
+		j++
+	}
+}
+
 func (w *Window) updateCline() {
 	w.cline.Move2(0, w.cursorY)
 }
