@@ -430,6 +430,71 @@ func utfClass(r rune) int {
 	return 2
 }
 
+func (w *Window) wordUnderCursor() string {
+	if w.buffer.lines[w.row] == nil {
+		return ""
+	}
+	runeSlice := []rune{}
+	nonWordRuneSlice := []rune{}
+	stopNonWord := false
+	text := w.buffer.lines[w.row].text[w.col:]
+	class := 0
+	for i, r := range text {
+		c := utfClass(r)
+		if i == 0 {
+			class = c
+		}
+		if c == 2 {
+			runeSlice = append(runeSlice, r)
+		} else {
+			if len(runeSlice) > 0 {
+				break
+			}
+			if c == 0 {
+				if len(nonWordRuneSlice) > 0 {
+					stopNonWord = true
+				}
+			} else {
+				if !stopNonWord {
+					nonWordRuneSlice = append(nonWordRuneSlice, r)
+				}
+			}
+		}
+	}
+	if len(runeSlice) == 0 {
+		if class == 1 {
+			text = w.buffer.lines[w.row].text[:w.col]
+			textRune := []rune(text)
+			for i := len(textRune) - 1; i >= 0; i-- {
+				r := textRune[i]
+				c := utfClass(r)
+				if c == 1 {
+					nonWordRuneSlice = append([]rune{r}, nonWordRuneSlice...)
+				} else {
+					break
+				}
+			}
+		}
+		return string(nonWordRuneSlice)
+	}
+
+	if class == 2 {
+		text = w.buffer.lines[w.row].text[:w.col]
+		textRune := []rune(text)
+		for i := len(textRune) - 1; i >= 0; i-- {
+			r := textRune[i]
+			c := utfClass(r)
+			if c == 2 {
+				runeSlice = append([]rune{r}, runeSlice...)
+			} else {
+				break
+			}
+		}
+	}
+
+	return string(runeSlice)
+}
+
 func (w *Window) wordEnd() {
 	class := 0
 	i := 0

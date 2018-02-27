@@ -39,6 +39,7 @@ type VimOutcome struct {
 type VimState interface {
 	execute()
 	setCmd(key string)
+	cursor() (int, int)
 }
 
 func newVimStates(e *Editor) map[int]VimState {
@@ -54,6 +55,7 @@ type NormalState struct {
 	wincmd       bool
 	gcmd         bool
 	visualActive bool
+	visualMode   string
 	cmdArg       *VimCmdArg
 	cmds         map[string]VimCommand
 }
@@ -92,13 +94,26 @@ func newVimNormalState(e *Editor) VimState {
 		"<C-d>": s.pageDown,
 		"<C-u>": s.pageUp,
 		"v":     s.visual,
+		"V":     s.visual,
 		"u":     s.undo,
 		"<C-r>": s.redo,
 		"*":     s.search,
 		"n":     s.findNext,
+		"x":     s.delForward,
+		"s":     s.substitute,
 	}
 
 	return s
+}
+
+func (s *NormalState) cursor() (int, int) {
+	font := s.editor.activeWin.buffer.font
+	width := int(font.width + 0.5)
+	height := int(font.lineHeight + 0.5)
+	if s.visualActive {
+		width = 1
+	}
+	return width, height
 }
 
 func (s *NormalState) setCmd(key string) {
@@ -152,9 +167,10 @@ func (s *NormalState) toInsert() {
 func (s *NormalState) toInsertRight() {
 	s.editor.vimMode = Insert
 	s.editor.updateCursorShape()
-	if s.editor.activeWin.col < len(s.editor.activeWin.buffer.lines[s.editor.activeWin.row].text)-1 {
-		s.editor.activeWin.scrollto(s.editor.activeWin.col+1, s.editor.activeWin.row, true)
-		s.editor.activeWin.buffer.xiView.MoveRight()
+	win := s.editor.activeWin
+	if win.col < len(win.buffer.lines[win.row].text)-1 {
+		win.scrollto(win.col+1, win.row, true)
+		win.buffer.xiView.Click(win.row, win.col)
 	}
 }
 
@@ -205,7 +221,7 @@ func (s *NormalState) wordEnd() {
 	row := win.row
 	col := win.col
 	if s.visualActive {
-		win.buffer.xiView.Drag(row, col)
+		win.buffer.xiView.Drag(row, col+1)
 	} else {
 		win.buffer.xiView.Click(row, col)
 	}
@@ -295,7 +311,10 @@ func (s *NormalState) down() {
 	if row > maxRow {
 		row = maxRow
 	}
-	maxCol := len(win.buffer.lines[row].text) - 2
+	maxCol := 0
+	if win.buffer.lines[row] != nil {
+		maxCol = len(win.buffer.lines[row].text) - 2
+	}
 	if maxCol < 0 {
 		maxCol = 0
 	}
@@ -368,6 +387,9 @@ func (s *NormalState) right() {
 	row := win.row
 	col := win.col
 	maxCol := len(win.buffer.lines[win.row].text) - 2
+	if s.visualActive {
+		maxCol++
+	}
 	if maxCol < 0 {
 		maxCol = 0
 	}
@@ -462,6 +484,9 @@ func (s *NormalState) endOfLine() {
 	win := s.editor.activeWin
 	row := win.row
 	maxCol := len(win.buffer.lines[row].text) - 2
+	if s.visualActive {
+		maxCol++
+	}
 	if maxCol < 0 {
 		maxCol = 0
 	}
@@ -478,18 +503,25 @@ func (s *NormalState) visual() {
 		s.cancelVisual(true)
 		return
 	}
+	win := s.editor.activeWin
 	s.visualActive = true
-	s.editor.activeWin.cline.Hide()
+	s.visualMode = s.cmdArg.cmd
+	s.editor.updateCursorShape()
+	win.cline.Hide()
+	win.buffer.xiView.Click(win.row, win.col)
 }
 
 func (s *NormalState) cancelVisual(sendToXi bool) {
 	if !s.visualActive {
 		return
 	}
+	win := s.editor.activeWin
 	s.visualActive = false
+	s.visualMode = ""
+	s.editor.updateCursorShape()
 	s.editor.activeWin.cline.Show()
 	if sendToXi {
-		s.editor.activeWin.buffer.xiView.CancelOperation()
+		win.buffer.xiView.CancelOperation()
 	}
 }
 
@@ -510,18 +542,29 @@ func (s *NormalState) search() {
 		buffer.xiView.FindNext(true)
 		return
 	}
-	line := buffer.lines[win.row].text[win.col:]
-	for _, s := range strings.SplitN(line, " ", -1) {
-		if s != "" {
-			buffer.xiView.Find(s)
-			buffer.xiView.FindNext(true)
-			break
-		}
+	word := win.wordUnderCursor()
+	if word != "" {
+		buffer.xiView.Find(word)
+		buffer.xiView.FindNext(true)
 	}
 }
 
 func (s *NormalState) findNext() {
 	s.editor.activeWin.buffer.xiView.FindNext(false)
+}
+
+func (s *NormalState) delForward() {
+	s.editor.activeWin.buffer.xiView.DeleteForward()
+	s.cancelVisual(false)
+}
+
+func (s *NormalState) substitute() {
+	s.delForward()
+	s.toInsert()
+}
+
+func (s *NormalState) delBackward() {
+	s.editor.activeWin.buffer.xiView.DeleteBackward()
 }
 
 // InsertState is
@@ -539,6 +582,8 @@ func newVimInsertState(e *Editor) VimState {
 	s.cmds = map[string]VimCommand{
 		"<Esc>":    s.toNormal,
 		"<Tab>":    s.tab,
+		"<C-f>":    s.right,
+		"<C-b>":    s.left,
 		"<Enter>":  s.newLine,
 		"<C-m>":    s.newLine,
 		"<C-j>":    s.newLine,
@@ -551,6 +596,12 @@ func newVimInsertState(e *Editor) VimState {
 		"<Del>":    s.deleteForward,
 	}
 	return s
+}
+
+func (s *InsertState) cursor() (int, int) {
+	font := s.editor.activeWin.buffer.font
+	height := int(font.lineHeight + 0.5)
+	return 1, height
 }
 
 func (s *InsertState) setCmd(key string) {
@@ -573,14 +624,49 @@ func (s *InsertState) execute() {
 func (s *InsertState) toNormal() {
 	s.editor.vimMode = Normal
 	s.editor.updateCursorShape()
-	if s.editor.activeWin.col > 0 {
-		s.editor.activeWin.scrollto(s.editor.activeWin.col-1, s.editor.activeWin.row, true)
-		s.editor.activeWin.buffer.xiView.MoveLeft()
+	win := s.editor.activeWin
+	if win.col > 0 {
+		win.scrollto(win.col-1, win.row, true)
+		win.buffer.xiView.Click(win.row, win.col)
 	}
 }
 
 func (s *InsertState) tab() {
 	s.editor.activeWin.buffer.xiView.InsertTab()
+}
+
+func (s *InsertState) right() {
+	win := s.editor.activeWin
+	row := win.row
+	col := win.col
+	maxCol := len(win.buffer.lines[win.row].text) - 2
+	if maxCol < 0 {
+		maxCol = 0
+	}
+	col++
+	if col > maxCol {
+		col = maxCol
+	}
+	win.buffer.xiView.Click(row, col)
+	win.scrollCol = col
+}
+
+func (s *InsertState) left() {
+	win := s.editor.activeWin
+	row := s.editor.activeWin.row
+	col := s.editor.activeWin.col
+	col--
+	if col < 0 {
+		col = 0
+	}
+	s.editor.activeWin.buffer.xiView.Click(row, col)
+	win.scrollCol = col
+}
+
+func (s *InsertState) up() {
+}
+
+func (s *InsertState) down() {
 }
 
 func (s *InsertState) newLine() {
@@ -615,12 +701,8 @@ func (e *Editor) updateCursorShape() {
 	if e.activeWin == nil {
 		return
 	}
-	font := e.activeWin.buffer.font
-	if e.vimMode == Insert {
-		e.cursor.Resize2(1, int(font.lineHeight+0.5))
-	} else {
-		e.cursor.Resize2(int(font.width+0.5), int(font.lineHeight+0.5))
-	}
+	w, h := e.vimStates[e.vimMode].cursor()
+	e.cursor.Resize2(w, h)
 }
 
 func (e *Editor) convertKey(keyEvent *gui.QKeyEvent) string {

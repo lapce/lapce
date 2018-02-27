@@ -344,6 +344,24 @@ func (v *View) Drag(row, col int) {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// AddSelectionAbove is
+func (v *View) AddSelectionAbove() {
+	cmd := &EditCommand{
+		Method: "add_selection_above",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// AddSelectionBelow is
+func (v *View) AddSelectionBelow() {
+	cmd := &EditCommand{
+		Method: "add_selection_below",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // RequestLines sets
 func (v *View) RequestLines() {
 	cmd := &EditCommand{
