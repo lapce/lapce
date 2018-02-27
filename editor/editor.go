@@ -65,6 +65,8 @@ type Editor struct {
 	keyCmd          core.Qt__Key
 	keyAlt          core.Qt__Key
 	keyShift        core.Qt__Key
+
+	searchForward bool
 }
 
 type editorSignal struct {

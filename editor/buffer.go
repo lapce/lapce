@@ -293,7 +293,7 @@ func (l *ScenceLine) paint(painter *gui.QPainter, option *widgets.QStyleOptionGr
 			if theme != nil {
 				bg := theme.Theme.Selection
 				l.color.SetRgb(bg.R, bg.G, bg.B, bg.A)
-				painter.FillRect5(int(x+0.5), -1,
+				painter.FillRect5(int(x+0.5), 0,
 					int(l.buffer.font.fontMetrics.Width(text)+0.5),
 					int(l.buffer.font.lineHeight),
 					l.color)

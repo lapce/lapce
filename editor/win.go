@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"strconv"
+	"unicode"
 
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -410,6 +411,67 @@ func (w *Window) update() {
 	}
 	w.gutter.SetFixedWidth(int(b.font.fontMetrics.Width(strconv.Itoa(len(b.lines)))+0.5) + w.gutterPadding*2)
 	w.gutter.Update()
+}
+
+func (w *Window) charUnderCursor() rune {
+	for _, r := range w.buffer.lines[w.row].text[w.col:] {
+		return r
+	}
+	return 0
+}
+
+func utfClass(r rune) int {
+	if unicode.IsSpace(r) {
+		return 0
+	}
+	if unicode.IsPunct(r) || unicode.IsMark(r) || unicode.IsSymbol(r) {
+		return 1
+	}
+	return 2
+}
+
+func (w *Window) wordEnd() {
+	class := 0
+	i := 0
+	j := 0
+	for {
+		if w.buffer.lines[w.row] == nil {
+			return
+		}
+		text := w.buffer.lines[w.row].text[w.col:]
+		var r rune
+		hasBreak := false
+		for i, r = range text {
+			if j == 0 && i == 0 {
+				class = utfClass(r)
+				continue
+			}
+			c := utfClass(r)
+			if j == 0 && i == 1 {
+				class = c
+				continue
+			}
+			if c == class {
+				continue
+			}
+			if class == 0 {
+				class = c
+				continue
+			}
+			hasBreak = true
+			break
+		}
+		if hasBreak {
+			w.col += i - 1
+			return
+		}
+		if w.row == len(w.buffer.lines)-1 {
+			return
+		}
+		w.row++
+		w.col = 0
+		j++
+	}
 }
 
 func (w *Window) updateCline() {

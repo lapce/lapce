@@ -453,6 +453,15 @@ func (v *View) ScrollPageDown() {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// MoveWordRight is
+func (v *View) MoveWordRight() {
+	cmd := &EditCommand{
+		Method: "move_word_right",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // MoveWordLeft moves to word left
 func (v *View) MoveWordLeft() {
 	cmd := &EditCommand{
@@ -530,6 +539,38 @@ func (v *View) CancelOperation() {
 	cmd := &EditCommand{
 		Method: "cancel_operation",
 		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// Find finds
+func (v *View) Find(chars string) {
+	params := map[string]interface{}{}
+	if chars != "" {
+		params["chars"] = chars
+	}
+	params["case_sensitive"] = false
+
+	cmd := &EditCommand{
+		Method: "find",
+		ViewID: v.ID,
+		Params: params,
+	}
+	var result interface{}
+	err := v.xi.Conn.Call(context.Background(), "edit", &cmd, &result)
+	fmt.Println("find error", err, chars, result)
+}
+
+// FindNext finds
+func (v *View) FindNext(allowSame bool) {
+	params := map[string]interface{}{}
+	params["wrap_around"] = true
+	params["allow_same"] = allowSame
+
+	cmd := &EditCommand{
+		Method: "find_next",
+		ViewID: v.ID,
+		Params: params,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }

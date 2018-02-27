@@ -78,6 +78,7 @@ func newVimNormalState(e *Editor) VimState {
 		"A":     s.toInsertEndOfLine,
 		"o":     s.toInsertNewLine,
 		"O":     s.toInsertNewLineAbove,
+		"e":     s.wordEnd,
 		"h":     s.left,
 		"l":     s.right,
 		"j":     s.down,
@@ -92,6 +93,8 @@ func newVimNormalState(e *Editor) VimState {
 		"v":     s.visual,
 		"u":     s.undo,
 		"<C-r>": s.redo,
+		"*":     s.search,
+		"n":     s.findNext,
 	}
 
 	return s
@@ -189,8 +192,27 @@ func (s *NormalState) toInsertNewLineAbove() {
 	win.buffer.xiView.Click(row, col)
 }
 
+func (s *NormalState) wordEnd() {
+	win := s.editor.activeWin
+	count := 1
+	if s.cmdArg.count > 0 {
+		count = s.cmdArg.count
+	}
+	for i := 0; i < count; i++ {
+		win.wordEnd()
+	}
+	row := win.row
+	col := win.col
+	if s.visualActive {
+		win.buffer.xiView.Drag(row, col)
+	} else {
+		win.buffer.xiView.Click(row, col)
+	}
+	win.scrollCol = col
+}
+
 func (s *NormalState) esc() {
-	s.cancelVisual()
+	s.cancelVisual(true)
 	s.reset()
 }
 
@@ -433,20 +455,22 @@ func (s *NormalState) endOfLine() {
 
 func (s *NormalState) visual() {
 	if s.visualActive {
-		s.cancelVisual()
+		s.cancelVisual(true)
 		return
 	}
 	s.visualActive = true
 	s.editor.activeWin.cline.Hide()
 }
 
-func (s *NormalState) cancelVisual() {
+func (s *NormalState) cancelVisual(sendToXi bool) {
 	if !s.visualActive {
 		return
 	}
 	s.visualActive = false
 	s.editor.activeWin.cline.Show()
-	s.editor.activeWin.buffer.xiView.CancelOperation()
+	if sendToXi {
+		s.editor.activeWin.buffer.xiView.CancelOperation()
+	}
 }
 
 func (s *NormalState) undo() {
@@ -455,6 +479,29 @@ func (s *NormalState) undo() {
 
 func (s *NormalState) redo() {
 	s.editor.activeWin.buffer.xiView.Redo()
+}
+
+func (s *NormalState) search() {
+	win := s.editor.activeWin
+	buffer := win.buffer
+	if s.visualActive {
+		s.cancelVisual(false)
+		buffer.xiView.Find("")
+		buffer.xiView.FindNext(true)
+		return
+	}
+	line := buffer.lines[win.row].text[win.col:]
+	for _, s := range strings.SplitN(line, " ", -1) {
+		if s != "" {
+			buffer.xiView.Find(s)
+			buffer.xiView.FindNext(true)
+			break
+		}
+	}
+}
+
+func (s *NormalState) findNext() {
+	s.editor.activeWin.buffer.xiView.FindNext(false)
 }
 
 // InsertState is
