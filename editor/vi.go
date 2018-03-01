@@ -307,26 +307,7 @@ func (s *NormalState) down() {
 	win := s.editor.activeWin
 	row := win.row
 	row += count
-	maxRow := len(win.buffer.lines) - 1
-	if row > maxRow {
-		row = maxRow
-	}
-	maxCol := 0
-	if win.buffer.lines[row] != nil {
-		maxCol = len(win.buffer.lines[row].text) - 2
-	}
-	if maxCol < 0 {
-		maxCol = 0
-	}
-	col := win.scrollCol
-	if col > maxCol {
-		col = maxCol
-	}
-	if s.visualActive {
-		win.buffer.xiView.Drag(row, col)
-	} else {
-		win.buffer.xiView.Click(row, col)
-	}
+	win.cursorTo(count, 0, false)
 }
 
 func (s *NormalState) up() {
@@ -336,26 +317,7 @@ func (s *NormalState) up() {
 	}
 
 	win := s.editor.activeWin
-	row := win.row
-	row -= count
-	if row < 0 {
-		row = 0
-	}
-	maxCol := len(win.buffer.lines[row].text) - 2
-	if maxCol < 0 {
-		maxCol = 0
-	}
-	col := win.scrollCol
-	if col > maxCol {
-		col = maxCol
-	}
-	win.row = row
-	win.col = col
-	if s.visualActive {
-		win.buffer.xiView.Drag(row, col)
-	} else {
-		win.buffer.xiView.Click(row, col)
-	}
+	win.cursorTo(-count, 0, false)
 }
 
 func (s *NormalState) left() {
@@ -364,18 +326,7 @@ func (s *NormalState) left() {
 		count = s.cmdArg.count
 	}
 	win := s.editor.activeWin
-	row := s.editor.activeWin.row
-	col := s.editor.activeWin.col
-	col -= count
-	if col < 0 {
-		col = 0
-	}
-	if s.visualActive {
-		s.editor.activeWin.buffer.xiView.Drag(row, col)
-	} else {
-		s.editor.activeWin.buffer.xiView.Click(row, col)
-	}
-	win.scrollCol = col
+	win.cursorTo(0, -count, true)
 }
 
 func (s *NormalState) right() {
@@ -384,31 +335,12 @@ func (s *NormalState) right() {
 		count = s.cmdArg.count
 	}
 	win := s.editor.activeWin
-	row := win.row
-	col := win.col
-	maxCol := len(win.buffer.lines[win.row].text) - 2
-	if s.visualActive {
-		maxCol++
-	}
-	if maxCol < 0 {
-		maxCol = 0
-	}
-	col += count
-	if col > maxCol {
-		col = maxCol
-	}
-	if s.visualActive {
-		win.buffer.xiView.Drag(row, col)
-	} else {
-		win.buffer.xiView.Click(row, col)
-	}
-	win.scrollCol = col
+	win.cursorTo(0, count, true)
 }
 
 func (s *NormalState) goTo() {
 	win := s.editor.activeWin
 	row := 0
-	col := 0
 	maxRow := len(win.buffer.lines) - 1
 	if s.cmdArg.count == 0 {
 		if s.cmdArg.cmd == "G" {
@@ -422,11 +354,7 @@ func (s *NormalState) goTo() {
 			row = maxRow
 		}
 	}
-	if s.visualActive {
-		win.buffer.xiView.Drag(row, col)
-	} else {
-		win.buffer.xiView.Click(row, col)
-	}
+	win.cursorTo(row-win.row, 0, false)
 }
 
 func (s *NormalState) scrollUp() {
@@ -434,9 +362,9 @@ func (s *NormalState) scrollUp() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	y := int(float64(count)*s.editor.activeWin.buffer.font.lineHeight + 0.5)
-	scrollBar := s.editor.activeWin.view.VerticalScrollBar()
-	scrollBar.SetValue(scrollBar.Value() - y)
+	s.editor.activeWin.scrollRow(-count, false)
+	// scrollBar := s.editor.activeWin.view.VerticalScrollBar()
+	// scrollBar.SetValue(scrollBar.Value() - y)
 }
 
 func (s *NormalState) scrollDown() {
@@ -444,28 +372,31 @@ func (s *NormalState) scrollDown() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	y := int(float64(count)*s.editor.activeWin.buffer.font.lineHeight + 0.5)
-	scrollBar := s.editor.activeWin.view.VerticalScrollBar()
-	scrollBar.SetValue(scrollBar.Value() + y)
+	s.editor.activeWin.scrollRow(count, false)
+	// scrollBar := s.editor.activeWin.view.VerticalScrollBar()
+	// scrollBar.SetValue(scrollBar.Value() + y)
+
 }
 
 func (s *NormalState) pageDown() {
 	win := s.editor.activeWin
 	n := (win.end - win.start) / 2
-	row := win.row
-	row += n
-	win.buffer.xiView.GotoLine(row)
+	s.editor.activeWin.scrollRow(n, true)
+	// row := win.row
+	// row += n
+	// win.buffer.xiView.GotoLine(row)
 }
 
 func (s *NormalState) pageUp() {
 	win := s.editor.activeWin
 	n := (win.end - win.start) / 2
-	row := win.row
-	row -= n
-	if row < 0 {
-		row = 0
-	}
-	win.buffer.xiView.GotoLine(row)
+	s.editor.activeWin.scrollRow(-n, true)
+	// row := win.row
+	// row -= n
+	// if row < 0 {
+	// 	row = 0
+	// }
+	// win.buffer.xiView.GotoLine(row)
 }
 
 func (s *NormalState) startOfLine() {

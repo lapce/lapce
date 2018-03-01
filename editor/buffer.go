@@ -31,6 +31,9 @@ type Buffer struct {
 	nInvalidAfter  int
 	revision       int
 	xiView         *xi.View
+
+	x int
+	y int
 }
 
 // Color is

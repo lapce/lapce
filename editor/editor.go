@@ -67,6 +67,8 @@ type Editor struct {
 	keyShift        core.Qt__Key
 
 	searchForward bool
+
+	smoothScroll bool
 }
 
 type editorSignal struct {
@@ -74,16 +76,39 @@ type editorSignal struct {
 	_ func() `signal:"updateSignal"`
 }
 
+// SmoothScroll is
+type SmoothScroll struct {
+	rows            int
+	cols            int
+	changeScrollCol bool
+}
+
+// Scroll is
+type Scroll struct {
+	row int
+	col int
+	dx  int
+	dy  int
+}
+
+// SetPos is
+type SetPos struct {
+	row  int
+	col  int
+	toXi bool
+}
+
 // NewEditor is
 func NewEditor() (*Editor, error) {
 	e := &Editor{
-		updates: make(chan interface{}, 1000),
-		init:    make(chan struct{}),
-		buffers: map[string]*Buffer{},
-		wins:    map[int]*Window{},
-		styles:  map[int]*Style{},
-		bgBrush: gui.NewQBrush(),
-		fgBrush: gui.NewQBrush(),
+		updates:      make(chan interface{}, 1000),
+		init:         make(chan struct{}),
+		buffers:      map[string]*Buffer{},
+		wins:         map[int]*Window{},
+		styles:       map[int]*Style{},
+		bgBrush:      gui.NewQBrush(),
+		fgBrush:      gui.NewQBrush(),
+		smoothScroll: true,
 	}
 	e.initSpecialKeys()
 	e.vimStates = newVimStates(e)
@@ -98,6 +123,34 @@ func NewEditor() (*Editor, error) {
 		update := <-e.updates
 
 		switch u := update.(type) {
+		case string:
+			switch u {
+			case "scrollDone":
+				win := e.activeWin
+				win.setPos(win.row, win.col, false)
+			case "updateXi":
+				// win := e.activeWin
+				// if win.row == 0 && win.col == 0 {
+				// 	return
+				// }
+				// win.buffer.xiView.Click(win.row, win.col)
+			}
+		case *SetPos:
+			win := e.activeWin
+			win.setPos(u.row, u.col, u.toXi)
+		case *SmoothScroll:
+			win := e.activeWin
+			win.smoothScrollNew(u)
+		case *Scroll:
+			win := e.activeWin
+			if u.dx != 0 {
+				scrollBar := win.horizontalScrollBar
+				scrollBar.SetValue(scrollBar.Value() + u.dx)
+			}
+			if u.dy != 0 {
+				scrollBar := win.verticalScrollBar
+				scrollBar.SetValue(scrollBar.Value() + u.dy)
+			}
 		case *xi.UpdateNotification:
 			e.buffersRWMutex.RLock()
 			buffer, ok := e.buffers[u.ViewID]
@@ -152,6 +205,8 @@ func NewEditor() (*Editor, error) {
 			for _, win := range e.wins {
 				win.widget.SetStyleSheet(scrollBarStyleSheet)
 				win.cline.SetStyleSheet(e.getClineStylesheet())
+				win.verticalScrollBarWidth = win.verticalScrollBar.Width()
+				win.horizontalScrollBarHeight = win.horizontalScrollBar.Height()
 			}
 		}
 	})

@@ -3,6 +3,8 @@ package editor
 import (
 	"fmt"
 	"strconv"
+	"sync"
+	"time"
 	"unicode"
 
 	"github.com/therecipe/qt/core"
@@ -295,39 +297,55 @@ func (f *Frame) countSplits(vertical bool) int {
 
 // Window is for displaying a buffer
 type Window struct {
-	id            int
-	editor        *Editor
-	widget        *widgets.QWidget
-	gutter        *widgets.QWidget
-	gutterPadding int
-	view          *widgets.QGraphicsView
-	cline         *widgets.QWidget
-	frame         *Frame
-	buffer        *Buffer
-	x             float64
-	y             float64
-	cursorX       int
-	cursorY       int
-	row           int
-	col           int
-	scrollCol     int
-	start         int
-	end           int
+	id                        int
+	editor                    *Editor
+	widget                    *widgets.QWidget
+	gutter                    *widgets.QWidget
+	gutterWidth               int
+	gutterPadding             int
+	view                      *widgets.QGraphicsView
+	cline                     *widgets.QWidget
+	frame                     *Frame
+	buffer                    *Buffer
+	x                         int
+	y                         int
+	cursorX                   int
+	cursorY                   int
+	row                       int
+	col                       int
+	scrollCol                 int
+	start                     int
+	end                       int
+	scrollChan                chan *Scroll
+	scrollWaitChan            chan *SmoothScroll
+	scrolling                 bool
+	scrollDone                chan struct{}
+	scrollMutex               sync.Mutex
+	verticalScrollBar         *widgets.QScrollBar
+	horizontalScrollBar       *widgets.QScrollBar
+	verticalScrollBarWidth    int
+	horizontalScrollBarHeight int
+	verticalScrollValue       int
+	horizontalScrollValue     int
 }
 
 // NewWindow creates a new window
 func NewWindow(editor *Editor, frame *Frame) *Window {
 	editor.winsRWMutext.Lock()
 	w := &Window{
-		id:            editor.winIndex,
-		editor:        editor,
-		frame:         frame,
-		view:          widgets.NewQGraphicsView(nil),
-		cline:         widgets.NewQWidget(nil, 0),
-		widget:        widgets.NewQWidget(nil, 0),
-		gutter:        widgets.NewQWidget(nil, 0),
-		gutterPadding: 10,
+		id:             editor.winIndex,
+		editor:         editor,
+		frame:          frame,
+		view:           widgets.NewQGraphicsView(nil),
+		cline:          widgets.NewQWidget(nil, 0),
+		widget:         widgets.NewQWidget(nil, 0),
+		gutter:         widgets.NewQWidget(nil, 0),
+		scrollChan:     make(chan *Scroll),
+		scrollDone:     make(chan struct{}),
+		scrollWaitChan: make(chan *SmoothScroll),
+		gutterPadding:  10,
 	}
+	go w.smoothScrollJob()
 
 	layout := widgets.NewQHBoxLayout()
 	layout.SetContentsMargins(0, 0, 0, 0)
@@ -380,16 +398,21 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	})
 	w.view.ConnectScrollContentsBy(func(dx, dy int) {
 		w.view.ScrollContentsByDefault(dx, dy)
-		w.setScroll()
+		w.verticalScrollValue = w.verticalScrollBar.Value()
+		w.horizontalScrollValue = w.horizontalScrollBar.Value()
 	})
 	w.view.SetFocusPolicy(core.Qt__ClickFocus)
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
 	w.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
 	w.view.SetFrameStyle(0)
+	w.horizontalScrollBar = w.view.HorizontalScrollBar()
+	w.verticalScrollBar = w.view.VerticalScrollBar()
 	w.widget.SetObjectName("view")
 	if editor.theme != nil {
 		scrollBarStyleSheet := editor.getScrollbarStylesheet()
 		w.widget.SetStyleSheet(scrollBarStyleSheet)
+		w.verticalScrollBarWidth = w.verticalScrollBar.Width()
+		w.horizontalScrollBarHeight = w.horizontalScrollBar.Height()
 	}
 	w.widget.SetParent(editor.centralWidget)
 
@@ -409,8 +432,9 @@ func (w *Window) update() {
 			b.updateLine(i)
 		}
 	}
-	w.gutter.SetFixedWidth(int(b.font.fontMetrics.Width(strconv.Itoa(len(b.lines)))+0.5) + w.gutterPadding*2)
-	w.gutter.Update()
+	w.gutterWidth = int(b.font.fontMetrics.Width(strconv.Itoa(len(b.lines)))+0.5) + w.gutterPadding*2
+	w.gutter.SetFixedWidth(w.gutterWidth)
+	// w.gutter.Update()
 }
 
 func (w *Window) charUnderCursor() rune {
@@ -593,7 +617,7 @@ func (w *Window) wordForward() {
 }
 
 func (w *Window) updateCline() {
-	w.cline.Move2(0, w.cursorY)
+	w.cline.Move2(0, w.y)
 }
 
 func (w *Window) updateCursor() {
@@ -602,7 +626,7 @@ func (w *Window) updateCursor() {
 	}
 	w.editor.updateCursorShape()
 	cursor := w.editor.cursor
-	cursor.Move2(w.cursorX, w.cursorY)
+	cursor.Move2(w.x, w.y)
 	cursor.Hide()
 	cursor.Show()
 }
@@ -621,41 +645,378 @@ func (w *Window) loadBuffer(buffer *Buffer) {
 }
 
 func (w *Window) updateCursorPos() {
-	w.cursorX = int(w.x+0.5) - w.view.HorizontalScrollBar().Value()
-	w.cursorY = int(w.y+0.5) - w.view.VerticalScrollBar().Value()
+	w.cursorX = w.x - w.view.HorizontalScrollBar().Value()
+	w.cursorY = w.y - w.view.VerticalScrollBar().Value()
+}
+
+func (w *Window) cursorScroll(row, col int) (int, int) {
+	lineHeight := w.buffer.font.lineHeight
+	lineHeightInt := int(lineHeight)
+	posx, posy := w.getPos(row, col)
+	dx := 0
+	x := w.horizontalScrollBar.Value()
+	verticalScrollBarWidth := 0
+	if w.verticalScrollBar.IsVisible() {
+		verticalScrollBarWidth = w.verticalScrollBarWidth
+	}
+	padding := int(w.buffer.font.width*2 + 0.5)
+	end := x + w.frame.width + w.gutterWidth - padding - int(w.buffer.font.width+0.5) - verticalScrollBarWidth
+	if posx < x+padding {
+		dx = posx - (x + padding)
+	} else if posx > end {
+		dx = posx - end
+	}
+	if dx < 0 && x == 0 {
+		dx = 0
+	}
+
+	dy := 0
+	y := w.verticalScrollBar.Value()
+	horizontalScrollBarHeight := 0
+	if w.horizontalScrollBar.IsVisible() {
+		horizontalScrollBarHeight = w.horizontalScrollBarHeight
+	}
+	end = y + w.frame.height - 2*lineHeightInt - horizontalScrollBarHeight
+	if posy < y+lineHeightInt {
+		dy = posy - (y + lineHeightInt)
+	} else if posy > end {
+		dy = posy - end
+	}
+	if dy < 0 && y == 0 {
+		dy = 0
+	}
+	return dx, dy
+}
+
+func (w *Window) scrollToCursor() {
+	lineHeight := w.buffer.font.lineHeight
+	if !w.editor.smoothScroll {
+		w.view.EnsureVisible2(
+			float64(w.x),
+			float64(w.y),
+			1,
+			lineHeight,
+			20,
+			20,
+		)
+		return
+	}
+
+	dx, dy := w.cursorScroll(w.row, w.col)
+	if dx == 0 && dy == 0 {
+		return
+	}
+
+	scroll := &Scroll{
+		dx: dx,
+		dy: dy,
+	}
+	w.scrollChan <- scroll
+}
+
+func (w *Window) scrollRow(rows int, jump bool) {
+	y := int(float64(rows)*w.buffer.font.lineHeight + 0.5)
+	row := w.row + rows
+	if row < 0 {
+		row = 0
+	} else if row > len(w.buffer.lines)-1 {
+		row = len(w.buffer.lines) - 1
+	}
+	col := w.scrollCol
+	if w.buffer.lines[row] != nil {
+		maxCol := len(w.buffer.lines[row].text) - 2
+		if maxCol < 0 {
+			maxCol = 0
+		}
+		if col > maxCol {
+			col = maxCol
+		}
+	}
+	if !jump {
+		if w.row < w.start+rows+3 || w.row > w.end+rows-3 {
+			jump = true
+		}
+	}
+	go func() {
+		w.scrollMutex.Lock()
+		if w.scrolling {
+			w.scrollMutex.Unlock()
+			return
+		}
+		w.scrolling = true
+		w.scrollMutex.Unlock()
+
+		finished, _ := w.smoothScroll(0, y, 0, 0)
+		<-finished
+		if jump {
+			w.row = row
+			w.col = col
+			w.buffer.xiView.Click(row, col)
+		}
+		w.scrollMutex.Lock()
+		w.scrolling = false
+		w.scrollMutex.Unlock()
+	}()
+}
+
+func (w *Window) smoothScrollJob() {
+	go func() {
+		lastFinished := true
+		finished := make(chan struct{})
+		stop := make(chan struct{})
+		for {
+			select {
+			case scroll := <-w.scrollChan:
+				if !lastFinished {
+					close(stop)
+					<-finished
+				}
+				finished, stop = w.smoothScroll(scroll.dx, scroll.dy, 0, 0)
+				lastFinished = false
+			case <-finished:
+				lastFinished = true
+				finished = make(chan struct{})
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			smoothScroll := <-w.scrollWaitChan
+			w.editor.updates <- smoothScroll
+			w.editor.signal.UpdateSignal()
+			<-w.scrollDone
+		}
+	}()
+}
+
+func (w *Window) smoothScrollNew(s *SmoothScroll) {
+	row := w.row + s.rows
+	col := w.col + s.cols
+	if s.cols == 0 {
+		col = w.scrollCol
+	}
+	maxRow := len(w.buffer.lines) - 1
+	if row < 0 {
+		row = 0
+	} else if row > maxRow {
+		row = maxRow
+	}
+	maxCol := 0
+	if w.buffer.lines[row] != nil {
+		maxCol = len(w.buffer.lines[row].text) - 1
+	}
+	if maxCol < 0 {
+		maxCol = 0
+	}
+	if col < 0 {
+		col = 0
+	} else if col > maxCol {
+		col = maxCol
+	}
+	if w.row == row && w.col == col {
+		w.scrollDone <- struct{}{}
+		return
+	}
+
+	if s.changeScrollCol {
+		w.scrollCol = col
+	}
+
+	dx, dy := w.cursorScroll(row, col)
+	finished, _ := w.smoothScroll(dx, dy, row, col)
+	go func() {
+		<-finished
+		w.editor.updates <- &SetPos{
+			row:  row,
+			col:  col,
+			toXi: true,
+		}
+		w.editor.signal.UpdateSignal()
+		w.scrollDone <- struct{}{}
+	}()
+}
+
+func (w *Window) smoothScroll(x, y, row, col int) (chan struct{}, chan struct{}) {
+	finished := make(chan struct{})
+	stop := make(chan struct{})
+	if x == 0 && y == 0 {
+		close(finished)
+		return finished, stop
+	}
+	total := 10
+	if Abs(y) < 100 && Abs(x) < 100 {
+		total = 3
+	}
+	scroll := &Scroll{
+		dx: 0,
+		dy: 0,
+	}
+	if Abs(x) < total {
+		if x > 0 {
+			scroll.dx = 1
+		} else if x < 0 {
+			scroll.dx = -1
+		}
+	} else {
+		scroll.dx = x / total
+	}
+	if Abs(y) < total {
+		if y > 0 {
+			scroll.dy = 1
+		} else if y < 0 {
+			scroll.dy = -1
+		}
+	} else {
+		scroll.dy = y / total
+	}
+
+	go func() {
+		defer func() {
+			w.row = row
+			w.col = col
+			w.editor.updates <- "updateXi"
+			w.editor.signal.UpdateSignal()
+			close(finished)
+		}()
+		dx := 0
+		dy := 0
+		xDiff := Abs(x) - dx
+		yDiff := Abs(y) - dy
+		for {
+			if xDiff > 0 && xDiff < Abs(scroll.dx) {
+				scroll.dx = xDiff
+				if x < 0 {
+					scroll.dx = -scroll.dx
+				}
+			}
+			if yDiff > 0 && yDiff < Abs(scroll.dy) {
+				scroll.dy = yDiff
+				if y < 0 {
+					scroll.dy = -scroll.dy
+				}
+			}
+			w.editor.updates <- scroll
+			w.editor.signal.UpdateSignal()
+
+			dx += Abs(scroll.dx)
+			dy += Abs(scroll.dy)
+			xDiff = Abs(x) - dx
+			yDiff = Abs(y) - dy
+
+			select {
+			case <-time.After(16 * time.Millisecond):
+			case <-stop:
+				if xDiff <= 0 && yDiff <= 0 {
+					return
+				}
+				scroll.dx = xDiff
+				if x < 0 {
+					scroll.dx = -scroll.dx
+				}
+				scroll.dy = yDiff
+				if y < 0 {
+					scroll.dy = -scroll.dy
+				}
+				w.editor.updates <- scroll
+				w.editor.signal.UpdateSignal()
+				return
+			}
+
+			if xDiff <= 0 && yDiff <= 0 {
+				return
+			}
+		}
+	}()
+
+	return finished, stop
+}
+
+func (w *Window) setPos(row, col int, toXi bool) {
+	w.row = row
+	b := w.buffer
+	b.y = row * int(b.font.lineHeight)
+	if b.lines[row] == nil {
+		b.x = 0
+		col = 0
+	} else {
+		text := b.lines[row].text
+		if col > len(text) {
+			col = len(text)
+		}
+		b.x = int(b.font.fontMetrics.Width(text[:col]) + 0.5)
+	}
+	w.x = b.x - w.horizontalScrollValue
+	w.y = b.y - w.verticalScrollValue
+	w.col = col
+	if toXi {
+		b.xiView.Click(w.row, w.col)
+	}
+	w.updateCursor()
+	w.updateCline()
 }
 
 func (w *Window) updatePos() {
 	b := w.buffer
 	row := w.row
 	col := w.col
-	text := b.lines[row].text
-	if col > len(text) {
-		col = len(text)
-		w.col = col
+	if b.lines[row] == nil {
+		col = 0
+		w.x = 0
+	} else {
+		text := b.lines[row].text
+		if col > len(text) {
+			col = len(text)
+			w.col = col
+		}
+		w.x = int(b.font.fontMetrics.Width(text[:col]) + 0.5)
 	}
-	w.x = b.font.fontMetrics.Width(text[:col]) + 0.5
-	w.y = float64(row) * b.font.lineHeight
+	w.y = row * int(b.font.lineHeight)
+}
+
+func (w *Window) getPos(row, col int) (int, int) {
+	b := w.buffer
+	x := 0
+	if b.lines[row] != nil {
+		text := b.lines[row].text
+		if col > len(text) {
+			col = len(text)
+		}
+		x = int(b.font.fontMetrics.Width(text[:col]) + 0.5)
+	}
+	y := row * int(b.font.lineHeight)
+	return x, y
 }
 
 func (w *Window) scrollto(col, row int, jump bool) {
-	b := w.buffer
+	oldRow := w.row
+	oldCol := w.col
 	w.row = row
 	w.col = col
 	w.updatePos()
+	if oldRow == row && oldCol == col {
+		return
+	}
 	if jump {
-		w.view.EnsureVisible2(
-			w.x,
-			w.y,
-			1,
-			b.font.lineHeight,
-			20,
-			20,
-		)
+		w.scrollToCursor()
 	}
 	w.updateCursorPos()
 	w.updateCursor()
 	w.updateCline()
+}
+
+func (w *Window) cursorTo(rows, cols int, changeScrollCol bool) {
+	s := &SmoothScroll{
+		rows:            rows,
+		cols:            cols,
+		changeScrollCol: changeScrollCol,
+	}
+	go func() {
+		select {
+		case w.scrollWaitChan <- s:
+		case <-time.After(50 * time.Millisecond):
+		}
+	}()
 }
 
 func (w *Window) paintGutter(event *gui.QPaintEvent) {
@@ -677,7 +1038,7 @@ func (w *Window) paintGutter(event *gui.QPaintEvent) {
 			p.SetPen2(fgColor)
 		}
 
-		n := i
+		n := i + 1
 		// if relative {
 		if w.row != i {
 			n = Abs(i - w.row)
