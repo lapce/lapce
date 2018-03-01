@@ -307,7 +307,7 @@ func (s *NormalState) down() {
 	win := s.editor.activeWin
 	row := win.row
 	row += count
-	win.cursorTo(count, 0, false)
+	win.scroll(count, 0, true, false)
 }
 
 func (s *NormalState) up() {
@@ -317,7 +317,7 @@ func (s *NormalState) up() {
 	}
 
 	win := s.editor.activeWin
-	win.cursorTo(-count, 0, false)
+	win.scroll(-count, 0, true, false)
 }
 
 func (s *NormalState) left() {
@@ -326,7 +326,7 @@ func (s *NormalState) left() {
 		count = s.cmdArg.count
 	}
 	win := s.editor.activeWin
-	win.cursorTo(0, -count, true)
+	win.scroll(0, -count, true, false)
 }
 
 func (s *NormalState) right() {
@@ -335,7 +335,7 @@ func (s *NormalState) right() {
 		count = s.cmdArg.count
 	}
 	win := s.editor.activeWin
-	win.cursorTo(0, count, true)
+	win.scroll(0, count, true, false)
 }
 
 func (s *NormalState) goTo() {
@@ -349,12 +349,12 @@ func (s *NormalState) goTo() {
 			row = 0
 		}
 	} else {
-		row = s.cmdArg.count
+		row = s.cmdArg.count - 1
 		if row > maxRow {
 			row = maxRow
 		}
 	}
-	win.cursorTo(row-win.row, 0, false)
+	win.scroll(row-win.row, 0, true, false)
 }
 
 func (s *NormalState) scrollUp() {
@@ -362,7 +362,7 @@ func (s *NormalState) scrollUp() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	s.editor.activeWin.scrollRow(-count, false)
+	s.editor.activeWin.scroll(-count, 0, false, true)
 	// scrollBar := s.editor.activeWin.view.VerticalScrollBar()
 	// scrollBar.SetValue(scrollBar.Value() - y)
 }
@@ -372,7 +372,7 @@ func (s *NormalState) scrollDown() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	s.editor.activeWin.scrollRow(count, false)
+	s.editor.activeWin.scroll(count, 0, false, true)
 	// scrollBar := s.editor.activeWin.view.VerticalScrollBar()
 	// scrollBar.SetValue(scrollBar.Value() + y)
 
@@ -381,7 +381,7 @@ func (s *NormalState) scrollDown() {
 func (s *NormalState) pageDown() {
 	win := s.editor.activeWin
 	n := (win.end - win.start) / 2
-	s.editor.activeWin.scrollRow(n, true)
+	s.editor.activeWin.scroll(n, 0, true, true)
 	// row := win.row
 	// row += n
 	// win.buffer.xiView.GotoLine(row)
@@ -390,7 +390,7 @@ func (s *NormalState) pageDown() {
 func (s *NormalState) pageUp() {
 	win := s.editor.activeWin
 	n := (win.end - win.start) / 2
-	s.editor.activeWin.scrollRow(-n, true)
+	s.editor.activeWin.scroll(-n, 0, true, true)
 	// row := win.row
 	// row -= n
 	// if row < 0 {
@@ -515,6 +515,8 @@ func newVimInsertState(e *Editor) VimState {
 		"<Tab>":    s.tab,
 		"<C-f>":    s.right,
 		"<C-b>":    s.left,
+		"<Up>":     s.up,
+		"<Down>":   s.down,
 		"<Enter>":  s.newLine,
 		"<C-m>":    s.newLine,
 		"<C-j>":    s.newLine,

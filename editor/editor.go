@@ -78,17 +78,19 @@ type editorSignal struct {
 
 // SmoothScroll is
 type SmoothScroll struct {
-	rows            int
-	cols            int
-	changeScrollCol bool
+	rows   int
+	cols   int
+	cursor bool
+	scroll bool
 }
 
 // Scroll is
 type Scroll struct {
-	row int
-	col int
-	dx  int
-	dy  int
+	row    int
+	col    int
+	dx     int
+	dy     int
+	cursor bool
 }
 
 // SetPos is
@@ -128,28 +130,27 @@ func NewEditor() (*Editor, error) {
 			case "scrollDone":
 				win := e.activeWin
 				win.setPos(win.row, win.col, false)
-			case "updateXi":
-				// win := e.activeWin
-				// if win.row == 0 && win.col == 0 {
-				// 	return
-				// }
-				// win.buffer.xiView.Click(win.row, win.col)
 			}
 		case *SetPos:
 			win := e.activeWin
 			win.setPos(u.row, u.col, u.toXi)
 		case *SmoothScroll:
 			win := e.activeWin
-			win.smoothScrollNew(u)
+			win.smoothScrollStart(u)
 		case *Scroll:
 			win := e.activeWin
 			if u.dx != 0 {
 				scrollBar := win.horizontalScrollBar
 				scrollBar.SetValue(scrollBar.Value() + u.dx)
+				win.horizontalScrollValue = scrollBar.Value()
 			}
 			if u.dy != 0 {
 				scrollBar := win.verticalScrollBar
 				scrollBar.SetValue(scrollBar.Value() + u.dy)
+				win.verticalScrollValue = scrollBar.Value()
+			}
+			if !u.cursor {
+				win.setPos(win.row, win.col, false)
 			}
 		case *xi.UpdateNotification:
 			e.buffersRWMutex.RLock()

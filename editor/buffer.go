@@ -31,9 +31,6 @@ type Buffer struct {
 	nInvalidAfter  int
 	revision       int
 	xiView         *xi.View
-
-	x int
-	y int
 }
 
 // Color is
@@ -199,9 +196,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	for _, win := range bufWins {
 		win.update()
 		if win != b.editor.activeWin {
-			win.updatePos()
-			win.updateCursorPos()
-			win.updateCline()
+			win.setPos(win.row, win.col, false)
 		}
 	}
 	b.getScenceLine(len(b.lines) - 1)
@@ -210,6 +205,23 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	rect.SetTop(0)
 	rect.SetWidth(rect.Width() + 20)
 	b.scence.SetSceneRect(rect)
+	for _, win := range bufWins {
+		win.verticalScrollMaxValue = win.verticalScrollBar.Maximum()
+		win.horizontalScrollMaxValue = win.horizontalScrollBar.Maximum()
+	}
+}
+
+func (b *Buffer) getPos(row, col int) (int, int) {
+	x := 0
+	if row < len(b.lines) && b.lines[row] != nil {
+		text := b.lines[row].text
+		if col > len(text) {
+			col = len(text)
+		}
+		x = int(b.font.fontMetrics.Width(text[:col]) + 0.5)
+	}
+	y := row * int(b.font.lineHeight)
+	return x, y
 }
 
 func (b *Buffer) updateLine(i int) {
