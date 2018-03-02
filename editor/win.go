@@ -733,24 +733,6 @@ func (w *Window) setPos(row, col int, toXi bool) {
 	w.updateCline()
 }
 
-func (w *Window) updatePos() {
-	b := w.buffer
-	row := w.row
-	col := w.col
-	if b.lines[row] == nil {
-		col = 0
-		w.x = 0
-	} else {
-		text := b.lines[row].text
-		if col > len(text) {
-			col = len(text)
-			w.col = col
-		}
-		w.x = int(b.font.fontMetrics.Width(text[:col]) + 0.5)
-	}
-	w.y = row * int(b.font.lineHeight)
-}
-
 func (w *Window) outAfterScroll(dx, dy int) bool {
 	x, y := w.getPos(w.row, w.col)
 
