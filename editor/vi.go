@@ -192,7 +192,9 @@ func (s *NormalState) toInsertNewLine() {
 	win := s.editor.activeWin
 	row := win.row + 1
 	col := 0
-	win.scrollto(col, row, true)
+	win.scrollToCursor(row+1, col, false)
+	win.row = row
+	win.col = col
 	win.buffer.xiView.Click(row, col)
 	win.buffer.xiView.InsertNewline()
 	win.buffer.xiView.Click(row, col)

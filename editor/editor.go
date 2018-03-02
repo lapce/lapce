@@ -125,33 +125,6 @@ func NewEditor() (*Editor, error) {
 		update := <-e.updates
 
 		switch u := update.(type) {
-		case string:
-			switch u {
-			case "scrollDone":
-				win := e.activeWin
-				win.setPos(win.row, win.col, false)
-			}
-		case *SetPos:
-			win := e.activeWin
-			win.setPos(u.row, u.col, u.toXi)
-		case *SmoothScroll:
-			win := e.activeWin
-			win.smoothScrollStart(u)
-		case *Scroll:
-			win := e.activeWin
-			if u.dx != 0 {
-				scrollBar := win.horizontalScrollBar
-				scrollBar.SetValue(scrollBar.Value() + u.dx)
-				win.horizontalScrollValue = scrollBar.Value()
-			}
-			if u.dy != 0 {
-				scrollBar := win.verticalScrollBar
-				scrollBar.SetValue(scrollBar.Value() + u.dy)
-				win.verticalScrollValue = scrollBar.Value()
-			}
-			if !u.cursor {
-				win.setPos(win.row, win.col, false)
-			}
 		case *xi.UpdateNotification:
 			e.buffersRWMutex.RLock()
 			buffer, ok := e.buffers[u.ViewID]
@@ -343,12 +316,12 @@ func (e *Editor) initMainWindow() {
 
 	e.cursor = widgets.NewQWidget(nil, 0)
 	e.cursor.ConnectWheelEvent(func(event *gui.QWheelEvent) {
-		e.activeWin.view.WheelEventDefault(event)
+		e.activeWin.viewWheel(event)
 	})
 	e.cursor.Resize2(1, 20)
 	e.cursor.SetStyleSheet("background-color: rgba(0, 0, 0, 0.1);")
 	e.cursor.Show()
-	e.topFrame.setFocus()
+	e.topFrame.setFocus(true)
 	e.window.Show()
 
 	e.initOnce.Do(func() {
@@ -381,13 +354,21 @@ func (e *Editor) organizeWins() {
 	defer e.winsRWMutext.RUnlock()
 	for _, win := range e.wins {
 		fmt.Println("win move and resize", win.frame.x, win.frame.y, win.frame.width, win.frame.height)
+		win.view.SetFocus2()
 		win.widget.Resize2(win.frame.width, win.frame.height)
 		win.widget.Move2(win.frame.x, win.frame.y)
 		win.widget.Hide()
 		win.widget.Show()
+		// win.horizontalScrollValue = win.verticalScrollBar.Value()
+		// win.verticalScrollValue = win.horizontalScrollBar.Value()
+		win.verticalScrollMaxValue = win.verticalScrollBar.Maximum()
+		win.horizontalScrollMaxValue = win.horizontalScrollBar.Maximum()
+		fmt.Println("vertical scroll value", win.verticalScrollMaxValue)
+
 		win.cline.Resize2(win.frame.width, int(win.buffer.font.lineHeight))
 		win.cline.Hide()
 		win.cline.Show()
+
 		win.setScroll()
 	}
 }

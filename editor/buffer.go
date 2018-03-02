@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"strconv"
 
 	xi "github.com/dzhou121/xi-go/xi-client"
 	"github.com/therecipe/qt/core"
@@ -195,6 +196,8 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 
 	for _, win := range bufWins {
 		win.update()
+		win.gutterWidth = int(b.font.fontMetrics.Width(strconv.Itoa(len(b.lines)))+0.5) + win.gutterPadding*2
+		win.gutter.SetFixedWidth(win.gutterWidth)
 		if win != b.editor.activeWin {
 			win.setPos(win.row, win.col, false)
 		}
