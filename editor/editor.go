@@ -76,30 +76,6 @@ type editorSignal struct {
 	_ func() `signal:"updateSignal"`
 }
 
-// SmoothScroll is
-type SmoothScroll struct {
-	rows   int
-	cols   int
-	cursor bool
-	scroll bool
-}
-
-// Scroll is
-type Scroll struct {
-	row    int
-	col    int
-	dx     int
-	dy     int
-	cursor bool
-}
-
-// SetPos is
-type SetPos struct {
-	row  int
-	col  int
-	toXi bool
-}
-
 // NewEditor is
 func NewEditor() (*Editor, error) {
 	e := &Editor{
@@ -143,7 +119,7 @@ func NewEditor() (*Editor, error) {
 			if e.activeWin.buffer.xiView.ID != u.ViewID {
 				return
 			}
-			e.activeWin.scrollto(u.Col, u.Line, true)
+			e.activeWin.scrollFromXi(u.Line, u.Col)
 		case *xi.Style:
 			e.stylesRWMutext.Lock()
 			e.styles[u.ID] = &Style{

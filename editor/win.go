@@ -11,295 +11,33 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
-// Frame is
-type Frame struct {
-	vertical bool
-	width    int
-	height   int
-	x        int
-	y        int
-	editor   *Editor
-	children []*Frame
-	parent   *Frame
-	win      *Window
-}
-
-func (f *Frame) split(vertical bool) {
-	if f.hasChildren() {
-		fmt.Println("split has children already")
-		return
-	}
-	win := f.win
-	if win == nil {
-		return
-	}
-	newFrame := &Frame{editor: f.editor}
-	newWin := NewWindow(win.editor, newFrame)
-	newWin.loadBuffer(win.buffer)
-	newWin.row = win.row
-	newWin.col = win.col
-
-	parent := f.parent
-	if parent != nil && parent.vertical == vertical {
-		newFrame.parent = parent
-		children := []*Frame{}
-		for _, child := range parent.children {
-			if child == f {
-				children = append(children, child)
-				children = append(children, newFrame)
-			} else {
-				children = append(children, child)
-			}
-		}
-		parent.children = children
-	} else {
-		newFrame.parent = f
-		frame := &Frame{
-			parent: f,
-			win:    win,
-			editor: f.editor,
-		}
-		win.frame = frame
-		f.children = []*Frame{}
-		f.vertical = vertical
-		f.win = nil
-		f.children = append(f.children, frame, newFrame)
-	}
-	win.editor.equalWins()
-	newWin.verticalScrollBar.SetValue(win.verticalScrollValue)
-	newWin.horizontalScrollBar.SetValue(win.horizontalScrollValue)
-	for _, w := range win.editor.wins {
-		w.scrollToCursor(w.row, w.col, true)
-	}
-	f.setFocus(false)
-}
-
-func (f *Frame) hasChildren() bool {
-	return f.children != nil && len(f.children) > 0
-}
-
-func (f *Frame) setPos(x, y int) {
-	f.x = x
-	f.y = y
-	if !f.hasChildren() {
-		fmt.Println("set x y", x, y)
-		return
-	}
-
-	for _, child := range f.children {
-		child.setPos(x, y)
-		if f.vertical {
-			x += child.width
-		} else {
-			y += child.height
-		}
-	}
-}
-
-func (f *Frame) setSize(vertical bool, singleValue int) {
-	if !f.hasChildren() {
-		if vertical {
-			f.width = singleValue
-		} else {
-			f.height = singleValue
-		}
-		return
-	}
-
-	max := f.countSplits(vertical)
-	if vertical {
-		f.width = max * singleValue
-	} else {
-		f.height = max * singleValue
-	}
-
-	if f.vertical == vertical {
-		for _, child := range f.children {
-			child.setSize(vertical, singleValue)
-		}
-		return
-	}
-
-	for _, child := range f.children {
-		n := child.countSplits(vertical)
-		child.setSize(vertical, singleValue*max/n)
-	}
-}
-
-func (f *Frame) focusAbove() {
-	editor := f.editor
-	editor.winsRWMutext.RLock()
-	defer editor.winsRWMutext.RUnlock()
-
-	for _, win := range editor.wins {
-		y := f.y - (win.frame.y + win.frame.height)
-		x1 := f.x - win.frame.x
-		x2 := f.x - (win.frame.x + win.frame.width)
-		if y < 1 && y >= 0 && x1 >= 0 && x2 < 0 {
-			win.frame.setFocus(true)
-			return
-		}
-	}
-}
-
-func (f *Frame) focusBelow() {
-	editor := f.editor
-	editor.winsRWMutext.RLock()
-	defer editor.winsRWMutext.RUnlock()
-
-	for _, win := range editor.wins {
-		y := win.frame.y - (f.y + f.height)
-		x1 := f.x - win.frame.x
-		x2 := f.x - (win.frame.x + win.frame.width)
-		if y < 1 && y >= 0 && x1 >= 0 && x2 < 0 {
-			win.frame.setFocus(true)
-			return
-		}
-	}
-}
-
-func (f *Frame) focusLeft() {
-	editor := f.editor
-	editor.winsRWMutext.RLock()
-	defer editor.winsRWMutext.RUnlock()
-
-	for _, win := range editor.wins {
-		x := f.x - (win.frame.x + win.frame.width)
-		y1 := f.y - win.frame.y
-		y2 := f.y - (win.frame.y + win.frame.height)
-		if x < 1 && x >= 0 && y1 >= 0 && y2 < 0 {
-			win.frame.setFocus(true)
-			return
-		}
-	}
-}
-
-func (f *Frame) focusRight() {
-	editor := f.editor
-	editor.winsRWMutext.RLock()
-	defer editor.winsRWMutext.RUnlock()
-
-	for _, win := range editor.wins {
-		x := win.frame.x - (f.x + f.width)
-		y1 := f.y - win.frame.y
-		y2 := f.y - (win.frame.y + win.frame.height)
-		if x < 1 && x >= 0 && y1 >= 0 && y2 < 0 {
-			win.frame.setFocus(true)
-			return
-		}
-	}
-}
-
-func (f *Frame) exchange() {
-	parent := f.parent
-	if parent == nil {
-		return
-	}
-	if len(parent.children) == 1 {
-		parent.exchange()
-		return
-	}
-	i := 0
-	for index, child := range parent.children {
-		if child == f {
-			i = index
-			break
-		}
-	}
-
-	if i == len(parent.children)-1 {
-		parent.children[i], parent.children[i-1] = parent.children[i-1], parent.children[i]
-	} else {
-		parent.children[i], parent.children[i+1] = parent.children[i+1], parent.children[i]
-	}
-	f.editor.equalWins()
-	parent.children[i].setFocus(false)
-}
-
-func (f *Frame) setFocus(scrollToCursor bool) {
-	if f.hasChildren() {
-		f.children[0].setFocus(scrollToCursor)
-		return
-	}
-	w := f.win
-	w.view.SetFocus2()
-	f.editor.activeWin = f.win
-	f.editor.cursor.SetParent(f.win.view)
-	// f.editor.cursor.Move2(w.x, w.y)
-	f.editor.cursor.Hide()
-	f.editor.cursor.Show()
-	if scrollToCursor {
-		w.scrollToCursor(w.row, w.col, true)
-	}
-	w.buffer.xiView.Click(w.row, w.col)
-}
-
-func (f *Frame) close() *Frame {
-	if f.hasChildren() {
-		return nil
-	}
-	if f.parent == nil {
-		return nil
-	}
-	parent := f.parent
-	children := []*Frame{}
-	i := 0
-	for index, child := range parent.children {
-		if child != f {
-			children = append(children, child)
-		} else {
-			i = index
-		}
-	}
-	var newFocus *Frame
-	parent.children = children
-	if len(children) == 0 {
-		newFocus = parent.close()
-	} else {
-		if i > 0 {
-			i--
-		}
-		newFocus = children[i]
-	}
-	win := f.win
-	if win == nil {
-		return newFocus
-	}
-	editor := win.editor
-	editor.winsRWMutext.Lock()
-	delete(editor.wins, win.id)
-	editor.winsRWMutext.Unlock()
-	win.widget.Hide()
-	editor.equalWins()
-	if newFocus != nil {
-		newFocus.setFocus(false)
-	}
-	return newFocus
-}
-
-func (f *Frame) countSplits(vertical bool) int {
-	if !f.hasChildren() {
-		return 1
-	}
-	n := 0
-	if f.vertical == vertical {
-		for _, child := range f.children {
-			n += child.countSplits(vertical)
-		}
-	} else {
-		for _, child := range f.children {
-			v := child.countSplits(vertical)
-			if v > n {
-				n = v
-			}
-		}
-	}
-	return n
-}
-
 type windowSignal struct {
 	core.QObject
 	_ func() `signal:"updateSignal"`
+}
+
+// SmoothScroll is
+type SmoothScroll struct {
+	rows   int
+	cols   int
+	cursor bool
+	scroll bool
+}
+
+// Scroll is
+type Scroll struct {
+	row    int
+	col    int
+	dx     int
+	dy     int
+	cursor bool
+}
+
+// SetPos is
+type SetPos struct {
+	row  int
+	col  int
+	toXi bool
 }
 
 // ScrollJob is
@@ -312,30 +50,30 @@ type ScrollJob struct {
 
 // Window is for displaying a buffer
 type Window struct {
-	id                        int
-	editor                    *Editor
-	widget                    *widgets.QWidget
-	gutter                    *widgets.QWidget
-	gutterWidth               int
-	gutterPadding             int
-	gutterShift               int
-	gutterInit                bool
-	signal                    *windowSignal
-	updates                   chan interface{}
-	view                      *widgets.QGraphicsView
-	cline                     *widgets.QWidget
-	frame                     *Frame
-	buffer                    *Buffer
-	x                         int
-	y                         int
-	row                       int
-	col                       int
-	scrollCol                 int
-	start                     int
-	end                       int
-	scrollChan                chan *Scroll
-	scrollWaitChan            chan *SmoothScroll
-	scrollDone                chan struct{}
+	id               int
+	editor           *Editor
+	widget           *widgets.QWidget
+	gutter           *widgets.QWidget
+	gutterWidth      int
+	gutterPadding    int
+	gutterShift      int
+	gutterInit       bool
+	signal           *windowSignal
+	updates          chan interface{}
+	view             *widgets.QGraphicsView
+	cline            *widgets.QWidget
+	frame            *Frame
+	buffer           *Buffer
+	x                int
+	y                int
+	row              int
+	col              int
+	scrollCol        int
+	start            int
+	end              int
+	smoothScrollChan chan *SmoothScroll
+	smoothScrollDone chan struct{}
+
 	verticalScrollBar         *widgets.QScrollBar
 	horizontalScrollBar       *widgets.QScrollBar
 	verticalScrollBarWidth    int
@@ -344,26 +82,26 @@ type Window struct {
 	horizontalScrollValue     int
 	verticalScrollMaxValue    int
 	horizontalScrollMaxValue  int
-	scrollJob                 *ScrollJob
+
+	scrollJob *ScrollJob
 }
 
 // NewWindow creates a new window
 func NewWindow(editor *Editor, frame *Frame) *Window {
 	editor.winsRWMutext.Lock()
 	w := &Window{
-		id:             editor.winIndex,
-		editor:         editor,
-		frame:          frame,
-		view:           widgets.NewQGraphicsView(nil),
-		cline:          widgets.NewQWidget(nil, 0),
-		widget:         widgets.NewQWidget(nil, 0),
-		gutter:         widgets.NewQWidget(nil, 0),
-		scrollChan:     make(chan *Scroll),
-		scrollDone:     make(chan struct{}),
-		scrollWaitChan: make(chan *SmoothScroll),
-		gutterPadding:  10,
-		signal:         NewWindowSignal(nil),
-		updates:        make(chan interface{}, 1000),
+		id:               editor.winIndex,
+		editor:           editor,
+		frame:            frame,
+		view:             widgets.NewQGraphicsView(nil),
+		cline:            widgets.NewQWidget(nil, 0),
+		widget:           widgets.NewQWidget(nil, 0),
+		gutter:           widgets.NewQWidget(nil, 0),
+		smoothScrollDone: make(chan struct{}),
+		smoothScrollChan: make(chan *SmoothScroll),
+		gutterPadding:    10,
+		signal:           NewWindowSignal(nil),
+		updates:          make(chan interface{}, 1000),
 		scrollJob: &ScrollJob{
 			stop:     make(chan struct{}),
 			finished: make(chan struct{}),
@@ -590,101 +328,113 @@ func (w *Window) wordUnderCursor() string {
 	return string(runeSlice)
 }
 
-func (w *Window) wordEnd() {
-	class := 0
-	i := 0
-	j := 0
-	for {
-		if w.buffer.lines[w.row] == nil {
-			return
-		}
-		text := w.buffer.lines[w.row].text[w.col:]
-		var r rune
-		hasBreak := false
-		for i, r = range text {
-			if j == 0 && i == 0 {
-				class = utfClass(r)
-				continue
+func (w *Window) wordEnd(count int) (row int, col int) {
+	row = w.row
+	col = w.col
+loop:
+	for n := 0; n < count; n++ {
+		class := 0
+		i := 0
+		j := 0
+		for {
+			if w.buffer.lines[row] == nil {
+				continue loop
 			}
-			c := utfClass(r)
-			if j == 0 && i == 1 {
-				class = c
-				continue
+			text := w.buffer.lines[row].text[col:]
+			var r rune
+			hasBreak := false
+			for i, r = range text {
+				if j == 0 && i == 0 {
+					class = utfClass(r)
+					continue
+				}
+				c := utfClass(r)
+				if j == 0 && i == 1 {
+					class = c
+					continue
+				}
+				if c == class {
+					continue
+				}
+				if class == 0 {
+					class = c
+					continue
+				}
+				hasBreak = true
+				break
 			}
-			if c == class {
-				continue
+			if hasBreak {
+				col += i - 1
+				continue loop
 			}
-			if class == 0 {
-				class = c
-				continue
+			if row == len(w.buffer.lines)-1 {
+				continue loop
 			}
-			hasBreak = true
-			break
+			row++
+			col = 0
+			j++
 		}
-		if hasBreak {
-			w.col += i - 1
-			return
-		}
-		if w.row == len(w.buffer.lines)-1 {
-			return
-		}
-		w.row++
-		w.col = 0
-		j++
 	}
+	return
 }
 
-func (w *Window) wordForward() {
-	class := 0
-	j := 0
-	for {
-		if w.buffer.lines[w.row] == nil {
-			return
-		}
-		if j > 0 {
-			w.col = len(w.buffer.lines[w.row].text) - 1
-		}
-		text := w.buffer.lines[w.row].text[:w.col]
-		runeSlice := []rune(text)
-		var r rune
-		hasBreak := false
-		i := -1
-		for index := len(runeSlice) - 1; index >= 0; index-- {
-			i++
-			r = runeSlice[index]
-			if j == 0 && i == 0 {
-				class = utfClass(r)
-				continue
+func (w *Window) wordForward(count int) (row int, col int) {
+	row = w.row
+	col = w.col
+loop:
+	for n := 0; n < count; n++ {
+		class := 0
+		j := 0
+		for {
+			if w.buffer.lines[row] == nil {
+				continue loop
 			}
-			c := utfClass(r)
-			if j == 0 && i == 1 {
-				class = c
-				continue
+			if j > 0 {
+				col = len(w.buffer.lines[row].text) - 1
 			}
-			if c == class {
-				continue
+			text := w.buffer.lines[row].text[:col]
+			runeSlice := []rune(text)
+			var r rune
+			hasBreak := false
+			i := -1
+			for index := len(runeSlice) - 1; index >= 0; index-- {
+				i++
+				r = runeSlice[index]
+				if j == 0 && i == 0 {
+					class = utfClass(r)
+					continue
+				}
+				c := utfClass(r)
+				if j == 0 && i == 1 {
+					class = c
+					continue
+				}
+				if c == class {
+					continue
+				}
+				if class == 0 {
+					class = c
+					continue
+				}
+				hasBreak = true
+				break
 			}
-			if class == 0 {
-				class = c
-				continue
+			if hasBreak {
+				col -= i
+				continue loop
 			}
-			hasBreak = true
-			break
+			if len(runeSlice) > 0 && utfClass(runeSlice[0]) > 0 {
+				col = 0
+				continue loop
+			}
+			if row == 0 {
+				continue loop
+			}
+			row--
+			j++
 		}
-		if hasBreak {
-			w.col -= i
-			return
-		}
-		if len(runeSlice) > 0 && utfClass(runeSlice[0]) > 0 {
-			w.col = 0
-			return
-		}
-		if w.row == 0 {
-			return
-		}
-		w.row--
-		j++
 	}
+	return
 }
 
 func (w *Window) updateCline() {
@@ -783,89 +533,13 @@ func (w *Window) needsScroll(row, col int) (int, int) {
 	return dx, dy
 }
 
-func (w *Window) scrollToCursor(row, col int, cursor bool) {
-	lineHeight := w.buffer.font.lineHeight
-	if !w.editor.smoothScroll {
-		x, y := w.buffer.getPos(row, col)
-		w.view.EnsureVisible2(
-			float64(x),
-			float64(y),
-			1,
-			lineHeight,
-			20,
-			20,
-		)
-		if cursor {
-			w.setPos(row, col, false)
-		}
-		return
-	}
-
-	select {
-	case <-w.scrollJob.finished:
-	default:
-		close(w.scrollJob.stop)
-		<-w.scrollJob.finished
-		w.scrollView(w.scrollJob.scroll)
-	}
-
-	dx, dy := w.needsScroll(row, col)
-	if dx == 0 && dy == 0 {
-		if cursor {
-			w.setPos(row, col, false)
-		}
-		return
-	}
-
-	setPos := &SetPos{
-		row:  row,
-		col:  col,
-		toXi: false,
-	}
-	w.scrollJob.setPos = setPos
-	w.scrollJob.finished, w.scrollJob.stop, w.scrollJob.scroll = w.smoothScroll(dx, dy, setPos, cursor)
-}
-
 func (w *Window) smoothScrollJob() {
-	// go func() {
-	// 	lastFinished := true
-	// 	finished := make(chan struct{})
-	// 	stop := make(chan struct{})
-	// 	var scroll *Scroll
-	// 	for {
-	// 		select {
-	// 		case scroll = <-w.scrollChan:
-	// 			if !lastFinished {
-	// 				close(stop)
-	// 				<-finished
-	// 				// w.editor.updates <- &SetPos{
-	// 				// 	row:  scroll.row,
-	// 				// 	col:  scroll.col,
-	// 				// 	toXi: false,
-	// 				// }
-	// 				// w.editor.signal.UpdateSignal()
-	// 			}
-	// 			finished, stop, _ = w.smoothScroll(scroll.dx, scroll.dy, true)
-	// 			lastFinished = false
-	// 		case <-finished:
-	// 			w.updates <- &SetPos{
-	// 				row:  scroll.row,
-	// 				col:  scroll.col,
-	// 				toXi: false,
-	// 			}
-	// 			w.signal.UpdateSignal()
-	// 			lastFinished = true
-	// 			finished = make(chan struct{})
-	// 		}
-	// 	}
-	// }()
-
 	go func() {
 		for {
-			smoothScroll := <-w.scrollWaitChan
+			smoothScroll := <-w.smoothScrollChan
 			w.updates <- smoothScroll
 			w.signal.UpdateSignal()
-			<-w.scrollDone
+			<-w.smoothScrollDone
 		}
 	}()
 }
@@ -901,7 +575,7 @@ func (w *Window) smoothScrollStart(s *SmoothScroll) {
 
 	row, col = w.validPos(row, col)
 	if w.row == row && w.col == col {
-		w.scrollDone <- struct{}{}
+		w.smoothScrollDone <- struct{}{}
 		return
 	}
 
@@ -937,7 +611,7 @@ func (w *Window) smoothScrollStart(s *SmoothScroll) {
 	finished, _, _ := w.smoothScroll(dx, dy, setPos, s.cursor)
 	go func() {
 		<-finished
-		w.scrollDone <- struct{}{}
+		w.smoothScrollDone <- struct{}{}
 	}()
 }
 
@@ -1119,15 +793,11 @@ func (w *Window) getPos(row, col int) (int, int) {
 	return x, y
 }
 
-func (w *Window) scrollto(col, row int, jump bool) {
+func (w *Window) scrollFromXi(row, col int) {
 	if row == w.row && col == w.col {
 		return
 	}
 	w.scrollToCursor(row, col, true)
-	// if jump {
-	// 	w.scrollToCursor()
-	// }
-	// w.setPos(row, col, false)
 }
 
 // scroll the view or move the cursor base on param cursor and scroll
@@ -1147,10 +817,55 @@ func (w *Window) scroll(rows, cols int, cursor bool, scroll bool) {
 	}
 	go func() {
 		select {
-		case w.scrollWaitChan <- s:
+		case w.smoothScrollChan <- s:
 		case <-time.After(50 * time.Millisecond):
 		}
 	}()
+}
+
+// scrollToCursor scrolls the view so that position row col is visible
+// if cursor is true, move the cursor in the view as well
+func (w *Window) scrollToCursor(row, col int, cursor bool) {
+	lineHeight := w.buffer.font.lineHeight
+	if !w.editor.smoothScroll {
+		x, y := w.buffer.getPos(row, col)
+		w.view.EnsureVisible2(
+			float64(x),
+			float64(y),
+			1,
+			lineHeight,
+			20,
+			20,
+		)
+		if cursor {
+			w.setPos(row, col, false)
+		}
+		return
+	}
+
+	select {
+	case <-w.scrollJob.finished:
+	default:
+		close(w.scrollJob.stop)
+		<-w.scrollJob.finished
+		w.scrollView(w.scrollJob.scroll)
+	}
+
+	dx, dy := w.needsScroll(row, col)
+	if dx == 0 && dy == 0 {
+		if cursor {
+			w.setPos(row, col, false)
+		}
+		return
+	}
+
+	setPos := &SetPos{
+		row:  row,
+		col:  col,
+		toXi: false,
+	}
+	w.scrollJob.setPos = setPos
+	w.scrollJob.finished, w.scrollJob.stop, w.scrollJob.scroll = w.smoothScroll(dx, dy, setPos, cursor)
 }
 
 func (w *Window) setGutterShift() {

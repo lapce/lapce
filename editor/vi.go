@@ -169,8 +169,7 @@ func (s *NormalState) toInsertRight() {
 	s.editor.updateCursorShape()
 	win := s.editor.activeWin
 	if win.col < len(win.buffer.lines[win.row].text)-1 {
-		win.scrollto(win.col+1, win.row, true)
-		win.buffer.xiView.Click(win.row, win.col)
+		win.scroll(0, 1, true, false)
 	}
 }
 
@@ -183,8 +182,7 @@ func (s *NormalState) toInsertEndOfLine() {
 	if maxCol < 0 {
 		maxCol = 0
 	}
-	win.scrollto(maxCol, row, true)
-	win.buffer.xiView.Click(row, maxCol)
+	win.scroll(0, maxCol-win.col, true, false)
 }
 
 func (s *NormalState) toInsertNewLine() {
@@ -205,7 +203,7 @@ func (s *NormalState) toInsertNewLineAbove() {
 	win := s.editor.activeWin
 	row := win.row
 	col := 0
-	win.scrollto(col, row, true)
+	win.scrollToCursor(row, col, false)
 	win.buffer.xiView.Click(row, col)
 	win.buffer.xiView.InsertNewline()
 	win.buffer.xiView.Click(row, col)
@@ -217,17 +215,8 @@ func (s *NormalState) wordEnd() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	for i := 0; i < count; i++ {
-		win.wordEnd()
-	}
-	row := win.row
-	col := win.col
-	if s.visualActive {
-		win.buffer.xiView.Drag(row, col+1)
-	} else {
-		win.buffer.xiView.Click(row, col)
-	}
-	win.scrollCol = col
+	row, col := win.wordEnd(count)
+	win.scroll(row-win.row, col-win.col, true, false)
 }
 
 func (s *NormalState) wordForward() {
@@ -236,17 +225,8 @@ func (s *NormalState) wordForward() {
 	if s.cmdArg.count > 0 {
 		count = s.cmdArg.count
 	}
-	for i := 0; i < count; i++ {
-		win.wordForward()
-	}
-	row := win.row
-	col := win.col
-	if s.visualActive {
-		win.buffer.xiView.Drag(row, col)
-	} else {
-		win.buffer.xiView.Click(row, col)
-	}
-	win.scrollCol = col
+	row, col := win.wordForward(count)
+	win.scroll(row-win.row, col-win.col, true, false)
 }
 
 func (s *NormalState) esc() {
@@ -561,8 +541,7 @@ func (s *InsertState) toNormal() {
 	s.editor.updateCursorShape()
 	win := s.editor.activeWin
 	if win.col > 0 {
-		win.scrollto(win.col-1, win.row, true)
-		win.buffer.xiView.Click(win.row, win.col)
+		win.scroll(0, -1, true, false)
 	}
 }
 
