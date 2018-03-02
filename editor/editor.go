@@ -54,6 +54,7 @@ type Editor struct {
 	vimMode          int
 	vimPending       bool
 	vimPendingBuffer string
+	selection        bool
 
 	specialKeys     map[core.Qt__Key]string
 	controlModifier core.Qt__KeyboardModifier

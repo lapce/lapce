@@ -418,6 +418,7 @@ func (s *NormalState) visual() {
 	}
 	win := s.editor.activeWin
 	s.visualActive = true
+	s.editor.selection = true
 	s.visualMode = s.cmdArg.cmd
 	s.editor.updateCursorShape()
 	win.cline.Hide()
@@ -430,6 +431,7 @@ func (s *NormalState) cancelVisual(sendToXi bool) {
 	}
 	win := s.editor.activeWin
 	s.visualActive = false
+	s.editor.selection = false
 	s.visualMode = ""
 	s.editor.updateCursorShape()
 	s.editor.activeWin.cline.Show()

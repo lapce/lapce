@@ -724,7 +724,11 @@ func (w *Window) setPos(row, col int, toXi bool) {
 	w.row = row
 	w.col = col
 	if toXi {
-		b.xiView.Click(w.row, w.col)
+		if w.editor.selection {
+			b.xiView.Drag(w.row, w.col)
+		} else {
+			b.xiView.Click(w.row, w.col)
+		}
 	}
 	w.start, w.end = w.scrollRegion()
 	w.setGutterShift()

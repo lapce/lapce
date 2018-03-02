@@ -76,8 +76,10 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		scencePos := event.ScenePos()
 		x := scencePos.X()
 		y := scencePos.Y()
-		row := y / buffer.font.lineHeight
-		buffer.xiView.Click(int(row), int(x/buffer.font.width+0.5))
+		row := int(y / buffer.font.lineHeight)
+		col := int(x/buffer.font.width + 0.5)
+		win := buffer.editor.activeWin
+		win.scroll(row-win.row, col-win.col, true, false)
 	})
 	buffer.scence.SetBackgroundBrush(editor.bgBrush)
 	editor.buffersRWMutex.Lock()
