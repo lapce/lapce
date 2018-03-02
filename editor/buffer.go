@@ -10,6 +10,15 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
+// Line is
+type Line struct {
+	invalid bool
+	text    string
+	styles  []int
+	cursor  []int
+	current bool
+}
+
 // ScenceLine is
 type ScenceLine struct {
 	buffer *Buffer

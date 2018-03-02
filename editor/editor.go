@@ -40,8 +40,6 @@ type Editor struct {
 	width  int
 	height int
 
-	view *View
-
 	updates chan interface{}
 
 	xi *xi.Xi
