@@ -204,7 +204,7 @@ func (f *Frame) exchange() {
 		parent.children[i], parent.children[i+1] = parent.children[i+1], parent.children[i]
 	}
 	f.editor.equalWins()
-	parent.children[i].setFocus(false)
+	parent.children[i].setFocus(true)
 }
 
 func (f *Frame) setFocus(scrollToCursor bool) {
@@ -263,7 +263,11 @@ func (f *Frame) close() *Frame {
 	win.widget.Hide()
 	editor.equalWins()
 	if newFocus != nil {
-		newFocus.setFocus(false)
+		newFocus.setFocus(true)
+	}
+	for _, w := range win.editor.wins {
+		w.start, w.end = w.scrollRegion()
+		w.gutter.Update()
 	}
 	return newFocus
 }
