@@ -610,7 +610,11 @@ func (s *InsertState) deleteBackward() {
 }
 
 func (s *InsertState) deleteToBeginningOfLine() {
-	s.editor.activeWin.buffer.xiView.DeleteToBeginningOfLine()
+	if s.editor.activeWin.col == 0 {
+		s.editor.activeWin.buffer.xiView.DeleteBackward()
+	} else {
+		s.editor.activeWin.buffer.xiView.DeleteToBeginningOfLine()
+	}
 }
 
 func (e *Editor) updateCursorShape() {
