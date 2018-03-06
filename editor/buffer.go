@@ -19,28 +19,20 @@ type Line struct {
 	current bool
 }
 
-// ScenceLine is
-type ScenceLine struct {
-	buffer *Buffer
-	line   *widgets.QGraphicsItem
-	rect   *core.QRectF
-	color  *gui.QColor
-	index  int
-}
-
 // Buffer is
 type Buffer struct {
-	editor      *Editor
-	scence      *widgets.QGraphicsScene
-	scenceLines map[int]*ScenceLine
-	charFormat  *gui.QTextCharFormat
-	font        *Font
+	editor *Editor
+	scence *widgets.QGraphicsScene
+	font   *Font
+	widget *widgets.QWidget
+	width  int
+	height int
+	rect   *core.QRectF
 
-	nInvalidBefore int
-	lines          []*Line
-	nInvalidAfter  int
-	revision       int
-	xiView         *xi.View
+	lines     []*Line
+	revision  int
+	xiView    *xi.View
+	maxLength int
 }
 
 // Color is
@@ -73,12 +65,12 @@ func colorFromARBG(argb int) *Color {
 // NewBuffer creates a new buffer
 func NewBuffer(editor *Editor, path string) *Buffer {
 	buffer := &Buffer{
-		editor:      editor,
-		scence:      widgets.NewQGraphicsScene(nil),
-		scenceLines: map[int]*ScenceLine{},
-		charFormat:  gui.NewQTextCharFormat(),
-		lines:       []*Line{},
-		font:        NewFont(),
+		editor: editor,
+		scence: widgets.NewQGraphicsScene(nil),
+		lines:  []*Line{},
+		font:   NewFont(),
+		widget: widgets.NewQWidget(nil, 0),
+		rect:   core.NewQRectF(),
 	}
 	buffer.xiView, _ = editor.xi.NewView(path)
 	buffer.scence.ConnectMousePressEvent(func(event *widgets.QGraphicsSceneMouseEvent) {
@@ -91,14 +83,79 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		win.scroll(row-win.row, col-win.col, true, false)
 	})
 	buffer.scence.SetBackgroundBrush(editor.bgBrush)
+	item := buffer.scence.AddWidget(buffer.widget, 0)
+	item.SetPos2(0, 0)
+	buffer.widget.ConnectPaintEvent(func(event *gui.QPaintEvent) {
+		rect := event.M_rect()
+
+		x := rect.X()
+		y := rect.Y()
+		width := rect.Width()
+		height := rect.Height()
+
+		start := y / int(buffer.font.lineHeight)
+
+		p := gui.NewQPainter2(buffer.widget)
+		bg := buffer.editor.theme.Theme.Background
+		fg := buffer.editor.theme.Theme.Foreground
+		p.FillRect5(x, y, width, height,
+			gui.NewQColor3(bg.R, bg.G, bg.B, bg.A))
+
+		p.SetFont(buffer.font.font)
+		p.SetPen2(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A))
+		max := len(buffer.lines) - 1
+		for i := start; i < (y+height)/int(buffer.font.lineHeight)+1; i++ {
+			if i > max {
+				continue
+			}
+			line := buffer.lines[i]
+			if line == nil {
+				continue
+			}
+			if line.text == "" {
+				continue
+			}
+			buffer.drawLine(p, i)
+		}
+		defer p.DestroyQPainter()
+	})
 	editor.buffersRWMutex.Lock()
 	editor.buffers[buffer.xiView.ID] = buffer
 	editor.buffersRWMutex.Unlock()
 	return buffer
 }
 
-func (b *Buffer) height() int {
-	return b.nInvalidBefore + len(b.lines) + b.nInvalidAfter
+func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
+	line := b.lines[index]
+	start := 0
+	color := gui.NewQColor()
+	for i := 0; i*3+2 < len(line.styles); i++ {
+		start += line.styles[i*3]
+		length := line.styles[i*3+1]
+		styleID := line.styles[i*3+2]
+		x := b.font.fontMetrics.Width(string(line.text[:start]))
+		text := string(line.text[start : start+length])
+		if styleID == 0 {
+			theme := b.editor.theme
+			if theme != nil {
+				bg := theme.Theme.Selection
+				color.SetRgb(bg.R, bg.G, bg.B, bg.A)
+				painter.FillRect5(int(x+0.5), 0,
+					int(b.font.fontMetrics.Width(text)+0.5),
+					int(b.font.lineHeight),
+					color)
+			}
+		} else {
+			style := b.editor.getStyle(styleID)
+			if style != nil {
+				fg := style.fg
+				color.SetRgb(fg.R, fg.G, fg.B, fg.A)
+				painter.SetPen2(color)
+			}
+			painter.DrawText3(int(x+0.5), index*int(b.font.lineHeight)+int(b.font.shift), text)
+		}
+		start += length
+	}
 }
 
 func (b *Buffer) setNewLine(ix int, i int, winsMap map[int][]*Window) {
@@ -113,9 +170,7 @@ func (b *Buffer) setNewLine(ix int, i int, winsMap map[int][]*Window) {
 }
 
 func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
-	newInvalidBefore := 0
 	newLines := []*Line{}
-	newInvalidAfter := 0
 	oldIx := 0
 
 	bufWins := []*Window{}
@@ -136,6 +191,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	}
 	b.editor.winsRWMutext.RUnlock()
 
+	maxLength := 0
 	for _, op := range update.Update.Ops {
 		n := op.N
 		switch op.Op {
@@ -149,6 +205,10 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					if line != nil {
 						line.invalid = true
 						b.setNewLine(ix, len(newLines)-1, winsMap)
+						length := len(line.text)
+						if length > maxLength {
+							maxLength = length
+						}
 					}
 				}
 			}
@@ -163,6 +223,10 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 				})
 				b.setNewLine(ix, len(newLines)-1, winsMap)
 				ix++
+				length := len(line.Text)
+				if length > maxLength {
+					maxLength = length
+				}
 			}
 		case "copy", "update":
 			for ix := oldIx; ix < oldIx+n; ix++ {
@@ -183,6 +247,12 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					}
 					b.setNewLine(ix, len(newLines)-1, winsMap)
 				}
+				if line != nil {
+					length := len(line.text)
+					if length > maxLength {
+						maxLength = length
+					}
+				}
 			}
 			oldIx += n
 		case "skip":
@@ -192,34 +262,37 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		}
 	}
 
-	if len(newLines) < len(b.lines) {
-		for i := len(newLines); i < len(b.lines); i++ {
-			scenceLine := b.getScenceLine(i)
-			b.scence.RemoveItem(scenceLine.line)
-			delete(b.scenceLines, i)
-		}
+	// if len(newLines) < len(b.lines) {
+	// 	for i := len(newLines); i < len(b.lines); i++ {
+	// 		scenceLine := b.getScenceLine(i)
+	// 		b.scence.RemoveItem(scenceLine.line)
+	// 		delete(b.scenceLines, i)
+	// 	}
+	// }
+	if len(newLines) != len(b.lines) || maxLength != b.maxLength {
+		width := int(b.font.width*float64(maxLength) + 0.5)
+		height := len(newLines) * int(b.font.lineHeight)
+		b.widget.Resize2(width, height)
+
+		b.rect.SetWidth(float64(width))
+		b.rect.SetHeight(float64(height))
+		b.scence.SetSceneRect(b.rect)
 	}
 
-	b.nInvalidBefore = newInvalidBefore
 	b.lines = newLines
-	b.nInvalidAfter = newInvalidAfter
+	b.maxLength = maxLength
 	b.revision++
 
 	for _, win := range bufWins {
 		win.update()
-		win.gutterWidth = int(b.font.fontMetrics.Width(strconv.Itoa(len(b.lines)))+0.5) + win.gutterPadding*2
-		win.gutter.SetFixedWidth(win.gutterWidth)
+		gutterWidth := int(b.font.fontMetrics.Width(strconv.Itoa(len(b.lines)))+0.5) + win.gutterPadding*2
+		if gutterWidth != win.gutterWidth {
+			win.gutterWidth = gutterWidth
+			win.gutter.SetFixedWidth(win.gutterWidth)
+		}
 		if win != b.editor.activeWin {
 			win.setPos(win.row, win.col, false)
 		}
-	}
-	b.getScenceLine(len(b.lines) - 1)
-	rect := b.scence.ItemsBoundingRect()
-	rect.SetLeft(0)
-	rect.SetTop(0)
-	rect.SetWidth(rect.Width() + 20)
-	b.scence.SetSceneRect(rect)
-	for _, win := range bufWins {
 		win.verticalScrollMaxValue = win.verticalScrollBar.Maximum()
 		win.horizontalScrollMaxValue = win.horizontalScrollBar.Maximum()
 	}
@@ -239,104 +312,11 @@ func (b *Buffer) getPos(row, col int) (int, int) {
 }
 
 func (b *Buffer) updateLine(i int) {
-	line := b.lines[i]
-	scenceLine := b.getScenceLine(i)
-	rect := scenceLine.rect
-	rect.SetWidth(b.font.width * float64(len(line.text)))
-	scenceLine.line.PrepareGeometryChange()
-	scenceLine.line.Update(rect)
-}
-
-func (b *Buffer) getLine(ix int) *Line {
-	if b.nInvalidBefore > 0 {
-		fmt.Println("get line invalid before")
-	}
-	if ix < b.nInvalidBefore {
-		return nil
-	}
-	ix = ix - b.nInvalidBefore
-	if ix < len(b.lines) {
-		return b.lines[ix]
-	}
-	return nil
-}
-
-func (b *Buffer) getCharFormat(styleID int) *gui.QTextCharFormat {
-	style := b.editor.getStyle(styleID)
-	if style == nil {
-		return nil
-	}
-	fg := style.fg
-	b.charFormat.SetForeground(gui.NewQBrush3(gui.NewQColor3(fg.R, fg.G, fg.B, fg.A), core.Qt__SolidPattern))
-	return b.charFormat
-}
-
-func (b *Buffer) getScenceLine(i int) *ScenceLine {
-	scenceLine, ok := b.scenceLines[i]
-	if ok {
-		return scenceLine
-	}
-	w := 1.0
-	if b.lines[i] != nil {
-		w = b.font.width * float64(len(b.lines[i].text))
-	}
-	line := widgets.NewQGraphicsItem(nil)
-	b.scence.AddItem(line)
-	rect := core.NewQRectF4(0, 0,
-		w, b.font.lineHeight)
-	line.SetPos2(1, b.font.lineHeight*float64(i))
-	line.ConnectBoundingRect(func() *core.QRectF {
-		return rect
-	})
-	scenceLine = &ScenceLine{
-		buffer: b,
-		line:   line,
-		rect:   rect,
-		index:  i,
-		color:  gui.NewQColor(),
-	}
-	line.ConnectPaint(scenceLine.paint)
-	b.scenceLines[i] = scenceLine
-	return scenceLine
-}
-
-func (l *ScenceLine) paint(painter *gui.QPainter, option *widgets.QStyleOptionGraphicsItem, widget *widgets.QWidget) {
-	line := l.buffer.lines[l.index]
-	if line == nil {
-		return
-	}
-	if line.text == "" {
-		return
-	}
-
-	painter.SetFont(l.buffer.font.font)
-	start := 0
-	for i := 0; i*3+2 < len(line.styles); i++ {
-		start += line.styles[i*3]
-		length := line.styles[i*3+1]
-		styleID := line.styles[i*3+2]
-		x := l.buffer.font.fontMetrics.Width(string(line.text[:start]))
-		text := string(line.text[start : start+length])
-		if styleID == 0 {
-			theme := l.buffer.editor.theme
-			if theme != nil {
-				bg := theme.Theme.Selection
-				l.color.SetRgb(bg.R, bg.G, bg.B, bg.A)
-				painter.FillRect5(int(x+0.5), 0,
-					int(l.buffer.font.fontMetrics.Width(text)+0.5),
-					int(l.buffer.font.lineHeight),
-					l.color)
-			}
-		} else {
-			style := l.buffer.editor.getStyle(styleID)
-			if style != nil {
-				fg := style.fg
-				l.color.SetRgb(fg.R, fg.G, fg.B, fg.A)
-				painter.SetPen2(l.color)
-			}
-			painter.DrawText3(int(x+0.5), int(l.buffer.font.shift), text)
-		}
-		start += length
-	}
-
+	b.widget.Update2(0, i*int(b.font.lineHeight), 900, int(b.font.lineHeight))
+	// line := b.lines[i]
+	// scenceLine := b.getScenceLine(i)
+	// rect := scenceLine.rect
+	// rect.SetWidth(b.font.width * float64(len(line.text)))
+	// scenceLine.line.PrepareGeometryChange()
+	// scenceLine.line.Update(rect)
 }

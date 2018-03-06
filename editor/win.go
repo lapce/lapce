@@ -719,7 +719,7 @@ func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struc
 func (w *Window) setPos(row, col int, toXi bool) {
 	b := w.buffer
 	x, y := b.getPos(row, col)
-	w.x = x - w.horizontalScrollValue + 1
+	w.x = x - w.horizontalScrollValue
 	w.y = y - w.verticalScrollValue
 	w.row = row
 	w.col = col
