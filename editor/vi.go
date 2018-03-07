@@ -498,9 +498,13 @@ func newVimInsertState(e *Editor) VimState {
 		"<Esc>":    s.toNormal,
 		"<Tab>":    s.tab,
 		"<C-f>":    s.right,
+		"<Right>":  s.right,
 		"<C-b>":    s.left,
+		"<Left>":   s.left,
 		"<Up>":     s.up,
+		"<C-p>":    s.up,
 		"<Down>":   s.down,
+		"<C-n>":    s.down,
 		"<Enter>":  s.newLine,
 		"<C-m>":    s.newLine,
 		"<C-j>":    s.newLine,
@@ -553,36 +557,22 @@ func (s *InsertState) tab() {
 
 func (s *InsertState) right() {
 	win := s.editor.activeWin
-	row := win.row
-	col := win.col
-	maxCol := len(win.buffer.lines[win.row].text) - 2
-	if maxCol < 0 {
-		maxCol = 0
-	}
-	col++
-	if col > maxCol {
-		col = maxCol
-	}
-	win.buffer.xiView.Click(row, col)
-	win.scrollCol = col
+	win.scroll(0, 1, true, false)
 }
 
 func (s *InsertState) left() {
 	win := s.editor.activeWin
-	row := s.editor.activeWin.row
-	col := s.editor.activeWin.col
-	col--
-	if col < 0 {
-		col = 0
-	}
-	s.editor.activeWin.buffer.xiView.Click(row, col)
-	win.scrollCol = col
+	win.scroll(0, -1, true, false)
 }
 
 func (s *InsertState) up() {
+	win := s.editor.activeWin
+	win.scroll(-1, 0, true, false)
 }
 
 func (s *InsertState) down() {
+	win := s.editor.activeWin
+	win.scroll(1, 0, true, false)
 }
 
 func (s *InsertState) newLine() {

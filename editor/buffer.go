@@ -140,7 +140,7 @@ func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
 			if theme != nil {
 				bg := theme.Theme.Selection
 				color.SetRgb(bg.R, bg.G, bg.B, bg.A)
-				painter.FillRect5(int(x+0.5), 0,
+				painter.FillRect5(int(x+0.5), index*int(b.font.lineHeight),
 					int(b.font.fontMetrics.Width(text)+0.5),
 					int(b.font.lineHeight),
 					color)
