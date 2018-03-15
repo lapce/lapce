@@ -130,7 +130,16 @@ func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
 	start := 0
 	color := gui.NewQColor()
 	for i := 0; i*3+2 < len(line.styles); i++ {
-		start += line.styles[i*3]
+		startDiff := line.styles[i*3]
+		if startDiff > 0 {
+			painter.DrawText3(
+				int(b.font.fontMetrics.Width(string(line.text[:start]))+0.5),
+				index*int(b.font.lineHeight)+int(b.font.shift),
+				string(line.text[start:start+startDiff]),
+			)
+		}
+
+		start += startDiff
 		length := line.styles[i*3+1]
 		styleID := line.styles[i*3+2]
 		x := b.font.fontMetrics.Width(string(line.text[:start]))
@@ -285,9 +294,10 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 
 	for _, win := range bufWins {
 		win.update()
-		gutterWidth := int(b.font.fontMetrics.Width(strconv.Itoa(len(b.lines)))+0.5) + win.gutterPadding*2
-		if gutterWidth != win.gutterWidth {
-			win.gutterWidth = gutterWidth
+		gutterChars := len(strconv.Itoa(len(b.lines)))
+		if gutterChars != win.gutterChars {
+			win.gutterChars = gutterChars
+			win.gutterWidth = int(float64(win.gutterChars)*win.buffer.font.width+0.5) + win.gutterPadding*2
 			win.gutter.SetFixedWidth(win.gutterWidth)
 		}
 		if win != b.editor.activeWin {

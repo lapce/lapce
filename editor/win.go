@@ -54,6 +54,7 @@ type Window struct {
 	editor           *Editor
 	widget           *widgets.QWidget
 	gutter           *widgets.QWidget
+	gutterChars      int
 	gutterWidth      int
 	gutterPadding    int
 	gutterShift      int
@@ -461,6 +462,9 @@ func (w *Window) setScroll() {
 func (w *Window) loadBuffer(buffer *Buffer) {
 	w.buffer = buffer
 	w.view.SetScene(buffer.scence)
+	w.gutterChars = len(strconv.Itoa(len(buffer.lines)))
+	w.gutterWidth = int(float64(w.gutterChars)*w.buffer.font.width+0.5) + w.gutterPadding*2
+	w.gutter.SetFixedWidth(w.gutterWidth)
 }
 
 func (w *Window) scrollValue(rows, cols int) (int, int) {
@@ -719,6 +723,8 @@ func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struc
 func (w *Window) setPos(row, col int, toXi bool) {
 	b := w.buffer
 	x, y := b.getPos(row, col)
+	oldX := w.x
+	oldY := w.y
 	w.x = x - w.horizontalScrollValue
 	w.y = y - w.verticalScrollValue
 	w.row = row
@@ -732,8 +738,11 @@ func (w *Window) setPos(row, col int, toXi bool) {
 	}
 	w.start, w.end = w.scrollRegion()
 	w.setGutterShift()
-	w.gutter.Update()
 	w.updateCursor()
+	if oldX == w.x && oldY == w.y {
+		return
+	}
+	w.gutter.Update()
 	w.updateCline()
 }
 
