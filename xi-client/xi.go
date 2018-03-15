@@ -52,7 +52,7 @@ func New(handleNotification handleNotificationFunc) (*Xi, error) {
 	stream := &stdinoutStream{
 		in:     inw,
 		out:    outr,
-		reader: bufio.NewReader(outr),
+		reader: bufio.NewReaderSize(outr, 8192),
 	}
 	xi := &Xi{
 		handleNotification: handleNotification,
