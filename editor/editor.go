@@ -47,13 +47,11 @@ type Editor struct {
 	init     chan struct{}
 	initOnce sync.Once
 
-	states           map[int]State
-	vimMode          int
-	vimPending       bool
-	vimPendingBuffer string
-	selection        bool
-	keymap           *Keymap
-	config           *Config
+	states    map[int]State
+	mode      int
+	selection bool
+	keymap    *Keymap
+	config    *Config
 
 	specialKeys     map[core.Qt__Key]string
 	controlModifier core.Qt__KeyboardModifier
@@ -93,7 +91,7 @@ func NewEditor() (*Editor, error) {
 	e.initSpecialKeys()
 	e.states = newStates(e)
 	if !e.config.Modal {
-		e.vimMode = Insert
+		e.mode = Insert
 	}
 
 	xiClient, err := xi.New(e.handleXiNotification)

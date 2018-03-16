@@ -23,17 +23,8 @@ const (
 	Digit   string = "DIGIT"
 )
 
-// VimAction is
-type VimAction func(key string)
-
-// VimCommand is
-type VimCommand func()
-
-// VimOutcome is
-type VimOutcome struct {
-	mode   int
-	action VimAction
-}
+// Command is
+type Command func()
 
 // State is
 type State interface {
@@ -57,7 +48,7 @@ type NormalState struct {
 	visualActive bool
 	visualMode   string
 	cmdArg       *CmdArg
-	cmds         map[string]VimCommand
+	cmds         map[string]Command
 }
 
 // CmdArg is
@@ -71,7 +62,7 @@ func newNormalState(e *Editor) State {
 		editor: e,
 		cmdArg: &CmdArg{},
 	}
-	s.cmds = map[string]VimCommand{
+	s.cmds = map[string]Command{
 		"<Esc>": s.esc,
 		"<C-c>": s.esc,
 		"i":     s.toInsert,
@@ -159,12 +150,12 @@ func (s *NormalState) execute() {
 }
 
 func (s *NormalState) toInsert() {
-	s.editor.vimMode = Insert
+	s.editor.mode = Insert
 	s.editor.updateCursorShape()
 }
 
 func (s *NormalState) toInsertRight() {
-	s.editor.vimMode = Insert
+	s.editor.mode = Insert
 	s.editor.updateCursorShape()
 	win := s.editor.activeWin
 	if win.col < len(win.buffer.lines[win.row].text)-1 {
@@ -173,7 +164,7 @@ func (s *NormalState) toInsertRight() {
 }
 
 func (s *NormalState) toInsertEndOfLine() {
-	s.editor.vimMode = Insert
+	s.editor.mode = Insert
 	s.editor.updateCursorShape()
 	win := s.editor.activeWin
 	row := win.row
@@ -185,7 +176,7 @@ func (s *NormalState) toInsertEndOfLine() {
 }
 
 func (s *NormalState) toInsertNewLine() {
-	s.editor.vimMode = Insert
+	s.editor.mode = Insert
 	win := s.editor.activeWin
 	row := win.row + 1
 	col := 0
@@ -198,7 +189,7 @@ func (s *NormalState) toInsertNewLine() {
 }
 
 func (s *NormalState) toInsertNewLineAbove() {
-	s.editor.vimMode = Insert
+	s.editor.mode = Insert
 	win := s.editor.activeWin
 	row := win.row
 	col := 0
@@ -501,7 +492,7 @@ func (s *NormalState) delBackward() {
 type InsertState struct {
 	editor *Editor
 	cmdArg *CmdArg
-	cmds   map[string]VimCommand
+	cmds   map[string]Command
 }
 
 func newInsertState(e *Editor) State {
@@ -509,7 +500,7 @@ func newInsertState(e *Editor) State {
 		editor: e,
 		cmdArg: &CmdArg{},
 	}
-	s.cmds = map[string]VimCommand{
+	s.cmds = map[string]Command{
 		"<Esc>":    s.toNormal,
 		"<Tab>":    s.tab,
 		"<C-f>":    s.right,
@@ -561,7 +552,7 @@ func (s *InsertState) toNormal() {
 	if !s.editor.config.Modal {
 		return
 	}
-	s.editor.vimMode = Normal
+	s.editor.mode = Normal
 	s.editor.updateCursorShape()
 	win := s.editor.activeWin
 	if win.col > 0 {
@@ -629,7 +620,7 @@ func (e *Editor) updateCursorShape() {
 	if e.activeWin == nil {
 		return
 	}
-	w, h := e.states[e.vimMode].cursor()
+	w, h := e.states[e.mode].cursor()
 	e.cursor.Resize2(w, h)
 }
 

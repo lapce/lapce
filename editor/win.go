@@ -163,7 +163,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		if w.buffer == nil {
 			return
 		}
-		state, ok := editor.states[editor.vimMode]
+		state, ok := editor.states[editor.mode]
 		if !ok {
 			return
 		}
@@ -176,7 +176,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 				state.execute()
 			} else {
 				for _, key := range keys {
-					state, ok := editor.states[editor.vimMode]
+					state, ok := editor.states[editor.mode]
 					if !ok {
 						return
 					}

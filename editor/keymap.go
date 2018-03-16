@@ -30,7 +30,7 @@ func loadKeymap(e *Editor) {
 
 func (k *Keymap) lookup(input string) []string {
 	var keysMap map[string]string
-	switch k.editor.vimMode {
+	switch k.editor.mode {
 	case Insert:
 		keysMap = k.Insert
 	case Normal:
