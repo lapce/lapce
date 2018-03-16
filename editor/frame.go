@@ -92,13 +92,10 @@ func (f *Frame) split(vertical bool) {
 		if parent != nil {
 			parent.splitter.ReplaceWidget(parent.splitter.IndexOf(win.widget), f.splitter)
 		} else {
-			f.editor.centralWidget.AddWidget(f.splitter)
+			f.editor.centralWidget.InsertWidget(f.editor.centralWidget.IndexOf(win.widget), f.splitter)
 		}
 		f.splitter.AddWidget(win.widget)
 		f.splitter.AddWidget(newWin.widget)
-		f.splitter.Move2(0, 0)
-		f.splitter.Hide()
-		f.splitter.Show()
 	}
 	win.editor.equalWins()
 	newWin.verticalScrollBar.SetValue(win.verticalScrollValue)
@@ -117,7 +114,6 @@ func (f *Frame) setPos(x, y int) {
 	f.x = x
 	f.y = y
 	if !f.hasChildren() {
-		fmt.Println("set x y", x, y)
 		return
 	}
 
@@ -183,64 +179,78 @@ func (f *Frame) setSize(vertical bool, singleValue int) {
 }
 
 func (f *Frame) focusAbove() {
-	editor := f.editor
-	editor.winsRWMutext.RLock()
-	defer editor.winsRWMutext.RUnlock()
-
-	for _, win := range editor.wins {
-		y := f.y - (win.frame.y + win.frame.height)
-		x1 := f.x - win.frame.x
-		x2 := f.x - (win.frame.x + win.frame.width)
-		if y < 1 && y >= 0 && x1 >= 0 && x2 < 0 {
-			win.frame.setFocus(true)
-			return
-		}
-	}
+	f.focus(false, false, f)
 }
 
 func (f *Frame) focusBelow() {
-	editor := f.editor
-	editor.winsRWMutext.RLock()
-	defer editor.winsRWMutext.RUnlock()
-
-	for _, win := range editor.wins {
-		y := win.frame.y - (f.y + f.height)
-		x1 := f.x - win.frame.x
-		x2 := f.x - (win.frame.x + win.frame.width)
-		if y < 1 && y >= 0 && x1 >= 0 && x2 < 0 {
-			win.frame.setFocus(true)
-			return
-		}
-	}
+	f.focus(false, true, f)
 }
 
 func (f *Frame) focusLeft() {
-	editor := f.editor
-	editor.winsRWMutext.RLock()
-	defer editor.winsRWMutext.RUnlock()
-
-	for _, win := range editor.wins {
-		x := f.x - (win.frame.x + win.frame.width)
-		y1 := f.y - win.frame.y
-		y2 := f.y - (win.frame.y + win.frame.height)
-		if x < 1 && x >= 0 && y1 >= 0 && y2 < 0 {
-			win.frame.setFocus(true)
-			return
-		}
-	}
+	f.focus(true, false, f)
 }
 
 func (f *Frame) focusRight() {
-	editor := f.editor
-	editor.winsRWMutext.RLock()
-	defer editor.winsRWMutext.RUnlock()
+	f.focus(true, true, f)
+}
 
-	for _, win := range editor.wins {
-		x := win.frame.x - (f.x + f.width)
-		y1 := f.y - win.frame.y
-		y2 := f.y - (win.frame.y + win.frame.height)
-		if x < 1 && x >= 0 && y1 >= 0 && y2 < 0 {
-			win.frame.setFocus(true)
+func (f *Frame) focus(vertical bool, next bool, fromFrame *Frame) {
+	if f.parent == nil {
+		return
+	}
+	parent := f.parent
+	if parent.vertical != vertical {
+		parent.focus(vertical, next, fromFrame)
+		return
+	}
+	i := 0
+	for index, child := range parent.children {
+		if child == f {
+			i = index
+			break
+		}
+	}
+	if next {
+		i++
+	} else {
+		i--
+	}
+	if i < 0 {
+		parent.focus(vertical, next, fromFrame)
+		return
+	}
+	if i >= len(parent.children) {
+		parent.focus(vertical, next, fromFrame)
+		return
+	}
+	frame := parent.children[i]
+loop:
+	for {
+		if frame.hasChildren() {
+			if frame.vertical == vertical {
+				if next {
+					frame = frame.children[0]
+				} else {
+					frame = frame.children[len(frame.children)-1]
+				}
+			} else {
+				for _, child := range frame.children {
+					if vertical {
+						if child.y+child.height > fromFrame.y {
+							frame = child
+							continue loop
+						}
+					} else {
+						if child.x+child.width > fromFrame.x {
+							frame = child
+							continue loop
+						}
+					}
+				}
+				frame = frame.children[len(frame.children)-1]
+			}
+		} else {
+			frame.setFocus(true)
 			return
 		}
 	}
@@ -264,12 +274,24 @@ func (f *Frame) exchange() {
 	}
 
 	if i == len(parent.children)-1 {
+		child := parent.children[i]
+		if child.splitter != nil {
+			parent.splitter.InsertWidget(i-1, child.splitter)
+		} else {
+			parent.splitter.InsertWidget(i-1, child.win.widget)
+		}
 		parent.children[i], parent.children[i-1] = parent.children[i-1], parent.children[i]
 	} else {
+		child := parent.children[i+1]
+		if child.splitter != nil {
+			parent.splitter.InsertWidget(i, child.splitter)
+		} else {
+			parent.splitter.InsertWidget(i, child.win.widget)
+		}
 		parent.children[i], parent.children[i+1] = parent.children[i+1], parent.children[i]
 	}
-	f.editor.equalWins()
 	parent.children[i].setFocus(true)
+	f.editor.topFrame.setPos(0, 0)
 }
 
 func (f *Frame) setFocus(scrollToCursor bool) {
@@ -307,6 +329,21 @@ func (f *Frame) close() *Frame {
 			i = index
 		}
 	}
+	if len(children) == 1 {
+		var newSplitter *widgets.QSplitter
+		if parent.parent != nil {
+			newSplitter = parent.parent.splitter
+		} else {
+			newSplitter = f.editor.centralWidget
+		}
+		newSplitter.ReplaceWidget(newSplitter.IndexOf(parent.splitter), children[0].win.widget)
+		parent.children = []*Frame{}
+		parent.win = children[0].win
+		parent.win.frame = parent
+		parent.splitter = nil
+		parent.setFocus(true)
+		return children[0]
+	}
 	var newFocus *Frame
 	parent.children = children
 	if len(children) == 0 {
@@ -317,6 +354,9 @@ func (f *Frame) close() *Frame {
 		}
 		newFocus = children[i]
 	}
+	if f.splitter != nil {
+		f.splitter.SetParent(nil)
+	}
 	win := f.win
 	if win == nil {
 		return newFocus
@@ -325,7 +365,7 @@ func (f *Frame) close() *Frame {
 	editor.winsRWMutext.Lock()
 	delete(editor.wins, win.id)
 	editor.winsRWMutext.Unlock()
-	win.widget.Hide()
+	win.widget.SetParent(nil)
 	editor.equalWins()
 	if newFocus != nil {
 		newFocus.setFocus(true)

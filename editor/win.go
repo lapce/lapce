@@ -190,6 +190,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		w.frame.height = w.widget.Height()
 		w.cline.Resize2(w.frame.width, int(w.buffer.font.lineHeight))
 		w.setScroll()
+		w.editor.topFrame.setPos(0, 0)
 	})
 	w.view.SetFocusPolicy(core.Qt__ClickFocus)
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)

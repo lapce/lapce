@@ -315,7 +315,6 @@ func (e *Editor) equalWins() {
 	itemHeight := e.height / e.topFrame.countSplits(false)
 	e.topFrame.setSize(false, itemHeight)
 	fmt.Println("equalWins", itemWidth, itemHeight)
-	e.topFrame.setPos(0, 0)
 	e.topFrame.splitterResize()
 }
 
