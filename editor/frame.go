@@ -342,12 +342,12 @@ func (f *Frame) setFocus(scrollToCursor bool) {
 	w.buffer.xiView.Click(w.row, w.col)
 }
 
-func (f *Frame) close() *Frame {
+func (f *Frame) close() {
 	if f.hasChildren() {
-		return nil
+		return
 	}
 	if f.parent == nil {
-		return nil
+		return
 	}
 	parent := f.parent
 	children := []*Frame{}
@@ -359,6 +359,7 @@ func (f *Frame) close() *Frame {
 			i = index
 		}
 	}
+	var newFocus *Frame
 	if len(children) == 1 {
 		var newSplitter *widgets.QSplitter
 		if parent.parent != nil {
@@ -366,45 +367,43 @@ func (f *Frame) close() *Frame {
 		} else {
 			newSplitter = f.editor.centralWidget
 		}
-		newSplitter.ReplaceWidget(newSplitter.IndexOf(parent.splitter), children[0].win.widget)
-		parent.children = []*Frame{}
-		parent.win = children[0].win
-		parent.win.frame = parent
-		parent.splitter = nil
-		parent.setFocus(true)
-		return children[0]
-	}
-	var newFocus *Frame
-	parent.children = children
-	if len(children) == 0 {
-		newFocus = parent.close()
+		child := children[0]
+		if child.splitter == nil {
+			newSplitter.ReplaceWidget(newSplitter.IndexOf(parent.splitter), children[0].win.widget)
+			parent.children = []*Frame{}
+			parent.win = children[0].win
+			parent.win.frame = parent
+			parent.splitter = nil
+		} else {
+			newSplitter.ReplaceWidget(newSplitter.IndexOf(parent.splitter), child.splitter)
+			parent.children = child.children
+			parent.splitter = child.splitter
+			parent.vertical = child.vertical
+			for _, c := range parent.children {
+				c.parent = parent
+			}
+		}
+		newFocus = parent
 	} else {
+		parent.children = children
 		if i > 0 {
 			i--
 		}
+		win := f.win
+		editor := win.editor
+		editor.winsRWMutext.Lock()
+		delete(editor.wins, win.id)
+		editor.winsRWMutext.Unlock()
+		win.widget.SetParent(nil)
 		newFocus = children[i]
 	}
-	if f.splitter != nil {
-		f.splitter.SetParent(nil)
-	}
-	win := f.win
-	if win == nil {
-		return newFocus
-	}
-	editor := win.editor
-	editor.winsRWMutext.Lock()
-	delete(editor.wins, win.id)
-	editor.winsRWMutext.Unlock()
-	win.widget.SetParent(nil)
-	editor.equalWins()
-	if newFocus != nil {
-		newFocus.setFocus(true)
-	}
-	for _, w := range win.editor.wins {
+	f.editor.equalWins()
+	newFocus.setFocus(true)
+	for _, w := range f.win.editor.wins {
 		w.start, w.end = w.scrollRegion()
 		w.gutter.Update()
 	}
-	return newFocus
+	return
 }
 
 func (f *Frame) countSplits(vertical bool) int {
