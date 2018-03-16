@@ -1,3 +1,3 @@
  <h1 align="center">Crane</h1>
 
-<h4 align="center">A modern code editor with [Xi](https://github.com/google/xi-editor) backend.</h4>
+<h4 align="center">A modern code editor with <a href="https://github.com/google/xi-editor">Xi</a> backend.</h4>
