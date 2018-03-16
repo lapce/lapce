@@ -50,6 +50,7 @@ type Editor struct {
 	states    map[int]State
 	mode      int
 	selection bool
+	cmdArg    *CmdArg
 	keymap    *Keymap
 	config    *Config
 
@@ -86,12 +87,15 @@ func NewEditor() (*Editor, error) {
 		fgBrush:      gui.NewQBrush(),
 		smoothScroll: true,
 		config:       loadConfig(),
+		cmdArg:       &CmdArg{},
 	}
 	loadKeymap(e)
 	e.initSpecialKeys()
 	e.states = newStates(e)
 	if !e.config.Modal {
 		e.mode = Insert
+	} else {
+		e.mode = Normal
 	}
 
 	xiClient, err := xi.New(e.handleXiNotification)

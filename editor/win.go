@@ -163,28 +163,8 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		if w.buffer == nil {
 			return
 		}
-		state, ok := editor.states[editor.mode]
-		if !ok {
-			return
-		}
-
 		key := editor.convertKey(event)
-		if key != "" {
-			keys := editor.keymap.lookup(key)
-			if keys == nil {
-				state.setCmd(key)
-				state.execute()
-			} else {
-				for _, key := range keys {
-					state, ok := editor.states[editor.mode]
-					if !ok {
-						return
-					}
-					state.setCmd(key)
-					state.execute()
-				}
-			}
-		}
+		editor.executeKey(key)
 	})
 	w.view.ConnectWheelEvent(func(event *gui.QWheelEvent) {
 		w.viewWheel(event)
