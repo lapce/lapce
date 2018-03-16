@@ -181,20 +181,28 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		w.horizontalScrollValue = w.horizontalScrollBar.Value()
 		w.setScroll()
 	})
+	w.view.ConnectResizeEvent(func(event *gui.QResizeEvent) {
+		w.verticalScrollValue = w.verticalScrollBar.Value()
+		w.horizontalScrollValue = w.horizontalScrollBar.Value()
+		w.verticalScrollMaxValue = w.verticalScrollBar.Maximum()
+		w.horizontalScrollMaxValue = w.horizontalScrollBar.Maximum()
+		w.frame.width = w.widget.Width()
+		w.frame.height = w.widget.Height()
+		w.cline.Resize2(w.frame.width, int(w.buffer.font.lineHeight))
+		w.setScroll()
+	})
 	w.view.SetFocusPolicy(core.Qt__ClickFocus)
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
 	w.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
 	w.view.SetFrameStyle(0)
 	w.horizontalScrollBar = w.view.HorizontalScrollBar()
 	w.verticalScrollBar = w.view.VerticalScrollBar()
-	w.widget.SetObjectName("view")
 	if editor.theme != nil {
 		scrollBarStyleSheet := editor.getScrollbarStylesheet()
 		w.widget.SetStyleSheet(scrollBarStyleSheet)
 		w.verticalScrollBarWidth = w.verticalScrollBar.Width()
 		w.horizontalScrollBarHeight = w.horizontalScrollBar.Height()
 	}
-	w.widget.SetParent(editor.centralWidget)
 
 	return w
 }

@@ -15,7 +15,7 @@ type Editor struct {
 	app           *widgets.QApplication
 	window        *widgets.QMainWindow
 	scence        *widgets.QGraphicsScene
-	centralWidget *widgets.QWidget
+	centralWidget *widgets.QSplitter
 	signal        *editorSignal
 	cursor        *widgets.QWidget
 
@@ -187,10 +187,6 @@ func (e *Editor) getScrollbarStylesheet() string {
 			QWidget {
 			    background: %s;
 			}
-			QWidget#view {
-				border-right: 1px solid #000;
-				border-bottom: 1px solid #000;
-			}
 			QScrollBar:horizontal {
 			    border: 0px solid grey;
 			    background: %s;
@@ -266,12 +262,10 @@ func (e *Editor) initMainWindow() {
 
 	// NewView(e)
 
-	widget := widgets.NewQWidget(nil, 0)
-	widget.SetContentsMargins(0, 0, 0, 0)
-	e.centralWidget = widget
+	e.centralWidget = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
 	// layout := widgets.NewQHBoxLayout()
 	// widget.SetLayout(layout)
-	e.window.SetCentralWidget(widget)
+	e.window.SetCentralWidget(e.centralWidget)
 	// layout.AddWidget(e.view.view, 0, 0)
 	// layout.AddWidget(e.view.view2, 0, 0)
 	// e.view.view.SetParent(widget)
@@ -287,6 +281,7 @@ func (e *Editor) initMainWindow() {
 	}
 	e.topWin = NewWindow(e, e.topFrame)
 	e.topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/xi-editor/rust/core-lib/src/rpc.rs"))
+	e.centralWidget.AddWidget(e.topWin.widget)
 	e.equalWins()
 
 	e.cursor = widgets.NewQWidget(nil, 0)
@@ -321,31 +316,7 @@ func (e *Editor) equalWins() {
 	e.topFrame.setSize(false, itemHeight)
 	fmt.Println("equalWins", itemWidth, itemHeight)
 	e.topFrame.setPos(0, 0)
-	e.organizeWins()
-}
-
-func (e *Editor) organizeWins() {
-	e.winsRWMutext.RLock()
-	defer e.winsRWMutext.RUnlock()
-	for _, win := range e.wins {
-		fmt.Println("win move and resize", win.frame.x, win.frame.y, win.frame.width, win.frame.height)
-		win.view.SetFocus2()
-		win.widget.Resize2(win.frame.width, win.frame.height)
-		win.widget.Move2(win.frame.x, win.frame.y)
-		win.widget.Hide()
-		win.widget.Show()
-		// win.horizontalScrollValue = win.verticalScrollBar.Value()
-		// win.verticalScrollValue = win.horizontalScrollBar.Value()
-		win.verticalScrollMaxValue = win.verticalScrollBar.Maximum()
-		win.horizontalScrollMaxValue = win.horizontalScrollBar.Maximum()
-		fmt.Println("vertical scroll value", win.verticalScrollMaxValue)
-
-		win.cline.Resize2(win.frame.width, int(win.buffer.font.lineHeight))
-		win.cline.Hide()
-		win.cline.Show()
-
-		win.setScroll()
-	}
+	e.topFrame.splitterResize()
 }
 
 // Run the main thread

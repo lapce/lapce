@@ -170,9 +170,7 @@ func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
 func (b *Buffer) setNewLine(ix int, i int, winsMap map[int][]*Window) {
 	wins, ok := winsMap[ix]
 	if ok {
-		fmt.Println("wins map ix")
 		for _, win := range wins {
-			fmt.Println("win scroll to")
 			win.row = i
 		}
 	}

@@ -1,14 +1,22 @@
 package editor
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/therecipe/qt/core"
+	"github.com/therecipe/qt/widgets"
+)
 
 // Frame is
 type Frame struct {
 	vertical bool
+	cWidth   int
+	cHeight  int
 	width    int
 	height   int
 	x        int
 	y        int
+	splitter *widgets.QSplitter
 	editor   *Editor
 	children []*Frame
 	parent   *Frame
@@ -43,6 +51,8 @@ func (f *Frame) split(vertical bool) {
 			}
 		}
 		parent.children = children
+		fmt.Println("widget index", parent.splitter.IndexOf(win.widget))
+		parent.splitter.InsertWidget(parent.splitter.IndexOf(win.widget)+1, newWin.widget)
 	} else {
 		newFrame.parent = f
 		frame := &Frame{
@@ -53,8 +63,42 @@ func (f *Frame) split(vertical bool) {
 		win.frame = frame
 		f.children = []*Frame{}
 		f.vertical = vertical
+		if vertical {
+			f.splitter = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
+		} else {
+			f.splitter = widgets.NewQSplitter2(core.Qt__Vertical, nil)
+		}
+		f.splitter.SetChildrenCollapsible(false)
+		f.splitter.SetStyleSheet(`
+			QSplitter::handle {
+				background-color: #000;
+			    image: url(images/splitter.png);
+			}
+			
+			QSplitter::handle:horizontal {
+			    width: 1px;
+			}
+			
+			QSplitter::handle:vertical {
+			    height: 1px;
+			}
+			
+			QSplitter::handle:pressed {
+			    url(images/splitter_pressed.png);
+			}
+		`)
 		f.win = nil
 		f.children = append(f.children, frame, newFrame)
+		if parent != nil {
+			parent.splitter.ReplaceWidget(parent.splitter.IndexOf(win.widget), f.splitter)
+		} else {
+			f.editor.centralWidget.AddWidget(f.splitter)
+		}
+		f.splitter.AddWidget(win.widget)
+		f.splitter.AddWidget(newWin.widget)
+		f.splitter.Move2(0, 0)
+		f.splitter.Hide()
+		f.splitter.Show()
 	}
 	win.editor.equalWins()
 	newWin.verticalScrollBar.SetValue(win.verticalScrollValue)
@@ -87,21 +131,42 @@ func (f *Frame) setPos(x, y int) {
 	}
 }
 
+func (f *Frame) splitterResize() {
+	if !f.hasChildren() {
+		return
+	}
+
+	sizes := []int{}
+	for _, child := range f.children {
+		if f.vertical {
+			sizes = append(sizes, child.cWidth)
+		} else {
+			sizes = append(sizes, child.cHeight)
+		}
+	}
+	f.splitter.SetSizes(sizes)
+	fmt.Println("set sizes", sizes, f.width)
+
+	for _, child := range f.children {
+		child.splitterResize()
+	}
+}
+
 func (f *Frame) setSize(vertical bool, singleValue int) {
 	if !f.hasChildren() {
 		if vertical {
-			f.width = singleValue
+			f.cWidth = singleValue
 		} else {
-			f.height = singleValue
+			f.cHeight = singleValue
 		}
 		return
 	}
 
 	max := f.countSplits(vertical)
 	if vertical {
-		f.width = max * singleValue
+		f.cWidth = max * singleValue
 	} else {
-		f.height = max * singleValue
+		f.cHeight = max * singleValue
 	}
 
 	if f.vertical == vertical {
