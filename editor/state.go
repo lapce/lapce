@@ -35,17 +35,17 @@ type VimOutcome struct {
 	action VimAction
 }
 
-// VimState is
-type VimState interface {
+// State is
+type State interface {
 	execute()
 	setCmd(key string)
 	cursor() (int, int)
 }
 
-func newVimStates(e *Editor) map[int]VimState {
-	states := map[int]VimState{}
-	states[Normal] = newVimNormalState(e)
-	states[Insert] = newVimInsertState(e)
+func newStates(e *Editor) map[int]State {
+	states := map[int]State{}
+	states[Normal] = newNormalState(e)
+	states[Insert] = newInsertState(e)
 	return states
 }
 
@@ -56,21 +56,20 @@ type NormalState struct {
 	gcmd         bool
 	visualActive bool
 	visualMode   string
-	cmdArg       *VimCmdArg
+	cmdArg       *CmdArg
 	cmds         map[string]VimCommand
 }
 
-// VimCmdArg is
-type VimCmdArg struct {
-	cmd     string
-	opcount int // count before an operator
-	count   int
+// CmdArg is
+type CmdArg struct {
+	cmd   string
+	count int
 }
 
-func newVimNormalState(e *Editor) VimState {
+func newNormalState(e *Editor) State {
 	s := &NormalState{
 		editor: e,
-		cmdArg: &VimCmdArg{},
+		cmdArg: &CmdArg{},
 	}
 	s.cmds = map[string]VimCommand{
 		"<Esc>": s.esc,
@@ -235,7 +234,6 @@ func (s *NormalState) esc() {
 }
 
 func (s *NormalState) reset() {
-	s.cmdArg.opcount = 0
 	s.cmdArg.count = 0
 	s.wincmd = false
 	s.gcmd = false
@@ -502,14 +500,14 @@ func (s *NormalState) delBackward() {
 // InsertState is
 type InsertState struct {
 	editor *Editor
-	cmdArg *VimCmdArg
+	cmdArg *CmdArg
 	cmds   map[string]VimCommand
 }
 
-func newVimInsertState(e *Editor) VimState {
+func newInsertState(e *Editor) State {
 	s := &InsertState{
 		editor: e,
-		cmdArg: &VimCmdArg{},
+		cmdArg: &CmdArg{},
 	}
 	s.cmds = map[string]VimCommand{
 		"<Esc>":    s.toNormal,
@@ -560,6 +558,9 @@ func (s *InsertState) execute() {
 }
 
 func (s *InsertState) toNormal() {
+	if !s.editor.config.Modal {
+		return
+	}
 	s.editor.vimMode = Normal
 	s.editor.updateCursorShape()
 	win := s.editor.activeWin
@@ -628,7 +629,7 @@ func (e *Editor) updateCursorShape() {
 	if e.activeWin == nil {
 		return
 	}
-	w, h := e.vimStates[e.vimMode].cursor()
+	w, h := e.states[e.vimMode].cursor()
 	e.cursor.Resize2(w, h)
 }
 
