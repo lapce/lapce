@@ -5,7 +5,7 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/dzhou121/xi-go/editor"
+	"github.com/dzhou121/crane/editor"
 )
 
 func main() {

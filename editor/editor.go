@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	xi "github.com/dzhou121/xi-go/xi-client"
+	xi "github.com/dzhou121/crane/xi-client"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -250,7 +250,7 @@ func (e *Editor) initMainWindow() {
 	e.width = 800
 	e.height = 600
 	e.window = widgets.NewQMainWindow(nil, 0)
-	e.window.SetWindowTitle("Xi-go")
+	e.window.SetWindowTitle("Crane")
 	e.window.SetContentsMargins(0, 0, 0, 0)
 	e.window.SetMinimumSize2(e.width, e.height)
 	e.window.ConnectResizeEvent(func(event *gui.QResizeEvent) {

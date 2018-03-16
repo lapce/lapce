@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	xi "github.com/dzhou121/xi-go/xi-client"
+	xi "github.com/dzhou121/crane/xi-client"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
