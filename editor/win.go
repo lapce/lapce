@@ -169,8 +169,10 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		}
 
 		key := editor.convertKey(event)
-		state.setCmd(key)
-		state.execute()
+		if key != "" {
+			state.setCmd(key)
+			state.execute()
+		}
 	})
 	w.view.ConnectWheelEvent(func(event *gui.QWheelEvent) {
 		w.viewWheel(event)

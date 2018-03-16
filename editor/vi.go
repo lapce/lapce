@@ -252,6 +252,11 @@ func (s *NormalState) doGcmd() {
 
 func (s *NormalState) doWincmd() {
 	cmd := s.cmdArg.cmd
+	count := 1
+	if s.cmdArg.count > 0 {
+		count = s.cmdArg.count
+	}
+	fmt.Println("do wincmd", cmd, count)
 	switch cmd {
 	case "l":
 		s.editor.activeWin.frame.focusRight()
@@ -276,6 +281,18 @@ func (s *NormalState) doWincmd() {
 		return
 	case "x":
 		s.editor.activeWin.frame.exchange()
+		return
+	case "<lt>":
+		s.editor.activeWin.frame.changeSize(-count, true)
+		return
+	case ">":
+		s.editor.activeWin.frame.changeSize(count, true)
+		return
+	case "+":
+		s.editor.activeWin.frame.changeSize(count, false)
+		return
+	case "-":
+		s.editor.activeWin.frame.changeSize(-count, false)
 		return
 	}
 }

@@ -256,6 +256,36 @@ loop:
 	}
 }
 
+func (f *Frame) changeSize(count int, vertical bool) {
+	if f.parent == nil {
+		fmt.Println("parent is nil")
+		return
+	}
+	if f.parent.vertical != vertical {
+		f.parent.changeSize(count, vertical)
+		return
+	}
+
+	parent := f.parent
+	sizes := parent.splitter.Sizes()
+	i := 0
+	for index, child := range parent.children {
+		if child == f {
+			i = index
+			break
+		}
+	}
+	fmt.Println("sizes", sizes)
+	sizes[i] += count
+	j := i + 1
+	if i == len(parent.children)-1 {
+		j = i - 1
+	}
+	sizes[j] -= count
+	fmt.Println("new sizes", sizes)
+	parent.splitter.SetSizes(sizes)
+}
+
 func (f *Frame) exchange() {
 	parent := f.parent
 	if parent == nil {
