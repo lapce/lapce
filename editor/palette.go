@@ -416,47 +416,41 @@ func (p *Palette) deleteLeft() {
 }
 
 func matchScore(text []rune, pattern []rune) (int, []int) {
-	score := 0
 	matches := []int{}
 
 	start := 0
-	length := len(text) - 1
+	s := 0
 	for _, r := range pattern {
-		class := 0
-		sameClassScore := 0
-		s := 0
-		i := 0
-		found := false
-	loop:
-		for i = start; i <= length; i++ {
-			c := unicode.ToLower(text[i])
-			if c == r || text[i] == r {
-				matches = append(matches, i)
-				score += s + sameClassScore
-				found = true
-				break loop
-			} else {
-				if i == start {
-					class = utfClass(c)
-					sameClassScore++
-				} else {
-					newClass := utfClass(c)
-					if newClass != class {
-						sameClassScore = 0
-						s++
-						newClass = class
-					} else {
-						sameClassScore++
-					}
-				}
-			}
-		}
-		if !found {
+		score, match := bestMatch(text, start, r)
+		if score < 0 {
 			return -1, []int{}
 		}
-		start = i + 1
+		s += score
+		matches = append(matches, match)
+		start = match + 1
 	}
-	return score, matches
+	return s, matches
+}
+
+func bestMatch(text []rune, start int, r rune) (int, int) {
+	for i := start; i < len(text); i++ {
+		c := unicode.ToLower(text[i])
+		if c == r || text[i] == r {
+			if i == start {
+				return 0, i
+			}
+			if utfClass(text[i-1]) != utfClass(r) {
+				return 1, i
+			}
+		}
+	}
+	for i := start; i < len(text); i++ {
+		c := unicode.ToLower(text[i])
+		if c == r || text[i] == r {
+			return i - start + 1, i
+		}
+	}
+	return -1, -1
 }
 
 func (p *Palette) show() {
