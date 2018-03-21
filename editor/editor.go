@@ -25,6 +25,7 @@ type Editor struct {
 
 	topWin   *Window
 	topFrame *Frame
+	palette  *Palette
 
 	styles         map[int]*Style
 	stylesRWMutext sync.RWMutex
@@ -165,6 +166,7 @@ func NewEditor() (*Editor, error) {
 				win.verticalScrollBarWidth = win.verticalScrollBar.Width()
 				win.horizontalScrollBarHeight = win.horizontalScrollBar.Height()
 			}
+			e.palette.mainWidget.SetStyleSheet(scrollBarStyleSheet)
 		}
 	})
 	e.xi.ClientStart()
@@ -266,22 +268,24 @@ func (e *Editor) initMainWindow() {
 		e.width = rect.Width()
 		e.height = rect.Height()
 		e.equalWins()
+		e.palette.resize()
+	})
+	e.window.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
+		key := e.convertKey(event)
+		if key == "" {
+			return
+		}
+
+		if e.palette.active {
+			e.palette.executeKey(key)
+			return
+		}
+
+		e.executeKey(key)
 	})
 
-	// NewView(e)
-
 	e.centralWidget = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
-	// layout := widgets.NewQHBoxLayout()
-	// widget.SetLayout(layout)
 	e.window.SetCentralWidget(e.centralWidget)
-	// layout.AddWidget(e.view.view, 0, 0)
-	// layout.AddWidget(e.view.view2, 0, 0)
-	// e.view.view.SetParent(widget)
-	// e.view.view.Move2(0, 0)
-	// e.view.view.Resize2(400, 600)
-	// e.view.view2.SetParent(widget)
-	// e.view.view2.Move2(400, 0)
-	// e.view.view2.Resize2(400, 600)
 	e.topFrame = &Frame{
 		width:  e.width,
 		height: e.height,
@@ -300,8 +304,12 @@ func (e *Editor) initMainWindow() {
 	e.cursor.SetStyleSheet("background-color: rgba(0, 0, 0, 0.1);")
 	e.cursor.Show()
 	e.topFrame.setFocus(true)
-	e.window.Show()
 
+	e.palette = newPalette(e)
+	e.palette.mainWidget.SetParent(e.window)
+	e.palette.mainWidget.Hide()
+
+	e.window.Show()
 	e.initOnce.Do(func() {
 		close(e.init)
 	})
@@ -322,7 +330,6 @@ func (e *Editor) equalWins() {
 	e.topFrame.setSize(true, itemWidth)
 	itemHeight := e.height / e.topFrame.countSplits(false)
 	e.topFrame.setSize(false, itemHeight)
-	fmt.Println("equalWins", itemWidth, itemHeight)
 	e.topFrame.splitterResize()
 }
 

@@ -1,10 +1,8 @@
 package editor
 
-func (e *Editor) executeKey(key string) {
-	if key == "" {
-		return
-	}
+import "sync"
 
+func (e *Editor) executeKey(key string) {
 	keys := e.keymap.lookup(key)
 	if keys == nil {
 		e.setCmd(key)
@@ -237,6 +235,105 @@ func (e *Editor) delForward() {
 	}
 }
 
-func (s *NormalState) delBackward() {
-	s.editor.activeWin.buffer.xiView.DeleteBackward()
+func (e *Editor) verticalSplit() {
+	e.activeWin.frame.split(true)
+}
+
+func (e *Editor) horizontalSplit() {
+	e.activeWin.frame.split(false)
+}
+
+func (e *Editor) closeSplit() {
+	e.activeWin.frame.close()
+}
+
+func (e *Editor) exchangeSplit() {
+	e.activeWin.frame.exchange()
+}
+
+func (e *Editor) leftSplit() {
+	e.activeWin.frame.focusLeft()
+}
+
+func (e *Editor) rightSplit() {
+	e.activeWin.frame.focusRight()
+}
+
+func (e *Editor) aboveSplit() {
+	e.activeWin.frame.focusAbove()
+}
+
+func (e *Editor) belowSplit() {
+	e.activeWin.frame.focusBelow()
+}
+
+var cmdPaletteItems []*PaletteItem
+var cmdPaletteItemsOnce sync.Once
+
+func (e *Editor) allCmds() []*PaletteItem {
+	cmdPaletteItemsOnce.Do(func() {
+		items := []*PaletteItem{}
+		item := &PaletteItem{
+			description: "Vertical Split",
+			itemType:    PaletteCmd,
+			cmd:         e.verticalSplit,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Horizontal Split",
+			itemType:    PaletteCmd,
+			cmd:         e.horizontalSplit,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Close Split",
+			itemType:    PaletteCmd,
+			cmd:         e.closeSplit,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Exchange Split",
+			itemType:    PaletteCmd,
+			cmd:         e.exchangeSplit,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Left Split",
+			itemType:    PaletteCmd,
+			cmd:         e.leftSplit,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Right Split",
+			itemType:    PaletteCmd,
+			cmd:         e.rightSplit,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Above Split",
+			itemType:    PaletteCmd,
+			cmd:         e.aboveSplit,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Below Split",
+			itemType:    PaletteCmd,
+			cmd:         e.belowSplit,
+		}
+		items = append(items, item)
+
+		cmdPaletteItems = items
+	})
+	return cmdPaletteItems
+}
+
+func (e *Editor) commandPalette() {
+	e.palette.run(e.allCmds())
 }

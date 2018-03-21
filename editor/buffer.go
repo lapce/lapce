@@ -49,6 +49,15 @@ type Style struct {
 	bg *Color
 }
 
+func newColor(r, g, b, a int) *Color {
+	return &Color{
+		A: a,
+		R: r,
+		G: g,
+		B: b,
+	}
+}
+
 func colorFromARBG(argb int) *Color {
 	a := (argb >> 24) & 0xff
 	r := (argb >> 16) & 0xff

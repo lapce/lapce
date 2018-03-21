@@ -10,7 +10,6 @@ import (
 const (
 	Normal = iota
 	Insert
-	Replace
 )
 
 //
@@ -58,6 +57,7 @@ func newNormalState(e *Editor) State {
 	s.cmds = map[string]Command{
 		"<Esc>": s.esc,
 		"<C-c>": s.esc,
+		":":     e.commandPalette,
 		"i":     e.toInsert,
 		"a":     e.toInsertRight,
 		"A":     e.toInsertEndOfLine,
@@ -176,16 +176,16 @@ func (s *NormalState) doWincmd() {
 		s.editor.activeWin.frame.focusBelow()
 		return
 	case "v":
-		s.editor.activeWin.frame.split(true)
+		s.editor.verticalSplit()
 		return
 	case "s":
-		s.editor.activeWin.frame.split(false)
+		s.editor.horizontalSplit()
 		return
 	case "c":
-		s.editor.activeWin.frame.close()
+		s.editor.closeSplit()
 		return
 	case "x":
-		s.editor.activeWin.frame.exchange()
+		s.editor.exchangeSplit()
 		return
 	case "<lt>":
 		s.editor.activeWin.frame.changeSize(-count, true)

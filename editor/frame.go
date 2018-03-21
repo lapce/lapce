@@ -141,7 +141,6 @@ func (f *Frame) splitterResize() {
 		}
 	}
 	f.splitter.SetSizes(sizes)
-	fmt.Println("set sizes", sizes, f.width)
 
 	for _, child := range f.children {
 		child.splitterResize()

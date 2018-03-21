@@ -159,13 +159,6 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		editor.cursor.SetParent(w.view)
 		w.view.MousePressEventDefault(event)
 	})
-	w.view.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
-		if w.buffer == nil {
-			return
-		}
-		key := editor.convertKey(event)
-		editor.executeKey(key)
-	})
 	w.view.ConnectWheelEvent(func(event *gui.QWheelEvent) {
 		w.viewWheel(event)
 	})
