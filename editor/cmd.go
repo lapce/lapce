@@ -267,6 +267,22 @@ func (e *Editor) belowSplit() {
 	e.activeWin.frame.focusBelow()
 }
 
+func (e *Editor) increaseSplitHeight() {
+	e.activeWin.frame.changeSize(10, false)
+}
+
+func (e *Editor) decreaseSplitHeight() {
+	e.activeWin.frame.changeSize(-10, false)
+}
+
+func (e *Editor) increaseSplitWidth() {
+	e.activeWin.frame.changeSize(10, true)
+}
+
+func (e *Editor) decreaseSplitWidth() {
+	e.activeWin.frame.changeSize(-10, true)
+}
+
 var cmdPaletteItems []*PaletteItem
 var cmdPaletteItemsOnce sync.Once
 
@@ -274,58 +290,86 @@ func (e *Editor) allCmds() []*PaletteItem {
 	cmdPaletteItemsOnce.Do(func() {
 		items := []*PaletteItem{}
 		item := &PaletteItem{
-			description: "Vertical Split",
+			description: "Split: Vertical",
 			itemType:    PaletteCmd,
 			cmd:         e.verticalSplit,
 		}
 		items = append(items, item)
 
 		item = &PaletteItem{
-			description: "Horizontal Split",
+			description: "Split: Horizontal",
 			itemType:    PaletteCmd,
 			cmd:         e.horizontalSplit,
 		}
 		items = append(items, item)
 
 		item = &PaletteItem{
-			description: "Close Split",
+			description: "Split: Close",
 			itemType:    PaletteCmd,
 			cmd:         e.closeSplit,
 		}
 		items = append(items, item)
 
 		item = &PaletteItem{
-			description: "Exchange Split",
+			description: "Split: Exchange",
 			itemType:    PaletteCmd,
 			cmd:         e.exchangeSplit,
 		}
 		items = append(items, item)
 
 		item = &PaletteItem{
-			description: "Left Split",
+			description: "Split: Left",
 			itemType:    PaletteCmd,
 			cmd:         e.leftSplit,
 		}
 		items = append(items, item)
 
 		item = &PaletteItem{
-			description: "Right Split",
+			description: "Split: Right",
 			itemType:    PaletteCmd,
 			cmd:         e.rightSplit,
 		}
 		items = append(items, item)
 
 		item = &PaletteItem{
-			description: "Above Split",
+			description: "Split: Above",
 			itemType:    PaletteCmd,
 			cmd:         e.aboveSplit,
 		}
 		items = append(items, item)
 
 		item = &PaletteItem{
-			description: "Below Split",
+			description: "Split: Below",
 			itemType:    PaletteCmd,
 			cmd:         e.belowSplit,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Split: Increase Width",
+			itemType:    PaletteCmd,
+			cmd:         e.increaseSplitWidth,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Split: Decrease Width",
+			itemType:    PaletteCmd,
+			cmd:         e.decreaseSplitWidth,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Split: Increase Height",
+			itemType:    PaletteCmd,
+			cmd:         e.increaseSplitHeight,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description: "Split: Decrease Height",
+			itemType:    PaletteCmd,
+			cmd:         e.decreaseSplitHeight,
 		}
 		items = append(items, item)
 

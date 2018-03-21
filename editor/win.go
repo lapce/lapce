@@ -181,7 +181,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	})
 	w.view.SetFocusPolicy(core.Qt__ClickFocus)
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
-	w.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
+	// w.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
 	w.view.SetFrameStyle(0)
 	w.horizontalScrollBar = w.view.HorizontalScrollBar()
 	w.verticalScrollBar = w.view.VerticalScrollBar()

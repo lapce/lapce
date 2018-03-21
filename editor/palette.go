@@ -86,7 +86,8 @@ func newPalette(editor *Editor) *Palette {
 	p.mainWidget.SetContentsMargins(0, 0, 0, 0)
 	p.mainWidget.SetLayout(layout)
 	p.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)
-	p.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
+	p.view.SetHorizontalScrollBarPolicy(core.Qt__ScrollBarAlwaysOff)
+	// p.view.SetCornerWidget(widgets.NewQWidget(nil, 0))
 	p.view.SetFrameStyle(0)
 	p.scence.AddWidget(p.widget, 0).SetPos2(0, 0)
 	p.view.SetScene(p.scence)
@@ -126,9 +127,12 @@ func (p *Palette) resize() {
 	}
 	scenceHeight := len(p.activeItems) * int(p.font.lineHeight)
 	if p.scenceHeight != scenceHeight {
-		scenceWidth := p.width
 		p.scenceHeight = scenceHeight
-		p.widget.Resize2(scenceWidth, scenceHeight)
+		scenceWidth := p.width
+		if scenceHeight > viewHeight {
+			scenceWidth -= 16
+		}
+		p.widget.Resize2(scenceWidth+10, scenceHeight)
 		p.rect.SetWidth(float64(scenceWidth))
 		p.rect.SetHeight(float64(scenceHeight))
 		p.scence.SetSceneRect(p.rect)
@@ -336,15 +340,21 @@ func (p *Palette) enter() {
 	item := p.activeItems[p.index]
 	item.n++
 
-	newIndex := 0
+	newIndex := -1
+	index := -1
 	for i := range p.items {
-		if item.n >= p.items[i].n {
+		if newIndex == -1 && item.n >= p.items[i].n {
 			newIndex = i
+		}
+		if item == p.items[i] {
+			index = i
+		}
+		if newIndex > -1 && index > -1 {
 			break
 		}
 	}
-	if newIndex < p.index {
-		copy(p.items[newIndex+1:p.index+1], p.items[newIndex:p.index])
+	if newIndex < index {
+		copy(p.items[newIndex+1:index+1], p.items[newIndex:index])
 		p.items[newIndex] = item
 	}
 	item.cmd()
@@ -455,6 +465,7 @@ func (p *Palette) show() {
 	}
 	p.active = true
 	p.mainWidget.Show()
+	p.view.VerticalScrollBar().SetValue(0)
 }
 
 func (p *Palette) hide() {
