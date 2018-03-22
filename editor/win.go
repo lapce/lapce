@@ -461,6 +461,7 @@ func (w *Window) loadBuffer(buffer *Buffer) {
 	w.gutterChars = len(strconv.Itoa(len(buffer.lines)))
 	w.gutterWidth = int(float64(w.gutterChars)*w.buffer.font.width+0.5) + w.gutterPadding*2
 	w.gutter.SetFixedWidth(w.gutterWidth)
+	w.setScroll()
 }
 
 func (w *Window) scrollValue(rows, cols int) (int, int) {
@@ -619,10 +620,8 @@ func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struc
 	finished := make(chan struct{})
 	stop := make(chan struct{})
 	if x == 0 && y == 0 {
-		if cursor {
-			w.updates <- setPos
-			w.signal.UpdateSignal()
-		}
+		w.updates <- setPos
+		w.signal.UpdateSignal()
 		close(finished)
 		return finished, stop, nil
 	}
@@ -708,10 +707,8 @@ func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struc
 				if xDiff != 0 || yDiff != 0 {
 					fmt.Println("xDiff, yDiff", xDiff, yDiff)
 				}
-				if cursor {
-					w.updates <- setPos
-					w.signal.UpdateSignal()
-				}
+				w.updates <- setPos
+				w.signal.UpdateSignal()
 				return
 			}
 		}
@@ -739,10 +736,10 @@ func (w *Window) setPos(row, col int, toXi bool) {
 	w.start, w.end = w.scrollRegion()
 	w.setGutterShift()
 	w.updateCursor()
+	w.gutter.Update()
 	if oldX == w.x && oldY == w.y {
 		return
 	}
-	w.gutter.Update()
 	w.updateCline()
 }
 

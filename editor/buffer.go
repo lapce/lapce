@@ -17,6 +17,7 @@ type Line struct {
 	styles  []int
 	cursor  []int
 	current bool
+	width   int
 }
 
 // Buffer is
@@ -34,6 +35,7 @@ type Buffer struct {
 	revision  int
 	xiView    *xi.View
 	maxLength int
+	maxWidth  int
 }
 
 // Color is
@@ -211,6 +213,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	b.editor.winsRWMutext.RUnlock()
 
 	maxLength := 0
+	maxWidth := 0
 	for _, op := range update.Update.Ops {
 		n := op.N
 		switch op.Op {
@@ -224,6 +227,9 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					if line != nil {
 						line.invalid = true
 						b.setNewLine(ix, len(newLines)-1, winsMap)
+						if line.width > maxWidth {
+							maxWidth = line.width
+						}
 						length := len(line.text)
 						if length > maxLength {
 							maxLength = length
@@ -234,14 +240,19 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		case "ins":
 			ix := oldIx
 			for _, line := range op.Lines {
-				newLines = append(newLines, &Line{
+				newLine := &Line{
 					text:    line.Text,
 					styles:  line.Styles,
 					cursor:  line.Cursor,
 					invalid: true,
-				})
+					width:   int(b.font.fontMetrics.Width(line.Text) + 0.5),
+				}
+				newLines = append(newLines, newLine)
 				b.setNewLine(ix, len(newLines)-1, winsMap)
 				ix++
+				if newLine.width > maxWidth {
+					maxWidth = newLine.width
+				}
 				length := len(line.Text)
 				if length > maxLength {
 					maxLength = length
@@ -267,6 +278,9 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					b.setNewLine(ix, len(newLines)-1, winsMap)
 				}
 				if line != nil {
+					if line.width > maxWidth {
+						maxWidth = line.width
+					}
 					length := len(line.text)
 					if length > maxLength {
 						maxLength = length
@@ -288,8 +302,8 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	// 		delete(b.scenceLines, i)
 	// 	}
 	// }
-	if len(newLines) != len(b.lines) || maxLength != b.maxLength {
-		width := int(b.font.width*float64(maxLength) + 0.5)
+	if len(newLines) != len(b.lines) || maxWidth != b.maxWidth {
+		width := maxWidth
 		height := len(newLines) * int(b.font.lineHeight)
 		b.widget.Resize2(width, height)
 
@@ -299,6 +313,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	}
 
 	b.lines = newLines
+	b.maxWidth = maxWidth
 	b.maxLength = maxLength
 	b.revision++
 
@@ -333,10 +348,4 @@ func (b *Buffer) getPos(row, col int) (int, int) {
 
 func (b *Buffer) updateLine(i int) {
 	b.widget.Update2(0, i*int(b.font.lineHeight), 900, int(b.font.lineHeight))
-	// line := b.lines[i]
-	// scenceLine := b.getScenceLine(i)
-	// rect := scenceLine.rect
-	// rect.SetWidth(b.font.width * float64(len(line.text)))
-	// scenceLine.line.PrepareGeometryChange()
-	// scenceLine.line.Update(rect)
 }

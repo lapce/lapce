@@ -199,6 +199,10 @@ func (e *Editor) getScrollbarStylesheet() string {
 			QWidget {
 			    background: %s;
 			}
+			QAbstractScrollArea::corner {
+			    background: %s;
+			    border: 0px solid grey;
+			}
 			QScrollBar:horizontal {
 			    border: 0px solid grey;
 			    background: %s;
@@ -249,7 +253,7 @@ func (e *Editor) getScrollbarStylesheet() string {
 			    subcontrol-origin: margin;
 			}
 			`,
-		backgroundColor, backgroundColor, guideColor, backgroundColor, guideColor)
+		backgroundColor, backgroundColor, backgroundColor, guideColor, backgroundColor, guideColor)
 	return scrollBarStyleSheet
 }
 
