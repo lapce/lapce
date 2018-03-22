@@ -28,6 +28,7 @@ type Buffer struct {
 	width  int
 	height int
 	rect   *core.QRectF
+	path   string
 
 	lines     []*Line
 	revision  int
@@ -80,6 +81,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		font:   NewFont(),
 		widget: widgets.NewQWidget(nil, 0),
 		rect:   core.NewQRectF(),
+		path:   path,
 	}
 	buffer.xiView, _ = editor.xi.NewView(path)
 	buffer.scence.ConnectMousePressEvent(func(event *widgets.QGraphicsSceneMouseEvent) {
@@ -130,6 +132,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 	})
 	editor.buffersRWMutex.Lock()
 	editor.buffers[buffer.xiView.ID] = buffer
+	editor.bufferPaths[path] = buffer
 	editor.buffersRWMutex.Unlock()
 	return buffer
 }

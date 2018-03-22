@@ -10,7 +10,8 @@ import (
 
 // Config is
 type Config struct {
-	Modal bool
+	Modal     bool
+	configDir string
 }
 
 func loadConfig() *Config {
@@ -21,7 +22,8 @@ func loadConfig() *Config {
 	if err != nil {
 		return c
 	}
-	path := filepath.Join(home, ".crane", "config.toml")
+	c.configDir = filepath.Join(home, ".crane")
+	path := filepath.Join(c.configDir, "config.toml")
 	_, err = toml.DecodeFile(path, c)
 	if err != nil {
 		fmt.Println("load config error", err)

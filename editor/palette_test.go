@@ -20,4 +20,11 @@ func TestMatchScor(t *testing.T) {
 
 	assert.Equal(t, 0, score)
 	assert.Equal(t, []int{0, 1}, matches)
+
+	text = []rune("1 // Previous")
+	pattern = []rune("1")
+	score, matches = matchScore(text, pattern)
+
+	assert.Equal(t, 0, score)
+	assert.Equal(t, []int{0}, matches)
 }

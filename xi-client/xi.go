@@ -63,10 +63,11 @@ func New(handleNotification handleNotificationFunc) (*Xi, error) {
 }
 
 // ClientStart is
-func (x *Xi) ClientStart() {
+func (x *Xi) ClientStart(configDir string) {
 	params := map[string]string{}
-	params["client_extras_dir"] = "/Users/Lulu/xi-electron/src/xi/"
-	params["config_dir"] = "/Users/Lulu/xi-electron/src/xi/"
+	fmt.Println("config dir", configDir)
+	params["client_extras_dir"] = configDir
+	params["config_dir"] = configDir
 	x.Conn.Notify(context.Background(), "client_started", &params)
 }
 

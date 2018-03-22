@@ -1,6 +1,13 @@
 package editor
 
-import "sync"
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+)
 
 func (e *Editor) executeKey(key string) {
 	keys := e.keymap.lookup(key)
@@ -79,6 +86,14 @@ func (e *Editor) toInsertNewLine() {
 	win := e.activeWin
 	row := win.row + 1
 	col := 0
+	if win.buffer.lines[win.row] != nil {
+		for i, r := range win.buffer.lines[win.row].text {
+			if utfClass(r) > 0 {
+				col = i
+				break
+			}
+		}
+	}
 	win.scrollToCursor(row+1, col, false)
 	win.row = row
 	win.col = col
@@ -379,5 +394,87 @@ func (e *Editor) allCmds() []*PaletteItem {
 }
 
 func (e *Editor) commandPalette() {
-	e.palette.run(e.allCmds())
+	e.palette.run(":")
+}
+
+var filePaletteItems []*PaletteItem
+var filePaletteItemsMutext sync.RWMutex
+
+func (e *Editor) getFilePaletteItems() []*PaletteItem {
+	items := []*PaletteItem{}
+	dir, err := os.Getwd()
+	if err != nil {
+		return items
+	}
+	cwd := dir + "/"
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return items
+	}
+	folders := []string{}
+	for {
+		for _, f := range files {
+			if f.IsDir() {
+				if f.Name() == ".git" {
+					continue
+				}
+				folders = append(folders, filepath.Join(dir, f.Name()))
+				continue
+			}
+			file := filepath.Join(dir, f.Name())
+			file = strings.Replace(file, cwd, "", 1)
+			item := &PaletteItem{
+				description: file,
+			}
+			items = append(items, item)
+		}
+
+		for {
+			if len(folders) == 0 {
+				return items
+			}
+			dir = folders[0]
+			folders = folders[1:]
+			files, _ = ioutil.ReadDir(dir)
+			if len(files) == 0 {
+				continue
+			} else {
+				break
+			}
+		}
+	}
+}
+
+func (e *Editor) searchLines() {
+	e.palette.run("#")
+}
+
+func (e *Editor) quickOpen() {
+	e.palette.run("")
+}
+
+func (e *Editor) getCurrentBufferLinePaletteItems() []*PaletteItem {
+	items := []*PaletteItem{}
+	buffer := e.activeWin.buffer
+	for i, line := range buffer.lines {
+		content := ""
+		if line != nil {
+			content = line.text
+		}
+		content = fmt.Sprintf("%d %s", i+1, content)
+		item := &PaletteItem{
+			description: content,
+			lineNumber:  i + 1,
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+func (e *Editor) openFile(path string) {
+	buffer, ok := e.bufferPaths[path]
+	if !ok {
+		buffer = NewBuffer(e, path)
+	}
+	e.activeWin.loadBuffer(buffer)
 }

@@ -30,6 +30,7 @@ type Editor struct {
 	styles         map[int]*Style
 	stylesRWMutext sync.RWMutex
 
+	bufferPaths    map[string]*Buffer
 	buffers        map[string]*Buffer
 	buffersRWMutex sync.RWMutex
 
@@ -82,6 +83,7 @@ func NewEditor() (*Editor, error) {
 		updates:      make(chan interface{}, 1000),
 		init:         make(chan struct{}),
 		buffers:      map[string]*Buffer{},
+		bufferPaths:  map[string]*Buffer{},
 		wins:         map[int]*Window{},
 		styles:       map[int]*Style{},
 		bgBrush:      gui.NewQBrush(),
@@ -169,7 +171,7 @@ func NewEditor() (*Editor, error) {
 			e.palette.mainWidget.SetStyleSheet(scrollBarStyleSheet)
 		}
 	})
-	e.xi.ClientStart()
+	e.xi.ClientStart(e.config.configDir)
 	e.xi.SetTheme()
 
 	e.app = widgets.NewQApplication(0, nil)

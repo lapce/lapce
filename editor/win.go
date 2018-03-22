@@ -619,8 +619,10 @@ func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struc
 	finished := make(chan struct{})
 	stop := make(chan struct{})
 	if x == 0 && y == 0 {
-		w.updates <- setPos
-		w.signal.UpdateSignal()
+		if cursor {
+			w.updates <- setPos
+			w.signal.UpdateSignal()
+		}
 		close(finished)
 		return finished, stop, nil
 	}
@@ -706,8 +708,10 @@ func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struc
 				if xDiff != 0 || yDiff != 0 {
 					fmt.Println("xDiff, yDiff", xDiff, yDiff)
 				}
-				w.updates <- setPos
-				w.signal.UpdateSignal()
+				if cursor {
+					w.updates <- setPos
+					w.signal.UpdateSignal()
+				}
 				return
 			}
 		}
