@@ -119,6 +119,12 @@ func NewEditor() (*Editor, error) {
 				return
 			}
 			buffer.applyUpdate(u)
+		case *xi.ConfigChanged:
+			buffer, ok := e.buffers[u.ViewID]
+			if !ok {
+				return
+			}
+			buffer.setConfig(&u.Changes)
 		case *xi.ScrollTo:
 			if e.activeWin == nil {
 				return

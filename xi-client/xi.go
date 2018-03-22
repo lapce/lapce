@@ -180,6 +180,15 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if h.xi.handleNotification != nil {
 			h.xi.handleNotification(&theme)
 		}
+	case "config_changed":
+		var configChanged ConfigChanged
+		err := json.Unmarshal(params, &configChanged)
+		if err != nil {
+			return
+		}
+		if h.xi.handleNotification != nil {
+			h.xi.handleNotification(&configChanged)
+		}
 	default:
 	}
 }
@@ -274,6 +283,26 @@ type Theme struct {
 		TagsForeground interface{} `json:"tags_foreground"`
 		TagsOptions    interface{} `json:"tags_options"`
 	} `json:"theme"`
+}
+
+// ConfigChanged is
+type ConfigChanged struct {
+	Changes Config `json:"changes"`
+	ViewID  string `json:"view_id"`
+}
+
+// Config is
+type Config struct {
+	AutoIndent            bool          `json:"auto_indent"`
+	FontFace              string        `json:"font_face"`
+	FontSize              int           `json:"font_size"`
+	LineEnding            string        `json:"line_ending"`
+	PluginSearchPath      []interface{} `json:"plugin_search_path"`
+	ScrollPastEnd         bool          `json:"scroll_past_end"`
+	TabSize               int           `json:"tab_size"`
+	TranslateTabsToSpaces bool          `json:"translate_tabs_to_spaces"`
+	UseTabStops           bool          `json:"use_tab_stops"`
+	WrapWidth             int           `json:"wrap_width"`
 }
 
 // EditNotification is

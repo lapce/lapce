@@ -84,33 +84,53 @@ func (e *Editor) toInsertEndOfLine() {
 func (e *Editor) toInsertNewLine() {
 	e.mode = Insert
 	win := e.activeWin
-	row := win.row + 1
-	col := 0
-	if win.buffer.lines[win.row] != nil {
-		for i, r := range win.buffer.lines[win.row].text {
-			if utfClass(r) > 0 {
-				col = i
-				break
-			}
-		}
+	maxCol := len(win.buffer.lines[win.row].text) - 1
+	if maxCol < 0 {
+		maxCol = 0
 	}
-	win.scrollToCursor(row+1, col, false)
-	win.row = row
-	win.col = col
-	win.buffer.xiView.Click(row, col)
+	win.col = maxCol
+	win.buffer.xiView.Click(win.row, maxCol)
 	win.buffer.xiView.InsertNewline()
-	win.buffer.xiView.Click(row, col)
+	// row := win.row + 1
+	// col := 0
+	// if win.buffer.lines[win.row] != nil {
+	// 	for i, r := range win.buffer.lines[win.row].text {
+	// 		if utfClass(r) > 0 {
+	// 			col = i
+	// 			break
+	// 		}
+	// 	}
+	// }
+	// win.scrollToCursor(row+1, col, false)
+	// win.row = row
+	// win.col = col
+	// win.buffer.xiView.Click(row, col)
+	// win.buffer.xiView.InsertNewline()
+	// win.buffer.xiView.Click(row, col)
 }
 
 func (e *Editor) toInsertNewLineAbove() {
 	e.mode = Insert
 	win := e.activeWin
 	row := win.row
-	col := 0
-	win.scrollToCursor(row, col, false)
-	win.buffer.xiView.Click(row, col)
+	row--
+	if row >= 0 {
+		maxCol := len(win.buffer.lines[row].text) - 1
+		if maxCol < 0 {
+			maxCol = 0
+		}
+		win.row = row
+		win.col = maxCol
+		win.buffer.xiView.Click(row, maxCol)
+		win.buffer.xiView.InsertNewline()
+		return
+	}
+
+	win.row = 0
+	win.col = 0
+	win.buffer.xiView.Click(win.row, win.col)
 	win.buffer.xiView.InsertNewline()
-	win.buffer.xiView.Click(row, col)
+	win.buffer.xiView.Click(win.row, win.col)
 }
 
 func (e *Editor) wordEnd() {

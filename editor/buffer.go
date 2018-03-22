@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	xi "github.com/dzhou121/crane/xi-client"
 	"github.com/therecipe/qt/core"
@@ -30,6 +31,7 @@ type Buffer struct {
 	height int
 	rect   *core.QRectF
 	path   string
+	tabStr string
 
 	lines     []*Line
 	revision  int
@@ -84,6 +86,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		widget: widgets.NewQWidget(nil, 0),
 		rect:   core.NewQRectF(),
 		path:   path,
+		tabStr: "    ",
 	}
 	buffer.xiView, _ = editor.xi.NewView(path)
 	buffer.scence.ConnectMousePressEvent(func(event *widgets.QGraphicsSceneMouseEvent) {
@@ -139,6 +142,16 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 	return buffer
 }
 
+func (b *Buffer) setConfig(config *xi.Config) {
+	if config.TabSize > 0 {
+		fmt.Println("change tab size")
+		b.tabStr = ""
+		for i := 0; i < config.TabSize; i++ {
+			b.tabStr += " "
+		}
+	}
+}
+
 func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
 	line := b.lines[index]
 	start := 0
@@ -147,17 +160,17 @@ func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
 		startDiff := line.styles[i*3]
 		if startDiff > 0 {
 			painter.DrawText3(
-				int(b.font.fontMetrics.Width(string(line.text[:start]))+0.5),
+				int(b.font.fontMetrics.Width(strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1))+0.5),
 				index*int(b.font.lineHeight)+int(b.font.shift),
-				string(line.text[start:start+startDiff]),
+				strings.Replace(string(line.text[start:start+startDiff]), "\t", b.tabStr, -1),
 			)
 		}
 
 		start += startDiff
 		length := line.styles[i*3+1]
 		styleID := line.styles[i*3+2]
-		x := b.font.fontMetrics.Width(string(line.text[:start]))
-		text := string(line.text[start : start+length])
+		x := b.font.fontMetrics.Width(strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1))
+		text := strings.Replace(string(line.text[start:start+length]), "\t", b.tabStr, -1)
 		if styleID == 0 {
 			theme := b.editor.theme
 			if theme != nil {
@@ -245,7 +258,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					styles:  line.Styles,
 					cursor:  line.Cursor,
 					invalid: true,
-					width:   int(b.font.fontMetrics.Width(line.Text) + 0.5),
+					width:   int(b.font.fontMetrics.Width(strings.Replace(line.Text, "\t", b.tabStr, -1)) + 0.5),
 				}
 				newLines = append(newLines, newLine)
 				b.setNewLine(ix, len(newLines)-1, winsMap)
@@ -340,7 +353,7 @@ func (b *Buffer) getPos(row, col int) (int, int) {
 		if col > len(text) {
 			col = len(text)
 		}
-		x = int(b.font.fontMetrics.Width(text[:col]) + 0.5)
+		x = int(b.font.fontMetrics.Width(strings.Replace(text[:col], "\t", b.tabStr, -1)) + 0.5)
 	}
 	y := row * int(b.font.lineHeight)
 	return x, y
