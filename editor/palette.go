@@ -68,6 +68,7 @@ type PaletteItem struct {
 	score       int
 	matches     []int
 	lineNumber  int
+	line        *Line
 }
 
 func newPalette(editor *Editor) *Palette {
@@ -79,7 +80,7 @@ func newPalette(editor *Editor) *Palette {
 		view:       widgets.NewQGraphicsView(nil),
 		widget:     widgets.NewQWidget(nil, 0),
 		rect:       core.NewQRectF(),
-		font:       NewFont(),
+		font:       editor.defaultFont,
 
 		width:        600,
 		padding:      12,
@@ -196,7 +197,7 @@ func (p *Palette) paintInput(event *gui.QPaintEvent) {
 	fg := p.editor.theme.Theme.Foreground
 	penColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
 	painter.SetPen2(penColor)
-	painter.DrawText3(p.padding, padding+int(p.font.shift)+1, p.inputText)
+	painter.DrawText3(p.padding, padding+int(p.font.shift), p.inputText)
 
 	painter.FillRect5(
 		p.padding+int(p.font.fontMetrics.Width(string(p.inputText[:p.inputIndex]))+0.5),
@@ -238,32 +239,41 @@ func (p *Palette) paint(event *gui.QPaintEvent) {
 }
 
 func (p *Palette) paintLine(painter *gui.QPainter, index int) {
+	item := p.activeItems[index]
+	y := index*int(p.font.lineHeight) + int(p.font.shift)
 	fg := p.editor.theme.Theme.Foreground
 	penColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
-	selected := gui.NewQColor3(p.matchFg.R, p.matchFg.G, p.matchFg.B, p.matchFg.A)
-
-	line := p.activeItems[index]
-	lastMatch := -1
-	x := p.padding
-	y := index*int(p.font.lineHeight) + int(p.font.shift) + 1
-	text := ""
-	for _, match := range line.matches {
-		if match-lastMatch > 1 {
-			x = p.padding + int(p.font.fontMetrics.Width(string(line.description[:lastMatch+1]))+0.5)
-			text = string(line.description[lastMatch+1 : match])
-			painter.SetPen2(penColor)
-			painter.DrawText3(x, y, text)
+	matchedColor := gui.NewQColor3(p.matchFg.R, p.matchFg.G, p.matchFg.B, p.matchFg.A)
+	if p.inputType == PaletteLine {
+		selection := p.editor.theme.Theme.Selection
+		selectionColor := gui.NewQColor3(selection.R, selection.G, selection.B, selection.A)
+		lineNumber := fmt.Sprintf("%d ", item.lineNumber)
+		painter.SetPen2(selectionColor)
+		painter.DrawText3(p.padding, y, lineNumber)
+		if item.line != nil {
+			padding := int(p.font.fontMetrics.Width(lineNumber)+0.5) + p.padding
+			p.editor.activeWin.buffer.drawLine(painter, p.font, item.lineNumber-1, index*int(p.font.lineHeight), padding)
 		}
-		x = p.padding + int(p.font.fontMetrics.Width(string(line.description[:match]))+0.5)
-		text = string(line.description[match])
-		painter.SetPen2(selected)
-		painter.DrawText3(x, y, text)
-		lastMatch = match
+	} else {
+		painter.SetPen2(penColor)
+		painter.DrawText3(p.padding, y, item.description)
 	}
-	x = p.padding + int(p.font.fontMetrics.Width(string(line.description[:lastMatch+1]))+0.5)
-	text = string(line.description[lastMatch+1:])
-	painter.SetPen2(penColor)
-	painter.DrawText3(x, y, text)
+
+	painter.SetPen2(matchedColor)
+	bg := p.editor.theme.Theme.Background
+	bgColor := gui.NewQColor3(bg.R, bg.G, bg.B, bg.A)
+	selectedBgColor := gui.NewQColor3(p.selectedBg.R, p.selectedBg.G, p.selectedBg.B, p.selectedBg.A)
+	for _, match := range item.matches {
+		x := p.padding + int(p.font.fontMetrics.Width(strings.Replace(string(item.description[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1))+0.5)
+		text := string(item.description[match])
+		width := int(p.font.fontMetrics.Width(text) + 0.5)
+		painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), bgColor)
+		if index == p.index {
+			painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), selectedBgColor)
+		}
+		painter.DrawText3(x, y, string(item.description[match]))
+	}
+
 }
 
 func (p *Palette) initCmds() {

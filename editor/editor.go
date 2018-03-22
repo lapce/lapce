@@ -27,6 +27,9 @@ type Editor struct {
 	topFrame *Frame
 	palette  *Palette
 
+	monoFont    *Font
+	defaultFont *Font
+
 	styles         map[int]*Style
 	stylesRWMutext sync.RWMutex
 
@@ -298,6 +301,10 @@ func (e *Editor) initMainWindow() {
 
 	e.centralWidget = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
 	e.window.SetCentralWidget(e.centralWidget)
+
+	e.monoFont = NewFont("Inconsolata")
+	e.defaultFont = NewFont("")
+
 	e.topFrame = &Frame{
 		width:  e.width,
 		height: e.height,

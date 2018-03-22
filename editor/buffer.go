@@ -82,7 +82,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		editor: editor,
 		scence: widgets.NewQGraphicsScene(nil),
 		lines:  []*Line{},
-		font:   NewFont(),
+		font:   editor.monoFont,
 		widget: widgets.NewQWidget(nil, 0),
 		rect:   core.NewQRectF(),
 		path:   path,
@@ -131,7 +131,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 			if line.text == "" {
 				continue
 			}
-			buffer.drawLine(p, i)
+			buffer.drawLine(p, buffer.font, i, i*int(buffer.font.lineHeight), 0)
 		}
 		defer p.DestroyQPainter()
 	})
@@ -144,7 +144,6 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 
 func (b *Buffer) setConfig(config *xi.Config) {
 	if config.TabSize > 0 {
-		fmt.Println("change tab size")
 		b.tabStr = ""
 		for i := 0; i < config.TabSize; i++ {
 			b.tabStr += " "
@@ -152,7 +151,7 @@ func (b *Buffer) setConfig(config *xi.Config) {
 	}
 }
 
-func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
+func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, index int, y int, padding int) {
 	line := b.lines[index]
 	start := 0
 	color := gui.NewQColor()
@@ -160,8 +159,8 @@ func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
 		startDiff := line.styles[i*3]
 		if startDiff > 0 {
 			painter.DrawText3(
-				int(b.font.fontMetrics.Width(strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1))+0.5),
-				index*int(b.font.lineHeight)+int(b.font.shift),
+				padding+int(font.fontMetrics.Width(strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1))+0.5),
+				y+int(font.shift),
 				strings.Replace(string(line.text[start:start+startDiff]), "\t", b.tabStr, -1),
 			)
 		}
@@ -169,16 +168,16 @@ func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
 		start += startDiff
 		length := line.styles[i*3+1]
 		styleID := line.styles[i*3+2]
-		x := b.font.fontMetrics.Width(strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1))
+		x := font.fontMetrics.Width(strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1))
 		text := strings.Replace(string(line.text[start:start+length]), "\t", b.tabStr, -1)
 		if styleID == 0 {
 			theme := b.editor.theme
 			if theme != nil {
 				bg := theme.Theme.Selection
 				color.SetRgb(bg.R, bg.G, bg.B, bg.A)
-				painter.FillRect5(int(x+0.5), index*int(b.font.lineHeight),
-					int(b.font.fontMetrics.Width(text)+0.5),
-					int(b.font.lineHeight),
+				painter.FillRect5(int(x+0.5), y,
+					int(font.fontMetrics.Width(text)+0.5),
+					int(font.lineHeight),
 					color)
 			}
 		} else {
@@ -188,7 +187,7 @@ func (b *Buffer) drawLine(painter *gui.QPainter, index int) {
 				color.SetRgb(fg.R, fg.G, fg.B, fg.A)
 				painter.SetPen2(color)
 			}
-			painter.DrawText3(int(x+0.5), index*int(b.font.lineHeight)+int(b.font.shift), text)
+			painter.DrawText3(padding+int(x+0.5), y+int(font.shift), text)
 		}
 		start += length
 	}

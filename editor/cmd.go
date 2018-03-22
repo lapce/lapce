@@ -485,6 +485,7 @@ func (e *Editor) getCurrentBufferLinePaletteItems() []*PaletteItem {
 		item := &PaletteItem{
 			description: content,
 			lineNumber:  i + 1,
+			line:        line,
 		}
 		items = append(items, item)
 	}

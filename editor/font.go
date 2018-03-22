@@ -20,9 +20,12 @@ type Font struct {
 }
 
 // NewFont creates new font
-func NewFont() *Font {
-	f := &Font{
-		font: gui.NewQFont2("Inconsolata", 14, int(gui.QFont__Normal), false),
+func NewFont(fontFamily string) *Font {
+	f := &Font{}
+	if fontFamily == "" {
+		f.font = gui.NewQFont()
+	} else {
+		f.font = gui.NewQFont2(fontFamily, 14, int(gui.QFont__Normal), false)
 	}
 
 	fontMetrics := gui.NewQFontMetricsF(f.font)
@@ -35,8 +38,11 @@ func NewFont() *Font {
 	f.leading = fontMetrics.Leading()
 
 	f.lineSpace = float64(10)
+	if fontFamily == "" {
+		f.lineSpace = float64(12)
+	}
 	f.lineHeight = float64(int(f.height + f.lineSpace + 0.5))
-	f.shift = float64(int(f.lineSpace/2 + f.ascent - f.leading + 0.5))
+	f.shift = float64(int((f.lineHeight-f.height)/2 + f.ascent - f.leading + 0.5))
 
 	return f
 }
