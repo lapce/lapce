@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	xi "github.com/dzhou121/crane/xi-client"
 	"github.com/therecipe/qt/core"
@@ -23,21 +24,22 @@ type Line struct {
 
 // Buffer is
 type Buffer struct {
-	editor *Editor
-	scence *widgets.QGraphicsScene
-	font   *Font
-	widget *widgets.QWidget
-	width  int
-	height int
-	rect   *core.QRectF
-	path   string
-	tabStr string
+	editor         *Editor
+	scence         *widgets.QGraphicsScene
+	font           *Font
+	widget         *widgets.QWidget
+	width          int
+	height         int
+	rect           *core.QRectF
+	path           string
+	tabStr         string
+	gotFirstUpdate bool
 
-	lines     []*Line
-	revision  int
-	xiView    *xi.View
-	maxLength int
-	maxWidth  int
+	lines    []*Line
+	newLines []*Line
+	revision int
+	xiView   *xi.View
+	maxWidth int
 }
 
 // Color is
@@ -79,14 +81,15 @@ func colorFromARBG(argb int) *Color {
 // NewBuffer creates a new buffer
 func NewBuffer(editor *Editor, path string) *Buffer {
 	buffer := &Buffer{
-		editor: editor,
-		scence: widgets.NewQGraphicsScene(nil),
-		lines:  []*Line{},
-		font:   editor.monoFont,
-		widget: widgets.NewQWidget(nil, 0),
-		rect:   core.NewQRectF(),
-		path:   path,
-		tabStr: "    ",
+		editor:   editor,
+		scence:   widgets.NewQGraphicsScene(nil),
+		lines:    []*Line{},
+		newLines: []*Line{},
+		font:     editor.monoFont,
+		widget:   widgets.NewQWidget(nil, 0),
+		rect:     core.NewQRectF(),
+		path:     path,
+		tabStr:   "    ",
 	}
 	buffer.xiView, _ = editor.xi.NewView(path)
 	buffer.scence.ConnectMousePressEvent(func(event *widgets.QGraphicsSceneMouseEvent) {
@@ -202,10 +205,27 @@ func (b *Buffer) setNewLine(ix int, i int, winsMap map[int][]*Window) {
 	}
 }
 
-func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
-	newLines := []*Line{}
-	oldIx := 0
+func (b *Buffer) updateScrollInBackground() {
+	num := len(b.lines)
+	fmt.Println("num of lines", num)
+	height := 50
+	i := 0
+	for {
+		fmt.Println("update ", i, i+height)
+		time.Sleep(500 * time.Millisecond)
+		b.xiView.Scroll(i, i+height)
+		i += height
+		if i > num {
+			return
+		}
+	}
+}
 
+func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
+	// start := time.Now()
+	// defer func() {
+	// 	fmt.Println((time.Now().Nanosecond() - start.Nanosecond()) / 1e6)
+	// }()
 	bufWins := []*Window{}
 	winsMap := map[int][]*Window{}
 	b.editor.winsRWMutext.RLock()
@@ -224,30 +244,31 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	}
 	b.editor.winsRWMutext.RUnlock()
 
-	maxLength := 0
 	maxWidth := 0
+	oldIx := 0
+	newIx := 0
 	for _, op := range update.Update.Ops {
 		n := op.N
 		switch op.Op {
 		case "invalidate":
 			for ix := oldIx; ix < oldIx+n; ix++ {
-				if ix >= len(b.lines) {
-					newLines = append(newLines, nil)
+				var line *Line
+				if ix < len(b.lines) {
+					line = b.lines[ix]
+				}
+				if newIx < len(b.newLines) {
+					b.newLines[newIx] = line
 				} else {
-					line := b.lines[ix]
-					newLines = append(newLines, line)
-					if line != nil {
-						line.invalid = true
-						b.setNewLine(ix, len(newLines)-1, winsMap)
-						if line.width > maxWidth {
-							maxWidth = line.width
-						}
-						length := len(line.text)
-						if length > maxLength {
-							maxLength = length
-						}
+					b.newLines = append(b.newLines, line)
+				}
+				if line != nil {
+					line.invalid = true
+					b.setNewLine(ix, newIx, winsMap)
+					if line.width > maxWidth {
+						maxWidth = line.width
 					}
 				}
+				newIx++
 			}
 		case "ins":
 			ix := oldIx
@@ -259,16 +280,17 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					invalid: true,
 					width:   int(b.font.fontMetrics.Width(strings.Replace(line.Text, "\t", b.tabStr, -1)) + 0.5),
 				}
-				newLines = append(newLines, newLine)
-				b.setNewLine(ix, len(newLines)-1, winsMap)
-				ix++
+				if newIx < len(b.newLines) {
+					b.newLines[newIx] = newLine
+				} else {
+					b.newLines = append(b.newLines, newLine)
+				}
+				b.setNewLine(ix, newIx, winsMap)
 				if newLine.width > maxWidth {
 					maxWidth = newLine.width
 				}
-				length := len(line.Text)
-				if length > maxLength {
-					maxLength = length
-				}
+				ix++
+				newIx++
 			}
 		case "copy", "update":
 			for ix := oldIx; ix < oldIx+n; ix++ {
@@ -282,22 +304,23 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					line.cursor = opLine.Cursor
 					line.invalid = true
 				}
-				newLines = append(newLines, line)
-				if len(newLines)-1 != ix {
+				if newIx < len(b.newLines) {
+					b.newLines[newIx] = line
+				} else {
+					b.newLines = append(b.newLines, line)
+				}
+				if newIx != ix {
 					if line != nil {
 						line.invalid = true
 					}
-					b.setNewLine(ix, len(newLines)-1, winsMap)
+					b.setNewLine(ix, newIx, winsMap)
 				}
 				if line != nil {
 					if line.width > maxWidth {
 						maxWidth = line.width
 					}
-					length := len(line.text)
-					if length > maxLength {
-						maxLength = length
-					}
 				}
+				newIx++
 			}
 			oldIx += n
 		case "skip":
@@ -307,16 +330,13 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		}
 	}
 
-	// if len(newLines) < len(b.lines) {
-	// 	for i := len(newLines); i < len(b.lines); i++ {
-	// 		scenceLine := b.getScenceLine(i)
-	// 		b.scence.RemoveItem(scenceLine.line)
-	// 		delete(b.scenceLines, i)
-	// 	}
-	// }
-	if len(newLines) != len(b.lines) || maxWidth != b.maxWidth {
+	if newIx < len(b.newLines) {
+		b.newLines = b.newLines[:newIx]
+	}
+
+	if len(b.newLines) != len(b.lines) || maxWidth != b.maxWidth {
 		width := maxWidth
-		height := len(newLines) * int(b.font.lineHeight)
+		height := len(b.newLines) * int(b.font.lineHeight)
 		b.widget.Resize2(width, height)
 
 		b.rect.SetWidth(float64(width))
@@ -324,10 +344,14 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		b.scence.SetSceneRect(b.rect)
 	}
 
-	b.lines = newLines
+	b.lines, b.newLines = b.newLines, b.lines
 	b.maxWidth = maxWidth
-	b.maxLength = maxLength
 	b.revision++
+
+	if !b.gotFirstUpdate {
+		b.gotFirstUpdate = true
+		// go b.updateScrollInBackground()
+	}
 
 	for _, win := range bufWins {
 		win.update()
