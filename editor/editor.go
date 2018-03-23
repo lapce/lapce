@@ -294,19 +294,36 @@ func (e *Editor) initMainWindow() {
 	})
 
 	e.centralWidget = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
+	e.centralWidget.SetChildrenCollapsible(false)
+	e.centralWidget.SetStyleSheet(e.getSplitterStylesheet())
+	topSplitter := widgets.NewQSplitter2(core.Qt__Horizontal, nil)
+	topSplitter.SetChildrenCollapsible(false)
+	topSplitter.SetStyleSheet(e.getSplitterStylesheet())
+	// sideWidget := widgets.NewQWidget(nil, 0)
+	// sideWidget.SetFixedWidth(50)
+	// e.centralWidget.AddWidget(sideWidget)
+	e.centralWidget.AddWidget(topSplitter)
 	e.window.SetCentralWidget(e.centralWidget)
 
 	e.monoFont = NewFont("Inconsolata")
 	e.defaultFont = NewFont("")
 
 	e.topFrame = &Frame{
-		width:  e.width,
-		height: e.height,
-		editor: e,
+		width:    e.width,
+		height:   e.height,
+		editor:   e,
+		splitter: topSplitter,
+		vertical: true,
+		children: []*Frame{},
 	}
-	e.topWin = NewWindow(e, e.topFrame)
-	e.topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/xi-editor/rust/core-lib/src/rpc.rs"))
-	e.centralWidget.AddWidget(e.topWin.widget)
+	frame := &Frame{
+		editor: e,
+		parent: e.topFrame,
+	}
+	e.topFrame.children = append(e.topFrame.children, frame)
+	topWin := NewWindow(e, frame)
+	topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/xi-editor/rust/core-lib/src/rpc.rs"))
+	topSplitter.AddWidget(topWin.widget)
 	e.equalWins()
 
 	e.cursor = widgets.NewQWidget(nil, 0)
@@ -326,6 +343,27 @@ func (e *Editor) initMainWindow() {
 	e.initOnce.Do(func() {
 		close(e.init)
 	})
+}
+
+func (e *Editor) getSplitterStylesheet() string {
+	return `
+			QSplitter::handle {
+				background-color: #000;
+			    image: url(images/splitter.png);
+			}
+			
+			QSplitter::handle:horizontal {
+			    width: 1px;
+			}
+			
+			QSplitter::handle:vertical {
+			    height: 1px;
+			}
+			
+			QSplitter::handle:pressed {
+			    url(images/splitter_pressed.png);
+			}
+	`
 }
 
 func (e *Editor) getStyle(id int) *Style {

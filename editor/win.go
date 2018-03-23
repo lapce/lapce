@@ -53,6 +53,7 @@ type Window struct {
 	id               int
 	editor           *Editor
 	widget           *widgets.QWidget
+	layout           *widgets.QHBoxLayout
 	gutter           *widgets.QWidget
 	gutterChars      int
 	gutterWidth      int
@@ -80,7 +81,9 @@ type Window struct {
 	verticalScrollBarWidth    int
 	horizontalScrollBarHeight int
 	verticalScrollValue       int
+	oldVerticalScrollValue    int
 	horizontalScrollValue     int
+	oldHorizontalScrollValue  int
 	verticalScrollMaxValue    int
 	horizontalScrollMaxValue  int
 
@@ -116,6 +119,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	layout.SetSpacing(0)
 	layout.AddWidget(w.gutter, 0, 0)
 	layout.AddWidget(w.view, 1, 0)
+	w.layout = layout
 	w.widget.SetContentsMargins(0, 0, 1, 1)
 	w.widget.SetLayout(layout)
 	w.gutter.SetFixedWidth(30)
@@ -210,6 +214,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		w.cline.Resize2(w.frame.width, int(w.buffer.font.lineHeight))
 		w.setScroll()
 		w.editor.topFrame.setPos(0, 0)
+		w.setPos(w.row, w.col, false)
 	})
 	w.view.SetFocusPolicy(core.Qt__ClickFocus)
 	w.view.SetAlignment(core.Qt__AlignLeft | core.Qt__AlignTop)

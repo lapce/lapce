@@ -32,6 +32,10 @@ func (f *Frame) split(vertical bool) {
 	if win == nil {
 		return
 	}
+	for _, w := range win.editor.wins {
+		w.oldVerticalScrollValue = w.verticalScrollValue
+		w.oldHorizontalScrollValue = w.horizontalScrollValue
+	}
 	// oldVerticalScrollValue := win.verticalScrollValue
 	// oldHorizontalScrollValue := win.horizontalScrollValue
 	newFrame := &Frame{editor: f.editor}
@@ -41,7 +45,17 @@ func (f *Frame) split(vertical bool) {
 	newWin.col = win.col
 
 	parent := f.parent
-	if parent != nil && parent.vertical == vertical {
+	if parent.parent == nil && len(parent.children) == 1 {
+		if parent.vertical != vertical {
+			if vertical {
+				parent.splitter.SetOrientation(core.Qt__Horizontal)
+			} else {
+				parent.splitter.SetOrientation(core.Qt__Vertical)
+			}
+			parent.vertical = vertical
+		}
+	}
+	if parent.vertical == vertical {
 		newFrame.parent = parent
 		children := []*Frame{}
 		for _, child := range parent.children {
@@ -53,7 +67,6 @@ func (f *Frame) split(vertical bool) {
 			}
 		}
 		parent.children = children
-		fmt.Println("widget index", parent.splitter.IndexOf(win.widget))
 		parent.splitter.InsertWidget(parent.splitter.IndexOf(win.widget)+1, newWin.widget)
 	} else {
 		newFrame.parent = f
@@ -71,35 +84,22 @@ func (f *Frame) split(vertical bool) {
 			f.splitter = widgets.NewQSplitter2(core.Qt__Vertical, nil)
 		}
 		f.splitter.SetChildrenCollapsible(false)
-		f.splitter.SetStyleSheet(`
-			QSplitter::handle {
-				background-color: #000;
-			    image: url(images/splitter.png);
-			}
-			
-			QSplitter::handle:horizontal {
-			    width: 1px;
-			}
-			
-			QSplitter::handle:vertical {
-			    height: 1px;
-			}
-			
-			QSplitter::handle:pressed {
-			    url(images/splitter_pressed.png);
-			}
-		`)
+		f.splitter.SetStyleSheet(f.editor.getSplitterStylesheet())
 		f.win = nil
 		f.children = append(f.children, frame, newFrame)
-		if parent != nil {
-			parent.splitter.ReplaceWidget(parent.splitter.IndexOf(win.widget), f.splitter)
-		} else {
-			f.editor.centralWidget.InsertWidget(f.editor.centralWidget.IndexOf(win.widget), f.splitter)
-		}
+		index := parent.splitter.IndexOf(win.widget)
+		win.widget.SetParent(nil)
 		f.splitter.AddWidget(win.widget)
 		f.splitter.AddWidget(newWin.widget)
+		parent.splitter.InsertWidget(index, f.splitter)
 	}
 	win.editor.equalWins()
+	for _, w := range win.editor.wins {
+		w.view.Hide()
+		w.view.Show()
+		w.verticalScrollBar.SetValue(w.oldVerticalScrollValue)
+		w.horizontalScrollBar.SetValue(w.oldHorizontalScrollValue)
+	}
 	newWin.verticalScrollBar.SetValue(win.verticalScrollValue)
 	newWin.horizontalScrollBar.SetValue(win.horizontalScrollValue)
 	for _, w := range win.editor.wins {
@@ -351,6 +351,14 @@ func (f *Frame) close() {
 		return
 	}
 	parent := f.parent
+	if parent.parent == nil && len(parent.children) == 1 {
+		return
+	}
+	win := f.win
+	for _, w := range win.editor.wins {
+		w.oldVerticalScrollValue = w.verticalScrollValue
+		w.oldHorizontalScrollValue = w.horizontalScrollValue
+	}
 	children := []*Frame{}
 	i := 0
 	for index, child := range parent.children {
@@ -361,13 +369,8 @@ func (f *Frame) close() {
 		}
 	}
 	var newFocus *Frame
-	if len(children) == 1 {
-		var newSplitter *widgets.QSplitter
-		if parent.parent != nil {
-			newSplitter = parent.parent.splitter
-		} else {
-			newSplitter = f.editor.centralWidget
-		}
+	if len(children) == 1 && parent.parent != nil {
+		newSplitter := parent.parent.splitter
 		child := children[0]
 		if child.splitter == nil {
 			newSplitter.ReplaceWidget(newSplitter.IndexOf(parent.splitter), children[0].win.widget)
@@ -391,14 +394,22 @@ func (f *Frame) close() {
 			i--
 		}
 		win := f.win
-		editor := win.editor
-		editor.winsRWMutext.Lock()
-		delete(editor.wins, win.id)
-		editor.winsRWMutext.Unlock()
 		win.widget.SetParent(nil)
 		newFocus = children[i]
 	}
+
+	editor := f.win.editor
+	editor.winsRWMutext.Lock()
+	delete(editor.wins, f.win.id)
+	editor.winsRWMutext.Unlock()
+
 	f.editor.equalWins()
+	for _, w := range win.editor.wins {
+		w.view.Hide()
+		w.view.Show()
+		w.verticalScrollBar.SetValue(w.oldVerticalScrollValue)
+		w.horizontalScrollBar.SetValue(w.oldHorizontalScrollValue)
+	}
 	newFocus.setFocus(true)
 	for _, w := range f.win.editor.wins {
 		w.start, w.end = w.scrollRegion()
