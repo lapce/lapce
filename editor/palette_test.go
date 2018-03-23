@@ -6,25 +6,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMatchScor(t *testing.T) {
-	text := []rune("Split Left")
-	pattern := []rune("sl")
+func TestMatchScore(t *testing.T) {
+	text := []rune(" Ser flasdj")
+	pattern := []rune("self")
 	score, matches := matchScore(text, pattern)
 
 	assert.Equal(t, 1, score)
-	assert.Equal(t, []int{0, 6}, matches)
-
-	text = []rune("Split Previous")
-	pattern = []rune("sp")
-	score, matches = matchScore(text, pattern)
-
-	assert.Equal(t, 0, score)
-	assert.Equal(t, []int{0, 1}, matches)
-
-	text = []rune("1 // Previous")
-	pattern = []rune("1")
-	score, matches = matchScore(text, pattern)
-
-	assert.Equal(t, 0, score)
-	assert.Equal(t, []int{0}, matches)
+	assert.Equal(t, []int{1, 2, 3}, matches)
 }
+
+// func TestPatternIndex(t *testing.T) {
+// 	text := []rune("Laeft Left left")
+// 	pattern := []rune("left")
+
+// 	assert.Equal(t, false, patternMatch(text, pattern))
+// 	assert.Equal(t, 2, patternIndex(text, pattern, 0))
+// 	assert.Equal(t, 2, matchContinuous(text, pattern, 0))
+
+// 	text = []rune("Laeft Lef left")
+// 	pattern = []rune("left")
+// 	assert.Equal(t, 4, patternIndex(text, pattern, 0))
+// 	assert.Equal(t, 4, matchContinuous(text, pattern, 0))
+
+// 	text = []rune("Laeft Lef ljsdlfkj")
+// 	pattern = []rune("left")
+// 	assert.Equal(t, 2, matchContinuous(text, pattern, 0))
+// }
