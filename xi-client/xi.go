@@ -72,9 +72,9 @@ func (x *Xi) ClientStart(configDir string) {
 }
 
 // SetTheme sets theme
-func (x *Xi) SetTheme() {
+func (x *Xi) SetTheme(themeName string) {
 	params := map[string]string{}
-	params["theme_name"] = "base16-ocean.dark"
+	params["theme_name"] = themeName
 	x.Conn.Notify(context.Background(), "set_theme", &params)
 }
 
@@ -140,9 +140,9 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 	if err != nil {
 		return
 	}
-	fmt.Println("-------------------------")
-	fmt.Println(req.Method)
-	fmt.Println(string(params))
+	// fmt.Println("-------------------------")
+	// fmt.Println(req.Method)
+	// fmt.Println(string(params))
 	switch req.Method {
 	case "update":
 		var notification UpdateNotification
@@ -189,6 +189,15 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if h.xi.handleNotification != nil {
 			h.xi.handleNotification(&configChanged)
 		}
+	case "available_themes":
+		var themes Themes
+		err := json.Unmarshal(params, &themes)
+		if err != nil {
+			return
+		}
+		if h.xi.handleNotification != nil {
+			h.xi.handleNotification(&themes)
+		}
 	default:
 	}
 }
@@ -204,6 +213,11 @@ type ScrollTo struct {
 type Style struct {
 	FgColor int `json:"fg_color"`
 	ID      int `json:"id"`
+}
+
+// Themes is
+type Themes struct {
+	Themes []string `json:"themes"`
 }
 
 // Theme is

@@ -32,6 +32,8 @@ func (f *Frame) split(vertical bool) {
 	if win == nil {
 		return
 	}
+	// oldVerticalScrollValue := win.verticalScrollValue
+	// oldHorizontalScrollValue := win.horizontalScrollValue
 	newFrame := &Frame{editor: f.editor}
 	newWin := NewWindow(win.editor, newFrame)
 	newWin.loadBuffer(win.buffer)

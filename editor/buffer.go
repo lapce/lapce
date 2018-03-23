@@ -155,7 +155,13 @@ func (b *Buffer) setConfig(config *xi.Config) {
 }
 
 func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, index int, y int, padding int) {
+	if index < 0 || index >= len(b.lines) {
+		return
+	}
 	line := b.lines[index]
+	if line == nil {
+		return
+	}
 	start := 0
 	color := gui.NewQColor()
 	for i := 0; i*3+2 < len(line.styles); i++ {
@@ -337,11 +343,14 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	if len(b.newLines) != len(b.lines) || maxWidth != b.maxWidth {
 		width := maxWidth
 		height := len(b.newLines) * int(b.font.lineHeight)
-		b.widget.Resize2(width, height)
+		b.widget.SetFixedSize2(width, height)
 
 		b.rect.SetWidth(float64(width))
 		b.rect.SetHeight(float64(height))
 		b.scence.SetSceneRect(b.rect)
+		// for _, win := range bufWins {
+		// 	win.view.UpdateGeometry()
+		// }
 	}
 
 	b.lines, b.newLines = b.newLines, b.lines

@@ -133,20 +133,46 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		}
 	})
 
-	w.view.ConnectEventFilter(func(watched *core.QObject, event *core.QEvent) bool {
-		if event.Type() == core.QEvent__MouseButtonPress {
-			mousePress := gui.NewQMouseEventFromPointer(event.Pointer())
-			w.view.MousePressEvent(mousePress)
-			return true
-		}
-		return w.view.EventFilterDefault(watched, event)
-	})
+	// w.view.ConnectEventFilter(func(watched *core.QObject, event *core.QEvent) bool {
+	// 	if event.Type() == core.QEvent__MouseButtonPress {
+	// 		mousePress := gui.NewQMouseEventFromPointer(event.Pointer())
+	// 		w.view.MousePressEvent(mousePress)
+	// 		return true
+	// 	}
+	// 	return w.view.EventFilterDefault(watched, event)
+	// })
+	// w.cline.InstallEventFilter(w.view)
 	w.cline.SetParent(w.view)
-	w.cline.SetStyleSheet(editor.getClineStylesheet())
 	w.cline.SetFocusPolicy(core.Qt__NoFocus)
-	w.cline.InstallEventFilter(w.view)
 	w.cline.ConnectWheelEvent(func(event *gui.QWheelEvent) {
 		w.viewWheel(event)
+	})
+	w.cline.ConnectPaintEvent(func(event *gui.QPaintEvent) {
+		editor := w.editor
+		if editor.theme == nil {
+			return
+		}
+		painter := gui.NewQPainter2(w.cline)
+		defer painter.DestroyQPainter()
+		lineHeight := editor.theme.Theme.LineHighlight
+		lineHeightColor := gui.NewQColor3(lineHeight.R, lineHeight.G, lineHeight.B, lineHeight.A)
+		bg := editor.theme.Theme.Background
+		backgroundColor := gui.NewQColor3(bg.R, bg.G, bg.B, bg.A)
+		painter.FillRect5(
+			0, 0, w.frame.width, int(w.buffer.font.lineHeight),
+			backgroundColor,
+		)
+		painter.FillRect5(
+			0, 0, w.frame.width, int(w.buffer.font.lineHeight),
+			lineHeightColor,
+		)
+		painter.SetFont(w.buffer.font.font)
+		row := (w.verticalScrollValue + w.y) / int(w.buffer.font.lineHeight)
+		w.buffer.drawLine(painter, w.buffer.font, row, row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
+		row--
+		w.buffer.drawLine(painter, w.buffer.font, row, row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
+		row += 2
+		w.buffer.drawLine(painter, w.buffer.font, row, row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
 	})
 	frame.win = w
 	editor.winIndex++
@@ -154,6 +180,12 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	editor.winsRWMutext.Unlock()
 
 	// w.view.SetFrameShape(widgets.QFrame__NoFrame)
+	w.cline.ConnectMousePressEvent(func(event *gui.QMouseEvent) {
+		editor.activeWin = w
+		editor.cursor.SetParent(w.view)
+		col := int(float64(event.X()+w.horizontalScrollValue) / w.buffer.font.width)
+		w.scroll(0, col-w.col, true, false)
+	})
 	w.view.ConnectMousePressEvent(func(event *gui.QMouseEvent) {
 		editor.activeWin = w
 		editor.cursor.SetParent(w.view)

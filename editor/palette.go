@@ -20,9 +20,11 @@ const (
 
 //
 const (
-	PaletteCommand = ':'
-	PaletteLine    = '#'
-	PaletteFile    = ' '
+	PaletteNone    = ":none"
+	PaletteCommand = ":"
+	PaletteLine    = "#"
+	PaletteFile    = ""
+	PaletteThemes  = ":themes"
 )
 
 // Palette is
@@ -43,7 +45,7 @@ type Palette struct {
 	inputText   string
 	inputIndex  int
 
-	inputType rune
+	inputType string
 
 	oldRow int
 	oldCol int
@@ -61,14 +63,15 @@ type Palette struct {
 
 // PaletteItem is
 type PaletteItem struct {
-	description string
-	cmd         func()
-	itemType    int
-	n           int // the number of execute times
-	score       int
-	matches     []int
-	lineNumber  int
-	line        *Line
+	description   string
+	cmd           func()
+	itemType      int
+	n             int // the number of execute times
+	score         int
+	matches       []int
+	lineNumber    int
+	line          *Line
+	stayInPalette bool
 }
 
 func newPalette(editor *Editor) *Palette {
@@ -87,6 +90,7 @@ func newPalette(editor *Editor) *Palette {
 		inputHeight:  -1,
 		viewHeight:   -1,
 		scenceHeight: -1,
+		inputType:    PaletteNone,
 
 		selectedBg: newColor(81, 154, 186, 127),
 		matchFg:    newColor(81, 154, 186, 255),
@@ -326,9 +330,7 @@ func (p *Palette) viewUpdate() {
 	} else {
 		p.activeItems = []*PaletteItem{}
 		inputText := []rune(p.inputText)
-		if p.inputType != PaletteFile {
-			inputText = inputText[1:]
-		}
+		inputText = inputText[len(p.inputType):]
 		for _, item := range p.items {
 			score, matches := matchScore([]rune(item.description), inputText)
 			if score >= 0 {
@@ -371,29 +373,64 @@ func (p *Palette) resetView() {
 	for _, item := range p.items {
 		item.matches = []int{}
 	}
-	if p.inputType == PaletteLine {
+	switch p.inputType {
+	case PaletteLine:
 		win := p.editor.activeWin
 		win.scrollToCursor(p.oldRow, p.oldCol, true)
+	case PaletteThemes:
+		p.changeTheme(p.editor.themeName)
 	}
 }
 
 func (p *Palette) resetInput() {
 	p.inputText = ""
 	p.inputIndex = 0
-	p.inputType = 0
+	p.inputType = PaletteNone
 }
 
 func (p *Palette) enter() {
-	if p.index >= len(p.activeItems) {
-		return
+	item := p.executeItem()
+	if !item.stayInPalette {
+		p.esc()
 	}
+}
+
+func (p *Palette) next() {
+	p.index++
+	if p.index > len(p.activeItems)-1 {
+		p.index = 0
+	}
+	p.widget.Hide()
+	p.widget.Show()
+	p.switchItem()
+	p.scroll()
+}
+
+func (p *Palette) switchItem() {
+	p.goToLine()
+	switch p.inputType {
+	case PaletteThemes:
+		p.changeTheme(p.activeItems[p.index].description)
+	}
+}
+
+func (p *Palette) changeTheme(themeName string) {
+	p.editor.xi.SetTheme(themeName)
+}
+
+func (p *Palette) executeItem() *PaletteItem {
+	if p.index >= len(p.activeItems) {
+		return nil
+	}
+	item := p.activeItems[p.index]
 	switch p.inputType {
 	case PaletteLine:
-		p.inputType = 0
+		p.inputType = PaletteNone
+	case PaletteThemes:
+		p.editor.changeTheme(item.description)
 	case PaletteFile:
-		p.editor.openFile(p.activeItems[p.index].description)
+		p.editor.openFile(item.description)
 	default:
-		item := p.activeItems[p.index]
 		item.n++
 
 		newIndex := -1
@@ -417,18 +454,7 @@ func (p *Palette) enter() {
 			item.cmd()
 		}
 	}
-	p.esc()
-}
-
-func (p *Palette) next() {
-	p.index++
-	if p.index > len(p.activeItems)-1 {
-		p.index = 0
-	}
-	p.widget.Hide()
-	p.widget.Show()
-	p.goToLine()
-	p.scroll()
+	return item
 }
 
 func (p *Palette) previous() {
@@ -438,7 +464,7 @@ func (p *Palette) previous() {
 	}
 	p.widget.Hide()
 	p.widget.Show()
-	p.goToLine()
+	p.switchItem()
 	p.scroll()
 }
 
@@ -457,9 +483,9 @@ func (p *Palette) deleteToStart() {
 	if p.inputIndex == 0 {
 		return
 	}
-	if p.inputType != PaletteFile && p.inputIndex > 1 {
+	if p.inputType != PaletteFile && p.inputIndex > len(p.inputType) {
 		p.inputText = string(p.inputType) + string(p.inputText[p.inputIndex:])
-		p.inputIndex = 1
+		p.inputIndex = len(p.inputType)
 	} else {
 		p.inputText = string(p.inputText[p.inputIndex:])
 		p.inputIndex = 0
@@ -535,7 +561,7 @@ func bestMatch(text []rune, start int, r rune) (int, int) {
 }
 
 func (p *Palette) checkFirstC() {
-	firstC := p.getFirstC()
+	firstC := p.getInputType()
 	if firstC == p.inputType {
 		return
 	}
@@ -551,6 +577,8 @@ func (p *Palette) checkFirstC() {
 		p.items = p.editor.getCurrentBufferLinePaletteItems()
 	case PaletteFile:
 		p.items = p.editor.getFilePaletteItems()
+	case PaletteThemes:
+		p.items = p.editor.allThemes()
 	default:
 		p.items = []*PaletteItem{}
 	}
@@ -574,13 +602,16 @@ func (p *Palette) goToLine() {
 	win.scrollToCursor(item.lineNumber-1, 0, true)
 }
 
-func (p *Palette) getFirstC() rune {
+func (p *Palette) getInputType() string {
 	if p.inputText == "" {
 		return PaletteFile
 	}
 
-	firstC := []rune(p.inputText)[0]
-	switch firstC {
+	if strings.HasPrefix(p.inputText, ":themes") {
+		return PaletteThemes
+	}
+
+	switch string(p.inputText[0]) {
 	case PaletteCommand:
 		return PaletteCommand
 	case PaletteLine:

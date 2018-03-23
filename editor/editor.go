@@ -19,9 +19,11 @@ type Editor struct {
 	signal        *editorSignal
 	cursor        *widgets.QWidget
 
-	theme   *xi.Theme
-	bgBrush *gui.QBrush
-	fgBrush *gui.QBrush
+	themeName string
+	themes    []string
+	theme     *xi.Theme
+	bgBrush   *gui.QBrush
+	fgBrush   *gui.QBrush
 
 	topWin   *Window
 	topFrame *Frame
@@ -128,6 +130,8 @@ func NewEditor() (*Editor, error) {
 				return
 			}
 			buffer.setConfig(&u.Changes)
+		case *xi.Themes:
+			e.themes = u.Themes
 		case *xi.ScrollTo:
 			if e.activeWin == nil {
 				return
@@ -173,7 +177,6 @@ func NewEditor() (*Editor, error) {
 			defer e.winsRWMutext.RUnlock()
 			for _, win := range e.wins {
 				win.widget.SetStyleSheet(scrollBarStyleSheet)
-				win.cline.SetStyleSheet(e.getClineStylesheet())
 				win.verticalScrollBarWidth = win.verticalScrollBar.Width()
 				win.horizontalScrollBarHeight = win.horizontalScrollBar.Height()
 			}
@@ -181,21 +184,12 @@ func NewEditor() (*Editor, error) {
 		}
 	})
 	e.xi.ClientStart(e.config.configDir)
-	e.xi.SetTheme()
+	e.xi.SetTheme("base16-ocean.dark")
 
 	e.app = widgets.NewQApplication(0, nil)
 	e.initMainWindow()
 
 	return e, nil
-}
-
-func (e *Editor) getClineStylesheet() string {
-	if e.theme == nil {
-		return ""
-	}
-	cline := e.theme.Theme.LineHighlight
-	styleSheet := fmt.Sprintf("background-color: rgba(%d, %d, %d, %f);", cline.R, cline.G, cline.B, float64(cline.A)/255)
-	return styleSheet
 }
 
 func (e *Editor) getScrollbarStylesheet() string {

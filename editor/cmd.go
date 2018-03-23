@@ -302,6 +302,15 @@ func (e *Editor) belowSplit() {
 	e.activeWin.frame.focusBelow()
 }
 
+func (e *Editor) changeTheme(themeName string) {
+	e.themeName = themeName
+	e.xi.SetTheme(themeName)
+}
+
+func (e *Editor) changeThemePalette() {
+	e.palette.run(PaletteThemes)
+}
+
 func (e *Editor) increaseSplitHeight() {
 	e.activeWin.frame.changeSize(10, false)
 }
@@ -316,6 +325,23 @@ func (e *Editor) increaseSplitWidth() {
 
 func (e *Editor) decreaseSplitWidth() {
 	e.activeWin.frame.changeSize(-10, true)
+}
+
+var themesPaletteItems []*PaletteItem
+var themesPaletteItemsOnce sync.Once
+
+func (e *Editor) allThemes() []*PaletteItem {
+	themesPaletteItemsOnce.Do(func() {
+		items := []*PaletteItem{}
+		for _, theme := range e.themes {
+			item := &PaletteItem{
+				description: theme,
+			}
+			items = append(items, item)
+		}
+		themesPaletteItems = items
+	})
+	return themesPaletteItems
 }
 
 var cmdPaletteItems []*PaletteItem
@@ -405,6 +431,13 @@ func (e *Editor) allCmds() []*PaletteItem {
 			description: "Split: Decrease Height",
 			itemType:    PaletteCmd,
 			cmd:         e.decreaseSplitHeight,
+		}
+		items = append(items, item)
+
+		item = &PaletteItem{
+			description:   "Change Theme",
+			cmd:           e.changeThemePalette,
+			stayInPalette: true,
 		}
 		items = append(items, item)
 
