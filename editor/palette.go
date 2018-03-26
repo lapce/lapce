@@ -46,6 +46,7 @@ type Palette struct {
 	rect                 *core.QRectF
 	font                 *Font
 	active               bool
+	running              bool
 	itemsRWMutex         sync.RWMutex
 	activeItemsRWMutex   sync.RWMutex
 	itemsChan            chan *PaletteItem
@@ -139,7 +140,6 @@ func newPalette(editor *Editor) *Palette {
 	p.signal.ConnectUpdateSignal(func() {
 		p.resize()
 		if !p.checkPaintItems() {
-			fmt.Println("not the same")
 			p.widget.Hide()
 			p.widget.Show()
 		}
@@ -192,6 +192,7 @@ func (p *Palette) resize() {
 		p.rect.SetHeight(float64(scenceHeight))
 		p.scence.SetSceneRect(p.rect)
 	}
+	p.show()
 }
 
 func (p *Palette) run(text string) {
@@ -200,7 +201,7 @@ func (p *Palette) run(text string) {
 	p.input.Update()
 	p.checkInputType()
 	p.viewUpdate()
-	p.show()
+	p.running = true
 }
 
 func (p *Palette) paintInput(event *gui.QPaintEvent) {
@@ -467,6 +468,7 @@ func (s byScore) Less(i, j int) bool {
 func (p *Palette) esc() {
 	p.resetView()
 	p.resetInput()
+	p.running = false
 	p.hide()
 }
 
@@ -1023,6 +1025,9 @@ func (p *Palette) getInputType() string {
 }
 
 func (p *Palette) show() {
+	if !p.running {
+		return
+	}
 	if p.active {
 		return
 	}
