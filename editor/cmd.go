@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 func (e *Editor) executeKey(key string) {
@@ -453,6 +454,59 @@ func (e *Editor) commandPalette() {
 var filePaletteItems []*PaletteItem
 var filePaletteItemsMutext sync.RWMutex
 
+func (e *Editor) getFilePaletteItemsChan() chan *PaletteItem {
+	itemsChan := make(chan *PaletteItem, 1000)
+	go func() {
+		defer close(itemsChan)
+		dir, err := os.Getwd()
+		if err != nil {
+			return
+		}
+		cwd := dir + "/"
+		files, err := ioutil.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		folders := []string{}
+		for {
+			for _, f := range files {
+				if f.IsDir() {
+					if f.Name() == ".git" {
+						continue
+					}
+					folders = append(folders, filepath.Join(dir, f.Name()))
+					continue
+				}
+				file := filepath.Join(dir, f.Name())
+				file = strings.Replace(file, cwd, "", 1)
+				item := &PaletteItem{
+					description: file,
+				}
+				select {
+				case itemsChan <- item:
+				case <-time.After(time.Second):
+					return
+				}
+			}
+
+			for {
+				if len(folders) == 0 {
+					return
+				}
+				dir = folders[0]
+				folders = folders[1:]
+				files, _ = ioutil.ReadDir(dir)
+				if len(files) == 0 {
+					continue
+				} else {
+					break
+				}
+			}
+		}
+	}()
+	return itemsChan
+}
+
 func (e *Editor) getFilePaletteItems() []*PaletteItem {
 	items := []*PaletteItem{}
 	dir, err := os.Getwd()
@@ -506,23 +560,30 @@ func (e *Editor) quickOpen() {
 	e.palette.run("")
 }
 
-func (e *Editor) getCurrentBufferLinePaletteItems() []*PaletteItem {
-	items := []*PaletteItem{}
-	buffer := e.activeWin.buffer
-	for i, line := range buffer.lines {
-		content := ""
-		if line != nil {
-			content = line.text
+func (e *Editor) getCurrentBufferLinePaletteItemsChan() chan *PaletteItem {
+	itemsChan := make(chan *PaletteItem, 1000)
+	go func() {
+		defer close(itemsChan)
+		buffer := e.activeWin.buffer
+		for i, line := range buffer.lines {
+			content := ""
+			if line != nil {
+				content = line.text
+			}
+			content = fmt.Sprintf("%d %s", i+1, content)
+			item := &PaletteItem{
+				description: content,
+				lineNumber:  i + 1,
+				line:        line,
+			}
+			select {
+			case itemsChan <- item:
+			case <-time.After(time.Second):
+				return
+			}
 		}
-		content = fmt.Sprintf("%d %s", i+1, content)
-		item := &PaletteItem{
-			description: content,
-			lineNumber:  i + 1,
-			line:        line,
-		}
-		items = append(items, item)
-	}
-	return items
+	}()
+	return itemsChan
 }
 
 func (e *Editor) openFile(path string) {

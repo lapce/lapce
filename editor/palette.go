@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 	"unicode"
 
 	"github.com/therecipe/qt/core"
@@ -27,23 +29,37 @@ const (
 	PaletteThemes  = ":themes"
 )
 
+type paletteSignal struct {
+	core.QObject
+	_ func() `signal:"updateSignal"`
+}
+
 // Palette is
 type Palette struct {
-	editor      *Editor
-	mainWidget  *widgets.QWidget
-	input       *widgets.QWidget
-	view        *widgets.QGraphicsView
-	scence      *widgets.QGraphicsScene
-	widget      *widgets.QWidget
-	rect        *core.QRectF
-	font        *Font
-	active      bool
-	items       []*PaletteItem
-	activeItems []*PaletteItem
-	index       int
-	cmds        map[string]Command
-	inputText   string
-	inputIndex  int
+	editor               *Editor
+	signal               *paletteSignal
+	mainWidget           *widgets.QWidget
+	input                *widgets.QWidget
+	view                 *widgets.QGraphicsView
+	scence               *widgets.QGraphicsScene
+	widget               *widgets.QWidget
+	rect                 *core.QRectF
+	font                 *Font
+	active               bool
+	itemsRWMutex         sync.RWMutex
+	activeItemsRWMutex   sync.RWMutex
+	itemsChan            chan *PaletteItem
+	items                []*PaletteItem
+	activeItems          []*PaletteItem
+	shownItems           []*PaletteItem
+	index                int
+	cmds                 map[string]Command
+	cancelGetChan        chan struct{}
+	cancelLastChan       chan struct{}
+	inputMutex           sync.Mutex
+	inputText            string
+	inputIndex           int
+	paintAfterViewUpdate bool
 
 	inputType string
 
@@ -77,6 +93,7 @@ type PaletteItem struct {
 func newPalette(editor *Editor) *Palette {
 	p := &Palette{
 		editor:     editor,
+		signal:     NewPaletteSignal(nil),
 		mainWidget: widgets.NewQWidget(nil, 0),
 		input:      widgets.NewQWidget(nil, 0),
 		scence:     widgets.NewQGraphicsScene(nil),
@@ -119,6 +136,14 @@ func newPalette(editor *Editor) *Palette {
 	shadow.SetColor(gui.NewQColor3(0, 0, 0, 255))
 	shadow.SetOffset3(0, 2)
 	p.mainWidget.SetGraphicsEffect(shadow)
+	p.signal.ConnectUpdateSignal(func() {
+		p.resize()
+		if !p.checkPaintItems() {
+			fmt.Println("not the same")
+			p.widget.Hide()
+			p.widget.Show()
+		}
+	})
 	return p
 }
 
@@ -136,7 +161,17 @@ func (p *Palette) resize() {
 
 	viewMaxHeight := int(float64(p.editor.height)*0.382+0.5) - inputHeight
 	max := viewMaxHeight/int(p.font.lineHeight) + 1
-	n := len(p.activeItems)
+	total := 0
+	if len(p.inputText) > len(p.inputType) {
+		p.activeItemsRWMutex.RLock()
+		total = len(p.activeItems)
+		p.activeItemsRWMutex.RUnlock()
+	} else {
+		p.itemsRWMutex.RLock()
+		total = len(p.items)
+		p.itemsRWMutex.RUnlock()
+	}
+	n := total
 	if n > max {
 		n = max
 	}
@@ -145,7 +180,7 @@ func (p *Palette) resize() {
 		p.viewHeight = viewHeight
 		p.view.SetFixedSize2(p.width, viewHeight)
 	}
-	scenceHeight := len(p.activeItems) * int(p.font.lineHeight)
+	scenceHeight := total * int(p.font.lineHeight)
 	if p.scenceHeight != scenceHeight {
 		p.scenceHeight = scenceHeight
 		scenceWidth := p.width
@@ -163,7 +198,7 @@ func (p *Palette) run(text string) {
 	p.inputText = text
 	p.inputIndex = len(text)
 	p.input.Update()
-	p.checkFirstC()
+	p.checkInputType()
 	p.viewUpdate()
 	p.show()
 }
@@ -211,7 +246,65 @@ func (p *Palette) paintInput(event *gui.QPaintEvent) {
 		penColor)
 }
 
+func (p *Palette) checkPaintItems() bool {
+	if !p.paintAfterViewUpdate {
+		p.paintAfterViewUpdate = true
+		return false
+	}
+	var items []*PaletteItem
+	if len(p.inputText) > len(p.inputType) {
+		items = p.activeItems
+	} else {
+		items = p.items
+	}
+
+	y := p.view.VerticalScrollBar().Value()
+	start := y / int(p.font.lineHeight)
+	num := p.viewHeight/int(p.font.lineHeight) + 1
+	end := start + num
+	if end > len(items) {
+		end = len(items)
+		num = end - start
+	}
+	if len(p.shownItems) < num {
+		for i := 0; i < num-len(p.shownItems); i++ {
+			p.shownItems = append(p.shownItems, nil)
+		}
+	} else if len(p.shownItems) > num {
+		p.shownItems = p.shownItems[:num]
+	} else {
+		same := true
+		for i := range p.shownItems {
+			if p.shownItems[i] != items[i] {
+				same = false
+				p.shownItems[i] = items[i]
+			}
+		}
+		return same
+	}
+	copy(p.shownItems, items[start:end])
+	return false
+}
+
+func matchesSame(old []int, new []int) bool {
+	if len(old) != len(new) {
+		return false
+	}
+	for i := range old {
+		if old[i] != new[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func (p *Palette) paint(event *gui.QPaintEvent) {
+	var items []*PaletteItem
+	if len(p.inputText) > len(p.inputType) {
+		items = p.activeItems
+	} else {
+		items = p.items
+	}
 	rect := event.M_rect()
 
 	x := rect.X()
@@ -220,7 +313,7 @@ func (p *Palette) paint(event *gui.QPaintEvent) {
 	height := rect.Height()
 
 	start := y / int(p.font.lineHeight)
-	max := len(p.activeItems) - 1
+	max := len(items) - 1
 	painter := gui.NewQPainter2(p.widget)
 	defer painter.DestroyQPainter()
 
@@ -243,7 +336,14 @@ func (p *Palette) paint(event *gui.QPaintEvent) {
 }
 
 func (p *Palette) paintLine(painter *gui.QPainter, index int) {
-	item := p.activeItems[index]
+	var items []*PaletteItem
+	if len(p.inputText) > len(p.inputType) {
+		items = p.activeItems
+	} else {
+		items = p.items
+		items[index].matches = []int{}
+	}
+	item := items[index]
 	y := index*int(p.font.lineHeight) + int(p.font.shift)
 	fg := p.editor.theme.Theme.Foreground
 	penColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
@@ -313,7 +413,7 @@ func (p *Palette) executeKey(key string) {
 		p.inputText = p.inputText[:p.inputIndex] + key + p.inputText[p.inputIndex:]
 		p.inputIndex++
 		p.input.Update()
-		p.checkFirstC()
+		p.checkInputType()
 		p.viewUpdate()
 		return
 	}
@@ -322,6 +422,8 @@ func (p *Palette) executeKey(key string) {
 
 func (p *Palette) viewUpdate() {
 	p.index = 0
+	p.updateActiveItems()
+	return
 	if p.inputText == "" || p.inputText == string(p.inputType) {
 		p.activeItems = p.items
 		for _, item := range p.items {
@@ -369,6 +471,14 @@ func (p *Palette) esc() {
 }
 
 func (p *Palette) resetView() {
+	if p.cancelGetChan != nil {
+		close(p.cancelGetChan)
+		p.cancelGetChan = nil
+	}
+	if p.cancelLastChan != nil {
+		close(p.cancelLastChan)
+		p.cancelLastChan = nil
+	}
 	p.index = 0
 	for _, item := range p.items {
 		item.matches = []int{}
@@ -396,8 +506,15 @@ func (p *Palette) enter() {
 }
 
 func (p *Palette) next() {
+	var items []*PaletteItem
+	if len(p.inputText) > len(p.inputType) {
+		items = p.activeItems
+	} else {
+		items = p.items
+	}
+
 	p.index++
-	if p.index > len(p.activeItems)-1 {
+	if p.index > len(items)-1 {
 		p.index = 0
 	}
 	p.widget.Hide()
@@ -410,7 +527,13 @@ func (p *Palette) switchItem() {
 	p.goToLine()
 	switch p.inputType {
 	case PaletteThemes:
-		p.changeTheme(p.activeItems[p.index].description)
+		var items []*PaletteItem
+		if len(p.inputText) > len(p.inputType) {
+			items = p.activeItems
+		} else {
+			items = p.items
+		}
+		p.changeTheme(items[p.index].description)
 	}
 }
 
@@ -419,10 +542,16 @@ func (p *Palette) changeTheme(themeName string) {
 }
 
 func (p *Palette) executeItem() *PaletteItem {
-	if p.index >= len(p.activeItems) {
+	var items []*PaletteItem
+	if len(p.inputText) > len(p.inputType) {
+		items = p.activeItems
+	} else {
+		items = p.items
+	}
+	if p.index >= len(items) {
 		return nil
 	}
-	item := p.activeItems[p.index]
+	item := items[p.index]
 	switch p.inputType {
 	case PaletteLine:
 		p.inputType = PaletteNone
@@ -458,9 +587,16 @@ func (p *Palette) executeItem() *PaletteItem {
 }
 
 func (p *Palette) previous() {
+	var items []*PaletteItem
+	if len(p.inputText) > len(p.inputType) {
+		items = p.activeItems
+	} else {
+		items = p.items
+	}
+
 	p.index--
 	if p.index < 0 {
-		p.index = len(p.activeItems) - 1
+		p.index = len(items) - 1
 	}
 	p.widget.Hide()
 	p.widget.Show()
@@ -491,7 +627,7 @@ func (p *Palette) deleteToStart() {
 		p.inputIndex = 0
 	}
 	p.input.Update()
-	p.checkFirstC()
+	p.checkInputType()
 	p.viewUpdate()
 }
 
@@ -518,7 +654,7 @@ func (p *Palette) deleteLeft() {
 	p.inputText = string(p.inputText[:p.inputIndex-1]) + string(p.inputText[p.inputIndex:])
 	p.inputIndex--
 	p.input.Update()
-	p.checkFirstC()
+	p.checkInputType()
 	p.viewUpdate()
 }
 
@@ -617,7 +753,7 @@ func bestMatch(text []rune, start int, r rune) (int, int) {
 				return 0, i
 			}
 			if utfClass(text[i-1]) != utfClass(r) {
-				return s, i
+				return i - start, i
 			}
 		} else {
 			if i == start {
@@ -634,36 +770,221 @@ func bestMatch(text []rune, start int, r rune) (int, int) {
 	for i := start; i < len(text); i++ {
 		c := unicode.ToLower(text[i])
 		if c == r || text[i] == r {
-			return i * 10, i
+			return (i - start) * 100, i
 		}
 	}
 	return -1, -1
 }
 
-func (p *Palette) checkFirstC() {
-	firstC := p.getInputType()
-	if firstC == p.inputType {
+func (p *Palette) checkInputType() {
+	inputType := p.getInputType()
+	if inputType == p.inputType {
 		return
 	}
 	p.resetView()
-	p.inputType = firstC
-	switch firstC {
+	p.inputType = inputType
+	p.getItems(inputType)
+	// switch firstC {
+	// case PaletteCommand:
+	// 	p.items = p.editor.allCmds()
+	// case PaletteLine:
+	// 	win := p.editor.activeWin
+	// 	p.oldRow = win.row
+	// 	p.oldCol = win.col
+	// 	p.items = p.editor.getCurrentBufferLinePaletteItems()
+	// case PaletteFile:
+	// 	p.items = p.editor.getFilePaletteItems()
+	// case PaletteThemes:
+	// 	p.items = p.editor.allThemes()
+	// default:
+	// 	p.items = []*PaletteItem{}
+	// }
+	// p.activeItems = p.items
+	// p.resize()
+}
+
+func (p *Palette) updateActiveItem(item *PaletteItem) {
+	if len(p.inputText) <= len(p.inputType) {
+		return
+	}
+	inputText := []rune(p.inputText[len(p.inputType):])
+	score, matches := matchScore([]rune(item.description), inputText)
+	if score > -1 {
+		i := 0
+		p.activeItemsRWMutex.Lock()
+		for i = 0; i < len(p.activeItems); i++ {
+			activeItem := p.activeItems[i]
+			if score < activeItem.score {
+				break
+			}
+		}
+		item.score = score
+		item.matches = matches
+		p.activeItems = append(p.activeItems, nil)
+		copy(p.activeItems[i+1:], p.activeItems[i:])
+		p.activeItems[i] = item
+		p.activeItemsRWMutex.Unlock()
+	}
+}
+
+func (p *Palette) updateActiveItems() {
+	if p.cancelLastChan != nil {
+		close(p.cancelLastChan)
+		p.cancelLastChan = nil
+	}
+	// if len(p.inputText) <= len(p.inputType) {
+	// 	return
+	// }
+	p.activeItemsRWMutex.Lock()
+	p.activeItems = []*PaletteItem{}
+	cancelLastChan := make(chan struct{})
+	p.cancelLastChan = cancelLastChan
+	p.activeItemsRWMutex.Unlock()
+
+	p.paintAfterViewUpdate = false
+
+	go func() {
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer func() {
+			p.signal.UpdateSignal()
+			ticker.Stop()
+		}()
+
+		itemsChan := newInfiniteChannel()
+		input := itemsChan.In()
+		output := itemsChan.Out()
+		length := len(p.items)
+		go func() {
+			for {
+				select {
+				case <-cancelLastChan:
+					return
+				case item, ok := <-p.itemsChan:
+					if !ok {
+						itemsChan.close()
+						return
+					}
+					p.items = append(p.items, item)
+					select {
+					case input <- item:
+					case <-cancelLastChan:
+						return
+					}
+				}
+			}
+		}()
+
+		for i := 0; i < length; {
+			select {
+			case <-ticker.C:
+				p.signal.UpdateSignal()
+			case <-cancelLastChan:
+				return
+			default:
+				item := p.items[i]
+				p.updateActiveItem(item)
+				i++
+			}
+		}
+
+		for {
+			select {
+			case <-ticker.C:
+				p.signal.UpdateSignal()
+			case <-cancelLastChan:
+				return
+			case item, ok := <-output:
+				if !ok {
+					return
+				}
+				p.updateActiveItem(item)
+			}
+		}
+	}()
+}
+
+func (p *Palette) getItems(inputType string) {
+	if p.cancelGetChan != nil {
+		close(p.cancelGetChan)
+		p.cancelGetChan = nil
+	}
+
+	p.itemsRWMutex.Lock()
+	p.items = []*PaletteItem{}
+	p.shownItems = []*PaletteItem{}
+	cancelGetChan := make(chan struct{})
+	p.cancelGetChan = cancelGetChan
+	p.itemsRWMutex.Unlock()
+
+	var itemsChan chan *PaletteItem
+	switch inputType {
 	case PaletteCommand:
 		p.items = p.editor.allCmds()
+		itemsChan := make(chan *PaletteItem)
+		close(itemsChan)
+	case PaletteFile:
+		itemsChan = p.editor.getFilePaletteItemsChan()
 	case PaletteLine:
 		win := p.editor.activeWin
 		p.oldRow = win.row
 		p.oldCol = win.col
-		p.items = p.editor.getCurrentBufferLinePaletteItems()
-	case PaletteFile:
-		p.items = p.editor.getFilePaletteItems()
+		itemsChan = p.editor.getCurrentBufferLinePaletteItemsChan()
 	case PaletteThemes:
 		p.items = p.editor.allThemes()
+		itemsChan := make(chan *PaletteItem)
+		close(itemsChan)
 	default:
-		p.items = []*PaletteItem{}
 	}
-	p.activeItems = p.items
-	p.resize()
+	p.itemsChan = itemsChan
+	if itemsChan == nil {
+		return
+	}
+	return
+	go func() {
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer func() {
+			p.signal.UpdateSignal()
+			ticker.Stop()
+		}()
+		for {
+			select {
+			case <-ticker.C:
+				p.signal.UpdateSignal()
+			case <-cancelGetChan:
+				return
+			case item, ok := <-itemsChan:
+				if !ok {
+					return
+				}
+				p.itemsRWMutex.Lock()
+				p.items = append(p.items, item)
+				// inputText := p.inputText[len(p.inputType):]
+				// if inputText == "" {
+				// 	p.activeItems = append(p.activeItems, item)
+				// } else {
+				// 	score, matches := matchScore([]rune(item.description), []rune(inputText))
+				// 	if score > -1 {
+				// 		i := 0
+				// 		var activeItem *PaletteItem
+				// 		for i, activeItem = range p.activeItems {
+				// 			if score > activeItem.score {
+				// 				break
+				// 			}
+				// 		}
+				// 		item.score = score
+				// 		item.matches = matches
+				// 		p.activeItems = append(p.activeItems, nil)
+				// 		copy(p.activeItems[i:], p.activeItems[i+1:])
+				// 		p.activeItems[i] = item
+				// 	}
+				// }
+				// if len(p.activeItems) == 20 {
+				// 	p.signal.UpdateSignal()
+				// }
+				p.itemsRWMutex.Unlock()
+			}
+		}
+	}()
 }
 
 func (p *Palette) goToLine() {
@@ -716,4 +1037,76 @@ func (p *Palette) hide() {
 	}
 	p.active = false
 	p.mainWidget.Hide()
+}
+
+// InfiniteChannel implements the Channel interface with an infinite buffer between the input and the output.
+type InfiniteChannel struct {
+	input, output chan *PaletteItem
+	length        chan int
+	buffer        *Queue
+}
+
+func newInfiniteChannel() *InfiniteChannel {
+	ch := &InfiniteChannel{
+		input:  make(chan *PaletteItem),
+		output: make(chan *PaletteItem),
+		length: make(chan int),
+		buffer: NewQueue(),
+	}
+	go ch.infiniteBuffer()
+	return ch
+}
+
+// In of
+func (ch *InfiniteChannel) In() chan<- *PaletteItem {
+	return ch.input
+}
+
+// Out of
+func (ch *InfiniteChannel) Out() <-chan *PaletteItem {
+	return ch.output
+}
+
+// Len of
+func (ch *InfiniteChannel) Len() int {
+	return <-ch.length
+}
+
+// func (ch *InfiniteChannel) Cap() BufferCap {
+// 	return Infinity
+// }
+
+func (ch *InfiniteChannel) close() {
+	close(ch.input)
+}
+
+func (ch *InfiniteChannel) infiniteBuffer() {
+	var input, output chan *PaletteItem
+	var next *PaletteItem
+	input = ch.input
+
+	for input != nil || output != nil {
+		select {
+		case elem, open := <-input:
+			if open {
+				ch.buffer.Add(elem)
+			} else {
+				input = nil
+			}
+		case output <- next:
+			ch.buffer.Remove()
+		case ch.length <- ch.buffer.Length():
+		}
+
+		if ch.buffer.Length() > 0 {
+			output = ch.output
+			next = ch.buffer.Peek()
+		} else {
+			output = nil
+			next = nil
+		}
+	}
+
+	close(ch.output)
+	close(ch.length)
 }

@@ -7,8 +7,8 @@ import (
 )
 
 func TestMatchScore(t *testing.T) {
-	text := []rune(" Ser flasdj")
-	pattern := []rune("self")
+	text := []rune(" Ser owieurou flasdj")
+	pattern := []rune("sf")
 	score, matches := matchScore(text, pattern)
 
 	assert.Equal(t, 1, score)
