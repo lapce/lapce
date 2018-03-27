@@ -341,6 +341,7 @@ func (f *Frame) setFocus(scrollToCursor bool) {
 		w.scrollToCursor(w.row, w.col, true)
 	}
 	w.buffer.xiView.Click(w.row, w.col)
+	w.editor.statusLine.fileUpdate()
 }
 
 func (f *Frame) close() {

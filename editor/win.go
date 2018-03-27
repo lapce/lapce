@@ -499,6 +499,7 @@ func (w *Window) loadBuffer(buffer *Buffer) {
 	w.gutterWidth = int(float64(w.gutterChars)*w.buffer.font.width+0.5) + w.gutterPadding*2
 	w.gutter.SetFixedWidth(w.gutterWidth)
 	w.setScroll()
+	w.editor.statusLine.fileUpdate()
 }
 
 func (w *Window) scrollValue(rows, cols int) (int, int) {
@@ -774,6 +775,9 @@ func (w *Window) setPos(row, col int, toXi bool) {
 	w.setGutterShift()
 	w.updateCursor()
 	w.gutter.Update()
+	if w == w.editor.activeWin {
+		w.editor.statusLine.pos.redraw(w.row+1, w.col+1)
+	}
 	if oldX == w.x && oldY == w.y {
 		return
 	}

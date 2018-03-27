@@ -40,6 +40,7 @@ func (e *Editor) updateCursorShape() {
 	if e.activeWin == nil {
 		return
 	}
+	e.statusLine.mode.redraw()
 	w, h := e.states[e.mode].cursor()
 	e.cursor.Resize2(w, h)
 }

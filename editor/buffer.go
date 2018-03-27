@@ -50,6 +50,16 @@ type Color struct {
 	A int
 }
 
+// String is
+func (c *Color) String() string {
+	return fmt.Sprintf("rgba(%d, %d, %d, %f)", c.R, c.G, c.B, float64(c.A)/255)
+}
+
+// Hex is
+func (c *Color) Hex() string {
+	return fmt.Sprintf("#%02x%02x%02x", uint8(c.R), uint8(c.G), uint8(c.B))
+}
+
 // Style is
 type Style struct {
 	fg *Color

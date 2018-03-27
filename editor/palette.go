@@ -64,8 +64,9 @@ type Palette struct {
 
 	inputType string
 
-	oldRow int
-	oldCol int
+	oldRow           int
+	oldCol           int
+	oldVerticalValue int
 
 	width        int
 	padding      int
@@ -423,6 +424,7 @@ func (p *Palette) executeKey(key string) {
 
 func (p *Palette) viewUpdate() {
 	p.index = 0
+	p.view.VerticalScrollBar().SetValue(0)
 	p.updateActiveItems()
 	return
 	if p.inputText == "" || p.inputText == string(p.inputType) {
@@ -482,12 +484,14 @@ func (p *Palette) resetView() {
 		p.cancelLastChan = nil
 	}
 	p.index = 0
+	p.view.VerticalScrollBar().SetValue(0)
 	for _, item := range p.items {
 		item.matches = []int{}
 	}
 	switch p.inputType {
 	case PaletteLine:
 		win := p.editor.activeWin
+		win.verticalScrollBar.SetValue(p.oldVerticalValue)
 		win.scrollToCursor(p.oldRow, p.oldCol, true)
 	case PaletteThemes:
 		p.changeTheme(p.editor.themeName)
@@ -930,6 +934,7 @@ func (p *Palette) getItems(inputType string) {
 		win := p.editor.activeWin
 		p.oldRow = win.row
 		p.oldCol = win.col
+		p.oldVerticalValue = win.verticalScrollBar.Value()
 		itemsChan = p.editor.getCurrentBufferLinePaletteItemsChan()
 	case PaletteThemes:
 		p.items = p.editor.allThemes()
@@ -1002,7 +1007,24 @@ func (p *Palette) goToLine() {
 
 	item := p.activeItems[p.index]
 	win := p.editor.activeWin
-	win.scrollToCursor(item.lineNumber-1, 0, true)
+	row := item.lineNumber - 1
+	col := 0
+	// x, y := win.buffer.getPos(row, col)
+	// win.view.CenterOn2(
+	// 	float64(x),
+	// 	float64(y),
+	// )
+	win.verticalScrollBar.SetValue(row*int(win.buffer.font.lineHeight) - win.frame.height*2/3)
+	// win.view.EnsureVisible2(
+	// 	float64(x),
+	// 	float64(y),
+	// 	1,
+	// 	win.buffer.font.lineHeight,
+	// 	20,
+	// 	win.frame.height*2/3,
+	// )
+	win.setPos(row, col, false)
+	// win.scrollToCursor(item.lineNumber-1, 0, true)
 }
 
 func (p *Palette) getInputType() string {

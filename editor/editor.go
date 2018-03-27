@@ -12,12 +12,17 @@ import (
 
 // Editor is
 type Editor struct {
-	app           *widgets.QApplication
-	window        *widgets.QMainWindow
-	scence        *widgets.QGraphicsScene
-	centralWidget *widgets.QSplitter
-	signal        *editorSignal
-	cursor        *widgets.QWidget
+	app             *widgets.QApplication
+	window          *widgets.QMainWindow
+	scence          *widgets.QGraphicsScene
+	centralWidget   *widgets.QWidget
+	centralSplitter *widgets.QSplitter
+	signal          *editorSignal
+	cursor          *widgets.QWidget
+	statusLine      *StatusLine
+
+	svgsOnce sync.Once
+	svgs     map[string]*SvgXML
 
 	themeName string
 	themes    []string
@@ -277,6 +282,10 @@ func (e *Editor) initMainWindow() {
 		e.width = rect.Width()
 		e.height = rect.Height()
 		e.equalWins()
+		for _, w := range e.wins {
+			w.view.Hide()
+			w.view.Show()
+		}
 		e.palette.resize()
 	})
 	e.window.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
@@ -293,20 +302,31 @@ func (e *Editor) initMainWindow() {
 		e.executeKey(key)
 	})
 
-	e.centralWidget = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
-	e.centralWidget.SetChildrenCollapsible(false)
-	e.centralWidget.SetStyleSheet(e.getSplitterStylesheet())
+	e.centralSplitter = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
+	e.centralSplitter.SetChildrenCollapsible(false)
+	e.centralSplitter.SetStyleSheet(e.getSplitterStylesheet())
 	topSplitter := widgets.NewQSplitter2(core.Qt__Horizontal, nil)
 	topSplitter.SetChildrenCollapsible(false)
 	topSplitter.SetStyleSheet(e.getSplitterStylesheet())
 	// sideWidget := widgets.NewQWidget(nil, 0)
 	// sideWidget.SetFixedWidth(50)
 	// e.centralWidget.AddWidget(sideWidget)
-	e.centralWidget.AddWidget(topSplitter)
+	e.centralSplitter.AddWidget(topSplitter)
+
+	layout := widgets.NewQVBoxLayout()
+	layout.SetContentsMargins(0, 0, 0, 0)
+	layout.SetSpacing(0)
+	layout.AddWidget(e.centralSplitter, 1, 0)
+	e.centralWidget = widgets.NewQWidget(nil, 0)
+	e.centralWidget.SetLayout(layout)
+
 	e.window.SetCentralWidget(e.centralWidget)
 
 	e.monoFont = NewFont("Inconsolata")
 	e.defaultFont = NewFont("")
+
+	e.statusLine = newStatusLine(e)
+	layout.AddWidget(e.statusLine.widget, 0, 0)
 
 	e.topFrame = &Frame{
 		width:    e.width,
