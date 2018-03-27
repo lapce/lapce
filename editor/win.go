@@ -925,11 +925,11 @@ func (w *Window) paintGutter(event *gui.QPaintEvent) {
 		}
 
 		n := i + 1
-		// if relative {
-		if w.row != i {
-			n = Abs(i - w.row)
+		if w.editor.mode != Insert {
+			if w.row != i {
+				n = Abs(i - w.row)
+			}
 		}
-		// }
 		padding := w.gutterPadding + int((w.buffer.font.fontMetrics.Width(strconv.Itoa(len(w.buffer.lines)))-w.buffer.font.fontMetrics.Width(strconv.Itoa(n)))+0.5)
 		p.DrawText3(padding, (i-w.start)*int(w.buffer.font.lineHeight)+shift, strconv.Itoa(n))
 	}

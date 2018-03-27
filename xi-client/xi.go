@@ -569,6 +569,15 @@ func (v *View) DeleteForward() {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// DeleteWordBackward deletes backwards
+func (v *View) DeleteWordBackward() {
+	cmd := &EditCommand{
+		Method: "delete_word_backward",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // DeleteToBeginningOfLine deletes
 func (v *View) DeleteToBeginningOfLine() {
 	cmd := &EditCommand{

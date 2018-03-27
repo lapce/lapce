@@ -267,6 +267,7 @@ func newInsertState(e *Editor) State {
 		"<Bslash>": s.insertBslash,
 		"<BS>":     s.deleteBackward,
 		"<C-h>":    s.deleteBackward,
+		"<C-w>":    s.deleteWordBackward,
 		"<C-u>":    s.deleteToBeginningOfLine,
 		"<Del>":    s.deleteForward,
 	}
@@ -319,6 +320,10 @@ func (s *InsertState) deleteForward() {
 
 func (s *InsertState) deleteBackward() {
 	s.editor.activeWin.buffer.xiView.DeleteBackward()
+}
+
+func (s *InsertState) deleteWordBackward() {
+	s.editor.activeWin.buffer.xiView.DeleteWordBackward()
 }
 
 func (s *InsertState) deleteToBeginningOfLine() {

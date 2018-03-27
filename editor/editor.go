@@ -2,9 +2,12 @@ package editor
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 
 	xi "github.com/dzhou121/crane/xi-client"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -274,7 +277,13 @@ func (e *Editor) initMainWindow() {
 	e.width = 800
 	e.height = 600
 	e.window = widgets.NewQMainWindow(nil, 0)
-	e.window.SetWindowTitle("Crane")
+	dir, _ := os.Getwd()
+	home, _ := homedir.Dir()
+	if strings.HasPrefix(dir, home) {
+		dir = strings.Replace(dir, home, "~", 1)
+	}
+	title := fmt.Sprintf("Crane - %s", dir)
+	e.window.SetWindowTitle(title)
 	e.window.SetContentsMargins(0, 0, 0, 0)
 	e.window.SetMinimumSize2(e.width, e.height)
 	e.window.ConnectResizeEvent(func(event *gui.QResizeEvent) {

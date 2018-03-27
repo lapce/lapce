@@ -41,6 +41,9 @@ func (e *Editor) updateCursorShape() {
 		return
 	}
 	e.statusLine.mode.redraw()
+	for _, w := range e.wins {
+		w.gutter.Update()
+	}
 	w, h := e.states[e.mode].cursor()
 	e.cursor.Resize2(w, h)
 }

@@ -85,8 +85,8 @@ func newStatusLine(editor *Editor) *StatusLine {
 		height: int(editor.defaultFont.lineHeight),
 		signal: NewStatuslineSignal(nil),
 	}
-	s.widget.SetContentsMargins(0, 1, 0, 0)
-	layout := newVFlowLayout(8, 8, 1, 3, 0)
+	s.widget.SetContentsMargins(0, 0, 0, 0)
+	layout := newVFlowLayout(8, 8, 0, 3, 0)
 	s.widget.SetLayout(layout)
 	s.widget.SetObjectName("statusline")
 	s.widget.SetStyleSheet(`
