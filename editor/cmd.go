@@ -591,6 +591,7 @@ func (e *Editor) getCurrentBufferLinePaletteItemsChan() chan *PaletteItem {
 }
 
 func (e *Editor) openFile(path string) {
+	path = filepath.Join(e.cwd, path)
 	buffer, ok := e.bufferPaths[path]
 	if !ok {
 		buffer = NewBuffer(e, path)

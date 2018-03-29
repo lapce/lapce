@@ -24,6 +24,8 @@ type Editor struct {
 	cursor          *widgets.QWidget
 	statusLine      *StatusLine
 
+	cwd string
+
 	svgsOnce sync.Once
 	svgs     map[string]*SvgXML
 
@@ -105,6 +107,7 @@ func NewEditor() (*Editor, error) {
 		config:       loadConfig(),
 		cmdArg:       &CmdArg{},
 	}
+	e.cwd, _ = os.Getwd()
 	loadKeymap(e)
 	e.initSpecialKeys()
 	e.states = newStates(e)

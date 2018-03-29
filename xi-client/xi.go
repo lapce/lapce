@@ -49,7 +49,7 @@ func New(handleNotification handleNotificationFunc) (*Xi, error) {
 		return nil, err
 	}
 
-	stream := &stdinoutStream{
+	stream := &StdinoutStream{
 		in:     inw,
 		out:    outr,
 		reader: bufio.NewReaderSize(outr, 8192),
@@ -94,14 +94,15 @@ func (x *Xi) NewView(path string) (*View, error) {
 	}, nil
 }
 
-type stdinoutStream struct {
+// StdinoutStream is
+type StdinoutStream struct {
 	in     io.WriteCloser
 	out    io.ReadCloser
 	reader *bufio.Reader
 }
 
 // WriteObject implements ObjectStream.
-func (s *stdinoutStream) WriteObject(obj interface{}) error {
+func (s *StdinoutStream) WriteObject(obj interface{}) error {
 	data, err := json.Marshal(obj)
 	if err != nil {
 		return err
@@ -112,7 +113,7 @@ func (s *stdinoutStream) WriteObject(obj interface{}) error {
 }
 
 // ReadObject implements ObjectStream.
-func (s *stdinoutStream) ReadObject(v interface{}) error {
+func (s *StdinoutStream) ReadObject(v interface{}) error {
 	line, err := s.reader.ReadSlice('\n')
 	if err != nil {
 		return err
@@ -122,7 +123,7 @@ func (s *stdinoutStream) ReadObject(v interface{}) error {
 }
 
 // Close implements ObjectStream.
-func (s *stdinoutStream) Close() error {
+func (s *StdinoutStream) Close() error {
 	err := s.in.Close()
 	if err != nil {
 		return err
