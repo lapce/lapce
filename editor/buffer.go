@@ -34,6 +34,7 @@ type Buffer struct {
 	path           string
 	tabStr         string
 	gotFirstUpdate bool
+	pristine       bool
 
 	lines    []*Line
 	newLines []*Line
@@ -100,6 +101,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		rect:     core.NewQRectF(),
 		path:     path,
 		tabStr:   "    ",
+		pristine: true,
 	}
 	buffer.xiView, _ = editor.xi.NewView(path)
 	buffer.scence.ConnectMousePressEvent(func(event *widgets.QGraphicsSceneMouseEvent) {
@@ -411,6 +413,11 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	if !b.gotFirstUpdate {
 		b.gotFirstUpdate = true
 		// go b.updateScrollInBackground()
+	}
+
+	if update.Update.Pristine != b.pristine {
+		b.pristine = update.Update.Pristine
+		b.editor.statusLine.fileUpdate()
 	}
 
 	for _, win := range bufWins {

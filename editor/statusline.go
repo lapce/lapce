@@ -48,6 +48,7 @@ type StatuslineFile struct {
 	icon        *svg.QSvgWidget
 	base        string
 	dir         string
+	pristine    bool
 }
 
 // StatuslineFiletype is
@@ -197,7 +198,7 @@ func (s *StatusLine) fileUpdate() {
 	if filetype != "" {
 		filetype = string(filetype[1:])
 	}
-	s.file.redraw(file)
+	s.file.redraw(file, win.buffer.pristine)
 	s.filetype.redraw(filetype)
 	go s.git.redraw(file)
 }
@@ -310,18 +311,22 @@ func (s *StatuslineFile) updateIcon() {
 	s.icon.Load2(core.NewQByteArray2(svgContent, len(svgContent)))
 }
 
-func (s *StatuslineFile) redraw(file string) {
+func (s *StatuslineFile) redraw(file string, pristine bool) {
 	if file == "" {
 		file = "[No Name]"
 	}
 
-	if file == s.file {
+	if file == s.file && pristine == s.pristine {
 		return
 	}
 
 	s.file = file
+	s.pristine = pristine
 
 	base := filepath.Base(file)
+	if !pristine {
+		base += "*"
+	}
 	dir := filepath.Dir(file)
 	if dir == "." {
 		dir = ""
