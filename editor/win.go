@@ -844,6 +844,9 @@ func (w *Window) scroll(rows, cols int, cursor bool, scroll bool) {
 	if !cursor && !scroll {
 		return
 	}
+	if cursor {
+		w.editor.popup.hide()
+	}
 	s := &SmoothScroll{
 		rows:   rows,
 		cols:   cols,

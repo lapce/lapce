@@ -140,15 +140,21 @@ func (p *Plugin) handle(req interface{}) interface{} {
 }
 
 func (p *Plugin) complete(lspClient *lsp.Client, view *plugin.View, text string, deletedText string, startRow int, startCol int) {
+	log.Println("new text is", text)
 	log.Println("deleted text is", deletedText)
 	runes := []rune(text)
 	deletedRunes := []rune(deletedText)
 
 	reset := false
-	for _, r := range runes {
-		if utils.UtfClass(r) != 2 {
-			reset = true
-			break
+	if len(runes) > 1 {
+		reset = true
+	}
+	if !reset {
+		for _, r := range runes {
+			if utils.UtfClass(r) != 2 {
+				reset = true
+				break
+			}
 		}
 	}
 	if !reset {
@@ -161,6 +167,11 @@ func (p *Plugin) complete(lspClient *lsp.Client, view *plugin.View, text string,
 	}
 	if reset && len(p.completionItems) > 0 {
 		p.completionItems = []*lsp.CompletionItem{}
+	}
+
+	if len(runes) > 1 {
+		p.notifyCompletion(p.completionItems)
+		return
 	}
 
 	if len(runes) > 0 {
@@ -210,7 +221,8 @@ func (p *Plugin) getCompletionItems(lspClient *lsp.Client, view *plugin.View, te
 			startCol, word = p.getWord(view, startRow, startCol)
 		}
 	} else if text == "" {
-		startCol, word = p.getWord(view, startRow, startCol-1)
+		// startCol, word = p.getWord(view, startRow, startCol-1)
+		return p.completionItems
 	}
 	pos := lsp.Position{
 		Line:      startRow,

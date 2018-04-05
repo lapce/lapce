@@ -86,3 +86,11 @@ func (l *LspClient) selectCompletionItem(buffer *Buffer, item *lsp.CompletionIte
 	}
 	l.conn.Notify(context.Background(), "completion_select", item, jsonrpc2.Meta(meta))
 }
+
+func (l *LspClient) resetCompletion(buffer *Buffer) {
+	meta := map[string]string{
+		"view_id": buffer.xiView.ID,
+	}
+	params := map[string]string{}
+	l.conn.Notify(context.Background(), "completion_reset", params, jsonrpc2.Meta(meta))
+}

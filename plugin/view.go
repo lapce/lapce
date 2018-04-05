@@ -88,9 +88,7 @@ func (v *View) ApplyUpdate(update *Update) (int, int, int, int, string, string, 
 		return startRow, startCol, endRow, endCol, text, deletedText, false
 	}
 
-	if text == "" {
-		deletedText = string(l.Raw[startOffset:endOffset])
-	}
+	deletedText = string(l.Raw[startOffset:endOffset])
 	diff := endOffset - startOffset
 	if diff < len(text) {
 		for i := 0; i < len(text)-diff; i++ {

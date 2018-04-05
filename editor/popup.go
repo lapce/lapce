@@ -193,6 +193,9 @@ func (p *Popup) hide() {
 	p.shown = false
 	p.index = 0
 	p.view.Hide()
+	if len(p.items) > 0 {
+		p.editor.lspClient.resetCompletion(p.editor.activeWin.buffer)
+	}
 }
 
 func (p *Popup) updatePos(pos *lsp.Position) {
@@ -208,6 +211,7 @@ func (p *Popup) updateItems(items []*lsp.CompletionItem) {
 func (p *Popup) showItems(items []*lsp.CompletionItem) {
 	if len(items) == 0 {
 		p.hide()
+		p.items = items
 		return
 	}
 	p.items = items

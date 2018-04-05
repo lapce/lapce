@@ -98,6 +98,8 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		log.Println("get resp", resp)
 		conn.Reply(ctx, req.ID, resp)
 		log.Println("resp replied")
+	case "completion_reset":
+		h.plugin.completionItems = []*lsp.CompletionItem{}
 	case "completion_select":
 		var item *lsp.CompletionItem
 		err = json.Unmarshal(paramsData, &item)
