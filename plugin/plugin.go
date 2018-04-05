@@ -9,11 +9,17 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 )
 
+//
+const (
+	EditPriorityHigh = 0x10000000
+)
+
 // Plugin is
 type Plugin struct {
 	Views      map[string]*View
 	conn       *jsonrpc2.Conn
 	Stop       chan struct{}
+	id         int
 	handleFunc HandleFunc
 }
 
@@ -65,8 +71,29 @@ type Update struct {
 	ViewID   string `json:"view_id"`
 }
 
+// Edit is
+type Edit struct {
+	Rev         uint64 `json:"rev"`
+	Delta       *Delta `json:"delta"`
+	Priority    uint64 `json:"priority"`
+	AfterCursor bool   `json:"after_cursor"`
+	Author      string `json:"author"`
+}
+
+// Delta is
+type Delta struct {
+	BaseLen int   `json:"base_len"`
+	Els     []*El `json:"els"`
+}
+
+// El is
+type El struct {
+	Copy   []int  `json:"copy,omitempty"`
+	Insert string `json:"insert,omitempty"`
+}
+
 // HandleFunc is
-type HandleFunc func(req interface{})
+type HandleFunc func(req interface{}) interface{}
 
 // NewPlugin is
 func NewPlugin() *Plugin {
@@ -104,6 +131,7 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 			log.Println(err)
 			return
 		}
+		p.id = initialization.PluginID
 		for _, buf := range initialization.BufferInfo {
 			p.initBuf(buf)
 		}
@@ -131,9 +159,12 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 			return
 		}
 		// p.Views[update.ViewID].LineCache.ApplyUpdate(update)
+		var result interface{}
+		result = 0
 		if p.handleFunc != nil {
-			p.handleFunc(update)
+			result = p.handleFunc(update)
 		}
+		p.conn.Reply(context.Background(), req.ID, result)
 	}
 	log.Println("handle done")
 }
@@ -149,4 +180,14 @@ func (p *Plugin) initBuf(buf *BufferInfo) {
 			LineCache: lineCache,
 		}
 	}
+}
+
+// Edit is
+func (p *Plugin) Edit(view *View, edit *Edit) {
+	params := map[string]interface{}{}
+	params["edit"] = edit
+	// params["msg"] = 0
+	params["view_id"] = view.ID
+	params["plugin_id"] = p.id
+	p.conn.Notify(context.Background(), "edit", params)
 }

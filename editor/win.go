@@ -187,12 +187,14 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	w.cline.ConnectMousePressEvent(func(event *gui.QMouseEvent) {
 		editor.activeWin = w
 		editor.cursor.SetParent(w.view)
+		editor.popup.view.SetParent(w.view)
 		col := int(float64(event.X()+w.horizontalScrollValue) / w.buffer.font.width)
 		w.scroll(0, col-w.col, true, false)
 	})
 	w.view.ConnectMousePressEvent(func(event *gui.QMouseEvent) {
 		editor.activeWin = w
 		editor.cursor.SetParent(w.view)
+		editor.popup.view.SetParent(w.view)
 		w.view.MousePressEventDefault(event)
 	})
 	w.view.ConnectWheelEvent(func(event *gui.QWheelEvent) {

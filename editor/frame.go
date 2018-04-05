@@ -334,6 +334,7 @@ func (f *Frame) setFocus(scrollToCursor bool) {
 	w.view.SetFocus2()
 	f.editor.activeWin = f.win
 	f.editor.cursor.SetParent(f.win.view)
+	f.editor.popup.view.SetParent(f.win.view)
 	// f.editor.cursor.Move2(w.x, w.y)
 	f.editor.cursor.Hide()
 	f.editor.cursor.Show()

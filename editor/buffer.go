@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dzhou121/crane/lsp"
 	xi "github.com/dzhou121/crane/xi-client"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -112,6 +111,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		win := buffer.editor.activeWin
 		win.scroll(row-win.row, col-win.col, true, false)
 	})
+	buffer.scence.ConnectKeyPressEvent(buffer.editor.keyPress)
 	buffer.scence.SetBackgroundBrush(editor.bgBrush)
 	item := buffer.scence.AddWidget(buffer.widget, 0)
 	item.SetPos2(0, 0)
@@ -264,10 +264,10 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	maxWidth := 0
 	oldIx := 0
 	newIx := 0
-	text := ""
-	oldText := ""
-	contentChanges := []*lsp.ContentChange{}
-	cursors := []int{}
+	// text := ""
+	// oldText := ""
+	// contentChanges := []*lsp.ContentChange{}
+	// cursors := []int{}
 	// row := 0
 	for _, op := range update.Update.Ops {
 		n := op.N
@@ -286,7 +286,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 				if line != nil {
 					line.invalid = true
 					b.setNewLine(ix, newIx, winsMap)
-					text += line.text
+					// text += line.text
 					if line.width > maxWidth {
 						maxWidth = line.width
 					}
@@ -296,10 +296,10 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		case "ins":
 			ix := oldIx
 			for _, line := range op.Lines {
-				if len(line.Cursor) > 0 {
-					// row = newIx
-					cursors = append(cursors, line.Cursor...)
-				}
+				// if len(line.Cursor) > 0 {
+				// 	row = newIx
+				// 	cursors = append(cursors, line.Cursor...)
+				// }
 				newLine := &Line{
 					text:    line.Text,
 					styles:  line.Styles,
@@ -313,7 +313,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					b.newLines = append(b.newLines, newLine)
 				}
 				b.setNewLine(ix, newIx, winsMap)
-				text += line.Text
+				// text += line.Text
 				if newLine.width > maxWidth {
 					maxWidth = newLine.width
 				}
@@ -352,44 +352,35 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 			}
 			oldIx += n
 		case "skip":
-			oldText = ""
-			for i := oldIx; i < oldIx+n; i++ {
-				oldText += b.lines[i].text
-			}
-			if oldText != text {
-				contentChange := &lsp.ContentChange{
-					Range: &lsp.Range{
-						Start: &lsp.Position{oldIx, 0},
-						End:   &lsp.Position{oldIx + n, 0},
-					},
-					Text: text,
-				}
-				contentChanges = append(contentChanges, contentChange)
-			}
+			// oldText = ""
+			// for i := oldIx; i < oldIx+n; i++ {
+			// 	oldText += b.lines[i].text
+			// }
+			// if oldText != text {
+			// 	contentChange := &lsp.ContentChange{
+			// 		Range: &lsp.Range{
+			// 			Start: &lsp.Position{oldIx, 0},
+			// 			End:   &lsp.Position{oldIx + n, 0},
+			// 		},
+			// 		Text: text,
+			// 	}
+			// 	contentChanges = append(contentChanges, contentChange)
+			// }
 			oldIx += n
-			text = ""
+			// text = ""
 		default:
 			fmt.Println("unknown op type", op.Op)
 		}
 	}
+	// b.xiView.PluginRPC()
 	// if b.revision > 0 && len(contentChanges) > 0 {
-	// 	version := b.revision
-	// 	contentChange := &ContentChange{
-	// 		didChange: &lsp.DidChangeParams{
-	// 			TextDocument: lsp.VersionedTextDocumentIdentifier{
-	// 				URI:     "file://" + b.path,
-	// 				Version: &version,
-	// 			},
-	// 			ContentChanges: contentChanges,
-	// 		},
-	// 	}
 	// 	if b.editor.mode == Insert && len(contentChanges) == 1 && len(cursors) == 1 {
 	// 		col := cursors[0]
 	// 		if col > 0 {
 	// 			if utfClass(rune(b.newLines[row].text[col-1])) == 2 {
-	// 				contentChange.completion = true
-	// 				contentChange.row = row
-	// 				contentChange.col = col
+	// 				if b.editor.lspClient != nil {
+	// 					// go b.editor.lspClient.completion(b, row, col)
+	// 				}
 	// 			}
 	// 		}
 	// 	}
@@ -402,6 +393,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	if len(b.newLines) != len(b.lines) || maxWidth != b.maxWidth {
 		width := maxWidth
 		height := len(b.newLines) * int(b.font.lineHeight)
+		b.width = width
 		b.widget.SetFixedSize2(width, height)
 
 		b.rect.SetWidth(float64(width))
@@ -451,5 +443,5 @@ func (b *Buffer) getPos(row, col int) (int, int) {
 }
 
 func (b *Buffer) updateLine(i int) {
-	b.widget.Update2(0, i*int(b.font.lineHeight), 900, int(b.font.lineHeight))
+	b.widget.Update2(0, i*int(b.font.lineHeight), b.width, int(b.font.lineHeight))
 }

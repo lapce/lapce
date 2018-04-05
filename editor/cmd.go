@@ -54,6 +54,7 @@ func (e *Editor) toInsert() {
 }
 
 func (e *Editor) toNormal() {
+	e.popup.hide()
 	if !e.config.Modal {
 		return
 	}

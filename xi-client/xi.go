@@ -1,11 +1,11 @@
 package xi
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os/exec"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -44,15 +44,31 @@ func New(handleNotification handleNotificationFunc) (*Xi, error) {
 		return nil, err
 	}
 
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	go func() {
+		buf := make([]byte, 1000)
+		for {
+			n, err := stderr.Read(buf)
+			if err != nil {
+				return
+			}
+			log.Println("xi-core stderr:", string(buf[:n]))
+		}
+	}()
+
 	err = cmd.Start()
 	if err != nil {
 		return nil, err
 	}
 
 	stream := &StdinoutStream{
-		in:     inw,
-		out:    outr,
-		reader: bufio.NewReaderSize(outr, 8192),
+		in:      inw,
+		out:     outr,
+		decoder: json.NewDecoder(outr),
+		encoder: json.NewEncoder(inw),
 	}
 	xi := &Xi{
 		handleNotification: handleNotification,
@@ -65,7 +81,6 @@ func New(handleNotification handleNotificationFunc) (*Xi, error) {
 // ClientStart is
 func (x *Xi) ClientStart(configDir string) {
 	params := map[string]string{}
-	fmt.Println("config dir", configDir)
 	params["client_extras_dir"] = configDir
 	params["config_dir"] = configDir
 	x.Conn.Notify(context.Background(), "client_started", &params)
@@ -96,9 +111,10 @@ func (x *Xi) NewView(path string) (*View, error) {
 
 // StdinoutStream is
 type StdinoutStream struct {
-	in     io.WriteCloser
-	out    io.ReadCloser
-	reader *bufio.Reader
+	in      io.WriteCloser
+	out     io.ReadCloser
+	decoder *json.Decoder
+	encoder *json.Encoder
 }
 
 // WriteObject implements ObjectStream.
@@ -114,21 +130,16 @@ func (s *StdinoutStream) WriteObject(obj interface{}) error {
 
 // ReadObject implements ObjectStream.
 func (s *StdinoutStream) ReadObject(v interface{}) error {
-	line, err := s.reader.ReadSlice('\n')
+	err := s.decoder.Decode(v)
 	if err != nil {
-		return err
+		log.Println("read object err", err)
 	}
-	err = json.Unmarshal(line, v)
 	return err
 }
 
 // Close implements ObjectStream.
 func (s *StdinoutStream) Close() error {
-	err := s.in.Close()
-	if err != nil {
-		return err
-	}
-	return s.out.Close()
+	return nil
 }
 
 type handler struct {
@@ -320,10 +331,31 @@ type Config struct {
 	WrapWidth             int           `json:"wrap_width"`
 }
 
+// Notification is
+type Notification struct {
+	Method string      `json:"method"`
+	Params interface{} `json:"params"`
+}
+
 // EditNotification is
 type EditNotification struct {
 	method string
 	cmd    *EditCommand `json:"params"`
+}
+
+// PlaceholderRPC is
+type PlaceholderRPC struct {
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params,omitempty"`
+	RPCType string      `json:"rpc_type"`
+}
+
+// PluginNotification is
+type PluginNotification struct {
+	Command  string          `json:"command"`
+	ViewID   string          `json:"view_id"`
+	Receiver string          `json:"receiver"`
+	RPC      *PlaceholderRPC `json:"rpc"`
 }
 
 // EditCommand is
@@ -645,6 +677,24 @@ func (v *View) FindNext(allowSame bool) {
 		Params: params,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// PluginRPC sends
+func (v *View) PluginRPC() {
+	params := map[string]interface{}{}
+	params["arg_one"] = true
+
+	pluginNotification := &PluginNotification{
+		Command:  "plugin_rpc",
+		ViewID:   v.ID,
+		Receiver: "lsp",
+		RPC: &PlaceholderRPC{
+			Method:  "custom_method",
+			Params:  params,
+			RPCType: "notification",
+		},
+	}
+	v.xi.Conn.Notify(context.Background(), "plugin", &pluginNotification)
 }
 
 // Line is

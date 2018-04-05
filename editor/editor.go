@@ -2,9 +2,12 @@ package editor
 
 import (
 	"fmt"
+	"log"
+	"net"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	xi "github.com/dzhou121/crane/xi-client"
 	homedir "github.com/mitchellh/go-homedir"
@@ -38,6 +41,7 @@ type Editor struct {
 	topWin   *Window
 	topFrame *Frame
 	palette  *Palette
+	popup    *Popup
 
 	monoFont    *Font
 	defaultFont *Font
@@ -59,7 +63,8 @@ type Editor struct {
 
 	updates chan interface{}
 
-	xi *xi.Xi
+	xi        *xi.Xi
+	lspClient *LspClient
 
 	init     chan struct{}
 	initOnce sync.Once
@@ -70,6 +75,9 @@ type Editor struct {
 	cmdArg    *CmdArg
 	keymap    *Keymap
 	config    *Config
+
+	selectedBg *Color
+	matchFg    *Color
 
 	specialKeys     map[core.Qt__Key]string
 	controlModifier core.Qt__KeyboardModifier
@@ -106,7 +114,10 @@ func NewEditor() (*Editor, error) {
 		smoothScroll: true,
 		config:       loadConfig(),
 		cmdArg:       &CmdArg{},
+		selectedBg:   newColor(81, 154, 186, 127),
+		matchFg:      newColor(81, 154, 186, 255),
 	}
+	go e.startLspClient()
 	e.cwd, _ = os.Getwd()
 	loadKeymap(e)
 	e.initSpecialKeys()
@@ -203,6 +214,19 @@ func NewEditor() (*Editor, error) {
 	return e, nil
 }
 
+func (e *Editor) startLspClient() {
+	for {
+		conn, err := net.Dial("tcp", "127.0.0.1:50051")
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		log.Println("lsp connected")
+		e.lspClient = newLspClient(e, conn)
+		return
+	}
+}
+
 func (e *Editor) getScrollbarStylesheet() string {
 	bg := e.theme.Theme.Background
 	guide := e.theme.Theme.Selection
@@ -276,6 +300,26 @@ func (e *Editor) handleXiNotification(update interface{}) {
 	e.signal.UpdateSignal()
 }
 
+func (e *Editor) keyPress(event *gui.QKeyEvent) {
+	key := e.convertKey(event)
+	if key == "" {
+		return
+	}
+
+	if e.palette.active {
+		e.palette.executeKey(key)
+		return
+	}
+
+	if e.popup.shown {
+		if e.popup.executeKey(key) {
+			return
+		}
+	}
+
+	e.executeKey(key)
+}
+
 func (e *Editor) initMainWindow() {
 	e.width = 800
 	e.height = 600
@@ -299,19 +343,6 @@ func (e *Editor) initMainWindow() {
 			w.view.Show()
 		}
 		e.palette.resize()
-	})
-	e.window.ConnectKeyPressEvent(func(event *gui.QKeyEvent) {
-		key := e.convertKey(event)
-		if key == "" {
-			return
-		}
-
-		if e.palette.active {
-			e.palette.executeKey(key)
-			return
-		}
-
-		e.executeKey(key)
 	})
 
 	e.centralSplitter = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
@@ -354,10 +385,11 @@ func (e *Editor) initMainWindow() {
 	}
 	e.topFrame.children = append(e.topFrame.children, frame)
 	topWin := NewWindow(e, frame)
-	topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/xi-editor/rust/core-lib/src/rpc.rs"))
+	topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/go/src/github.com/dzhou121/crane/editor/buffer.go"))
 	topSplitter.AddWidget(topWin.widget)
 	e.equalWins()
 
+	e.popup = newPopup(e)
 	e.cursor = widgets.NewQWidget(nil, 0)
 	e.cursor.ConnectWheelEvent(func(event *gui.QWheelEvent) {
 		e.activeWin.viewWheel(event)

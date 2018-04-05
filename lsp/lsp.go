@@ -114,6 +114,9 @@ type CompletionItem struct {
 		} `json:"range"`
 	} `json:"textEdit"`
 	Detail string `json:"detail,omitempty"`
+
+	Score   int   `json:"-"`
+	Matches []int `json:"matches"`
 }
 
 // Handle implements jsonrpc2.Handler
@@ -170,4 +173,9 @@ func (c *Client) Completion(params *TextDocumentPositionParams) (*CompletionResp
 	var completionResp CompletionResp
 	err := c.Conn.Call(context.Background(), "textDocument/completion", &params, &completionResp)
 	return &completionResp, err
+}
+
+// CompletionResolve is
+func (c *Client) CompletionResolve(item *CompletionItem) error {
+	return c.Conn.Call(context.Background(), "completionItem/resolve", &item, &item)
 }

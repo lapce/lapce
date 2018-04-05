@@ -27,8 +27,13 @@ func NewStdinoutStream() *StdinoutStream {
 
 // WriteObject implements ObjectStream.
 func (s *StdinoutStream) WriteObject(obj interface{}) error {
-	err := s.encoder.Encode(obj)
-	s.in.Write([]byte{'\n'})
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	log.Println(string(data))
+	_, err = s.in.Write(data)
 	return err
 }
 
@@ -38,7 +43,6 @@ func (s *StdinoutStream) ReadObject(v interface{}) error {
 	if err != nil {
 		log.Println(err)
 	}
-	log.Println(v)
 	return err
 }
 
