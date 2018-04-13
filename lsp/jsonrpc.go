@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os/exec"
 )
 
@@ -46,6 +47,7 @@ func (s *StdinoutStream) WriteObject(obj interface{}) error {
 	if err != nil {
 		return err
 	}
+	log.Println(string(data))
 	s.in.Write([]byte(fmt.Sprintf("Content-Length: %d\r\n\r\n", len(data))))
 	_, err = s.in.Write(data)
 	return err

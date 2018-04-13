@@ -59,6 +59,8 @@ func newNormalState(e *Editor) State {
 		"<C-c>": s.esc,
 		":":     e.commandPalette,
 		"<C-p>": e.quickOpen,
+		"<C-k>": e.hover,
+		"<C-n>": e.definition,
 		"i":     e.toInsert,
 		"a":     e.toInsertRight,
 		"A":     e.toInsertEndOfLine,

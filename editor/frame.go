@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/widgets"
@@ -331,10 +332,11 @@ func (f *Frame) setFocus(scrollToCursor bool) {
 		return
 	}
 	w := f.win
+	log.Println("set focus to", w.row, w.col)
 	w.view.SetFocus2()
-	f.editor.activeWin = f.win
-	f.editor.cursor.SetParent(f.win.view)
-	f.editor.popup.view.SetParent(f.win.view)
+	f.editor.activeWin = w
+	f.editor.cursor.SetParent(w.view)
+	f.editor.popup.view.SetParent(w.view)
 	// f.editor.cursor.Move2(w.x, w.y)
 	f.editor.cursor.Hide()
 	f.editor.cursor.Show()
@@ -342,6 +344,7 @@ func (f *Frame) setFocus(scrollToCursor bool) {
 		w.scrollToCursor(w.row, w.col, true)
 	}
 	w.buffer.xiView.Click(w.row, w.col)
+	log.Println("set focus to", w.row, w.col)
 	w.editor.statusLine.fileUpdate()
 }
 

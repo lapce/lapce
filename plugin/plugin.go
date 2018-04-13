@@ -128,6 +128,7 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 		var initialization *Initialization
 		err := json.Unmarshal(params, &initialization)
 		if err != nil {
+			log.Println("initialize error")
 			log.Println(err)
 			return
 		}

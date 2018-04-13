@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dzhou121/crane/lsp"
 	xi "github.com/dzhou121/crane/xi-client"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/therecipe/qt/core"
@@ -138,6 +139,26 @@ func NewEditor() (*Editor, error) {
 		update := <-e.updates
 
 		switch u := update.(type) {
+		case *lsp.Location:
+			if strings.HasPrefix(u.URI, "file://") {
+				path := string(u.URI[7:])
+				e.openFile(path)
+
+				pos := u.Range.Start
+				row := pos.Line
+				col := pos.Character
+
+				w := e.activeWin
+				x, y := w.buffer.getPos(row, col)
+				w.view.CenterOn2(
+					float64(x),
+					float64(y),
+				)
+
+				w.row = row
+				w.col = col
+				w.setPos(row, col, true)
+			}
 		case *xi.UpdateNotification:
 			e.buffersRWMutex.RLock()
 			buffer, ok := e.buffers[u.ViewID]
@@ -206,7 +227,7 @@ func NewEditor() (*Editor, error) {
 		}
 	})
 	e.xi.ClientStart(e.config.configDir)
-	e.xi.SetTheme("base16-ocean.dark")
+	e.xi.SetTheme("one dark")
 
 	e.app = widgets.NewQApplication(0, nil)
 	e.initMainWindow()

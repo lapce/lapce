@@ -56,7 +56,51 @@ func (l *LspClient) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrp
 			return
 		}
 		l.editor.popup.updatePos(pos)
+	case "definition":
+		var location *lsp.Location
+		err = json.Unmarshal(paramsData, &location)
+		if err != nil {
+			log.Println("json error", err)
+			return
+		}
+		log.Println("now go to definition", location)
+		l.editor.updates <- location
+		l.editor.signal.UpdateSignal()
 	}
+}
+
+func (l *LspClient) definition(buffer *Buffer, row int, col int) {
+	pos := lsp.Position{
+		Line:      row,
+		Character: col,
+	}
+	params := &lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: "file://" + buffer.path,
+		},
+		Position: pos,
+	}
+	meta := map[string]string{
+		"view_id": buffer.xiView.ID,
+	}
+	l.conn.Notify(context.Background(), "definition", params, jsonrpc2.Meta(meta))
+}
+
+func (l *LspClient) hover(buffer *Buffer, row int, col int) {
+	pos := lsp.Position{
+		Line:      row,
+		Character: col,
+	}
+	params := &lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: "file://" + buffer.path,
+		},
+		Position: pos,
+	}
+	meta := map[string]string{
+		"view_id": buffer.xiView.ID,
+	}
+	l.conn.Notify(context.Background(), "hover", params, jsonrpc2.Meta(meta))
 }
 
 func (l *LspClient) completion(buffer *Buffer, row int, col int) {

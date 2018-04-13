@@ -77,7 +77,7 @@ func (p *Plugin) handle(req interface{}) interface{} {
 			lspClient, ok := p.lsp[buf.Syntax]
 			if !ok {
 				var err error
-				lspClient, err = lsp.NewClient()
+				lspClient, err = lsp.NewClient(buf.Syntax)
 				if err != nil {
 					return nil
 				}
@@ -137,6 +137,23 @@ func (p *Plugin) handle(req interface{}) interface{} {
 		p.complete(lspClient, view, text, deletedText, startRow, startCol)
 	}
 	return 0
+}
+
+func (p *Plugin) signature(lspClient *lsp.Client, view *plugin.View, text string, deletedText string, startRow int, startCol int) {
+	if text != "(" {
+		return
+	}
+	pos := lsp.Position{
+		Line:      startRow,
+		Character: startCol + 1,
+	}
+	params := &lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: "file://" + view.Path,
+		},
+		Position: pos,
+	}
+	lspClient.Signature(params)
 }
 
 func (p *Plugin) complete(lspClient *lsp.Client, view *plugin.View, text string, deletedText string, startRow int, startCol int) {

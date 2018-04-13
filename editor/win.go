@@ -257,6 +257,7 @@ func (w *Window) viewWheel(event *gui.QWheelEvent) {
 
 func (w *Window) update() {
 	start, end := w.scrollRegion()
+	w.buffer.xiView.Scroll(start, end)
 	b := w.buffer
 	for i := start; i <= end; i++ {
 		if i >= len(b.lines) {

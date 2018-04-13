@@ -77,6 +77,45 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 	}
 	log.Println("view id", viewID)
 	switch req.Method {
+	case "definition":
+		var params *lsp.TextDocumentPositionParams
+		err = json.Unmarshal(paramsData, &params)
+		if err != nil {
+			return
+		}
+		view, ok := h.plugin.views[viewID]
+		if !ok {
+			return
+		}
+		lspClient, ok := h.plugin.lsp[view.Syntax]
+		if !ok {
+			return
+		}
+		locations, err := lspClient.Definition(params)
+		if err != nil {
+			return
+		}
+		if len(locations) == 0 {
+			return
+		}
+		for _, conn := range h.plugin.conns {
+			conn.Notify(context.Background(), "definition", locations[0])
+		}
+	case "hover":
+		var params *lsp.TextDocumentPositionParams
+		err = json.Unmarshal(paramsData, &params)
+		if err != nil {
+			return
+		}
+		view, ok := h.plugin.views[viewID]
+		if !ok {
+			return
+		}
+		lspClient, ok := h.plugin.lsp[view.Syntax]
+		if !ok {
+			return
+		}
+		lspClient.Hover(params)
 	case "completion":
 		var params *lsp.TextDocumentPositionParams
 		err = json.Unmarshal(paramsData, &params)

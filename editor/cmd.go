@@ -308,6 +308,16 @@ func (e *Editor) belowSplit() {
 	e.activeWin.frame.focusBelow()
 }
 
+func (e *Editor) hover() {
+	win := e.activeWin
+	e.lspClient.hover(win.buffer, win.row, win.col)
+}
+
+func (e *Editor) definition() {
+	win := e.activeWin
+	e.lspClient.definition(win.buffer, win.row, win.col)
+}
+
 func (e *Editor) changeTheme(themeName string) {
 	e.themeName = themeName
 	e.xi.SetTheme(themeName)
@@ -592,7 +602,6 @@ func (e *Editor) getCurrentBufferLinePaletteItemsChan() chan *PaletteItem {
 }
 
 func (e *Editor) openFile(path string) {
-	path = filepath.Join(e.cwd, path)
 	buffer, ok := e.bufferPaths[path]
 	if !ok {
 		buffer = NewBuffer(e, path)

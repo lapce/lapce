@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 
 	"github.com/sourcegraph/jsonrpc2"
@@ -47,33 +48,32 @@ type Client struct {
 
 // VersionedTextDocumentIdentifier is
 type VersionedTextDocumentIdentifier struct {
-	URI     string
-	Version *int
+	URI     string `json:"uri"`
+	Version *int   `json:"version,omitempty"`
 }
 
 // TextDocumentIdentifier is
 type TextDocumentIdentifier struct {
-	URI     string
-	Version *int
+	URI string `json:"uri"`
 }
 
 // Position is
 type Position struct {
-	Line      int
-	Character int
+	Line      int `json:"line"`
+	Character int `json:"character"`
 }
 
 // Range is
 type Range struct {
-	Start *Position
-	End   *Position
+	Start *Position `json:"start"`
+	End   *Position `json:"end"`
 }
 
 // ContentChange is
 type ContentChange struct {
-	Range       *Range
-	RangeLength *int `json:"rangeLength"`
-	Text        string
+	Range       *Range `json:"range"`
+	RangeLength *int   `json:"rangeLength"`
+	Text        string `json:"text"`
 }
 
 // DidChangeParams is
@@ -85,7 +85,7 @@ type DidChangeParams struct {
 // TextDocumentPositionParams is
 type TextDocumentPositionParams struct {
 	TextDocument TextDocumentIdentifier `json:"textDocument"`
-	Position     Position
+	Position     Position               `json:"position"`
 }
 
 // CompletionResp isj
@@ -119,14 +119,38 @@ type CompletionItem struct {
 	Matches []int `json:"matches"`
 }
 
+// Location is
+type Location struct {
+	Range struct {
+		End struct {
+			Character int `json:"character"`
+			Line      int `json:"line"`
+		} `json:"end"`
+		Start struct {
+			Character int `json:"character"`
+			Line      int `json:"line"`
+		} `json:"start"`
+	} `json:"range"`
+	URI string `json:"uri"`
+}
+
 // Handle implements jsonrpc2.Handler
 func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
 	log.Println("got notification", req)
 }
 
 // NewClient is
-func NewClient() (*Client, error) {
-	stream, err := NewStdinoutStream("go-langserver", "-gocodecompletion")
+func NewClient(syntax string) (*Client, error) {
+	cmd := ""
+	args := []string{}
+	switch syntax {
+	case "go":
+		cmd = "go-langserver"
+		args = []string{"-gocodecompletion"}
+	case "python":
+		cmd = "pyls"
+	}
+	stream, err := NewStdinoutStream(cmd, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +167,7 @@ func (c *Client) Initialize(rootPath string) error {
 	params["rootPath"] = rootPath
 	var result interface{}
 	err := c.Conn.Call(context.Background(), "initialize", &params, &result)
-	log.Println("initialize", err, result)
+	log.Println("initialize", err, result, rootPath)
 	return err
 }
 
@@ -156,7 +180,6 @@ func (c *Client) DidOpen(path string, content string) error {
 	params["textDocument"] = textDocument
 	var result interface{}
 	err := c.Conn.Call(context.Background(), "textDocument/didOpen", &params, &result)
-	log.Println("did open", err, result)
 	return err
 }
 
@@ -166,6 +189,33 @@ func (c *Client) DidChange(didChangeParams *DidChangeParams) error {
 	err := c.Conn.Call(context.Background(), "textDocument/didChange", didChangeParams, &result)
 	log.Println("did change", err, result)
 	return err
+}
+
+// Definition is
+func (c *Client) Definition(params *TextDocumentPositionParams) ([]*Location, error) {
+	var result []*Location
+	log.Println("get definition")
+	err := c.Conn.Call(context.Background(), "textDocument/definition", &params, &result)
+	buf, _ := json.Marshal(result)
+	log.Println(err, string(buf))
+	return result, err
+}
+
+// Hover is
+func (c *Client) Hover(params *TextDocumentPositionParams) {
+	var result interface{}
+	log.Println("get hover")
+	err := c.Conn.Call(context.Background(), "textDocument/hover", &params, &result)
+	buf, _ := json.Marshal(result)
+	log.Println(err, string(buf))
+}
+
+// Signature is
+func (c *Client) Signature(params *TextDocumentPositionParams) {
+	var result interface{}
+	log.Println("get signature")
+	err := c.Conn.Call(context.Background(), "textDocument/signatureHelp", &params, &result)
+	log.Println(err, result)
 }
 
 // Completion is

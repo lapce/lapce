@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -539,7 +540,8 @@ func (p *Palette) executeItem() *PaletteItem {
 	case PaletteThemes:
 		p.editor.changeTheme(item.description)
 	case PaletteFile:
-		p.editor.openFile(item.description)
+		path := filepath.Join(p.editor.cwd, item.description)
+		p.editor.openFile(path)
 	default:
 		item.n++
 

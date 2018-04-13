@@ -45,10 +45,10 @@ type Buffer struct {
 
 // Color is
 type Color struct {
-	R int
-	G int
-	B int
-	A int
+	R int `json:"a"`
+	G int `json:"b"`
+	B int `json:"g"`
+	A int `json:"r"`
 }
 
 // String is

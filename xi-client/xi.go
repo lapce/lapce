@@ -232,6 +232,14 @@ type Themes struct {
 	Themes []string `json:"themes"`
 }
 
+// Color is
+type Color struct {
+	R int `json:"r"`
+	G int `json:"g"`
+	B int `json:"b"`
+	A int `json:"a"`
+}
+
 // Theme is
 type Theme struct {
 	Name  string `json:"name"`
@@ -274,8 +282,13 @@ type Theme struct {
 			G int `json:"g"`
 			R int `json:"r"`
 		} `json:"guide"`
-		Gutter                      interface{} `json:"gutter"`
-		GutterForeground            interface{} `json:"gutter_foreground"`
+		Gutter struct {
+			A int `json:"a"`
+			B int `json:"b"`
+			G int `json:"g"`
+			R int `json:"r"`
+		} `json:"gutter"`
+		GutterForeground            *Color      `json:"gutter_foreground"`
 		Highlight                   interface{} `json:"highlight"`
 		HighlightForeground         interface{} `json:"highlight_foreground"`
 		InactiveSelection           interface{} `json:"inactive_selection"`
@@ -286,16 +299,11 @@ type Theme struct {
 			G int `json:"g"`
 			R int `json:"r"`
 		} `json:"line_highlight"`
-		MinimapBorder interface{} `json:"minimap_border"`
-		Misspelling   interface{} `json:"misspelling"`
-		PhantomCSS    interface{} `json:"phantom_css"`
-		PopupCSS      interface{} `json:"popup_css"`
-		Selection     struct {
-			A int `json:"a"`
-			B int `json:"b"`
-			G int `json:"g"`
-			R int `json:"r"`
-		} `json:"selection"`
+		MinimapBorder       interface{} `json:"minimap_border"`
+		Misspelling         interface{} `json:"misspelling"`
+		PhantomCSS          interface{} `json:"phantom_css"`
+		PopupCSS            interface{} `json:"popup_css"`
+		Selection           *Color      `json:"selection"`
 		SelectionBackground interface{} `json:"selection_background"`
 		SelectionBorder     interface{} `json:"selection_border"`
 		SelectionForeground interface{} `json:"selection_foreground"`
