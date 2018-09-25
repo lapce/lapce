@@ -31,7 +31,7 @@ func NewFont(fontFamily string) *Font {
 	fontMetrics := gui.NewQFontMetricsF(f.font)
 	f.fontMetrics = fontMetrics
 	f.height = fontMetrics.Height()
-	f.width = fontMetrics.Width("W")
+	f.width = fontMetrics.Size(0, "W", 0, 0).Rwidth()
 	f.ascent = fontMetrics.Ascent()
 	f.descent = fontMetrics.Descent()
 	f.underlinePos = fontMetrics.UnderlinePos()

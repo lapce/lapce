@@ -3,9 +3,10 @@ package editor
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net"
 	"runtime/debug"
+
+	"github.com/dzhou121/crane/log"
 
 	"github.com/dzhou121/crane/lsp"
 	plugin "github.com/dzhou121/crane/lsp-plugin"
@@ -30,21 +31,21 @@ func newLspClient(editor *Editor, conn net.Conn) *LspClient {
 func (l *LspClient) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println("handle error", r, string(debug.Stack()))
+			log.Infoln("handle error", r, string(debug.Stack()))
 		}
 	}()
 	paramsData, err := req.Params.MarshalJSON()
 	if err != nil {
-		log.Println(err)
+		log.Infoln(err)
 		return
 	}
-	// log.Println("now handle", req.ID, req.Method, string(paramsData))
+	// log.Infoln("now handle", req.ID, req.Method, string(paramsData))
 	switch req.Method {
 	case "completion":
 		var items []*lsp.CompletionItem
 		err = json.Unmarshal(paramsData, &items)
 		if err != nil {
-			log.Println("json error", err)
+			log.Infoln("json error", err)
 			return
 		}
 		l.editor.popup.updateItems(items)
@@ -52,7 +53,7 @@ func (l *LspClient) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrp
 		var pos *lsp.Position
 		err = json.Unmarshal(paramsData, &pos)
 		if err != nil {
-			log.Println("json error", err)
+			log.Infoln("json error", err)
 			return
 		}
 		l.editor.popup.updatePos(pos)
@@ -60,10 +61,10 @@ func (l *LspClient) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrp
 		var location *lsp.Location
 		err = json.Unmarshal(paramsData, &location)
 		if err != nil {
-			log.Println("json error", err)
+			log.Infoln("json error", err)
 			return
 		}
-		log.Println("now go to definition", location)
+		log.Infoln("now go to definition", location)
 		l.editor.updates <- location
 		l.editor.signal.UpdateSignal()
 	}
@@ -119,9 +120,9 @@ func (l *LspClient) completion(buffer *Buffer, row int, col int) {
 	var result *lsp.CompletionResp
 	l.conn.Call(context.Background(), "completion", params, &result, jsonrpc2.Meta(meta))
 	for _, item := range result.Items {
-		log.Println(item.InsertText)
+		log.Infoln(item.InsertText)
 	}
-	log.Println(row, col, buffer.xiView.ID, buffer.path)
+	log.Infoln(row, col, buffer.xiView.ID, buffer.path)
 }
 
 func (l *LspClient) selectCompletionItem(buffer *Buffer, item *lsp.CompletionItem) {

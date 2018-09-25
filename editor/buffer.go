@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	xi "github.com/dzhou121/crane/xi-client"
@@ -35,6 +36,8 @@ type Buffer struct {
 	tabStr         string
 	gotFirstUpdate bool
 	pristine       bool
+	inited         chan struct{}
+	initOnce       sync.Once
 
 	lines    []*Line
 	newLines []*Line
@@ -102,6 +105,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		path:     path,
 		tabStr:   "    ",
 		pristine: true,
+		inited:   make(chan struct{}),
 	}
 	buffer.xiView, _ = editor.xi.NewView(path)
 	buffer.scence.ConnectMousePressEvent(func(event *widgets.QGraphicsSceneMouseEvent) {
@@ -181,7 +185,7 @@ func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, index int, y int, p
 		startDiff := line.styles[i*3]
 		if startDiff > 0 {
 			painter.DrawText3(
-				padding+int(font.fontMetrics.Width(strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1))+0.5),
+				padding+int(font.fontMetrics.Size(0, strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1), 0, 0).Rwidth()+0.5),
 				y+int(font.shift),
 				strings.Replace(string(line.text[start:start+startDiff]), "\t", b.tabStr, -1),
 			)
@@ -190,7 +194,7 @@ func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, index int, y int, p
 		start += startDiff
 		length := line.styles[i*3+1]
 		styleID := line.styles[i*3+2]
-		x := font.fontMetrics.Width(strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1))
+		x := font.fontMetrics.Size(0, strings.Replace(string(line.text[:start]), "\t", b.tabStr, -1), 0, 0).Rwidth()
 		text := strings.Replace(string(line.text[start:start+length]), "\t", b.tabStr, -1)
 		if styleID == 0 {
 			theme := b.editor.theme
@@ -198,7 +202,7 @@ func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, index int, y int, p
 				bg := theme.Theme.Selection
 				color.SetRgb(bg.R, bg.G, bg.B, bg.A)
 				painter.FillRect5(int(x+0.5), y,
-					int(font.fontMetrics.Width(text)+0.5),
+					int(font.fontMetrics.Size(0, text, 0, 0).Rwidth()+0.5),
 					int(font.lineHeight),
 					color)
 			}
@@ -307,7 +311,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 					styles:  line.Styles,
 					cursor:  line.Cursor,
 					invalid: true,
-					width:   int(b.font.fontMetrics.Width(strings.Replace(line.Text, "\t", b.tabStr, -1)) + 0.5),
+					width:   int(b.font.fontMetrics.Size(0, strings.Replace(line.Text, "\t", b.tabStr, -1), 0, 0).Rwidth() + 0.5),
 				}
 				if newIx < len(b.newLines) {
 					b.newLines[newIx] = newLine
@@ -412,6 +416,9 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 
 	if !b.gotFirstUpdate {
 		b.gotFirstUpdate = true
+		b.initOnce.Do(func() {
+			close(b.inited)
+		})
 		// go b.updateScrollInBackground()
 	}
 
@@ -443,7 +450,7 @@ func (b *Buffer) getPos(row, col int) (int, int) {
 		if col > len(text) {
 			col = len(text)
 		}
-		x = int(b.font.fontMetrics.Width(strings.Replace(text[:col], "\t", b.tabStr, -1)) + 0.5)
+		x = int(b.font.fontMetrics.Size(0, strings.Replace(text[:col], "\t", b.tabStr, -1), 0, 0).Rwidth() + 0.5)
 	}
 	y := row * int(b.font.lineHeight)
 	return x, y

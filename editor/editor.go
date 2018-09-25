@@ -27,6 +27,7 @@ type Editor struct {
 	signal          *editorSignal
 	cursor          *widgets.QWidget
 	statusLine      *StatusLine
+	cache           *Cache
 
 	cwd string
 
@@ -112,12 +113,13 @@ func NewEditor() (*Editor, error) {
 		styles:       map[int]*Style{},
 		bgBrush:      gui.NewQBrush(),
 		fgBrush:      gui.NewQBrush(),
-		smoothScroll: true,
+		smoothScroll: false,
 		config:       loadConfig(),
 		cmdArg:       &CmdArg{},
 		selectedBg:   newColor(81, 154, 186, 127),
 		matchFg:      newColor(81, 154, 186, 255),
 	}
+	e.cache = newCache(e)
 	go e.startLspClient()
 	e.cwd, _ = os.Getwd()
 	loadKeymap(e)
@@ -141,23 +143,20 @@ func NewEditor() (*Editor, error) {
 		switch u := update.(type) {
 		case *lsp.Location:
 			if strings.HasPrefix(u.URI, "file://") {
-				path := string(u.URI[7:])
-				e.openFile(path)
+				w := e.activeWin
 
+				path := string(u.URI[7:])
 				pos := u.Range.Start
 				row := pos.Line
 				col := pos.Character
 
-				w := e.activeWin
-				x, y := w.buffer.getPos(row, col)
-				w.view.CenterOn2(
-					float64(x),
-					float64(y),
-				)
-
-				w.row = row
-				w.col = col
-				w.setPos(row, col, true)
+				loc := &Location{
+					path:   path,
+					Row:    row,
+					Col:    col,
+					center: true,
+				}
+				w.openLocation(loc, true, false)
 			}
 		case *xi.UpdateNotification:
 			e.buffersRWMutex.RLock()
@@ -227,9 +226,15 @@ func NewEditor() (*Editor, error) {
 		}
 	})
 	e.xi.ClientStart(e.config.configDir)
-	e.xi.SetTheme("one dark")
+	e.xi.SetTheme("one_dark")
 
 	e.app = widgets.NewQApplication(0, nil)
+	e.app.ConnectAboutToQuit(func() {
+		fmt.Println("now quit")
+		for _, win := range e.wins {
+			win.saveCurrentLocation()
+		}
+	})
 	e.initMainWindow()
 
 	return e, nil
@@ -406,7 +411,7 @@ func (e *Editor) initMainWindow() {
 	}
 	e.topFrame.children = append(e.topFrame.children, frame)
 	topWin := NewWindow(e, frame)
-	topWin.loadBuffer(NewBuffer(e, "/Users/Lulu/go/src/github.com/dzhou121/crane/editor/buffer.go"))
+	topWin.openFile("/Users/Lulu/go/src/github.com/dzhou121/crane/editor/buffer.go")
 	topSplitter.AddWidget(topWin.widget)
 	e.equalWins()
 

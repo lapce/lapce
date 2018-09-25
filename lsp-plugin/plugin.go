@@ -3,9 +3,10 @@ package plugin
 import (
 	"context"
 	"io/ioutil"
-	"log"
 	"os"
 	"runtime/debug"
+
+	"github.com/dzhou121/crane/log"
 
 	"github.com/dzhou121/crane/fuzzy"
 	"github.com/dzhou121/crane/lsp"
@@ -43,8 +44,8 @@ func (p *Plugin) Run() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.SetOutput(file)
-	log.Println("now start to run")
+	log.Base().SetOutput(file)
+	log.Infoln("now start to run")
 	go func() {
 		server, err := newServer(p)
 		if err != nil {
@@ -58,7 +59,7 @@ func (p *Plugin) Run() {
 func (p *Plugin) handle(req interface{}) interface{} {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println("handle error", r, string(debug.Stack()))
+			log.Infoln("handle error", r, string(debug.Stack()))
 		}
 	}()
 	switch r := req.(type) {
@@ -76,9 +77,11 @@ func (p *Plugin) handle(req interface{}) interface{} {
 			p.views[viewID] = view
 			lspClient, ok := p.lsp[buf.Syntax]
 			if !ok {
+				log.Infoln("sytax is", buf.Syntax)
 				var err error
 				lspClient, err = lsp.NewClient(buf.Syntax)
 				if err != nil {
+					log.Infoln("err new lsp client", err, "sytax is", buf.Syntax)
 					return nil
 				}
 				dir, err := os.Getwd()
@@ -94,13 +97,14 @@ func (p *Plugin) handle(req interface{}) interface{} {
 
 			content, err := ioutil.ReadFile(buf.Path)
 			if err != nil {
+				log.Infoln("err read file content", err)
 				return nil
 			}
-			log.Println("now set raw content")
+			log.Infoln("now set raw content")
 			view.SetRaw(content)
-			log.Println("set raw content done", buf.Path)
+			log.Infoln("set raw content done", buf.Path)
 			err = lspClient.DidOpen(buf.Path, string(content))
-			log.Println("did open done")
+			log.Infoln("did open done")
 			if err != nil {
 				return nil
 			}
@@ -108,7 +112,7 @@ func (p *Plugin) handle(req interface{}) interface{} {
 	case *plugin.Update:
 		view := p.views[r.ViewID]
 		startRow, startCol, endRow, endCol, text, deletedText, changed := view.ApplyUpdate(r)
-		log.Println(startRow, startCol, endRow, endCol, text, deletedText, changed)
+		log.Infoln(startRow, startCol, endRow, endCol, text, deletedText, changed)
 		if !changed {
 			return 0
 		}
@@ -157,8 +161,8 @@ func (p *Plugin) signature(lspClient *lsp.Client, view *plugin.View, text string
 }
 
 func (p *Plugin) complete(lspClient *lsp.Client, view *plugin.View, text string, deletedText string, startRow int, startCol int) {
-	log.Println("new text is", text)
-	log.Println("deleted text is", deletedText)
+	log.Infoln("new text is", text)
+	log.Infoln("deleted text is", deletedText)
 	runes := []rune(text)
 	deletedRunes := []rune(deletedText)
 
@@ -226,7 +230,7 @@ func (p *Plugin) getCompletionItems(lspClient *lsp.Client, view *plugin.View, te
 			startCol--
 		}
 		_, word := p.getWord(view, startRow, startCol)
-		log.Println("word is", string(word))
+		log.Infoln("word is", string(word))
 		return p.matchCompletionItems(p.completionItems, word)
 	}
 

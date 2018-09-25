@@ -243,6 +243,10 @@ func (e *Editor) undo() {
 	e.activeWin.buffer.xiView.Undo()
 }
 
+func (e *Editor) save() {
+	e.activeWin.buffer.xiView.Save()
+}
+
 func (e *Editor) redo() {
 	e.activeWin.buffer.xiView.Redo()
 }
@@ -316,6 +320,14 @@ func (e *Editor) hover() {
 func (e *Editor) definition() {
 	win := e.activeWin
 	e.lspClient.definition(win.buffer, win.row, win.col)
+}
+
+func (e *Editor) previousLocation() {
+	e.activeWin.previousLocation()
+}
+
+func (e *Editor) nextLocation() {
+	e.activeWin.nextLocation()
 }
 
 func (e *Editor) changeTheme(themeName string) {
@@ -599,12 +611,4 @@ func (e *Editor) getCurrentBufferLinePaletteItemsChan() chan *PaletteItem {
 		}
 	}()
 	return itemsChan
-}
-
-func (e *Editor) openFile(path string) {
-	buffer, ok := e.bufferPaths[path]
-	if !ok {
-		buffer = NewBuffer(e, path)
-	}
-	e.activeWin.loadBuffer(buffer)
 }

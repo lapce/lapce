@@ -104,7 +104,7 @@ func (f *Frame) split(vertical bool) {
 	newWin.verticalScrollBar.SetValue(win.verticalScrollValue)
 	newWin.horizontalScrollBar.SetValue(win.horizontalScrollValue)
 	for _, w := range win.editor.wins {
-		w.scrollToCursor(w.row, w.col, true)
+		w.scrollToCursor(w.row, w.col, true, false, false)
 	}
 	f.setFocus(false)
 }
@@ -341,7 +341,7 @@ func (f *Frame) setFocus(scrollToCursor bool) {
 	f.editor.cursor.Hide()
 	f.editor.cursor.Show()
 	if scrollToCursor {
-		w.scrollToCursor(w.row, w.col, true)
+		w.scrollToCursor(w.row, w.col, true, false, false)
 	}
 	w.buffer.xiView.Click(w.row, w.col)
 	log.Println("set focus to", w.row, w.col)

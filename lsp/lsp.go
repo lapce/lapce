@@ -3,7 +3,8 @@ package lsp
 import (
 	"context"
 	"encoding/json"
-	"log"
+
+	"github.com/dzhou121/crane/log"
 
 	"github.com/sourcegraph/jsonrpc2"
 )
@@ -136,7 +137,7 @@ type Location struct {
 
 // Handle implements jsonrpc2.Handler
 func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
-	log.Println("got notification", req)
+	log.Infoln("got notification", req)
 }
 
 // NewClient is
@@ -149,6 +150,9 @@ func NewClient(syntax string) (*Client, error) {
 		args = []string{"-gocodecompletion"}
 	case "python":
 		cmd = "pyls"
+	default:
+		cmd = "go-langserver"
+		args = []string{"-gocodecompletion"}
 	}
 	stream, err := NewStdinoutStream(cmd, args...)
 	if err != nil {
@@ -167,7 +171,7 @@ func (c *Client) Initialize(rootPath string) error {
 	params["rootPath"] = rootPath
 	var result interface{}
 	err := c.Conn.Call(context.Background(), "initialize", &params, &result)
-	log.Println("initialize", err, result, rootPath)
+	log.Infoln("initialize", err, result, rootPath)
 	return err
 }
 
@@ -187,35 +191,35 @@ func (c *Client) DidOpen(path string, content string) error {
 func (c *Client) DidChange(didChangeParams *DidChangeParams) error {
 	var result interface{}
 	err := c.Conn.Call(context.Background(), "textDocument/didChange", didChangeParams, &result)
-	log.Println("did change", err, result)
+	log.Infoln("did change", err, result)
 	return err
 }
 
 // Definition is
 func (c *Client) Definition(params *TextDocumentPositionParams) ([]*Location, error) {
 	var result []*Location
-	log.Println("get definition")
+	log.Infoln("get definition")
 	err := c.Conn.Call(context.Background(), "textDocument/definition", &params, &result)
 	buf, _ := json.Marshal(result)
-	log.Println(err, string(buf))
+	log.Infoln(err, string(buf))
 	return result, err
 }
 
 // Hover is
 func (c *Client) Hover(params *TextDocumentPositionParams) {
 	var result interface{}
-	log.Println("get hover")
+	log.Infoln("get hover")
 	err := c.Conn.Call(context.Background(), "textDocument/hover", &params, &result)
 	buf, _ := json.Marshal(result)
-	log.Println(err, string(buf))
+	log.Infoln(err, string(buf))
 }
 
 // Signature is
 func (c *Client) Signature(params *TextDocumentPositionParams) {
 	var result interface{}
-	log.Println("get signature")
+	log.Infoln("get signature")
 	err := c.Conn.Call(context.Background(), "textDocument/signatureHelp", &params, &result)
-	log.Println(err, result)
+	log.Infoln(err, result)
 }
 
 // Completion is

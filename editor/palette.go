@@ -241,7 +241,7 @@ func (p *Palette) paintInput(event *gui.QPaintEvent) {
 	painter.DrawText3(p.padding, padding+int(p.font.shift), p.inputText)
 
 	painter.FillRect5(
-		p.padding+int(p.font.fontMetrics.Width(string(p.inputText[:p.inputIndex]))+0.5),
+		p.padding+int(p.font.fontMetrics.Size(0, string(p.inputText[:p.inputIndex]), 0, 0).Rwidth()+0.5),
 		padding+int(p.font.lineSpace)/2,
 		1,
 		int(p.font.height+0.5),
@@ -357,7 +357,7 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 		painter.SetPen2(selectionColor)
 		painter.DrawText3(p.padding, y, lineNumber)
 		if item.line != nil {
-			padding := int(p.font.fontMetrics.Width(lineNumber)+0.5) + p.padding
+			padding := int(p.font.fontMetrics.Size(0, lineNumber, 0, 0).Rwidth()+0.5) + p.padding
 			p.editor.activeWin.buffer.drawLine(painter, p.font, item.lineNumber-1, index*int(p.font.lineHeight), padding)
 		}
 	} else {
@@ -370,9 +370,9 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 	bgColor := gui.NewQColor3(bg.R, bg.G, bg.B, bg.A)
 	selectedBgColor := gui.NewQColor3(p.selectedBg.R, p.selectedBg.G, p.selectedBg.B, p.selectedBg.A)
 	for _, match := range item.matches {
-		x := p.padding + int(p.font.fontMetrics.Width(strings.Replace(string(item.description[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1))+0.5)
+		x := p.padding + int(p.font.fontMetrics.Size(0, strings.Replace(string(item.description[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1), 0, 0).Rwidth()+0.5)
 		text := string(item.description[match])
-		width := int(p.font.fontMetrics.Width(text) + 0.5)
+		width := int(p.font.fontMetrics.Size(0, text, 0, 0).Rwidth() + 0.5)
 		painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), bgColor)
 		if index == p.index {
 			painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), selectedBgColor)
@@ -468,7 +468,7 @@ func (p *Palette) resetView() {
 	case PaletteLine:
 		win := p.editor.activeWin
 		win.verticalScrollBar.SetValue(p.oldVerticalValue)
-		win.scrollToCursor(p.oldRow, p.oldCol, true)
+		win.scrollToCursor(p.oldRow, p.oldCol, true, false, false)
 	case PaletteThemes:
 		p.changeTheme(p.editor.themeName)
 	}
@@ -506,7 +506,6 @@ func (p *Palette) next() {
 }
 
 func (p *Palette) switchItem() {
-	p.goToLine()
 	switch p.inputType {
 	case PaletteThemes:
 		var items []*PaletteItem
@@ -516,6 +515,25 @@ func (p *Palette) switchItem() {
 			items = p.items
 		}
 		p.changeTheme(items[p.index].description)
+	case PaletteLine:
+		var items []*PaletteItem
+		if len(p.inputText) > len(p.inputType) {
+			items = p.activeItems
+		} else {
+			items = p.items
+		}
+		if len(items) == 0 {
+			return
+		}
+		if p.index > len(items) {
+			p.index = 0
+		}
+		item := items[p.index]
+		win := p.editor.activeWin
+		row := item.lineNumber - 1
+		col := 0
+		win.verticalScrollBar.SetValue(row*int(win.buffer.font.lineHeight) - win.frame.height*2/3)
+		win.setPos(row, col, false)
 	}
 }
 
@@ -537,11 +555,17 @@ func (p *Palette) executeItem() *PaletteItem {
 	switch p.inputType {
 	case PaletteLine:
 		p.inputType = PaletteNone
+
+		win := p.editor.activeWin
+		row := item.lineNumber - 1
+		col := 0
+		win.verticalScrollBar.SetValue(row*int(win.buffer.font.lineHeight) - win.frame.height*2/3)
+		win.setPos(row, col, false)
 	case PaletteThemes:
 		p.editor.changeTheme(item.description)
 	case PaletteFile:
 		path := filepath.Join(p.editor.cwd, item.description)
-		p.editor.openFile(path)
+		p.editor.activeWin.openFile(path)
 	default:
 		item.n++
 
@@ -851,39 +875,6 @@ func (p *Palette) getItems(inputType string) {
 			}
 		}
 	}()
-}
-
-func (p *Palette) goToLine() {
-	if p.inputType != PaletteLine {
-		return
-	}
-	if p.inputText == "#" {
-		return
-	}
-	if len(p.activeItems) == 0 {
-		return
-	}
-
-	item := p.activeItems[p.index]
-	win := p.editor.activeWin
-	row := item.lineNumber - 1
-	col := 0
-	// x, y := win.buffer.getPos(row, col)
-	// win.view.CenterOn2(
-	// 	float64(x),
-	// 	float64(y),
-	// )
-	win.verticalScrollBar.SetValue(row*int(win.buffer.font.lineHeight) - win.frame.height*2/3)
-	// win.view.EnsureVisible2(
-	// 	float64(x),
-	// 	float64(y),
-	// 	1,
-	// 	win.buffer.font.lineHeight,
-	// 	20,
-	// 	win.frame.height*2/3,
-	// )
-	win.setPos(row, col, false)
-	// win.scrollToCursor(item.lineNumber-1, 0, true)
 }
 
 func (p *Palette) getInputType() string {

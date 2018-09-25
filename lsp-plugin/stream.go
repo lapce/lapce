@@ -2,8 +2,9 @@ package plugin
 
 import (
 	"encoding/json"
-	"log"
 	"net"
+
+	"github.com/dzhou121/crane/log"
 )
 
 // ConnStream is
@@ -31,7 +32,7 @@ func (s *ConnStream) WriteObject(obj interface{}) error {
 func (s *ConnStream) ReadObject(v interface{}) error {
 	err := s.decoder.Decode(v)
 	if err != nil {
-		log.Println(err)
+		log.Infoln(err)
 	}
 	return err
 }

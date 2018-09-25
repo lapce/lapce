@@ -166,9 +166,9 @@ func (p *Popup) paintLine(painter *gui.QPainter, index int) {
 	selectedBg := p.editor.selectedBg
 	selectedBgColor := gui.NewQColor3(selectedBg.R, selectedBg.G, selectedBg.B, selectedBg.A)
 	for _, match := range item.Matches {
-		x := lineHeight + padding + int(p.font.fontMetrics.Width(strings.Replace(string(item.InsertText[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1))+0.5)
+		x := lineHeight + padding + int(p.font.fontMetrics.Size(0, strings.Replace(string(item.InsertText[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1), 0, 0).Rwidth()+0.5)
 		text := string(item.InsertText[match])
-		width := int(p.font.fontMetrics.Width(text) + 0.5)
+		width := int(p.font.fontMetrics.Size(0, text, 0, 0).Rwidth() + 0.5)
 		painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), bgColor)
 		if index == p.index {
 			painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), selectedBgColor)

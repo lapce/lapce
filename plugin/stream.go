@@ -3,8 +3,9 @@ package plugin
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"os"
+
+	"github.com/dzhou121/crane/log"
 )
 
 // StdinoutStream is
@@ -32,7 +33,7 @@ func (s *StdinoutStream) WriteObject(obj interface{}) error {
 		return err
 	}
 	data = append(data, '\n')
-	log.Println(string(data))
+	log.Infoln(string(data))
 	_, err = s.in.Write(data)
 	return err
 }
@@ -41,7 +42,7 @@ func (s *StdinoutStream) WriteObject(obj interface{}) error {
 func (s *StdinoutStream) ReadObject(v interface{}) error {
 	err := s.decoder.Decode(v)
 	if err != nil {
-		log.Println(err)
+		log.Infoln(err)
 	}
 	return err
 }

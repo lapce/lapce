@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/dzhou121/crane/xi-client"
+
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"
@@ -48,6 +50,20 @@ type ScrollJob struct {
 	setPos   *SetPos
 }
 
+// Location is
+type Location struct {
+	previous   *Location
+	next       *Location
+	path       string
+	buffer     *Buffer
+	Row        int `json:"row"`
+	Col        int `json:"col"`
+	Vertical   int `json:"vertical"`
+	Horizontal int `json:"horizontal"`
+	toCursor   bool
+	center     bool
+}
+
 // Window is for displaying a buffer
 type Window struct {
 	id               int
@@ -75,6 +91,7 @@ type Window struct {
 	end              int
 	smoothScrollChan chan *SmoothScroll
 	smoothScrollDone chan struct{}
+	location         *Location
 
 	verticalScrollBar         *widgets.QScrollBar
 	horizontalScrollBar       *widgets.QScrollBar
@@ -134,6 +151,15 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 			w.setPos(u.row, u.col, u.toXi)
 		case *Scroll:
 			w.scrollView(u)
+		case *Location:
+			loc := u
+			w.verticalScrollBar.SetValue(loc.Vertical)
+			w.horizontalScrollBar.SetValue(loc.Horizontal)
+			w.scrollToCursor(loc.Row, loc.Col, false, true, loc.center)
+			w.setPos(loc.Row, loc.Col, true)
+			loc.Vertical = w.verticalScrollBar.Value()
+			loc.Horizontal = w.horizontalScrollBar.Value()
+			loc.center = false
 		}
 	})
 
@@ -298,6 +324,18 @@ func utfClass(r rune) int {
 		return 1
 	}
 	return 2
+}
+
+func (w *Window) previousLocation() {
+	if w.location != nil && w.location.previous != nil {
+		w.openLocation(w.location.previous, false, false)
+	}
+}
+
+func (w *Window) nextLocation() {
+	if w.location != nil && w.location.next != nil {
+		w.openLocation(w.location.next, false, false)
+	}
 }
 
 func (w *Window) wordUnderCursor() string {
@@ -495,6 +533,69 @@ func (w *Window) setScroll() {
 	w.update()
 }
 
+func (w *Window) openLocation(loc *Location, save bool, loadCache bool) {
+	buffer := loc.buffer
+	if buffer == nil {
+		path := loc.path
+		var ok bool
+		buffer, ok = w.editor.bufferPaths[path]
+		if !ok {
+			buffer = NewBuffer(w.editor, path)
+		}
+		loc.buffer = buffer
+		if loadCache {
+			lastLoc, err := w.editor.cache.getLastPosition(path)
+			if err == nil {
+				loc.Row = lastLoc.Row
+				loc.Col = lastLoc.Col
+				loc.Horizontal = lastLoc.Horizontal
+				loc.Vertical = lastLoc.Vertical
+			}
+		}
+	}
+
+	if save && w.location != nil {
+		w.location.Horizontal = w.horizontalScrollValue
+		w.location.Vertical = w.verticalScrollValue
+		w.location.Row = w.row
+		w.location.Col = w.col
+		loc.previous = w.location
+		w.location.next = loc
+	}
+
+	if w.buffer != buffer {
+		w.saveCurrentLocation()
+		w.loadBuffer(buffer)
+	}
+	w.location = loc
+	go func() {
+		<-w.buffer.inited
+		w.updates <- loc
+		w.signal.UpdateSignal()
+	}()
+}
+
+func (w *Window) saveCurrentLocation() {
+	if w.buffer == nil {
+		return
+	}
+	loc := &Location{
+		path:       w.buffer.path,
+		Row:        w.row,
+		Col:        w.col,
+		Vertical:   w.verticalScrollValue,
+		Horizontal: w.horizontalScrollValue,
+	}
+	w.editor.cache.setLastPosition(loc)
+}
+
+func (w *Window) openFile(path string) {
+	loc := &Location{
+		path: path,
+	}
+	w.openLocation(loc, true, true)
+}
+
 func (w *Window) loadBuffer(buffer *Buffer) {
 	w.buffer = buffer
 	w.view.SetScene(buffer.scence)
@@ -657,6 +758,20 @@ func (w *Window) smoothScrollStart(s *SmoothScroll) {
 	}()
 }
 
+func getNearestTotal(n int) int {
+	max := Abs(n) / 10
+	if max > 10 {
+		max = 10
+	}
+	for i := max; i > 0; i-- {
+		r := float64(n) / float64(i)
+		if float64(int(r)) == r {
+			return i
+		}
+	}
+	return 1
+}
+
 func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struct{}, chan struct{}, *Scroll) {
 	finished := make(chan struct{})
 	stop := make(chan struct{})
@@ -668,12 +783,15 @@ func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struc
 	}
 	total := 10
 	if Abs(y) < 100 && Abs(x) < 100 {
-		total = 3
+		total = 1
 	}
 	scroll := &Scroll{
 		dx:     0,
 		dy:     0,
 		cursor: cursor,
+	}
+	if y != 0 {
+		total = getNearestTotal(y)
 	}
 	if Abs(x) < total {
 		if x > 0 {
@@ -833,7 +951,7 @@ func (w *Window) scrollFromXi(row, col int) {
 	if row == w.row && col == w.col {
 		return
 	}
-	w.scrollToCursor(row, col, true)
+	w.scrollToCursor(row, col, true, false, false)
 }
 
 // scroll the view or move the cursor base on param cursor and scroll
@@ -864,18 +982,25 @@ func (w *Window) scroll(rows, cols int, cursor bool, scroll bool) {
 
 // scrollToCursor scrolls the view so that position row col is visible
 // if cursor is true, move the cursor in the view as well
-func (w *Window) scrollToCursor(row, col int, cursor bool) {
+func (w *Window) scrollToCursor(row, col int, cursor bool, force bool, center bool) {
 	lineHeight := w.buffer.font.lineHeight
-	if !w.editor.smoothScroll {
+	if force || !w.editor.smoothScroll {
 		x, y := w.buffer.getPos(row, col)
-		w.view.EnsureVisible2(
-			float64(x),
-			float64(y),
-			1,
-			lineHeight,
-			20,
-			20,
-		)
+		if center {
+			w.view.CenterOn2(
+				0,
+				float64(y),
+			)
+		} else {
+			w.view.EnsureVisible2(
+				float64(x),
+				float64(y),
+				1,
+				lineHeight,
+				20,
+				20,
+			)
+		}
 		if cursor {
 			w.setPos(row, col, false)
 		}
@@ -915,7 +1040,15 @@ func (w *Window) paintGutter(event *gui.QPaintEvent) {
 	p := gui.NewQPainter2(w.gutter)
 	defer p.DestroyQPainter()
 	p.SetFont(w.buffer.font.font)
-	fg := w.editor.theme.Theme.Selection
+	fg := &xi.Color{
+		R: 0,
+		G: 0,
+		B: 0,
+		A: 1,
+	}
+	if w.editor.theme != nil {
+		fg = w.editor.theme.Theme.Selection
+	}
 	fgColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
 	clineFg := w.editor.theme.Theme.Foreground
 	clineColor := gui.NewQColor3(clineFg.R, clineFg.G, clineFg.B, clineFg.A)
@@ -936,7 +1069,7 @@ func (w *Window) paintGutter(event *gui.QPaintEvent) {
 				n = Abs(i - w.row)
 			}
 		}
-		padding := w.gutterPadding + int((w.buffer.font.fontMetrics.Width(strconv.Itoa(len(w.buffer.lines)))-w.buffer.font.fontMetrics.Width(strconv.Itoa(n)))+0.5)
+		padding := w.gutterPadding + int((w.buffer.font.fontMetrics.Size(0, strconv.Itoa(len(w.buffer.lines)), 0, 0).Rwidth()-w.buffer.font.fontMetrics.Size(0, strconv.Itoa(n), 0, 0).Rwidth())+0.5)
 		p.DrawText3(padding, (i-w.start)*int(w.buffer.font.lineHeight)+shift, strconv.Itoa(n))
 	}
 }

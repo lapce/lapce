@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os/exec"
+
+	"github.com/dzhou121/crane/log"
 )
 
 // StdinoutStream is
@@ -47,7 +48,6 @@ func (s *StdinoutStream) WriteObject(obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	log.Println(string(data))
 	s.in.Write([]byte(fmt.Sprintf("Content-Length: %d\r\n\r\n", len(data))))
 	_, err = s.in.Write(data)
 	return err
@@ -59,7 +59,24 @@ func (s *StdinoutStream) ReadObject(v interface{}) error {
 	s.reader.ReadSlice('\n')
 	decoder := json.NewDecoder(s.reader)
 	err := decoder.Decode(v)
+	if err != nil {
+		log.Infoln(err)
+	}
 	return err
+
+	// s.reader.ReadSlice('\n')
+	// s.reader.ReadSlice('\n')
+	// buf := make([]byte, 8096)
+	// n, err := s.reader.Read(buf)
+	// if err != nil {
+	// 	return nil
+	// }
+	// log.Infoln(string(buf[:n]))
+	// err = json.Unmarshal(buf[:n], v)
+	// if err != nil {
+	// 	log.Infoln(err)
+	// }
+	// return err
 }
 
 // Close implements ObjectStream.

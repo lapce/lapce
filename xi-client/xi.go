@@ -11,6 +11,12 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 )
 
+//
+const (
+	PointSelect = "point_select"
+	RangeSelect = "range_select"
+)
+
 type handleNotificationFunc func(notification interface{})
 
 // Xi represents an instance of xi-core
@@ -21,8 +27,9 @@ type Xi struct {
 
 // View is a Xi view
 type View struct {
-	xi *Xi
-	ID string
+	xi   *Xi
+	ID   string
+	Path string
 }
 
 // NewViewParams is
@@ -104,8 +111,9 @@ func (x *Xi) NewView(path string) (*View, error) {
 		return nil, err
 	}
 	return &View{
-		xi: x,
-		ID: viewID,
+		xi:   x,
+		ID:   viewID,
+		Path: path,
 	}, nil
 }
 
@@ -411,10 +419,20 @@ func (v *View) Scroll(start, end int) {
 
 // Click sets
 func (v *View) Click(row, col int) {
+	v.Gesture(row, col, PointSelect)
+}
+
+// Gesture sets
+func (v *View) Gesture(row, col int, ty string) {
+	params := map[string]interface{}{
+		"line": row,
+		"col":  col,
+		"ty":   ty,
+	}
 	cmd := &EditCommand{
-		Method: "click",
+		Method: "gesture",
 		ViewID: v.ID,
-		Params: []int{row, col, 0, 1},
+		Params: params,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
@@ -635,6 +653,14 @@ func (v *View) Undo() {
 		ViewID: v.ID,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// Save is
+func (v *View) Save() {
+	params := map[string]string{}
+	params["view_id"] = v.ID
+	params["file_path"] = v.Path
+	v.xi.Conn.Notify(context.Background(), "save", &params)
 }
 
 // Redo is

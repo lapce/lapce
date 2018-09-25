@@ -3,8 +3,9 @@ package plugin
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"runtime/debug"
+
+	"github.com/dzhou121/crane/log"
 
 	"github.com/sourcegraph/jsonrpc2"
 )
@@ -27,7 +28,7 @@ type Plugin struct {
 type Config struct {
 	AutoIndent            bool          `json:"auto_indent"`
 	FontFace              string        `json:"font_face"`
-	FontSize              int           `json:"font_size"`
+	FontSize              float64       `json:"font_size"`
 	LineEnding            string        `json:"line_ending"`
 	PluginSearchPath      []interface{} `json:"plugin_search_path"`
 	ScrollPastEnd         bool          `json:"scroll_past_end"`
@@ -114,22 +115,22 @@ func (p *Plugin) SetHandleFunc(handleFunc HandleFunc) {
 func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println("handle error", r, string(debug.Stack()))
+			log.Infoln("handle error", r, string(debug.Stack()))
 		}
 	}()
 	params, err := req.Params.MarshalJSON()
 	if err != nil {
-		log.Println(err)
+		log.Infoln(err)
 		return
 	}
-	log.Println("now handle", req.ID, req.Method, string(params))
+	log.Infoln("now handle", req.ID, req.Method, string(params))
 	switch req.Method {
 	case "initialize":
 		var initialization *Initialization
 		err := json.Unmarshal(params, &initialization)
 		if err != nil {
-			log.Println("initialize error")
-			log.Println(err)
+			log.Infoln("initialize error")
+			log.Infoln(err)
 			return
 		}
 		p.id = initialization.PluginID
@@ -143,7 +144,7 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 		var initialization *Initialization
 		err := json.Unmarshal(params, &initialization)
 		if err != nil {
-			log.Println(err)
+			log.Infoln(err)
 			return
 		}
 		for _, buf := range initialization.BufferInfo {
@@ -156,7 +157,7 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 		var update *Update
 		err := json.Unmarshal(params, &update)
 		if err != nil {
-			log.Println(err)
+			log.Infoln(err)
 			return
 		}
 		// p.Views[update.ViewID].LineCache.ApplyUpdate(update)
@@ -165,9 +166,12 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 		if p.handleFunc != nil {
 			result = p.handleFunc(update)
 		}
+		if result == nil {
+			result = 0
+		}
 		p.conn.Reply(context.Background(), req.ID, result)
 	}
-	log.Println("handle done")
+	log.Infoln("handle done")
 }
 
 func (p *Plugin) initBuf(buf *BufferInfo) {
