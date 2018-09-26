@@ -1,13 +1,15 @@
 package editor
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dzhou121/crane/log"
 
 	"github.com/dzhou121/crane/lsp"
 	xi "github.com/dzhou121/crane/xi-client"
@@ -80,6 +82,9 @@ type Editor struct {
 
 	selectedBg *Color
 	matchFg    *Color
+
+	diagnostics      map[string]*lsp.PublishDiagnosticsParams
+	diagnosticsPanel *DiagnosticsPanel
 
 	specialKeys     map[core.Qt__Key]string
 	controlModifier core.Qt__KeyboardModifier
@@ -191,6 +196,25 @@ func NewEditor() (*Editor, error) {
 				fg: colorFromARBG(u.FgColor),
 			}
 			e.stylesRWMutext.Unlock()
+		case *xi.MeasureWidthRequest:
+			log.Infoln("get measure")
+			result := [][]int{}
+			for _, param := range u.Params {
+				measure := []int{}
+				for _, line := range param.Strings {
+					width := int(e.activeWin.buffer.font.fontMetrics.Size(0, strings.Replace(line, "\t", e.activeWin.buffer.tabStr, -1), 0, 0).Rwidth() + 0.5)
+					measure = append(measure, width)
+				}
+				result = append(result, measure)
+			}
+			e.xi.Conn.Reply(context.Background(), u.ID, result)
+		case *lsp.PublishDiagnosticsParams:
+			if e.diagnostics == nil {
+				e.diagnostics = map[string]*lsp.PublishDiagnosticsParams{}
+			}
+			uri := string(u.URI[7:])
+			e.diagnostics[uri] = u
+			e.diagnosticsPanel.update()
 		case *xi.Theme:
 			e.theme = u
 			fg := u.Theme.Foreground
@@ -223,6 +247,7 @@ func NewEditor() (*Editor, error) {
 				win.horizontalScrollBarHeight = win.horizontalScrollBar.Height()
 			}
 			e.palette.mainWidget.SetStyleSheet(scrollBarStyleSheet)
+			e.diagnosticsPanel.view.SetStyleSheet(scrollBarStyleSheet)
 		}
 	})
 	e.xi.ClientStart(e.config.configDir)
@@ -247,7 +272,7 @@ func (e *Editor) startLspClient() {
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		log.Println("lsp connected")
+		log.Infoln("lsp connected")
 		e.lspClient = newLspClient(e, conn)
 		return
 	}
@@ -349,6 +374,8 @@ func (e *Editor) keyPress(event *gui.QKeyEvent) {
 func (e *Editor) initMainWindow() {
 	e.width = 800
 	e.height = 600
+	e.monoFont = NewFont("Inconsolata")
+	e.defaultFont = NewFont("")
 	e.window = widgets.NewQMainWindow(nil, 0)
 	dir, _ := os.Getwd()
 	home, _ := homedir.Dir()
@@ -370,6 +397,9 @@ func (e *Editor) initMainWindow() {
 		}
 		e.palette.resize()
 	})
+	e.window.ConnectKeyPressEvent(e.keyPress)
+
+	e.diagnosticsPanel = newDiagnositicsPanel(e)
 
 	e.centralSplitter = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
 	e.centralSplitter.SetChildrenCollapsible(false)
@@ -380,7 +410,14 @@ func (e *Editor) initMainWindow() {
 	// sideWidget := widgets.NewQWidget(nil, 0)
 	// sideWidget.SetFixedWidth(50)
 	// e.centralWidget.AddWidget(sideWidget)
-	e.centralSplitter.AddWidget(topSplitter)
+
+	mainSplitter := widgets.NewQSplitter2(core.Qt__Vertical, nil)
+	mainSplitter.SetChildrenCollapsible(false)
+	mainSplitter.SetStyleSheet(e.getSplitterStylesheet())
+	mainSplitter.AddWidget(topSplitter)
+	mainSplitter.AddWidget(e.diagnosticsPanel.view)
+
+	e.centralSplitter.AddWidget(mainSplitter)
 
 	layout := widgets.NewQVBoxLayout()
 	layout.SetContentsMargins(0, 0, 0, 0)
@@ -390,9 +427,6 @@ func (e *Editor) initMainWindow() {
 	e.centralWidget.SetLayout(layout)
 
 	e.window.SetCentralWidget(e.centralWidget)
-
-	e.monoFont = NewFont("Inconsolata")
-	e.defaultFont = NewFont("")
 
 	e.statusLine = newStatusLine(e)
 	layout.AddWidget(e.statusLine.widget, 0, 0)

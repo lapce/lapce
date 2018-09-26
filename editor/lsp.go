@@ -67,6 +67,15 @@ func (l *LspClient) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrp
 		log.Infoln("now go to definition", location)
 		l.editor.updates <- location
 		l.editor.signal.UpdateSignal()
+	case "diagnostics":
+		var params *lsp.PublishDiagnosticsParams
+		err = json.Unmarshal(paramsData, &params)
+		if err != nil {
+			log.Infoln("json error", err)
+			return
+		}
+		l.editor.updates <- params
+		l.editor.signal.UpdateSignal()
 	}
 }
 
@@ -102,6 +111,21 @@ func (l *LspClient) hover(buffer *Buffer, row int, col int) {
 		"view_id": buffer.xiView.ID,
 	}
 	l.conn.Notify(context.Background(), "hover", params, jsonrpc2.Meta(meta))
+}
+
+func (l *LspClient) format(buffer *Buffer) {
+	meta := map[string]string{
+		"view_id": buffer.xiView.ID,
+	}
+	var result interface{}
+	l.conn.Call(context.Background(), "format", nil, &result, jsonrpc2.Meta(meta))
+}
+
+func (l *LspClient) didSave(buffer *Buffer) {
+	meta := map[string]string{
+		"view_id": buffer.xiView.ID,
+	}
+	l.conn.Notify(context.Background(), "didSave", nil, jsonrpc2.Meta(meta))
 }
 
 func (l *LspClient) completion(buffer *Buffer, row int, col int) {

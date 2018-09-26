@@ -4,7 +4,9 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime/debug"
+	"strings"
 
 	"github.com/dzhou121/crane/log"
 
@@ -56,6 +58,15 @@ func (p *Plugin) Run() {
 	<-p.plugin.Stop
 }
 
+func (p *Plugin) handleNotification(notification interface{}) {
+	switch n := notification.(type) {
+	case *lsp.PublishDiagnosticsParams:
+		for _, conn := range p.conns {
+			conn.Notify(context.Background(), "diagnostics", n)
+		}
+	}
+}
+
 func (p *Plugin) handle(req interface{}) interface{} {
 	defer func() {
 		if r := recover(); r != nil {
@@ -65,23 +76,27 @@ func (p *Plugin) handle(req interface{}) interface{} {
 	switch r := req.(type) {
 	case *plugin.Initialization:
 		for _, buf := range r.BufferInfo {
+			syntax := filepath.Ext(buf.Path)
+			if strings.HasPrefix(syntax, ".") {
+				syntax = string(syntax[1:])
+			}
 			viewID := buf.Views[0]
 			view := &plugin.View{
 				ID:     viewID,
 				Path:   buf.Path,
-				Syntax: buf.Syntax,
+				Syntax: syntax,
 				LineCache: &plugin.LineCache{
 					ViewID: viewID,
 				},
 			}
+			log.Infoln("sytax is", syntax)
 			p.views[viewID] = view
-			lspClient, ok := p.lsp[buf.Syntax]
+			lspClient, ok := p.lsp[syntax]
 			if !ok {
-				log.Infoln("sytax is", buf.Syntax)
 				var err error
-				lspClient, err = lsp.NewClient(buf.Syntax)
+				lspClient, err = lsp.NewClient(syntax, p.handleNotification)
 				if err != nil {
-					log.Infoln("err new lsp client", err, "sytax is", buf.Syntax)
+					log.Infoln("err new lsp client", err, "sytax is", syntax)
 					return nil
 				}
 				dir, err := os.Getwd()
@@ -92,7 +107,7 @@ func (p *Plugin) handle(req interface{}) interface{} {
 				if err != nil {
 					return nil
 				}
-				p.lsp[buf.Syntax] = lspClient
+				p.lsp[syntax] = lspClient
 			}
 
 			content, err := ioutil.ReadFile(buf.Path)

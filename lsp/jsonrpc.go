@@ -31,6 +31,21 @@ func NewStdinoutStream(command string, arg ...string) (*StdinoutStream, error) {
 		return nil, err
 	}
 
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	go func() {
+		buf := make([]byte, 1000)
+		for {
+			n, err := stderr.Read(buf)
+			if err != nil {
+				return
+			}
+			log.Infoln("stderr:", string(buf[:n]))
+		}
+	}()
+
 	err = cmd.Start()
 	if err != nil {
 		return nil, err
@@ -66,7 +81,7 @@ func (s *StdinoutStream) ReadObject(v interface{}) error {
 
 	// s.reader.ReadSlice('\n')
 	// s.reader.ReadSlice('\n')
-	// buf := make([]byte, 8096)
+	// buf := make([]byte, 118096)
 	// n, err := s.reader.Read(buf)
 	// if err != nil {
 	// 	return nil

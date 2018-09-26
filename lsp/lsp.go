@@ -38,13 +38,16 @@ const (
 	TypeParameter = 25
 )
 
+type handleNotificationFunc func(notification interface{})
+
 type handler struct {
 	client *Client
 }
 
 // Client is a lsp client
 type Client struct {
-	Conn *jsonrpc2.Conn
+	Conn               *jsonrpc2.Conn
+	handleNotification handleNotificationFunc
 }
 
 // VersionedTextDocumentIdentifier is
@@ -89,40 +92,21 @@ type TextDocumentPositionParams struct {
 	Position     Position               `json:"position"`
 }
 
+// DocumentFormattingParams is
+type DocumentFormattingParams struct {
+	TextDocument *TextDocumentIdentifier `json:"textDocument"`
+}
+
 // CompletionResp isj
 type CompletionResp struct {
 	IsIncomplete bool              `json:"isIncomplete"`
 	Items        []*CompletionItem `json:"items"`
 }
 
-// CompletionItem is
-type CompletionItem struct {
-	InsertText       string `json:"insertText"`
-	InsertTextFormat int    `json:"insertTextFormat"`
-	Kind             int    `json:"kind"`
-	Label            string `json:"label"`
-	TextEdit         struct {
-		NewText string `json:"newText"`
-		Range   struct {
-			End struct {
-				Character int `json:"character"`
-				Line      int `json:"line"`
-			} `json:"end"`
-			Start struct {
-				Character int `json:"character"`
-				Line      int `json:"line"`
-			} `json:"start"`
-		} `json:"range"`
-	} `json:"textEdit"`
-	Detail string `json:"detail,omitempty"`
-
-	Score   int   `json:"-"`
-	Matches []int `json:"matches"`
-}
-
-// Location is
-type Location struct {
-	Range struct {
+// TextEdit is
+type TextEdit struct {
+	NewText string `json:"newText"`
+	Range   struct {
 		End struct {
 			Character int `json:"character"`
 			Line      int `json:"line"`
@@ -132,23 +116,68 @@ type Location struct {
 			Line      int `json:"line"`
 		} `json:"start"`
 	} `json:"range"`
-	URI string `json:"uri"`
+}
+
+// CompletionItem is
+type CompletionItem struct {
+	InsertText       string   `json:"insertText"`
+	InsertTextFormat int      `json:"insertTextFormat"`
+	Kind             int      `json:"kind"`
+	Label            string   `json:"label"`
+	TextEdit         TextEdit `json:"textEdit"`
+	Detail           string   `json:"detail,omitempty"`
+
+	Score   int   `json:"-"`
+	Matches []int `json:"matches"`
+}
+
+// Diagnostics is
+type Diagnostics struct {
+	Range   *Range `json:"range"`
+	Source  string `json:"source"`
+	Message string `json:"message"`
+}
+
+// PublishDiagnosticsParams is
+type PublishDiagnosticsParams struct {
+	URI         string         `json:"uri"`
+	Diagnostics []*Diagnostics `json:"diagnostics"`
+}
+
+// Location is
+type Location struct {
+	Range *Range `json:"range"`
+	URI   string `json:"uri"`
 }
 
 // Handle implements jsonrpc2.Handler
 func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
-	log.Infoln("got notification", req)
+	paramsData, err := req.Params.MarshalJSON()
+	if err != nil {
+		log.Infoln(err)
+		return
+	}
+	switch req.Method {
+	case "textDocument/publishDiagnostics":
+		var params *PublishDiagnosticsParams
+		err = json.Unmarshal(paramsData, &params)
+		if err != nil {
+			log.Infoln(err)
+			return
+		}
+		h.client.handleNotification(params)
+	}
 }
 
 // NewClient is
-func NewClient(syntax string) (*Client, error) {
+func NewClient(syntax string, handleNotificationFunc handleNotificationFunc) (*Client, error) {
 	cmd := ""
 	args := []string{}
 	switch syntax {
 	case "go":
 		cmd = "go-langserver"
 		args = []string{"-gocodecompletion"}
-	case "python":
+	case "py":
 		cmd = "pyls"
 	default:
 		cmd = "go-langserver"
@@ -162,6 +191,7 @@ func NewClient(syntax string) (*Client, error) {
 	c := &Client{}
 	conn := jsonrpc2.NewConn(context.Background(), stream, &handler{client: c})
 	c.Conn = conn
+	c.handleNotification = handleNotificationFunc
 	return c, nil
 }
 
@@ -187,12 +217,34 @@ func (c *Client) DidOpen(path string, content string) error {
 	return err
 }
 
+// DidSave is
+func (c *Client) DidSave(path string) error {
+	textDocument := map[string]string{}
+	textDocument["uri"] = "file://" + path
+	params := map[string]interface{}{}
+	params["textDocument"] = textDocument
+	err := c.Conn.Notify(context.Background(), "textDocument/didSave", &params)
+	return err
+}
+
 // DidChange is
 func (c *Client) DidChange(didChangeParams *DidChangeParams) error {
 	var result interface{}
 	err := c.Conn.Call(context.Background(), "textDocument/didChange", didChangeParams, &result)
 	log.Infoln("did change", err, result)
 	return err
+}
+
+// Format is
+func (c *Client) Format(path string) ([]*TextEdit, error) {
+	var result []*TextEdit
+	params := &DocumentFormattingParams{
+		TextDocument: &TextDocumentIdentifier{
+			URI: "file://" + path,
+		},
+	}
+	err := c.Conn.Call(context.Background(), "textDocument/formatting", params, &result)
+	return result, err
 }
 
 // Definition is

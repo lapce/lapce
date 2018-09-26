@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"runtime/debug"
+	"sync"
 
 	"github.com/dzhou121/crane/log"
 
@@ -22,6 +23,7 @@ type Plugin struct {
 	Stop       chan struct{}
 	id         int
 	handleFunc HandleFunc
+	Mutex      sync.Mutex
 }
 
 // Config is
@@ -118,6 +120,9 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 			log.Infoln("handle error", r, string(debug.Stack()))
 		}
 	}()
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
+
 	params, err := req.Params.MarshalJSON()
 	if err != nil {
 		log.Infoln(err)

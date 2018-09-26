@@ -3,11 +3,10 @@ package xi
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"log"
 	"os/exec"
 
+	"github.com/dzhou121/crane/log"
 	"github.com/sourcegraph/jsonrpc2"
 )
 
@@ -62,7 +61,7 @@ func New(handleNotification handleNotificationFunc) (*Xi, error) {
 			if err != nil {
 				return
 			}
-			log.Println("xi-core stderr:", string(buf[:n]))
+			log.Infoln("xi-core stderr:", string(buf[:n]))
 		}
 	}()
 
@@ -140,7 +139,7 @@ func (s *StdinoutStream) WriteObject(obj interface{}) error {
 func (s *StdinoutStream) ReadObject(v interface{}) error {
 	err := s.decoder.Decode(v)
 	if err != nil {
-		log.Println("read object err", err)
+		log.Infoln("read object err", err)
 	}
 	return err
 }
@@ -217,6 +216,18 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		}
 		if h.xi.handleNotification != nil {
 			h.xi.handleNotification(&themes)
+		}
+	case "measure_width":
+		var widthParams []*MeasureWidthParams
+		err := json.Unmarshal(params, &widthParams)
+		if err != nil {
+			return
+		}
+		if h.xi.handleNotification != nil {
+			h.xi.handleNotification(&MeasureWidthRequest{
+				ID:     req.ID,
+				Params: widthParams,
+			})
 		}
 	default:
 	}
@@ -431,6 +442,20 @@ func (v *View) Gesture(row, col int, ty string) {
 	}
 	cmd := &EditCommand{
 		Method: "gesture",
+		ViewID: v.ID,
+		Params: params,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// Resize sets
+func (v *View) Resize(width, height int) {
+	params := map[string]interface{}{
+		"width":  width,
+		"height": height,
+	}
+	cmd := &EditCommand{
+		Method: "resize",
 		ViewID: v.ID,
 		Params: params,
 	}
@@ -694,9 +719,7 @@ func (v *View) Find(chars string) {
 		ViewID: v.ID,
 		Params: params,
 	}
-	var result interface{}
-	err := v.xi.Conn.Call(context.Background(), "edit", &cmd, &result)
-	fmt.Println("find error", err, chars, result)
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
 // FindNext finds
@@ -711,6 +734,20 @@ func (v *View) FindNext(allowSame bool) {
 		Params: params,
 	}
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// GetContents gets
+func (v *View) GetContents() string {
+	params := map[string]string{
+		"view_id": v.ID,
+	}
+	var result string
+	err := v.xi.Conn.Call(context.Background(), "debug_get_contents", &params, &result)
+	if err != nil {
+		log.Infoln(err)
+		return ""
+	}
+	return result
 }
 
 // PluginRPC sends
@@ -743,6 +780,18 @@ type UpdateOperation struct {
 	n         int64   `json:"n"`
 	Operation string  `json:"op"`
 	Lines     []*Line `json:"lines"`
+}
+
+// MeasureWidthRequest is
+type MeasureWidthRequest struct {
+	ID     jsonrpc2.ID
+	Params []*MeasureWidthParams
+}
+
+// MeasureWidthParams is
+type MeasureWidthParams struct {
+	ID      int      `json:"id"`
+	Strings []string `json:"strings"`
 }
 
 // UpdateNotification is

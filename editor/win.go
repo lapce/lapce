@@ -240,6 +240,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		w.frame.width = w.widget.Width()
 		w.frame.height = w.widget.Height()
 		w.cline.Resize2(w.frame.width, int(w.buffer.font.lineHeight))
+		w.buffer.xiView.Resize(w.frame.width, w.frame.height)
 		w.setScroll()
 		w.editor.topFrame.setPos(0, 0)
 		w.setPos(w.row, w.col, false)
@@ -603,6 +604,7 @@ func (w *Window) loadBuffer(buffer *Buffer) {
 	w.gutterWidth = int(float64(w.gutterChars)*w.buffer.font.width+0.5) + w.gutterPadding*2
 	w.gutter.SetFixedWidth(w.gutterWidth)
 	w.setScroll()
+	w.buffer.xiView.Resize(w.frame.width, w.frame.height)
 	w.editor.statusLine.fileUpdate()
 }
 

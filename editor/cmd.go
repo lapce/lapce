@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dzhou121/crane/log"
 )
 
 func (e *Editor) executeKey(key string) {
@@ -244,7 +246,11 @@ func (e *Editor) undo() {
 }
 
 func (e *Editor) save() {
-	e.activeWin.buffer.xiView.Save()
+	go func() {
+		e.lspClient.format(e.activeWin.buffer)
+		e.activeWin.buffer.xiView.Save()
+		e.lspClient.didSave(e.activeWin.buffer)
+	}()
 }
 
 func (e *Editor) redo() {
@@ -590,16 +596,25 @@ func (e *Editor) quickOpen() {
 func (e *Editor) getCurrentBufferLinePaletteItemsChan() chan *PaletteItem {
 	itemsChan := make(chan *PaletteItem, 1000)
 	go func() {
+		content := e.activeWin.buffer.xiView.GetContents()
+		lines := strings.Split(content, "\n")
+		log.Infoln("lines", len(lines))
 		defer close(itemsChan)
 		buffer := e.activeWin.buffer
 		for i, line := range buffer.lines {
 			content := ""
-			if line != nil {
-				content = line.text
+			if i < len(lines) {
+				content = lines[i]
 			}
-			content = fmt.Sprintf("%d %s", i+1, content)
+			if line == nil {
+				line = &Line{
+					text: content,
+				}
+				buffer.lines[i] = line
+			}
+
 			item := &PaletteItem{
-				description: content,
+				description: fmt.Sprintf("%d %s", i+1, content),
 				lineNumber:  i + 1,
 				line:        line,
 			}

@@ -49,6 +49,7 @@ type Palette struct {
 	running              bool
 	itemsRWMutex         sync.RWMutex
 	activeItemsRWMutex   sync.RWMutex
+	updateMutex          sync.Mutex
 	itemsChan            chan *PaletteItem
 	items                []*PaletteItem
 	activeItems          []*PaletteItem
@@ -719,15 +720,16 @@ func (p *Palette) updateActiveItem(item *PaletteItem) {
 func (p *Palette) updateActiveItems() {
 	if p.cancelLastChan != nil {
 		close(p.cancelLastChan)
-		p.cancelLastChan = nil
 	}
+
+	p.updateMutex.Lock()
+	cancelLastChan := make(chan struct{})
+	p.cancelLastChan = cancelLastChan
 	// if len(p.inputText) <= len(p.inputType) {
 	// 	return
 	// }
 	p.activeItemsRWMutex.Lock()
 	p.activeItems = []*PaletteItem{}
-	cancelLastChan := make(chan struct{})
-	p.cancelLastChan = cancelLastChan
 	p.activeItemsRWMutex.Unlock()
 
 	p.paintAfterViewUpdate = false
@@ -735,6 +737,7 @@ func (p *Palette) updateActiveItems() {
 	go func() {
 		ticker := time.NewTicker(20 * time.Millisecond)
 		defer func() {
+			p.updateMutex.Unlock()
 			p.signal.UpdateSignal()
 			ticker.Stop()
 		}()

@@ -117,7 +117,6 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		win := buffer.editor.activeWin
 		win.scroll(row-win.row, col-win.col, true, false)
 	})
-	buffer.scence.ConnectKeyPressEvent(buffer.editor.keyPress)
 	buffer.scence.SetBackgroundBrush(editor.bgBrush)
 	item := buffer.scence.AddWidget(buffer.widget, 0)
 	item.SetPos2(0, 0)
