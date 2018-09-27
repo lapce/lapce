@@ -223,7 +223,8 @@ func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, index int, y int, p
 		fg := b.editor.theme.Theme.Foreground
 		color.SetRgb(fg.R, fg.G, fg.B, fg.A)
 		painter.SetPen2(color)
-		painter.DrawText3(padding, y+int(font.shift), line.text)
+		text := strings.Replace(string(line.text), "\t", b.tabStr, -1)
+		painter.DrawText3(padding, y+int(font.shift), text)
 	}
 }
 
