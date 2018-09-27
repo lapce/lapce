@@ -64,7 +64,6 @@ func (l *LspClient) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrp
 			log.Infoln("json error", err)
 			return
 		}
-		log.Infoln("now go to definition", location)
 		l.editor.updates <- location
 		l.editor.signal.UpdateSignal()
 	case "diagnostics":

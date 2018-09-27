@@ -152,14 +152,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		case *Scroll:
 			w.scrollView(u)
 		case *Location:
-			loc := u
-			w.verticalScrollBar.SetValue(loc.Vertical)
-			w.horizontalScrollBar.SetValue(loc.Horizontal)
-			w.scrollToCursor(loc.Row, loc.Col, false, true, loc.center)
-			w.setPos(loc.Row, loc.Col, true)
-			loc.Vertical = w.verticalScrollBar.Value()
-			loc.Horizontal = w.horizontalScrollBar.Value()
-			loc.center = false
+			w.jumpLocation(u)
 		}
 	})
 
@@ -569,11 +562,29 @@ func (w *Window) openLocation(loc *Location, save bool, loadCache bool) {
 		w.loadBuffer(buffer)
 	}
 	w.location = loc
+
+	select {
+	case <-w.buffer.inited:
+		w.jumpLocation(loc)
+		return
+	default:
+	}
+
 	go func() {
 		<-w.buffer.inited
 		w.updates <- loc
 		w.signal.UpdateSignal()
 	}()
+}
+
+func (w *Window) jumpLocation(loc *Location) {
+	w.verticalScrollBar.SetValue(loc.Vertical)
+	w.horizontalScrollBar.SetValue(loc.Horizontal)
+	w.scrollToCursor(loc.Row, loc.Col, false, true, loc.center)
+	w.setPos(loc.Row, loc.Col, true)
+	loc.Vertical = w.verticalScrollBar.Value()
+	loc.Horizontal = w.horizontalScrollBar.Value()
+	loc.center = false
 }
 
 func (w *Window) saveCurrentLocation() {

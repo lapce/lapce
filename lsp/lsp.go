@@ -48,6 +48,7 @@ type handler struct {
 type Client struct {
 	Conn               *jsonrpc2.Conn
 	handleNotification handleNotificationFunc
+	ServerCapabilities *Capabilities
 }
 
 // VersionedTextDocumentIdentifier is
@@ -75,8 +76,8 @@ type Range struct {
 
 // ContentChange is
 type ContentChange struct {
-	Range       *Range `json:"range"`
-	RangeLength *int   `json:"rangeLength"`
+	Range       *Range `json:"range,omitempty"`
+	RangeLength *int   `json:"rangeLength,omitempty"`
 	Text        string `json:"text"`
 }
 
@@ -101,6 +102,33 @@ type DocumentFormattingParams struct {
 type CompletionResp struct {
 	IsIncomplete bool              `json:"isIncomplete"`
 	Items        []*CompletionItem `json:"items"`
+}
+
+// Capabilities is
+type Capabilities struct {
+	CompletionProvider struct {
+		TriggerCharacters []string `json:"triggerCharacters"`
+	} `json:"completionProvider"`
+	DefinitionProvider         bool `json:"definitionProvider"`
+	DocumentFormattingProvider bool `json:"documentFormattingProvider"`
+	DocumentSymbolProvider     bool `json:"documentSymbolProvider"`
+	HoverProvider              bool `json:"hoverProvider"`
+	ImplementationProvider     bool `json:"implementationProvider"`
+	ReferencesProvider         bool `json:"referencesProvider"`
+	SignatureHelpProvider      struct {
+		TriggerCharacters []string `json:"triggerCharacters"`
+	} `json:"signatureHelpProvider"`
+	TextDocumentSync             int  `json:"textDocumentSync"`
+	TypeDefinitionProvider       bool `json:"typeDefinitionProvider"`
+	WorkspaceSymbolProvider      bool `json:"workspaceSymbolProvider"`
+	XdefinitionProvider          bool `json:"xdefinitionProvider"`
+	XworkspaceReferencesProvider bool `json:"xworkspaceReferencesProvider"`
+	XworkspaceSymbolByProperties bool `json:"xworkspaceSymbolByProperties"`
+}
+
+// InitializeResult is
+type InitializeResult struct {
+	Capabilities *Capabilities `json:"capabilities"`
 }
 
 // TextEdit is
@@ -179,10 +207,22 @@ func NewClient(syntax string, handleNotificationFunc handleNotificationFunc) (*C
 		args = []string{"-gocodecompletion"}
 	case "py":
 		cmd = "pyls"
+	case "c":
+		cmd = "cquery"
+	case "css":
+		cmd = "css-languageserver"
+		args = []string{"--stdio"}
+	case "scss":
+		cmd = "css-languageserver"
+		args = []string{"--stdio"}
+	case "html":
+		cmd = "html-languageserver"
+		args = []string{"--stdio"}
 	default:
 		cmd = "go-langserver"
 		args = []string{"-gocodecompletion"}
 	}
+	log.Infoln("new lsp client", cmd, args)
 	stream, err := NewStdinoutStream(cmd, args...)
 	if err != nil {
 		return nil, err
@@ -197,12 +237,19 @@ func NewClient(syntax string, handleNotificationFunc handleNotificationFunc) (*C
 
 // Initialize the lsp
 func (c *Client) Initialize(rootPath string) error {
-	params := map[string]string{}
+	params := map[string]interface{}{}
 	params["rootPath"] = rootPath
-	var result interface{}
+	params["capabilities"] = map[string]interface{}{
+		"workspace": map[string]interface{}{},
+	}
+	var result *InitializeResult
 	err := c.Conn.Call(context.Background(), "initialize", &params, &result)
+	if err != nil {
+		return err
+	}
+	c.ServerCapabilities = result.Capabilities
 	log.Infoln("initialize", err, result, rootPath)
-	return err
+	return nil
 }
 
 // DidOpen is
@@ -231,7 +278,7 @@ func (c *Client) DidSave(path string) error {
 func (c *Client) DidChange(didChangeParams *DidChangeParams) error {
 	var result interface{}
 	err := c.Conn.Call(context.Background(), "textDocument/didChange", didChangeParams, &result)
-	log.Infoln("did change", err, result)
+	log.Infoln("did change error", err, result)
 	return err
 }
 

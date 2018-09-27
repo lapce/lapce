@@ -2,11 +2,13 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+	"sync"
 
 	"github.com/dzhou121/crane/log"
 
@@ -21,6 +23,7 @@ import (
 type Plugin struct {
 	plugin          *plugin.Plugin
 	lsp             map[string]*lsp.Client
+	lspMutex        sync.Mutex
 	views           map[string]*plugin.View
 	conns           map[string]*jsonrpc2.Conn
 	server          *Server
@@ -91,8 +94,10 @@ func (p *Plugin) handle(req interface{}) interface{} {
 			}
 			log.Infoln("sytax is", syntax)
 			p.views[viewID] = view
+			p.lspMutex.Lock()
 			lspClient, ok := p.lsp[syntax]
 			if !ok {
+				log.Infoln("create lspClient")
 				var err error
 				lspClient, err = lsp.NewClient(syntax, p.handleNotification)
 				if err != nil {
@@ -101,14 +106,17 @@ func (p *Plugin) handle(req interface{}) interface{} {
 				}
 				dir, err := os.Getwd()
 				if err != nil {
+					log.Infoln("Getwd error", err, syntax)
 					return nil
 				}
 				err = lspClient.Initialize(dir)
 				if err != nil {
+					log.Infoln("Initialize err", err, dir, syntax)
 					return nil
 				}
 				p.lsp[syntax] = lspClient
 			}
+			p.lspMutex.Unlock()
 
 			content, err := ioutil.ReadFile(buf.Path)
 			if err != nil {
@@ -131,9 +139,11 @@ func (p *Plugin) handle(req interface{}) interface{} {
 		if !changed {
 			return 0
 		}
+		ver := int(view.Rev)
 		didChange := &lsp.DidChangeParams{
 			TextDocument: lsp.VersionedTextDocumentIdentifier{
-				URI: "file://" + view.Path,
+				URI:     "file://" + view.Path,
+				Version: &ver,
 			},
 			ContentChanges: []*lsp.ContentChange{
 				&lsp.ContentChange{
@@ -152,6 +162,14 @@ func (p *Plugin) handle(req interface{}) interface{} {
 			},
 		}
 		lspClient := p.lsp[view.Syntax]
+		if lspClient.ServerCapabilities.TextDocumentSync == 1 {
+			log.Infoln("full sync")
+			didChange.ContentChanges[0].Range = nil
+			didChange.ContentChanges[0].Text = string(view.LineCache.Raw)
+		}
+
+		bytes, _ := json.Marshal(didChange)
+		log.Infoln(string(bytes))
 		lspClient.DidChange(didChange)
 		p.complete(lspClient, view, text, deletedText, startRow, startCol)
 	}

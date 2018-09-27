@@ -1,12 +1,14 @@
 package editor
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/dzhou121/crane/log"
 	xi "github.com/dzhou121/crane/xi-client"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -216,6 +218,13 @@ func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, index int, y int, p
 		}
 		start += length
 	}
+
+	if len(line.styles) == 0 {
+		fg := b.editor.theme.Theme.Foreground
+		color.SetRgb(fg.R, fg.G, fg.B, fg.A)
+		painter.SetPen2(color)
+		painter.DrawText3(padding, y+int(font.shift), line.text)
+	}
 }
 
 func (b *Buffer) setNewLine(ix int, i int, winsMap map[int][]*Window) {
@@ -243,11 +252,138 @@ func (b *Buffer) updateScrollInBackground() {
 	}
 }
 
-func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
-	// start := time.Now()
-	// defer func() {
-	// 	fmt.Println((time.Now().Nanosecond() - start.Nanosecond()) / 1e6)
-	// }()
+func (b *Buffer) insertLine(i int, line *Line) {
+	b.lines = append(b.lines, nil)
+	copy(b.lines[i+1:], b.lines[i:])
+	b.lines[i] = line
+}
+
+func (b *Buffer) updateLines(update *xi.UpdateNotification) (int, bool) {
+	pendingNewLines := []*Line{}
+	oldIx := 0
+	newIx := 0
+	hasCopy := true
+	maxWidth := 0
+	heightChange := false
+
+	for _, item := range update.Update.Ops {
+		op := item.Op
+		n := item.N
+		// lines := len(b.lines)
+		switch op {
+		case "copy", "invalidate", "update":
+			if len(pendingNewLines) > 0 {
+				for i := 0; i < len(pendingNewLines); i++ {
+					ix := newIx - len(pendingNewLines) + i
+					if ix >= len(b.lines) {
+						b.lines = append(b.lines, pendingNewLines[i])
+					} else {
+						b.lines[ix] = pendingNewLines[i]
+					}
+				}
+			}
+
+			linesLen := len(b.lines)
+			if newIx+n > linesLen {
+				for i := 0; i < newIx+n-linesLen; i++ {
+					b.lines = append(b.lines, nil)
+				}
+			}
+
+			for i := newIx; i < newIx+n; i++ {
+				line := b.lines[i]
+				if line != nil {
+					if line.width > maxWidth {
+						maxWidth = line.width
+					}
+				}
+			}
+			oldIx += n
+			newIx += n
+		case "ins":
+			for _, line := range item.Lines {
+				newLine := &Line{
+					text:    line.Text,
+					styles:  line.Styles,
+					cursor:  line.Cursor,
+					invalid: true,
+					width:   int(b.font.fontMetrics.Size(0, strings.Replace(line.Text, "\t", b.tabStr, -1), 0, 0).Rwidth() + 0.5),
+				}
+				if newLine.width > maxWidth {
+					maxWidth = newLine.width
+				}
+				if !hasCopy {
+					if newIx < len(b.lines) {
+						b.lines[newIx] = newLine
+					} else {
+						b.lines = append(b.lines, newLine)
+					}
+				} else {
+					pendingNewLines = append(pendingNewLines, newLine)
+				}
+				newIx++
+				oldIx++
+			}
+		case "skip":
+			if hasCopy {
+				oldIx += n - len(pendingNewLines)
+
+				if n != len(pendingNewLines) {
+					heightChange = true
+				}
+
+				if n > len(pendingNewLines) {
+					log.Infoln(len(b.lines))
+					diff := n - len(pendingNewLines)
+					copy(b.lines[newIx:], b.lines[newIx+diff:])
+					b.lines = b.lines[:len(b.lines)-diff]
+					log.Infoln(len(b.lines))
+				} else {
+					diff := len(pendingNewLines) - n
+					for i := 0; i < diff; i++ {
+						b.lines = append(b.lines, nil)
+					}
+					copy(b.lines[newIx:], b.lines[newIx-diff:])
+				}
+
+				for i := 0; i < len(pendingNewLines); i++ {
+					b.lines[newIx-len(pendingNewLines)+i] = pendingNewLines[i]
+				}
+			}
+		}
+		if op == "copy" {
+			hasCopy = true
+			if len(pendingNewLines) > 0 {
+				pendingNewLines = []*Line{}
+			}
+		} else if op != "ins" {
+			hasCopy = false
+			if len(pendingNewLines) > 0 {
+				pendingNewLines = []*Line{}
+			}
+		}
+	}
+
+	if len(pendingNewLines) > 0 {
+		for i := 0; i < len(pendingNewLines); i++ {
+			ix := newIx - len(pendingNewLines) + i
+			if ix >= len(b.lines) {
+				b.lines = append(b.lines, pendingNewLines[i])
+			} else {
+				b.lines[ix] = pendingNewLines[i]
+			}
+		}
+	}
+
+	if len(b.lines) != newIx {
+		heightChange = true
+		b.lines = b.lines[:newIx]
+	}
+
+	return maxWidth, heightChange
+}
+
+func (b *Buffer) updateLinesOld(update *xi.UpdateNotification) {
 	bufWins := []*Window{}
 	winsMap := map[int][]*Window{}
 	b.editor.winsRWMutext.RLock()
@@ -266,7 +402,6 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	}
 	b.editor.winsRWMutext.RUnlock()
 
-	maxWidth := 0
 	oldIx := 0
 	newIx := 0
 	// text := ""
@@ -274,6 +409,10 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	// contentChanges := []*lsp.ContentChange{}
 	// cursors := []int{}
 	// row := 0
+	hasCopy := false
+	// previousN := 0
+	pendingN := 0
+	maxWidth := 1000
 	for _, op := range update.Update.Ops {
 		n := op.N
 		switch op.Op {
@@ -298,6 +437,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 				}
 				newIx++
 			}
+			oldIx += n
 		case "ins":
 			ix := oldIx
 			for _, line := range op.Lines {
@@ -324,6 +464,10 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 				}
 				ix++
 				newIx++
+			}
+			oldIx += n
+			if hasCopy {
+				pendingN += n
 			}
 		case "copy", "update":
 			for ix := oldIx; ix < oldIx+n; ix++ {
@@ -371,11 +515,21 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 			// 	}
 			// 	contentChanges = append(contentChanges, contentChange)
 			// }
-			oldIx += n
+			if hasCopy {
+				oldIx += n - pendingN
+			}
 			// text = ""
 		default:
 			fmt.Println("unknown op type", op.Op)
 		}
+		if op.Op == "copy" {
+			hasCopy = true
+			pendingN = 0
+		} else if op.Op != "ins" {
+			hasCopy = false
+			pendingN = 0
+		}
+		// previousN = n
 	}
 	// b.xiView.PluginRPC()
 	// if b.revision > 0 && len(contentChanges) > 0 {
@@ -394,22 +548,47 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 	if newIx < len(b.newLines) {
 		b.newLines = b.newLines[:newIx]
 	}
+	b.lines = b.newLines
+}
 
-	if len(b.newLines) != len(b.lines) || maxWidth != b.maxWidth {
+func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
+	bytes, _ := json.Marshal(update)
+	log.Infoln(string(bytes))
+	// start := time.Now()
+	// defer func() {
+	// 	fmt.Println((time.Now().Nanosecond() - start.Nanosecond()) / 1e6)
+	// }()
+	bufWins := []*Window{}
+	// winsMap := map[int][]*Window{}
+	b.editor.winsRWMutext.RLock()
+	for _, win := range b.editor.wins {
+		if win.buffer == b {
+			bufWins = append(bufWins, win)
+			// if win != b.editor.activeWin {
+			// 	wins, ok := winsMap[win.row]
+			// 	if !ok {
+			// 		wins = []*Window{}
+			// 	}
+			// 	wins = append(wins, win)
+			// 	// winsMap[win.row] = wins
+			// }
+		}
+	}
+	b.editor.winsRWMutext.RUnlock()
+
+	maxWidth, heightChange := b.updateLines(update)
+	if heightChange || maxWidth != b.maxWidth {
 		width := maxWidth
-		height := len(b.newLines) * int(b.font.lineHeight)
+		height := len(b.lines) * int(b.font.lineHeight)
 		b.width = width
 		b.widget.SetFixedSize2(width, height)
 
 		b.rect.SetWidth(float64(width))
 		b.rect.SetHeight(float64(height))
 		b.scence.SetSceneRect(b.rect)
-		// for _, win := range bufWins {
-		// 	win.view.UpdateGeometry()
-		// }
 	}
 
-	b.lines, b.newLines = b.newLines, b.lines
+	// b.lines, b.newLines = b.newLines, b.lines
 	b.maxWidth = maxWidth
 	b.revision++
 
