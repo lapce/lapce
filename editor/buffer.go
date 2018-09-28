@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -258,31 +259,49 @@ func (b *Buffer) insertLine(i int, line *Line) {
 	b.lines[i] = line
 }
 
+func (b *Buffer) updatePendingNewLines(pendingNewLines []*Line, newIx int) {
+	if len(pendingNewLines) == 0 {
+		return
+	}
+	for i := 0; i < len(pendingNewLines); i++ {
+		ix := newIx - len(pendingNewLines) + i
+		if ix >= len(b.lines) {
+			b.lines = append(b.lines, pendingNewLines[i])
+		} else {
+			b.lines[ix] = pendingNewLines[i]
+		}
+	}
+}
+
 func (b *Buffer) updateLines(update *xi.UpdateNotification) (int, bool) {
 	pendingNewLines := []*Line{}
+	pendingIx := 0
+	pendingN := 0
+	oldLen := len(b.lines)
 	oldIx := 0
 	newIx := 0
-	hasCopy := true
 	maxWidth := 0
-	heightChange := false
+
+	winsMap := map[int][]*Window{}
+	for _, win := range b.editor.wins {
+		if win.buffer == b {
+			if win != b.editor.activeWin {
+				wins, ok := winsMap[win.row]
+				if !ok {
+					wins = []*Window{}
+				}
+				wins = append(wins, win)
+				winsMap[win.row] = wins
+			}
+		}
+	}
 
 	for _, item := range update.Update.Ops {
 		op := item.Op
 		n := item.N
 		// lines := len(b.lines)
 		switch op {
-		case "copy", "invalidate", "update":
-			if len(pendingNewLines) > 0 {
-				for i := 0; i < len(pendingNewLines); i++ {
-					ix := newIx - len(pendingNewLines) + i
-					if ix >= len(b.lines) {
-						b.lines = append(b.lines, pendingNewLines[i])
-					} else {
-						b.lines[ix] = pendingNewLines[i]
-					}
-				}
-			}
-
+		case "copy", "invalidate":
 			linesLen := len(b.lines)
 			if newIx+n > linesLen {
 				for i := 0; i < newIx+n-linesLen; i++ {
@@ -292,15 +311,27 @@ func (b *Buffer) updateLines(update *xi.UpdateNotification) (int, bool) {
 
 			for i := newIx; i < newIx+n; i++ {
 				line := b.lines[i]
+				if i != i-newIx+oldIx {
+					b.setNewLine(i-newIx+oldIx, i, winsMap)
+				}
 				if line != nil {
 					if line.width > maxWidth {
 						maxWidth = line.width
 					}
 				}
 			}
-			oldIx += n
 			newIx += n
+			if op == "copy" {
+				oldIx += n
+			}
+			if op == "invalidate" {
+				pendingN += n
+			}
 		case "ins":
+			if len(pendingNewLines) == 0 {
+				pendingIx = newIx
+			}
+			pendingN += n
 			for _, line := range item.Lines {
 				newLine := &Line{
 					text:    line.Text,
@@ -312,75 +343,51 @@ func (b *Buffer) updateLines(update *xi.UpdateNotification) (int, bool) {
 				if newLine.width > maxWidth {
 					maxWidth = newLine.width
 				}
-				if !hasCopy {
-					if newIx < len(b.lines) {
-						b.lines[newIx] = newLine
-					} else {
-						b.lines = append(b.lines, newLine)
-					}
-				} else {
-					pendingNewLines = append(pendingNewLines, newLine)
-				}
+				pendingNewLines = append(pendingNewLines, newLine)
 				newIx++
-				oldIx++
 			}
 		case "skip":
-			if hasCopy {
-				oldIx += n - len(pendingNewLines)
-
-				if n != len(pendingNewLines) {
-					heightChange = true
-				}
-
-				if n > len(pendingNewLines) {
-					log.Infoln(len(b.lines))
-					diff := n - len(pendingNewLines)
+			oldIx += n
+			if pendingN != n {
+				if pendingN < n {
+					diff := n - pendingN
 					copy(b.lines[newIx:], b.lines[newIx+diff:])
 					b.lines = b.lines[:len(b.lines)-diff]
-					log.Infoln(len(b.lines))
 				} else {
-					diff := len(pendingNewLines) - n
+					diff := pendingN - n
 					for i := 0; i < diff; i++ {
 						b.lines = append(b.lines, nil)
 					}
 					copy(b.lines[newIx:], b.lines[newIx-diff:])
 				}
-
+			}
+			pendingN = 0
+			if len(pendingNewLines) > 0 {
 				for i := 0; i < len(pendingNewLines); i++ {
-					b.lines[newIx-len(pendingNewLines)+i] = pendingNewLines[i]
+					b.lines[i+pendingIx] = pendingNewLines[i]
 				}
-			}
-		}
-		if op == "copy" {
-			hasCopy = true
-			if len(pendingNewLines) > 0 {
 				pendingNewLines = []*Line{}
-			}
-		} else if op != "ins" {
-			hasCopy = false
-			if len(pendingNewLines) > 0 {
-				pendingNewLines = []*Line{}
+				pendingIx = 0
 			}
 		}
 	}
 
 	if len(pendingNewLines) > 0 {
 		for i := 0; i < len(pendingNewLines); i++ {
-			ix := newIx - len(pendingNewLines) + i
+			ix := i + pendingIx
 			if ix >= len(b.lines) {
 				b.lines = append(b.lines, pendingNewLines[i])
 			} else {
-				b.lines[ix] = pendingNewLines[i]
+				b.lines[i+pendingIx] = pendingNewLines[i]
 			}
 		}
 	}
 
 	if len(b.lines) != newIx {
-		heightChange = true
 		b.lines = b.lines[:newIx]
 	}
 
-	return maxWidth, heightChange
+	return maxWidth, oldLen != len(b.lines)
 }
 
 func (b *Buffer) updateLinesOld(update *xi.UpdateNotification) {
@@ -552,8 +559,8 @@ func (b *Buffer) updateLinesOld(update *xi.UpdateNotification) {
 }
 
 func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
-	// bytes, _ := json.Marshal(update)
-	// log.Infoln(string(bytes))
+	bytes, _ := json.Marshal(update)
+	log.Infoln(string(bytes))
 
 	// start := time.Now()
 	// defer func() {
