@@ -1,14 +1,12 @@
 package editor
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/crane-editor/crane/log"
 	xi "github.com/crane-editor/crane/xi-client"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -559,8 +557,8 @@ func (b *Buffer) updateLinesOld(update *xi.UpdateNotification) {
 }
 
 func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
-	bytes, _ := json.Marshal(update)
-	log.Infoln(string(bytes))
+	// bytes, _ := json.Marshal(update)
+	// log.Infoln(string(bytes))
 
 	// start := time.Now()
 	// defer func() {
