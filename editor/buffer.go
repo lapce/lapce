@@ -1,7 +1,6 @@
 package editor
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -553,8 +552,9 @@ func (b *Buffer) updateLinesOld(update *xi.UpdateNotification) {
 }
 
 func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
-	bytes, _ := json.Marshal(update)
-	log.Infoln(string(bytes))
+	// bytes, _ := json.Marshal(update)
+	// log.Infoln(string(bytes))
+
 	// start := time.Now()
 	// defer func() {
 	// 	fmt.Println((time.Now().Nanosecond() - start.Nanosecond()) / 1e6)
