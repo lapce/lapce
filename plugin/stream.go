@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/dzhou121/crane/log"
+	"github.com/crane-editor/crane/log"
 )
 
 // StdinoutStream is

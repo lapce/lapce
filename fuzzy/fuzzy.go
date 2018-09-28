@@ -3,7 +3,7 @@ package fuzzy
 import (
 	"unicode"
 
-	"github.com/dzhou121/crane/utils"
+	"github.com/crane-editor/crane/utils"
 )
 
 // MatchScore gets the score

@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dzhou121/crane/log"
+	"github.com/crane-editor/crane/log"
 
-	"github.com/dzhou121/crane/lsp"
-	xi "github.com/dzhou121/crane/xi-client"
+	"github.com/crane-editor/crane/lsp"
+	xi "github.com/crane-editor/crane/xi-client"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -445,7 +445,7 @@ func (e *Editor) initMainWindow() {
 	}
 	e.topFrame.children = append(e.topFrame.children, frame)
 	topWin := NewWindow(e, frame)
-	topWin.openFile("/Users/Lulu/go/src/github.com/dzhou121/crane/editor/buffer.go")
+	topWin.openFile("/Users/Lulu/go/src/github.com/crane-editor/crane/editor/buffer.go")
 	topSplitter.AddWidget(topWin.widget)
 	e.equalWins()
 

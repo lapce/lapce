@@ -6,7 +6,7 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/dzhou121/crane/log"
+	"github.com/crane-editor/crane/log"
 
 	"github.com/sourcegraph/jsonrpc2"
 )

@@ -6,7 +6,7 @@ import (
 	"io"
 	"os/exec"
 
-	"github.com/dzhou121/crane/log"
+	"github.com/crane-editor/crane/log"
 	"github.com/sourcegraph/jsonrpc2"
 )
 

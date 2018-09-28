@@ -1,6 +1,6 @@
 package main
 
-import "github.com/dzhou121/crane/lsp-plugin"
+import "github.com/crane-editor/crane/lsp-plugin"
 
 func main() {
 	plugin := plugin.NewPlugin()

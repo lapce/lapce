@@ -5,7 +5,7 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/dzhou121/crane/editor"
+	"github.com/crane-editor/crane/editor"
 )
 
 func main() {

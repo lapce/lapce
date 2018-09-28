@@ -10,12 +10,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dzhou121/crane/log"
+	"github.com/crane-editor/crane/log"
 
-	"github.com/dzhou121/crane/fuzzy"
-	"github.com/dzhou121/crane/lsp"
-	"github.com/dzhou121/crane/plugin"
-	"github.com/dzhou121/crane/utils"
+	"github.com/crane-editor/crane/fuzzy"
+	"github.com/crane-editor/crane/lsp"
+	"github.com/crane-editor/crane/plugin"
+	"github.com/crane-editor/crane/utils"
 	"github.com/sourcegraph/jsonrpc2"
 )
 

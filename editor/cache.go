@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/boltdb/bolt"
-	"github.com/dzhou121/crane/log"
+	"github.com/crane-editor/crane/log"
 )
 
 // Cache is

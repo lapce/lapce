@@ -6,10 +6,10 @@ import (
 	"net"
 	"runtime/debug"
 
-	"github.com/dzhou121/crane/log"
+	"github.com/crane-editor/crane/log"
 
-	"github.com/dzhou121/crane/lsp"
-	plugin "github.com/dzhou121/crane/lsp-plugin"
+	"github.com/crane-editor/crane/lsp"
+	plugin "github.com/crane-editor/crane/lsp-plugin"
 	"github.com/sourcegraph/jsonrpc2"
 )
 

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dzhou121/crane/log"
+	"github.com/crane-editor/crane/log"
 )
 
 func (e *Editor) executeKey(key string) {

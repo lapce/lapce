@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/dzhou121/crane/log"
-	"github.com/dzhou121/crane/lsp"
+	"github.com/crane-editor/crane/log"
+	"github.com/crane-editor/crane/lsp"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"

@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dzhou121/crane/log"
-	xi "github.com/dzhou121/crane/xi-client"
+	"github.com/crane-editor/crane/log"
+	xi "github.com/crane-editor/crane/xi-client"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
 	"github.com/therecipe/qt/widgets"

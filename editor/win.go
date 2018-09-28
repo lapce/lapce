@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/dzhou121/crane/xi-client"
+	"github.com/crane-editor/crane/xi-client"
 
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
