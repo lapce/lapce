@@ -368,3 +368,17 @@ func (p *Plugin) getWord(view *plugin.View, row, col int) (int, []rune) {
 	}
 	return 0, word
 }
+
+func (p *Plugin) getCompletionStart(view *plugin.View) int {
+	offset := view.Cache.GetOffset()
+	row, col := view.Cache.OffsetToPos(offset - 1)
+	line := view.Cache.GetLine(row)
+	log.Infoln(string(line), row, col)
+	runes := []rune(string(line))
+	for i := col; i >= 0; i-- {
+		if utils.UtfClass(runes[i]) != 2 && runes[i] != '_' {
+			return offset - (col - i)
+		}
+	}
+	return offset - col - 1
+}

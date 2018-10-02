@@ -154,11 +154,10 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if !ok {
 			return
 		}
-		start := item.TextEdit.Range.Start
 
 		els := []*plugin.El{}
 		el := &plugin.El{
-			Copy: []int{0, view.Cache.PosToOffset(start.Line, start.Character)},
+			Copy: []int{0, h.plugin.getCompletionStart(view)},
 		}
 		els = append(els, el)
 		el = &plugin.El{
