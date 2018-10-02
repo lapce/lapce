@@ -76,28 +76,22 @@ func (c *Cache) GetLine(row int) []byte {
 
 // OffsetToPos returns
 func (c *Cache) OffsetToPos(offset int) (row int, col int) {
-	log.Infoln("offset is", offset)
-
 	lastLineOffset := 0
 loop:
 	for _, lineOffset := range c.lineOffsets {
-		log.Infoln("lineOffset is", lineOffset)
 		if offset > lineOffset {
 			row++
 			lastLineOffset = lineOffset
 			continue loop
 		}
 		col = offset - lastLineOffset - 1
-		log.Infoln("pos is", row, col)
 		return
 	}
-	log.Infoln("pos is", row, col)
 	return
 }
 
 // PosToOffset returns
 func (c *Cache) PosToOffset(row, col int) int {
-	log.Infoln("pos is", row, col)
 	offset := 0
 	if row > len(c.lineOffsets) {
 		offset = len(c.content)
@@ -108,6 +102,5 @@ func (c *Cache) PosToOffset(row, col int) int {
 	}
 
 	offset += col
-	log.Infoln("offset is", offset)
 	return offset
 }

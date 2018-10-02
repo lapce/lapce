@@ -200,3 +200,19 @@ func (p *Plugin) Edit(view *View, edit *Edit) {
 	params["plugin_id"] = p.id
 	p.conn.Notify(context.Background(), "edit", params)
 }
+
+// GetData is
+func (p *Plugin) GetData(view *View, start int, unit int, maxSize int, rev uint64) {
+	params := map[string]interface{}{}
+	params["start"] = start
+	params["unit"] = unit
+	params["max_size"] = maxSize
+	params["rev"] = rev
+
+	params["view_id"] = view.ID
+	params["plugin_id"] = p.id
+	log.Infoln("start get data")
+	var result interface{}
+	err := p.conn.Call(context.Background(), "get_data", params, &result)
+	log.Infoln("get data result", result, err)
+}

@@ -201,59 +201,6 @@ func (p *Plugin) handle(req interface{}) (result interface{}, overide bool) {
 				return
 			}
 		}
-	case *plugin.Update:
-		// view := p.Views[r.ViewID]
-		// sendFull := false
-		// if len(r.Delta.Els[len(r.Delta.Els)-1].Copy) > 0 && r.NewLen != r.Delta.Els[len(r.Delta.Els)-1].Copy[1] {
-		// 	sendFull = true
-		// }
-		// startRow, startCol, endRow, endCol, text, deletedText, changed := view.ApplyUpdate(r)
-		// log.Infoln(startRow, startCol, endRow, endCol, text, deletedText, changed)
-		// if !changed {
-		// 	return 0
-		// }
-		// ver := int(view.Rev)
-		// didChange := &lsp.DidChangeParams{
-		// 	TextDocument: lsp.VersionedTextDocumentIdentifier{
-		// 		URI:     "file://" + view.Path,
-		// 		Version: &ver,
-		// 	},
-		// 	ContentChanges: []*lsp.ContentChange{
-		// 		&lsp.ContentChange{
-		// 			Range: &lsp.Range{
-		// 				Start: &lsp.Position{
-		// 					Line:      startRow,
-		// 					Character: startCol,
-		// 				},
-		// 				End: &lsp.Position{
-		// 					Line:      endRow,
-		// 					Character: endCol,
-		// 				},
-		// 			},
-		// 			Text: text,
-		// 		},
-		// 	},
-		// }
-		// if sendFull {
-		// 	log.Infoln("send full")
-		// 	didChange.ContentChanges[0].Range = nil
-		// 	didChange.ContentChanges[0].Text = string(view.LineCache.Raw)
-		// }
-		// lspClient := p.lsp[view.Syntax]
-		// if lspClient.ServerCapabilities.TextDocumentSync == 1 {
-		// 	log.Infoln("full sync")
-		// 	didChange.ContentChanges[0].Range = nil
-		// 	didChange.ContentChanges[0].Text = string(view.LineCache.Raw)
-		// }
-
-		// bytes, _ := json.Marshal(r)
-		// log.Infoln("plugin get update")
-		// log.Infoln(string(bytes))
-		// bytes, _ = json.Marshal(didChange)
-		// log.Infoln("send did change")
-		// log.Infoln(string(bytes))
-		// lspClient.DidChange(didChange)
-		// p.complete(lspClient, view, text, deletedText, startRow, startCol)
 	}
 	return
 }
