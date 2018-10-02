@@ -85,7 +85,7 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if err != nil {
 			return
 		}
-		view, ok := h.plugin.views[viewID]
+		view, ok := h.plugin.Views[viewID]
 		if !ok {
 			return
 		}
@@ -109,7 +109,7 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if err != nil {
 			return
 		}
-		view, ok := h.plugin.views[viewID]
+		view, ok := h.plugin.Views[viewID]
 		if !ok {
 			return
 		}
@@ -124,7 +124,7 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if err != nil {
 			return
 		}
-		view, ok := h.plugin.views[viewID]
+		view, ok := h.plugin.Views[viewID]
 		if !ok {
 			return
 		}
@@ -142,15 +142,15 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 	case "completion_reset":
 		h.plugin.completionItems = []*lsp.CompletionItem{}
 	case "completion_select":
-		h.plugin.plugin.Mutex.Lock()
-		defer h.plugin.plugin.Mutex.Unlock()
+		h.plugin.Mutex.Lock()
+		defer h.plugin.Mutex.Unlock()
 
 		var item *lsp.CompletionItem
 		err = json.Unmarshal(paramsData, &item)
 		if err != nil {
 			return
 		}
-		view, ok := h.plugin.views[viewID]
+		view, ok := h.plugin.Views[viewID]
 		if !ok {
 			return
 		}
@@ -158,7 +158,7 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 
 		els := []*plugin.El{}
 		el := &plugin.El{
-			Copy: []int{0, view.GetOffset(start.Line, start.Character)},
+			Copy: []int{0, view.Cache.PosToOffset(start.Line, start.Character)},
 		}
 		els = append(els, el)
 		el = &plugin.El{
@@ -166,11 +166,11 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		}
 		els = append(els, el)
 		el = &plugin.El{
-			Copy: []int{view.Offset, len(view.LineCache.Raw)},
+			Copy: []int{view.Cache.GetOffset(), len(view.Cache.GetContent())},
 		}
 		els = append(els, el)
 		delta := &plugin.Delta{
-			BaseLen: len(view.LineCache.Raw),
+			BaseLen: len(view.Cache.GetContent()),
 			Els:     els,
 		}
 		edit := &plugin.Edit{
@@ -180,9 +180,9 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 			Delta:       delta,
 			Rev:         view.Rev,
 		}
-		h.plugin.plugin.Edit(view, edit)
+		h.plugin.Edit(view, edit)
 	case "didSave":
-		view, ok := h.plugin.views[viewID]
+		view, ok := h.plugin.Views[viewID]
 		if !ok {
 			return
 		}
@@ -195,7 +195,7 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		reply := ""
 		defer conn.Reply(ctx, req.ID, reply)
 
-		view, ok := h.plugin.views[viewID]
+		view, ok := h.plugin.Views[viewID]
 		if !ok {
 			return
 		}
@@ -203,8 +203,8 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if !ok {
 			return
 		}
-		h.plugin.plugin.Mutex.Lock()
-		defer h.plugin.plugin.Mutex.Unlock()
+		h.plugin.Mutex.Lock()
+		defer h.plugin.Mutex.Unlock()
 
 		log.Infoln("now format", view.Path)
 		result, err := lspClient.Format(view.Path)
@@ -212,24 +212,45 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 			log.Infoln(err)
 			return
 		}
+		resultBytes, _ := json.Marshal(result)
+		log.Infoln(string(resultBytes))
+
+		els := []*plugin.El{}
 		for _, edit := range result {
-			log.Infoln("apply edit start")
-			xiEdit := lspEditToXi(view, edit)
-			for _, el := range xiEdit.Delta.Els {
-				log.Infoln("apply edit", el)
+			elsItems := lspEditToXi(view, edit)
+			if len(els) > 0 {
+				lastEl := els[len(els)-1]
+				lastEl.Copy[1] = elsItems[0].Copy[1]
+				elsItems = elsItems[1:]
 			}
-			h.plugin.plugin.Edit(view, xiEdit)
+			els = append(els, elsItems...)
 		}
+		if len(els) == 0 {
+			return
+		}
+		delta := &plugin.Delta{
+			BaseLen: len(view.Cache.GetContent()),
+			Els:     els,
+		}
+		xiEdit := &plugin.Edit{
+			Priority:    plugin.EditPriorityHigh,
+			AfterCursor: false,
+			Author:      "lsp",
+			Delta:       delta,
+			Rev:         view.Rev,
+		}
+		h.plugin.Edit(view, xiEdit)
 	}
 }
 
-func lspEditToXi(view *plugin.View, edit *lsp.TextEdit) *plugin.Edit {
+func lspEditToXi(view *plugin.View, edit *lsp.TextEdit) []*plugin.El {
 	start := edit.Range.Start
 	end := edit.Range.End
+	content := view.Cache.GetContent()
 
-	if start.Line == 0 && start.Character == 0 && view.GetOffset(end.Line, end.Character) == len(view.LineCache.Raw) {
+	if start.Line == 0 && start.Character == 0 && view.Cache.PosToOffset(end.Line, end.Character) == len(content) {
 		els := []*plugin.El{}
-		oldRaw := view.LineCache.Raw
+		oldRaw := content
 		newRaw := []byte(edit.NewText)
 		oldLen := len(oldRaw)
 		newLen := len(newRaw)
@@ -275,46 +296,34 @@ func lspEditToXi(view *plugin.View, edit *lsp.TextEdit) *plugin.Edit {
 
 		log.Infoln(i, j, newJ)
 		el = &plugin.El{
-			Copy: []int{j + 1, len(view.LineCache.Raw)},
+			Copy: []int{j + 1, len(content)},
 		}
 		els = append(els, el)
-		delta := &plugin.Delta{
-			BaseLen: len(view.LineCache.Raw),
-			Els:     els,
-		}
 		log.Infoln(els)
-		return &plugin.Edit{
-			Priority:    plugin.EditPriorityHigh,
-			AfterCursor: false,
-			Author:      "lsp",
-			Delta:       delta,
-			Rev:         view.Rev,
-		}
+		return els
 	}
 
 	els := []*plugin.El{}
 	el := &plugin.El{
-		Copy: []int{0, view.GetOffset(start.Line, start.Character)},
+		Copy: []int{0, view.Cache.PosToOffset(start.Line, start.Character)},
 	}
 	els = append(els, el)
-	el = &plugin.El{
-		Insert: edit.NewText,
-	}
-	els = append(els, el)
-	el = &plugin.El{
-		Copy: []int{view.GetOffset(end.Line, end.Character), len(view.LineCache.Raw)},
-	}
-	els = append(els, el)
-	delta := &plugin.Delta{
-		BaseLen: len(view.LineCache.Raw),
-		Els:     els,
+	if edit.NewText != "" {
+		el = &plugin.El{
+			Insert: edit.NewText,
+		}
+		els = append(els, el)
 	}
 
-	return &plugin.Edit{
-		Priority:    plugin.EditPriorityHigh,
-		AfterCursor: false,
-		Author:      "lsp",
-		Delta:       delta,
-		Rev:         view.Rev,
+	offset := view.Cache.PosToOffset(end.Line, end.Character)
+	if offset < len(content) {
+		el = &plugin.El{
+			Copy: []int{view.Cache.PosToOffset(end.Line, end.Character), len(content)},
+		}
+		els = append(els, el)
+	} else if len(els) == 1 {
+		els[0].Copy[1]--
 	}
+
+	return els
 }

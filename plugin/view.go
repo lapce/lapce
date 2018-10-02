@@ -29,6 +29,7 @@ type View struct {
 	Path      string
 	Syntax    string
 	LineCache *LineCache
+	Cache     *Cache
 }
 
 // SetRaw sets
@@ -174,6 +175,9 @@ func (v *View) GetOffset(row, col int) int {
 	for i := 0; i <= row; i++ {
 		if i == row {
 			offset += col
+			return offset
+		}
+		if i >= len(lines) {
 			return offset
 		}
 		offset += lines[i].length

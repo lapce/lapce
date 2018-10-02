@@ -3,7 +3,9 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"sync"
 
 	"github.com/crane-editor/crane/log"
@@ -18,12 +20,13 @@ const (
 
 // Plugin is
 type Plugin struct {
-	Views      map[string]*View
-	conn       *jsonrpc2.Conn
-	Stop       chan struct{}
-	id         int
-	handleFunc HandleFunc
-	Mutex      sync.Mutex
+	Views            map[string]*View
+	conn             *jsonrpc2.Conn
+	Stop             chan struct{}
+	id               int
+	handleFunc       HandleFunc
+	handleBeforeFunc HandleFunc
+	Mutex            sync.Mutex
 }
 
 // Config is
@@ -58,22 +61,6 @@ type Initialization struct {
 	PluginID   int           `json:"plugin_id"`
 }
 
-// Update is
-type Update struct {
-	Author string `json:"author"`
-	Delta  struct {
-		BaseLen int `json:"base_len"`
-		Els     []struct {
-			Copy   []int  `json:"copy,omitempty"`
-			Insert string `json:"insert,omitempty"`
-		} `json:"els"`
-	} `json:"delta"`
-	EditType string `json:"edit_type"`
-	NewLen   int    `json:"new_len"`
-	Rev      uint64 `json:"rev"`
-	ViewID   string `json:"view_id"`
-}
-
 // Edit is
 type Edit struct {
 	Rev         uint64 `json:"rev"`
@@ -81,22 +68,11 @@ type Edit struct {
 	Priority    uint64 `json:"priority"`
 	AfterCursor bool   `json:"after_cursor"`
 	Author      string `json:"author"`
-}
-
-// Delta is
-type Delta struct {
-	BaseLen int   `json:"base_len"`
-	Els     []*El `json:"els"`
-}
-
-// El is
-type El struct {
-	Copy   []int  `json:"copy,omitempty"`
-	Insert string `json:"insert,omitempty"`
+	NewLen      int    `json:"new_len,omitempty"`
 }
 
 // HandleFunc is
-type HandleFunc func(req interface{}) interface{}
+type HandleFunc func(req interface{}) (interface{}, bool)
 
 // NewPlugin is
 func NewPlugin() *Plugin {
@@ -111,6 +87,11 @@ func NewPlugin() *Plugin {
 // SetHandleFunc is
 func (p *Plugin) SetHandleFunc(handleFunc HandleFunc) {
 	p.handleFunc = handleFunc
+}
+
+// SetHandleBeforeFunc is
+func (p *Plugin) SetHandleBeforeFunc(handleBeforeFunc HandleFunc) {
+	p.handleBeforeFunc = handleBeforeFunc
 }
 
 // Handle incoming
@@ -159,35 +140,53 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 			p.handleFunc(initialization)
 		}
 	case "update":
+		var result interface{}
+		defer func() {
+			if result == nil {
+				result = 0
+			}
+			p.conn.Reply(context.Background(), req.ID, result)
+		}()
+
 		var update *Update
 		err := json.Unmarshal(params, &update)
 		if err != nil {
 			log.Infoln(err)
 			return
 		}
-		// p.Views[update.ViewID].LineCache.ApplyUpdate(update)
-		var result interface{}
-		result = 0
+
+		if p.handleBeforeFunc != nil {
+			var overide bool
+			result, overide = p.handleBeforeFunc(update)
+			if overide {
+				return
+			}
+		}
+
+		p.Views[update.ViewID].Cache.ApplyUpdate(update)
+
 		if p.handleFunc != nil {
-			result = p.handleFunc(update)
+			result, _ = p.handleFunc(update)
 		}
-		if result == nil {
-			result = 0
-		}
-		p.conn.Reply(context.Background(), req.ID, result)
 	}
 	log.Infoln("handle done")
 }
 
 func (p *Plugin) initBuf(buf *BufferInfo) {
-	lineCache := &LineCache{
-		ViewID: buf.Views[0],
+	// lineCache := &LineCache{
+	// 	ViewID: buf.Views[0],
+	// }
+	syntax := filepath.Ext(buf.Path)
+	if strings.HasPrefix(syntax, ".") {
+		syntax = string(syntax[1:])
 	}
 	for _, viewID := range buf.Views {
 		p.Views[viewID] = &View{
-			ID:        viewID,
-			Path:      buf.Path,
-			LineCache: lineCache,
+			ID:     viewID,
+			Path:   buf.Path,
+			Syntax: syntax,
+			Cache:  &Cache{},
+			// LineCache: lineCache,
 		}
 	}
 }

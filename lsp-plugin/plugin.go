@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"runtime/debug"
-	"strings"
 	"sync"
 
 	"github.com/crane-editor/crane/log"
@@ -21,10 +19,9 @@ import (
 
 // Plugin is
 type Plugin struct {
-	plugin          *plugin.Plugin
+	*plugin.Plugin
 	lsp             map[string]*lsp.Client
 	lspMutex        sync.Mutex
-	views           map[string]*plugin.View
 	conns           map[string]*jsonrpc2.Conn
 	server          *Server
 	completionItems []*lsp.CompletionItem
@@ -34,12 +31,12 @@ type Plugin struct {
 // NewPlugin is
 func NewPlugin() *Plugin {
 	p := &Plugin{
-		plugin: plugin.NewPlugin(),
+		Plugin: plugin.NewPlugin(),
 		lsp:    map[string]*lsp.Client{},
-		views:  map[string]*plugin.View{},
 		conns:  map[string]*jsonrpc2.Conn{},
 	}
-	p.plugin.SetHandleFunc(p.handle)
+	p.SetHandleBeforeFunc(p.handleBefore)
+	p.SetHandleFunc(p.handle)
 	return p
 }
 
@@ -58,7 +55,7 @@ func (p *Plugin) Run() {
 		}
 		server.run()
 	}()
-	<-p.plugin.Stop
+	<-p.Stop
 }
 
 func (p *Plugin) handleNotification(notification interface{}) {
@@ -70,74 +67,18 @@ func (p *Plugin) handleNotification(notification interface{}) {
 	}
 }
 
-func (p *Plugin) handle(req interface{}) interface{} {
+func (p *Plugin) handleBefore(req interface{}) (result interface{}, overide bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Infoln("handle error", r, string(debug.Stack()))
 		}
 	}()
 	switch r := req.(type) {
-	case *plugin.Initialization:
-		for _, buf := range r.BufferInfo {
-			syntax := filepath.Ext(buf.Path)
-			if strings.HasPrefix(syntax, ".") {
-				syntax = string(syntax[1:])
-			}
-			viewID := buf.Views[0]
-			view := &plugin.View{
-				ID:     viewID,
-				Path:   buf.Path,
-				Syntax: syntax,
-				LineCache: &plugin.LineCache{
-					ViewID: viewID,
-				},
-			}
-			log.Infoln("sytax is", syntax)
-			p.views[viewID] = view
-			p.lspMutex.Lock()
-			lspClient, ok := p.lsp[syntax]
-			if !ok {
-				log.Infoln("create lspClient")
-				var err error
-				lspClient, err = lsp.NewClient(syntax, p.handleNotification)
-				if err != nil {
-					log.Infoln("err new lsp client", err, "sytax is", syntax)
-					return nil
-				}
-				dir, err := os.Getwd()
-				if err != nil {
-					log.Infoln("Getwd error", err, syntax)
-					return nil
-				}
-				err = lspClient.Initialize(dir)
-				if err != nil {
-					log.Infoln("Initialize err", err, dir, syntax)
-					return nil
-				}
-				p.lsp[syntax] = lspClient
-			}
-			p.lspMutex.Unlock()
-
-			content, err := ioutil.ReadFile(buf.Path)
-			if err != nil {
-				log.Infoln("err read file content", err)
-				return nil
-			}
-			log.Infoln("now set raw content")
-			view.SetRaw(content)
-			log.Infoln("set raw content done", buf.Path)
-			err = lspClient.DidOpen(buf.Path, string(content))
-			log.Infoln("did open done")
-			if err != nil {
-				return nil
-			}
-		}
 	case *plugin.Update:
-		view := p.views[r.ViewID]
-		startRow, startCol, endRow, endCol, text, deletedText, changed := view.ApplyUpdate(r)
-		log.Infoln(startRow, startCol, endRow, endCol, text, deletedText, changed)
-		if !changed {
-			return 0
+		overide = true
+		view, ok := p.Views[r.ViewID]
+		if !ok {
+			return
 		}
 		ver := int(view.Rev)
 		didChange := &lsp.DidChangeParams{
@@ -146,34 +87,175 @@ func (p *Plugin) handle(req interface{}) interface{} {
 				Version: &ver,
 			},
 			ContentChanges: []*lsp.ContentChange{
-				&lsp.ContentChange{
-					Range: &lsp.Range{
-						Start: &lsp.Position{
-							Line:      startRow,
-							Character: startCol,
-						},
-						End: &lsp.Position{
-							Line:      endRow,
-							Character: endCol,
-						},
-					},
-					Text: text,
-				},
+				&lsp.ContentChange{},
 			},
 		}
-		lspClient := p.lsp[view.Syntax]
-		if lspClient.ServerCapabilities.TextDocumentSync == 1 {
-			log.Infoln("full sync")
-			didChange.ContentChanges[0].Range = nil
-			didChange.ContentChanges[0].Text = string(view.LineCache.Raw)
-		}
 
+		change := didChange.ContentChanges[0]
+		full := false
+		lspClient := p.lsp[view.Syntax]
+		startRow := 0
+		startCol := 0
+		newText := ""
+		deletedText := ""
+		if r.IsSimpleInsert() {
+			els := r.Delta.Els
+			startRow, startCol = view.Cache.OffsetToPos(els[0].Copy[1])
+			endRow, endCol := view.Cache.OffsetToPos(els[2].Copy[0])
+			change.Range = &lsp.Range{
+				Start: &lsp.Position{
+					Line:      startRow,
+					Character: startCol,
+				},
+				End: &lsp.Position{
+					Line:      endRow,
+					Character: endCol,
+				},
+			}
+			change.Text = els[1].Insert
+			newText = els[1].Insert
+		} else if r.IsSimpleDelete() {
+			els := r.Delta.Els
+			startRow, startCol = view.Cache.OffsetToPos(els[0].Copy[1])
+			endRow, endCol := view.Cache.OffsetToPos(els[1].Copy[0])
+			change.Range = &lsp.Range{
+				Start: &lsp.Position{
+					Line:      startRow,
+					Character: startCol,
+				},
+				End: &lsp.Position{
+					Line:      endRow,
+					Character: endCol,
+				},
+			}
+			deletedText = string(view.Cache.GetChunk(els[0].Copy[1], els[1].Copy[0]))
+		} else {
+			full = true
+		}
+		view.Cache.ApplyUpdate(r)
+		if lspClient.ServerCapabilities.TextDocumentSync == 1 {
+			full = true
+		}
+		if full {
+			change.Range = nil
+			change.RangeLength = nil
+			change.Text = string(view.Cache.GetContent())
+		}
 		bytes, _ := json.Marshal(didChange)
+		log.Infoln("send did change")
 		log.Infoln(string(bytes))
 		lspClient.DidChange(didChange)
-		p.complete(lspClient, view, text, deletedText, startRow, startCol)
+		p.complete(lspClient, view, newText, deletedText, startRow, startCol)
 	}
-	return 0
+	return
+}
+
+func (p *Plugin) handle(req interface{}) (result interface{}, overide bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Infoln("handle error", r, string(debug.Stack()))
+		}
+	}()
+	switch r := req.(type) {
+	case *plugin.Initialization:
+		for _, buf := range r.BufferInfo {
+			viewID := buf.Views[0]
+			view := p.Views[viewID]
+			syntax := view.Syntax
+			log.Infoln("syntax is", syntax)
+			p.lspMutex.Lock()
+			lspClient, ok := p.lsp[syntax]
+			if !ok {
+				log.Infoln("create lspClient")
+				var err error
+				lspClient, err = lsp.NewClient(syntax, p.handleNotification)
+				if err != nil {
+					log.Infoln("err new lsp client", err, "sytax is", syntax)
+					return
+				}
+				dir, err := os.Getwd()
+				if err != nil {
+					log.Infoln("Getwd error", err, syntax)
+					return
+				}
+				err = lspClient.Initialize(dir)
+				if err != nil {
+					log.Infoln("Initialize err", err, dir, syntax)
+					return
+				}
+				p.lsp[syntax] = lspClient
+			}
+			p.lspMutex.Unlock()
+
+			content, err := ioutil.ReadFile(buf.Path)
+			if err != nil {
+				log.Infoln("err read file content", err)
+				return
+			}
+			log.Infoln("now set raw content")
+			view.Cache.SetContent(content)
+			log.Infoln("set raw content done", buf.Path)
+			err = lspClient.DidOpen(buf.Path, string(content))
+			log.Infoln("did open done")
+			if err != nil {
+				return
+			}
+		}
+	case *plugin.Update:
+		// view := p.Views[r.ViewID]
+		// sendFull := false
+		// if len(r.Delta.Els[len(r.Delta.Els)-1].Copy) > 0 && r.NewLen != r.Delta.Els[len(r.Delta.Els)-1].Copy[1] {
+		// 	sendFull = true
+		// }
+		// startRow, startCol, endRow, endCol, text, deletedText, changed := view.ApplyUpdate(r)
+		// log.Infoln(startRow, startCol, endRow, endCol, text, deletedText, changed)
+		// if !changed {
+		// 	return 0
+		// }
+		// ver := int(view.Rev)
+		// didChange := &lsp.DidChangeParams{
+		// 	TextDocument: lsp.VersionedTextDocumentIdentifier{
+		// 		URI:     "file://" + view.Path,
+		// 		Version: &ver,
+		// 	},
+		// 	ContentChanges: []*lsp.ContentChange{
+		// 		&lsp.ContentChange{
+		// 			Range: &lsp.Range{
+		// 				Start: &lsp.Position{
+		// 					Line:      startRow,
+		// 					Character: startCol,
+		// 				},
+		// 				End: &lsp.Position{
+		// 					Line:      endRow,
+		// 					Character: endCol,
+		// 				},
+		// 			},
+		// 			Text: text,
+		// 		},
+		// 	},
+		// }
+		// if sendFull {
+		// 	log.Infoln("send full")
+		// 	didChange.ContentChanges[0].Range = nil
+		// 	didChange.ContentChanges[0].Text = string(view.LineCache.Raw)
+		// }
+		// lspClient := p.lsp[view.Syntax]
+		// if lspClient.ServerCapabilities.TextDocumentSync == 1 {
+		// 	log.Infoln("full sync")
+		// 	didChange.ContentChanges[0].Range = nil
+		// 	didChange.ContentChanges[0].Text = string(view.LineCache.Raw)
+		// }
+
+		// bytes, _ := json.Marshal(r)
+		// log.Infoln("plugin get update")
+		// log.Infoln(string(bytes))
+		// bytes, _ = json.Marshal(didChange)
+		// log.Infoln("send did change")
+		// log.Infoln(string(bytes))
+		// lspClient.DidChange(didChange)
+		// p.complete(lspClient, view, text, deletedText, startRow, startCol)
+	}
+	return
 }
 
 func (p *Plugin) signature(lspClient *lsp.Client, view *plugin.View, text string, deletedText string, startRow int, startCol int) {
@@ -328,8 +410,8 @@ func (p *Plugin) matchCompletionItems(items []*lsp.CompletionItem, word []rune) 
 }
 
 func (p *Plugin) getWord(view *plugin.View, row, col int) (int, []rune) {
-	line := view.LineCache.Lines[row]
-	runes := []rune(line.Text)
+	line := view.Cache.GetLine(row)
+	runes := []rune(string(line))
 	word := []rune{}
 	for i := col; i >= 0; i-- {
 		if utils.UtfClass(runes[i]) != 2 {

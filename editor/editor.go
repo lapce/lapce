@@ -445,7 +445,7 @@ func (e *Editor) initMainWindow() {
 	}
 	e.topFrame.children = append(e.topFrame.children, frame)
 	topWin := NewWindow(e, frame)
-	topWin.openFile("/Users/Lulu/go/src/github.com/crane-editor/crane/editor/buffer.go")
+	topWin.openFile("/Users/Lulu/Downloads/test.go")
 	topSplitter.AddWidget(topWin.widget)
 	e.equalWins()
 
