@@ -249,7 +249,6 @@ func (e *Editor) save() {
 	go func() {
 		e.lspClient.format(e.activeWin.buffer)
 		e.activeWin.buffer.xiView.Save()
-		e.lspClient.didSave(e.activeWin.buffer)
 	}()
 }
 

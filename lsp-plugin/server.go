@@ -180,16 +180,6 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 			Rev:         view.Rev,
 		}
 		h.plugin.Edit(view, edit)
-	case "didSave":
-		view, ok := h.plugin.Views[viewID]
-		if !ok {
-			return
-		}
-		lspClient, ok := h.plugin.lsp[view.Syntax]
-		if !ok {
-			return
-		}
-		lspClient.DidSave(view.Path)
 	case "format":
 		reply := ""
 		defer conn.Reply(ctx, req.ID, reply)

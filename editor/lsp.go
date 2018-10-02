@@ -120,13 +120,6 @@ func (l *LspClient) format(buffer *Buffer) {
 	l.conn.Call(context.Background(), "format", nil, &result, jsonrpc2.Meta(meta))
 }
 
-func (l *LspClient) didSave(buffer *Buffer) {
-	meta := map[string]string{
-		"view_id": buffer.xiView.ID,
-	}
-	l.conn.Notify(context.Background(), "didSave", nil, jsonrpc2.Meta(meta))
-}
-
 func (l *LspClient) completion(buffer *Buffer, row int, col int) {
 	params := &lsp.TextDocumentPositionParams{
 		TextDocument: lsp.TextDocumentIdentifier{

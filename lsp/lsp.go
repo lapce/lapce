@@ -204,7 +204,7 @@ func NewClient(syntax string, handleNotificationFunc handleNotificationFunc) (*C
 	switch syntax {
 	case "go":
 		cmd = "go-langserver"
-		args = []string{"-gocodecompletion"}
+		args = []string{"-gocodecompletion", "-lint-tool", "golint"}
 	case "py":
 		cmd = "pyls"
 	case "c":
@@ -271,6 +271,7 @@ func (c *Client) DidSave(path string) error {
 	params := map[string]interface{}{}
 	params["textDocument"] = textDocument
 	err := c.Conn.Notify(context.Background(), "textDocument/didSave", &params)
+	log.Infoln("lsp send didSave")
 	return err
 }
 

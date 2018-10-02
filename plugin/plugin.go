@@ -61,6 +61,12 @@ type Initialization struct {
 	PluginID   int           `json:"plugin_id"`
 }
 
+// DidSave is
+type DidSave struct {
+	ViewID string `json:"view_id"`
+	Path   string `json:"path"`
+}
+
 // Edit is
 type Edit struct {
 	Rev         uint64 `json:"rev"`
@@ -138,6 +144,16 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 		}
 		if p.handleFunc != nil {
 			p.handleFunc(initialization)
+		}
+	case "did_save":
+		var didSave *DidSave
+		err := json.Unmarshal(params, &didSave)
+		if err != nil {
+			log.Infoln(err)
+			return
+		}
+		if p.handleFunc != nil {
+			p.handleFunc(didSave)
 		}
 	case "update":
 		var result interface{}

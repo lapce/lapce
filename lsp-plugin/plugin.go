@@ -201,6 +201,16 @@ func (p *Plugin) handle(req interface{}) (result interface{}, overide bool) {
 				return
 			}
 		}
+	case *plugin.DidSave:
+		view, ok := p.Views[r.ViewID]
+		if !ok {
+			return
+		}
+		lspClient, ok := p.lsp[view.Syntax]
+		if !ok {
+			return
+		}
+		lspClient.DidSave(view.Path)
 	}
 	return
 }
