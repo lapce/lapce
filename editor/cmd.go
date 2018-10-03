@@ -259,23 +259,34 @@ func (e *Editor) redo() {
 func (e *Editor) search() {
 	win := e.activeWin
 	buffer := win.buffer
+	text := ""
 	if e.selection {
-		if e.mode == Normal {
-			e.states[Normal].(*NormalState).cancelVisual(false)
-		}
-		buffer.xiView.Find("")
-		buffer.xiView.FindNext(true)
+		text = buffer.xiView.Copy()
+		e.states[Normal].(*NormalState).cancelVisual(true)
+	} else {
+		text = win.wordUnderCursor()
+	}
+	if text == "" {
 		return
 	}
-	word := win.wordUnderCursor()
-	if word != "" {
-		buffer.xiView.Find(word)
-		buffer.xiView.FindNext(true)
-	}
+	e.findString = text
+	e.findNext()
 }
 
 func (e *Editor) findNext() {
+	if e.findString == "" {
+		return
+	}
+	e.activeWin.buffer.xiView.Find(e.findString)
 	e.activeWin.buffer.xiView.FindNext(false)
+}
+
+func (e *Editor) findPrevious() {
+	if e.findString == "" {
+		return
+	}
+	e.activeWin.buffer.xiView.Find(e.findString)
+	e.activeWin.buffer.xiView.FindPrevious(false)
 }
 
 func (e *Editor) delForward() {
@@ -585,7 +596,7 @@ func (e *Editor) getFilePaletteItems() []*PaletteItem {
 }
 
 func (e *Editor) searchLines() {
-	e.palette.run("#")
+	e.palette.run("/")
 }
 
 func (e *Editor) yank() {

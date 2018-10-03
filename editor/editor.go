@@ -105,7 +105,8 @@ type Editor struct {
 
 	smoothScroll bool
 
-	register string
+	register   string
+	findString string
 }
 
 type editorSignal struct {

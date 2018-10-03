@@ -26,7 +26,7 @@ const (
 	PaletteNone    = ":none"
 	PaletteCwd     = ">"
 	PaletteCommand = ":"
-	PaletteLine    = "#"
+	PaletteLine    = "/"
 	PaletteFile    = ""
 	PaletteThemes  = ":themes"
 )
@@ -563,7 +563,10 @@ func (p *Palette) executeItem() *PaletteItem {
 		row := item.lineNumber - 1
 		col := 0
 		win.verticalScrollBar.SetValue(row*int(win.buffer.font.lineHeight) - win.frame.height*2/3)
-		win.setPos(row, col, false)
+		win.setPos(row, col, true)
+
+		input := string(p.inputText[1:])
+		p.editor.findString = input
 	case PaletteThemes:
 		p.editor.changeTheme(item.description)
 	case PaletteFile:

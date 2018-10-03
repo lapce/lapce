@@ -79,6 +79,10 @@ func (l *LspClient) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrp
 }
 
 func (l *LspClient) definition(buffer *Buffer, row int, col int) {
+	if l == nil {
+		return
+	}
+
 	pos := lsp.Position{
 		Line:      row,
 		Character: col,

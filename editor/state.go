@@ -90,8 +90,9 @@ func newNormalState(e *Editor) State {
 		"u":     e.undo,
 		"<C-r>": e.redo,
 		"*":     e.search,
-		"#":     e.searchLines,
+		"/":     e.searchLines,
 		"n":     e.findNext,
+		"N":     e.findPrevious,
 		"x":     e.delForward,
 		"s":     s.substitute,
 	}

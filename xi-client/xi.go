@@ -765,12 +765,35 @@ func (v *View) CancelOperation() {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// SelectionForFind finds
+func (v *View) SelectionForFind() {
+	params := map[string]interface{}{}
+	params["case_sensitive"] = false
+
+	cmd := &EditCommand{
+		Method: "selection_for_find",
+		ViewID: v.ID,
+		Params: params,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// FindAll finds
+func (v *View) FindAll() {
+	params := map[string]interface{}{}
+
+	cmd := &EditCommand{
+		Method: "find_all",
+		ViewID: v.ID,
+		Params: params,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
 // Find finds
 func (v *View) Find(chars string) {
 	params := map[string]interface{}{}
-	if chars != "" {
-		params["chars"] = chars
-	}
+	params["chars"] = chars
 	params["case_sensitive"] = false
 
 	cmd := &EditCommand{
@@ -789,6 +812,33 @@ func (v *View) FindNext(allowSame bool) {
 
 	cmd := &EditCommand{
 		Method: "find_next",
+		ViewID: v.ID,
+		Params: params,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// HighlightFind finds
+func (v *View) HighlightFind(visible bool) {
+	params := map[string]interface{}{}
+	params["visible"] = visible
+
+	cmd := &EditCommand{
+		Method: "highlight_find",
+		ViewID: v.ID,
+		Params: params,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// FindPrevious finds
+func (v *View) FindPrevious(allowSame bool) {
+	params := map[string]interface{}{}
+	params["wrap_around"] = true
+	params["allow_same"] = allowSame
+
+	cmd := &EditCommand{
+		Method: "find_previous",
 		ViewID: v.ID,
 		Params: params,
 	}
