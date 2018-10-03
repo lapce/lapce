@@ -48,14 +48,12 @@ func (p *Plugin) Run() {
 	}
 	log.Base().SetOutput(file)
 	log.Infoln("now start to run")
-	go func() {
-		server, err := newServer(p)
-		if err != nil {
-			return
-		}
-		server.run()
-	}()
-	<-p.Stop
+
+	<-p.Conn.DisconnectNotify()
+
+	if p.server != nil {
+		p.server.close()
+	}
 }
 
 func (p *Plugin) handleNotification(notification interface{}) {
@@ -80,11 +78,9 @@ func (p *Plugin) handleBefore(req interface{}) (result interface{}, overide bool
 		if !ok {
 			return
 		}
-		ver := int(view.Rev)
 		didChange := &lsp.DidChangeParams{
 			TextDocument: lsp.VersionedTextDocumentIdentifier{
-				URI:     "file://" + view.Path,
-				Version: &ver,
+				URI: "file://" + view.Path,
 			},
 			ContentChanges: []*lsp.ContentChange{
 				&lsp.ContentChange{},
@@ -132,6 +128,7 @@ func (p *Plugin) handleBefore(req interface{}) (result interface{}, overide bool
 		} else {
 			full = true
 		}
+		view.Rev = r.Rev
 		view.Cache.ApplyUpdate(r)
 		if lspClient.ServerCapabilities.TextDocumentSync == 1 {
 			full = true
@@ -164,6 +161,7 @@ func (p *Plugin) handle(req interface{}) (result interface{}, overide bool) {
 			syntax := view.Syntax
 			log.Infoln("syntax is", syntax)
 			p.lspMutex.Lock()
+			defer p.lspMutex.Unlock()
 			lspClient, ok := p.lsp[syntax]
 			if !ok {
 				log.Infoln("create lspClient")
@@ -185,7 +183,6 @@ func (p *Plugin) handle(req interface{}) (result interface{}, overide bool) {
 				}
 				p.lsp[syntax] = lspClient
 			}
-			p.lspMutex.Unlock()
 
 			content, err := ioutil.ReadFile(buf.Path)
 			if err != nil {
@@ -211,6 +208,23 @@ func (p *Plugin) handle(req interface{}) (result interface{}, overide bool) {
 			return
 		}
 		lspClient.DidSave(view.Path)
+	case *plugin.CustomCommand:
+		log.Infoln("got CustomCommand")
+		if r.Method == "start_server" {
+			params, ok := r.Params.(map[string]interface{})
+			if ok {
+				addrInterface, ok := params["address"]
+				if ok {
+					addr, ok := addrInterface.(string)
+					if ok {
+						server, err := newServer(p, addr)
+						if err == nil {
+							go server.run()
+						}
+					}
+				}
+			}
+		}
 	}
 	return
 }

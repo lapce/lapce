@@ -3,6 +3,7 @@ package lsp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/crane-editor/crane/log"
 
@@ -219,8 +220,7 @@ func NewClient(syntax string, handleNotificationFunc handleNotificationFunc) (*C
 		cmd = "html-languageserver"
 		args = []string{"--stdio"}
 	default:
-		cmd = "go-langserver"
-		args = []string{"-gocodecompletion"}
+		return nil, errors.New("syntax " + syntax + " lsp not supported")
 	}
 	log.Infoln("new lsp client", cmd, args)
 	stream, err := NewStdinoutStream(cmd, args...)

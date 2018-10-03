@@ -21,7 +21,7 @@ const (
 // Plugin is
 type Plugin struct {
 	Views            map[string]*View
-	conn             *jsonrpc2.Conn
+	Conn             *jsonrpc2.Conn
 	Stop             chan struct{}
 	id               int
 	handleFunc       HandleFunc
@@ -55,6 +55,12 @@ type BufferInfo struct {
 	Views    []string `json:"views"`
 }
 
+// CustomCommand is
+type CustomCommand struct {
+	Method string      `json:"method"`
+	Params interface{} `json:"params"`
+}
+
 // Initialization is
 type Initialization struct {
 	BufferInfo []*BufferInfo `json:"buffer_info"`
@@ -86,7 +92,7 @@ func NewPlugin() *Plugin {
 		Stop:  make(chan struct{}),
 		Views: map[string]*View{},
 	}
-	p.conn = jsonrpc2.NewConn(context.Background(), NewStdinoutStream(), p)
+	p.Conn = jsonrpc2.NewConn(context.Background(), NewStdinoutStream(), p)
 	return p
 }
 
@@ -117,6 +123,16 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 	}
 	log.Infoln("now handle", req.ID, req.Method, string(params))
 	switch req.Method {
+	case "custom_command":
+		var cmd *CustomCommand
+		err := json.Unmarshal(params, &cmd)
+		if err != nil {
+			log.Infoln(err)
+			return
+		}
+		if p.handleFunc != nil {
+			p.handleFunc(cmd)
+		}
 	case "initialize":
 		var initialization *Initialization
 		err := json.Unmarshal(params, &initialization)
@@ -161,7 +177,7 @@ func (p *Plugin) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.
 			if result == nil {
 				result = 0
 			}
-			p.conn.Reply(context.Background(), req.ID, result)
+			p.Conn.Reply(context.Background(), req.ID, result)
 		}()
 
 		var update *Update
@@ -214,7 +230,7 @@ func (p *Plugin) Edit(view *View, edit *Edit) {
 	// params["msg"] = 0
 	params["view_id"] = view.ID
 	params["plugin_id"] = p.id
-	p.conn.Notify(context.Background(), "edit", params)
+	p.Conn.Notify(context.Background(), "edit", params)
 }
 
 // GetData is
@@ -229,6 +245,6 @@ func (p *Plugin) GetData(view *View, start int, unit int, maxSize int, rev uint6
 	params["plugin_id"] = p.id
 	log.Infoln("start get data")
 	var result interface{}
-	err := p.conn.Call(context.Background(), "get_data", params, &result)
+	err := p.Conn.Call(context.Background(), "get_data", params, &result)
 	log.Infoln("get data result", result, err)
 }

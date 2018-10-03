@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/crane-editor/crane/log"
 	xi "github.com/crane-editor/crane/xi-client"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/gui"
@@ -107,6 +108,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 		pristine: true,
 		inited:   make(chan struct{}),
 	}
+	log.Infoln("open path", path)
 	buffer.xiView, _ = editor.xi.NewView(path)
 	buffer.scence.ConnectMousePressEvent(func(event *widgets.QGraphicsSceneMouseEvent) {
 		scencePos := event.ScenePos()
@@ -309,8 +311,8 @@ func (b *Buffer) updateLines(update *xi.UpdateNotification) (int, bool) {
 
 			for i := newIx; i < newIx+n; i++ {
 				line := b.lines[i]
-				if i != i-newIx+oldIx {
-					b.setNewLine(i-newIx+oldIx, i, winsMap)
+				if i != i-newIx+oldIx+pendingN {
+					b.setNewLine(i-newIx+oldIx+pendingN, i, winsMap)
 				}
 				if line != nil {
 					if line.width > maxWidth {
@@ -386,174 +388,6 @@ func (b *Buffer) updateLines(update *xi.UpdateNotification) (int, bool) {
 	}
 
 	return maxWidth, oldLen != len(b.lines)
-}
-
-func (b *Buffer) updateLinesOld(update *xi.UpdateNotification) {
-	bufWins := []*Window{}
-	winsMap := map[int][]*Window{}
-	b.editor.winsRWMutext.RLock()
-	for _, win := range b.editor.wins {
-		if win.buffer == b {
-			bufWins = append(bufWins, win)
-			if win != b.editor.activeWin {
-				wins, ok := winsMap[win.row]
-				if !ok {
-					wins = []*Window{}
-				}
-				wins = append(wins, win)
-				winsMap[win.row] = wins
-			}
-		}
-	}
-	b.editor.winsRWMutext.RUnlock()
-
-	oldIx := 0
-	newIx := 0
-	// text := ""
-	// oldText := ""
-	// contentChanges := []*lsp.ContentChange{}
-	// cursors := []int{}
-	// row := 0
-	hasCopy := false
-	// previousN := 0
-	pendingN := 0
-	maxWidth := 1000
-	for _, op := range update.Update.Ops {
-		n := op.N
-		switch op.Op {
-		case "invalidate":
-			for ix := oldIx; ix < oldIx+n; ix++ {
-				var line *Line
-				if ix < len(b.lines) {
-					line = b.lines[ix]
-				}
-				if newIx < len(b.newLines) {
-					b.newLines[newIx] = line
-				} else {
-					b.newLines = append(b.newLines, line)
-				}
-				if line != nil {
-					line.invalid = true
-					b.setNewLine(ix, newIx, winsMap)
-					// text += line.text
-					if line.width > maxWidth {
-						maxWidth = line.width
-					}
-				}
-				newIx++
-			}
-			oldIx += n
-		case "ins":
-			ix := oldIx
-			for _, line := range op.Lines {
-				// if len(line.Cursor) > 0 {
-				// 	row = newIx
-				// 	cursors = append(cursors, line.Cursor...)
-				// }
-				newLine := &Line{
-					text:    line.Text,
-					styles:  line.Styles,
-					cursor:  line.Cursor,
-					invalid: true,
-					width:   int(b.font.fontMetrics.Size(0, strings.Replace(line.Text, "\t", b.tabStr, -1), 0, 0).Rwidth() + 0.5),
-				}
-				if newIx < len(b.newLines) {
-					b.newLines[newIx] = newLine
-				} else {
-					b.newLines = append(b.newLines, newLine)
-				}
-				b.setNewLine(ix, newIx, winsMap)
-				// text += line.Text
-				if newLine.width > maxWidth {
-					maxWidth = newLine.width
-				}
-				ix++
-				newIx++
-			}
-			oldIx += n
-			if hasCopy {
-				pendingN += n
-			}
-		case "copy", "update":
-			for ix := oldIx; ix < oldIx+n; ix++ {
-				var line *Line
-				if ix < len(b.lines) {
-					line = b.lines[ix]
-				}
-				if line != nil && op.Op == "update" {
-					opLine := op.Lines[ix-oldIx]
-					line.styles = opLine.Styles
-					line.cursor = opLine.Cursor
-					line.invalid = true
-				}
-				if newIx < len(b.newLines) {
-					b.newLines[newIx] = line
-				} else {
-					b.newLines = append(b.newLines, line)
-				}
-				if newIx != ix {
-					if line != nil {
-						line.invalid = true
-					}
-					b.setNewLine(ix, newIx, winsMap)
-				}
-				if line != nil {
-					if line.width > maxWidth {
-						maxWidth = line.width
-					}
-				}
-				newIx++
-			}
-			oldIx += n
-		case "skip":
-			// oldText = ""
-			// for i := oldIx; i < oldIx+n; i++ {
-			// 	oldText += b.lines[i].text
-			// }
-			// if oldText != text {
-			// 	contentChange := &lsp.ContentChange{
-			// 		Range: &lsp.Range{
-			// 			Start: &lsp.Position{oldIx, 0},
-			// 			End:   &lsp.Position{oldIx + n, 0},
-			// 		},
-			// 		Text: text,
-			// 	}
-			// 	contentChanges = append(contentChanges, contentChange)
-			// }
-			if hasCopy {
-				oldIx += n - pendingN
-			}
-			// text = ""
-		default:
-			fmt.Println("unknown op type", op.Op)
-		}
-		if op.Op == "copy" {
-			hasCopy = true
-			pendingN = 0
-		} else if op.Op != "ins" {
-			hasCopy = false
-			pendingN = 0
-		}
-		// previousN = n
-	}
-	// b.xiView.PluginRPC()
-	// if b.revision > 0 && len(contentChanges) > 0 {
-	// 	if b.editor.mode == Insert && len(contentChanges) == 1 && len(cursors) == 1 {
-	// 		col := cursors[0]
-	// 		if col > 0 {
-	// 			if utfClass(rune(b.newLines[row].text[col-1])) == 2 {
-	// 				if b.editor.lspClient != nil {
-	// 					// go b.editor.lspClient.completion(b, row, col)
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	if newIx < len(b.newLines) {
-		b.newLines = b.newLines[:newIx]
-	}
-	b.lines = b.newLines
 }
 
 func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {

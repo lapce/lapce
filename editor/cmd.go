@@ -588,8 +588,76 @@ func (e *Editor) searchLines() {
 	e.palette.run("#")
 }
 
+func (e *Editor) yank() {
+	text := e.activeWin.buffer.xiView.Copy()
+	e.register = text
+	e.states[Normal].(*NormalState).cancelVisual(true)
+}
+
+func (e *Editor) paste() {
+	if e.register != "" {
+		e.activeWin.buffer.xiView.Insert(e.register)
+	}
+}
+
+func (e *Editor) copy() {
+	e.activeWin.buffer.xiView.Copy()
+}
+
+func (e *Editor) changePwd() {
+	e.palette.run(">")
+}
+
 func (e *Editor) quickOpen() {
 	e.palette.run("")
+}
+
+func (e *Editor) getFoldersPaletteItemsChan() chan *PaletteItem {
+	itemsChan := make(chan *PaletteItem, 1000)
+	go func() {
+		defer close(itemsChan)
+
+		dir := e.homeDir
+		paths, _ := ioutil.ReadDir(dir)
+		folders := []string{}
+
+		sep := string(filepath.Separator)
+
+		for {
+			for _, p := range paths {
+				if p.IsDir() {
+					folder := filepath.Join(dir, p.Name())
+					if strings.Count(folder, sep) < 10 {
+						folders = append(folders, folder)
+					}
+					path := filepath.Join(dir, p.Name())
+					path = strings.Replace(path, e.homeDir, "~", 1)
+					item := &PaletteItem{
+						description: path,
+					}
+					select {
+					case itemsChan <- item:
+					case <-time.After(time.Second):
+						return
+					}
+				}
+			}
+			for {
+				if len(folders) == 0 {
+					return
+				}
+				dir = folders[0]
+				folders = folders[1:]
+				paths, _ = ioutil.ReadDir(dir)
+				if len(paths) == 0 {
+					continue
+				} else {
+					break
+				}
+			}
+		}
+	}()
+	return itemsChan
 }
 
 func (e *Editor) getCurrentBufferLinePaletteItemsChan() chan *PaletteItem {

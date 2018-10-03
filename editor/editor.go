@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +33,8 @@ type Editor struct {
 	statusLine      *StatusLine
 	cache           *Cache
 
-	cwd string
+	cwd     string
+	homeDir string
 
 	svgsOnce sync.Once
 	svgs     map[string]*SvgXML
@@ -67,8 +70,9 @@ type Editor struct {
 
 	updates chan interface{}
 
-	xi        *xi.Xi
-	lspClient *LspClient
+	xi            *xi.Xi
+	lspClient     *LspClient
+	lspClientOnce sync.Once
 
 	init     chan struct{}
 	initOnce sync.Once
@@ -100,6 +104,8 @@ type Editor struct {
 	searchForward bool
 
 	smoothScroll bool
+
+	register string
 }
 
 type editorSignal struct {
@@ -125,8 +131,11 @@ func NewEditor() (*Editor, error) {
 		matchFg:      newColor(81, 154, 186, 255),
 	}
 	e.cache = newCache(e)
-	go e.startLspClient()
 	e.cwd, _ = os.Getwd()
+	user, err := user.Current()
+	if err == nil {
+		e.homeDir = user.HomeDir
+	}
 	loadKeymap(e)
 	e.initSpecialKeys()
 	e.states = newStates(e)
@@ -179,6 +188,8 @@ func NewEditor() (*Editor, error) {
 			buffer.setConfig(&u.Changes)
 		case *xi.Themes:
 			e.themes = u.Themes
+		case *xi.Plugins:
+			go e.startLspClient()
 		case *xi.ScrollTo:
 			if e.activeWin == nil {
 				return
@@ -259,6 +270,7 @@ func NewEditor() (*Editor, error) {
 		for _, win := range e.wins {
 			win.saveCurrentLocation()
 		}
+		e.xi.Conn.Close()
 	})
 	e.initMainWindow()
 
@@ -266,16 +278,36 @@ func NewEditor() (*Editor, error) {
 }
 
 func (e *Editor) startLspClient() {
-	for {
-		conn, err := net.Dial("tcp", "127.0.0.1:50051")
-		if err != nil {
-			time.Sleep(500 * time.Millisecond)
-			continue
+	e.lspClientOnce.Do(func() {
+		addr := ""
+		for i := 50000; i < 60000; i++ {
+			addr = fmt.Sprintf("127.0.0.1:%d", i)
+			lis, err := net.Listen("tcp", addr)
+			if err == nil {
+				lis.Close()
+				break
+			}
 		}
-		log.Infoln("lsp connected")
-		e.lspClient = newLspClient(e, conn)
-		return
-	}
+		log.Infoln("now send addr to lsp", addr)
+		rpc := &xi.PlaceholderRPC{
+			Method: "start_server",
+			Params: map[string]string{
+				"address": addr,
+			},
+			RPCType: "notification",
+		}
+		e.xi.PluginRPC("lsp", "1", rpc)
+		for {
+			conn, err := net.Dial("tcp", addr)
+			if err != nil {
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			log.Infoln("lsp connected")
+			e.lspClient = newLspClient(e, conn)
+			return
+		}
+	})
 }
 
 func (e *Editor) getScrollbarStylesheet() string {
@@ -445,7 +477,7 @@ func (e *Editor) initMainWindow() {
 	}
 	e.topFrame.children = append(e.topFrame.children, frame)
 	topWin := NewWindow(e, frame)
-	topWin.openFile("/Users/Lulu/Downloads/test.go")
+	topWin.openFile(filepath.Join(e.cwd, "[New File]"))
 	topSplitter.AddWidget(topWin.widget)
 	e.equalWins()
 

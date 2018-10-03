@@ -23,9 +23,9 @@ type handler struct {
 	plugin *Plugin
 }
 
-func newServer(plugin *Plugin) (*Server, error) {
+func newServer(plugin *Plugin, addr string) (*Server, error) {
 	log.Infoln("now listen")
-	lis, err := net.Listen("tcp", "127.0.0.1:50051")
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Infoln("now listen", err)
 		return nil, err
@@ -43,6 +43,12 @@ func (s *Server) run() {
 			return
 		}
 		go s.serve(conn)
+	}
+}
+
+func (s *Server) close() {
+	if s.lis != nil {
+		s.lis.Close()
 	}
 }
 

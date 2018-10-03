@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -23,6 +24,7 @@ const (
 //
 const (
 	PaletteNone    = ":none"
+	PaletteCwd     = ">"
 	PaletteCommand = ":"
 	PaletteLine    = "#"
 	PaletteFile    = ""
@@ -567,6 +569,12 @@ func (p *Palette) executeItem() *PaletteItem {
 	case PaletteFile:
 		path := filepath.Join(p.editor.cwd, item.description)
 		p.editor.activeWin.openFile(path)
+	case PaletteCwd:
+		path := strings.Replace(item.description, "~", p.editor.homeDir, 1)
+		os.Chdir(path)
+		p.editor.cwd = path
+		title := fmt.Sprintf("Crane - %s", item.description)
+		p.editor.window.SetWindowTitle(title)
 	default:
 		item.n++
 
@@ -816,6 +824,8 @@ func (p *Palette) getItems(inputType string) {
 		close(itemsChan)
 	case PaletteFile:
 		itemsChan = p.editor.getFilePaletteItemsChan()
+	case PaletteCwd:
+		itemsChan = p.editor.getFoldersPaletteItemsChan()
 	case PaletteLine:
 		win := p.editor.activeWin
 		p.oldRow = win.row
@@ -894,6 +904,8 @@ func (p *Palette) getInputType() string {
 		return PaletteCommand
 	case PaletteLine:
 		return PaletteLine
+	case PaletteCwd:
+		return PaletteCwd
 	default:
 	}
 	return PaletteFile

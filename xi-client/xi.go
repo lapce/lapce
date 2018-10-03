@@ -22,6 +22,7 @@ type handleNotificationFunc func(notification interface{})
 type Xi struct {
 	Conn               *jsonrpc2.Conn
 	handleNotification handleNotificationFunc
+	cmd                *exec.Cmd
 }
 
 // View is a Xi view
@@ -77,11 +78,17 @@ func New(handleNotification handleNotificationFunc) (*Xi, error) {
 		encoder: json.NewEncoder(inw),
 	}
 	xi := &Xi{
+		cmd:                cmd,
 		handleNotification: handleNotification,
 	}
 	conn := jsonrpc2.NewConn(context.Background(), stream, &handler{xi: xi})
 	xi.Conn = conn
 	return xi, nil
+}
+
+// Close xi
+func (x *Xi) Close() {
+	x.cmd.Process.Kill()
 }
 
 // ClientStart is
@@ -114,6 +121,20 @@ func (x *Xi) NewView(path string) (*View, error) {
 		ID:   viewID,
 		Path: path,
 	}, nil
+}
+
+// PluginRPC sends
+func (x *Xi) PluginRPC(receiver string, viewID string, rpc *PlaceholderRPC) {
+	pluginNotification := &PluginNotification{
+		Command:  "plugin_rpc",
+		ViewID:   viewID,
+		Receiver: receiver,
+		RPC:      rpc,
+	}
+	err := x.Conn.Notify(context.Background(), "plugin", &pluginNotification)
+	if err != nil {
+		log.Infoln(err)
+	}
 }
 
 // StdinoutStream is
@@ -217,6 +238,15 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if h.xi.handleNotification != nil {
 			h.xi.handleNotification(&themes)
 		}
+	case "available_plugins":
+		var plugins Plugins
+		err := json.Unmarshal(params, &plugins)
+		if err != nil {
+			return
+		}
+		if h.xi.handleNotification != nil {
+			h.xi.handleNotification(&plugins)
+		}
 	case "measure_width":
 		var widthParams []*MeasureWidthParams
 		err := json.Unmarshal(params, &widthParams)
@@ -249,6 +279,15 @@ type Style struct {
 // Themes is
 type Themes struct {
 	Themes []string `json:"themes"`
+}
+
+// Plugins is
+type Plugins struct {
+	Plugins []struct {
+		Name    string `json:"name"`
+		Running bool   `json:"running"`
+	} `json:"plugins"`
+	ViewID string `json:"view_id"`
 }
 
 // Color is
@@ -680,6 +719,26 @@ func (v *View) Undo() {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
+// Yank is
+func (v *View) Yank() {
+	cmd := &EditCommand{
+		Method: "yank",
+		ViewID: v.ID,
+	}
+	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
+}
+
+// Copy is
+func (v *View) Copy() string {
+	cmd := &EditCommand{
+		Method: "copy",
+		ViewID: v.ID,
+	}
+	var result string
+	v.xi.Conn.Call(context.Background(), "edit", &cmd, &result)
+	return result
+}
+
 // Save is
 func (v *View) Save() {
 	params := map[string]string{}
@@ -748,24 +807,6 @@ func (v *View) GetContents() string {
 		return ""
 	}
 	return result
-}
-
-// PluginRPC sends
-func (v *View) PluginRPC() {
-	params := map[string]interface{}{}
-	params["arg_one"] = true
-
-	pluginNotification := &PluginNotification{
-		Command:  "plugin_rpc",
-		ViewID:   v.ID,
-		Receiver: "lsp",
-		RPC: &PlaceholderRPC{
-			Method:  "custom_method",
-			Params:  params,
-			RPCType: "notification",
-		},
-	}
-	v.xi.Conn.Notify(context.Background(), "plugin", &pluginNotification)
 }
 
 // Line is

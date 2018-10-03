@@ -11,21 +11,31 @@ import (
 
 // Cache is
 type Cache struct {
-	db *bolt.DB
+	editor *Editor
+}
+
+func (c *Cache) getDB() (*bolt.DB, error) {
+	db, err := bolt.Open(filepath.Join(c.editor.config.configDir, "cache"), 0600, nil)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
 }
 
 func newCache(e *Editor) *Cache {
-	db, err := bolt.Open(filepath.Join(e.config.configDir, "cache"), 0600, nil)
-	if err != nil {
-		return nil
-	}
 	return &Cache{
-		db: db,
+		editor: e,
 	}
 }
 
 func (c *Cache) setLastPosition(loc *Location) {
-	c.db.Update(func(tx *bolt.Tx) error {
+	db, err := c.getDB()
+	if err != nil {
+		return
+	}
+	defer db.Close()
+
+	db.Update(func(tx *bolt.Tx) error {
 		path := loc.path
 		bkt, err := tx.CreateBucketIfNotExists([]byte(path))
 		if err != nil {
@@ -43,7 +53,13 @@ func (c *Cache) setLastPosition(loc *Location) {
 }
 
 func (c *Cache) getLastPosition(path string) (*Location, error) {
-	tx, err := c.db.Begin(true)
+	db, err := c.getDB()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	tx, err := db.Begin(true)
 	if err != nil {
 		return nil, err
 	}
