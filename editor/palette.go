@@ -353,6 +353,9 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 	fg := p.editor.theme.Theme.Foreground
 	penColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
 	matchedColor := gui.NewQColor3(p.matchFg.R, p.matchFg.G, p.matchFg.B, p.matchFg.A)
+	padding := p.padding
+	base := ""
+	dir := ""
 	if p.inputType == PaletteLine {
 		selection := p.editor.theme.Theme.Selection
 		selectionColor := gui.NewQColor3(selection.R, selection.G, selection.B, selection.A)
@@ -364,8 +367,44 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 			p.editor.activeWin.buffer.drawLine(painter, p.font, item.lineNumber-1, index*int(p.font.lineHeight), padding)
 		}
 	} else {
-		painter.SetPen2(penColor)
-		painter.DrawText3(p.padding, y, item.description)
+		if p.inputType == PaletteFile || p.inputType == PaletteCwd {
+			r := core.NewQRectF()
+			r.SetX(float64(p.padding))
+			r.SetY(float64(index)*p.font.lineHeight + (p.font.lineSpace / 2))
+			r.SetWidth(p.font.height)
+			r.SetHeight(p.font.height)
+			syntax := ""
+			if p.inputType == PaletteFile {
+				syntax = filepath.Ext(item.description)
+				if strings.HasPrefix(syntax, ".") {
+					syntax = string(syntax[1:])
+				}
+				if syntax == "" {
+					syntax = "default"
+				}
+			} else {
+				syntax = "folder"
+			}
+			svg := p.editor.getSvgRenderer(syntax, nil)
+			svg.Render2(painter, r)
+			padding += int(p.font.height + 5)
+
+			dir = filepath.Dir(item.description)
+			if dir == "." {
+				dir = ""
+			}
+			base = filepath.Base(item.description)
+			painter.SetPen2(penColor)
+			painter.DrawText3(padding, y, base)
+			if dir != "" {
+				penColor = gui.NewQColor3(131, 131, 131, 255)
+				painter.SetPen2(penColor)
+				painter.DrawText3(int(float64(padding)+p.font.fontMetrics.Size(0, base, 0, 0).Rwidth()+5), y, dir)
+			}
+		} else {
+			painter.SetPen2(penColor)
+			painter.DrawText3(padding, y, item.description)
+		}
 	}
 
 	painter.SetPen2(matchedColor)
@@ -373,7 +412,18 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 	bgColor := gui.NewQColor3(bg.R, bg.G, bg.B, bg.A)
 	selectedBgColor := gui.NewQColor3(p.selectedBg.R, p.selectedBg.G, p.selectedBg.B, p.selectedBg.A)
 	for _, match := range item.matches {
-		x := p.padding + int(p.font.fontMetrics.Size(0, strings.Replace(string(item.description[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1), 0, 0).Rwidth()+0.5)
+		x := 0
+		if p.inputType == PaletteFile || p.inputType == PaletteCwd {
+			if match > len(dir) {
+				x = padding + int(p.font.fontMetrics.Size(0, string(base[:match-len(dir)-1]), 0, 0).Rwidth()+0.5)
+			} else if match < len(dir) {
+				x = padding + int(p.font.fontMetrics.Size(0, base, 0, 0).Rwidth()+p.font.fontMetrics.Size(0, string(dir[:match]), 0, 0).Rwidth()+0.5) + 5
+			} else {
+				continue
+			}
+		} else {
+			x = padding + int(p.font.fontMetrics.Size(0, strings.Replace(string(item.description[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1), 0, 0).Rwidth()+0.5)
+		}
 		text := string(item.description[match])
 		width := int(p.font.fontMetrics.Size(0, text, 0, 0).Rwidth() + 0.5)
 		painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), bgColor)
@@ -578,6 +628,7 @@ func (p *Palette) executeItem() *PaletteItem {
 		p.editor.cwd = path
 		title := fmt.Sprintf("Crane - %s", item.description)
 		p.editor.window.SetWindowTitle(title)
+		p.editor.explorer.resetFileNode()
 	default:
 		item.n++
 

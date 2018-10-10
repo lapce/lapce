@@ -245,7 +245,14 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 	w.horizontalScrollBar = w.view.HorizontalScrollBar()
 	w.verticalScrollBar = w.view.VerticalScrollBar()
 	if editor.theme != nil {
-		scrollBarStyleSheet := editor.getScrollbarStylesheet()
+		bg := editor.theme.Theme.Background
+		bgColor := &Color{
+			R: bg.R,
+			G: bg.G,
+			B: bg.B,
+			A: bg.A,
+		}
+		scrollBarStyleSheet := editor.getScrollbarStylesheet(bgColor)
 		w.widget.SetStyleSheet(scrollBarStyleSheet)
 		w.verticalScrollBarWidth = w.verticalScrollBar.Width()
 		w.horizontalScrollBarHeight = w.horizontalScrollBar.Height()

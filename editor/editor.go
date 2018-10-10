@@ -89,6 +89,7 @@ type Editor struct {
 
 	diagnostics      map[string]*lsp.PublishDiagnosticsParams
 	diagnosticsPanel *DiagnosticsPanel
+	explorer         *Explorer
 
 	specialKeys     map[core.Qt__Key]string
 	controlModifier core.Qt__KeyboardModifier
@@ -230,8 +231,15 @@ func NewEditor() (*Editor, error) {
 		case *xi.Theme:
 			e.theme = u
 			fg := u.Theme.Foreground
+			bg := u.Theme.Background
 			e.cursor.SetStyleSheet(fmt.Sprintf("background-color: rgba(%d, %d, %d, 0.6);", fg.R, fg.G, fg.B))
-			scrollBarStyleSheet := e.getScrollbarStylesheet()
+			bgColor := &Color{
+				R: bg.R,
+				G: bg.G,
+				B: bg.B,
+				A: bg.A,
+			}
+			scrollBarStyleSheet := e.getScrollbarStylesheet(bgColor)
 
 			sel := u.Theme.Selection
 			e.stylesRWMutext.Lock()
@@ -260,6 +268,18 @@ func NewEditor() (*Editor, error) {
 			}
 			e.palette.mainWidget.SetStyleSheet(scrollBarStyleSheet)
 			e.diagnosticsPanel.view.SetStyleSheet(scrollBarStyleSheet)
+			explorerBg := &Color{
+				R: 24,
+				G: 29,
+				B: 34,
+				A: 255,
+			}
+			e.explorer.view.SetStyleSheet(e.getScrollbarStylesheet(explorerBg))
+			//e.explorer.view.SetStyleSheet(`
+			//QWidget {
+			//      background-color: rgba(24, 29, 34, 1);
+			//}
+			//`)
 		}
 	})
 	e.xi.ClientStart(e.config.configDir)
@@ -311,8 +331,7 @@ func (e *Editor) startLspClient() {
 	})
 }
 
-func (e *Editor) getScrollbarStylesheet() string {
-	bg := e.theme.Theme.Background
+func (e *Editor) getScrollbarStylesheet(bg *Color) string {
 	guide := e.theme.Theme.Selection
 	backgroundColor := fmt.Sprintf("rgba(%d, %d, %d, 1);", bg.R, bg.G, bg.B)
 	guideColor := fmt.Sprintf("rgba(%d, %d, %d, %f);", guide.R, guide.G, guide.B, float64(guide.A)/255)
@@ -428,11 +447,15 @@ func (e *Editor) initMainWindow() {
 			w.view.Hide()
 			w.view.Show()
 		}
+		e.centralSplitter.SetSizes([]int{e.explorer.width, e.width - e.explorer.width})
+		e.explorer.view.Hide()
+		e.explorer.view.Show()
 		e.palette.resize()
 	})
 	e.window.ConnectKeyPressEvent(e.keyPress)
 
 	e.diagnosticsPanel = newDiagnositicsPanel(e)
+	e.explorer = newExplorer(e)
 
 	e.centralSplitter = widgets.NewQSplitter2(core.Qt__Horizontal, nil)
 	e.centralSplitter.SetChildrenCollapsible(false)
@@ -450,7 +473,21 @@ func (e *Editor) initMainWindow() {
 	mainSplitter.AddWidget(topSplitter)
 	mainSplitter.AddWidget(e.diagnosticsPanel.view)
 
+	e.centralSplitter.AddWidget(e.explorer.view)
 	e.centralSplitter.AddWidget(mainSplitter)
+	e.explorer.width = 250
+	e.centralSplitter.SetSizes([]int{e.explorer.width, e.width - e.explorer.width})
+	e.centralSplitter.ConnectSplitterMoved(func(pos, index int) {
+		e.explorer.view.Hide()
+		e.explorer.view.Show()
+		e.explorer.width = e.explorer.view.Width()
+		e.explorer.height = e.explorer.view.Height()
+		e.equalWins()
+		for _, w := range e.wins {
+			w.view.Hide()
+			w.view.Show()
+		}
+	})
 
 	layout := widgets.NewQVBoxLayout()
 	layout.SetContentsMargins(0, 0, 0, 0)

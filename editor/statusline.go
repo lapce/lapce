@@ -323,6 +323,7 @@ func (s *StatuslineFile) redraw(file string, pristine bool) {
 	s.file = file
 	s.pristine = pristine
 
+	file = strings.Replace(file, s.s.editor.cwd+"/", "", 1)
 	base := filepath.Base(file)
 	if !pristine {
 		base += "*"

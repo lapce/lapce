@@ -42,7 +42,7 @@ func NewFont(fontFamily string) *Font {
 		f.lineSpace = float64(12)
 	}
 	f.lineHeight = float64(int(f.height + f.lineSpace + 0.5))
-	f.shift = float64(int((f.lineHeight-f.height)/2 + f.ascent - f.leading + 0.5))
+	f.shift = float64(int((f.lineHeight-f.height)/2 + f.ascent + 0.5))
 
 	return f
 }

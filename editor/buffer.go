@@ -424,7 +424,7 @@ func (b *Buffer) applyUpdate(update *xi.UpdateNotification) {
 		b.widget.SetFixedSize2(width, height)
 
 		b.rect.SetWidth(float64(width))
-		b.rect.SetHeight(float64(height))
+		b.rect.SetHeight(float64(height + 900))
 		b.scence.SetSceneRect(b.rect)
 	}
 

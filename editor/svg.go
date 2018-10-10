@@ -2,7 +2,12 @@ package editor
 
 import (
 	"fmt"
+
+	"github.com/therecipe/qt/core"
+	"github.com/therecipe/qt/svg"
 )
+
+var svgRenderers = map[string]*svg.QSvgRenderer{}
 
 // SvgXML is
 type SvgXML struct {
@@ -27,6 +32,19 @@ func (e *Editor) getSvgs() map[string]*SvgXML {
 		e.initSVGS()
 	})
 	return e.svgs
+}
+
+func (e *Editor) getSvgRenderer(name string, color *Color) *svg.QSvgRenderer {
+	svgRenderer, ok := svgRenderers[name]
+	if ok {
+		return svgRenderer
+	}
+
+	svgText := e.getSvg(name, color)
+	svgRenderer = svg.NewQSvgRenderer(nil)
+	svgRenderer.Load2(core.NewQByteArray2(svgText, len(svgText)))
+	svgRenderers[name] = svgRenderer
+	return svgRenderer
 }
 
 func (e *Editor) getSvg(name string, color *Color) string {
@@ -76,6 +94,12 @@ func (e *Editor) initSVGS() {
 		xml:       `<?xml version="1.0" encoding="utf-8"?><svg width="1792" height="1792" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path fill="%s" d="M1490 1322q0 40-28 68l-136 136q-28 28-68 28t-68-28l-294-294-294 294q-28 28-68 28t-68-28l-136-136q-28-28-28-68t28-68l294-294-294-294q-28-28-28-68t28-68l136-136q28-28 68-28t68 28l294 294 294-294q28-28 68-28t68 28l136 136q28 28 28 68t-28 68l-294 294 294 294q28 28 28 68z"/></svg>`,
 	}
 	e.svgs["default"] = &SvgXML{
+		width:     1792,
+		height:    1792,
+		thickness: 0.5,
+		xml:       `<?xml version="1.0" encoding="utf-8"?><svg width="1792" height="1792" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path fill="%s" d="M1596 380q28 28 48 76t20 88v1152q0 40-28 68t-68 28h-1344q-40 0-68-28t-28-68v-1600q0-40 28-68t68-28h896q40 0 88 20t76 48zm-444-244v376h376q-10-29-22-41l-313-313q-12-12-41-22zm384 1528v-1024h-416q-40 0-68-28t-28-68v-416h-768v1536h1280z"/></svg>`,
+	}
+	e.svgs["hex"] = &SvgXML{
 		width:     200,
 		height:    200,
 		thickness: 0.5,
@@ -91,6 +115,26 @@ func (e *Editor) initSVGS() {
 		height:    1792,
 		thickness: 0.5,
 		xml:       `<svg width="1792" height="1792" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><g><path fill="%s" d="M1600 1312v-704q0-40-28-68t-68-28h-704q-40 0-68-28t-28-68v-64q0-40-28-68t-68-28h-320q-40 0-68 28t-28 68v960q0 40 28 68t68 28h1216q40 0 68-28t28-68zm128-704v704q0 92-66 158t-158 66h-1216q-92 0-158-66t-66-158v-960q0-92 66-158t158-66h320q92 0 158 66t66 158v32h672q92 0 158 66t66 158z"/></g></svg>`,
+	}
+	e.svgs["folder-open"] = &SvgXML{
+		width:     576,
+		height:    512,
+		thickness: 0.5,
+		xml:       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path fill="%s" d="M527.943 224H480v-48c0-26.51-21.49-48-48-48H272l-64-64H48C21.49 64 0 85.49 0 112v288c0 26.51 21.49 48 48 48h400a48.001 48.001 0 0 0 40.704-22.56l79.942-128c19.948-31.917-3.038-73.44-40.703-73.44zM54 112h134.118l64 64H426a6 6 0 0 1 6 6v42H152a48 48 0 0 0-41.098 23.202L48 351.449V117.993A5.993 5.993 0 0 1 54 112zm394 288H72l77.234-128H528l-80 128z"/></svg>`,
+	}
+	e.svgs["angle-right"] = &SvgXML{
+		width:     1792,
+		height:    1792,
+		thickness: 0.5,
+		xml: `<?xml version="1.0" encoding="utf-8"?>
+<svg width="1792" height="1792" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path fill="%s" d="M1171 960q0 13-10 23l-466 466q-10 10-23 10t-23-10l-50-50q-10-10-10-23t10-23l393-393-393-393q-10-10-10-23t10-23l50-50q10-10 23-10t23 10l466 466q10 10 10 23z"/></svg>`,
+	}
+	e.svgs["angle-down"] = &SvgXML{
+		width:     1792,
+		height:    1792,
+		thickness: 0.5,
+		xml: `<?xml version="1.0" encoding="utf-8"?>
+<svg width="1792" height="1792" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path fill="%s" d="M1395 736q0 13-10 23l-466 466q-10 10-23 10t-23-10l-466-466q-10-10-10-23t10-23l50-50q10-10 23-10t23 10l393 393 393-393q10-10 23-10t23 10l50 50q10 10 10 23z"/></svg>`,
 	}
 	e.svgs["git"] = &SvgXML{
 		width:     128,
