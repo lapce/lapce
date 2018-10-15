@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	xi "github.com/crane-editor/crane/xi-client"
 )
 
 //
@@ -80,6 +82,7 @@ func newNormalState(e *Editor) State {
 		"G":     e.goTo,
 		"y":     e.yank,
 		"p":     e.paste,
+		"<D-p>": e.pasteClipboard,
 		"<C-e>": e.scrollDown,
 		"<C-y>": e.scrollUp,
 		"<C-d>": e.pageDown,
@@ -222,9 +225,14 @@ func (s *NormalState) visual() {
 	s.visualActive = true
 	s.editor.selection = true
 	s.visualMode = s.editor.cmdArg.cmd
+	s.editor.selectionMode = s.editor.cmdArg.cmd
 	s.editor.updateCursorShape()
 	win.cline.Hide()
-	win.buffer.xiView.Click(win.row, win.col)
+	if s.visualMode == "V" {
+		win.buffer.xiView.Gesture(win.row, win.col, xi.MultiLineSelect)
+	} else {
+		win.buffer.xiView.Gesture(win.row, win.col, xi.RangeSelect)
+	}
 }
 
 func (s *NormalState) cancelVisual(sendToXi bool) {
@@ -234,7 +242,6 @@ func (s *NormalState) cancelVisual(sendToXi bool) {
 	win := s.editor.activeWin
 	s.visualActive = false
 	s.editor.selection = false
-	s.visualMode = ""
 	s.editor.updateCursorShape()
 	s.editor.activeWin.cline.Show()
 	if sendToXi {
@@ -279,6 +286,7 @@ func newInsertState(e *Editor) State {
 		"<C-w>":    s.deleteWordBackward,
 		"<C-u>":    s.deleteToBeginningOfLine,
 		"<Del>":    s.deleteForward,
+		"<D-p>":    e.pasteClipboard,
 	}
 	return s
 }

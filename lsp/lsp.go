@@ -162,9 +162,10 @@ type CompletionItem struct {
 
 // Diagnostics is
 type Diagnostics struct {
-	Range   *Range `json:"range"`
-	Source  string `json:"source"`
-	Message string `json:"message"`
+	Range    *Range `json:"range"`
+	Source   string `json:"source"`
+	Message  string `json:"message"`
+	Severity int    `json:"severity"`
 }
 
 // PublishDiagnosticsParams is
@@ -205,7 +206,7 @@ func NewClient(syntax string, handleNotificationFunc handleNotificationFunc) (*C
 	switch syntax {
 	case "go":
 		cmd = "go-langserver"
-		args = []string{"-gocodecompletion", "-lint-tool", "golint"}
+		args = []string{"-gocodecompletion", "-lint-tool", "gobuild", "-logfile", "/tmp/langserver"}
 	case "py":
 		cmd = "pyls"
 	case "c":

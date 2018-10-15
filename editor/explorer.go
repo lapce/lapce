@@ -199,7 +199,7 @@ func (e *Explorer) paint(event *gui.QPaintEvent) {
 	defer painter.DestroyQPainter()
 
 	painter.SetFont(e.font.font)
-	fg := e.editor.theme.Theme.Foreground
+	// fg := e.editor.theme.Theme.Foreground
 	painter.FillRect5(x, y, width, height,
 		gui.NewQColor3(24, 29, 34, 255))
 
@@ -210,7 +210,7 @@ func (e *Explorer) paint(event *gui.QPaintEvent) {
 		lineHeightColor,
 	)
 
-	penColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
+	penColor := gui.NewQColor3(205, 211, 222, 255)
 	painter.SetPen2(penColor)
 
 	node := e.fileNode

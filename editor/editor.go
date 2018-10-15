@@ -32,6 +32,7 @@ type Editor struct {
 	cursor          *widgets.QWidget
 	statusLine      *StatusLine
 	cache           *Cache
+	clipboard       *gui.QClipboard
 
 	cwd     string
 	homeDir string
@@ -77,12 +78,13 @@ type Editor struct {
 	init     chan struct{}
 	initOnce sync.Once
 
-	states    map[int]State
-	mode      int
-	selection bool
-	cmdArg    *CmdArg
-	keymap    *Keymap
-	config    *Config
+	states        map[int]State
+	mode          int
+	selection     bool
+	selectionMode string
+	cmdArg        *CmdArg
+	keymap        *Keymap
+	config        *Config
 
 	selectedBg *Color
 	matchFg    *Color
@@ -293,6 +295,7 @@ func NewEditor() (*Editor, error) {
 		}
 		e.xi.Conn.Close()
 	})
+	e.clipboard = e.app.Clipboard()
 	e.initMainWindow()
 
 	return e, nil

@@ -2,7 +2,9 @@ package editor
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/crane-editor/crane/log"
 	"github.com/crane-editor/crane/lsp"
@@ -75,9 +77,10 @@ func (d *DiagnosticsPanel) update() {
 			}
 		}
 	}
-	height := int(d.font.lineHeight*float64(n) + 1)
+	height := int(d.font.lineHeight * float64(n+1))
 	sort.Sort(byURI(d.diagnostics))
 	log.Infoln(d.diagnostics)
+	width = 800
 
 	if width != d.width || height != d.height {
 		d.width = width
@@ -115,7 +118,7 @@ func (d *DiagnosticsPanel) paint(event *gui.QPaintEvent) {
 loop:
 	for _, params := range d.diagnostics {
 		i++
-		d.paintLine(painter, 0, params.URI, i)
+		d.paintFile(painter, params.URI, i)
 	innerLoop:
 		for _, diagnostics := range params.Diagnostics {
 			i++
@@ -125,9 +128,81 @@ loop:
 			if i >= end {
 				break loop
 			}
-			d.paintLine(painter, 20, fmt.Sprintf("%s (%d %d)", diagnostics.Message, diagnostics.Range.Start.Line, diagnostics.Range.Start.Character), i)
+			d.paintDiagnostic(painter, diagnostics, i)
 		}
 	}
+}
+
+func (d *DiagnosticsPanel) paintFile(painter *gui.QPainter, file string, index int) {
+	padding := 10
+	y := index*int(d.font.lineHeight) + int(d.font.shift)
+	r := core.NewQRectF()
+	r.SetX(float64(padding))
+	r.SetY(float64(index)*d.font.lineHeight + (d.font.lineSpace / 2))
+	r.SetWidth(d.font.height)
+	r.SetHeight(d.font.height)
+
+	penColor := gui.NewQColor3(205, 211, 222, 255)
+	painter.SetPen2(penColor)
+
+	file = string(file[7:])
+	file = strings.Replace(file, d.editor.cwd+"/", "", 1)
+	base := filepath.Base(file)
+	dir := filepath.Dir(file)
+	if dir == "." {
+		dir = ""
+	}
+	fileType := filepath.Ext(file)
+	if fileType != "" {
+		fileType = string(fileType[1:])
+	}
+	if fileType == "" {
+		fileType = "default"
+	}
+	svg := d.editor.getSvgRenderer(fileType, nil)
+	svg.Render2(painter, r)
+
+	padding += int(d.font.height + 5)
+	painter.SetPen2(penColor)
+	painter.DrawText3(padding, y, base)
+
+	if dir != "" {
+		padding += 5
+		penColor = gui.NewQColor3(131, 131, 131, 255)
+		painter.SetPen2(penColor)
+		painter.DrawText3(padding+int(d.font.fontMetrics.Size(0, base, 0, 0).Rwidth()), y, dir)
+	}
+}
+
+func (d *DiagnosticsPanel) paintDiagnostic(painter *gui.QPainter, diag *lsp.Diagnostics, index int) {
+	y := index*int(d.font.lineHeight) + int(d.font.shift)
+	padding := int(15 + d.font.height)
+
+	r := core.NewQRectF()
+	r.SetX(float64(padding))
+	r.SetY(float64(index)*d.font.lineHeight + (d.font.lineSpace / 2))
+	r.SetWidth(d.font.height)
+	r.SetHeight(d.font.height)
+
+	icon := "times-circle"
+	if diag.Severity == 1 {
+		icon = "exclamation-triangle"
+	}
+	svg := d.editor.getSvgRenderer(icon, nil)
+	svg.Render2(painter, r)
+
+	padding += int(d.font.height + 5)
+
+	penColor := gui.NewQColor3(205, 211, 222, 255)
+	painter.SetPen2(penColor)
+	painter.DrawText3(padding, y, diag.Message)
+
+	penColor = gui.NewQColor3(131, 131, 131, 255)
+	painter.SetPen2(penColor)
+	painter.DrawText3(int(float64(padding)+5+d.font.fontMetrics.Size(0, diag.Message, 0, 0).Rwidth()),
+		y,
+		fmt.Sprintf("(%d, %d)", diag.Range.Start.Line+1, diag.Range.End.Character+1),
+	)
 }
 
 func (d *DiagnosticsPanel) paintLine(painter *gui.QPainter, padding int, text string, index int) {

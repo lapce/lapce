@@ -907,7 +907,11 @@ func (w *Window) setPos(row, col int, toXi bool) {
 	w.col = col
 	if toXi {
 		if w.editor.selection {
+			//if w.editor.selectionMode == "V" {
+			//	b.xiView.Gesture(w.row, w.col, xi.MultiLineSelect)
+			//} else {
 			b.xiView.Drag(w.row, w.col)
+			//}
 		} else {
 			b.xiView.Click(w.row, w.col)
 		}

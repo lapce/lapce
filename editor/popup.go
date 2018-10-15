@@ -282,8 +282,8 @@ func (p *Popup) executeKey(key string) bool {
 
 func (p *Popup) initCmds() {
 	p.cmds = map[string]Command{
-		"<C-n>":   p.next,
-		"<C-p>":   p.previous,
+		"<C-j>":   p.next,
+		"<C-k>":   p.previous,
 		"<Tab>":   p.selectItem,
 		"<C-m>":   p.selectItem,
 		"<Enter>": p.selectItem,

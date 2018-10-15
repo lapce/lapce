@@ -64,6 +64,8 @@ type Palette struct {
 	inputText            string
 	inputIndex           int
 	paintAfterViewUpdate bool
+	inputList            []string
+	inputListIndex       int
 
 	inputType string
 
@@ -97,15 +99,17 @@ type PaletteItem struct {
 
 func newPalette(editor *Editor) *Palette {
 	p := &Palette{
-		editor:     editor,
-		signal:     NewPaletteSignal(nil),
-		mainWidget: widgets.NewQWidget(nil, 0),
-		input:      widgets.NewQWidget(nil, 0),
-		scence:     widgets.NewQGraphicsScene(nil),
-		view:       widgets.NewQGraphicsView(nil),
-		widget:     widgets.NewQWidget(nil, 0),
-		rect:       core.NewQRectF(),
-		font:       editor.defaultFont,
+		editor:         editor,
+		signal:         NewPaletteSignal(nil),
+		mainWidget:     widgets.NewQWidget(nil, 0),
+		input:          widgets.NewQWidget(nil, 0),
+		inputList:      make([]string, 0),
+		inputListIndex: -1,
+		scence:         widgets.NewQGraphicsScene(nil),
+		view:           widgets.NewQGraphicsView(nil),
+		widget:         widgets.NewQWidget(nil, 0),
+		rect:           core.NewQRectF(),
+		font:           editor.defaultFont,
 
 		width:        600,
 		padding:      12,
@@ -238,8 +242,8 @@ func (p *Palette) paintInput(event *gui.QPaintEvent) {
 		1,
 		color)
 	painter.SetFont(p.font.font)
-	fg := p.editor.theme.Theme.Foreground
-	penColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
+	// fg := p.editor.theme.Theme.Foreground
+	penColor := gui.NewQColor3(205, 211, 222, 255)
 	painter.SetPen2(penColor)
 	painter.DrawText3(p.padding, padding+int(p.font.shift), p.inputText)
 
@@ -350,8 +354,8 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 	}
 	item := items[index]
 	y := index*int(p.font.lineHeight) + int(p.font.shift)
-	fg := p.editor.theme.Theme.Foreground
-	penColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
+	// fg := p.editor.theme.Theme.Foreground
+	penColor := gui.NewQColor3(205, 211, 222, 255)
 	matchedColor := gui.NewQColor3(p.matchFg.R, p.matchFg.G, p.matchFg.B, p.matchFg.A)
 	padding := p.padding
 	base := ""
@@ -441,8 +445,10 @@ func (p *Palette) initCmds() {
 		"<C-c>":   p.esc,
 		"<Enter>": p.enter,
 		"<C-m>":   p.enter,
-		"<C-n>":   p.next,
-		"<C-p>":   p.previous,
+		"<C-j>":   p.next,
+		"<C-k>":   p.previous,
+		"<C-n>":   p.nextInput,
+		"<C-p>":   p.previousInput,
 		"<C-u>":   p.deleteToStart,
 		"<C-b>":   p.left,
 		"<Left>":  p.left,
@@ -497,6 +503,7 @@ func (s byScore) Less(i, j int) bool {
 }
 
 func (p *Palette) esc() {
+	p.inputListIndex = -1
 	p.resetView()
 	p.resetInput()
 	p.running = false
@@ -595,6 +602,7 @@ func (p *Palette) changeTheme(themeName string) {
 }
 
 func (p *Palette) executeItem() *PaletteItem {
+	p.inputList = append([]string{p.inputText}, p.inputList...)
 	var items []*PaletteItem
 	if len(p.inputText) > len(p.inputType) {
 		items = p.activeItems
@@ -654,6 +662,24 @@ func (p *Palette) executeItem() *PaletteItem {
 		}
 	}
 	return item
+}
+
+func (p *Palette) nextInput() {
+	if p.inputListIndex <= 0 {
+		return
+	}
+	p.inputListIndex--
+	input := p.inputList[p.inputListIndex]
+	p.run(input)
+}
+
+func (p *Palette) previousInput() {
+	if p.inputListIndex >= len(p.inputList)-1 {
+		return
+	}
+	p.inputListIndex++
+	input := p.inputList[p.inputListIndex]
+	p.run(input)
 }
 
 func (p *Palette) previous() {
@@ -804,9 +830,10 @@ func (p *Palette) updateActiveItems() {
 			ticker.Stop()
 		}()
 
-		itemsChan := newInfiniteChannel()
-		input := itemsChan.In()
-		output := itemsChan.Out()
+		itemChan := make(chan *PaletteItem)
+		//itemsChan := newInfiniteChannel()
+		//input := itemsChan.In()
+		//	output := itemsChan.Out()
 		length := len(p.items)
 		go func() {
 			for {
@@ -815,12 +842,14 @@ func (p *Palette) updateActiveItems() {
 					return
 				case item, ok := <-p.itemsChan:
 					if !ok {
-						itemsChan.close()
+						close(itemChan)
+						//itemsChan.close()
 						return
 					}
 					p.items = append(p.items, item)
 					select {
-					case input <- item:
+					case itemChan <- item:
+						//	case input <- item:
 					case <-cancelLastChan:
 						return
 					}
@@ -847,7 +876,7 @@ func (p *Palette) updateActiveItems() {
 				p.signal.UpdateSignal()
 			case <-cancelLastChan:
 				return
-			case item, ok := <-output:
+			case item, ok := <-itemChan:
 				if !ok {
 					return
 				}

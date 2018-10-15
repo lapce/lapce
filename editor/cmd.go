@@ -145,6 +145,9 @@ func (e *Editor) wordEnd() {
 	win := e.activeWin
 	count := e.getCmdCount()
 	row, col := win.wordEnd(count)
+	if e.selection {
+		col++
+	}
 	win.scroll(row-win.row, col-win.col, true, false)
 }
 
@@ -600,14 +603,39 @@ func (e *Editor) searchLines() {
 }
 
 func (e *Editor) yank() {
-	text := e.activeWin.buffer.xiView.Copy()
+	win := e.activeWin
+	row := win.row
+	col := win.col
+	text := win.buffer.xiView.Copy()
 	e.register = text
 	e.states[Normal].(*NormalState).cancelVisual(true)
+	win.buffer.xiView.Click(row, col)
+}
+
+func (e *Editor) pasteClipboard() {
+	text := e.clipboard.Text(0)
+	if text == "" {
+		return
+	}
+	e.activeWin.buffer.xiView.Insert(text)
 }
 
 func (e *Editor) paste() {
 	if e.register != "" {
-		e.activeWin.buffer.xiView.Insert(e.register)
+		win := e.activeWin
+		row := win.row
+		col := win.col
+		if !e.selection {
+			if e.selectionMode == "V" {
+				win.buffer.xiView.Click(e.activeWin.row+1, 0)
+			} else {
+				win.buffer.xiView.Click(row, col+1)
+			}
+		}
+		win.buffer.xiView.Insert(e.register)
+		if e.selectionMode == "V" {
+			win.buffer.xiView.Click(row+1, 0)
+		}
 	}
 }
 
@@ -638,13 +666,18 @@ func (e *Editor) getFoldersPaletteItemsChan() chan *PaletteItem {
 			for _, p := range paths {
 				if p.IsDir() {
 					folder := filepath.Join(dir, p.Name())
-					if strings.Count(folder, sep) < 10 {
-						folders = append(folders, folder)
-					}
 					path := filepath.Join(dir, p.Name())
 					path = strings.Replace(path, e.homeDir, "~", 1)
 					item := &PaletteItem{
 						description: path,
+					}
+					count := strings.Count(path, sep)
+					if count < 3 {
+						folders = append(folders, folder)
+					} else {
+						if strings.HasPrefix(path, "~/go/") && count < 5 {
+							folders = append(folders, folder)
+						}
 					}
 					select {
 					case itemsChan <- item:

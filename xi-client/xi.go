@@ -12,8 +12,10 @@ import (
 
 //
 const (
-	PointSelect = "point_select"
-	RangeSelect = "range_select"
+	PointSelect     = "point_select"
+	RangeSelect     = "range_select"
+	LineSelect      = "line_select"
+	MultiLineSelect = "multi_line_select"
 )
 
 type handleNotificationFunc func(notification interface{})
