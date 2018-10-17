@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -334,6 +335,39 @@ func (e *Editor) belowSplit() {
 func (e *Editor) hover() {
 	win := e.activeWin
 	e.lspClient.hover(win.buffer, win.row, win.col)
+}
+
+func (e *Editor) nextDiagnostic() {
+	win := e.activeWin
+	diags, ok := e.diagnostics[win.buffer.path]
+	if !ok {
+		return
+	}
+	sort.Sort(byLine(diags.Diagnostics))
+	row := win.row
+	for _, diag := range diags.Diagnostics {
+		if diag.Range.Start.Line > row {
+			win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
+			return
+		}
+	}
+}
+
+func (e *Editor) previousDiagnostic() {
+	win := e.activeWin
+	diags, ok := e.diagnostics[win.buffer.path]
+	if !ok {
+		return
+	}
+	sort.Sort(byLine(diags.Diagnostics))
+	row := win.row
+	for i := len(diags.Diagnostics) - 1; i >= 0; i-- {
+		diag := diags.Diagnostics[i]
+		if diag.Range.Start.Line < row {
+			win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
+			return
+		}
+	}
 }
 
 func (e *Editor) definition() {

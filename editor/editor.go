@@ -230,6 +230,9 @@ func NewEditor() (*Editor, error) {
 			uri := string(u.URI[7:])
 			e.diagnostics[uri] = u
 			e.diagnosticsPanel.update()
+			for _, win := range e.wins {
+				win.gutter.Update()
+			}
 		case *xi.Theme:
 			e.theme = u
 			fg := u.Theme.Foreground

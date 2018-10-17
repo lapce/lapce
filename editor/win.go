@@ -619,6 +619,7 @@ func (w *Window) loadBuffer(buffer *Buffer) {
 	w.buffer = buffer
 	w.view.SetScene(buffer.scence)
 	w.gutterChars = len(strconv.Itoa(len(buffer.lines)))
+	w.gutterPadding = int(6 + w.buffer.font.height)
 	w.gutterWidth = int(float64(w.gutterChars)*w.buffer.font.width+0.5) + w.gutterPadding*2
 	w.gutter.SetFixedWidth(w.gutterWidth)
 	w.setScroll()
@@ -1063,6 +1064,7 @@ func (w *Window) setGutterShift() {
 func (w *Window) paintGutter(event *gui.QPaintEvent) {
 	p := gui.NewQPainter2(w.gutter)
 	defer p.DestroyQPainter()
+
 	p.SetFont(w.buffer.font.font)
 	fg := &xi.Color{
 		R: 0,
@@ -1093,7 +1095,32 @@ func (w *Window) paintGutter(event *gui.QPaintEvent) {
 				n = Abs(i - w.row)
 			}
 		}
-		padding := w.gutterPadding + int((w.buffer.font.fontMetrics.Size(0, strconv.Itoa(len(w.buffer.lines)), 0, 0).Rwidth()-w.buffer.font.fontMetrics.Size(0, strconv.Itoa(n), 0, 0).Rwidth())+0.5)
+		padding := int(6 + w.buffer.font.height + (w.buffer.font.fontMetrics.Size(0, strconv.Itoa(len(w.buffer.lines)), 0, 0).Rwidth() - w.buffer.font.fontMetrics.Size(0, strconv.Itoa(n), 0, 0).Rwidth()) + 0.5)
 		p.DrawText3(padding, (i-w.start)*int(w.buffer.font.lineHeight)+shift, strconv.Itoa(n))
+	}
+
+	diags, ok := w.editor.diagnostics[w.buffer.path]
+	if ok {
+		r := core.NewQRectF()
+		for _, diag := range diags.Diagnostics {
+			line := diag.Range.Start.Line
+			r.SetX(float64(6))
+			r.SetY(float64(line-w.start)*w.buffer.font.lineHeight +
+				float64(shift) -
+				w.buffer.font.shift +
+				w.buffer.font.lineSpace/2 +
+				3)
+			r.SetWidth(w.buffer.font.height - 4)
+			r.SetHeight(w.buffer.font.height - 4)
+
+			icon := "times-circle"
+			if diag.Severity == 2 {
+				icon = "exclamation-triangle"
+			} else if diag.Severity == 1 {
+				icon = "times-circle"
+			}
+			svg := w.editor.getSvgRenderer(icon, nil)
+			svg.Render2(p, r)
+		}
 	}
 }

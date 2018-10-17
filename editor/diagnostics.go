@@ -27,6 +27,20 @@ func (s byURI) Less(i, j int) bool {
 	return s[i].URI < s[j].URI
 }
 
+type byLine []*lsp.Diagnostics
+
+func (s byLine) Len() int {
+	return len(s)
+}
+
+func (s byLine) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s byLine) Less(i, j int) bool {
+	return s[i].Range.Start.Line < s[j].Range.Start.Line
+}
+
 // DiagnosticsPanel is
 type DiagnosticsPanel struct {
 	editor      *Editor
@@ -68,6 +82,9 @@ func (d *DiagnosticsPanel) update() {
 	n := 0
 	d.diagnostics = []*lsp.PublishDiagnosticsParams{}
 	for _, params := range d.editor.diagnostics {
+		if len(params.Diagnostics) == 0 {
+			continue
+		}
 		d.diagnostics = append(d.diagnostics, params)
 		for _, diagnostic := range params.Diagnostics {
 			n++
@@ -75,6 +92,11 @@ func (d *DiagnosticsPanel) update() {
 			if w > width {
 				width = w
 			}
+		}
+	}
+	for _, param := range d.diagnostics {
+		for _, diag := range param.Diagnostics {
+			fmt.Println(diag.Message)
 		}
 	}
 	height := int(d.font.lineHeight * float64(n+1))
@@ -185,8 +207,10 @@ func (d *DiagnosticsPanel) paintDiagnostic(painter *gui.QPainter, diag *lsp.Diag
 	r.SetHeight(d.font.height)
 
 	icon := "times-circle"
-	if diag.Severity == 1 {
+	if diag.Severity == 2 {
 		icon = "exclamation-triangle"
+	} else if diag.Severity == 1 {
+		icon = "times-circle"
 	}
 	svg := d.editor.getSvgRenderer(icon, nil)
 	svg.Render2(painter, r)
