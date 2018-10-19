@@ -91,6 +91,10 @@ func (e *Editor) toInsertEndOfLine() {
 }
 
 func (e *Editor) toInsertNewLine() {
+	if e.gadgetFocus == ExplorerFocus {
+		e.explorer.toggleExpand()
+		return
+	}
 	e.mode = Insert
 	win := e.activeWin
 	maxCol := len(win.buffer.lines[win.row].text) - 1
@@ -160,25 +164,50 @@ func (e *Editor) wordForward() {
 }
 
 func (e *Editor) down() {
+	if e.gadgetFocus == ExplorerFocus {
+		e.explorer.down(e.getCmdCount())
+		return
+	}
 	e.activeWin.scroll(e.getCmdCount(), 0, true, false)
 }
 
 func (e *Editor) up() {
+	if e.gadgetFocus == ExplorerFocus {
+		e.explorer.up(e.getCmdCount())
+		return
+	}
 	e.activeWin.scroll(-e.getCmdCount(), 0, true, false)
 }
 
 func (e *Editor) left() {
+	if e.gadgetFocus == ExplorerFocus {
+		return
+	}
 	e.activeWin.scroll(0, -e.getCmdCount(), true, false)
 }
 
 func (e *Editor) right() {
+	if e.gadgetFocus == ExplorerFocus {
+		return
+	}
 	e.activeWin.scroll(0, e.getCmdCount(), true, false)
+}
+
+func (e *Editor) focusDiagnostics() {
+	e.gadgetFocus = DiagnosticsFocus
+}
+
+func (e *Editor) focusExplorer() {
+	e.gadgetFocus = ExplorerFocus
 }
 
 func (e *Editor) goTo() {
 	win := e.activeWin
 	row := 0
 	maxRow := len(win.buffer.lines) - 1
+	if e.gadgetFocus == ExplorerFocus {
+		maxRow = len(e.explorer.nodeList) - 1
+	}
 	if e.cmdArg.count == 0 {
 		if e.cmdArg.cmd == "G" {
 			row = maxRow
@@ -191,7 +220,11 @@ func (e *Editor) goTo() {
 			row = maxRow
 		}
 	}
-	win.scroll(row-win.row, 0, true, false)
+	if e.gadgetFocus == ExplorerFocus {
+		e.explorer.goToRow(row)
+	} else {
+		win.scroll(row-win.row, 0, true, false)
+	}
 }
 
 func (e *Editor) scrollUp() {
@@ -204,12 +237,20 @@ func (e *Editor) scrollDown() {
 }
 
 func (e *Editor) pageDown() {
+	if e.gadgetFocus == ExplorerFocus {
+		e.explorer.pageDown()
+		return
+	}
 	win := e.activeWin
 	n := (win.end - win.start) / 2
 	win.scroll(n, 0, true, true)
 }
 
 func (e *Editor) pageUp() {
+	if e.gadgetFocus == ExplorerFocus {
+		e.explorer.pageUp()
+		return
+	}
 	win := e.activeWin
 	n := (win.end - win.start) / 2
 	win.scroll(-n, 0, true, true)
@@ -260,6 +301,23 @@ func (e *Editor) redo() {
 	e.activeWin.buffer.xiView.Redo()
 }
 
+func (e *Editor) globalSearch() {
+	win := e.activeWin
+	buffer := win.buffer
+	text := ""
+	if e.selection {
+		text = buffer.xiView.Copy()
+		e.states[Normal].(*NormalState).cancelVisual(true)
+	} else {
+		text = win.wordUnderCursor()
+	}
+	if text == "" {
+		return
+	}
+	e.palette.run("#" + text)
+	e.palette.executeItem()
+}
+
 func (e *Editor) search() {
 	win := e.activeWin
 	buffer := win.buffer
@@ -294,6 +352,10 @@ func (e *Editor) findPrevious() {
 }
 
 func (e *Editor) delForward() {
+	if e.selection {
+		text := e.activeWin.buffer.xiView.Copy()
+		e.register = text
+	}
 	e.activeWin.buffer.xiView.DeleteForward()
 	if e.mode == Normal {
 		e.states[Normal].(*NormalState).cancelVisual(false)
@@ -345,7 +407,14 @@ func (e *Editor) nextDiagnostic() {
 	}
 	sort.Sort(byLine(diags.Diagnostics))
 	row := win.row
+	col := win.col
 	for _, diag := range diags.Diagnostics {
+		if diag.Range.Start.Line == row {
+			if diag.Range.Start.Character > col {
+				win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
+				return
+			}
+		}
 		if diag.Range.Start.Line > row {
 			win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
 			return
@@ -361,11 +430,18 @@ func (e *Editor) previousDiagnostic() {
 	}
 	sort.Sort(byLine(diags.Diagnostics))
 	row := win.row
+	col := win.col
 	for i := len(diags.Diagnostics) - 1; i >= 0; i-- {
 		diag := diags.Diagnostics[i]
 		if diag.Range.Start.Line < row {
 			win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
 			return
+		}
+		if diag.Range.Start.Line == row {
+			if diag.Range.Start.Character < col {
+				win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
+				return
+			}
 		}
 	}
 }
@@ -632,6 +708,48 @@ func (e *Editor) getFilePaletteItems() []*PaletteItem {
 	}
 }
 
+func (e *Editor) searchInLinePrevious(char string) {
+	win := e.activeWin
+	row := win.row
+	col := win.col
+	line := win.buffer.lines[row]
+	if line == nil {
+		return
+	}
+
+	if col == 0 {
+		return
+	}
+
+	for i := col - 1; i >= 0; i-- {
+		if string(line.text[i]) == char {
+			win.buffer.xiView.Click(row, i)
+			return
+		}
+	}
+}
+
+func (e *Editor) searchInLineNext(char string) {
+	win := e.activeWin
+	row := win.row
+	col := win.col
+	line := win.buffer.lines[row]
+	if line == nil {
+		return
+	}
+
+	if col >= len(line.text)-1 {
+		return
+	}
+
+	for i, ch := range string(line.text[col+1:]) {
+		if string(ch) == char {
+			win.buffer.xiView.Click(row, col+i+1)
+			return
+		}
+	}
+}
+
 func (e *Editor) searchLines() {
 	e.palette.run("/")
 }
@@ -643,6 +761,18 @@ func (e *Editor) yank() {
 	text := win.buffer.xiView.Copy()
 	e.register = text
 	e.states[Normal].(*NormalState).cancelVisual(true)
+	win.buffer.xiView.Click(row, col)
+}
+
+func (e *Editor) copyClipboard() {
+	win := e.activeWin
+	row := win.row
+	col := win.col
+	text := win.buffer.xiView.Copy()
+	e.states[Normal].(*NormalState).cancelVisual(true)
+	if text != "" {
+		e.clipboard.SetText(text, 0)
+	}
 	win.buffer.xiView.Click(row, col)
 }
 
@@ -683,6 +813,90 @@ func (e *Editor) changePwd() {
 
 func (e *Editor) quickOpen() {
 	e.palette.run("")
+}
+
+func (e *Editor) getLinesInCwd() chan *PaletteItem {
+	itemsChan := make(chan *PaletteItem, 1000)
+	go func() {
+		defer close(itemsChan)
+
+		dir := e.cwd
+		files, err := ioutil.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		folders := []string{}
+		for {
+		loop:
+			for _, f := range files {
+				if f.IsDir() {
+					if f.Name() == ".git" {
+						continue loop
+					}
+					folders = append(folders, filepath.Join(dir, f.Name()))
+					continue loop
+				}
+				file := filepath.Join(dir, f.Name())
+				buffer := e.bufferPaths[file]
+				var content string
+				if buffer != nil {
+					content = buffer.xiView.GetContents()
+				} else {
+					contentBytes, err := ioutil.ReadFile(file)
+					for _, char := range contentBytes {
+						if char == 0x00 {
+							continue loop
+						}
+					}
+
+					if err == nil {
+						content = string(contentBytes)
+					}
+				}
+				file = strings.Replace(file, e.cwd, "", 1)
+				for i, lineContent := range strings.Split(content, "\n") {
+					var line *Line
+					if buffer != nil && i < len(buffer.lines) {
+						line = buffer.lines[i]
+					}
+					if line == nil {
+						line = &Line{
+							text: lineContent,
+						}
+						if buffer != nil && i < len(buffer.lines) {
+							buffer.lines[i] = line
+						}
+					}
+					item := &PaletteItem{
+						description: lineContent,
+						file:        file,
+						line:        line,
+						lineNumber:  i,
+					}
+					select {
+					case itemsChan <- item:
+					case <-time.After(time.Second):
+						return
+					}
+				}
+			}
+
+			for {
+				if len(folders) == 0 {
+					return
+				}
+				dir = folders[0]
+				folders = folders[1:]
+				files, _ = ioutil.ReadDir(dir)
+				if len(files) == 0 {
+					continue
+				} else {
+					break
+				}
+			}
+		}
+	}()
+	return itemsChan
 }
 
 func (e *Editor) getFoldersPaletteItemsChan() chan *PaletteItem {

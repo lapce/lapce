@@ -191,11 +191,17 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 		)
 		painter.SetFont(w.buffer.font.font)
 		row := (w.verticalScrollValue + w.y) / int(w.buffer.font.lineHeight)
-		w.buffer.drawLine(painter, w.buffer.font, row, row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
+		if row >= 0 && row < len(w.buffer.lines) && w.buffer.lines[row] != nil {
+			w.buffer.drawLine(painter, w.buffer.font, w.buffer.lines[row], row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
+		}
 		row--
-		w.buffer.drawLine(painter, w.buffer.font, row, row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
+		if row >= 0 && row < len(w.buffer.lines) && w.buffer.lines[row] != nil {
+			w.buffer.drawLine(painter, w.buffer.font, w.buffer.lines[row], row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
+		}
 		row += 2
-		w.buffer.drawLine(painter, w.buffer.font, row, row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
+		if row >= 0 && row < len(w.buffer.lines) && w.buffer.lines[row] != nil {
+			w.buffer.drawLine(painter, w.buffer.font, w.buffer.lines[row], row*int(w.buffer.font.lineHeight)-(w.verticalScrollValue+w.y), -w.horizontalScrollValue)
+		}
 	})
 	frame.win = w
 	editor.winIndex++

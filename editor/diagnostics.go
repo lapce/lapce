@@ -77,6 +77,9 @@ func newDiagnositicsPanel(editor *Editor) *DiagnosticsPanel {
 	return d
 }
 
+func (d *DiagnosticsPanel) changeSize(count int) {
+}
+
 func (d *DiagnosticsPanel) update() {
 	width := 0
 	n := 0
@@ -86,6 +89,7 @@ func (d *DiagnosticsPanel) update() {
 			continue
 		}
 		d.diagnostics = append(d.diagnostics, params)
+		n++
 		for _, diagnostic := range params.Diagnostics {
 			n++
 			w := int(d.font.fontMetrics.Size(0, diagnostic.Message, 0, 0).Rwidth() + 1)

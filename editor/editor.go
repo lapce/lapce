@@ -21,6 +21,11 @@ import (
 	"github.com/therecipe/qt/widgets"
 )
 
+const (
+	ExplorerFocus    = "ExplorerFocus"
+	DiagnosticsFocus = "DiagnosticsFocus"
+)
+
 // Editor is
 type Editor struct {
 	app             *widgets.QApplication
@@ -92,6 +97,7 @@ type Editor struct {
 	diagnostics      map[string]*lsp.PublishDiagnosticsParams
 	diagnosticsPanel *DiagnosticsPanel
 	explorer         *Explorer
+	gadgetFocus      string
 
 	specialKeys     map[core.Qt__Key]string
 	controlModifier core.Qt__KeyboardModifier

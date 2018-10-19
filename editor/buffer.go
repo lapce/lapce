@@ -152,7 +152,7 @@ func NewBuffer(editor *Editor, path string) *Buffer {
 			if line.text == "" {
 				continue
 			}
-			buffer.drawLine(p, buffer.font, i, i*int(buffer.font.lineHeight), 0)
+			buffer.drawLine(p, buffer.font, line, i*int(buffer.font.lineHeight), 0)
 		}
 		defer p.DestroyQPainter()
 	})
@@ -172,14 +172,7 @@ func (b *Buffer) setConfig(config *xi.Config) {
 	}
 }
 
-func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, index int, y int, padding int) {
-	if index < 0 || index >= len(b.lines) {
-		return
-	}
-	line := b.lines[index]
-	if line == nil {
-		return
-	}
+func (b *Buffer) drawLine(painter *gui.QPainter, font *Font, line *Line, y int, padding int) {
 	start := 0
 	color := gui.NewQColor()
 	for i := 0; i*3+2 < len(line.styles); i++ {
@@ -271,6 +264,83 @@ func (b *Buffer) updatePendingNewLines(pendingNewLines []*Line, newIx int) {
 			b.lines[ix] = pendingNewLines[i]
 		}
 	}
+}
+
+func (b *Buffer) updateLinesNew(update *xi.UpdateNotification) (int, bool) {
+	oldIx := 0
+	newIx := 0
+	b.newLines = []*Line{}
+	maxWidth := 0
+	pendingN := 0
+
+	winsMap := map[int][]*Window{}
+	for _, win := range b.editor.wins {
+		if win.buffer == b {
+			if win != b.editor.activeWin {
+				wins, ok := winsMap[win.row]
+				if !ok {
+					wins = []*Window{}
+				}
+				wins = append(wins, win)
+				winsMap[win.row] = wins
+			}
+		}
+	}
+
+	for _, item := range update.Update.Ops {
+		op := item.Op
+		n := item.N
+		switch op {
+		case "skip":
+			oldIx += n
+			pendingN = 0
+		case "copy", "invalidate":
+			if op == "copy" {
+				pendingN = 0
+			}
+			for i := oldIx + pendingN; i < oldIx+pendingN+n; i++ {
+				if i > len(b.lines)-1 {
+					b.newLines = append(b.newLines, nil)
+				} else {
+					line := b.lines[i]
+					b.newLines = append(b.newLines, line)
+					if line != nil && line.width > maxWidth {
+						maxWidth = line.width
+					}
+				}
+
+				if newIx != oldIx+pendingN {
+					newI := i - (oldIx + pendingN) + newIx
+					b.setNewLine(i, newI, winsMap)
+				}
+			}
+			newIx += n
+			if op == "copy" {
+				oldIx += n
+			} else {
+				pendingN += n
+			}
+		case "ins":
+			for _, line := range item.Lines {
+				newLine := &Line{
+					text:    line.Text,
+					styles:  line.Styles,
+					cursor:  line.Cursor,
+					invalid: true,
+					width:   int(b.font.fontMetrics.Size(0, strings.Replace(line.Text, "\t", b.tabStr, -1), 0, 0).Rwidth() + 0.5),
+				}
+				if newLine.width > maxWidth {
+					maxWidth = newLine.width
+				}
+				b.newLines = append(b.newLines, newLine)
+				newIx++
+			}
+			pendingN += n
+		}
+	}
+	heightChanged := len(b.lines) != len(b.newLines)
+	b.lines = b.newLines
+	return maxWidth, heightChanged
 }
 
 func (b *Buffer) updateLines(update *xi.UpdateNotification) (int, bool) {

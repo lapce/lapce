@@ -37,6 +37,7 @@ type FileNode struct {
 	expanded bool
 	parent   string
 	width    int
+	row      int
 }
 
 func newExplorer(editor *Editor) *Explorer {
@@ -71,20 +72,7 @@ func newExplorer(editor *Editor) *Explorer {
 			return
 		}
 		e.row = row
-		node := e.nodeList[row]
-		if !node.isDir {
-			e.view.Update()
-			e.editor.activeWin.openFile(filepath.Join(node.parent, node.name))
-			return
-		}
-		if node.expanded {
-			node.expanded = false
-			e.refresh()
-			return
-		}
-
-		e.expandNode(node)
-		e.refresh()
+		e.toggleExpand()
 	})
 
 	go e.resetFileNode()
@@ -92,9 +80,37 @@ func newExplorer(editor *Editor) *Explorer {
 	return e
 }
 
+func (e *Explorer) toggleExpand() {
+	if e.row < 0 || e.row >= len(e.nodeList) {
+		return
+	}
+
+	node := e.nodeList[e.row]
+	if !node.isDir {
+		e.view.Update()
+		e.editor.activeWin.openFile(filepath.Join(node.parent, node.name))
+		return
+	}
+	if node.expanded {
+		node.expanded = false
+		e.refresh()
+		return
+	}
+
+	e.expandNode(node)
+	e.refresh()
+}
+
 func (e *Explorer) refresh() {
 	e.nodeList = []*FileNode{}
-	n, width := e.getNumber(e.fileNode, 0)
+	e.fillList(e.fileNode)
+	n := len(e.nodeList)
+	width := 0
+	for _, node := range e.nodeList {
+		if node.width > width {
+			width = node.width
+		}
+	}
 	height := int(float64(n)*e.font.lineHeight + 0.5)
 	verticalScrollBar := e.view.VerticalScrollBar()
 	scrollBarWidth := 0
@@ -116,6 +132,55 @@ func (e *Explorer) refresh() {
 	// e.rect.SetWidth(float64(width))
 	// e.rect.SetHeight(float64(height))
 	e.view.SetSceneRect2(0, 0, float64(width), float64(height))
+}
+
+func (e *Explorer) changeSize(count int) {
+	e.width += count
+	if e.width < 10 {
+		e.width = 10
+	}
+	e.editor.centralSplitter.SetSizes([]int{e.width, e.editor.width - e.width})
+	e.view.Hide()
+	e.view.Show()
+}
+
+func (e *Explorer) goToRow(row int) {
+	e.row = row
+	e.view.EnsureVisible2(
+		0,
+		float64(e.row)*e.font.lineHeight,
+		1,
+		e.font.lineHeight,
+		20,
+		20,
+	)
+	e.widget.Update()
+}
+
+func (e *Explorer) pageUp() {
+	n := int(float64(e.editor.height) / e.font.lineHeight / 2)
+	e.up(n)
+}
+
+func (e *Explorer) pageDown() {
+	n := int(float64(e.editor.height) / e.font.lineHeight / 2)
+	e.down(n)
+}
+
+func (e *Explorer) up(count int) {
+	e.row -= count
+	if e.row < 0 {
+		e.row = 0
+	}
+	e.goToRow(e.row)
+}
+
+func (e *Explorer) down(count int) {
+	e.row += count
+	if e.row > len(e.nodeList)-1 {
+		e.row = len(e.nodeList) - 1
+	}
+	e.goToRow(e.row)
 }
 
 func (e *Explorer) expandNode(node *FileNode) {
@@ -154,6 +219,17 @@ func (e *Explorer) expandNode(node *FileNode) {
 		}
 	}
 	node.children = nodes
+}
+
+func (e *Explorer) fillList(node *FileNode) {
+	node.row = len(e.nodeList)
+	e.nodeList = append(e.nodeList, node)
+
+	if node.expanded {
+		for _, child := range node.children {
+			e.fillList(child)
+		}
+	}
 }
 
 func (e *Explorer) getNumber(node *FileNode, width int) (int, int) {
@@ -216,15 +292,15 @@ func (e *Explorer) paint(event *gui.QPaintEvent) {
 	node := e.fileNode
 	i := 0
 	y = i*int(e.font.lineHeight) + int(e.font.shift)
-	painter.DrawText3(20*node.level, y, filepath.Base(node.name))
+	painter.DrawText3(5, y, strings.Replace(node.parent, e.editor.homeDir, "~", 1))
 	i++
 
-	for _, node = range e.fileNode.children {
-		i = e.paintNode(painter, i, node)
+	for _, node := range e.nodeList {
+		e.paintSingleNode(painter, node, node.row)
 	}
 }
 
-func (e *Explorer) paintNode(painter *gui.QPainter, i int, node *FileNode) int {
+func (e *Explorer) paintSingleNode(painter *gui.QPainter, node *FileNode, i int) {
 	r := core.NewQRectF()
 	svg := e.editor.getSvgRenderer("default", nil)
 
@@ -263,13 +339,7 @@ func (e *Explorer) paintNode(painter *gui.QPainter, i int, node *FileNode) int {
 	r.SetHeight(e.font.height)
 	svg.Render2(painter, r)
 
+	penColor := gui.NewQColor3(205, 211, 222, 255)
+	painter.SetPen2(penColor)
 	painter.DrawText3(int(padding+e.font.height*2+10), y, node.name)
-	i++
-
-	if node.expanded {
-		for _, child := range node.children {
-			i = e.paintNode(painter, i, child)
-		}
-	}
-	return i
 }

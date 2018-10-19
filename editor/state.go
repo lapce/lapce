@@ -38,12 +38,15 @@ func newStates(e *Editor) map[int]State {
 
 // NormalState is
 type NormalState struct {
-	editor       *Editor
-	wincmd       bool
-	gcmd         bool
-	visualActive bool
-	visualMode   string
-	cmds         map[string]Command
+	editor           *Editor
+	wincmd           bool
+	gcmd             bool
+	searchInLineOn   bool
+	searchInLineChar string
+	visualActive     bool
+	visualMode       string
+	cmds             map[string]Command
+	lastCmd          []string
 }
 
 // CmdArg is
@@ -83,16 +86,24 @@ func newNormalState(e *Editor) State {
 		"G":     e.goTo,
 		"y":     e.yank,
 		"p":     e.paste,
+		"<D-y>": e.copyClipboard,
 		"<D-p>": e.pasteClipboard,
 		"<C-e>": e.scrollDown,
 		"<C-y>": e.scrollUp,
 		"<C-d>": e.pageDown,
 		"<C-u>": e.pageUp,
 		"<D-s>": e.save,
+		"<D-e>": e.focusExplorer,
+		"<D-d>": e.focusDiagnostics,
 		"v":     s.visual,
 		"V":     s.visual,
+		"f":     s.searchInLine,
+		";":     s.searchInLineNext,
+		",":     s.searchInLinePrevious,
+		".":     s.repeatCmd,
 		"u":     e.undo,
 		"<C-r>": e.redo,
+		"#":     e.globalSearch,
 		"*":     e.search,
 		"/":     e.searchLines,
 		"n":     e.findNext,
@@ -116,6 +127,13 @@ func (s *NormalState) cursor() (int, int) {
 
 func (s *NormalState) execute() {
 	cmdArg := s.editor.cmdArg
+	if s.searchInLineOn {
+		s.searchInLineChar = cmdArg.cmd
+		s.editor.searchInLineNext(s.searchInLineChar)
+		s.searchInLineOn = false
+		return
+	}
+
 	i, err := strconv.Atoi(cmdArg.cmd)
 	if err == nil {
 		cmdArg.count = cmdArg.count*10 + i
@@ -148,6 +166,7 @@ func (s *NormalState) execute() {
 
 	cmd, ok := s.cmds[cmdArg.cmd]
 	if !ok {
+		fmt.Println("unhandled cmd", cmdArg.cmd)
 		return
 	}
 	cmd()
@@ -179,12 +198,20 @@ func (s *NormalState) doWincmd() {
 	count := s.editor.getCmdCount()
 	switch cmd {
 	case "l":
+		if s.editor.gadgetFocus == ExplorerFocus {
+			s.editor.gadgetFocus = ""
+			return
+		}
 		s.editor.activeWin.frame.focusRight()
 		return
 	case "h":
 		s.editor.activeWin.frame.focusLeft()
 		return
 	case "k":
+		if s.editor.gadgetFocus == DiagnosticsFocus {
+			s.editor.gadgetFocus = ""
+			return
+		}
 		s.editor.activeWin.frame.focusAbove()
 		return
 	case "j":
@@ -203,10 +230,18 @@ func (s *NormalState) doWincmd() {
 		s.editor.exchangeSplit()
 		return
 	case "<lt>":
-		s.editor.activeWin.frame.changeSize(-count, true)
+		if s.editor.gadgetFocus == ExplorerFocus {
+			s.editor.explorer.changeSize(-count)
+		} else {
+			s.editor.activeWin.frame.changeSize(-count, true)
+		}
 		return
 	case ">":
-		s.editor.activeWin.frame.changeSize(count, true)
+		if s.editor.gadgetFocus == ExplorerFocus {
+			s.editor.explorer.changeSize(count)
+		} else {
+			s.editor.activeWin.frame.changeSize(count, true)
+		}
 		return
 	case "+":
 		s.editor.activeWin.frame.changeSize(count, false)
@@ -215,6 +250,34 @@ func (s *NormalState) doWincmd() {
 		s.editor.activeWin.frame.changeSize(-count, false)
 		return
 	}
+}
+
+func (s *NormalState) repeatCmd() {
+	if len(s.lastCmd) == 0 {
+		return
+	}
+	for _, cmd := range s.lastCmd {
+		s.editor.setCmd(cmd)
+		s.execute()
+	}
+}
+
+func (s *NormalState) searchInLinePrevious() {
+	if s.searchInLineChar == "" {
+		return
+	}
+	s.editor.searchInLinePrevious(s.searchInLineChar)
+}
+
+func (s *NormalState) searchInLineNext() {
+	if s.searchInLineChar == "" {
+		return
+	}
+	s.editor.searchInLineNext(s.searchInLineChar)
+}
+
+func (s *NormalState) searchInLine() {
+	s.searchInLineOn = true
 }
 
 func (s *NormalState) visual() {
