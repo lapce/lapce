@@ -33,6 +33,7 @@ type Editor struct {
 	scence          *widgets.QGraphicsScene
 	centralWidget   *widgets.QWidget
 	centralSplitter *widgets.QSplitter
+	mainSplitter    *widgets.QSplitter
 	signal          *editorSignal
 	cursor          *widgets.QWidget
 	statusLine      *StatusLine
@@ -462,6 +463,9 @@ func (e *Editor) initMainWindow() {
 		e.centralSplitter.SetSizes([]int{e.explorer.width, e.width - e.explorer.width})
 		e.explorer.view.Hide()
 		e.explorer.view.Show()
+		e.mainSplitter.SetSizes([]int{e.height - e.diagnosticsPanel.height, e.diagnosticsPanel.height})
+		e.diagnosticsPanel.view.Hide()
+		e.diagnosticsPanel.view.Show()
 		e.palette.resize()
 	})
 	e.window.ConnectKeyPressEvent(e.keyPress)
@@ -484,6 +488,20 @@ func (e *Editor) initMainWindow() {
 	mainSplitter.SetStyleSheet(e.getSplitterStylesheet())
 	mainSplitter.AddWidget(topSplitter)
 	mainSplitter.AddWidget(e.diagnosticsPanel.view)
+	e.mainSplitter = mainSplitter
+	e.diagnosticsPanel.height = 250
+	e.mainSplitter.SetSizes([]int{ e.height - e.diagnosticsPanel.height,e.diagnosticsPanel.height,})
+	e.mainSplitter.ConnectSplitterMoved(func(pos, index int) {
+		e.diagnosticsPanel.view.Hide()
+		e.diagnosticsPanel.view.Show()
+		e.diagnosticsPanel.width = e.diagnosticsPanel.view.Width()
+		e.diagnosticsPanel.height = e.diagnosticsPanel.view.Height()
+		e.equalWins()
+		for _, w := range e.wins {
+			w.view.Hide()
+			w.view.Show()
+		}
+	})
 
 	e.centralSplitter.AddWidget(e.explorer.view)
 	e.centralSplitter.AddWidget(mainSplitter)

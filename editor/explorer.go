@@ -89,6 +89,7 @@ func (e *Explorer) toggleExpand() {
 	if !node.isDir {
 		e.view.Update()
 		e.editor.activeWin.openFile(filepath.Join(node.parent, node.name))
+		e.editor.gadgetFocus = ""
 		return
 	}
 	if node.expanded {
@@ -304,16 +305,16 @@ func (e *Explorer) paintSingleNode(painter *gui.QPainter, node *FileNode, i int)
 	r := core.NewQRectF()
 	svg := e.editor.getSvgRenderer("default", nil)
 
-	padding := float64(node.level) * (5 + e.font.height)
+	padding := float64(node.level) * (6 + e.font.height)
 
 	y := int(float64(i)*e.font.lineHeight + e.font.shift)
 	if node.isDir {
 		if node.expanded {
-			svg = e.editor.getSvgRenderer("angle-down", nil)
+			svg = e.editor.getSvgRenderer("caret-down", nil)
 		} else {
-			svg = e.editor.getSvgRenderer("angle-right", nil)
+			svg = e.editor.getSvgRenderer("caret-right", nil)
 		}
-		r.SetX(padding + 5)
+		r.SetX(padding + 4)
 		r.SetY(float64(i)*e.font.lineHeight + (e.font.lineSpace / 2))
 		r.SetWidth(e.font.height)
 		r.SetHeight(e.font.height)
@@ -333,7 +334,7 @@ func (e *Explorer) paintSingleNode(painter *gui.QPainter, node *FileNode, i int)
 		}
 		svg = e.editor.getSvgRenderer(syntax, nil)
 	}
-	r.SetX(padding + 5 + e.font.height)
+	r.SetX(padding + 6 + e.font.height)
 	r.SetY(float64(i)*e.font.lineHeight + (e.font.lineSpace / 2))
 	r.SetWidth(e.font.height)
 	r.SetHeight(e.font.height)
@@ -341,5 +342,5 @@ func (e *Explorer) paintSingleNode(painter *gui.QPainter, node *FileNode, i int)
 
 	penColor := gui.NewQColor3(205, 211, 222, 255)
 	painter.SetPen2(penColor)
-	painter.DrawText3(int(padding+e.font.height*2+10), y, node.name)
+	painter.DrawText3(int(padding+e.font.height*2+12), y, node.name)
 }

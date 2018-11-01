@@ -209,6 +209,8 @@ func NewClient(syntax string, handleNotificationFunc handleNotificationFunc) (*C
 		args = []string{"-gocodecompletion", "-lint-tool", "gobuild", "-logfile", "/tmp/langserver"}
 	case "py":
 		cmd = "pyls"
+	case "rs":
+		cmd = "rls"
 	case "c":
 		cmd = "cquery"
 	case "css":

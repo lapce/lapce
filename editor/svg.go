@@ -138,6 +138,20 @@ func (e *Editor) initSVGS() {
 		thickness: 0.5,
 		xml:       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path fill="%s" d="M527.943 224H480v-48c0-26.51-21.49-48-48-48H272l-64-64H48C21.49 64 0 85.49 0 112v288c0 26.51 21.49 48 48 48h400a48.001 48.001 0 0 0 40.704-22.56l79.942-128c19.948-31.917-3.038-73.44-40.703-73.44zM54 112h134.118l64 64H426a6 6 0 0 1 6 6v42H152a48 48 0 0 0-41.098 23.202L48 351.449V117.993A5.993 5.993 0 0 1 54 112zm394 288H72l77.234-128H528l-80 128z"/></svg>`,
 	}
+	e.svgs["caret-right"] = &SvgXML{
+		width:     1792,
+		height:    1792,
+		thickness: 0.5,
+		xml: `<?xml version="1.0" encoding="utf-8"?>
+<svg width="1792" height="1792" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path fill="%s" d="M1152 896q0 26-19 45l-448 448q-19 19-45 19t-45-19-19-45v-896q0-26 19-45t45-19 45 19l448 448q19 19 19 45z"/></svg>`,
+	}
+	e.svgs["caret-down"] = &SvgXML{
+		width:     1792,
+		height:    1792,
+		thickness: 0.5,
+		xml: `<?xml version="1.0" encoding="utf-8"?>
+<svg width="1792" height="1792" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path fill="%s" d="M1408 704q0 26-19 45l-448 448q-19 19-45 19t-45-19l-448-448q-19-19-19-45t19-45 45-19h896q26 0 45 19t19 45z"/></svg>`,
+	}
 	e.svgs["angle-right"] = &SvgXML{
 		width:     1792,
 		height:    1792,

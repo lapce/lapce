@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/crane-editor/crane/log"
+	"github.com/crane-editor/crane/lsp"
 )
 
 func (e *Editor) executeKey(key string) {
@@ -399,10 +400,22 @@ func (e *Editor) hover() {
 	e.lspClient.hover(win.buffer, win.row, win.col)
 }
 
+func (e *Editor) jumpToDiagnostic(diag *lsp.Diagnostics) {
+	win := e.activeWin
+	win.scrollToCursor(diag.Range.Start.Line, diag.Range.Start.Character, true, true, true)
+	win.buffer.xiView.Click(win.row, win.col)
+	win.diagPopup.widget.Move2(win.x, win.y-win.diagPopup.widget.Height())
+	win.diagPopup.contentLabel.SetText(diag.Message)
+	win.diagPopup.show()
+}
+
 func (e *Editor) nextDiagnostic() {
 	win := e.activeWin
 	diags, ok := e.diagnostics[win.buffer.path]
 	if !ok {
+		return
+	}
+	if len(diags.Diagnostics) == 0 {
 		return
 	}
 	sort.Sort(byLine(diags.Diagnostics))
@@ -411,15 +424,17 @@ func (e *Editor) nextDiagnostic() {
 	for _, diag := range diags.Diagnostics {
 		if diag.Range.Start.Line == row {
 			if diag.Range.Start.Character > col {
-				win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
+				e.jumpToDiagnostic(diag)
 				return
 			}
 		}
 		if diag.Range.Start.Line > row {
-			win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
+			e.jumpToDiagnostic(diag)
 			return
 		}
 	}
+	diag := diags.Diagnostics[0]
+	e.jumpToDiagnostic(diag)
 }
 
 func (e *Editor) previousDiagnostic() {
@@ -428,22 +443,27 @@ func (e *Editor) previousDiagnostic() {
 	if !ok {
 		return
 	}
+	if len(diags.Diagnostics) == 0 {
+		return
+	}
 	sort.Sort(byLine(diags.Diagnostics))
 	row := win.row
 	col := win.col
 	for i := len(diags.Diagnostics) - 1; i >= 0; i-- {
 		diag := diags.Diagnostics[i]
 		if diag.Range.Start.Line < row {
-			win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
+			e.jumpToDiagnostic(diag)
 			return
 		}
 		if diag.Range.Start.Line == row {
 			if diag.Range.Start.Character < col {
-				win.buffer.xiView.Click(diag.Range.Start.Line, diag.Range.Start.Character)
+				e.jumpToDiagnostic(diag)
 				return
 			}
 		}
 	}
+	diag := diags.Diagnostics[len(diags.Diagnostics)-1]
+	e.jumpToDiagnostic(diag)
 }
 
 func (e *Editor) definition() {
@@ -853,7 +873,6 @@ func (e *Editor) getLinesInCwd() chan *PaletteItem {
 						content = string(contentBytes)
 					}
 				}
-				file = strings.Replace(file, e.cwd, "", 1)
 				for i, lineContent := range strings.Split(content, "\n") {
 					var line *Line
 					if buffer != nil && i < len(buffer.lines) {

@@ -73,6 +73,7 @@ type Palette struct {
 
 	oldRow           int
 	oldCol           int
+	oldFile          string
 	oldVerticalValue int
 	oldExplorerRow   int
 
@@ -390,8 +391,8 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 			painter.DrawText3(p.padding, y, lineNumber)
 			if item.line != nil {
 				line := item.line
-				if item.lineNumber >= 0 && item.lineNumber < len(p.editor.activeWin.buffer.lines) {
-					line = p.editor.activeWin.buffer.lines[item.lineNumber]
+				if item.lineNumber-1 >= 0 && item.lineNumber-1 < len(p.editor.activeWin.buffer.lines) {
+					line = p.editor.activeWin.buffer.lines[item.lineNumber-1]
 				}
 				padding := int(p.font.fontMetrics.Size(0, lineNumber, 0, 0).Rwidth()+0.5) + p.padding
 				p.editor.activeWin.buffer.drawLine(painter,
@@ -404,13 +405,18 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 	} else if p.inputType == PaletteGlobal {
 		painter.SetPen2(penColor)
 		if item.line != nil {
+			line := item.line
 			buffer := p.editor.bufferPaths[item.file]
 			if buffer != nil {
-				item.line = buffer.lines[item.lineNumber]
+				if item.lineNumber >= 0 && item.lineNumber < len(buffer.lines) {
+					if buffer.lines[item.lineNumber] != nil {
+						line = buffer.lines[item.lineNumber]
+					}
+				}
 			}
 			p.editor.activeWin.buffer.drawLine(painter,
 				p.font,
-				item.line,
+				line,
 				index*int(p.font.lineHeight),
 				padding)
 		}
@@ -471,8 +477,8 @@ func (p *Palette) paintLine(painter *gui.QPainter, index int) {
 			if p.inputType == PaletteLine && p.editor.gadgetFocus == ExplorerFocus {
 				explorer := p.editor.explorer
 				node := item.node
-				x = int(float64(node.level)*(5+explorer.font.height) +
-					explorer.font.height*2 + 10 +
+				x = int(float64(node.level)*(6+explorer.font.height) +
+					explorer.font.height*2 + 12 +
 					p.font.fontMetrics.Size(0, string(item.description[:match]), 0, 0).Rwidth())
 			} else {
 				x = padding + int(p.font.fontMetrics.Size(0, strings.Replace(string(item.description[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1), 0, 0).Rwidth()+0.5)
@@ -584,6 +590,13 @@ func (p *Palette) resetView() {
 			win.verticalScrollBar.SetValue(p.oldVerticalValue)
 			win.scrollToCursor(p.oldRow, p.oldCol, true, false, false)
 		}
+	case PaletteGlobal:
+		win := p.editor.activeWin
+		if win.buffer.path != p.oldFile {
+			win.openFile(p.oldFile)
+		}
+		win.verticalScrollBar.SetValue(p.oldVerticalValue)
+		win.scrollToCursor(p.oldRow, p.oldCol, true, false, false)
 	case PaletteThemes:
 		p.changeTheme(p.editor.themeName)
 	}
@@ -637,6 +650,29 @@ func (p *Palette) switchItem() {
 			items = p.items
 		}
 		p.changeTheme(items[p.index].description)
+	case PaletteGlobal:
+		var items []*PaletteItem
+		if len(p.inputText) > len(p.inputType) {
+			items = p.activeItems
+		} else {
+			if p.inputType == PaletteGlobal {
+				items = p.activeItems
+			} else {
+				items = p.items
+			}
+		}
+		if p.index > len(items) {
+			p.index = 0
+		}
+		item := items[p.index]
+		win := p.editor.activeWin
+		if item.file != win.buffer.path {
+			win.openFile(item.file)
+		}
+		row := item.lineNumber
+		col := 0
+		win.verticalScrollBar.SetValue(row*int(win.buffer.font.lineHeight) - win.frame.height*2/3)
+		win.setPos(row, col, false)
 	case PaletteLine:
 		if p.editor.gadgetFocus == ExplorerFocus {
 			var items []*PaletteItem
@@ -683,12 +719,25 @@ func (p *Palette) changeTheme(themeName string) {
 func (p *Palette) executeItem() *PaletteItem {
 	p.inputList = append([]string{p.inputText}, p.inputList...)
 	if p.inputType == PaletteGlobal {
-		p.globalSearch = string(p.inputText[len(p.inputType):])
-		p.inputText = PaletteGlobal
-		p.inputIndex = len(PaletteGlobal)
-		p.input.Update()
-		return &PaletteItem{
-			stayInPalette: true,
+		if p.globalSearch == "" {
+			p.globalSearch = string(p.inputText[len(p.inputType):])
+			p.inputText = PaletteGlobal
+			p.inputIndex = len(PaletteGlobal)
+			p.input.Update()
+			return &PaletteItem{
+				stayInPalette: true,
+			}
+		} else {
+			item := p.activeItems[p.index]
+			win := p.editor.activeWin
+			if item.file != win.buffer.path {
+				win.openFile(item.file)
+			}
+			row := item.lineNumber
+			col := 0
+			win.verticalScrollBar.SetValue(row*int(win.buffer.font.lineHeight) - win.frame.height*2/3)
+			win.setPos(row, col, true)
+			p.inputType = PaletteNone
 		}
 	}
 	var items []*PaletteItem
@@ -733,12 +782,6 @@ func (p *Palette) executeItem() *PaletteItem {
 		title := fmt.Sprintf("Crane - %s", item.description)
 		p.editor.window.SetWindowTitle(title)
 		p.editor.explorer.resetFileNode()
-	case PaletteGlobal:
-		p.globalSearch = string(p.inputText[len(p.inputType):])
-		item.stayInPalette = true
-		p.inputText = PaletteGlobal
-		p.inputIndex = len(PaletteGlobal)
-		p.input.Update()
 	default:
 		item.n++
 
@@ -1047,6 +1090,11 @@ func (p *Palette) getItems(inputType string) {
 	case PaletteCwd:
 		itemsChan = p.editor.getFoldersPaletteItemsChan()
 	case PaletteGlobal:
+		win := p.editor.activeWin
+		p.oldFile = win.buffer.path
+		p.oldRow = win.row
+		p.oldCol = win.col
+		p.oldVerticalValue = win.verticalScrollBar.Value()
 		itemsChan = p.editor.getLinesInCwd()
 	case PaletteLine:
 		if p.editor.gadgetFocus == ExplorerFocus {

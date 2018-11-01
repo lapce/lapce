@@ -41,6 +41,7 @@ type NormalState struct {
 	editor           *Editor
 	wincmd           bool
 	gcmd             bool
+	zcmd             bool
 	searchInLineOn   bool
 	searchInLineChar string
 	visualActive     bool
@@ -164,6 +165,17 @@ func (s *NormalState) execute() {
 		return
 	}
 
+	if !s.zcmd {
+		if cmdArg.cmd == "z" {
+			s.zcmd = true
+			return
+		}
+	} else {
+		s.doZcmd()
+		s.reset()
+		return
+	}
+
 	cmd, ok := s.cmds[cmdArg.cmd]
 	if !ok {
 		fmt.Println("unhandled cmd", cmdArg.cmd)
@@ -182,6 +194,19 @@ func (s *NormalState) reset() {
 	s.editor.cmdArg.count = 0
 	s.wincmd = false
 	s.gcmd = false
+	s.zcmd = false
+}
+
+func (s *NormalState) doZcmd() {
+	cmd := s.editor.cmdArg.cmd
+	switch cmd {
+	case "z":
+		win := s.editor.activeWin
+		x, y := win.buffer.getPos(win.row, win.col)
+		win.view.CenterOn2(float64(x), float64(y))
+		win.setPos(win.row, win.col, false)
+		return
+	}
 }
 
 func (s *NormalState) doGcmd() {

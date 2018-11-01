@@ -92,6 +92,7 @@ type Window struct {
 	smoothScrollChan chan *SmoothScroll
 	smoothScrollDone chan struct{}
 	location         *Location
+	diagPopup        *DiagPopup
 
 	verticalScrollBar         *widgets.QScrollBar
 	horizontalScrollBar       *widgets.QScrollBar
@@ -128,6 +129,7 @@ func NewWindow(editor *Editor, frame *Frame) *Window {
 			finished: make(chan struct{}),
 		},
 	}
+	w.diagPopup = newDiagPopup(w)
 	close(w.scrollJob.finished)
 	go w.smoothScrollJob()
 
@@ -904,6 +906,7 @@ func (w *Window) smoothScroll(x, y int, setPos *SetPos, cursor bool) (chan struc
 }
 
 func (w *Window) setPos(row, col int, toXi bool) {
+	w.diagPopup.hide()
 	b := w.buffer
 	x, y := b.getPos(row, col)
 	oldX := w.x
