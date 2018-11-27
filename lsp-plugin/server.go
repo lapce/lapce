@@ -167,7 +167,7 @@ func (h *handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		}
 		els = append(els, el)
 		el = &plugin.El{
-			Insert: item.InsertText,
+			Insert: item.Label,
 		}
 		els = append(els, el)
 		el = &plugin.El{

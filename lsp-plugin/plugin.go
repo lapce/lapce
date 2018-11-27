@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"runtime/debug"
 	"sync"
 
@@ -80,7 +81,8 @@ func (p *Plugin) handleBefore(req interface{}) (result interface{}, overide bool
 		}
 		didChange := &lsp.DidChangeParams{
 			TextDocument: lsp.VersionedTextDocumentIdentifier{
-				URI: "file://" + view.Path,
+				URI:     "file://" + view.Path,
+				Version: view.Rev,
 			},
 			ContentChanges: []*lsp.ContentChange{
 				&lsp.ContentChange{},
@@ -130,8 +132,17 @@ func (p *Plugin) handleBefore(req interface{}) (result interface{}, overide bool
 		}
 		view.Rev = r.Rev
 		view.Cache.ApplyUpdate(r)
-		if lspClient.ServerCapabilities.TextDocumentSync == 1 {
-			full = true
+		switch sync := lspClient.ServerCapabilities.TextDocumentSync.(type) {
+		case lsp.TextDocumentSyncOptions:
+			if sync.Change == 1 {
+				full = true
+			}
+		case float64:
+			if sync == 1 {
+				full = true
+			}
+		default:
+			log.Infoln("sync type is", reflect.TypeOf(sync))
 		}
 		if full {
 			change.Range = nil
@@ -192,7 +203,12 @@ func (p *Plugin) handle(req interface{}) (result interface{}, overide bool) {
 			log.Infoln("now set raw content")
 			view.Cache.SetContent(content)
 			log.Infoln("set raw content done", buf.Path)
-			err = lspClient.DidOpen(buf.Path, string(content))
+			languageId := ""
+			switch syntax {
+			case "rs":
+				languageId = "rust"
+			}
+			err = lspClient.DidOpen(buf.Path, string(content), languageId)
 			log.Infoln("did open done")
 			if err != nil {
 				return
@@ -361,7 +377,7 @@ func (p *Plugin) matchCompletionItems(items []*lsp.CompletionItem, word []rune) 
 	}
 	matchItems := []*lsp.CompletionItem{}
 	for _, item := range items {
-		score, matches := fuzzy.MatchScore([]rune(item.InsertText), word)
+		score, matches := fuzzy.MatchScore([]rune(item.Label), word)
 		if score > -1 {
 			i := 0
 			for i = 0; i < len(matchItems); i++ {

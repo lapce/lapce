@@ -758,15 +758,6 @@ func (v *View) Redo() {
 	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
 }
 
-// CancelOperation deletes forwards
-func (v *View) CancelOperation() {
-	cmd := &EditCommand{
-		Method: "cancel_operation",
-		ViewID: v.ID,
-	}
-	v.xi.Conn.Notify(context.Background(), "edit", &cmd)
-}
-
 // SelectionForFind finds
 func (v *View) SelectionForFind() {
 	params := map[string]interface{}{}

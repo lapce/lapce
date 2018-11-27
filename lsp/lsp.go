@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/crane-editor/crane/log"
-
 	"github.com/sourcegraph/jsonrpc2"
 )
 
@@ -49,13 +48,13 @@ type handler struct {
 type Client struct {
 	Conn               *jsonrpc2.Conn
 	handleNotification handleNotificationFunc
-	ServerCapabilities *Capabilities
+	ServerCapabilities ServerCapabilities
 }
 
 // VersionedTextDocumentIdentifier is
 type VersionedTextDocumentIdentifier struct {
 	URI     string `json:"uri"`
-	Version *int   `json:"version,omitempty"`
+	Version uint64 `json:"version"`
 }
 
 // TextDocumentIdentifier is
@@ -97,6 +96,12 @@ type TextDocumentPositionParams struct {
 // DocumentFormattingParams is
 type DocumentFormattingParams struct {
 	TextDocument *TextDocumentIdentifier `json:"textDocument"`
+	Options      *FormattingOptions      `json:"options"`
+}
+
+type FormattingOptions struct {
+	TabSize      int  `json:"tabSize,omitempty"`
+	InsertSpaces bool `json:"insertSpaces"`
 }
 
 // CompletionResp isj
@@ -125,11 +130,6 @@ type Capabilities struct {
 	XdefinitionProvider          bool `json:"xdefinitionProvider"`
 	XworkspaceReferencesProvider bool `json:"xworkspaceReferencesProvider"`
 	XworkspaceSymbolByProperties bool `json:"xworkspaceSymbolByProperties"`
-}
-
-// InitializeResult is
-type InitializeResult struct {
-	Capabilities *Capabilities `json:"capabilities"`
 }
 
 // TextEdit is
@@ -205,6 +205,7 @@ func NewClient(syntax string, handleNotificationFunc handleNotificationFunc) (*C
 	args := []string{}
 	switch syntax {
 	case "go":
+		// cmd = "golsp"
 		cmd = "go-langserver"
 		args = []string{"-gocodecompletion", "-lint-tool", "gobuild", "-logfile", "/tmp/langserver"}
 	case "py":
@@ -251,19 +252,22 @@ func (c *Client) Initialize(rootPath string) error {
 		return err
 	}
 	c.ServerCapabilities = result.Capabilities
-	log.Infoln("initialize", err, result, rootPath)
+	log.Infoln("initialize", err, result, rootPath, result.Capabilities.TextDocumentSync)
 	return nil
 }
 
 // DidOpen is
-func (c *Client) DidOpen(path string, content string) error {
-	textDocument := map[string]string{}
+func (c *Client) DidOpen(path string, content string, languageId string) error {
+	textDocument := map[string]interface{}{}
 	textDocument["uri"] = "file://" + path
 	textDocument["text"] = content
+	textDocument["version"] = 1
+	if languageId != "" {
+		textDocument["languageId"] = languageId
+	}
 	params := map[string]interface{}{}
 	params["textDocument"] = textDocument
-	var result interface{}
-	err := c.Conn.Call(context.Background(), "textDocument/didOpen", &params, &result)
+	err := c.Conn.Notify(context.Background(), "textDocument/didOpen", &params)
 	return err
 }
 
@@ -280,9 +284,8 @@ func (c *Client) DidSave(path string) error {
 
 // DidChange is
 func (c *Client) DidChange(didChangeParams *DidChangeParams) error {
-	var result interface{}
-	err := c.Conn.Call(context.Background(), "textDocument/didChange", didChangeParams, &result)
-	log.Infoln("did change error", err, result)
+	err := c.Conn.Notify(context.Background(), "textDocument/didChange", didChangeParams)
+	log.Infoln("did change error", err)
 	return err
 }
 
@@ -292,6 +295,9 @@ func (c *Client) Format(path string) ([]*TextEdit, error) {
 	params := &DocumentFormattingParams{
 		TextDocument: &TextDocumentIdentifier{
 			URI: "file://" + path,
+		},
+		Options: &FormattingOptions{
+			TabSize: 4,
 		},
 	}
 	err := c.Conn.Call(context.Background(), "textDocument/formatting", params, &result)
@@ -327,9 +333,24 @@ func (c *Client) Signature(params *TextDocumentPositionParams) {
 
 // Completion is
 func (c *Client) Completion(params *TextDocumentPositionParams) (*CompletionResp, error) {
-	var completionResp CompletionResp
-	err := c.Conn.Call(context.Background(), "textDocument/completion", &params, &completionResp)
-	return &completionResp, err
+	log.Infoln("get completion")
+	var resp interface{}
+	err := c.Conn.Call(context.Background(), "textDocument/completion", &params, &resp)
+	if err != nil {
+		return nil, err
+	}
+	respBytes, _ := json.Marshal(&resp)
+
+	var completeResp CompletionResp
+	err = json.Unmarshal(respBytes, &completeResp)
+	if err != nil {
+		err = json.Unmarshal(respBytes, &(completeResp.Items))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &completeResp, nil
 }
 
 // CompletionResolve is

@@ -156,7 +156,7 @@ func (p *Popup) paintLine(painter *gui.QPainter, index int) {
 	fg := p.editor.theme.Theme.Foreground
 	penColor := gui.NewQColor3(fg.R, fg.G, fg.B, fg.A)
 	painter.SetPen2(penColor)
-	painter.DrawText3(lineHeight+padding, y, item.InsertText+" "+item.Detail)
+	painter.DrawText3(lineHeight+padding, y, item.Label+" "+item.Detail)
 
 	matchFg := p.editor.matchFg
 	matchedColor := gui.NewQColor3(matchFg.R, matchFg.G, matchFg.B, matchFg.A)
@@ -166,14 +166,14 @@ func (p *Popup) paintLine(painter *gui.QPainter, index int) {
 	selectedBg := p.editor.selectedBg
 	selectedBgColor := gui.NewQColor3(selectedBg.R, selectedBg.G, selectedBg.B, selectedBg.A)
 	for _, match := range item.Matches {
-		x := lineHeight + padding + int(p.font.fontMetrics.Size(0, strings.Replace(string(item.InsertText[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1), 0, 0).Rwidth()+0.5)
-		text := string(item.InsertText[match])
+		x := lineHeight + padding + int(p.font.fontMetrics.Size(0, strings.Replace(string(item.Label[:match]), "\t", p.editor.activeWin.buffer.tabStr, -1), 0, 0).Rwidth()+0.5)
+		text := string(item.Label[match])
 		width := int(p.font.fontMetrics.Size(0, text, 0, 0).Rwidth() + 0.5)
 		painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), bgColor)
 		if index == p.index {
 			painter.FillRect5(x, index*int(p.font.lineHeight), width, int(p.font.lineHeight), selectedBgColor)
 		}
-		painter.DrawText3(x, y, string(item.InsertText[match]))
+		painter.DrawText3(x, y, string(item.Label[match]))
 	}
 }
 

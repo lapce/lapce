@@ -334,7 +334,7 @@ func (s *NormalState) cancelVisual(sendToXi bool) {
 	s.editor.updateCursorShape()
 	s.editor.activeWin.cline.Show()
 	if sendToXi {
-		win.buffer.xiView.CancelOperation()
+		win.buffer.xiView.Gesture(win.row, win.col, xi.PointSelect)
 	}
 }
 
