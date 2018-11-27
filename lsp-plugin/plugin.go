@@ -43,7 +43,7 @@ func NewPlugin() *Plugin {
 
 // Run is
 func (p *Plugin) Run() {
-	file, err := os.OpenFile("/tmp/log", os.O_APPEND|os.O_WRONLY, 0666)
+	file, err := os.OpenFile("/tmp/log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}

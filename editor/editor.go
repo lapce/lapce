@@ -147,6 +147,11 @@ func NewEditor() (*Editor, error) {
 	if err == nil {
 		e.homeDir = user.HomeDir
 	}
+	log.Infoln("current wd is", e.cwd)
+	if e.cwd == "/" {
+		e.cwd = e.homeDir
+		os.Chdir(e.homeDir)
+	}
 	loadKeymap(e)
 	e.initSpecialKeys()
 	e.states = newStates(e)
@@ -306,7 +311,9 @@ func NewEditor() (*Editor, error) {
 		e.xi.Conn.Close()
 	})
 	e.clipboard = e.app.Clipboard()
+	log.Infoln("init main window")
 	e.initMainWindow()
+	log.Infoln("init main window done")
 
 	return e, nil
 }
@@ -490,7 +497,7 @@ func (e *Editor) initMainWindow() {
 	mainSplitter.AddWidget(e.diagnosticsPanel.view)
 	e.mainSplitter = mainSplitter
 	e.diagnosticsPanel.height = 250
-	e.mainSplitter.SetSizes([]int{ e.height - e.diagnosticsPanel.height,e.diagnosticsPanel.height,})
+	e.mainSplitter.SetSizes([]int{e.height - e.diagnosticsPanel.height, e.diagnosticsPanel.height})
 	e.mainSplitter.ConnectSplitterMoved(func(pos, index int) {
 		e.diagnosticsPanel.view.Hide()
 		e.diagnosticsPanel.view.Show()
