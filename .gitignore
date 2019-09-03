@@ -1,3 +1,6 @@
 moc*
 cmd/crane/crane
 crane
+target/
+.vscode
+.idea
