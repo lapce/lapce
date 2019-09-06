@@ -15,8 +15,8 @@ pub enum InputState {
 
 #[derive(Clone)]
 pub struct KeyInput {
-    key_code: KeyCode,
-    mods: KeyModifiers,
+    pub key_code: KeyCode,
+    pub mods: KeyModifiers,
     pub text: String,
     state: InputState,
 }
@@ -79,8 +79,28 @@ impl KeyInput {
             Command::Insert,
         );
         map.insert(
+            KeyInput::from_str("n-k").unwrap().get_key(),
+            Command::MoveUp,
+        );
+        map.insert(
+            KeyInput::from_str("n-j").unwrap().get_key(),
+            Command::MoveDown,
+        );
+        map.insert(
+            KeyInput::from_str("n-h").unwrap().get_key(),
+            Command::MoveLeft,
+        );
+        map.insert(
+            KeyInput::from_str("n-l").unwrap().get_key(),
+            Command::MoveRight,
+        );
+        map.insert(
             KeyInput::from_str("i-esc").unwrap().get_key(),
             Command::Escape,
+        );
+        map.insert(
+            KeyInput::from_str("n-meta-;").unwrap().get_key(),
+            Command::SplitVertical,
         );
 
         map
@@ -106,18 +126,32 @@ pub enum Command {
     Insert,
     #[strum(serialize = "escape", props(description = ""))]
     Escape,
+    #[strum(serialize = "split_vertical", props(description = ""))]
+    SplitVertical,
+    #[strum(serialize = "split_horizontal", props(description = ""))]
+    SplitHorizontal,
+    #[strum(serialize = "move_up", props(description = ""))]
+    MoveUp,
+    #[strum(serialize = "move_down", props(description = ""))]
+    MoveDown,
+    #[strum(serialize = "move_left", props(description = ""))]
+    MoveLeft,
+    #[strum(serialize = "move_right", props(description = ""))]
+    MoveRight,
     #[strum(serialize = "unknown", props(description = ""))]
     Unknown,
 }
 
 pub struct Input {
     pub state: InputState,
+    pub count: u64,
 }
 
 impl Input {
     pub fn new() -> Input {
         Input {
             state: InputState::Nomral,
+            count: 0,
         }
     }
 }

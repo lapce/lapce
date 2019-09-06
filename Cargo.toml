@@ -9,10 +9,13 @@ piet-cairo = "0.0.6"
 serde = "1.0"
 serde_json = "1.0"
 syntect = "3.2"
-xi-core-lib = { git = "https://github.com/xi-editor/xi-editor" }
-xi-rpc = { git = "https://github.com/xi-editor/xi-editor" }
+xi-core-lib = { path = "../xi-editor/rust/core-lib/" }
+xi-rpc = { path = "../xi-editor/rust/rpc/" }
 strum = "0.15.0"
 strum_macros = "0.15.0"
+uuid = { version = "0.7.4", features = ["v4"] }
+crane_ui = {path = "./ui"}
+crane_ui_macros = {path = "./ui_macros"}
 
 [dependencies.cairo-rs]
 version = "0.7.1"

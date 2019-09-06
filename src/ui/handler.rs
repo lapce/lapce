@@ -9,13 +9,13 @@ use std::any::Any;
 use std::sync::{Arc, Mutex};
 
 pub struct UiHandler {
-    root: Arc<Mutex<Widget>>,
+    root: Arc<Mutex<Box<Widget + Send + Sync>>>,
     handle: WindowHandle,
     size: Size,
 }
 
 impl UiHandler {
-    pub fn new(root: Arc<Mutex<Widget>>) -> UiHandler {
+    pub fn new(root: Arc<Mutex<Box<Widget + Send + Sync>>>) -> UiHandler {
         UiHandler {
             root,
             handle: Default::default(),
@@ -29,7 +29,7 @@ impl WinHandler for UiHandler {
         self.handle = handle.clone();
     }
 
-    fn paint(&mut self, piet: &mut Piet, ctx: &mut dyn WinCtx) -> bool {
+    fn paint(&mut self, piet: &mut Piet, rect: Rect, ctx: &mut dyn WinCtx) -> bool {
         let bc = BoxConstraints::tight(self.size);
         let text = piet.text();
         self.root.lock().unwrap().layout(&bc);
@@ -48,6 +48,10 @@ impl WinHandler for UiHandler {
         let dpi = self.handle.get_dpi() as f64;
         let scale = 96.0 / dpi;
         self.size = Size::new(width as f64 * scale, height as f64 * scale);
+        self.root
+            .lock()
+            .unwrap()
+            .size(self.size.width, self.size.height);
     }
 
     fn mouse_down(&mut self, event: &MouseEvent, ctx: &mut dyn WinCtx) {
@@ -56,7 +60,9 @@ impl WinHandler for UiHandler {
 
     fn mouse_up(&mut self, event: &MouseEvent, ctx: &mut dyn WinCtx) {}
 
-    fn mouse_move(&mut self, event: &MouseEvent, ctx: &mut dyn WinCtx) {}
+    fn mouse_move(&mut self, event: &MouseEvent, ctx: &mut dyn WinCtx) {
+        self.root.lock().unwrap().mouse_move(event, ctx);
+    }
 
     fn key_down(&mut self, event: KeyEvent, ctx: &mut dyn WinCtx) -> bool {
         self.root.lock().unwrap().key_down(event, ctx)
@@ -64,7 +70,9 @@ impl WinHandler for UiHandler {
 
     fn key_up(&mut self, event: KeyEvent, ctx: &mut dyn WinCtx) {}
 
-    fn wheel(&mut self, delta: Vec2, mods: KeyModifiers, ctx: &mut dyn WinCtx) {}
+    fn wheel(&mut self, delta: Vec2, mods: KeyModifiers, ctx: &mut dyn WinCtx) {
+        self.root.lock().unwrap().wheel(delta, mods, ctx);
+    }
 
     fn timer(&mut self, token: TimerToken, ctx: &mut dyn WinCtx) {}
 

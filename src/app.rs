@@ -1,10 +1,8 @@
 use crate::editor::EditViewCommands;
-use crate::editor::EditorView;
+use crate::editor::{Editor, EditorView};
 use crate::line_cache::Style;
 use crate::rpc::{Core, Handler};
-use crate::ui::flex::Flex;
-use crate::ui::handler::UiHandler;
-use crate::ui::widget::Widget;
+use crane_ui::Widget;
 use druid::shell::platform::IdleHandle;
 use druid::shell::platform::WindowHandle;
 use serde_json::{self, json, Value};
@@ -21,12 +19,12 @@ use syntect::highlighting::ThemeSettings;
 
 #[derive(Clone)]
 pub struct App {
-    core: Arc<Mutex<Core>>,
-    idle_handle: IdleHandle,
-    window_handle: WindowHandle,
-    main_flex: Arc<Mutex<Flex>>,
-    views: Arc<Mutex<HashMap<String, Arc<Mutex<View>>>>>,
-    config: Config,
+    pub core: Core,
+    pub idle_handle: IdleHandle,
+    pub window_handle: WindowHandle,
+    pub main_flex: Arc<Widget>,
+    views: Arc<Mutex<HashMap<String, View>>>,
+    pub config: Config,
 }
 
 fn rgba_from_argb(argb: u32) -> u32 {
@@ -42,14 +40,14 @@ impl App {
         core: Core,
         window_handle: WindowHandle,
         idle_handle: IdleHandle,
-        main_flex: Arc<Mutex<Flex>>,
+        main_flex: Arc<Widget>,
         config: Config,
     ) -> App {
         App {
-            core: Arc::new(Mutex::new(core)),
+            core,
             window_handle,
             idle_handle,
-            main_flex,
+            main_flex: main_flex,
             views: Arc::new(Mutex::new(HashMap::new())),
             config,
         }
@@ -67,45 +65,59 @@ impl App {
 
         let edit_view = 0;
         let core = self.core.clone();
-        let edit_core = self.core.clone();
         let idle_handle = self.idle_handle.clone();
         let main_flex = self.main_flex.clone();
         let views = self.views.clone();
         let config = self.config.clone();
-        self.core
-            .lock()
-            .unwrap()
-            .send_request("new_view", &params, move |value| {
-                println!("{:?}", value);
-                let view_id = value.as_str().unwrap().to_string();
-                let view = Arc::new(Mutex::new(View::new(view_id.clone())));
-                views.lock().unwrap().insert(view_id.clone(), view.clone());
+        let config_for_view = self.config.clone();
+        let window_handle = self.window_handle.clone();
 
-                let editor_view = Arc::new(Mutex::new(Box::new(EditorView::new(
-                    edit_core, view, config,
-                ))
-                    as Box<Widget + Send + Sync>));
-                main_flex.lock().unwrap().add_child(editor_view);
-                thread::spawn(move || {
-                    core.lock().unwrap().send_notification(
-                        "edit",
-                        &json!({
-                            "view_id": view_id,
-                            "method": "scroll",
-                            "params": [0, 18],
-                        }),
-                    );
-                    println!("core send notification");
-                });
-                // idle_handle.add_idle(move |_| {
-                //     println!("run idle");
-                // });
-            });
+        let app = self.clone();
+
+        self.core.send_request("new_view", &params, move |value| {
+            let view_id = value.as_str().unwrap().to_string();
+            let view = View::new(view_id.clone(), app.clone());
+            views.lock().unwrap().insert(view_id.clone(), view.clone());
+            let editor = Editor::new(app.clone());
+            editor.load_view(view);
+            editor.set_active();
+            main_flex.add_child(Box::new(editor));
+        });
+        // self.core.send_request("new_view", &params, move |value| {
+        //     println!("{:?}", value);
+        //     let view_id = value.as_str().unwrap().to_string();
+        //     let view = Arc::new(Mutex::new(View::new(
+        //         view_id.clone(),
+        //         editor_views.clone(),
+        //         config_for_view,
+        //     )));
+        //     views.lock().unwrap().insert(view_id.clone(), view.clone());
+
+        //     // let editor_view = Arc::new(EditorView::new(
+        //     //     idle_handle.clone(),
+        //     //     window_handle,
+        //     //     core.clone(),
+        //     //     view.clone(),
+        //     //     config,
+        //     // ));
+        //     // editor_views
+        //     //     .lock()
+        //     //     .unwrap()
+        //     //     .insert(editor_view.lock().unwrap().id(), editor_view.clone());
+        //     // view.clone()
+        //     //     .lock()
+        //     //     .unwrap()
+        //     //     .set_editor_view(editor_view.clone());
+        //     // main_flex.lock().unwrap().add_child(editor_view.clone());
+        //     // editor_view.lock().unwrap().set_parent(main_flex);
+        //     // idle_handle.add_idle(move |_| {
+        //     //     println!("run idle");
+        //     // });
+        // });
     }
 
     pub fn send_notification(&self, method: &str, params: &Value) {
-        let core = self.core.lock().unwrap();
-        core.send_notification(method, params);
+        self.core.send_notification(method, params);
     }
 
     fn send_view_cmd(&self, cmd: EditViewCommands) {}
@@ -120,11 +132,11 @@ impl App {
                     .get(params["view_id"].as_str().unwrap())
                     .unwrap()
                     .clone();
-                view.lock().unwrap().apply_update(&params["update"]);
-                let window_handle = self.window_handle.clone();
-                self.idle_handle.add_idle(move |_| {
-                    window_handle.invalidate();
-                });
+                view.apply_update(&params["update"]);
+                // let window_handle = self.window_handle.clone();
+                // self.idle_handle.add_idle(move |_| {
+                //     // window_handle.invalidate();
+                // });
             }
             "def_style" => {
                 let mut style: Style = serde_json::from_value(params.clone()).unwrap();
@@ -136,9 +148,18 @@ impl App {
                     .insert(style.id.clone(), style);
                 // println!("{:?}", params);
             }
-            // "scroll_to" => self.send_view_cmd(EditViewCommands::ScrollTo(
-            //     params["line"].as_u64().unwrap() as usize,
-            // )),
+            "scroll_to" => {
+                let view = self
+                    .views
+                    .lock()
+                    .unwrap()
+                    .get(params["view_id"].as_str().unwrap())
+                    .unwrap()
+                    .clone();
+                let col = params["col"].as_u64().unwrap();
+                let line = params["line"].as_u64().unwrap();
+                view.scroll_to(col, line);
+            }
             // "available_themes" => (),    // TODO
             // "available_plugins" => (),   // TODO
             // "available_languages" => (), // TODO

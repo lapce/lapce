@@ -18,7 +18,6 @@ pub struct XiPeer {
 
 impl XiPeer {
     pub fn send(&self, s: String) {
-        println!("peer send {}", s);
         let _ = self.tx.send(s);
     }
 

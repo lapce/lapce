@@ -1,0 +1,12 @@
+[package]
+name = "crane_ui_macros"
+version = "0.1.0"
+authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0.2"
+syn = "1.0.5"

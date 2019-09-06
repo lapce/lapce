@@ -128,7 +128,7 @@ impl LineCache {
 }
 
 /// Counts the number of utf-16 code units in the given string.
-fn count_utf16(s: &str) -> usize {
+pub fn count_utf16(s: &str) -> usize {
     let mut utf16_count = 0;
     for &b in s.as_bytes() {
         if (b as i8) >= -0x40 {

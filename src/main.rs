@@ -9,17 +9,11 @@ mod xi_thread;
 
 use app::{App, AppDispatcher};
 use config::{AppFont, Config};
-use druid::shell::keyboard::{KeyEvent, KeyModifiers};
-use druid::shell::window::{MouseEvent, WinCtx, WinHandler, WindowHandle};
-use druid::shell::{kurbo, piet, runloop, WindowBuilder};
-use druid::widget::{Button, DynLabel, Padding, Scroll};
-use kurbo::{Affine, Point, Rect, RoundedRect, Size, Vec2};
-use piet::{Color, FontBuilder, Piet, RenderContext, Text, TextLayout, TextLayoutBuilder};
-use rpc::{Core, Handler};
+use crane_ui::{Column, UiHandler};
+use druid::shell::{runloop, WindowBuilder};
+use rpc::Core;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
-use ui::flex::Column;
-use ui::handler::UiHandler;
 use xi_thread::start_xi_thread;
 
 fn main() {
@@ -32,7 +26,7 @@ fn main() {
     let mut builder = WindowBuilder::new();
     // let mut col = Column::new();
     // let state = UiState::new(col, "sdlkfjdslkfjdsklfj".to_string());
-    let main_widget = Arc::new(Mutex::new(Column::new()));
+    let main_widget = Arc::new(Column::new());
     let ui_handler = UiHandler::new(main_widget.clone());
     builder.set_title("Scroll example");
     builder.set_handler(Box::new(ui_handler));
@@ -40,7 +34,7 @@ fn main() {
     let idle_handle = window.get_idle_handle().unwrap();
 
     let core = Core::new(xi_peer, rx, dispatcher.clone());
-    let font = AppFont::new("Consolas", 13.0, 10.0);
+    let font = AppFont::new("Consolas", 13.0, 11.0);
     let config = Config::new(font);
     let app = App::new(core, window.clone(), idle_handle, main_widget, config);
     dispatcher.set_app(&app);
