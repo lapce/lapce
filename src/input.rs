@@ -134,8 +134,18 @@ impl KeyMap {
         keymap.add(InputState::Normal, "j", Command::MoveDown);
         keymap.add(InputState::Normal, "h", Command::MoveLeft);
         keymap.add(InputState::Normal, "l", Command::MoveRight);
+        keymap.add(InputState::Normal, "b", Command::MoveWordLeft);
+        keymap.add(InputState::Normal, "e", Command::MoveWordRight);
+        keymap.add(InputState::Normal, "<C-u>", Command::ScrollPageUp);
+        keymap.add(InputState::Normal, "<C-d>", Command::ScrollPageDown);
+        keymap.add(InputState::Normal, "I", Command::InsertStartOfLine);
+        keymap.add(InputState::Normal, "A", Command::AppendEndOfLine);
+        keymap.add(InputState::Normal, "o", Command::NewLineBelow);
+        keymap.add(InputState::Normal, "O", Command::NewLineAbove);
         keymap.add(InputState::Normal, "<M-;>", Command::SplitVertical);
         keymap.add(InputState::Normal, "<C-w>v", Command::SplitVertical);
+        keymap.add(InputState::Normal, "x", Command::DeleteForward);
+        keymap.add(InputState::Normal, "s", Command::DeleteForwardInsert);
 
         keymap.add(InputState::Insert, "<Esc>", Command::Escape);
         keymap.add(InputState::Insert, "<bs>", Command::DeleteBackward);
@@ -206,13 +216,21 @@ pub enum Command {
     Insert,
     #[strum(serialize = "escape", props(description = ""))]
     Escape,
+    #[strum(serialize = "delete_forward_insert", props(description = ""))]
+    DeleteForwardInsert,
+    #[strum(serialize = "delete_forward", props(description = ""))]
+    DeleteForward,
     #[strum(serialize = "delete_backward", props(description = ""))]
     DeleteBackward,
     #[strum(serialize = "split_vertical", props(description = ""))]
     SplitVertical,
     #[strum(serialize = "split_horizontal", props(description = ""))]
     SplitHorizontal,
-    #[strum(serialize = "move_up", props(description = ""))]
+    #[strum(serialize = "scroll_page_up", props(description = ""))]
+    ScrollPageUp,
+    #[strum(serialize = "scroll_page_down", props(description = ""))]
+    ScrollPageDown,
+    #[strum(serialize = "move_down", props(description = ""))]
     MoveUp,
     #[strum(serialize = "move_down", props(description = ""))]
     MoveDown,
@@ -220,6 +238,18 @@ pub enum Command {
     MoveLeft,
     #[strum(serialize = "move_right", props(description = ""))]
     MoveRight,
+    #[strum(serialize = "move_word_left", props(description = ""))]
+    MoveWordLeft,
+    #[strum(serialize = "move_word_right", props(description = ""))]
+    MoveWordRight,
+    #[strum(serialize = "insert_start_of_line", props(description = ""))]
+    InsertStartOfLine,
+    #[strum(serialize = "append_end_of_line", props(description = ""))]
+    AppendEndOfLine,
+    #[strum(serialize = "new_line_below", props(description = ""))]
+    NewLineBelow,
+    #[strum(serialize = "new_line_above", props(description = ""))]
+    NewLineAbove,
     #[strum(serialize = "unknown", props(description = ""))]
     Unknown,
 }

@@ -412,10 +412,73 @@ impl Editor {
         let input_state = self.local_state.lock().unwrap().input.state.clone();
 
         match cmd.clone().cmd.unwrap() {
-            Command::Insert => self.local_state.lock().unwrap().input.state = InputState::Insert,
+            Command::Insert => {
+                self.local_state.lock().unwrap().input.state = InputState::Insert;
+                self.app.get_active_editor().invalidate();
+            }
             Command::Escape => {
                 self.local_state.lock().unwrap().input.state = InputState::Normal;
                 self.local_state.lock().unwrap().input.count = 0;
+                self.app.get_active_editor().invalidate();
+            }
+            Command::NewLineBelow => {
+                self.local_state.lock().unwrap().input.state = InputState::Insert;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "insert_newline_below",
+                    }),
+                );
+            }
+            Command::NewLineAbove => {
+                self.local_state.lock().unwrap().input.state = InputState::Insert;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "insert_newline_above",
+                    }),
+                );
+            }
+            Command::InsertStartOfLine => {
+                self.local_state.lock().unwrap().input.state = InputState::Insert;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_to_left_end_of_line",
+                    }),
+                );
+            }
+            Command::AppendEndOfLine => {
+                self.local_state.lock().unwrap().input.state = InputState::Insert;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_to_right_end_of_line",
+                    }),
+                );
+            }
+            Command::DeleteForwardInsert => {
+                self.local_state.lock().unwrap().input.state = InputState::Insert;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "delete_forward",
+                    }),
+                );
+            }
+            Command::DeleteForward => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "delete_forward",
+                    }),
+                );
             }
             Command::DeleteBackward => {
                 self.app.core.send_notification(
@@ -423,6 +486,24 @@ impl Editor {
                     &json!({
                         "view_id": view_id,
                         "method": "delete_backward",
+                    }),
+                );
+            }
+            Command::ScrollPageUp => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "scroll_page_up",
+                    }),
+                );
+            }
+            Command::ScrollPageDown => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "scroll_page_down",
                     }),
                 );
             }
@@ -453,6 +534,24 @@ impl Editor {
                         "view_id": view_id,
                         "method": "move_left",
                         "params": {"count": count},
+                    }),
+                );
+            }
+            Command::MoveWordLeft => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_word_left",
+                    }),
+                );
+            }
+            Command::MoveWordRight => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_word_right",
                     }),
                 );
             }
