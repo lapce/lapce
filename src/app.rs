@@ -18,12 +18,27 @@ use std::time;
 use syntect::highlighting::ThemeSettings;
 
 #[derive(Clone)]
+pub struct AppState {
+    pub active_editor: String,
+}
+
+impl AppState {
+    fn new() -> AppState {
+        AppState {
+            active_editor: "".to_string(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct App {
     pub core: Core,
+    pub state: Arc<Mutex<AppState>>,
     pub idle_handle: IdleHandle,
     pub window_handle: WindowHandle,
     pub main_flex: Arc<Widget>,
-    views: Arc<Mutex<HashMap<String, View>>>,
+    pub views: Arc<Mutex<HashMap<String, View>>>,
+    pub editors: Arc<Mutex<HashMap<String, Editor>>>,
     pub config: Config,
 }
 
@@ -44,13 +59,25 @@ impl App {
         config: Config,
     ) -> App {
         App {
+            state: Arc::new(Mutex::new(AppState::new())),
             core,
             window_handle,
             idle_handle,
-            main_flex: main_flex,
+            main_flex,
             views: Arc::new(Mutex::new(HashMap::new())),
+            editors: Arc::new(Mutex::new(HashMap::new())),
             config,
         }
+    }
+
+    pub fn set_active_editor(&self, editor: &Editor) {
+        let id = editor.id().clone();
+        self.state.lock().unwrap().active_editor = id;
+    }
+
+    pub fn get_active_editor(&self) -> Editor {
+        let id = self.state.lock().unwrap().active_editor.clone();
+        self.editors.lock().unwrap().get(&id).unwrap().clone()
     }
 
     pub fn req_new_view(&self, filename: Option<&str>) {
@@ -68,6 +95,7 @@ impl App {
         let idle_handle = self.idle_handle.clone();
         let main_flex = self.main_flex.clone();
         let views = self.views.clone();
+        let editors = self.editors.clone();
         let config = self.config.clone();
         let config_for_view = self.config.clone();
         let window_handle = self.window_handle.clone();
@@ -79,6 +107,11 @@ impl App {
             let view = View::new(view_id.clone(), app.clone());
             views.lock().unwrap().insert(view_id.clone(), view.clone());
             let editor = Editor::new(app.clone());
+            editors
+                .lock()
+                .unwrap()
+                .insert(editor.id().clone(), editor.clone());
+            app.set_active_editor(&editor);
             editor.load_view(view);
             editor.set_active();
             main_flex.add_child(Box::new(editor));

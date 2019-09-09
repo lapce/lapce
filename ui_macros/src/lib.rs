@@ -81,17 +81,23 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
                 self.state.lock().unwrap().contains(pos)
             }
 
-            fn mouse_down_raw(&self, event: &MouseEvent, ctx: &mut dyn WinCtx) {
+            fn mouse_down_raw(&self, event: &MouseEvent, ctx: &mut dyn WinCtx) -> bool {
                 let rect = self.state.lock().unwrap().get_rect();
-                let mut event = event.clone();
-                event.pos = event.pos - rect.origin().to_vec2();
+                let mut child_event = event.clone();
+                child_event.pos = event.pos - rect.origin().to_vec2();
 
-                if !self.state.lock().unwrap().child_mouse_down(&event, ctx) {
-                    self.state.lock().unwrap().set_active();
-                    self.mouse_down(&event, ctx);
-                } else {
+                let in_children = self.state.lock().unwrap().child_mouse_down(&child_event, ctx);
+                if in_children {
                     self.state.lock().unwrap().set_inactive();
+                    return true;
                 }
+                if self.state.lock().unwrap().contains(event.pos) {
+                    self.state.lock().unwrap().set_active();
+                    self.mouse_down(&child_event, ctx);
+                    return true;
+                }
+                self.state.lock().unwrap().set_inactive();
+                false
             }
 
             fn mouse_move_raw(&self, event: &MouseEvent, ctx: &mut dyn WinCtx) -> bool {

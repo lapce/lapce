@@ -1,4 +1,4 @@
-use crate::input::{Command, KeyInput};
+use crate::input::{Command, KeyInput, KeyMap};
 use crate::line_cache::Style;
 use cairo::{FontFace, FontOptions, FontSlant, FontWeight, Matrix, ScaledFont};
 use druid::shell::piet;
@@ -12,7 +12,7 @@ pub struct Config {
     pub font: Arc<Mutex<AppFont>>,
     pub styles: Arc<Mutex<HashMap<usize, Style>>>,
     pub theme: Arc<Mutex<ThemeSettings>>,
-    pub keymaps: Arc<Mutex<HashMap<String, Command>>>,
+    pub keymaps: Arc<Mutex<KeyMap>>,
 }
 
 impl Config {
@@ -21,7 +21,7 @@ impl Config {
             font: Arc::new(Mutex::new(font)),
             styles: Arc::new(Mutex::new(HashMap::new())),
             theme: Default::default(),
-            keymaps: Arc::new(Mutex::new(KeyInput::new())),
+            keymaps: Arc::new(Mutex::new(KeyMap::new())),
         }
     }
 

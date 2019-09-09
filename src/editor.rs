@@ -1,7 +1,7 @@
 use crate::app::App;
 use crate::config::AppFont;
 use crate::config::Config;
-use crate::input::{Command, Input, InputState, KeyInput};
+use crate::input::{Cmd, Command, Input, InputState, KeyInput};
 use crate::line_cache::{count_utf16, Line, LineCache, Style};
 use crate::rpc::Core;
 use cairo::{FontFace, FontOptions, FontSlant, FontWeight, Matrix, ScaledFont};
@@ -61,7 +61,6 @@ impl Editor {
     }
 
     pub fn load_view(&self, view: View) {
-        // view.state.lock().unwrap().editor = Some(self.clone());
         self.local_state.lock().unwrap().view = Some(view);
     }
 
@@ -141,7 +140,7 @@ impl Editor {
                 Size::new(
                     match input_state {
                         InputState::Insert => 1.0,
-                        InputState::Nomral => app_font.width,
+                        InputState::Normal => app_font.width,
                     },
                     app_font.lineheight(),
                 ),
@@ -227,6 +226,7 @@ impl Editor {
     }
 
     fn mouse_down(&self, event: &MouseEvent, ctx: &mut dyn WinCtx) {
+        self.app.set_active_editor(&self);
         if self.local_state.lock().unwrap().view.is_none() {
             return;
         }
@@ -316,10 +316,7 @@ impl Editor {
             .lock()
             .unwrap()
             .set_scroll(horizontal_scroll, vertical_scroll);
-        let editor = self.clone();
-        thread::spawn(move || {
-            editor.invalidate();
-        });
+        self.invalidate();
     }
 
     fn send_scroll(&self) {
@@ -361,15 +358,39 @@ impl Editor {
     fn key_down(&self, event: KeyEvent, ctx: &mut dyn WinCtx) {
         let config = self.app.config.clone();
         let keymaps = config.keymaps.lock().unwrap();
-        let key_input =
-            KeyInput::from_keyevent(&event, self.local_state.lock().unwrap().input.state.clone());
-        let cmd = keymaps
-            .get(&key_input.get_key())
-            .unwrap_or(&Command::Unknown);
+        let input_state = self.local_state.lock().unwrap().input.state.clone();
+        let key_input = KeyInput::from_keyevent(&event);
+        if key_input.text == "" {
+            return;
+        }
+        let mut pending_keys = self.local_state.lock().unwrap().input.pending_keys.clone();
+        pending_keys.push(key_input.clone());
+        for key in &pending_keys {
+            println!("current key is {}", key);
+        }
+        let cmd = keymaps.get(input_state, pending_keys.clone());
+        if cmd.more_input {
+            self.local_state.lock().unwrap().input.pending_keys = pending_keys;
+            return;
+        } else {
+            self.local_state.lock().unwrap().input.pending_keys = Vec::new();
+            if cmd.clone().cmd.unwrap() == Command::Unknown {
+                for key in pending_keys {
+                    self.run(
+                        Cmd {
+                            cmd: Some(Command::Unknown),
+                            more_input: false,
+                        },
+                        key,
+                    );
+                }
+                return;
+            }
+        }
         self.run(cmd, key_input);
     }
 
-    fn run(&self, cmd: &Command, key_input: KeyInput) {
+    fn run(&self, cmd: Cmd, key_input: KeyInput) {
         if self.local_state.lock().unwrap().view.is_none() {
             return;
         }
@@ -390,11 +411,20 @@ impl Editor {
 
         let input_state = self.local_state.lock().unwrap().input.state.clone();
 
-        match *cmd {
+        match cmd.clone().cmd.unwrap() {
             Command::Insert => self.local_state.lock().unwrap().input.state = InputState::Insert,
             Command::Escape => {
-                self.local_state.lock().unwrap().input.state = InputState::Nomral;
+                self.local_state.lock().unwrap().input.state = InputState::Normal;
                 self.local_state.lock().unwrap().input.count = 0;
+            }
+            Command::DeleteBackward => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "delete_backward",
+                    }),
+                );
             }
             Command::MoveUp => {
                 self.app.core.send_notification(
@@ -449,6 +479,10 @@ impl Editor {
                     .clone();
                 thread::spawn(move || {
                     let editor = Editor::new(app.clone());
+                    app.editors
+                        .lock()
+                        .unwrap()
+                        .insert(editor.id().clone(), editor.clone());
                     editor.load_view(view);
                     app.main_flex.add_child(Box::new(editor));
                 });
@@ -501,8 +535,8 @@ impl Editor {
             }
         }
 
-        if input_state == InputState::Nomral {
-            match *cmd {
+        if input_state == InputState::Normal {
+            match cmd.cmd.unwrap() {
                 Command::Unknown => {
                     if let Ok(n) = key_input.text.parse::<u64>() {
                         let count = self.local_state.lock().unwrap().input.count;
@@ -534,7 +568,6 @@ pub struct EditorView {
 }
 
 struct ViewState {
-    editor: Option<Editor>,
     width: f64,
     height: f64,
 }
@@ -554,7 +587,6 @@ impl View {
             app,
             line_cache: Arc::new(Mutex::new(LineCache::new())),
             state: Arc::new(Mutex::new(ViewState {
-                editor: None,
                 width: 0.0,
                 height: 0.0,
             })),
@@ -583,6 +615,10 @@ impl View {
         }
         self.state.lock().unwrap().width = width;
         println!("finish apply update");
+
+        if let Some(editor) = self.get_active_editor() {
+            editor.invalidate();
+        }
     }
 
     // pub fn set_editor_view_by_id(&mut self, editor_view_id: &str) {
@@ -600,8 +636,16 @@ impl View {
     //     self.editor_view = Some(editor_view);
     // }
 
+    fn get_active_editor(&self) -> Option<Editor> {
+        let editor = self.app.get_active_editor();
+        if editor.local_state.lock().unwrap().view.clone().unwrap().id == self.id {
+            return Some(editor);
+        }
+        None
+    }
+
     pub fn scroll_to(&self, col: u64, line: u64) {
-        if let Some(editor) = &self.state.lock().unwrap().editor {
+        if let Some(editor) = self.get_active_editor() {
             let (font_width, line_height) = {
                 let font = self.app.config.font.lock().unwrap();
                 let font_width = font.width;
@@ -707,7 +751,7 @@ impl EditorView {
                 Size::new(
                     match self.input.state {
                         InputState::Insert => 1.0,
-                        InputState::Nomral => app_font.width,
+                        InputState::Normal => app_font.width,
                     },
                     app_font.lineheight(),
                 ),
@@ -818,122 +862,131 @@ impl EditorView {
     //     });
     // }
 
-    fn run(&mut self, cmd: &Command, key_input: KeyInput) {
-        let mut count = self.input.count;
-        if count == 0 {
-            count = 1;
-        }
+    // fn run(&mut self, cmd: &Command, key_input: KeyInput) {
+    //     let mut count = self.input.count;
+    //     if count == 0 {
+    //         count = 1;
+    //     }
 
-        match *cmd {
-            Command::Insert => self.input.state = InputState::Insert,
-            Command::Escape => {
-                self.input.state = InputState::Nomral;
-                self.input.count = 0;
-            }
-            Command::MoveUp => {
-                self.core.lock().unwrap().send_notification(
-                    "edit",
-                    &json!({
-                        "view_id": self.view.lock().unwrap().id.clone(),
-                        "method": "move_up",
-                        "params": {"count": count},
-                    }),
-                );
-            }
-            Command::MoveDown => {
-                self.core.lock().unwrap().send_notification(
-                    "edit",
-                    &json!({
-                        "view_id": self.view.lock().unwrap().id.clone(),
-                        "method": "move_down",
-                        "params": {"count": count},
-                    }),
-                );
-            }
-            Command::MoveLeft => {
-                self.core.lock().unwrap().send_notification(
-                    "edit",
-                    &json!({
-                        "view_id": self.view.lock().unwrap().id.clone(),
-                        "method": "move_left",
-                        "params": {"count": count},
-                    }),
-                );
-            }
-            Command::MoveRight => {
-                self.core.lock().unwrap().send_notification(
-                    "edit",
-                    &json!({
-                        "view_id": self.view.lock().unwrap().id.clone(),
-                        "method": "move_right",
-                        "params": {"count": count},
-                    }),
-                );
-            }
-            Command::SplitHorizontal => {}
-            Command::SplitVertical => {
-                // let new_editor_view = Arc::new(Mutex::new(Box::new(EditorView::new(
-                //     self.idle_handle.clone(),
-                //     self.window_handle.clone(),
-                //     self.core.clone(),
-                //     self.view.clone(),
-                //     self.config.clone(),
-                // ))
-                //     as Box<Widget + Send + Sync>));
+    //     match *cmd {
+    //         Command::Insert => self.input.state = InputState::Insert,
+    //         Command::Escape => {
+    //             self.input.state = InputState::Nomral;
+    //             self.input.count = 0;
+    //         }
+    //         Command::DeleteBackward => {
+    //             self.core.lock().unwrap().send_notification(
+    //                 "edit",
+    //                 &json!({
+    //                     "view_id": self.view.lock().unwrap().id.clone(),
+    //                     "method": "delete_backward",
+    //                 }),
+    //             );
+    //         }
+    //         Command::MoveUp => {
+    //             self.core.lock().unwrap().send_notification(
+    //                 "edit",
+    //                 &json!({
+    //                     "view_id": self.view.lock().unwrap().id.clone(),
+    //                     "method": "move_up",
+    //                     "params": {"count": count},
+    //                 }),
+    //             );
+    //         }
+    //         Command::MoveDown => {
+    //             self.core.lock().unwrap().send_notification(
+    //                 "edit",
+    //                 &json!({
+    //                     "view_id": self.view.lock().unwrap().id.clone(),
+    //                     "method": "move_down",
+    //                     "params": {"count": count},
+    //                 }),
+    //             );
+    //         }
+    //         Command::MoveLeft => {
+    //             self.core.lock().unwrap().send_notification(
+    //                 "edit",
+    //                 &json!({
+    //                     "view_id": self.view.lock().unwrap().id.clone(),
+    //                     "method": "move_left",
+    //                     "params": {"count": count},
+    //                 }),
+    //             );
+    //         }
+    //         Command::MoveRight => {
+    //             self.core.lock().unwrap().send_notification(
+    //                 "edit",
+    //                 &json!({
+    //                     "view_id": self.view.lock().unwrap().id.clone(),
+    //                     "method": "move_right",
+    //                     "params": {"count": count},
+    //                 }),
+    //             );
+    //         }
+    //         Command::SplitHorizontal => {}
+    //         Command::SplitVertical => {
+    //             // let new_editor_view = Arc::new(Mutex::new(Box::new(EditorView::new(
+    //             //     self.idle_handle.clone(),
+    //             //     self.window_handle.clone(),
+    //             //     self.core.clone(),
+    //             //     self.view.clone(),
+    //             //     self.config.clone(),
+    //             // ))
+    //             //     as Box<Widget + Send + Sync>));
 
-                // let new_editor_view_id = new_editor_view.lock().unwrap().id();
+    //             // let new_editor_view_id = new_editor_view.lock().unwrap().id();
 
-                // self.view
-                //     .lock()
-                //     .unwrap()
-                //     .editor_views
-                //     .lock()
-                //     .unwrap()
-                //     .insert(new_editor_view_id, new_editor_view.clone());
+    //             // self.view
+    //             //     .lock()
+    //             //     .unwrap()
+    //             //     .editor_views
+    //             //     .lock()
+    //             //     .unwrap()
+    //             //     .insert(new_editor_view_id, new_editor_view.clone());
 
-                // let parent = self.parent.clone().unwrap().clone();
+    //             // let parent = self.parent.clone().unwrap().clone();
 
-                // thread::spawn(move || {
-                //     parent.lock().unwrap().add_child(new_editor_view.clone());
-                //     new_editor_view.lock().unwrap().set_parent(parent);
-                // });
-            }
-            Command::Unknown => {
-                if self.input.state == InputState::Insert
-                    && key_input.text != ""
-                    && !key_input.mods.ctrl
-                    && !key_input.mods.alt
-                    && !key_input.mods.meta
-                {
-                    let chars = match key_input.key_code {
-                        KeyCode::Return => "\n".to_string(),
-                        _ => key_input.text.clone(),
-                    };
-                    self.core.lock().unwrap().send_notification(
-                        "edit",
-                        &json!({
-                            "view_id": self.view.lock().unwrap().id.clone(),
-                            "method": "insert",
-                            "params": {"chars": chars},
-                        }),
-                    );
-                }
-            }
-        }
+    //             // thread::spawn(move || {
+    //             //     parent.lock().unwrap().add_child(new_editor_view.clone());
+    //             //     new_editor_view.lock().unwrap().set_parent(parent);
+    //             // });
+    //         }
+    //         Command::Unknown => {
+    //             if self.input.state == InputState::Insert
+    //                 && key_input.text != ""
+    //                 && !key_input.mods.ctrl
+    //                 && !key_input.mods.alt
+    //                 && !key_input.mods.meta
+    //             {
+    //                 let chars = match key_input.key_code {
+    //                     KeyCode::Return => "\n".to_string(),
+    //                     _ => key_input.text.clone(),
+    //                 };
+    //                 self.core.lock().unwrap().send_notification(
+    //                     "edit",
+    //                     &json!({
+    //                         "view_id": self.view.lock().unwrap().id.clone(),
+    //                         "method": "insert",
+    //                         "params": {"chars": chars},
+    //                     }),
+    //                 );
+    //             }
+    //         }
+    //     }
 
-        if self.input.state == InputState::Nomral {
-            match *cmd {
-                Command::Unknown => {
-                    if let Ok(n) = key_input.text.parse::<u64>() {
-                        self.input.count = self.input.count * 10 + n;
-                    } else {
-                        self.input.count = 0;
-                    }
-                }
-                _ => self.input.count = 0,
-            };
-        }
-    }
+    //     if self.input.state == InputState::Nomral {
+    //         match *cmd {
+    //             Command::Unknown => {
+    //                 if let Ok(n) = key_input.text.parse::<u64>() {
+    //                     self.input.count = self.input.count * 10 + n;
+    //                 } else {
+    //                     self.input.count = 0;
+    //                 }
+    //             }
+    //             _ => self.input.count = 0,
+    //         };
+    //     }
+    // }
 }
 
 // impl Widget for EditorView {

@@ -6,5 +6,4 @@ type View struct {
 	ID     string
 	Path   string
 	Syntax string
-	Cache  *Cache
 }

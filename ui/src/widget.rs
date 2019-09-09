@@ -51,9 +51,11 @@ impl WidgetState {
 
     pub fn invalidate_rect(&self, rect: Rect) {
         if let Some(parent) = self.parent.clone() {
-            let parent_rect = parent.get_rect();
-            let rect = rect + parent_rect.origin().to_vec2();
-            parent.invalidate_rect(rect);
+            thread::spawn(move || {
+                let parent_rect = parent.get_rect();
+                let rect = rect + parent_rect.origin().to_vec2();
+                parent.invalidate_rect(rect);
+            });
         } else {
             let window_handle = self.window_handle.clone();
             self.window_handle
@@ -143,13 +145,13 @@ impl WidgetState {
     }
 
     pub fn child_mouse_down(&mut self, event: &MouseEvent, ctx: &mut dyn WinCtx) -> bool {
+        let mut in_child = false;
         for child in self.children.iter().rev() {
-            if child.contains(event.pos) {
-                child.mouse_down_raw(event, ctx);
-                return true;
+            if child.mouse_down_raw(event, ctx) {
+                in_child = true;
             }
         }
-        false
+        in_child
     }
 
     pub fn child_wheel(&mut self, delta: Vec2, mods: KeyModifiers, ctx: &mut dyn WinCtx) {
@@ -195,7 +197,7 @@ pub trait Widget: Send + Sync + WidgetClone {
     fn add_child(&self, child: Box<Widget>);
     fn set_parent(&self, parent: Box<Widget>);
     fn contains(&self, pos: Point) -> bool;
-    fn mouse_down_raw(&self, event: &MouseEvent, ctx: &mut dyn WinCtx);
+    fn mouse_down_raw(&self, event: &MouseEvent, ctx: &mut dyn WinCtx) -> bool;
     fn mouse_move_raw(&self, event: &MouseEvent, ctx: &mut dyn WinCtx) -> bool;
     fn wheel_raw(&self, delta: Vec2, mods: KeyModifiers, ctx: &mut dyn WinCtx);
     fn key_down_raw(&self, event: KeyEvent, ctx: &mut dyn WinCtx);
