@@ -7,10 +7,12 @@ use strum_macros::{Display, EnumProperty, EnumString};
 
 #[derive(EnumString, Display, Clone, PartialEq)]
 pub enum InputState {
-    #[strum(serialize = "normal")]
+    #[strum(serialize = "normal", serialize = "n")]
     Normal,
-    #[strum(serialize = "insert")]
+    #[strum(serialize = "insert", serialize = "i")]
     Insert,
+    #[strum(serialize = "visual", serialize = "v")]
+    Visual,
 }
 
 #[derive(Clone)]
@@ -129,26 +131,35 @@ impl KeyMap {
             map: HashMap::new(),
         };
 
-        keymap.add(InputState::Normal, "i", Command::Insert);
-        keymap.add(InputState::Normal, "k", Command::MoveUp);
-        keymap.add(InputState::Normal, "j", Command::MoveDown);
-        keymap.add(InputState::Normal, "h", Command::MoveLeft);
-        keymap.add(InputState::Normal, "l", Command::MoveRight);
-        keymap.add(InputState::Normal, "b", Command::MoveWordLeft);
-        keymap.add(InputState::Normal, "e", Command::MoveWordRight);
-        keymap.add(InputState::Normal, "<C-u>", Command::ScrollPageUp);
-        keymap.add(InputState::Normal, "<C-d>", Command::ScrollPageDown);
-        keymap.add(InputState::Normal, "I", Command::InsertStartOfLine);
-        keymap.add(InputState::Normal, "A", Command::AppendEndOfLine);
-        keymap.add(InputState::Normal, "o", Command::NewLineBelow);
-        keymap.add(InputState::Normal, "O", Command::NewLineAbove);
-        keymap.add(InputState::Normal, "<M-;>", Command::SplitVertical);
-        keymap.add(InputState::Normal, "<C-w>v", Command::SplitVertical);
-        keymap.add(InputState::Normal, "x", Command::DeleteForward);
-        keymap.add(InputState::Normal, "s", Command::DeleteForwardInsert);
+        keymap.add("n", "v", Command::Visual);
+        keymap.add("n", "V", Command::VisualLine);
+        keymap.add("n", "u", Command::Undo);
+        keymap.add("n", "<C-r>", Command::Redo);
+        keymap.add("n", "i", Command::Insert);
+        keymap.add("n", "I", Command::InsertStartOfLine);
+        keymap.add("n", "A", Command::AppendEndOfLine);
+        keymap.add("n", "o", Command::NewLineBelow);
+        keymap.add("n", "O", Command::NewLineAbove);
+        keymap.add("n", "<M-;>", Command::SplitVertical);
+        keymap.add("n", "<C-w>v", Command::SplitVertical);
 
-        keymap.add(InputState::Insert, "<Esc>", Command::Escape);
-        keymap.add(InputState::Insert, "<bs>", Command::DeleteBackward);
+        keymap.add("nv", "x", Command::DeleteForward);
+        keymap.add("nv", "s", Command::DeleteForwardInsert);
+
+        keymap.add("nv", "k", Command::MoveUp);
+        keymap.add("nv", "j", Command::MoveDown);
+        keymap.add("nv", "h", Command::MoveLeft);
+        keymap.add("nv", "l", Command::MoveRight);
+        keymap.add("nv", "b", Command::MoveWordLeft);
+        keymap.add("nv", "e", Command::MoveWordRight);
+        keymap.add("nv", "<C-u>", Command::ScrollPageUp);
+        keymap.add("nv", "<C-d>", Command::ScrollPageDown);
+
+        keymap.add("v", "<Esc>", Command::Escape);
+        keymap.add("v", "v", Command::Escape);
+
+        keymap.add("i", "<Esc>", Command::Escape);
+        keymap.add("i", "<bs>", Command::DeleteBackward);
 
         println!("keys is {:?}", &keymap.map.keys());
         keymap
@@ -169,35 +180,39 @@ impl KeyMap {
             .clone()
     }
 
-    fn add(&mut self, state: InputState, input_strings: &str, command: Command) {
+    fn add(&mut self, state_strings: &str, input_strings: &str, command: Command) {
         let inputs = KeyInput::from_strings(input_strings.to_string());
         let len = inputs.len();
         for i in 0..len {
-            let input = inputs[..i + 1]
-                .iter()
-                .map(|i| format!("{} {}", state, i))
-                .collect::<Vec<String>>()
-                .join(" ");
-            println!("input is {}", input);
-            if i == len - 1 {
-                if let Some(cmd) = self.map.get_mut(&input) {
-                    cmd.cmd = Some(command.clone());
-                } else {
-                    let cmd = Cmd {
-                        cmd: Some(command.clone()),
-                        more_input: false,
-                    };
-                    self.map.insert(input, cmd);
-                }
-            } else {
-                if let Some(cmd) = self.map.get_mut(&input) {
-                    cmd.more_input = true;
-                } else {
-                    let cmd = Cmd {
-                        cmd: None,
-                        more_input: true,
-                    };
-                    self.map.insert(input, cmd);
+            for state_char in state_strings.chars() {
+                if let Ok(state) = InputState::from_str(&state_char.to_string()) {
+                    let input = inputs[..i + 1]
+                        .iter()
+                        .map(|i| format!("{} {}", state, i))
+                        .collect::<Vec<String>>()
+                        .join(" ");
+                    println!("input is {}", input);
+                    if i == len - 1 {
+                        if let Some(cmd) = self.map.get_mut(&input) {
+                            cmd.cmd = Some(command.clone());
+                        } else {
+                            let cmd = Cmd {
+                                cmd: Some(command.clone()),
+                                more_input: false,
+                            };
+                            self.map.insert(input, cmd);
+                        }
+                    } else {
+                        if let Some(cmd) = self.map.get_mut(&input) {
+                            cmd.more_input = true;
+                        } else {
+                            let cmd = Cmd {
+                                cmd: None,
+                                more_input: true,
+                            };
+                            self.map.insert(input, cmd);
+                        }
+                    }
                 }
             }
         }
@@ -214,8 +229,16 @@ pub struct Cmd {
 pub enum Command {
     #[strum(serialize = "insert", props(description = ""))]
     Insert,
+    #[strum(serialize = "visual", props(description = ""))]
+    Visual,
+    #[strum(serialize = "visual_line", props(description = ""))]
+    VisualLine,
     #[strum(serialize = "escape", props(description = ""))]
     Escape,
+    #[strum(serialize = "undo", props(description = ""))]
+    Undo,
+    #[strum(serialize = "redo", props(description = ""))]
+    Redo,
     #[strum(serialize = "delete_forward_insert", props(description = ""))]
     DeleteForwardInsert,
     #[strum(serialize = "delete_forward", props(description = ""))]
@@ -256,6 +279,7 @@ pub enum Command {
 
 pub struct Input {
     pub state: InputState,
+    pub visual_line: bool,
     pub count: u64,
     pub pending_keys: Vec<KeyInput>,
 }
@@ -264,6 +288,7 @@ impl Input {
     pub fn new() -> Input {
         Input {
             state: InputState::Normal,
+            visual_line: false,
             count: 0,
             pending_keys: Vec::new(),
         }

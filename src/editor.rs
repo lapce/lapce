@@ -2,7 +2,7 @@ use crate::app::App;
 use crate::config::AppFont;
 use crate::config::Config;
 use crate::input::{Cmd, Command, Input, InputState, KeyInput};
-use crate::line_cache::{count_utf16, Line, LineCache, Style};
+use crate::line_cache::{count_utf16, Annotation, Line, LineCache, Style};
 use crate::rpc::Core;
 use cairo::{FontFace, FontOptions, FontSlant, FontWeight, Matrix, ScaledFont};
 use crane_ui::{Widget, WidgetState};
@@ -108,18 +108,25 @@ impl Editor {
             .unwrap()
             .line_cache
             .clone();
+        let annotations = line_cache.lock().unwrap().annotations();
         let lineheight = self.app.config.font.lock().unwrap().lineheight();
         let start = (vertical_scroll / lineheight) as usize;
         let line_count = (height / lineheight) as usize + 2;
         for i in start..start + line_count {
             if let Some(line) = line_cache.lock().unwrap().get_line(i) {
-                self.paint_line(i, paint_ctx, line);
+                self.paint_line(i, paint_ctx, line, &annotations);
             }
         }
         paint_ctx.restore();
     }
 
-    fn paint_line(&self, i: usize, paint_ctx: &mut PaintCtx, line: &Line) {
+    fn paint_line(
+        &self,
+        i: usize,
+        paint_ctx: &mut PaintCtx,
+        line: &Line,
+        annotations: &Vec<Annotation>,
+    ) {
         let mut text = line.text().to_string();
         // text.pop();
         let text_len = count_utf16(&text);
@@ -127,9 +134,37 @@ impl Editor {
         let app_font = self.app.config.font.lock().unwrap();
 
         let fg = self.app.config.theme.lock().unwrap().foreground.unwrap();
-        let cursor_color = Color::rgba8(fg.r, fg.g, fg.b, 160);
 
         let input_state = self.local_state.lock().unwrap().input.state.clone();
+
+        let visual_line = self.local_state.lock().unwrap().input.visual_line.clone();
+
+        for annotation in annotations {
+            let (start, end) = annotation.check_line(i, line);
+            if input_state == InputState::Visual && (start != 0 || end != 0) {
+                let point = if visual_line {
+                    Point::new(0.0, app_font.lineheight() * i as f64)
+                } else {
+                    Point::new(
+                        app_font.width * start as f64,
+                        app_font.lineheight() * i as f64,
+                    )
+                };
+                let size = if visual_line {
+                    Size::new(app_font.width * text_len as f64, app_font.lineheight())
+                } else {
+                    Size::new(
+                        app_font.width * (end - start + 1) as f64,
+                        app_font.lineheight(),
+                    )
+                };
+                let rect = Rect::from_origin_size(point, size);
+                let selection_color = Color::rgba8(fg.r, fg.g, fg.b, 50);
+                paint_ctx.fill(rect, &selection_color);
+            }
+        }
+
+        let cursor_color = Color::rgba8(fg.r, fg.g, fg.b, 160);
         for cursor in line.cursor() {
             let point = Point::new(
                 app_font.width * *cursor as f64,
@@ -140,6 +175,7 @@ impl Editor {
                 Size::new(
                     match input_state {
                         InputState::Insert => 1.0,
+                        InputState::Visual => app_font.width,
                         InputState::Normal => app_font.width,
                     },
                     app_font.lineheight(),
@@ -175,24 +211,20 @@ impl Editor {
                 .build()
                 .unwrap()
                 .width();
-            let fg_color = self
-                .app
-                .config
-                .styles
-                .lock()
-                .unwrap()
-                .get(&style.style_id)
-                .unwrap()
-                .fg_color
-                .unwrap();
-            paint_ctx.draw_text(
-                &layout,
-                Point::new(
-                    x,
-                    app_font.lineheight() * i as f64 + app_font.ascent + app_font.linespace / 2.0,
-                ),
-                &Color::from_rgba32_u32(fg_color),
-            );
+            if let Some(style) = self.app.config.styles.lock().unwrap().get(&style.style_id) {
+                if let Some(fg_color) = style.fg_color {
+                    paint_ctx.draw_text(
+                        &layout,
+                        Point::new(
+                            x,
+                            app_font.lineheight() * i as f64
+                                + app_font.ascent
+                                + app_font.linespace / 2.0,
+                        ),
+                        &Color::from_rgba32_u32(fg_color),
+                    );
+                }
+            }
         }
     }
 
@@ -410,15 +442,79 @@ impl Editor {
         }
 
         let input_state = self.local_state.lock().unwrap().input.state.clone();
+        let line_selection = self.local_state.lock().unwrap().input.visual_line.clone();
+
+        let caret = match input_state {
+            InputState::Insert => true,
+            _ => false,
+        };
+        let is_selection = match input_state {
+            InputState::Visual => true,
+            _ => false,
+        };
 
         match cmd.clone().cmd.unwrap() {
             Command::Insert => {
                 self.local_state.lock().unwrap().input.state = InputState::Insert;
                 self.app.get_active_editor().invalidate();
             }
+            Command::Visual => {
+                self.local_state.lock().unwrap().input.state = InputState::Visual;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "no_move",
+                        "params": {"is_selection": true, "line_selection": false},
+                    }),
+                );
+                self.app.get_active_editor().invalidate();
+            }
+            Command::VisualLine => {
+                self.local_state.lock().unwrap().input.state = InputState::Visual;
+                self.local_state.lock().unwrap().input.visual_line = true;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "no_move",
+                        "params": {"is_selection": true, "line_selection": true},
+                    }),
+                );
+                self.app.get_active_editor().invalidate();
+            }
             Command::Escape => {
                 self.local_state.lock().unwrap().input.state = InputState::Normal;
                 self.local_state.lock().unwrap().input.count = 0;
+                self.local_state.lock().unwrap().input.visual_line = false;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "no_move",
+                        "params": {"is_selection": false, "line_selection": false},
+                    }),
+                );
+                self.app.get_active_editor().invalidate();
+            }
+            Command::Undo => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "undo",
+                    }),
+                );
+                self.app.get_active_editor().invalidate();
+            }
+            Command::Redo => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "redo",
+                    }),
+                );
                 self.app.get_active_editor().invalidate();
             }
             Command::NewLineBelow => {
@@ -472,6 +568,9 @@ impl Editor {
                 );
             }
             Command::DeleteForward => {
+                if input_state == InputState::Visual {
+                    self.local_state.lock().unwrap().input.state = InputState::Normal;
+                }
                 self.app.core.send_notification(
                     "edit",
                     &json!({
@@ -481,6 +580,9 @@ impl Editor {
                 );
             }
             Command::DeleteBackward => {
+                if input_state == InputState::Visual {
+                    self.local_state.lock().unwrap().input.state = InputState::Normal;
+                }
                 self.app.core.send_notification(
                     "edit",
                     &json!({
@@ -509,13 +611,13 @@ impl Editor {
             }
             Command::MoveUp => {
                 self.app.core.send_notification(
-                    "edit",
-                    &json!({
-                        "view_id": view_id,
-                        "method": "move_up",
-                        "params": {"count": count},
-                    }),
-                );
+                        "edit",
+                        &json!({
+                            "view_id": view_id,
+                            "method": "move_up",
+                        "params": {"count": count, "is_selection": is_selection, "line_selection": line_selection, "caret": caret},
+                        }),
+                    );
             }
             Command::MoveDown => {
                 self.app.core.send_notification(
@@ -523,7 +625,7 @@ impl Editor {
                     &json!({
                         "view_id": view_id,
                         "method": "move_down",
-                        "params": {"count": count},
+                        "params": {"count": count, "is_selection": is_selection, "line_selection": line_selection, "caret": caret},
                     }),
                 );
             }
@@ -533,25 +635,7 @@ impl Editor {
                     &json!({
                         "view_id": view_id,
                         "method": "move_left",
-                        "params": {"count": count},
-                    }),
-                );
-            }
-            Command::MoveWordLeft => {
-                self.app.core.send_notification(
-                    "edit",
-                    &json!({
-                        "view_id": view_id,
-                        "method": "move_word_left",
-                    }),
-                );
-            }
-            Command::MoveWordRight => {
-                self.app.core.send_notification(
-                    "edit",
-                    &json!({
-                        "view_id": view_id,
-                        "method": "move_word_right",
+                        "params": {"count": count, "is_selection": is_selection, "line_selection": line_selection, "caret": caret},
                     }),
                 );
             }
@@ -561,7 +645,27 @@ impl Editor {
                     &json!({
                         "view_id": view_id,
                         "method": "move_right",
-                        "params": {"count": count},
+                        "params": {"count": count, "is_selection": is_selection, "line_selection": line_selection, "caret": caret},
+                    }),
+                );
+            }
+            Command::MoveWordLeft => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_word_left",
+                        "params": {"count": count, "is_selection": is_selection, "line_selection": line_selection, "caret": caret},
+                    }),
+                );
+            }
+            Command::MoveWordRight => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_word_right",
+                        "params": {"count": count, "is_selection": is_selection, "line_selection": line_selection, "caret": caret},
                     }),
                 );
             }
@@ -850,6 +954,7 @@ impl EditorView {
                 Size::new(
                     match self.input.state {
                         InputState::Insert => 1.0,
+                        InputState::Visual => 1.0,
                         InputState::Normal => app_font.width,
                     },
                     app_font.lineheight(),

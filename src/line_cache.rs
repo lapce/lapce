@@ -72,13 +72,60 @@ impl Line {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct Annotation {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub ranges: Vec<[usize; 4]>,
+    pub payloads: Option<()>,
+    pub n: usize,
+}
+
+impl Annotation {
+    pub fn check_line(&self, ln: usize, line: &Line) -> (usize, usize) {
+        let len = count_utf16(line.text());
+        for range in &self.ranges {
+            let start_line = range[0];
+            let start_col = range[1];
+            let end_line = range[2];
+            let end_col = range[3];
+            if start_line > ln {
+                return (0, 0);
+            }
+            if end_line < ln {
+                return (0, 0);
+            }
+            if start_line < ln && ln < end_line {
+                return (0, len);
+            }
+            let mut start = 0;
+            let mut end = 0;
+            if start_line == ln {
+                start = start_col;
+                if end_line > ln {
+                    end = len;
+                }
+            }
+            if end_line == ln {
+                end = end_col;
+            }
+            return (start, end);
+        }
+        (0, 0)
+    }
+}
+
 pub struct LineCache {
     lines: Vec<Option<Line>>,
+    annotations: Vec<Annotation>,
 }
 
 impl LineCache {
     pub fn new() -> LineCache {
-        LineCache { lines: Vec::new() }
+        LineCache {
+            lines: Vec::new(),
+            annotations: Vec::new(),
+        }
     }
 
     fn push_opt_line(&mut self, line: Option<Line>) {
@@ -112,6 +159,12 @@ impl LineCache {
                 }
             }
         }
+
+        if let Ok(annotations) =
+            serde_json::from_value::<Vec<Annotation>>(update["annotations"].clone())
+        {
+            self.annotations = annotations;
+        }
     }
 
     pub fn height(&self) -> usize {
@@ -124,6 +177,10 @@ impl LineCache {
         } else {
             None
         }
+    }
+
+    pub fn annotations(&self) -> Vec<Annotation> {
+        self.annotations.clone()
     }
 }
 

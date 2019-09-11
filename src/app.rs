@@ -166,6 +166,7 @@ impl App {
                     .unwrap()
                     .clone();
                 view.apply_update(&params["update"]);
+                // println!("{}", params);
                 // let window_handle = self.window_handle.clone();
                 // self.idle_handle.add_idle(move |_| {
                 //     // window_handle.invalidate();
