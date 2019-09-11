@@ -82,7 +82,7 @@ pub struct Annotation {
 }
 
 impl Annotation {
-    pub fn check_line(&self, ln: usize, line: &Line) -> (usize, usize) {
+    pub fn check_line(&self, ln: usize, line: &Line) -> Option<(usize, usize)> {
         let len = count_utf16(line.text());
         for range in &self.ranges {
             let start_line = range[0];
@@ -90,13 +90,13 @@ impl Annotation {
             let end_line = range[2];
             let end_col = range[3];
             if start_line > ln {
-                return (0, 0);
+                return None;
             }
             if end_line < ln {
-                return (0, 0);
+                return None;
             }
             if start_line < ln && ln < end_line {
-                return (0, len);
+                return Some((0, len));
             }
             let mut start = 0;
             let mut end = 0;
@@ -109,9 +109,9 @@ impl Annotation {
             if end_line == ln {
                 end = end_col;
             }
-            return (start, end);
+            return Some((start, end));
         }
-        (0, 0)
+        None
     }
 }
 

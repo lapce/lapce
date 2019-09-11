@@ -42,6 +42,10 @@ impl FromStr for KeyInput {
             "esc" => key_code = KeyCode::Escape,
             "bs" => key_code = KeyCode::Backspace,
             "cr" => key_code = KeyCode::Return,
+            "up" => key_code = KeyCode::ArrowUp,
+            "down" => key_code = KeyCode::ArrowDown,
+            "left" => key_code = KeyCode::ArrowLeft,
+            "right" => key_code = KeyCode::ArrowRight,
             _ => text = v[v.len() - 1].to_string(),
         }
         Ok(KeyInput {
@@ -65,18 +69,17 @@ impl Display for KeyInput {
         if self.mods.meta {
             r.push_str("m-");
         }
-        match self.key_code {
-            KeyCode::Escape => {
-                r.push_str("esc");
-            }
-            KeyCode::Tab => {
-                r.push_str("tab");
-            }
-            KeyCode::Backspace => {
-                r.push_str("bs");
-            }
-            _ => r.push_str(&self.text),
-        }
+        r.push_str(match self.key_code {
+            KeyCode::Escape => "esc",
+            KeyCode::Tab => "tab",
+            KeyCode::Backspace => "bs",
+            KeyCode::Return => "cr",
+            KeyCode::ArrowUp => "up",
+            KeyCode::ArrowDown => "down",
+            KeyCode::ArrowLeft => "left",
+            KeyCode::ArrowDown => "down",
+            _ => &self.text,
+        });
         if r.len() > 1 {
             r = format!("<{}>", r)
         }
@@ -131,8 +134,6 @@ impl KeyMap {
             map: HashMap::new(),
         };
 
-        keymap.add("n", "v", Command::Visual);
-        keymap.add("n", "V", Command::VisualLine);
         keymap.add("n", "u", Command::Undo);
         keymap.add("n", "<C-r>", Command::Redo);
         keymap.add("n", "i", Command::Insert);
@@ -143,8 +144,16 @@ impl KeyMap {
         keymap.add("n", "<M-;>", Command::SplitVertical);
         keymap.add("n", "<C-w>v", Command::SplitVertical);
 
+        keymap.add("nv", "v", Command::Visual);
+        keymap.add("nv", "V", Command::VisualLine);
+
         keymap.add("nv", "x", Command::DeleteForward);
         keymap.add("nv", "s", Command::DeleteForwardInsert);
+
+        keymap.add("inv", "<down>", Command::MoveDown);
+        keymap.add("inv", "<up>", Command::MoveUp);
+        keymap.add("inv", "<left>", Command::MoveLeft);
+        keymap.add("inv", "<right>", Command::MoveRight);
 
         keymap.add("nv", "k", Command::MoveUp);
         keymap.add("nv", "j", Command::MoveDown);
@@ -152,14 +161,19 @@ impl KeyMap {
         keymap.add("nv", "l", Command::MoveRight);
         keymap.add("nv", "b", Command::MoveWordLeft);
         keymap.add("nv", "e", Command::MoveWordRight);
+        keymap.add("nv", "0", Command::MoveStartOfLine);
+        keymap.add("nv", "$", Command::MoveEndOfLine);
         keymap.add("nv", "<C-u>", Command::ScrollPageUp);
         keymap.add("nv", "<C-d>", Command::ScrollPageDown);
 
         keymap.add("v", "<Esc>", Command::Escape);
-        keymap.add("v", "v", Command::Escape);
 
         keymap.add("i", "<Esc>", Command::Escape);
         keymap.add("i", "<bs>", Command::DeleteBackward);
+        keymap.add("i", "<C-h>", Command::DeleteBackward);
+        keymap.add("i", "<cr>", Command::InsertNewLine);
+        keymap.add("i", "<C-m>", Command::InsertNewLine);
+        keymap.add("i", "<Tab>", Command::InsertTab);
 
         println!("keys is {:?}", &keymap.map.keys());
         keymap
@@ -265,6 +279,10 @@ pub enum Command {
     MoveWordLeft,
     #[strum(serialize = "move_word_right", props(description = ""))]
     MoveWordRight,
+    #[strum(serialize = "move_start_of_line", props(description = ""))]
+    MoveStartOfLine,
+    #[strum(serialize = "move_end_of_line", props(description = ""))]
+    MoveEndOfLine,
     #[strum(serialize = "insert_start_of_line", props(description = ""))]
     InsertStartOfLine,
     #[strum(serialize = "append_end_of_line", props(description = ""))]
@@ -273,6 +291,10 @@ pub enum Command {
     NewLineBelow,
     #[strum(serialize = "new_line_above", props(description = ""))]
     NewLineAbove,
+    #[strum(serialize = "insert_new_line", props(description = ""))]
+    InsertNewLine,
+    #[strum(serialize = "insert_tab", props(description = ""))]
+    InsertTab,
     #[strum(serialize = "unknown", props(description = ""))]
     Unknown,
 }

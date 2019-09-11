@@ -70,6 +70,17 @@ impl Core {
         core
     }
 
+    pub fn no_move(&self, view_id: &str, is_selection: bool, line_selection: bool) {
+        self.send_notification(
+            "edit",
+            &json!({
+                "view_id": view_id,
+                "method": "no_move",
+                "params": {"is_selection": is_selection, "line_selection": line_selection},
+            }),
+        );
+    }
+
     pub fn send_notification(&self, method: &str, params: &Value) {
         let cmd = json!({
             "method": method,

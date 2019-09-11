@@ -55,21 +55,54 @@ impl Flex {
 
         let child_size = match direction {
             Axis::Horizontal => Size::new(size.width, size.height / num_children as f64),
-            Axis::Vertical => Size::new(size.width / num_children as f64, size.height),
+            Axis::Vertical => Size::new(
+                (size.width / num_children as f64).floor() - 1.0,
+                size.height,
+            ),
         };
 
+        let mut width_cum = 0.0;
         for i in 0..num_children {
             let child = self.state.lock().unwrap().child(i);
             let origin = match direction {
                 Axis::Horizontal => Point::new(0.0, i as f64 * child_size.height),
-                Axis::Vertical => Point::new(i as f64 * child_size.width, 0.0),
+                Axis::Vertical => Point::new(
+                    if i == 0 {
+                        i as f64 * child_size.width
+                    } else {
+                        i as f64 * (child_size.width + 1.0) + (i / 2) as f64
+                    },
+                    0.0,
+                ),
             };
-            let rect = Rect::from_origin_size(origin, child_size);
+            let size = match direction {
+                Axis::Horizontal => child_size,
+                Axis::Vertical => {
+                    let width = if i == num_children - 1 {
+                        size.width - width_cum
+                    } else {
+                        child_size.width + (i % 2) as f64
+                    };
+                    width_cum += width;
+                    Size::new(width, child_size.height)
+                }
+            };
+            let rect = Rect::from_origin_size(origin, size);
             child.set_rect(rect);
         }
     }
 
-    fn paint(&self, paint_ctx: &mut PaintCtx) {}
+    fn paint(&self, paint_ctx: &mut PaintCtx) {
+        let num_children = self.state.lock().unwrap().num_children();
+        for i in 0..num_children {
+            let child = self.state.lock().unwrap().child(i);
+            let rect = child.get_rect();
+            paint_ctx.fill(
+                Rect::from_origin_size(Point::new(rect.x1, 0.0), Size::new(1.0, rect.height())),
+                &Color::rgba8(0, 0, 0, 255),
+            );
+        }
+    }
 
     fn mouse_down(&self, event: &MouseEvent, ctx: &mut dyn WinCtx) {}
 

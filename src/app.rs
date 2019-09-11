@@ -1,5 +1,5 @@
 use crate::editor::EditViewCommands;
-use crate::editor::{Editor, EditorView};
+use crate::editor::Editor;
 use crate::line_cache::Style;
 use crate::rpc::{Core, Handler};
 use crane_ui::Widget;
@@ -190,8 +190,8 @@ impl App {
                     .get(params["view_id"].as_str().unwrap())
                     .unwrap()
                     .clone();
-                let col = params["col"].as_u64().unwrap();
-                let line = params["line"].as_u64().unwrap();
+                let col = params["col"].as_u64().unwrap() as usize;
+                let line = params["line"].as_u64().unwrap() as usize;
                 view.scroll_to(col, line);
             }
             // "available_themes" => (),    // TODO

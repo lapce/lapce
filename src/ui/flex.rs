@@ -91,8 +91,8 @@ impl Widget for Flex {
         self.width = width;
         self.height = height;
         let child_size = match self.direction {
-            Axis::Horizontal => Size::new(width, height / self.children.len() as f64),
-            Axis::Vertical => Size::new(width / self.children.len() as f64, height),
+            Axis::Horizontal => Size::new(width, (height / self.children.len() as f64).floor()),
+            Axis::Vertical => Size::new((width / self.children.len() as f64).floor() - 1.0, height),
         };
         let mut i = 0;
         for child in &mut self.children {
@@ -104,7 +104,6 @@ impl Widget for Flex {
             child.widget.set_layout_rect(rect);
             i += 1;
         }
-        let child_bc = BoxConstraints::new(child_size.clone(), child_size.clone());
         for child in &mut self.children {
             child.widget.size(child_size.width, child_size.height);
         }
