@@ -4,7 +4,6 @@ mod editor;
 mod input;
 mod line_cache;
 mod rpc;
-mod ui;
 mod xi_thread;
 
 use app::{App, AppDispatcher};
