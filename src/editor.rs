@@ -11,8 +11,8 @@ use druid::shell::keyboard::{KeyCode, KeyEvent, KeyModifiers};
 use druid::shell::platform::IdleHandle;
 use druid::shell::window::{MouseEvent, WinCtx, WinHandler, WindowHandle};
 use druid::shell::{kurbo, piet, runloop, WindowBuilder};
-use druid::{BoxConstraints, PaintCtx, TimerToken};
-use kurbo::{Affine, Point, Rect, RoundedRect, Size, Vec2};
+use druid::{PaintCtx, TimerToken};
+use kurbo::{Affine, Point, Rect, Size, Vec2};
 use piet::{Color, FontBuilder, Piet, RenderContext, Text, TextLayout, TextLayoutBuilder};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -71,21 +71,24 @@ impl Editor {
     }
 
     fn get_view_width(&self) -> f64 {
-        match &self.local_state.lock().unwrap().view {
+        let view = self.local_state.lock().unwrap().view.clone();
+        match view {
             Some(view) => view.state.lock().unwrap().width,
             None => 0.0,
         }
     }
 
     fn get_view_height(&self) -> f64 {
-        match &self.local_state.lock().unwrap().view {
+        let view = self.local_state.lock().unwrap().view.clone();
+        match view {
             Some(view) => view.state.lock().unwrap().height,
             None => 0.0,
         }
     }
 
     fn gutter_len(&self) -> usize {
-        match &self.local_state.lock().unwrap().view {
+        let view = self.local_state.lock().unwrap().view.clone();
+        match view {
             Some(view) => format!("{}", view.line_cache.lock().unwrap().height()).len(),
             None => 0,
         }
@@ -100,11 +103,12 @@ impl Editor {
     fn layout(&self) {}
 
     fn paint(&self, paint_ctx: &mut PaintCtx) {
-        let current_line = self.local_state.lock().unwrap().line;
-        let is_active = self.state.lock().unwrap().is_active();
-        if self.local_state.lock().unwrap().view.is_none() {
+        let view = self.local_state.lock().unwrap().view.clone();
+        if view.is_none() {
             return;
         }
+        let current_line = self.local_state.lock().unwrap().line;
+        let is_active = self.state.lock().unwrap().is_active();
         let bg = self.app.config.theme.lock().unwrap().background.unwrap();
         let rect = Rect::from_origin_size(Point::ORIGIN, self.state.lock().unwrap().size());
         paint_ctx.fill(rect, &Color::rgba8(bg.r, bg.g, bg.b, bg.a));
@@ -142,7 +146,7 @@ impl Editor {
             .clone();
         let annotations = line_cache.lock().unwrap().annotations();
         for i in start..start + line_count {
-            if let Some(line) = line_cache.lock().unwrap().get_line(i) {
+            if let Some(line) = line_cache.lock().unwrap().get_line(i).clone() {
                 self.paint_line(
                     i,
                     paint_ctx,
@@ -214,6 +218,8 @@ impl Editor {
 
         let width = self.state.lock().unwrap().size().width;
 
+        let view_width = self.get_view_width();
+
         for annotation in annotations {
             if let Some((start, end)) = annotation.check_line(i, line) {
                 if input_state == InputState::Visual {
@@ -242,7 +248,14 @@ impl Editor {
 
         if input_state != InputState::Visual && is_current {
             let point = Point::new(0.0, app_font.lineheight() * i as f64);
-            let size = Size::new(width, app_font.lineheight());
+            let size = Size::new(
+                if view_width > width {
+                    view_width
+                } else {
+                    width
+                },
+                app_font.lineheight(),
+            );
             let rect = Rect::from_origin_size(point, size);
             let current_line_color = Color::rgba8(fg.r, fg.g, fg.b, 20);
             paint_ctx.fill(rect, &current_line_color);
@@ -252,14 +265,23 @@ impl Editor {
             let cursor_color = Color::rgba8(fg.r, fg.g, fg.b, 160);
             for cursor in line.cursor() {
                 let point = Point::new(
-                    app_font.width * *cursor as f64,
+                    match input_state {
+                        InputState::Insert => {
+                            if *cursor == 0 {
+                                0.0
+                            } else {
+                                app_font.width * *cursor as f64 - 1.0
+                            }
+                        }
+                        _ => app_font.width * *cursor as f64,
+                    },
                     app_font.lineheight() * i as f64,
                 );
                 let rect = Rect::from_origin_size(
                     point,
                     Size::new(
                         match input_state {
-                            InputState::Insert => 1.0,
+                            InputState::Insert => 2.0,
                             InputState::Visual => app_font.width,
                             InputState::Normal => app_font.width,
                         },
@@ -453,11 +475,32 @@ impl Editor {
         self.invalidate();
     }
 
-    fn send_scroll(&self) {
-        if self.local_state.lock().unwrap().view.is_none() {
+    fn move_curosr(&self, vertical: i64) {
+        let parent = self.state.lock().unwrap().parent().unwrap();
+        let id = self.id();
+        let ids = parent.child_ids();
+        let index = ids.iter().position(|c| c == &id).unwrap();
+        let new_index = match index as i64 + vertical {
+            i if i < 0 => 0,
+            i if i >= ids.len() as i64 => ids.len() - 1,
+            i => i as usize,
+        };
+        if new_index == index {
             return;
         }
-        let view_id = self
+        let new_id = ids.get(new_index).unwrap();
+        let new_editor = self
+            .app
+            .editors
+            .lock()
+            .unwrap()
+            .get(new_id.as_str())
+            .unwrap()
+            .clone();
+        new_editor.set_active();
+        self.app.state.lock().unwrap().active_editor = new_editor.id();
+
+        let view_id = new_editor
             .local_state
             .lock()
             .unwrap()
@@ -466,11 +509,40 @@ impl Editor {
             .unwrap()
             .id()
             .clone();
+        let col = new_editor.local_state.lock().unwrap().col;
+        let line = new_editor.local_state.lock().unwrap().line;
+        self.app.core.send_notification(
+            "edit",
+            &json!({
+                "view_id": view_id,
+                "method": "gesture",
+                "params": {
+                    "col":col,
+                    "line":line,
+                    "ty": "point_select"
+                },
+            }),
+        );
+
+        self.invalidate();
+        new_editor.invalidate();
+    }
+
+    fn send_scroll(&self) {
+        let view = self.local_state.lock().unwrap().view.clone();
+        if view.is_none() {
+            return;
+        }
+        let view_id = view.as_ref().unwrap().id().clone();
         let lineheight = self.app.config.font.lock().unwrap().lineheight();
         let horizontal_scroll = self.state.lock().unwrap().horizontal_scroll();
         let vertical_scroll = self.state.lock().unwrap().vertical_scroll();
         let size = self.state.lock().unwrap().size();
-        let start = (vertical_scroll / lineheight) as usize;
+        let start = match (vertical_scroll / lineheight) as usize {
+            s if s > 0 => s - 1,
+            0 => 0,
+            _ => 0,
+        };
         let line_count = (size.height / lineheight) as usize + 2;
         let core = self.app.core.clone();
         thread::spawn(move || {
@@ -499,9 +571,9 @@ impl Editor {
         }
         let mut pending_keys = self.local_state.lock().unwrap().input.pending_keys.clone();
         pending_keys.push(key_input.clone());
-        for key in &pending_keys {
-            println!("current key is {}", key);
-        }
+        // for key in &pending_keys {
+        // println!("current key is {}", key);
+        // }
         let cmd = keymaps.get(input_state, pending_keys.clone());
         if cmd.more_input {
             self.local_state.lock().unwrap().input.pending_keys = pending_keys;
@@ -558,20 +630,21 @@ impl Editor {
         match cmd.clone().cmd.unwrap() {
             Command::Insert => {
                 self.local_state.lock().unwrap().input.state = InputState::Insert;
+                self.app.core.no_move(&view_id, true, true, true);
                 self.app.get_active_editor().invalidate();
             }
             Command::Visual => {
                 self.local_state.lock().unwrap().input.visual_line = false;
                 if input_state == InputState::Visual {
                     if line_selection {
-                        self.app.core.no_move(&view_id, true, false);
+                        self.app.core.no_move(&view_id, true, false, false);
                     } else {
                         self.local_state.lock().unwrap().input.state = InputState::Normal;
-                        self.app.core.no_move(&view_id, false, false);
+                        self.app.core.no_move(&view_id, false, false, false);
                     }
                 } else {
                     self.local_state.lock().unwrap().input.state = InputState::Visual;
-                    self.app.core.no_move(&view_id, true, false);
+                    self.app.core.no_move(&view_id, true, false, false);
                 }
                 self.app.get_active_editor().invalidate();
             }
@@ -579,16 +652,16 @@ impl Editor {
                 if input_state == InputState::Visual {
                     if !line_selection {
                         self.local_state.lock().unwrap().input.visual_line = true;
-                        self.app.core.no_move(&view_id, true, true);
+                        self.app.core.no_move(&view_id, true, true, false);
                     } else {
                         self.local_state.lock().unwrap().input.visual_line = false;
                         self.local_state.lock().unwrap().input.state = InputState::Normal;
-                        self.app.core.no_move(&view_id, false, false);
+                        self.app.core.no_move(&view_id, false, false, false);
                     }
                 } else {
                     self.local_state.lock().unwrap().input.state = InputState::Visual;
                     self.local_state.lock().unwrap().input.visual_line = true;
-                    self.app.core.no_move(&view_id, true, true);
+                    self.app.core.no_move(&view_id, true, true, false);
                 }
                 self.app.get_active_editor().invalidate();
             }
@@ -596,14 +669,7 @@ impl Editor {
                 self.local_state.lock().unwrap().input.state = InputState::Normal;
                 self.local_state.lock().unwrap().input.count = 0;
                 self.local_state.lock().unwrap().input.visual_line = false;
-                self.app.core.send_notification(
-                    "edit",
-                    &json!({
-                        "view_id": view_id,
-                        "method": "no_move",
-                        "params": {"is_selection": false, "line_selection": false},
-                    }),
-                );
+                self.app.core.no_move(&view_id, false, false, false);
                 self.app.get_active_editor().invalidate();
             }
             Command::Undo => {
@@ -814,6 +880,20 @@ impl Editor {
                     }),
                 );
             }
+            Command::MoveCursorToWindowAbove => {}
+            Command::MoveCursorToWindowBelow => {}
+            Command::MoveCursorToWindowLeft => {
+                let editor = self.clone();
+                thread::spawn(move || {
+                    editor.move_curosr(-1);
+                });
+            }
+            Command::MoveCursorToWindowRight => {
+                let editor = self.clone();
+                thread::spawn(move || {
+                    editor.move_curosr(1);
+                });
+            }
             Command::SplitHorizontal => {}
             Command::SplitVertical => {
                 let app = self.app.clone();
@@ -833,6 +913,7 @@ impl Editor {
                         .insert(editor.id().clone(), editor.clone());
                     editor.load_view(view);
                     app.main_flex.add_child(Box::new(editor));
+                    app.main_flex.invalidate();
                 });
             }
             Command::Unknown => {
@@ -901,7 +982,7 @@ impl View {
     }
 
     pub fn apply_update(&self, update: &Value) {
-        self.line_cache.lock().unwrap().apply_update(update);
+        let (start, end) = self.line_cache.lock().unwrap().apply_update(update);
         let lineheight = self.app.config.font.lock().unwrap().lineheight();
         let font_width = self.app.config.font.lock().unwrap().width;
         self.state.lock().unwrap().height =
@@ -917,11 +998,40 @@ impl View {
             }
         }
         self.state.lock().unwrap().width = width;
-        println!("finish apply update");
+        // println!("finish apply update");
 
-        if let Some(editor) = self.get_active_editor() {
-            editor.invalidate();
+        for (_, editor) in self.app.editors.lock().unwrap().iter() {
+            let view = editor.local_state.lock().unwrap().view.clone();
+            match view {
+                Some(view) => {
+                    if view.id() == self.id {
+                        let old_ln = editor.local_state.lock().unwrap().line;
+                        match view.line_cache.lock().unwrap().get_old_line(old_ln).clone() {
+                            Some(old_line) => {
+                                editor.local_state.lock().unwrap().line = old_line.new_ln();
+                            }
+                            None => (),
+                        }
+                        let gutter_width = editor.gutter_width();
+                        let vertical_scroll = editor.state.lock().unwrap().vertical_scroll();
+                        let x = editor.gutter_width();
+                        let y = start as f64 * lineheight - vertical_scroll;
+
+                        let width = editor.state.lock().unwrap().size().width - gutter_width;
+                        let height = (end - start + 1) as f64 * lineheight;
+
+                        let rect =
+                            Rect::from_origin_size(Point::new(x, y), Size::new(width, height));
+                        editor.invalidate_rect(rect);
+                    }
+                }
+                None => (),
+            }
         }
+
+        // if let Some(editor) = self.get_active_editor() {
+        //     editor.invalidate();
+        // }
     }
 
     fn get_active_editor(&self) -> Option<Editor> {

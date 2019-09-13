@@ -77,7 +77,7 @@ impl Display for KeyInput {
             KeyCode::ArrowUp => "up",
             KeyCode::ArrowDown => "down",
             KeyCode::ArrowLeft => "left",
-            KeyCode::ArrowDown => "down",
+            KeyCode::ArrowRight => "right",
             _ => &self.text,
         });
         if r.len() > 1 {
@@ -143,6 +143,8 @@ impl KeyMap {
         keymap.add("n", "O", Command::NewLineAbove);
         keymap.add("n", "<M-;>", Command::SplitVertical);
         keymap.add("n", "<C-w>v", Command::SplitVertical);
+        keymap.add("n", "<m-h>", Command::MoveCursorToWindowLeft);
+        keymap.add("n", "<m-l>", Command::MoveCursorToWindowRight);
 
         keymap.add("nv", "v", Command::Visual);
         keymap.add("nv", "V", Command::VisualLine);
@@ -259,6 +261,14 @@ pub enum Command {
     DeleteForward,
     #[strum(serialize = "delete_backward", props(description = ""))]
     DeleteBackward,
+    #[strum(serialize = "move_cursor_to_window_below", props(description = ""))]
+    MoveCursorToWindowBelow,
+    #[strum(serialize = "move_cursor_to_window_above", props(description = ""))]
+    MoveCursorToWindowAbove,
+    #[strum(serialize = "move_cursor_to_window_left", props(description = ""))]
+    MoveCursorToWindowLeft,
+    #[strum(serialize = "move_cursor_to_window_right", props(description = ""))]
+    MoveCursorToWindowRight,
     #[strum(serialize = "split_vertical", props(description = ""))]
     SplitVertical,
     #[strum(serialize = "split_horizontal", props(description = ""))]

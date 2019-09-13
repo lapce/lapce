@@ -3,11 +3,14 @@ use serde_json::Value;
 use std::mem;
 use std::ops::Range;
 
+#[derive(Clone)]
 pub struct Line {
     text: String,
     /// List of carets, in units of utf-16 code units.
     cursor: Vec<usize>,
     styles: Vec<StyleSpan>,
+    invalid: bool,
+    new_ln: usize,
 }
 
 #[derive(Deserialize)]
@@ -56,6 +59,8 @@ impl Line {
             text,
             cursor,
             styles,
+            invalid: true,
+            new_ln: 0,
         }
     }
 
@@ -69,6 +74,10 @@ impl Line {
 
     pub fn styles(&self) -> &[StyleSpan] {
         &self.styles
+    }
+
+    pub fn new_ln(&self) -> usize {
+        self.new_ln
     }
 }
 
@@ -117,6 +126,7 @@ impl Annotation {
 
 pub struct LineCache {
     lines: Vec<Option<Line>>,
+    old_lines: Vec<Option<Line>>,
     annotations: Vec<Annotation>,
 }
 
@@ -124,6 +134,7 @@ impl LineCache {
     pub fn new() -> LineCache {
         LineCache {
             lines: Vec::new(),
+            old_lines: Vec::new(),
             annotations: Vec::new(),
         }
     }
@@ -132,39 +143,119 @@ impl LineCache {
         self.lines.push(line);
     }
 
-    pub fn apply_update(&mut self, update: &Value) {
+    pub fn apply_update(&mut self, update: &Value) -> (usize, usize) {
         let old_cache = mem::replace(self, LineCache::new());
-        let mut old_iter = old_cache.lines.into_iter();
+        let mut old_lines = old_cache.lines;
+        let mut i = 0;
+        let mut ln = 0;
+        let mut pending_skip = 0;
         for op in update["ops"].as_array().unwrap() {
             let op_type = &op["op"];
             if op_type == "ins" {
-                for line in op["lines"].as_array().unwrap() {
+                let lines = op["lines"].as_array().unwrap();
+                pending_skip += lines.len();
+                for (j, line) in lines.iter().enumerate() {
                     let line = Line::from_json(line);
                     self.push_opt_line(Some(line));
+                    ln += 1;
                 }
             } else if op_type == "copy" {
+                pending_skip = 0;
                 let n = op["n"].as_u64().unwrap();
                 for _ in 0..n {
-                    self.push_opt_line(old_iter.next().unwrap_or_default());
+                    let line = match old_lines.get(i).unwrap_or(&None).clone() {
+                        Some(mut line) => {
+                            if i != ln {
+                                line.invalid = true;
+                            } else {
+                                line.invalid = false;
+                            }
+                            Some(line)
+                        }
+                        None => None,
+                    };
+                    self.push_opt_line(line);
+
+                    match old_lines.get(i).unwrap_or(&None).clone() {
+                        Some(mut old_line) => {
+                            old_line.new_ln = ln;
+                            mem::replace(&mut old_lines[i], Some(old_line));
+                        }
+                        None => (),
+                    };
+                    i += 1;
+                    ln += 1;
+                    // self.push_opt_line(old_iter.next().unwrap_or_default());
                 }
             } else if op_type == "skip" {
-                let n = op["n"].as_u64().unwrap();
-                for _ in 0..n {
-                    let _ = old_iter.next();
+                let n = op["n"].as_u64().unwrap() as usize;
+                for j in 0..n {
+                    let new_ln = if j > pending_skip - 1 {
+                        ln
+                    } else {
+                        ln - pending_skip + j
+                    };
+                    match old_lines.get(i).unwrap_or(&None).clone() {
+                        Some(mut old_line) => {
+                            old_line.new_ln = new_ln;
+                            mem::replace(&mut old_lines[i], Some(old_line));
+                        }
+                        None => (),
+                    };
+                    i += 1;
                 }
+                pending_skip = 0;
             } else if op_type == "invalidate" {
-                let n = op["n"].as_u64().unwrap();
-                for _ in 0..n {
-                    self.push_opt_line(None);
+                let n = op["n"].as_u64().unwrap() as usize;
+                pending_skip += n;
+                for j in 0..n {
+                    let line = match old_lines.get(i + j).unwrap_or(&None).clone() {
+                        Some(mut line) => {
+                            if i + j != ln {
+                                line.invalid = true;
+                            } else {
+                                line.invalid = false;
+                            }
+                            Some(line)
+                        }
+                        None => None,
+                    };
+                    self.push_opt_line(line);
+
+                    ln += 1;
                 }
             }
         }
+
+        self.old_lines = old_lines;
 
         if let Ok(annotations) =
             serde_json::from_value::<Vec<Annotation>>(update["annotations"].clone())
         {
             self.annotations = annotations;
         }
+
+        let mut start = -1;
+        let mut end = -1;
+        let mut n = 0;
+        for line in &self.lines {
+            match line {
+                Some(line) => {
+                    if line.invalid {
+                        if start == -1 {
+                            start = n;
+                        }
+                        if n > end {
+                            end = n;
+                        }
+                    }
+                }
+                None => (),
+            }
+            n += 1;
+        }
+
+        (start as usize, end as usize)
     }
 
     pub fn height(&self) -> usize {
@@ -174,6 +265,14 @@ impl LineCache {
     pub fn get_line(&self, ix: usize) -> Option<&Line> {
         if ix < self.lines.len() {
             self.lines[ix].as_ref()
+        } else {
+            None
+        }
+    }
+
+    pub fn get_old_line(&self, ix: usize) -> Option<&Line> {
+        if ix < self.old_lines.len() {
+            self.old_lines[ix].as_ref()
         } else {
             None
         }

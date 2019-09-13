@@ -27,7 +27,7 @@ fn main() {
     // let state = UiState::new(col, "sdlkfjdslkfjdsklfj".to_string());
     let main_widget = Arc::new(Column::new());
     let ui_handler = UiHandler::new(main_widget.clone());
-    builder.set_title("Scroll example");
+    builder.set_title("Crane");
     builder.set_handler(Box::new(ui_handler));
     let window = builder.build().unwrap();
     let idle_handle = window.get_idle_handle().unwrap();

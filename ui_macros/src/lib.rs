@@ -37,8 +37,21 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
                 self.layout();
             }
 
+            fn parent(&self) -> Option<Box<Widget>> {
+                self.state.lock().unwrap().parent()
+            }
+
             fn set_active(&self) {
+                let top_parent = self.state.lock().unwrap().top_parent();
+                match top_parent {
+                    Some(parent)=>parent.set_inactive(true),
+                    None => (),
+                }
                 self.state.lock().unwrap().set_active();
+            }
+
+            fn set_inactive(&self, propagate: bool) {
+                self.state.lock().unwrap().set_inactive(propagate);
             }
 
             fn get_rect(&self) -> Rect {
@@ -88,7 +101,7 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
 
                 let in_children = self.state.lock().unwrap().child_mouse_down(&child_event, ctx);
                 if in_children {
-                    self.state.lock().unwrap().set_inactive();
+                    self.state.lock().unwrap().set_inactive(false);
                     return true;
                 }
                 if self.state.lock().unwrap().contains(event.pos) {
@@ -96,7 +109,7 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
                     self.mouse_down(&child_event, ctx);
                     return true;
                 }
-                self.state.lock().unwrap().set_inactive();
+                self.state.lock().unwrap().set_inactive(false);
                 false
             }
 
@@ -134,6 +147,10 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
                     return;
                 }
                 self.state.lock().unwrap().child_key_down(event, ctx);
+            }
+
+            fn child_ids(&self) -> Vec<String> {
+                self.state.lock().unwrap().child_ids()
             }
 
         }

@@ -46,15 +46,17 @@ impl WidgetState {
     }
 
     pub fn invalidate(&self) {
-        self.invalidate_rect(self.rect);
+        self.invalidate_rect(self.rect.with_origin(Point::ZERO));
     }
 
     pub fn invalidate_rect(&self, rect: Rect) {
+        let self_rect = self.rect.clone();
         if let Some(parent) = self.parent.clone() {
             thread::spawn(move || {
                 let parent_rect = parent.get_rect();
-                let rect = rect + parent_rect.origin().to_vec2();
-                parent.invalidate_rect(rect);
+                parent.invalidate_rect(
+                    rect + self_rect.origin().to_vec2() + parent_rect.origin().to_vec2(),
+                );
             });
         } else {
             let window_handle = self.window_handle.clone();
@@ -86,6 +88,10 @@ impl WidgetState {
 
     pub fn add_child(&mut self, child: Box<Widget>) {
         self.children.push(child);
+    }
+
+    pub fn parent(&self) -> Option<Box<Widget>> {
+        self.parent.clone()
     }
 
     pub fn set_parent(&mut self, parent: Box<Widget>) {
@@ -126,12 +132,36 @@ impl WidgetState {
         self.is_active = true
     }
 
-    pub fn set_inactive(&mut self) {
-        self.is_active = false
+    pub fn set_inactive(&mut self, propagate: bool) {
+        self.is_active = false;
+        if propagate {
+            for child in &self.children {
+                child.set_inactive(propagate);
+            }
+        }
     }
 
     pub fn is_active(&self) -> bool {
         self.is_active
+    }
+
+    pub fn top_parent(&self) -> Option<Box<Widget>> {
+        if self.parent().is_none() {
+            return None;
+        }
+        let mut parent = self.parent().unwrap();
+        loop {
+            let new_parent = parent.parent();
+            if new_parent.is_none() {
+                return Some(parent);
+            } else {
+                parent = new_parent.unwrap();
+            }
+        }
+    }
+
+    pub fn child_ids(&self) -> Vec<String> {
+        self.children.iter().map(|c| c.id()).collect()
     }
 
     pub fn child_mouse_move(&mut self, event: &MouseEvent, ctx: &mut dyn WinCtx) -> bool {
@@ -193,6 +223,7 @@ pub trait Widget: Send + Sync + WidgetClone {
     fn get_rect(&self) -> Rect;
     fn set_rect(&self, rect: Rect);
     fn set_active(&self);
+    fn set_inactive(&self, propagate: bool);
     fn paint_raw(&self, paint_ctx: &mut PaintCtx, rect: Rect);
     fn add_child(&self, child: Box<Widget>);
     fn set_parent(&self, parent: Box<Widget>);
@@ -203,4 +234,6 @@ pub trait Widget: Send + Sync + WidgetClone {
     fn key_down_raw(&self, event: KeyEvent, ctx: &mut dyn WinCtx);
     fn invalidate(&self);
     fn invalidate_rect(&self, rect: Rect);
+    fn child_ids(&self) -> Vec<String>;
+    fn parent(&self) -> Option<Box<Widget>>;
 }
