@@ -90,6 +90,10 @@ impl WidgetState {
         self.children.push(child);
     }
 
+    pub fn replace_child(&mut self, index: usize, child: Box<Widget>) {
+        self.children[index] = child;
+    }
+
     pub fn parent(&self) -> Option<Box<Widget>> {
         self.parent.clone()
     }
@@ -226,6 +230,7 @@ pub trait Widget: Send + Sync + WidgetClone {
     fn set_inactive(&self, propagate: bool);
     fn paint_raw(&self, paint_ctx: &mut PaintCtx, rect: Rect);
     fn add_child(&self, child: Box<Widget>);
+    fn replace_child(&self, index: usize, child: Box<Widget>);
     fn set_parent(&self, parent: Box<Widget>);
     fn contains(&self, pos: Point) -> bool;
     fn mouse_down_raw(&self, event: &MouseEvent, ctx: &mut dyn WinCtx) -> bool;

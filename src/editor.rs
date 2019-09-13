@@ -475,6 +475,60 @@ impl Editor {
         self.invalidate();
     }
 
+    fn exchange(&self) {
+        let parent = self.state.lock().unwrap().parent().unwrap();
+        let id = self.id();
+        let ids = parent.child_ids();
+        if ids.len() <= 1 {
+            return;
+        }
+        let index = ids.iter().position(|c| c == &id).unwrap();
+        let new_index = match index {
+            i if i < ids.len() - 1 => i + 1,
+            i => i - 1,
+        };
+        let new_id = ids.get(new_index).unwrap();
+        let editor = self.clone();
+        let new_editor = self
+            .app
+            .editors
+            .lock()
+            .unwrap()
+            .get(new_id.as_str())
+            .unwrap()
+            .clone();
+        parent.replace_child(index, Box::new(new_editor.clone()));
+        parent.replace_child(new_index, Box::new(editor.clone()));
+        new_editor.set_active();
+        self.app.state.lock().unwrap().active_editor = new_editor.id();
+
+        let view_id = new_editor
+            .local_state
+            .lock()
+            .unwrap()
+            .view
+            .as_ref()
+            .unwrap()
+            .id()
+            .clone();
+        let col = new_editor.local_state.lock().unwrap().col;
+        let line = new_editor.local_state.lock().unwrap().line;
+        self.app.core.send_notification(
+            "edit",
+            &json!({
+                "view_id": view_id,
+                "method": "gesture",
+                "params": {
+                    "col":col,
+                    "line":line,
+                    "ty": "point_select"
+                },
+            }),
+        );
+
+        self.app.main_flex.invalidate();
+    }
+
     fn move_curosr(&self, vertical: i64) {
         let parent = self.state.lock().unwrap().parent().unwrap();
         let id = self.id();
@@ -892,6 +946,12 @@ impl Editor {
                 let editor = self.clone();
                 thread::spawn(move || {
                     editor.move_curosr(1);
+                });
+            }
+            Command::ExchangeWindow => {
+                let editor = self.clone();
+                thread::spawn(move || {
+                    editor.exchange();
                 });
             }
             Command::SplitHorizontal => {}

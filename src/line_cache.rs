@@ -149,6 +149,8 @@ impl LineCache {
         let mut i = 0;
         let mut ln = 0;
         let mut pending_skip = 0;
+        let mut pending_invalidate = 0;
+        let mut previous_insert = 0;
         for op in update["ops"].as_array().unwrap() {
             let op_type = &op["op"];
             if op_type == "ins" {
@@ -159,8 +161,11 @@ impl LineCache {
                     self.push_opt_line(Some(line));
                     ln += 1;
                 }
+                previous_insert += lines.len();
             } else if op_type == "copy" {
                 pending_skip = 0;
+                pending_invalidate = 0;
+                previous_insert = 0;
                 let n = op["n"].as_u64().unwrap();
                 for _ in 0..n {
                     let line = match old_lines.get(i).unwrap_or(&None).clone() {
@@ -205,13 +210,15 @@ impl LineCache {
                     i += 1;
                 }
                 pending_skip = 0;
+                pending_invalidate = 0;
+                previous_insert = 0;
             } else if op_type == "invalidate" {
                 let n = op["n"].as_u64().unwrap() as usize;
-                pending_skip += n;
                 for j in 0..n {
-                    let line = match old_lines.get(i + j).unwrap_or(&None).clone() {
+                    let old_index = i + j + pending_invalidate + previous_insert;
+                    let line = match old_lines.get(old_index).unwrap_or(&None).clone() {
                         Some(mut line) => {
-                            if i + j != ln {
+                            if old_index != ln {
                                 line.invalid = true;
                             } else {
                                 line.invalid = false;
@@ -224,6 +231,26 @@ impl LineCache {
 
                     ln += 1;
                 }
+                pending_skip += n;
+                pending_invalidate += n;
+            }
+        }
+
+        if pending_skip > 0 {
+            for j in 0..pending_skip {
+                let new_ln = if j > pending_skip - 1 {
+                    ln
+                } else {
+                    ln - pending_skip + j
+                };
+                match old_lines.get(i).unwrap_or(&None).clone() {
+                    Some(mut old_line) => {
+                        old_line.new_ln = new_ln;
+                        mem::replace(&mut old_lines[i], Some(old_line));
+                    }
+                    None => (),
+                };
+                i += 1;
             }
         }
 

@@ -141,10 +141,6 @@ impl KeyMap {
         keymap.add("n", "A", Command::AppendEndOfLine);
         keymap.add("n", "o", Command::NewLineBelow);
         keymap.add("n", "O", Command::NewLineAbove);
-        keymap.add("n", "<M-;>", Command::SplitVertical);
-        keymap.add("n", "<C-w>v", Command::SplitVertical);
-        keymap.add("n", "<m-h>", Command::MoveCursorToWindowLeft);
-        keymap.add("n", "<m-l>", Command::MoveCursorToWindowRight);
 
         keymap.add("nv", "v", Command::Visual);
         keymap.add("nv", "V", Command::VisualLine);
@@ -152,6 +148,11 @@ impl KeyMap {
         keymap.add("nv", "x", Command::DeleteForward);
         keymap.add("nv", "s", Command::DeleteForwardInsert);
 
+        keymap.add("inv", "<M-;>", Command::SplitVertical);
+        keymap.add("inv", "<C-w>v", Command::SplitVertical);
+        keymap.add("inv", "<m-h>", Command::MoveCursorToWindowLeft);
+        keymap.add("inv", "<m-l>", Command::MoveCursorToWindowRight);
+        keymap.add("inv", "<m-x>", Command::ExchangeWindow);
         keymap.add("inv", "<down>", Command::MoveDown);
         keymap.add("inv", "<up>", Command::MoveUp);
         keymap.add("inv", "<left>", Command::MoveLeft);
@@ -269,6 +270,8 @@ pub enum Command {
     MoveCursorToWindowLeft,
     #[strum(serialize = "move_cursor_to_window_right", props(description = ""))]
     MoveCursorToWindowRight,
+    #[strum(serialize = "exchange_window", props(description = ""))]
+    ExchangeWindow,
     #[strum(serialize = "split_vertical", props(description = ""))]
     SplitVertical,
     #[strum(serialize = "split_horizontal", props(description = ""))]

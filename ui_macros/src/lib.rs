@@ -32,7 +32,6 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
             }
 
             fn set_rect(&self, rect: Rect)  {
-                println!("set rect {:?}", rect);
                 self.state.lock().unwrap().set_rect(rect);
                 self.layout();
             }
@@ -87,6 +86,12 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
             fn add_child(&self, child: Box<Widget>) {
                 child.set_parent(Box::new(self.clone()));
                 self.state.lock().unwrap().add_child(child);
+                self.layout();
+            }
+
+            fn replace_child(&self, index: usize, child: Box<Widget>) {
+                child.set_parent(Box::new(self.clone()));
+                self.state.lock().unwrap().replace_child(index, child);
                 self.layout();
             }
 
