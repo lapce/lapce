@@ -138,9 +138,16 @@ impl KeyMap {
         keymap.add("n", "<C-r>", Command::Redo);
         keymap.add("n", "i", Command::Insert);
         keymap.add("n", "I", Command::InsertStartOfLine);
+        keymap.add("n", "a", Command::AppendRight);
         keymap.add("n", "A", Command::AppendEndOfLine);
         keymap.add("n", "o", Command::NewLineBelow);
         keymap.add("n", "O", Command::NewLineAbove);
+        keymap.add("n", "<M-;>", Command::SplitVertical);
+        keymap.add("n", "<C-w>v", Command::SplitVertical);
+        keymap.add("n", "<m-h>", Command::MoveCursorToWindowLeft);
+        keymap.add("n", "<m-l>", Command::MoveCursorToWindowRight);
+        keymap.add("n", "<m-x>", Command::ExchangeWindow);
+        keymap.add("n", "<m-k>", Command::CommandPalette);
 
         keymap.add("nv", "v", Command::Visual);
         keymap.add("nv", "V", Command::VisualLine);
@@ -148,11 +155,6 @@ impl KeyMap {
         keymap.add("nv", "x", Command::DeleteForward);
         keymap.add("nv", "s", Command::DeleteForwardInsert);
 
-        keymap.add("inv", "<M-;>", Command::SplitVertical);
-        keymap.add("inv", "<C-w>v", Command::SplitVertical);
-        keymap.add("inv", "<m-h>", Command::MoveCursorToWindowLeft);
-        keymap.add("inv", "<m-l>", Command::MoveCursorToWindowRight);
-        keymap.add("inv", "<m-x>", Command::ExchangeWindow);
         keymap.add("inv", "<down>", Command::MoveDown);
         keymap.add("inv", "<up>", Command::MoveUp);
         keymap.add("inv", "<left>", Command::MoveLeft);
@@ -174,6 +176,8 @@ impl KeyMap {
         keymap.add("i", "<Esc>", Command::Escape);
         keymap.add("i", "<bs>", Command::DeleteBackward);
         keymap.add("i", "<C-h>", Command::DeleteBackward);
+        keymap.add("i", "<C-w>", Command::DeleteWordBackward);
+        keymap.add("i", "<C-u>", Command::DeleteToBeginningOfLine);
         keymap.add("i", "<cr>", Command::InsertNewLine);
         keymap.add("i", "<C-m>", Command::InsertNewLine);
         keymap.add("i", "<Tab>", Command::InsertTab);
@@ -262,6 +266,10 @@ pub enum Command {
     DeleteForward,
     #[strum(serialize = "delete_backward", props(description = ""))]
     DeleteBackward,
+    #[strum(serialize = "delete_word_backward", props(description = ""))]
+    DeleteWordBackward,
+    #[strum(serialize = "delete_to_beginning_of_line", props(description = ""))]
+    DeleteToBeginningOfLine,
     #[strum(serialize = "move_cursor_to_window_below", props(description = ""))]
     MoveCursorToWindowBelow,
     #[strum(serialize = "move_cursor_to_window_above", props(description = ""))]
@@ -298,6 +306,8 @@ pub enum Command {
     MoveEndOfLine,
     #[strum(serialize = "insert_start_of_line", props(description = ""))]
     InsertStartOfLine,
+    #[strum(serialize = "append_right", props(description = ""))]
+    AppendRight,
     #[strum(serialize = "append_end_of_line", props(description = ""))]
     AppendEndOfLine,
     #[strum(serialize = "new_line_below", props(description = ""))]
@@ -308,6 +318,8 @@ pub enum Command {
     InsertNewLine,
     #[strum(serialize = "insert_tab", props(description = ""))]
     InsertTab,
+    #[strum(serialize = "command_palette", props(description = ""))]
+    CommandPalette,
     #[strum(serialize = "unknown", props(description = ""))]
     Unknown,
 }

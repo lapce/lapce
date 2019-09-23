@@ -1,4 +1,4 @@
-use super::Widget;
+use super::WidgetTrait;
 use druid::shell::keyboard::{KeyEvent, KeyModifiers};
 use druid::shell::window::{MouseEvent, WinCtx, WinHandler, WindowHandle};
 use druid::{kurbo, piet, BoxConstraints, PaintCtx, TimerToken};
@@ -8,12 +8,12 @@ use std::any::Any;
 use std::sync::{Arc, Mutex};
 
 pub struct UiHandler {
-    root: Arc<Widget>,
+    root: Arc<WidgetTrait>,
     handle: WindowHandle,
 }
 
 impl UiHandler {
-    pub fn new(root: Arc<Widget>) -> UiHandler {
+    pub fn new(root: Arc<WidgetTrait>) -> UiHandler {
         UiHandler {
             root,
             handle: Default::default(),

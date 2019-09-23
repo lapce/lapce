@@ -14,7 +14,7 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
     let name = &ast.ident;
 
     let expanded = quote! {
-        impl Widget for #name {
+        impl WidgetTrait for #name {
             fn id(&self) -> String {
                 self.state.lock().unwrap().id().clone()
             }
@@ -27,6 +27,18 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
                 self.state.lock().unwrap().invalidate();
             }
 
+            fn layout_raw(&self) {
+                self.layout();
+            }
+
+            fn set_size(&self, width: f64, height: f64) {
+                self.state.lock().unwrap().set_size(width, height);
+            }
+
+            fn set_pos(&self, x: f64, y: f64){
+                self.state.lock().unwrap().set_pos(x, y);
+            }
+
             fn invalidate_rect(&self, rect: Rect) {
                 self.state.lock().unwrap().invalidate_rect(rect);
             }
@@ -36,7 +48,19 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
                 self.layout();
             }
 
-            fn parent(&self) -> Option<Box<Widget>> {
+            fn show(&self) {
+                self.state.lock().unwrap().show();
+            }
+
+            fn hide(&self) {
+                self.state.lock().unwrap().hide();
+            }
+
+            fn set_custom_rect(&self, rect: Rect)  {
+                self.state.lock().unwrap().set_custom_rect(rect);
+            }
+
+            fn parent(&self) -> Option<Box<WidgetTrait>> {
                 self.state.lock().unwrap().parent()
             }
 
@@ -56,8 +80,15 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
             fn get_rect(&self) -> Rect {
                 self.state.lock().unwrap().get_rect()
             }
+            fn custom_rect(&self) -> Rect {
+                self.state.lock().unwrap().custom_rect()
+            }
 
             fn paint_raw(&self, paint_ctx: &mut PaintCtx, rect: Rect) {
+                if self.state.lock().unwrap().is_hidden() {
+                    return
+                }
+
                 let layout_rect = self.state.lock().unwrap().get_rect();
                 let rect = layout_rect.intersect(rect);
                 if rect.area() == 0.0 {
@@ -79,17 +110,17 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
                 self.set_rect(rect);
             }
 
-            fn set_parent(&self, parent: Box<Widget>) {
+            fn set_parent(&self, parent: Box<WidgetTrait>) {
                 self.state.lock().unwrap().set_parent(parent);
             }
 
-            fn add_child(&self, child: Box<Widget>) {
+            fn add_child(&self, child: Box<WidgetTrait>) {
                 child.set_parent(Box::new(self.clone()));
                 self.state.lock().unwrap().add_child(child);
                 self.layout();
             }
 
-            fn replace_child(&self, index: usize, child: Box<Widget>) {
+            fn replace_child(&self, index: usize, child: Box<WidgetTrait>) {
                 child.set_parent(Box::new(self.clone()));
                 self.state.lock().unwrap().replace_child(index, child);
                 self.layout();

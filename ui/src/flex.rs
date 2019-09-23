@@ -1,4 +1,4 @@
-use super::{Widget, WidgetState};
+use super::{WidgetState, WidgetTrait};
 use crane_ui_macros::WidgetBase;
 use druid::shell::keyboard::{KeyCode, KeyEvent, KeyModifiers};
 use druid::shell::platform::IdleHandle;

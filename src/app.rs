@@ -1,8 +1,9 @@
 use crate::editor::EditViewCommands;
 use crate::editor::Editor;
 use crate::line_cache::Style;
+use crate::palette::Palette;
 use crate::rpc::{Core, Handler};
-use crane_ui::Widget;
+use crane_ui::{Column, Flex, WidgetTrait};
 use druid::shell::platform::IdleHandle;
 use druid::shell::platform::WindowHandle;
 use serde_json::{self, json, Value};
@@ -36,7 +37,8 @@ pub struct App {
     pub state: Arc<Mutex<AppState>>,
     pub idle_handle: IdleHandle,
     pub window_handle: WindowHandle,
-    pub main_flex: Arc<Widget>,
+    pub main_flex: Flex,
+    pub palette: Option<Palette>,
     pub views: Arc<Mutex<HashMap<String, View>>>,
     pub editors: Arc<Mutex<HashMap<String, Editor>>>,
     pub config: Config,
@@ -55,7 +57,7 @@ impl App {
         core: Core,
         window_handle: WindowHandle,
         idle_handle: IdleHandle,
-        main_flex: Arc<Widget>,
+        main_flex: Flex,
         config: Config,
     ) -> App {
         App {
@@ -64,10 +66,15 @@ impl App {
             window_handle,
             idle_handle,
             main_flex,
+            palette: None,
             views: Arc::new(Mutex::new(HashMap::new())),
             editors: Arc::new(Mutex::new(HashMap::new())),
             config,
         }
+    }
+
+    pub fn set_palette(&mut self, palette: Palette) {
+        self.palette = Some(palette)
     }
 
     pub fn set_active_editor(&self, editor: &Editor) {

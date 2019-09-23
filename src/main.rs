@@ -3,13 +3,15 @@ mod config;
 mod editor;
 mod input;
 mod line_cache;
+mod palette;
 mod rpc;
 mod xi_thread;
 
 use app::{App, AppDispatcher};
 use config::{AppFont, Config};
-use crane_ui::{Column, UiHandler};
+use crane_ui::{Column, UiHandler, Widget, WidgetTrait};
 use druid::shell::{runloop, WindowBuilder};
+use palette::Palette;
 use rpc::Core;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
@@ -25,8 +27,10 @@ fn main() {
     let mut builder = WindowBuilder::new();
     // let mut col = Column::new();
     // let state = UiState::new(col, "sdlkfjdslkfjdsklfj".to_string());
-    let main_widget = Arc::new(Column::new());
-    let ui_handler = UiHandler::new(main_widget.clone());
+    let main_flex = Column::new();
+    let main_widget = Widget::new();
+    main_widget.add_child(Box::new(main_flex.clone()));
+    let ui_handler = UiHandler::new(Arc::new(main_widget.clone()));
     builder.set_title("Crane");
     builder.set_handler(Box::new(ui_handler));
     let window = builder.build().unwrap();
@@ -35,8 +39,14 @@ fn main() {
     let core = Core::new(xi_peer, rx, dispatcher.clone());
     let font = AppFont::new("Consolas", 13.0, 11.0);
     let config = Config::new(font);
-    let app = App::new(core, window.clone(), idle_handle, main_widget, config);
+    let mut app = App::new(core, window.clone(), idle_handle, main_flex.clone(), config);
     dispatcher.set_app(&app);
+
+    let palette = Palette::new(app.clone());
+    palette.set_size(500.0, 500.0);
+    palette.set_pos(100.0, 0.0);
+    main_widget.add_child(Box::new(palette.clone()));
+    app.set_palette(palette.clone());
 
     app.send_notification(
         "client_started",
@@ -54,5 +64,6 @@ fn main() {
     app.req_new_view(Some("/Users/Lulu/crane/src/app.rs"));
 
     window.show();
+    palette.hide();
     run_loop.run();
 }

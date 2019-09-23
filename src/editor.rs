@@ -5,7 +5,7 @@ use crate::input::{Cmd, Command, Input, InputState, KeyInput};
 use crate::line_cache::{count_utf16, Annotation, Line, LineCache, Style};
 use crate::rpc::Core;
 use cairo::{FontFace, FontOptions, FontSlant, FontWeight, Matrix, ScaledFont};
-use crane_ui::{Widget, WidgetState};
+use crane_ui::{WidgetState, WidgetTrait};
 use crane_ui_macros::WidgetBase;
 use druid::shell::keyboard::{KeyCode, KeyEvent, KeyModifiers};
 use druid::shell::platform::IdleHandle;
@@ -682,6 +682,9 @@ impl Editor {
         };
 
         match cmd.clone().cmd.unwrap() {
+            Command::CommandPalette => {
+                self.app.palette.clone().unwrap().run();
+            }
             Command::Insert => {
                 self.local_state.lock().unwrap().input.state = InputState::Insert;
                 self.app.core.no_move(&view_id, true, true, true);
@@ -812,6 +815,17 @@ impl Editor {
                     }),
                 );
             }
+            Command::AppendRight => {
+                self.local_state.lock().unwrap().input.state = InputState::Insert;
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_right",
+                        "params": {"count": count, "is_selection": false, "line_selection": false, "caret": true},
+                    }),
+                );
+            }
             Command::AppendEndOfLine => {
                 self.local_state.lock().unwrap().input.state = InputState::Insert;
                 self.app.core.send_notification(
@@ -853,6 +867,24 @@ impl Editor {
                     &json!({
                         "view_id": view_id,
                         "method": "delete_backward",
+                    }),
+                );
+            }
+            Command::DeleteWordBackward => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "delete_word_backward",
+                    }),
+                );
+            }
+            Command::DeleteToBeginningOfLine => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "delete_to_beginning_of_line",
                     }),
                 );
             }
