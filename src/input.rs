@@ -13,6 +13,8 @@ pub enum InputState {
     Insert,
     #[strum(serialize = "visual", serialize = "v")]
     Visual,
+    #[strum(serialize = "palette", serialize = "p")]
+    Palette,
 }
 
 #[derive(Clone)]
@@ -143,6 +145,7 @@ impl KeyMap {
         keymap.add("n", "o", Command::NewLineBelow);
         keymap.add("n", "O", Command::NewLineAbove);
         keymap.add("n", "<M-;>", Command::SplitVertical);
+        keymap.add("n", "<C-n>", Command::Hover);
         keymap.add("n", "<C-w>v", Command::SplitVertical);
         keymap.add("n", "<m-h>", Command::MoveCursorToWindowLeft);
         keymap.add("n", "<m-l>", Command::MoveCursorToWindowRight);
@@ -155,8 +158,8 @@ impl KeyMap {
         keymap.add("nv", "x", Command::DeleteForward);
         keymap.add("nv", "s", Command::DeleteForwardInsert);
 
-        keymap.add("inv", "<down>", Command::MoveDown);
-        keymap.add("inv", "<up>", Command::MoveUp);
+        keymap.add("invp", "<down>", Command::MoveDown);
+        keymap.add("invp", "<up>", Command::MoveUp);
         keymap.add("inv", "<left>", Command::MoveLeft);
         keymap.add("inv", "<right>", Command::MoveRight);
 
@@ -173,11 +176,16 @@ impl KeyMap {
 
         keymap.add("v", "<Esc>", Command::Escape);
 
-        keymap.add("i", "<Esc>", Command::Escape);
-        keymap.add("i", "<bs>", Command::DeleteBackward);
-        keymap.add("i", "<C-h>", Command::DeleteBackward);
+        keymap.add("p", "<C-m>", Command::Execute);
+        keymap.add("p", "<cr>", Command::Execute);
+        keymap.add("p", "<C-n>", Command::MoveDown);
+        keymap.add("p", "<C-p>", Command::MoveUp);
+
+        keymap.add("ip", "<Esc>", Command::Escape);
+        keymap.add("ip", "<bs>", Command::DeleteBackward);
+        keymap.add("ip", "<C-h>", Command::DeleteBackward);
+        keymap.add("ip", "<C-u>", Command::DeleteToBeginningOfLine);
         keymap.add("i", "<C-w>", Command::DeleteWordBackward);
-        keymap.add("i", "<C-u>", Command::DeleteToBeginningOfLine);
         keymap.add("i", "<cr>", Command::InsertNewLine);
         keymap.add("i", "<C-m>", Command::InsertNewLine);
         keymap.add("i", "<Tab>", Command::InsertTab);
@@ -320,15 +328,19 @@ pub enum Command {
     InsertTab,
     #[strum(serialize = "command_palette", props(description = ""))]
     CommandPalette,
+    #[strum(serialize = "execute", props(description = ""))]
+    Execute,
+    #[strum(serialize = "hover", props(description = ""))]
+    Hover,
     #[strum(serialize = "unknown", props(description = ""))]
     Unknown,
 }
 
+#[derive(Clone)]
 pub struct Input {
     pub state: InputState,
     pub visual_line: bool,
     pub count: u64,
-    pub pending_keys: Vec<KeyInput>,
 }
 
 impl Input {
@@ -337,7 +349,6 @@ impl Input {
             state: InputState::Normal,
             visual_line: false,
             count: 0,
-            pending_keys: Vec::new(),
         }
     }
 }

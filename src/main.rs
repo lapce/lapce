@@ -10,8 +10,10 @@ mod xi_thread;
 use app::{App, AppDispatcher};
 use config::{AppFont, Config};
 use crane_ui::{Column, UiHandler, Widget, WidgetTrait};
+use druid::piet;
 use druid::shell::{runloop, WindowBuilder};
 use palette::Palette;
+use piet::Color;
 use rpc::Core;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
@@ -44,7 +46,8 @@ fn main() {
 
     let palette = Palette::new(app.clone());
     palette.set_size(500.0, 500.0);
-    palette.set_pos(100.0, 0.0);
+    palette.set_background(Color::rgb8(33, 37, 43));
+    palette.set_shadow(0.0, 0.0, 5.0, 0.0, Color::rgba8(0, 0, 0, 200));
     main_widget.add_child(Box::new(palette.clone()));
     app.set_palette(palette.clone());
 
@@ -61,7 +64,11 @@ fn main() {
             "theme_name": "one_dark"
         }),
     );
-    app.req_new_view(Some("/Users/Lulu/crane/src/app.rs"));
+
+    let editor = app.new_editor();
+    editor.set_active();
+    app.set_active_editor(&editor);
+    editor.load_file("/Users/Lulu/crane/src/app.rs".to_string());
 
     window.show();
     palette.hide();

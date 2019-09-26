@@ -1,5 +1,6 @@
 use crate::editor::EditViewCommands;
 use crate::editor::Editor;
+use crate::input::{Cmd, Command, Input, InputState, KeyInput};
 use crate::line_cache::Style;
 use crate::palette::Palette;
 use crate::rpc::{Core, Handler};
@@ -18,15 +19,23 @@ use std::thread;
 use std::time;
 use syntect::highlighting::ThemeSettings;
 
+pub trait CommandRunner {
+    fn run(&self, cmd: Cmd, key_input: KeyInput);
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub active_editor: String,
+    pending_keys: Vec<KeyInput>,
+    pub palette: Option<Palette>,
 }
 
 impl AppState {
     fn new() -> AppState {
         AppState {
             active_editor: "".to_string(),
+            pending_keys: Vec::new(),
+            palette: None,
         }
     }
 }
@@ -38,8 +47,8 @@ pub struct App {
     pub idle_handle: IdleHandle,
     pub window_handle: WindowHandle,
     pub main_flex: Flex,
-    pub palette: Option<Palette>,
     pub views: Arc<Mutex<HashMap<String, View>>>,
+    pub path_views: Arc<Mutex<HashMap<String, View>>>,
     pub editors: Arc<Mutex<HashMap<String, Editor>>>,
     pub config: Config,
 }
@@ -66,15 +75,25 @@ impl App {
             window_handle,
             idle_handle,
             main_flex,
-            palette: None,
             views: Arc::new(Mutex::new(HashMap::new())),
+            path_views: Arc::new(Mutex::new(HashMap::new())),
             editors: Arc::new(Mutex::new(HashMap::new())),
             config,
         }
     }
 
     pub fn set_palette(&mut self, palette: Palette) {
-        self.palette = Some(palette)
+        self.state.lock().unwrap().palette = Some(palette)
+    }
+
+    pub fn new_editor(&self) -> Editor {
+        let editor = Editor::new(self.clone());
+        self.editors
+            .lock()
+            .unwrap()
+            .insert(editor.id().clone(), editor.clone());
+        self.main_flex.add_child(Box::new(editor.clone()));
+        editor
     }
 
     pub fn set_active_editor(&self, editor: &Editor) {
@@ -87,77 +106,60 @@ impl App {
         self.editors.lock().unwrap().get(&id).unwrap().clone()
     }
 
-    pub fn req_new_view(&self, filename: Option<&str>) {
-        let mut params = json!({});
-
-        let filename = if filename.is_some() {
-            params["file_path"] = json!(filename.unwrap());
-            Some(filename.unwrap().to_string())
-        } else {
-            None
-        };
-
-        let edit_view = 0;
-        let core = self.core.clone();
-        let idle_handle = self.idle_handle.clone();
-        let main_flex = self.main_flex.clone();
-        let views = self.views.clone();
-        let editors = self.editors.clone();
-        let config = self.config.clone();
-        let config_for_view = self.config.clone();
-        let window_handle = self.window_handle.clone();
-
-        let app = self.clone();
-
-        self.core.send_request("new_view", &params, move |value| {
-            let view_id = value.as_str().unwrap().to_string();
-            let view = View::new(view_id.clone(), app.clone());
-            views.lock().unwrap().insert(view_id.clone(), view.clone());
-            let editor = Editor::new(app.clone());
-            editors
-                .lock()
-                .unwrap()
-                .insert(editor.id().clone(), editor.clone());
-            app.set_active_editor(&editor);
-            editor.load_view(view);
-            editor.set_active();
-            main_flex.add_child(Box::new(editor));
-        });
-        // self.core.send_request("new_view", &params, move |value| {
-        //     println!("{:?}", value);
-        //     let view_id = value.as_str().unwrap().to_string();
-        //     let view = Arc::new(Mutex::new(View::new(
-        //         view_id.clone(),
-        //         editor_views.clone(),
-        //         config_for_view,
-        //     )));
-        //     views.lock().unwrap().insert(view_id.clone(), view.clone());
-
-        //     // let editor_view = Arc::new(EditorView::new(
-        //     //     idle_handle.clone(),
-        //     //     window_handle,
-        //     //     core.clone(),
-        //     //     view.clone(),
-        //     //     config,
-        //     // ));
-        //     // editor_views
-        //     //     .lock()
-        //     //     .unwrap()
-        //     //     .insert(editor_view.lock().unwrap().id(), editor_view.clone());
-        //     // view.clone()
-        //     //     .lock()
-        //     //     .unwrap()
-        //     //     .set_editor_view(editor_view.clone());
-        //     // main_flex.lock().unwrap().add_child(editor_view.clone());
-        //     // editor_view.lock().unwrap().set_parent(main_flex);
-        //     // idle_handle.add_idle(move |_| {
-        //     //     println!("run idle");
-        //     // });
-        // });
-    }
-
     pub fn send_notification(&self, method: &str, params: &Value) {
         self.core.send_notification(method, params);
+    }
+
+    pub fn handle_key_down(&self, key_input: KeyInput) {
+        if key_input.text == "" {
+            return;
+        }
+        let mut pending_keys = self.state.lock().unwrap().pending_keys.clone();
+        pending_keys.push(key_input.clone());
+
+        let (input_state, runner) = if !self
+            .state
+            .lock()
+            .unwrap()
+            .palette
+            .clone()
+            .unwrap()
+            .is_hidden()
+        {
+            let palette = self.state.lock().unwrap().palette.clone().unwrap();
+            (InputState::Palette, Box::new(palette) as Box<CommandRunner>)
+        } else {
+            let active_editor = self.get_active_editor();
+
+            (
+                active_editor.get_state(),
+                Box::new(active_editor) as Box<CommandRunner>,
+            )
+        };
+
+        let cmd = {
+            let keymaps = self.config.keymaps.lock().unwrap();
+            keymaps.get(input_state, pending_keys.clone())
+        };
+        if cmd.more_input {
+            self.state.lock().unwrap().pending_keys = pending_keys;
+            return;
+        }
+
+        if cmd.clone().cmd.unwrap() == Command::Unknown {
+            for key in pending_keys {
+                runner.run(
+                    Cmd {
+                        cmd: Some(Command::Unknown),
+                        more_input: false,
+                    },
+                    key,
+                );
+            }
+            self.state.lock().unwrap().pending_keys = Vec::new();
+            return;
+        }
+        runner.run(cmd, key_input);
     }
 
     fn send_view_cmd(&self, cmd: EditViewCommands) {}
