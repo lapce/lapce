@@ -230,7 +230,6 @@ impl Palette {
         } else {
             0.0
         };
-        println!("x is {}", x);
         if old_x != x {
             self.set_pos(x, 0.0)
         }
@@ -464,7 +463,7 @@ impl PaletteInput {
     fn layout(&self) {}
 
     fn paint(&self, paint_ctx: &mut PaintCtx) {
-        let app_font = self.app.config.font.lock().unwrap();
+        let app_font = self.app.config.font.lock().unwrap().clone();
         let padding = 5.0;
         let size = self.get_rect().size();
         paint_ctx.fill(

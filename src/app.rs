@@ -3,10 +3,12 @@ use crate::editor::Editor;
 use crate::input::{Cmd, Command, Input, InputState, KeyInput};
 use crate::line_cache::Style;
 use crate::palette::Palette;
+use crate::popup::Popup;
 use crate::rpc::{Core, Handler};
 use crane_ui::{Column, Flex, WidgetTrait};
 use druid::shell::platform::IdleHandle;
 use druid::shell::platform::WindowHandle;
+use lsp_types::{CompletionResponse, Position};
 use serde_json::{self, json, Value};
 use std::cell::RefCell;
 // use std::marker::{Send, Sync};
@@ -28,6 +30,7 @@ pub struct AppState {
     pub active_editor: String,
     pending_keys: Vec<KeyInput>,
     pub palette: Option<Palette>,
+    pub popup: Option<Popup>,
 }
 
 impl AppState {
@@ -36,6 +39,7 @@ impl AppState {
             active_editor: "".to_string(),
             pending_keys: Vec::new(),
             palette: None,
+            popup: None,
         }
     }
 }
@@ -84,6 +88,10 @@ impl App {
 
     pub fn set_palette(&mut self, palette: Palette) {
         self.state.lock().unwrap().palette = Some(palette)
+    }
+
+    pub fn set_popup(&mut self, popup: Popup) {
+        self.state.lock().unwrap().popup = Some(popup)
     }
 
     pub fn new_editor(&self) -> Editor {
@@ -202,6 +210,20 @@ impl App {
                 let col = params["col"].as_u64().unwrap() as usize;
                 let line = params["line"].as_u64().unwrap() as usize;
                 view.scroll_to(col, line);
+            }
+            "show_completion" => {
+                println!("show completion");
+                let completion: CompletionResponse =
+                    serde_json::from_value(params["result"].clone()).unwrap();
+                let popup = self.state.lock().unwrap().popup.clone().unwrap().clone();
+                let editor = self.get_active_editor();
+                let (col, line, filter) = editor.get_completion_pos();
+                popup.set_location(col, line);
+                editor.move_popup();
+                popup.set_completion(completion);
+                popup.filter_items(filter);
+                popup.show();
+                popup.invalidate();
             }
             // "available_themes" => (),    // TODO
             // "available_plugins" => (),   // TODO

@@ -3,6 +3,7 @@ use crate::config::AppFont;
 use crate::config::Config;
 use crate::input::{Cmd, Command, Input, InputState, KeyInput};
 use crate::line_cache::{count_utf16, Annotation, Line, LineCache, Style};
+use crate::popup::Popup;
 use crate::rpc::Core;
 use cairo::{FontFace, FontOptions, FontSlant, FontWeight, Matrix, ScaledFont};
 use crane_ui::{WidgetState, WidgetTrait};
@@ -22,6 +23,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 use std::thread;
 use uuid::Uuid;
+use xi_core_lib::word_boundaries::{get_word_property, WordProperty};
 
 pub enum EditViewCommands {
     ViewId(String),
@@ -73,6 +75,40 @@ impl Editor {
         self.state.lock().unwrap().view = Some(view);
     }
 
+    pub fn line(&self) -> usize {
+        self.state.lock().unwrap().line
+    }
+
+    pub fn col(&self) -> usize {
+        self.state.lock().unwrap().col
+    }
+
+    pub fn get_completion_pos(&self) -> (usize, usize, String) {
+        let view = self.state.lock().unwrap().view.clone();
+        match view {
+            Some(view) => match view.line_cache.lock().unwrap().get_line(self.line()) {
+                Some(line) => {
+                    let col = self.col();
+                    let chars: Vec<char> = line.text()[..col].to_string().chars().collect();
+                    let mut i = chars.len() - 1;
+                    while let Some(ch) = chars.get(i) {
+                        if get_word_property(ch.clone()) != WordProperty::Other {
+                            break;
+                        }
+                        i -= 1;
+                    }
+                    (
+                        i + 1,
+                        self.line(),
+                        line.text()[i + 1..self.col()].to_string(),
+                    )
+                }
+                None => (0, 0, "".to_string()),
+            },
+            None => (0, 0, "".to_string()),
+        }
+    }
+
     fn get_view_width(&self) -> f64 {
         let view = self.state.lock().unwrap().view.clone();
         match view {
@@ -101,6 +137,28 @@ impl Editor {
         let app_font = self.app.config.font.lock().unwrap().width;
         let gutter_padding = self.state.lock().unwrap().gutter_padding;
         2.0 * gutter_padding + app_font * self.gutter_len() as f64
+    }
+
+    pub fn move_popup(&self) {
+        let popup = self
+            .app
+            .state
+            .lock()
+            .unwrap()
+            .popup
+            .clone()
+            .unwrap()
+            .clone();
+        let rect = self.get_rect();
+        let col = popup.col();
+        let line = popup.line();
+        let horizontal_scroll = self.horizontal_scroll();
+        let vertical_scroll = self.vertical_scroll();
+        let gutter_width = self.gutter_width();
+        let app_font = self.app.config.font.lock().unwrap().clone();
+        let x = rect.x0 + gutter_width + col as f64 * app_font.width - horizontal_scroll;
+        let y = rect.y0 + (line + 1) as f64 * app_font.lineheight() - vertical_scroll;
+        popup.set_pos(x, y);
     }
 
     fn layout(&self) {}
@@ -755,6 +813,7 @@ impl CommandRunner for Editor {
                 self.state.lock().unwrap().input.count = 0;
                 self.state.lock().unwrap().input.visual_line = false;
                 self.app.core.no_move(&view_id, false, false, false);
+                self.app.state.lock().unwrap().popup.clone().unwrap().hide();
                 self.app.get_active_editor().invalidate();
             }
             Command::Undo => {
@@ -897,6 +956,37 @@ impl CommandRunner for Editor {
                         "method": "delete_backward",
                     }),
                 );
+                if input_state == InputState::Insert {
+                    let popup = self
+                        .app
+                        .state
+                        .lock()
+                        .unwrap()
+                        .popup
+                        .clone()
+                        .unwrap()
+                        .clone();
+                    let (_col, _line, filter) = self.get_completion_pos();
+                    if !popup.is_hidden() {
+                        if filter == "" {
+                            popup.hide();
+                        } else {
+                            popup.filter_items(filter[..filter.len() - 1].to_string());
+                        }
+                        popup.invalidate();
+                    } else {
+                        if filter != "" {
+                            self.app.core.send_notification(
+                                "edit",
+                                &json!({
+                                    "view_id": view_id,
+                                    "method": "request_completion",
+                                    "params": {"request_id": 123},
+                                }),
+                            );
+                        }
+                    }
+                }
             }
             Command::DeleteWordBackward => {
                 self.app.core.send_notification(
@@ -1054,6 +1144,43 @@ impl CommandRunner for Editor {
                             "params": {"chars": key_input.text},
                         }),
                     );
+                    let popup = self
+                        .app
+                        .state
+                        .lock()
+                        .unwrap()
+                        .popup
+                        .clone()
+                        .unwrap()
+                        .clone();
+                    if key_input.text.len() == 1 {
+                        let ch = key_input.text.chars().next().unwrap();
+                        let prop = get_word_property(ch);
+                        match prop {
+                            WordProperty::Other => {
+                                if popup.is_hidden() {
+                                    if get_word_property(ch) == WordProperty::Other {
+                                        self.app.core.send_notification(
+                                            "edit",
+                                            &json!({
+                                                "view_id": view_id,
+                                                "method": "request_completion",
+                                                "params": {"request_id": 123},
+                                            }),
+                                        );
+                                    }
+                                } else {
+                                    let (_col, _line, filter) = self.get_completion_pos();
+                                    popup.filter_items(format!("{}{}", filter, key_input.text));
+                                    popup.invalidate();
+                                }
+                            }
+                            _ => {
+                                popup.hide();
+                                popup.invalidate();
+                            }
+                        };
+                    }
                 }
             }
             _ => {}

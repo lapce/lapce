@@ -4,6 +4,7 @@ mod editor;
 mod input;
 mod line_cache;
 mod palette;
+mod popup;
 mod rpc;
 mod xi_thread;
 
@@ -14,6 +15,7 @@ use druid::piet;
 use druid::shell::{runloop, WindowBuilder};
 use palette::Palette;
 use piet::Color;
+use popup::Popup;
 use rpc::Core;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
@@ -44,6 +46,14 @@ fn main() {
     let mut app = App::new(core, window.clone(), idle_handle, main_flex.clone(), config);
     dispatcher.set_app(&app);
 
+    let popup = Popup::new(app.clone());
+    popup.set_pos(200.0, 200.0);
+    popup.set_size(200.0, 200.0);
+    popup.set_background(Color::rgb8(33, 37, 43));
+    popup.set_shadow(0.0, 0.0, 5.0, 0.0, Color::rgba8(0, 0, 0, 200));
+    main_widget.add_child(Box::new(popup.clone()));
+    app.set_popup(popup.clone());
+
     let palette = Palette::new(app.clone());
     palette.set_size(500.0, 500.0);
     palette.set_background(Color::rgb8(33, 37, 43));
@@ -72,5 +82,6 @@ fn main() {
 
     window.show();
     palette.hide();
+    popup.hide();
     run_loop.run();
 }
