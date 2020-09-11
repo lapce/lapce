@@ -137,12 +137,30 @@ impl App {
             let palette = self.state.lock().unwrap().palette.clone().unwrap();
             (InputState::Palette, Box::new(palette) as Box<CommandRunner>)
         } else {
-            let active_editor = self.get_active_editor();
-
-            (
-                active_editor.get_state(),
-                Box::new(active_editor) as Box<CommandRunner>,
-            )
+            let popup = self.state.lock().unwrap().popup.clone().unwrap();
+            if !popup.is_hidden()
+                && self
+                    .config
+                    .keymaps
+                    .lock()
+                    .unwrap()
+                    .get(InputState::Completion, pending_keys.clone())
+                    .clone()
+                    .cmd
+                    .unwrap()
+                    != Command::Unknown
+            {
+                (
+                    InputState::Completion,
+                    Box::new(popup) as Box<CommandRunner>,
+                )
+            } else {
+                let active_editor = self.get_active_editor();
+                (
+                    active_editor.get_state(),
+                    Box::new(active_editor) as Box<CommandRunner>,
+                )
+            }
         };
 
         let cmd = {
@@ -167,6 +185,7 @@ impl App {
             self.state.lock().unwrap().pending_keys = Vec::new();
             return;
         }
+        self.state.lock().unwrap().pending_keys = Vec::new();
         runner.run(cmd, key_input);
     }
 

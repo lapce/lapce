@@ -1,4 +1,5 @@
 use crate::app::{App, CommandRunner};
+use crate::input::{Cmd, Command, Input, InputState, KeyInput};
 use crane_ui::{Flex, Row, Widget, WidgetState, WidgetTrait};
 use crane_ui_macros::WidgetBase;
 use druid::shell::keyboard::{KeyEvent, KeyModifiers};
@@ -12,6 +13,7 @@ use piet::{
     Color, FontBuilder, LinearGradient, RenderContext, Text, TextLayout, TextLayoutBuilder,
     UnitPoint,
 };
+use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -34,6 +36,42 @@ pub struct Popup {
     widget_state: Arc<Mutex<WidgetState>>,
     state: Arc<Mutex<PopupState>>,
     app: Box<App>,
+}
+
+impl CommandRunner for Popup {
+    fn run(&self, cmd: Cmd, key_input: KeyInput) {
+        match cmd.clone().cmd.unwrap() {
+            Command::MoveDown => self.change_index(1),
+            Command::MoveUp => self.change_index(-1),
+            Command::Execute => {
+                let items = self.items();
+                let index = self.state.lock().unwrap().index;
+                let filter = self.state.lock().unwrap().filter.clone();
+                let view = self.app.get_active_editor().view();
+                if filter != "" {
+                    self.app.core.send_notification(
+                        "edit",
+                        &json!({
+                            "view_id": view.id(),
+                            "method": "delete_word_backward",
+                        }),
+                    );
+                }
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view.id(),
+                        "method": "insert",
+                        "params": {"chars": items.get(index).unwrap().label.clone()},
+                    }),
+                );
+                self.cancel();
+                self.hide();
+                self.invalidate();
+            }
+            _ => (),
+        }
+    }
 }
 
 impl PopupState {
@@ -84,6 +122,11 @@ impl Popup {
         self.invalidate();
     }
 
+    pub fn cancel(&self) {
+        self.state.lock().unwrap().filter = "".to_string();
+        self.state.lock().unwrap().index = 0;
+    }
+
     fn update_height(&self) {
         let height = {
             let items = self.items();
@@ -128,6 +171,7 @@ impl Popup {
     pub fn filter_items(&self, filter: String) {
         println!("filter is '{}'", filter);
         self.state.lock().unwrap().filter = filter.clone();
+        self.state.lock().unwrap().index = 0;
         if filter == "" {
             self.update_height();
             return;
@@ -168,13 +212,24 @@ impl Popup {
 
     fn paint(&self, paint_ctx: &mut PaintCtx) {
         let app_font = self.app.config.font.lock().unwrap().clone();
+        let size = self.get_rect().size();
+        let fg = self.app.config.theme.lock().unwrap().foreground.unwrap();
+
+        let index = self.state.lock().unwrap().index;
+        paint_ctx.fill(
+            Rect::from_origin_size(
+                Point::new(0.0, app_font.lineheight() * index as f64),
+                Size::new(size.width, app_font.lineheight()),
+            ),
+            &Color::rgba8(fg.r, fg.g, fg.b, 20),
+        );
+
         let font = paint_ctx
             .text()
-            .new_font_by_name("Consolas", 13.0)
+            .new_font_by_name("Cascadia Code", 13.0)
             .unwrap()
             .build()
             .unwrap();
-        let fg = self.app.config.theme.lock().unwrap().foreground.unwrap();
         let mut i = 0;
         for item in self.items() {
             let layout = paint_ctx

@@ -4,3 +4,4 @@ crane
 target/
 .vscode
 .idea
+xi-lsp-plugin.log

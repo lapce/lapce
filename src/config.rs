@@ -53,7 +53,8 @@ pub struct AppFont {
 
 impl AppFont {
     pub fn new(family: &str, size: f64, linespace: f64) -> AppFont {
-        let font_face = FontFace::toy_create("Consolas", FontSlant::Normal, FontWeight::Normal);
+        let font_face =
+            FontFace::toy_create("Cascadia Code", FontSlant::Normal, FontWeight::Normal);
         let font_matrix = scale_matrix(13.0);
         let ctm = scale_matrix(1.0);
         let options = FontOptions::default();
@@ -62,7 +63,7 @@ impl AppFont {
         let extents = scaled_font.extents();
 
         let font = CairoText::new()
-            .new_font_by_name("Consolas", 13.0)
+            .new_font_by_name("Cascadia Code", 13.0)
             .unwrap()
             .build()
             .unwrap();

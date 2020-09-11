@@ -182,6 +182,11 @@ pub fn widget_base_derive(input: TokenStream) -> TokenStream {
                 self.layout();
             }
 
+            fn remove_child(&self, child: String) {
+                self.widget_state.lock().unwrap().remove_child(child);
+                self.layout();
+            }
+
             fn replace_child(&self, index: usize, child: Box<WidgetTrait>) {
                 child.set_parent(Box::new(self.clone()));
                 self.widget_state.lock().unwrap().replace_child(index, child);

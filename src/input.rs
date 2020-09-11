@@ -15,6 +15,8 @@ pub enum InputState {
     Visual,
     #[strum(serialize = "palette", serialize = "p")]
     Palette,
+    #[strum(serialize = "completion", serialize = "c")]
+    Completion,
 }
 
 #[derive(Clone)]
@@ -145,6 +147,7 @@ impl KeyMap {
         keymap.add("n", "o", Command::NewLineBelow);
         keymap.add("n", "O", Command::NewLineAbove);
         keymap.add("n", "<M-;>", Command::SplitVertical);
+        keymap.add("n", "<M-w>", Command::SplitClose);
         keymap.add("n", "<C-n>", Command::Hover);
         keymap.add("n", "<C-w>v", Command::SplitVertical);
         keymap.add("n", "<m-h>", Command::MoveCursorToWindowLeft);
@@ -163,6 +166,8 @@ impl KeyMap {
         keymap.add("inv", "<left>", Command::MoveLeft);
         keymap.add("inv", "<right>", Command::MoveRight);
 
+        keymap.add("nv", "gg", Command::MoveToTop);
+        keymap.add("nv", "G", Command::MoveToBottom);
         keymap.add("nv", "k", Command::MoveUp);
         keymap.add("nv", "j", Command::MoveDown);
         keymap.add("nv", "h", Command::MoveLeft);
@@ -180,6 +185,11 @@ impl KeyMap {
         keymap.add("p", "<cr>", Command::Execute);
         keymap.add("p", "<C-n>", Command::MoveDown);
         keymap.add("p", "<C-p>", Command::MoveUp);
+
+        keymap.add("c", "<C-n>", Command::MoveDown);
+        keymap.add("c", "<C-p>", Command::MoveUp);
+        keymap.add("c", "<C-m>", Command::Execute);
+        keymap.add("c", "<cr>", Command::Execute);
 
         keymap.add("ip", "<Esc>", Command::Escape);
         keymap.add("ip", "<bs>", Command::DeleteBackward);
@@ -288,6 +298,8 @@ pub enum Command {
     MoveCursorToWindowRight,
     #[strum(serialize = "exchange_window", props(description = ""))]
     ExchangeWindow,
+    #[strum(serialize = "split_close", props(description = ""))]
+    SplitClose,
     #[strum(serialize = "split_vertical", props(description = ""))]
     SplitVertical,
     #[strum(serialize = "split_horizontal", props(description = ""))]
@@ -296,7 +308,11 @@ pub enum Command {
     ScrollPageUp,
     #[strum(serialize = "scroll_page_down", props(description = ""))]
     ScrollPageDown,
-    #[strum(serialize = "move_down", props(description = ""))]
+    #[strum(serialize = "move_to_top", props(description = ""))]
+    MoveToTop,
+    #[strum(serialize = "move_to_bottom", props(description = ""))]
+    MoveToBottom,
+    #[strum(serialize = "move_up", props(description = ""))]
     MoveUp,
     #[strum(serialize = "move_down", props(description = ""))]
     MoveDown,

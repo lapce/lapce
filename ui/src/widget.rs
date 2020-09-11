@@ -70,6 +70,7 @@ pub trait WidgetTrait: Send + Sync + WidgetClone {
     fn set_inactive(&self, propagate: bool);
     fn paint_raw(&self, paint_ctx: &mut PaintCtx, rect: Rect);
     fn add_child(&self, child: Box<WidgetTrait>);
+    fn remove_child(&self, child: String);
     fn replace_child(&self, index: usize, child: Box<WidgetTrait>);
     fn set_parent(&self, parent: Box<WidgetTrait>);
     fn set_scroll(&self, horizontal: f64, vertical: f64);
@@ -277,6 +278,17 @@ impl WidgetState {
 
     pub fn add_child(&mut self, child: Box<WidgetTrait>) {
         self.children.push(child);
+    }
+
+    pub fn remove_child(&mut self, child_id: String) {
+        let mut i = 0;
+        for child in &self.children {
+            if child.id() == child_id {
+                self.children.remove(i);
+                break;
+            }
+            i += 1;
+        }
     }
 
     pub fn replace_child(&mut self, index: usize, child: Box<WidgetTrait>) {

@@ -75,6 +75,10 @@ impl Editor {
         self.state.lock().unwrap().view = Some(view);
     }
 
+    pub fn view(&self) -> View {
+        self.state.lock().unwrap().view.clone().unwrap()
+    }
+
     pub fn line(&self) -> usize {
         self.state.lock().unwrap().line
     }
@@ -90,18 +94,25 @@ impl Editor {
                 Some(line) => {
                     let col = self.col();
                     let chars: Vec<char> = line.text()[..col].to_string().chars().collect();
-                    let mut i = chars.len() - 1;
-                    while let Some(ch) = chars.get(i) {
-                        if get_word_property(ch.clone()) != WordProperty::Other {
-                            break;
+                    if chars.len() == 0 {
+                        (0, 0, "".to_string())
+                    } else {
+                        let mut i = chars.len() - 1;
+                        while let Some(ch) = chars.get(i) {
+                            if get_word_property(ch.clone()) != WordProperty::Other {
+                                break;
+                            }
+                            if i == 0 {
+                                break;
+                            }
+                            i -= 1;
                         }
-                        i -= 1;
+                        (
+                            i + 1,
+                            self.line(),
+                            line.text()[i + 1..self.col()].to_string(),
+                        )
                     }
-                    (
-                        i + 1,
-                        self.line(),
-                        line.text()[i + 1..self.col()].to_string(),
-                    )
                 }
                 None => (0, 0, "".to_string()),
             },
@@ -237,7 +248,7 @@ impl Editor {
         let gutter_padding = self.state.lock().unwrap().gutter_padding;
         let font = paint_ctx
             .text()
-            .new_font_by_name("Consolas", 13.0)
+            .new_font_by_name("Cascadia Code", 13.0)
             .unwrap()
             .build()
             .unwrap();
@@ -367,7 +378,7 @@ impl Editor {
 
         let font = paint_ctx
             .text()
-            .new_font_by_name("Consolas", 13.0)
+            .new_font_by_name("Cascadia Code", 13.0)
             .unwrap()
             .build()
             .unwrap();
@@ -1024,6 +1035,24 @@ impl CommandRunner for Editor {
                     }),
                 );
             }
+            Command::MoveToTop => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_to_beginning_of_document",
+                    }),
+                );
+            }
+            Command::MoveToBottom => {
+                self.app.core.send_notification(
+                    "edit",
+                    &json!({
+                        "view_id": view_id,
+                        "method": "move_to_end_of_document",
+                    }),
+                );
+            }
             Command::MoveUp => {
                 self.app.core.send_notification(
                         "edit",
@@ -1115,19 +1144,36 @@ impl CommandRunner for Editor {
                 });
             }
             Command::SplitHorizontal => {}
+            Command::SplitClose => {
+                println!("now remove child {}", self.id());
+                let parent = self.parent().unwrap();
+                let id = self.id();
+                let ids = parent.child_ids();
+                if ids.len() == 1 {
+                    return;
+                }
+                let index = ids.iter().position(|c| c == &id).unwrap();
+                match index {
+                    i if i + 1 < ids.len() => self.move_curosr(1),
+                    i => self.move_curosr(-1),
+                };
+                self.app.main_flex.remove_child(self.id());
+                self.app.main_flex.invalidate();
+            }
             Command::SplitVertical => {
-                let app = self.app.clone();
                 let view = self.state.lock().unwrap().view.as_ref().unwrap().clone();
-                thread::spawn(move || {
-                    let editor = Editor::new(app.clone());
-                    app.editors
-                        .lock()
-                        .unwrap()
-                        .insert(editor.id().clone(), editor.clone());
-                    editor.load_view(view);
-                    app.main_flex.add_child(Box::new(editor));
-                    app.main_flex.invalidate();
-                });
+                let editor = Editor::new(self.app.clone());
+                self.app
+                    .editors
+                    .lock()
+                    .unwrap()
+                    .insert(editor.id().clone(), editor.clone());
+                editor.state.lock().unwrap().col = self.col();
+                editor.state.lock().unwrap().line = self.line();
+                editor.set_scroll(self.horizontal_scroll(), self.vertical_scroll());
+                editor.load_view(view);
+                self.app.main_flex.add_child(Box::new(editor));
+                self.app.main_flex.invalidate();
             }
             Command::Unknown => {
                 if input_state == InputState::Insert
