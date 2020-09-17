@@ -28,8 +28,8 @@ pub enum CraneWidget {
 pub struct CraneState {
     pub palette: Arc<Mutex<PaletteState>>,
     keypress_sequence: Arc<Mutex<String>>,
-    pending_keypress: Arc<Mutex<String>>,
-    keymaps: Arc<HashMap<String, String>>,
+    pending_keypress: Arc<Mutex<Vec<String>>>,
+    keymaps: Arc<HashMap<Vec<String>, String>>,
     pub last_focus: Arc<Mutex<CraneWidget>>,
     pub focus: Arc<Mutex<CraneWidget>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
@@ -38,21 +38,66 @@ pub struct CraneState {
 impl CraneState {
     pub fn new() -> CraneState {
         let mut keymaps = HashMap::new();
-        keymaps.insert("meta+k".to_string(), CraneCommand::Palette.to_string());
         keymaps.insert(
-            "escape".to_string(),
+            vec!["ctrl+meta+p".to_string()],
+            CraneCommand::Palette.to_string(),
+        );
+        keymaps.insert(
+            vec!["ctrl+m".to_string()],
+            CraneCommand::ListSelect.to_string(),
+        );
+        keymaps.insert(
+            vec!["ctrl+n".to_string()],
+            CraneCommand::ListNext.to_string(),
+        );
+        keymaps.insert(
+            vec!["arrowdown".to_string()],
+            CraneCommand::ListNext.to_string(),
+        );
+        keymaps.insert(
+            vec!["arrowup".to_string()],
+            CraneCommand::ListPrevious.to_string(),
+        );
+        keymaps
+            .insert(vec!["ctrl+b".to_string()], CraneCommand::Left.to_string());
+        keymaps.insert(
+            vec!["ctrl+f".to_string()],
+            CraneCommand::Right.to_string(),
+        );
+        keymaps.insert(
+            vec!["arrowleft".to_string()],
+            CraneCommand::Left.to_string(),
+        );
+        keymaps.insert(
+            vec!["arrowright".to_string()],
+            CraneCommand::Right.to_string(),
+        );
+        keymaps.insert(
+            vec!["ctrl+p".to_string()],
+            CraneCommand::ListPrevious.to_string(),
+        );
+        keymaps.insert(
+            vec!["enter".to_string()],
+            CraneCommand::ListSelect.to_string(),
+        );
+        keymaps.insert(
+            vec!["escape".to_string()],
             CraneCommand::PaletteCancel.to_string(),
         );
         keymaps.insert(
-            "ctrl+h".to_string(),
+            vec!["ctrl+u".to_string()],
+            CraneCommand::DeleteToBeginningOfLine.to_string(),
+        );
+        keymaps.insert(
+            vec!["ctrl+h".to_string()],
             CraneCommand::DeleteBackward.to_string(),
         );
         keymaps.insert(
-            "backspace".to_string(),
+            vec!["backspace".to_string()],
             CraneCommand::DeleteBackward.to_string(),
         );
         CraneState {
-            pending_keypress: Arc::new(Mutex::new("".to_string())),
+            pending_keypress: Arc::new(Mutex::new(Vec::new())),
             keymaps: Arc::new(keymaps),
             keypress_sequence: Arc::new(Mutex::new("".to_string())),
             ui_sink: Arc::new(Mutex::new(None)),
@@ -62,20 +107,42 @@ impl CraneState {
         }
     }
 
+    pub fn insert(&self, content: &str) {
+        self.palette.lock().unwrap().insert(content);
+    }
+
     pub fn run_command(&self, command: &str) {
         if let Ok(cmd) = CraneCommand::from_str(command) {
             match cmd {
                 CraneCommand::Palette => {
                     self.palette.lock().unwrap().run();
                 }
-                _ => (),
+                CraneCommand::PaletteCancel => {
+                    self.palette.lock().unwrap().cancel();
+                }
+                CraneCommand::ListSelect => {
+                    self.palette.lock().unwrap().select();
+                }
+                CraneCommand::ListNext => {
+                    self.palette.lock().unwrap().change_index(1);
+                }
+                CraneCommand::ListPrevious => {
+                    self.palette.lock().unwrap().change_index(-1);
+                }
+                CraneCommand::Left => {
+                    self.palette.lock().unwrap().move_cursor(-1);
+                }
+                CraneCommand::Right => {
+                    self.palette.lock().unwrap().move_cursor(1);
+                }
+                CraneCommand::DeleteBackward => {
+                    self.palette.lock().unwrap().delete_backward();
+                }
+                CraneCommand::DeleteToBeginningOfLine => {
+                    self.palette.lock().unwrap().delete_to_beginning_of_line();
+                }
+                _ => println!("unhandled command {}", command),
             };
-            self.ui_sink
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .submit_command(CRANE_COMMAND, cmd, Target::Global);
         }
     }
 
@@ -113,21 +180,23 @@ impl CraneState {
         *self.keypress_sequence.lock().unwrap() =
             uuid::Uuid::new_v4().to_string();
 
-        let keypress = format!(
-            "{}{}{}{}{}{}",
-            *self.pending_keypress.lock().unwrap(),
+        // let keypress = self.pending_keypress.lock().unwrap().clone() +
+
+        let mut keypress = self.pending_keypress.lock().unwrap().clone();
+        keypress.push(format!(
+            "{}{}{}{}{}",
             if key_event.mods.alt() { "alt+" } else { "" },
             if key_event.mods.ctrl() { "ctrl+" } else { "" },
             if key_event.mods.meta() { "meta+" } else { "" },
             if key_event.mods.shift() { "shift+" } else { "" },
             key.to_lowercase(),
-        );
+        ));
 
         for (key, value) in self.keymaps.iter() {
-            if key.starts_with(&keypress) && key != &keypress {
-                *self.pending_keypress.lock().unwrap() =
-                    format!("{} ", keypress);
-
+            if keypress.len() < key.len()
+                && keypress.as_slice() == &key[..keypress.len()]
+            {
+                *self.pending_keypress.lock().unwrap() = keypress.clone();
                 let pending_keypress = self.pending_keypress.clone();
                 let keypress_sequence = self.keypress_sequence.clone();
                 let keymaps = self.keymaps.clone();
@@ -143,50 +212,34 @@ impl CraneState {
                         return;
                     }
 
-                    let keypress = pending_keypress
-                        [..pending_keypress.len() - 1]
-                        .to_string();
                     if let Some(value) = keymaps.get(&keypress) {
                         crane_state.run_command(value);
                     }
-                    *pending_keypress = "".to_string();
+                    *pending_keypress = Vec::new();
                 });
 
                 return;
             }
         }
 
-        for (key, value) in self.keymaps.iter() {
-            if key == &keypress {
-                *self.pending_keypress.lock().unwrap() = "".to_string();
-                self.run_command(value);
-                return;
-            }
+        if let Some(cmd) = self.keymaps.get(&keypress) {
+            *self.pending_keypress.lock().unwrap() = Vec::new();
+            self.run_command(cmd);
+            return;
         }
 
-        *self.pending_keypress.lock().unwrap() = "".to_string();
+        *self.pending_keypress.lock().unwrap() = Vec::new();
 
         let mut mods = key_event.mods.clone();
         mods.set(Modifiers::SHIFT, false);
         if mods.is_empty() {
             match &key_event.key {
                 druid::keyboard_types::Key::Character(c) => {
-                    self.ui_sink
-                        .lock()
-                        .unwrap()
-                        .as_ref()
-                        .unwrap()
-                        .submit_command(
-                            CRANE_COMMAND,
-                            CraneCommand::Insert(c.to_string()),
-                            Target::Global,
-                        );
+                    self.insert(c);
                 }
                 _ => (),
             }
         }
-
-        println!("got key_donw {:?}", key_event.mods);
     }
 
     pub fn set_ui_sink(&self, ui_sink: ExtEventSink) {

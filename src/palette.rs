@@ -1,6 +1,7 @@
 use druid::{
     kurbo::{Line, Rect},
     widget::Container,
+    widget::IdentityWrapper,
     Target, WidgetId,
 };
 use druid::{
@@ -23,7 +24,8 @@ use std::thread;
 
 use crate::{
     command::CraneCommand, command::CraneUICommand, command::CRANE_COMMAND,
-    command::CRANE_UI_COMMAND, state::CRANE_STATE, theme::CraneTheme,
+    command::CRANE_UI_COMMAND, scroll::CraneScroll, state::CRANE_STATE,
+    theme::CraneTheme,
 };
 
 #[derive(Clone, Debug)]
@@ -40,6 +42,9 @@ pub struct PaletteItem {
 
 pub struct PaletteState {
     widget_id: Option<WidgetId>,
+    scroll_widget_id: Option<WidgetId>,
+    line_height: f64,
+    width: f64,
     input: String,
     cursor: usize,
     items: Vec<PaletteItem>,
@@ -51,6 +56,9 @@ impl PaletteState {
     pub fn new() -> PaletteState {
         PaletteState {
             widget_id: None,
+            scroll_widget_id: None,
+            line_height: 0.0,
+            width: 0.0,
             items: Vec::new(),
             filtered_items: Vec::new(),
             input: "".to_string(),
@@ -65,27 +73,141 @@ impl PaletteState {
         self.widget_id = Some(id);
     }
 
+    pub fn set_scroll_widget_id(&mut self, id: WidgetId) {
+        self.scroll_widget_id = Some(id);
+    }
+
+    pub fn set_line_height(&mut self, line_height: f64) {
+        self.line_height = line_height;
+    }
+
+    pub fn set_width(&mut self, width: f64) {
+        self.width = width;
+    }
+
     pub fn run(&mut self) {
         self.items = self.get_files();
-        let target = Target::Global;
-        let target = { Target::Widget(self.widget_id.unwrap().clone()) };
         CRANE_STATE
             .ui_sink
             .lock()
             .unwrap()
             .as_ref()
             .unwrap()
-            .submit_command(CRANE_UI_COMMAND, CraneUICommand::Show, target);
+            .submit_command(
+                CRANE_UI_COMMAND,
+                CraneUICommand::Show,
+                Target::Widget(self.widget_id.unwrap().clone()),
+            );
     }
 
     pub fn cancel(&mut self) {
         self.input = "".to_string();
         self.cursor = 0;
+        self.index = 0;
+        CRANE_STATE
+            .ui_sink
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .submit_command(
+                CRANE_UI_COMMAND,
+                CraneUICommand::Hide,
+                Target::Widget(self.widget_id.unwrap().clone()),
+            );
+    }
+
+    fn request_layout(&self) {
+        CRANE_STATE
+            .ui_sink
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .submit_command(
+                CRANE_UI_COMMAND,
+                CraneUICommand::RequestLayout,
+                Target::Widget(self.widget_id.unwrap().clone()),
+            );
+    }
+
+    fn request_paint(&self) {
+        CRANE_STATE
+            .ui_sink
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .submit_command(
+                CRANE_UI_COMMAND,
+                CraneUICommand::RequestPaint,
+                Target::Widget(self.widget_id.unwrap().clone()),
+            );
+    }
+
+    fn ensure_visible(&self) {
+        let rect = Rect::ZERO
+            .with_origin(Point::new(0.0, self.index as f64 * self.line_height))
+            .with_size(Size::new(self.width, self.line_height));
+        let margin = (0.0, 0.0);
+
+        CRANE_STATE
+            .ui_sink
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .submit_command(
+                CRANE_UI_COMMAND,
+                CraneUICommand::EnsureVisible((rect, margin)),
+                Target::Widget(self.scroll_widget_id.unwrap().clone()),
+            );
     }
 
     pub fn insert(&mut self, content: &str) {
         self.input.insert_str(self.cursor, content);
         self.cursor += content.len();
+        self.index = 0;
+        self.filter_items();
+        self.ensure_visible();
+        self.request_layout();
+    }
+
+    pub fn move_cursor(&mut self, n: i64) {
+        let cursor = (self.cursor as i64 + n)
+            .max(0i64)
+            .min(self.input.len() as i64) as usize;
+        if self.cursor == cursor {
+            return;
+        }
+        self.cursor = cursor;
+        self.request_paint();
+    }
+
+    pub fn delete_backward(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+
+        self.input.remove(self.cursor - 1);
+        self.cursor = self.cursor - 1;
+        self.index = 0;
+        self.filter_items();
+        self.ensure_visible();
+        self.request_layout();
+    }
+
+    pub fn delete_to_beginning_of_line(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+
+        self.input.replace_range(..self.cursor, "");
+        self.cursor = 0;
+        self.index = 0;
+        self.filter_items();
+        self.ensure_visible();
+        self.request_layout();
     }
 
     pub fn filter_items(&mut self) {
@@ -140,6 +262,38 @@ impl PaletteState {
         }
         items
     }
+
+    pub fn select(&mut self) {
+        let items = if self.input != "" {
+            &self.filtered_items
+        } else {
+            &self.items
+        };
+        if items.is_empty() {
+            return;
+        }
+        let file = &items[self.index];
+        println!("open file {}", file.text);
+    }
+
+    pub fn change_index(&mut self, n: i64) {
+        let items = if self.input != "" {
+            &self.filtered_items
+        } else {
+            &self.items
+        };
+
+        self.index = if self.index as i64 + n < 0 {
+            (items.len() + self.index) as i64 + n
+        } else if self.index as i64 + n > items.len() as i64 - 1 {
+            self.index as i64 + n - items.len() as i64
+        } else {
+            self.index as i64 + n
+        } as usize;
+
+        self.ensure_visible();
+        self.request_paint();
+    }
 }
 
 pub struct Palette<T> {
@@ -164,9 +318,17 @@ impl<T: Data> Palette<T> {
             .border(CraneTheme::PALETTE_INPUT_BORDER, 1.0)
             .background(CraneTheme::PALETTE_INPUT_BACKGROUND)
             .padding((5.0, 5.0, 5.0, 5.0));
-        let palette_content = Scroll::new(PaletteContent::new())
-            .vertical()
-            .padding((5.0, 0.0, 5.0, 0.0));
+        let palette_scroll_id = WidgetId::next();
+        CRANE_STATE
+            .palette
+            .lock()
+            .unwrap()
+            .set_scroll_widget_id(palette_scroll_id);
+        let palette_content = IdentityWrapper::wrap(
+            CraneScroll::new(PaletteContent::new()).vertical(),
+            palette_scroll_id,
+        )
+        .padding((5.0, 0.0, 5.0, 0.0));
         let palette = Palette {
             input: WidgetPod::new(palette_input).boxed(),
             content: WidgetPod::new(palette_content).boxed(),
@@ -752,7 +914,6 @@ impl<T: Data> Widget<T> for Palette<T> {
             content_size.width,
             content_size.height + input_size.height,
         );
-        println!("palette size {:?} {:?}", size, bc);
         size
     }
 
@@ -798,6 +959,11 @@ impl<T> Widget<T> for PaletteContent {
         env: &Env,
     ) -> Size {
         let line_height = env.get(CraneTheme::EDITOR_LINE_HEIGHT);
+        {
+            let mut state = CRANE_STATE.palette.lock().unwrap();
+            state.set_line_height(line_height);
+            state.set_width(bc.max().width);
+        }
         let state = CRANE_STATE.palette.lock().unwrap();
         let items_len = if state.input != "" {
             state.filtered_items.len()
@@ -805,7 +971,6 @@ impl<T> Widget<T> for PaletteContent {
             state.items.len()
         };
         let height = { line_height * items_len as f64 };
-        println!("content layout size {:?}", bc.max());
         Size::new(bc.max().width, height)
     }
 
@@ -829,6 +994,17 @@ impl<T> Widget<T> for PaletteContent {
             };
 
             for (i, item) in items.iter().enumerate() {
+                if state.index == start + i {
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(
+                                rect.x0,
+                                (start + i) as f64 * line_height,
+                            ))
+                            .with_size(Size::new(rect.width(), line_height)),
+                        &Color::rgb8(50, 50, 50),
+                    )
+                }
                 let mut text_layout = TextLayout::new(item.text.as_ref());
                 text_layout.rebuild_if_needed(ctx.text(), env);
                 text_layout.draw(
@@ -850,6 +1026,7 @@ impl<T: Data> Widget<T> for PaletteWrapper<T> {
     ) {
         println!("event {:?}", event);
         match event {
+            Event::Internal(_) => self.palette.event(ctx, event, data, env),
             Event::Command(cmd) => match cmd {
                 _ if cmd.is(CRANE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(CRANE_UI_COMMAND);
@@ -862,6 +1039,13 @@ impl<T: Data> Widget<T> for PaletteWrapper<T> {
                             self.hidden = true;
                             ctx.request_paint();
                         }
+                        CraneUICommand::RequestLayout => {
+                            ctx.request_layout();
+                        }
+                        CraneUICommand::RequestPaint => {
+                            ctx.request_paint();
+                        }
+                        _ => println!("unprocessed ui command {:?}", command),
                     }
                 }
                 _ => (),
@@ -956,9 +1140,12 @@ impl<T> Widget<T> for PaletteInput {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
         let line_height = env.get(CraneTheme::EDITOR_LINE_HEIGHT);
         let text = CRANE_STATE.palette.lock().unwrap().input.clone();
+        let cursor = CRANE_STATE.palette.lock().unwrap().cursor;
         let mut text_layout = TextLayout::new(text.as_ref());
         text_layout.set_text_color(CraneTheme::PALETTE_INPUT_FOREROUND);
         text_layout.rebuild_if_needed(ctx.text(), env);
+        let line = text_layout.cursor_line_for_text_position(cursor);
+        ctx.stroke(line, &env.get(CraneTheme::PALETTE_INPUT_FOREROUND), 1.0);
         text_layout.draw(ctx, Point::new(0.0, 0.0));
         // println!("input region {:?}", ctx.region());
         // let rects = ctx.region().rects().to_vec();

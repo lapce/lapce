@@ -48,32 +48,6 @@ impl<T: Data> CraneContainer<T> {
             editor_split,
         }
     }
-
-    // pub fn with_child(mut self, child: impl Widget<T> + 'static) -> Self {
-    //     self.children.push(WidgetPod::new(child).boxed());
-    //     self.children_states.push(ChildState {
-    //         origin: None,
-    //         size: None,
-    //         hidden: false,
-    //     });
-    //     self
-    // }
-
-    // pub fn set_size(&mut self, i: usize, size: Size) {
-    //     self.children_states[i].size = Some(size);
-    // }
-
-    // pub fn set_origin(&mut self, i: usize, origin: Point) {
-    //     self.children_states[i].origin = Some(origin);
-    // }
-
-    // pub fn hide(&mut self, i: usize) {
-    //     self.children_states[i].hidden = true;
-    // }
-
-    // pub fn show(&mut self, i: usize) {
-    //     self.children_states[i].hidden = false;
-    // }
 }
 
 impl<T: Data> Widget<T> for CraneContainer<T> {
@@ -98,47 +72,6 @@ impl<T: Data> Widget<T> for CraneContainer<T> {
                         };
                         self.palette.event(ctx, event, data, env)
                     }
-                    // _ if cmd.is(CraneCommand::PALETTE) => {
-                    //     if *cmd.get_unchecked(CraneCommand::PALETTE) {
-                    //         if *CRANE_STATE.focus.lock().unwrap()
-                    //             == CraneWidget::Palette
-                    //         {
-                    //             return;
-                    //         }
-                    //         *CRANE_STATE.last_focus.lock().unwrap() =
-                    //             CRANE_STATE.focus.lock().unwrap().clone();
-                    //         *CRANE_STATE.focus.lock().unwrap() =
-                    //             CraneWidget::Palette;
-                    //         self.palette.event(
-                    //             ctx,
-                    //             &Event::Command(Command::new(
-                    //                 CraneCommand::SHOW,
-                    //                 (),
-                    //                 Target::Global,
-                    //             )),
-                    //             data,
-                    //             env,
-                    //         );
-                    //     } else {
-                    //         if *CRANE_STATE.focus.lock().unwrap()
-                    //             != CraneWidget::Palette
-                    //         {
-                    //             return;
-                    //         }
-                    //         *CRANE_STATE.focus.lock().unwrap() =
-                    //             CRANE_STATE.last_focus.lock().unwrap().clone();
-                    //         self.palette.event(
-                    //             ctx,
-                    //             &Event::Command(Command::new(
-                    //                 CraneCommand::HIDE,
-                    //                 (),
-                    //                 Target::Global,
-                    //             )),
-                    //             data,
-                    //             env,
-                    //         );
-                    //     }
-                    // }
                     _ => (),
                 }
                 return;

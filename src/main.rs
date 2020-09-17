@@ -2,6 +2,7 @@ mod command;
 mod container;
 mod editor;
 mod palette;
+mod scroll;
 mod split;
 mod state;
 mod theme;
