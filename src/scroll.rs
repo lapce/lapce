@@ -88,6 +88,12 @@ impl<T, W: Widget<T>> CraneScroll<T, W> {
         scrolled
     }
 
+    fn scroll_to(&mut self, x: f64, y: f64) {
+        let offset = Vec2::new(x, y);
+        self.scroll_component.scroll_offset = offset;
+        self.child.set_viewport_offset(offset);
+    }
+
     fn ensure_visible(
         &mut self,
         scroll_size: Size,
@@ -135,11 +141,25 @@ impl<T: Data, W: Widget<T>> Widget<T> for CraneScroll<T, W> {
                 _ if cmd.is(CRANE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(CRANE_UI_COMMAND);
                     match command {
+                        CraneUICommand::RequestLayout => {
+                            println!("scroll request layout");
+                            ctx.request_layout();
+                        }
+                        CraneUICommand::RequestPaint => {
+                            ctx.request_paint();
+                        }
                         CraneUICommand::EnsureVisible((rect, margin)) => {
                             self.ensure_visible(ctx.size(), rect, margin);
                             return;
                         }
-                        _ => println!("unprocessed ui command {:?}", command),
+                        CraneUICommand::ScrollTo((x, y)) => {
+                            self.scroll_to(*x, *y);
+                            return;
+                        }
+                        _ => println!(
+                            "scroll unprocessed ui command {:?}",
+                            command
+                        ),
                     }
                 }
                 _ => (),

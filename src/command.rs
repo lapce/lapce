@@ -32,9 +32,8 @@ pub enum CraneCommand {
 
 #[derive(Debug)]
 pub enum CraneUICommand {
-    Show,
-    Hide,
     RequestLayout,
     RequestPaint,
     EnsureVisible((Rect, (f64, f64))),
+    ScrollTo((f64, f64)),
 }

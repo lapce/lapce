@@ -50,6 +50,7 @@ pub struct PaletteState {
     items: Vec<PaletteItem>,
     filtered_items: Vec<PaletteItem>,
     index: usize,
+    pub hidden: bool,
 }
 
 impl PaletteState {
@@ -64,6 +65,7 @@ impl PaletteState {
             input: "".to_string(),
             cursor: 0,
             index: 0,
+            hidden: true,
         }
     }
 }
@@ -87,62 +89,30 @@ impl PaletteState {
 
     pub fn run(&mut self) {
         self.items = self.get_files();
-        CRANE_STATE
-            .ui_sink
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .submit_command(
-                CRANE_UI_COMMAND,
-                CraneUICommand::Show,
-                Target::Widget(self.widget_id.unwrap().clone()),
-            );
+        self.hidden = false;
+        self.request_layout();
     }
 
     pub fn cancel(&mut self) {
         self.input = "".to_string();
         self.cursor = 0;
         self.index = 0;
-        CRANE_STATE
-            .ui_sink
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .submit_command(
-                CRANE_UI_COMMAND,
-                CraneUICommand::Hide,
-                Target::Widget(self.widget_id.unwrap().clone()),
-            );
+        self.hidden = true;
+        self.request_paint();
     }
 
     fn request_layout(&self) {
-        CRANE_STATE
-            .ui_sink
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .submit_command(
-                CRANE_UI_COMMAND,
-                CraneUICommand::RequestLayout,
-                Target::Widget(self.widget_id.unwrap().clone()),
-            );
+        CRANE_STATE.submit_ui_command(
+            CraneUICommand::RequestLayout,
+            self.widget_id.unwrap(),
+        );
     }
 
     fn request_paint(&self) {
-        CRANE_STATE
-            .ui_sink
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .submit_command(
-                CRANE_UI_COMMAND,
-                CraneUICommand::RequestPaint,
-                Target::Widget(self.widget_id.unwrap().clone()),
-            );
+        CRANE_STATE.submit_ui_command(
+            CraneUICommand::RequestPaint,
+            self.widget_id.unwrap(),
+        );
     }
 
     fn ensure_visible(&self) {
@@ -151,17 +121,10 @@ impl PaletteState {
             .with_size(Size::new(self.width, self.line_height));
         let margin = (0.0, 0.0);
 
-        CRANE_STATE
-            .ui_sink
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .submit_command(
-                CRANE_UI_COMMAND,
-                CraneUICommand::EnsureVisible((rect, margin)),
-                Target::Widget(self.scroll_widget_id.unwrap().clone()),
-            );
+        CRANE_STATE.submit_ui_command(
+            CraneUICommand::EnsureVisible((rect, margin)),
+            self.widget_id.unwrap(),
+        );
     }
 
     pub fn insert(&mut self, content: &str) {
@@ -272,8 +235,8 @@ impl PaletteState {
         if items.is_empty() {
             return;
         }
-        let file = &items[self.index];
-        println!("open file {}", file.text);
+        CRANE_STATE.open_file(&items[self.index].text);
+        self.cancel();
     }
 
     pub fn change_index(&mut self, n: i64) {
@@ -304,7 +267,6 @@ pub struct Palette<T> {
 
 pub struct PaletteWrapper<T> {
     palette: WidgetPod<T, Box<dyn Widget<T>>>,
-    hidden: bool,
 }
 
 pub struct PaletteInput {}
@@ -756,17 +718,14 @@ impl PaletteInput {
 }
 
 impl<T: Data> PaletteWrapper<T> {
-    pub fn new(data: T) -> PaletteWrapper<T> {
+    pub fn new() -> PaletteWrapper<T> {
         let palette = WidgetPod::new(
             Palette::new()
                 .border(theme::BORDER_LIGHT, 1.0)
                 .background(CraneTheme::PALETTE_BACKGROUND),
         )
         .boxed();
-        PaletteWrapper {
-            palette,
-            hidden: true,
-        }
+        PaletteWrapper { palette }
     }
 }
 
@@ -1024,28 +983,22 @@ impl<T: Data> Widget<T> for PaletteWrapper<T> {
         data: &mut T,
         env: &Env,
     ) {
-        println!("event {:?}", event);
         match event {
             Event::Internal(_) => self.palette.event(ctx, event, data, env),
             Event::Command(cmd) => match cmd {
                 _ if cmd.is(CRANE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(CRANE_UI_COMMAND);
                     match command {
-                        CraneUICommand::Show => {
-                            self.hidden = false;
-                            ctx.request_layout();
-                        }
-                        CraneUICommand::Hide => {
-                            self.hidden = true;
-                            ctx.request_paint();
-                        }
                         CraneUICommand::RequestLayout => {
                             ctx.request_layout();
                         }
                         CraneUICommand::RequestPaint => {
                             ctx.request_paint();
                         }
-                        _ => println!("unprocessed ui command {:?}", command),
+                        _ => println!(
+                            "palette unprocessed ui command {:?}",
+                            command
+                        ),
                     }
                 }
                 _ => (),
@@ -1092,7 +1045,7 @@ impl<T: Data> Widget<T> for PaletteWrapper<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        if self.hidden {
+        if CRANE_STATE.palette.lock().unwrap().hidden {
             return;
         }
         self.palette.paint(ctx, data, env);

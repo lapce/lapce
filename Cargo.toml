@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0.32"
 strum = "0.19"
 strum_macros = "0.19"
 lazy_static = "1.4.0"
@@ -12,8 +13,8 @@ lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
 syntect = "3.2"
-# xi-core-lib = { path = "../xi-editor/rust/core-lib/" }
-# xi-rpc = { path = "../xi-editor/rust/rpc/" }
+xi-core-lib = { path = "../xi-editor/rust/core-lib/" }
+xi-rope = { path = "../xi-editor/rust/rope/" }
 fzyr = "0.1.2"
 uuid = { version = "0.7.4", features = ["v4"] }
 # crane_ui = {path = "./ui"}

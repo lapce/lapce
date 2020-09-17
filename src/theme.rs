@@ -1,4 +1,4 @@
-use druid::{Color, Key};
+use druid::{Color, FontDescriptor, Key};
 
 pub struct CraneTheme {}
 
@@ -13,4 +13,5 @@ impl CraneTheme {
         Key::new("crane.palette_input_foreground");
     pub const PALETTE_INPUT_BORDER: Key<Color> =
         Key::new("crane.palette_input_border");
+    pub const EDITOR_FONT: Key<FontDescriptor> = Key::new("crane.eidtor_font");
 }

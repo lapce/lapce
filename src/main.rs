@@ -1,6 +1,8 @@
+mod buffer;
 mod command;
 mod container;
 mod editor;
+mod font;
 mod palette;
 mod scroll;
 mod split;
@@ -15,7 +17,7 @@ use crate::palette::Palette;
 use crate::split::CraneSplit;
 use crate::state::CRANE_STATE;
 
-use druid::{piet::Color, Size};
+use druid::{piet::Color, FontDescriptor, FontFamily, Size};
 use druid::{
     widget::{Align, Container, Flex, Label, Padding, Scroll, Split},
     Point,
@@ -24,23 +26,7 @@ use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
 use palette::PaletteWrapper;
 
 fn build_app() -> impl Widget<u32> {
-    let editor = Editor::new();
-    let mut split = CraneSplit::new(true)
-        .with_child(Scroll::new(Padding::new(
-            (100.0, 100.0, 100.0, 100.0),
-            Container::new(editor),
-        )))
-        .with_child(Scroll::new(Padding::new(
-            (100.0, 100.0, 100.0, 100.0),
-            Container::new(Editor::new())
-                .border(Color::rgb(122.0, 0.0, 0.0), 2.0),
-        )));
-    // .env_scope(|env: &mut druid::Env, data: &u32| {
-    //     env.set(theme::SCROLLBAR_RADIUS, 0.0);
-    //     env.set(theme::SCROLLBAR_WIDTH, 15.0);
-    //     env.set(theme::SCROLLBAR_EDGE_WIDTH, 0.0);
-    // });
-    let container = CraneContainer::new(PaletteWrapper::new(0), split);
+    let container = CraneContainer::new();
     container.env_scope(|env: &mut druid::Env, data: &u32| {
         env.set(theme::CraneTheme::EDITOR_LINE_HEIGHT, 25.0);
         env.set(
@@ -58,6 +44,11 @@ fn build_app() -> impl Widget<u32> {
         env.set(
             theme::CraneTheme::PALETTE_INPUT_BORDER,
             Color::rgb8(0, 0, 0),
+        );
+        env.set(
+            theme::CraneTheme::EDITOR_FONT,
+            FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
+                .with_size(13.0),
         );
     })
 }

@@ -1,4 +1,5 @@
 use std::{
+    cell::Cell,
     collections::HashMap,
     str::FromStr,
     sync::{Arc, Mutex},
@@ -6,11 +7,16 @@ use std::{
     time::Duration,
 };
 
-use druid::{ExtEventSink, KeyEvent, Modifiers, Target};
+use druid::{ExtEventSink, KeyEvent, Modifiers, Target, WidgetId};
 use lazy_static::lazy_static;
 
 use crate::{
+    buffer::Buffer,
+    buffer::BufferId,
+    command::CraneUICommand,
+    command::CRANE_UI_COMMAND,
     command::{CraneCommand, CRANE_COMMAND},
+    editor::EditorSplitState,
     palette::PaletteState,
 };
 
@@ -33,6 +39,7 @@ pub struct CraneState {
     pub last_focus: Arc<Mutex<CraneWidget>>,
     pub focus: Arc<Mutex<CraneWidget>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
+    pub editor_split: Arc<Mutex<EditorSplitState>>,
 }
 
 impl CraneState {
@@ -104,6 +111,7 @@ impl CraneState {
             focus: Arc::new(Mutex::new(CraneWidget::Editor)),
             last_focus: Arc::new(Mutex::new(CraneWidget::Editor)),
             palette: Arc::new(Mutex::new(PaletteState::new())),
+            editor_split: Arc::new(Mutex::new(EditorSplitState::new())),
         }
     }
 
@@ -244,5 +252,18 @@ impl CraneState {
 
     pub fn set_ui_sink(&self, ui_sink: ExtEventSink) {
         *self.ui_sink.lock().unwrap() = Some(ui_sink);
+    }
+
+    pub fn open_file(&self, path: &str) {
+        self.editor_split.lock().unwrap().open_file(path);
+    }
+
+    pub fn submit_ui_command(&self, cmd: CraneUICommand, widget_id: WidgetId) {
+        self.ui_sink
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .submit_command(CRANE_UI_COMMAND, cmd, Target::Widget(widget_id));
     }
 }

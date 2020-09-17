@@ -102,6 +102,14 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
         data: &mut T,
         env: &Env,
     ) {
+        match event {
+            Event::Internal(_) => {
+                for child in self.children.as_mut_slice() {
+                    child.event(ctx, event, data, env);
+                }
+            }
+            _ => (),
+        }
         for child in self.children.as_mut_slice() {
             if child.is_active() {
                 child.event(ctx, event, data, env);
@@ -200,7 +208,9 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                 let width = if i < children_sizes.len() {
                     children_sizes[i] * my_size.width
                 } else {
-                    my_size.width * (1.0 - children_sizes[i - 1])
+                    my_size.width
+                        * (1.0
+                            - if i > 0 { children_sizes[i - 1] } else { 0.0 })
                 };
 
                 let child_bc = BoxConstraints::new(
