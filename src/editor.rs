@@ -1,8 +1,10 @@
 use crate::{
     buffer::{Buffer, BufferId},
+    command::CraneCommand,
     command::CraneUICommand,
     command::CRANE_UI_COMMAND,
     container::CraneContainer,
+    state::Mode,
     state::CRANE_STATE,
     theme::CraneTheme,
 };
@@ -54,6 +56,7 @@ pub struct EditorSplitState {
     buffers: HashMap<BufferId, Buffer>,
     open_files: HashMap<String, BufferId>,
     id_counter: Counter,
+    mode: Mode,
 }
 
 impl EditorSplitState {
@@ -64,6 +67,7 @@ impl EditorSplitState {
             id_counter: Counter::default(),
             buffers: HashMap::new(),
             open_files: HashMap::new(),
+            mode: Mode::Normal,
         }
     }
 
@@ -87,7 +91,10 @@ impl EditorSplitState {
                 }
             }
             active_editor.buffer_id = Some(buffer_id);
-            println!("submit ui scroll request layout");
+            CRANE_STATE.submit_ui_command(
+                CraneUICommand::ScrollTo((0.0, 0.0)),
+                active_editor.scroll_id,
+            );
             CRANE_STATE.submit_ui_command(
                 CraneUICommand::RequestLayout,
                 active_editor.scroll_id,
@@ -107,6 +114,12 @@ impl EditorSplitState {
             .get(editor_widget_id)
             .map(|e| e.buffer_id.clone())
             .unwrap()
+    }
+
+    pub fn run_command(&self, cmd: CraneCommand) {}
+
+    pub fn get_mode(&self) -> Mode {
+        self.mode.clone()
     }
 }
 

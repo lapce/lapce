@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+toml = "0.5.6"
 anyhow = "1.0.32"
 strum = "0.19"
 strum_macros = "0.19"
@@ -26,4 +27,3 @@ druid = { git = "https://github.com/linebender/druid" }
 # version = "0.7.1"
 # # We don't need glib
 # default-features = false
-

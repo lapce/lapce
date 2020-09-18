@@ -1,0 +1,15 @@
+keymaps = [
+    { key = "ctrl+meta+p", command = "palette" },
+    { key = "esc", command = "palette.cancel", when = "palette_focus" },
+    { key = "ctrl+m", command = "list.select", when = "list_focus" },
+    { key = "enter", command = "list.select", when = "list_focus" },
+    { key = "ctrl+p", command = "list.previous", when = "list_focus" },
+    { key = "ctrl+n", command = "list.next", when = "list_focus" },
+    { key = "ctrl+b", command = "left", mode = "i" },
+    { key = "ctrl+f", command = "right", mode = "i" },
+    { key = "ArrowRight", command = "right", mode = "i" },
+    { key = "ArrowLeft", command = "left", mode = "i" },
+    { key = "ctrl+u", command = "delete_to_beginning_of_line", mode = "i" },
+    { key = "ctrl+h", command = "delete_backward", mode = "i" },
+    { key = "backspace", command = "delete_backward", mode = "i" },
+]

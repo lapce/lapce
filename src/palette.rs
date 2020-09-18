@@ -24,8 +24,8 @@ use std::thread;
 
 use crate::{
     command::CraneCommand, command::CraneUICommand, command::CRANE_COMMAND,
-    command::CRANE_UI_COMMAND, scroll::CraneScroll, state::CRANE_STATE,
-    theme::CraneTheme,
+    command::CRANE_UI_COMMAND, scroll::CraneScroll, state::CraneWidget,
+    state::CRANE_STATE, theme::CraneTheme,
 };
 
 #[derive(Clone, Debug)]
@@ -90,6 +90,7 @@ impl PaletteState {
     pub fn run(&mut self) {
         self.items = self.get_files();
         self.hidden = false;
+        *CRANE_STATE.focus.lock().unwrap() = CraneWidget::Palette;
         self.request_layout();
     }
 
@@ -98,6 +99,7 @@ impl PaletteState {
         self.cursor = 0;
         self.index = 0;
         self.hidden = true;
+        *CRANE_STATE.focus.lock().unwrap() = CraneWidget::Editor;
         self.request_paint();
     }
 
