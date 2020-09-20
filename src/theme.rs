@@ -14,4 +14,8 @@ impl CraneTheme {
     pub const PALETTE_INPUT_BORDER: Key<Color> =
         Key::new("crane.palette_input_border");
     pub const EDITOR_FONT: Key<FontDescriptor> = Key::new("crane.eidtor_font");
+    pub const EDITOR_CURSOR_COLOR: Key<Color> =
+        Key::new("crane.eidtor_cursor_color");
+    pub const EDITOR_CURRENT_LINE_BACKGROUND: Key<Color> =
+        Key::new("crane.eidtor_current_line_background");
 }

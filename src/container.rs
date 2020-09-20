@@ -41,11 +41,11 @@ impl<T: Data> CraneContainer<T> {
             .lock()
             .unwrap()
             .set_widget_id(palette_id);
-
         let editor_id = WidgetId::next();
         let editor = Editor::new(editor_id);
-        let scroll_id = WidgetId::next();
-        let editor_state = EditorState::new(editor_id, scroll_id);
+        // let scroll_id = WidgetId::next();
+        let editor_split_id = WidgetId::next();
+        let editor_state = EditorState::new(editor_id, editor_split_id);
         CRANE_STATE
             .editor_split
             .lock()
@@ -57,11 +57,17 @@ impl<T: Data> CraneContainer<T> {
             .lock()
             .unwrap()
             .set_active(editor_id);
-        let editor_split = WidgetPod::new(CraneSplit::new(true).with_child(
-            IdentityWrapper::wrap(
-                CraneScroll::new(IdentityWrapper::wrap(editor, editor_id)),
-                scroll_id,
-            ),
+        CRANE_STATE
+            .editor_split
+            .lock()
+            .unwrap()
+            .set_widget_id(editor_split_id);
+        let editor_split = WidgetPod::new(IdentityWrapper::wrap(
+            CraneSplit::new(true).with_child(IdentityWrapper::wrap(
+                CraneScroll::new(editor),
+                editor_id,
+            )),
+            editor_split_id,
         ))
         .boxed();
 
@@ -178,6 +184,7 @@ impl<T: Data> Widget<T> for CraneContainer<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+        println!("container paint {:?}", ctx.region().rects());
         self.editor_split.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
     }

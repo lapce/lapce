@@ -146,6 +146,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for CraneScroll<T, W> {
                             ctx.request_layout();
                         }
                         CraneUICommand::RequestPaint => {
+                            println!("scroll request paint");
                             ctx.request_paint();
                         }
                         CraneUICommand::EnsureVisible((rect, margin)) => {
@@ -166,7 +167,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for CraneScroll<T, W> {
             },
             _ => (),
         };
-        self.scroll_component.event(ctx, event, env);
+        // self.scroll_component.event(ctx, event, env);
         if !ctx.is_handled() {
             let viewport = Rect::from_origin_size(Point::ORIGIN, ctx.size());
 

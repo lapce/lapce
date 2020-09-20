@@ -4,15 +4,16 @@ use crate::{
     command::CraneUICommand,
     command::CRANE_UI_COMMAND,
     container::CraneContainer,
+    split::SplitMoveDirection,
     state::Mode,
     state::CRANE_STATE,
     theme::CraneTheme,
 };
 use druid::{
-    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, ExtEventSink,
-    Key, KeyEvent, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx,
-    Point, RenderContext, Selector, Size, Target, TextLayout, UpdateCtx,
-    Widget, WidgetId, WidgetPod,
+    kurbo::Line, theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx,
+    ExtEventSink, Key, KeyEvent, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers,
+    PaintCtx, Point, Rect, RenderContext, Selector, Size, Target, TextLayout,
+    UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lazy_static::lazy_static;
 use std::time::Duration;
@@ -36,21 +37,106 @@ impl Counter {
 
 pub struct EditorState {
     id: WidgetId,
-    scroll_id: WidgetId,
-    buffer_id: Option<BufferId>,
+    // scroll_id: WidgetId,
+    pub split_id: WidgetId,
+    pub buffer_id: Option<BufferId>,
+    cursor: (usize, usize),
+    line_height: f64,
+    width: f64,
 }
 
 impl EditorState {
-    pub fn new(id: WidgetId, scroll_id: WidgetId) -> EditorState {
+    pub fn new(
+        id: WidgetId,
+        // scroll_id: WidgetId,
+        split_id: WidgetId,
+    ) -> EditorState {
         EditorState {
             id,
-            scroll_id,
+            // scroll_id,
+            split_id,
             buffer_id: None,
+            cursor: (0, 0),
+            line_height: 0.0,
+            width: 0.0,
         }
+    }
+
+    pub fn run_command(&mut self, cmd: CraneCommand) {
+        match cmd {
+            CraneCommand::Left => {
+                self.cursor.1 -= 1;
+            }
+            CraneCommand::Right => {
+                self.cursor.1 += 1;
+            }
+            CraneCommand::Up => {
+                if self.cursor.0 > 0 {
+                    self.cursor.0 -= 1;
+                }
+            }
+            CraneCommand::Down => {
+                self.cursor.0 += 1;
+            }
+            CraneCommand::SplitVertical => {
+                CRANE_STATE.submit_ui_command(
+                    CraneUICommand::Split(true, self.id),
+                    self.split_id,
+                );
+            }
+            CraneCommand::SplitHorizontal => {}
+            CraneCommand::SplitRight => {
+                CRANE_STATE.submit_ui_command(
+                    CraneUICommand::SplitMove(
+                        SplitMoveDirection::Right,
+                        self.id,
+                    ),
+                    self.split_id,
+                );
+            }
+            CraneCommand::SplitLeft => {
+                CRANE_STATE.submit_ui_command(
+                    CraneUICommand::SplitMove(
+                        SplitMoveDirection::Left,
+                        self.id,
+                    ),
+                    self.split_id,
+                );
+            }
+            CraneCommand::SplitExchange => {
+                CRANE_STATE.submit_ui_command(
+                    CraneUICommand::SplitExchange(self.id),
+                    self.split_id,
+                );
+            }
+            _ => (),
+        }
+        CRANE_STATE.submit_ui_command(
+            CraneUICommand::EnsureVisible((
+                Rect::ZERO
+                    .with_origin(Point::new(
+                        self.cursor.1 as f64 * self.width,
+                        self.cursor.0 as f64 * self.line_height,
+                    ))
+                    .with_size(Size::new(self.width, self.line_height)),
+                (self.width, self.line_height),
+            )),
+            self.id,
+        );
+        CRANE_STATE.submit_ui_command(CraneUICommand::RequestPaint, self.id);
+    }
+
+    pub fn set_line_height(&mut self, line_height: f64) {
+        self.line_height = line_height;
+    }
+
+    pub fn set_width(&mut self, width: f64) {
+        self.width = width;
     }
 }
 
 pub struct EditorSplitState {
+    widget_id: Option<WidgetId>,
     active: WidgetId,
     pub editors: HashMap<WidgetId, EditorState>,
     buffers: HashMap<BufferId, Buffer>,
@@ -62,6 +148,7 @@ pub struct EditorSplitState {
 impl EditorSplitState {
     pub fn new() -> EditorSplitState {
         EditorSplitState {
+            widget_id: None,
             active: WidgetId::next(),
             editors: HashMap::new(),
             id_counter: Counter::default(),
@@ -69,6 +156,10 @@ impl EditorSplitState {
             open_files: HashMap::new(),
             mode: Mode::Normal,
         }
+    }
+
+    pub fn set_widget_id(&mut self, widget_id: WidgetId) {
+        self.widget_id = Some(widget_id);
     }
 
     pub fn set_active(&mut self, widget_id: WidgetId) {
@@ -93,11 +184,11 @@ impl EditorSplitState {
             active_editor.buffer_id = Some(buffer_id);
             CRANE_STATE.submit_ui_command(
                 CraneUICommand::ScrollTo((0.0, 0.0)),
-                active_editor.scroll_id,
+                active_editor.id,
             );
             CRANE_STATE.submit_ui_command(
                 CraneUICommand::RequestLayout,
-                active_editor.scroll_id,
+                active_editor.id,
             );
         }
     }
@@ -116,10 +207,33 @@ impl EditorSplitState {
             .unwrap()
     }
 
-    pub fn run_command(&self, cmd: CraneCommand) {}
+    fn get_editor(&mut self, widget_id: &WidgetId) -> &mut EditorState {
+        self.editors.get_mut(widget_id).unwrap()
+    }
+
+    fn get_active_editor(&mut self) -> Option<&mut EditorState> {
+        self.editors.get_mut(&self.active)
+    }
+
+    pub fn run_command(&mut self, cmd: CraneCommand) {
+        println!("run command {}", cmd);
+        match cmd {
+            _ => {
+                self.get_active_editor().map(|e| e.run_command(cmd));
+            }
+        }
+        // self.request_paint();
+    }
 
     pub fn get_mode(&self) -> Mode {
         self.mode.clone()
+    }
+
+    pub fn request_paint(&self) {
+        CRANE_STATE.submit_ui_command(
+            CraneUICommand::RequestPaint,
+            self.widget_id.unwrap(),
+        );
     }
 }
 
@@ -156,6 +270,7 @@ impl<T: Data> Widget<T> for Editor {
                             ctx.request_layout();
                         }
                         CraneUICommand::RequestPaint => {
+                            println!("editor request paint");
                             ctx.request_paint();
                         }
                         _ => println!(
@@ -224,12 +339,17 @@ impl<T: Data> Widget<T> for Editor {
                 .unwrap()
                 .get_buffer_id(&self.widget_id)
         };
+        let cursor = {
+            let mut state = CRANE_STATE.editor_split.lock().unwrap();
+            let eidtor = state.get_editor(&self.widget_id);
+            eidtor.cursor
+        };
         if let Some(buffer_id) = buffer_id {
             let buffers = &CRANE_STATE.editor_split.lock().unwrap().buffers;
             let buffer = buffers.get(&buffer_id).unwrap();
-            let width = 7.6171875;
             let rects = ctx.region().rects().to_vec();
             for rect in rects {
+                println!("print rect {:?} {:?}", self.widget_id, rect);
                 let start_line = (rect.y0 / line_height).floor() as usize;
                 let num_lines = (rect.height() / line_height).floor() as usize;
                 for (i, line) in buffer
@@ -243,7 +363,24 @@ impl<T: Data> Widget<T> for Editor {
                     )
                     .enumerate()
                 {
-                    let mut layout = TextLayout::new(line);
+                    if i + start_line == cursor.0 {
+                        ctx.fill(
+                            Rect::ZERO
+                                .with_origin(Point::new(
+                                    rect.x0,
+                                    cursor.0 as f64 * line_height,
+                                ))
+                                .with_size(Size::new(
+                                    rect.width(),
+                                    line_height,
+                                )),
+                            &env.get(
+                                CraneTheme::EDITOR_CURRENT_LINE_BACKGROUND,
+                            ),
+                        )
+                    }
+                    let mut layout =
+                        TextLayout::new(line.replace('\t', "    "));
                     layout.set_font(CraneTheme::EDITOR_FONT);
                     layout.rebuild_if_needed(&mut ctx.text(), env);
                     layout.draw(
@@ -253,5 +390,42 @@ impl<T: Data> Widget<T> for Editor {
                 }
             }
         }
+
+        let mut layout = TextLayout::new("W");
+        layout.set_font(CraneTheme::EDITOR_FONT);
+        layout.rebuild_if_needed(&mut ctx.text(), env);
+        let width = layout.point_for_text_position(1).x;
+        let mode = { CRANE_STATE.editor_split.lock().unwrap().get_mode() };
+        {
+            let mut state = CRANE_STATE.editor_split.lock().unwrap();
+            let eidtor = state.get_editor(&self.widget_id);
+            eidtor.set_line_height(line_height);
+            eidtor.set_width(width);
+        };
+        match mode {
+            Mode::Insert => ctx.stroke(
+                Line::new(
+                    Point::new(
+                        cursor.1 as f64 * width,
+                        cursor.0 as f64 * line_height,
+                    ),
+                    Point::new(
+                        cursor.1 as f64 * width,
+                        (cursor.0 + 1) as f64 * line_height,
+                    ),
+                ),
+                &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
+                1.0,
+            ),
+            _ => ctx.fill(
+                Rect::ZERO
+                    .with_origin(Point::new(
+                        cursor.1 as f64 * width,
+                        cursor.0 as f64 * line_height,
+                    ))
+                    .with_size(Size::new(width, line_height)),
+                &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
+            ),
+        };
     }
 }

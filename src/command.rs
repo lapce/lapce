@@ -1,6 +1,8 @@
-use druid::{Rect, Selector};
+use druid::{Rect, Selector, WidgetId};
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
+
+use crate::split::SplitMoveDirection;
 
 pub const CRANE_COMMAND: Selector<CraneCommand> =
     Selector::new("crane.command");
@@ -17,6 +19,10 @@ pub enum CraneCommand {
     DeleteBackward,
     #[strum(serialize = "delete_to_beginning_of_line")]
     DeleteToBeginningOfLine,
+    #[strum(serialize = "down")]
+    Down,
+    #[strum(serialize = "up")]
+    Up,
     #[strum(serialize = "left")]
     Left,
     #[strum(serialize = "right")]
@@ -27,6 +33,16 @@ pub enum CraneCommand {
     ListNext,
     #[strum(serialize = "list.previous")]
     ListPrevious,
+    #[strum(serialize = "split_vertical")]
+    SplitVertical,
+    #[strum(serialize = "split_horizontal")]
+    SplitHorizontal,
+    #[strum(serialize = "split_exchange")]
+    SplitExchange,
+    #[strum(serialize = "split_right")]
+    SplitRight,
+    #[strum(serialize = "split_left")]
+    SplitLeft,
     Insert(String),
 }
 
@@ -36,4 +52,7 @@ pub enum CraneUICommand {
     RequestPaint,
     EnsureVisible((Rect, (f64, f64))),
     ScrollTo((f64, f64)),
+    Split(bool, WidgetId),
+    SplitExchange(WidgetId),
+    SplitMove(SplitMoveDirection, WidgetId),
 }
