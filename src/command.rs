@@ -17,6 +17,8 @@ pub enum CraneCommand {
     PaletteCancel,
     #[strum(serialize = "delete_backward")]
     DeleteBackward,
+    #[strum(serialize = "delete_word_backward")]
+    DeleteWordBackward,
     #[strum(serialize = "delete_to_beginning_of_line")]
     DeleteToBeginningOfLine,
     #[strum(serialize = "down")]
@@ -27,6 +29,14 @@ pub enum CraneCommand {
     Left,
     #[strum(serialize = "right")]
     Right,
+    #[strum(serialize = "page_up")]
+    PageUp,
+    #[strum(serialize = "page_down")]
+    PageDown,
+    #[strum(serialize = "scroll_up")]
+    ScrollUp,
+    #[strum(serialize = "scroll_down")]
+    ScrollDown,
     #[strum(serialize = "list.select")]
     ListSelect,
     #[strum(serialize = "list.next")]
@@ -43,6 +53,34 @@ pub enum CraneCommand {
     SplitRight,
     #[strum(serialize = "split_left")]
     SplitLeft,
+    #[strum(serialize = "insert_mode")]
+    InsertMode,
+    #[strum(serialize = "normal_mode")]
+    NormalMode,
+    #[strum(serialize = "new_line_above")]
+    NewLineAbove,
+    #[strum(serialize = "new_line_below")]
+    NewLineBelow,
+    #[strum(serialize = "insert_new_line")]
+    InsertNewLine,
+    #[strum(serialize = "word_backward")]
+    WordBackward,
+    #[strum(serialize = "word_foward")]
+    WordFoward,
+    #[strum(serialize = "word_end_foward")]
+    WordEndFoward,
+    #[strum(serialize = "line_end")]
+    LineEnd,
+    #[strum(serialize = "line_start")]
+    LineStart,
+    #[strum(serialize = "first_line")]
+    FirstLine,
+    #[strum(serialize = "last_line")]
+    LastLine,
+    #[strum(serialize = "append")]
+    Append,
+    #[strum(serialize = "append_end_of_line")]
+    AppendEndOfLine,
     Insert(String),
 }
 
@@ -50,7 +88,9 @@ pub enum CraneCommand {
 pub enum CraneUICommand {
     RequestLayout,
     RequestPaint,
+    RequestPaintRect(Rect),
     EnsureVisible((Rect, (f64, f64))),
+    Scroll((f64, f64)),
     ScrollTo((f64, f64)),
     Split(bool, WidgetId),
     SplitExchange(WidgetId),

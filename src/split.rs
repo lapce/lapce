@@ -132,6 +132,7 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                 for child in self.children.as_mut_slice() {
                     child.event(ctx, event, data, env);
                 }
+                return;
             }
             Event::Command(cmd) => match cmd {
                 _ if cmd.is(CRANE_UI_COMMAND) => {
@@ -187,7 +188,11 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
 
                                 let new_child =
                                     WidgetPod::new(IdentityWrapper::wrap(
-                                        CraneScroll::new(new_editor),
+                                        CraneScroll::new(
+                                            new_editor.padding((
+                                                10.0, 0.0, 10.0, 0.0,
+                                            )),
+                                        ),
                                         new_editor_id,
                                     ))
                                     .boxed();
@@ -353,6 +358,11 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                 self.children_sizes[i] * my_size.width,
                 my_size.height,
             );
+            CRANE_STATE
+                .editor_split
+                .lock()
+                .unwrap()
+                .set_editor_size(child.id(), child_size.clone());
             let child_bc =
                 BoxConstraints::new(child_size.clone(), child_size.clone());
             child.layout(ctx, &child_bc, data, env);

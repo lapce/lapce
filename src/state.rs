@@ -28,6 +28,11 @@ lazy_static! {
     pub static ref CRANE_STATE: CraneState = CraneState::new();
 }
 
+enum KeymapMatch {
+    Full,
+    Prefix,
+}
+
 #[derive(Clone, PartialEq)]
 pub enum CraneWidget {
     Palette,
@@ -47,7 +52,7 @@ pub struct KeyPress {
     pub mods: Modifiers,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct KeyMap {
     pub key: Vec<KeyPress>,
     pub modes: Vec<Mode>,
@@ -59,7 +64,7 @@ pub struct KeyMap {
 pub struct CraneState {
     pub palette: Arc<Mutex<PaletteState>>,
     keypress_sequence: Arc<Mutex<String>>,
-    pending_keypress: Arc<Mutex<Vec<String>>>,
+    pending_keypress: Arc<Mutex<Vec<KeyPress>>>,
     keymaps: Arc<Mutex<Vec<KeyMap>>>,
     pub last_focus: Arc<Mutex<CraneWidget>>,
     pub focus: Arc<Mutex<CraneWidget>>,
@@ -146,7 +151,7 @@ impl CraneState {
                         "enter" => druid::keyboard_types::Key::Enter,
                         "del" => druid::keyboard_types::Key::Delete,
                         _ => druid::keyboard_types::Key::Character(
-                            part.to_lowercase(),
+                            part.to_string(),
                         ),
                     }
                 } else {
@@ -191,7 +196,9 @@ impl CraneState {
             CraneWidget::Palette => {
                 self.palette.lock().unwrap().insert(content);
             }
-            CraneWidget::Editor => {}
+            CraneWidget::Editor => {
+                self.editor_split.lock().unwrap().insert(content);
+            }
         }
     }
 
@@ -243,6 +250,41 @@ impl CraneState {
         }
     }
 
+    fn match_keymap_new(
+        &self,
+        keypresses: &Vec<KeyPress>,
+        keymap: &KeyMap,
+    ) -> Option<KeymapMatch> {
+        // let mut keypresses = self.pending_keypress.lock().unwrap().clone();
+        // if let Some(keypress) = keypress {
+        //     keypresses.push(keypress.clone());
+        // }
+
+        let match_result = if keymap.key.len() > keypresses.len() {
+            if keymap.key[..keypresses.len()] == keypresses[..] {
+                Some(KeymapMatch::Prefix)
+            } else {
+                None
+            }
+        } else if &keymap.key == keypresses {
+            Some(KeymapMatch::Full)
+        } else {
+            None
+        };
+
+        let mode = self.get_mode();
+        if !keymap.modes.is_empty() && !keymap.modes.contains(&mode) {
+            return None;
+        }
+
+        if let Some(condition) = &keymap.when {
+            if !self.check_condition(condition) {
+                return None;
+            }
+        }
+        match_result
+    }
+
     fn match_keymap(&self, keypress: &KeyPress, keymap: &KeyMap) -> bool {
         let keypress = vec![keypress.clone()];
         if keymap.key != keypress {
@@ -263,121 +305,91 @@ impl CraneState {
     }
 
     pub fn key_down(&self, key_event: &KeyEvent) {
+        println!("key_event {:?}", key_event);
+        let mut keypress_sequence = self.keypress_sequence.lock().unwrap();
+        *keypress_sequence = uuid::Uuid::new_v4().to_string();
+        // let key = match &key_event.key {
+        //     druid::keyboard_types::Key::Character(c) => {
+        //         druid::keyboard_types::Key::Character(c.to_lowercase())
+        //     }
+        //     _ => key_event.key.clone(),
+        // };
+        let mut mods = key_event.mods.clone();
+        mods.set(Modifiers::SHIFT, false);
         let keypress = KeyPress {
             key: key_event.key.clone(),
-            mods: key_event.mods,
+            mods,
         };
+
+        let mut full_match_keymap = None;
+        let mut keypresses = self.pending_keypress.lock().unwrap().clone();
+        keypresses.push(keypress.clone());
         for keymap in self.keymaps.lock().unwrap().iter() {
-            if self.match_keymap(&keypress, keymap) {
-                self.run_command(&keymap.command);
-                return;
+            if let Some(match_result) =
+                self.match_keymap_new(&keypresses, keymap)
+            {
+                match match_result {
+                    KeymapMatch::Full => {
+                        if full_match_keymap.is_none() {
+                            full_match_keymap = Some(keymap.clone());
+                        }
+                    }
+                    KeymapMatch::Prefix => {
+                        self.pending_keypress
+                            .lock()
+                            .unwrap()
+                            .push(keypress.clone());
+                        let keypress_sequence = self.keypress_sequence.clone();
+                        let keymaps = self.keymaps.clone();
+                        let state = self.clone();
+                        thread::spawn(move || {
+                            let pre_keypress_sequence =
+                                keypress_sequence.lock().unwrap().clone();
+                            thread::sleep(Duration::from_millis(3000));
+                            let keypress_sequence =
+                                keypress_sequence.lock().unwrap();
+                            if *keypress_sequence != pre_keypress_sequence {
+                                return;
+                            }
+                            let keypresses =
+                                state.pending_keypress.lock().unwrap().clone();
+                            *state.pending_keypress.lock().unwrap() =
+                                Vec::new();
+                            for keymap in keymaps.lock().unwrap().iter() {
+                                if let Some(match_result) =
+                                    state.match_keymap_new(&keypresses, keymap)
+                                {
+                                    match match_result {
+                                        KeymapMatch::Full => {
+                                            state.run_command(&keymap.command);
+                                            return;
+                                        }
+                                        _ => (),
+                                    }
+                                }
+                            }
+                        });
+                        return;
+                    }
+                }
             }
         }
 
-        let mut mods = keypress.mods.clone();
-        mods.set(Modifiers::SHIFT, false);
+        *self.pending_keypress.lock().unwrap() = Vec::new();
+
+        if let Some(keymap) = full_match_keymap {
+            self.run_command(&keymap.command);
+            return;
+        }
+
         if mods.is_empty() {
-            match &keypress.key {
+            match &key_event.key {
                 druid::keyboard_types::Key::Character(c) => {
                     self.insert(c);
                 }
                 _ => (),
             }
         }
-
-        // let key = match &key_event.key {
-        //     druid::keyboard_types::Key::Character(c) => &c,
-        //     druid::keyboard_types::Key::Enter => "enter",
-        //     druid::keyboard_types::Key::Tab => "tab",
-        //     druid::keyboard_types::Key::ArrowDown => "arrowdown",
-        //     druid::keyboard_types::Key::ArrowLeft => "arrowleft",
-        //     druid::keyboard_types::Key::ArrowRight => "arrowright",
-        //     druid::keyboard_types::Key::ArrowUp => "arrowup",
-        //     druid::keyboard_types::Key::End => "end",
-        //     druid::keyboard_types::Key::Home => "home",
-        //     druid::keyboard_types::Key::PageDown => "pagedown",
-        //     druid::keyboard_types::Key::PageUp => "pageup",
-        //     druid::keyboard_types::Key::Backspace => "backspace",
-        //     druid::keyboard_types::Key::Delete => "delete",
-        //     druid::keyboard_types::Key::Escape => "escape",
-        //     druid::keyboard_types::Key::F1 => "f1",
-        //     druid::keyboard_types::Key::F2 => "f2",
-        //     druid::keyboard_types::Key::F3 => "f3",
-        //     druid::keyboard_types::Key::F4 => "f4",
-        //     druid::keyboard_types::Key::F5 => "f5",
-        //     druid::keyboard_types::Key::F6 => "f6",
-        //     druid::keyboard_types::Key::F7 => "f7",
-        //     druid::keyboard_types::Key::F8 => "f8",
-        //     druid::keyboard_types::Key::F9 => "f9",
-        //     druid::keyboard_types::Key::F10 => "f10",
-        //     druid::keyboard_types::Key::F11 => "f11",
-        //     druid::keyboard_types::Key::F12 => "f12",
-        //     _ => return,
-        // };
-
-        // *self.keypress_sequence.lock().unwrap() =
-        //     uuid::Uuid::new_v4().to_string();
-
-        // // let keypress = self.pending_keypress.lock().unwrap().clone() +
-
-        // let mut keypress = self.pending_keypress.lock().unwrap().clone();
-        // keypress.push(format!(
-        //     "{}{}{}{}{}",
-        //     if key_event.mods.alt() { "alt+" } else { "" },
-        //     if key_event.mods.ctrl() { "ctrl+" } else { "" },
-        //     if key_event.mods.meta() { "meta+" } else { "" },
-        //     if key_event.mods.shift() { "shift+" } else { "" },
-        //     key.to_lowercase(),
-        // ));
-
-        // for (key, value) in self.keymaps.iter() {
-        //     if keypress.len() < key.len()
-        //         && keypress.as_slice() == &key[..keypress.len()]
-        //     {
-        //         *self.pending_keypress.lock().unwrap() = keypress.clone();
-        //         let pending_keypress = self.pending_keypress.clone();
-        //         let keypress_sequence = self.keypress_sequence.clone();
-        //         let keymaps = self.keymaps.clone();
-        //         let crane_state = self.clone();
-        //         thread::spawn(move || {
-        //             let pre_keypress_sequence =
-        //                 { keypress_sequence.lock().unwrap().to_string() };
-        //             thread::sleep(Duration::from_millis(3000));
-        //             let mut pending_keypress = pending_keypress.lock().unwrap();
-        //             let keypress_sequence = keypress_sequence.lock().unwrap();
-
-        //             if *keypress_sequence != pre_keypress_sequence {
-        //                 return;
-        //             }
-
-        //             if let Some(value) = keymaps.get(&keypress) {
-        //                 crane_state.run_command(value);
-        //             }
-        //             *pending_keypress = Vec::new();
-        //         });
-
-        //         return;
-        //     }
-        // }
-
-        // if let Some(cmd) = self.keymaps.get(&keypress) {
-        //     *self.pending_keypress.lock().unwrap() = Vec::new();
-        //     self.run_command(cmd);
-        //     return;
-        // }
-
-        // *self.pending_keypress.lock().unwrap() = Vec::new();
-
-        // let mut mods = key_event.mods.clone();
-        // mods.set(Modifiers::SHIFT, false);
-        // if mods.is_empty() {
-        //     match &key_event.key {
-        //         druid::keyboard_types::Key::Character(c) => {
-        //             self.insert(c);
-        //         }
-        //         _ => (),
-        //     }
-        // }
     }
 
     fn check_condition(&self, condition: &str) -> bool {
@@ -449,19 +461,5 @@ mod tests {
     fn test_check_condition() {
         let rope = Rope::from_str("abc\nabc\n").unwrap();
         assert_eq!(rope.next_grapheme_offset(8).unwrap(), 9);
-
-        // let state = CraneState::new();
-        // assert_eq!(state.check_condition("palette_focus"), false);
-        // assert_eq!(
-        //     state.check_condition(" palette_focus ||   editor_focus"),
-        //     true
-        // );
-
-        // *state.focus.lock().unwrap() = CraneWidget::Palette;
-        // assert_eq!(state.check_condition("palette_focus"), true);
-        // assert_eq!(
-        //     state.check_condition(" palette_focus ||   editor_focus"),
-        //     true
-        // );
     }
 }

@@ -1,4 +1,5 @@
 use crate::{
+    buffer::WordCursor,
     buffer::{Buffer, BufferId},
     command::CraneCommand,
     command::CraneUICommand,
@@ -10,7 +11,7 @@ use crate::{
     theme::CraneTheme,
 };
 use druid::{
-    kurbo::Line, theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx,
+    kurbo::Line, theme, BoxConstraints, Data, Env, Event, EventCtx,
     ExtEventSink, Key, KeyEvent, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers,
     PaintCtx, Point, Rect, RenderContext, Selector, Size, Target, TextLayout,
     UpdateCtx, Widget, WidgetId, WidgetPod,
@@ -19,6 +20,8 @@ use lazy_static::lazy_static;
 use std::time::Duration;
 use std::{any::Any, thread};
 use std::{collections::HashMap, sync::Arc, sync::Mutex};
+use xi_core_lib::line_offset::{LineOffset, LogicalLines};
+use xi_rope::{Cursor, Interval, Rope, RopeInfo};
 
 pub struct CraneUI {
     container: CraneContainer<u32>,
@@ -41,48 +44,102 @@ pub struct EditorState {
     pub split_id: WidgetId,
     pub buffer_id: Option<BufferId>,
     cursor: (usize, usize),
-    line_height: f64,
-    width: f64,
+    offset: usize,
+    pub line_height: f64,
+    pub char_width: f64,
+    pub width: f64,
+    pub height: f64,
 }
 
 impl EditorState {
-    pub fn new(
-        id: WidgetId,
-        // scroll_id: WidgetId,
-        split_id: WidgetId,
-    ) -> EditorState {
+    pub fn new(id: WidgetId, split_id: WidgetId) -> EditorState {
         EditorState {
             id,
-            // scroll_id,
             split_id,
             buffer_id: None,
             cursor: (0, 0),
+            offset: 0,
             line_height: 0.0,
+            char_width: 0.0,
             width: 0.0,
+            height: 0.0,
         }
     }
 
-    pub fn run_command(&mut self, cmd: CraneCommand) {
+    pub fn run_command(&mut self, buffer: &mut Buffer, cmd: CraneCommand) {
         match cmd {
             CraneCommand::Left => {
                 self.cursor.1 -= 1;
+                self.offset -= 1;
+                CRANE_STATE
+                    .submit_ui_command(CraneUICommand::RequestPaint, self.id);
             }
             CraneCommand::Right => {
                 self.cursor.1 += 1;
+                self.offset += 1;
+                CRANE_STATE
+                    .submit_ui_command(CraneUICommand::RequestPaint, self.id);
             }
             CraneCommand::Up => {
                 if self.cursor.0 > 0 {
                     self.cursor.0 -= 1;
+                    self.offset = buffer.rope.offset_of_line(self.cursor.0)
+                        + self.cursor.1;
                 }
+                CRANE_STATE
+                    .submit_ui_command(CraneUICommand::RequestPaint, self.id);
             }
             CraneCommand::Down => {
                 self.cursor.0 += 1;
+                self.offset =
+                    buffer.rope.offset_of_line(self.cursor.0) + self.cursor.1;
+                CRANE_STATE
+                    .submit_ui_command(CraneUICommand::RequestPaint, self.id);
             }
             CraneCommand::SplitVertical => {
                 CRANE_STATE.submit_ui_command(
                     CraneUICommand::Split(true, self.id),
                     self.split_id,
                 );
+            }
+            CraneCommand::ScrollUp => {
+                CRANE_STATE.submit_ui_command(
+                    CraneUICommand::Scroll((0.0, -self.line_height)),
+                    self.id,
+                );
+            }
+            CraneCommand::ScrollDown => {
+                CRANE_STATE.submit_ui_command(
+                    CraneUICommand::Scroll((0.0, self.line_height)),
+                    self.id,
+                );
+            }
+            CraneCommand::FirstLine => {
+                self.cursor.0 = 0;
+                self.offset = self.cursor.1;
+                self.request_paint();
+            }
+            CraneCommand::LastLine => {
+                self.cursor.0 = buffer.line_of_offset(buffer.rope.len());
+                self.offset =
+                    buffer.offset_of_line(self.cursor.0) + self.cursor.1;
+                self.request_paint();
+            }
+            CraneCommand::WordFoward => {
+                let new_offset = WordCursor::new(&buffer.rope, self.offset)
+                    .next_boundary()
+                    .unwrap();
+                self.offset = new_offset;
+                self.cursor = buffer.offset_to_line_col(self.offset);
+                self.request_paint();
+            }
+            CraneCommand::WordBackward => {
+                let new_offset = WordCursor::new(&buffer.rope, self.offset)
+                    .prev_boundary()
+                    .unwrap();
+                self.offset = new_offset;
+                self.cursor = buffer.offset_to_line_col(self.offset);
+                self.request_paint();
             }
             CraneCommand::SplitHorizontal => {}
             CraneCommand::SplitRight => {
@@ -109,29 +166,53 @@ impl EditorState {
                     self.split_id,
                 );
             }
+            CraneCommand::NewLineAbove => {}
+            CraneCommand::NewLineBelow => {}
             _ => (),
         }
+
         CRANE_STATE.submit_ui_command(
             CraneUICommand::EnsureVisible((
                 Rect::ZERO
                     .with_origin(Point::new(
-                        self.cursor.1 as f64 * self.width,
+                        self.cursor.1 as f64 * self.char_width,
                         self.cursor.0 as f64 * self.line_height,
                     ))
-                    .with_size(Size::new(self.width, self.line_height)),
-                (self.width, self.line_height),
+                    .with_size(Size::new(self.char_width, self.line_height)),
+                (self.char_width, self.line_height),
             )),
             self.id,
         );
+    }
+
+    pub fn insert_new_line(&mut self, buffer: &mut Buffer, offset: usize) {
+        let (line, col) = LogicalLines.offset_to_line_col(&buffer.rope, offset);
+        let indent = buffer.indent_on_line(line);
+
+        let indent = if indent.len() >= col {
+            indent[..col].to_string()
+        } else {
+            let next_line_indent = buffer.indent_on_line(line + 1);
+            if next_line_indent.len() > indent.len() {
+                next_line_indent
+            } else {
+                indent
+            }
+        };
+
+        let content = format!("{}{}", "\n", indent);
+        buffer.rope.edit(Interval::new(offset, offset), &content);
+        let new_offset = offset + content.len();
+        self.offset = new_offset;
+        self.cursor = LogicalLines.offset_to_line_col(&buffer.rope, new_offset);
+    }
+
+    pub fn request_paint(&self) {
         CRANE_STATE.submit_ui_command(CraneUICommand::RequestPaint, self.id);
     }
 
     pub fn set_line_height(&mut self, line_height: f64) {
         self.line_height = line_height;
-    }
-
-    pub fn set_width(&mut self, width: f64) {
-        self.width = width;
     }
 }
 
@@ -164,6 +245,13 @@ impl EditorSplitState {
 
     pub fn set_active(&mut self, widget_id: WidgetId) {
         self.active = widget_id;
+    }
+
+    pub fn set_editor_size(&mut self, editor_id: WidgetId, size: Size) {
+        if let Some(editor) = self.editors.get_mut(&editor_id) {
+            editor.height = size.height;
+            editor.width = size.width;
+        }
     }
 
     pub fn open_file(&mut self, path: &str) {
@@ -215,11 +303,246 @@ impl EditorSplitState {
         self.editors.get_mut(&self.active)
     }
 
+    pub fn insert(&mut self, content: &str) {
+        if self.mode != Mode::Insert {
+            return;
+        }
+        if let Some(editor) = self.editors.get_mut(&self.active) {
+            if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                    let offset = editor.offset;
+                    buffer.rope.edit(Interval::new(offset, offset), content);
+                    editor.offset = editor.offset + 1;
+                    let line = buffer.rope.line_of_offset(editor.offset);
+                    let col = editor.offset - buffer.rope.offset_of_line(line);
+                    editor.cursor = (line, col);
+                    CRANE_STATE.submit_ui_command(
+                        CraneUICommand::RequestPaint,
+                        self.active,
+                    );
+                }
+            }
+        }
+    }
+
     pub fn run_command(&mut self, cmd: CraneCommand) {
         println!("run command {}", cmd);
         match cmd {
+            CraneCommand::InsertMode => {
+                self.mode = Mode::Insert;
+                CRANE_STATE.submit_ui_command(
+                    CraneUICommand::RequestPaint,
+                    self.active,
+                );
+            }
+            CraneCommand::NormalMode => {
+                self.mode = Mode::Normal;
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if editor.cursor.1 > 0 {
+                        editor.cursor.1 = editor.cursor.1 - 1;
+                        editor.offset = editor.offset - 1;
+                    }
+                }
+                CRANE_STATE.submit_ui_command(
+                    CraneUICommand::RequestPaint,
+                    self.active,
+                );
+            }
+            CraneCommand::PageDown => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            let lines =
+                                (editor.height / editor.line_height / 2.0)
+                                    .floor()
+                                    as usize;
+                            editor.cursor.0 = editor.cursor.0 + lines;
+                            editor.offset = buffer
+                                .offset_of_line(editor.cursor.0)
+                                + editor.cursor.1;
+                            CRANE_STATE.submit_ui_command(
+                                CraneUICommand::Scroll((
+                                    0.0,
+                                    editor.line_height * lines as f64,
+                                )),
+                                editor.id,
+                            );
+                        }
+                    }
+                }
+            }
+            CraneCommand::PageUp => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            let lines =
+                                (editor.height / editor.line_height / 2.0)
+                                    .floor()
+                                    as usize;
+                            let line = if editor.cursor.0 < lines {
+                                0
+                            } else {
+                                editor.cursor.0 - lines
+                            };
+                            editor.cursor.0 = line;
+                            editor.offset = buffer
+                                .offset_of_line(editor.cursor.0)
+                                + editor.cursor.1;
+                            CRANE_STATE.submit_ui_command(
+                                CraneUICommand::Scroll((
+                                    0.0,
+                                    -editor.line_height * lines as f64,
+                                )),
+                                editor.id,
+                            );
+                        }
+                    }
+                }
+            }
+            CraneCommand::Append => {
+                self.mode = Mode::Insert;
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            editor.cursor.1 += 1;
+                            editor.offset += 1;
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            CraneCommand::AppendEndOfLine => {
+                self.mode = Mode::Insert;
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            let new_offset =
+                                buffer.offset_of_line(editor.cursor.0 + 1) - 1;
+                            editor.offset = new_offset;
+                            editor.cursor =
+                                buffer.offset_to_line_col(editor.offset);
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            CraneCommand::LineEnd => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            let new_offset =
+                                buffer.offset_of_line(editor.cursor.0 + 1) - 2;
+                            editor.offset = new_offset;
+                            editor.cursor =
+                                buffer.offset_to_line_col(editor.offset);
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            CraneCommand::LineStart => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            editor.cursor.1 = 0;
+                            let new_offset =
+                                buffer.offset_of_line(editor.cursor.0);
+                            editor.offset = new_offset;
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            CraneCommand::NewLineAbove => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            let line = buffer.line_of_offset(editor.offset);
+                            let offset =
+                                buffer.first_non_blank_character_on_line(line);
+                            editor.insert_new_line(buffer, offset);
+                            editor.offset = offset;
+                            editor.cursor = LogicalLines
+                                .offset_to_line_col(&buffer.rope, offset);
+                            self.mode = Mode::Insert;
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+
+            CraneCommand::NewLineBelow => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            let offset = LogicalLines.line_col_to_offset(
+                                &buffer.rope,
+                                editor.cursor.0 + 1,
+                                0,
+                            ) - 1;
+                            editor.insert_new_line(buffer, offset);
+                            self.mode = Mode::Insert;
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            CraneCommand::InsertNewLine => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            editor.insert_new_line(buffer, editor.offset);
+                            self.mode = Mode::Insert;
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            CraneCommand::DeleteWordBackward => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            let new_offset =
+                                WordCursor::new(&buffer.rope, editor.offset)
+                                    .prev_boundary()
+                                    .unwrap();
+                            buffer.rope.edit(
+                                Interval::new(new_offset, editor.offset),
+                                "",
+                            );
+                            editor.offset = new_offset;
+                            editor.cursor =
+                                buffer.offset_to_line_col(editor.offset);
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            CraneCommand::DeleteBackward => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            buffer.rope.edit(
+                                Interval::new(editor.offset - 1, editor.offset),
+                                "",
+                            );
+                            editor.offset = editor.offset - 1;
+                            editor.cursor =
+                                buffer.offset_to_line_col(editor.offset);
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
             _ => {
-                self.get_active_editor().map(|e| e.run_command(cmd));
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            editor.run_command(buffer, cmd);
+                        }
+                    }
+                }
+                // self.get_active_editor().map(|e| e.run_command(cmd));
             }
         }
         // self.request_paint();
@@ -339,10 +662,10 @@ impl<T: Data> Widget<T> for Editor {
                 .unwrap()
                 .get_buffer_id(&self.widget_id)
         };
-        let cursor = {
+        let (cursor, editor_width) = {
             let mut state = CRANE_STATE.editor_split.lock().unwrap();
-            let eidtor = state.get_editor(&self.widget_id);
-            eidtor.cursor
+            let editor = state.get_editor(&self.widget_id);
+            (editor.cursor, editor.width)
         };
         if let Some(buffer_id) = buffer_id {
             let buffers = &CRANE_STATE.editor_split.lock().unwrap().buffers;
@@ -367,11 +690,11 @@ impl<T: Data> Widget<T> for Editor {
                         ctx.fill(
                             Rect::ZERO
                                 .with_origin(Point::new(
-                                    rect.x0,
+                                    0.0,
                                     cursor.0 as f64 * line_height,
                                 ))
                                 .with_size(Size::new(
-                                    rect.width(),
+                                    editor_width,
                                     line_height,
                                 )),
                             &env.get(
@@ -398,9 +721,9 @@ impl<T: Data> Widget<T> for Editor {
         let mode = { CRANE_STATE.editor_split.lock().unwrap().get_mode() };
         {
             let mut state = CRANE_STATE.editor_split.lock().unwrap();
-            let eidtor = state.get_editor(&self.widget_id);
-            eidtor.set_line_height(line_height);
-            eidtor.set_width(width);
+            let editor = state.get_editor(&self.widget_id);
+            editor.set_line_height(line_height);
+            editor.char_width = width;
         };
         match mode {
             Mode::Insert => ctx.stroke(

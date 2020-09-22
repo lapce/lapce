@@ -64,7 +64,7 @@ impl<T: Data> CraneContainer<T> {
             .set_widget_id(editor_split_id);
         let editor_split = WidgetPod::new(IdentityWrapper::wrap(
             CraneSplit::new(true).with_child(IdentityWrapper::wrap(
-                CraneScroll::new(editor),
+                CraneScroll::new(editor.padding((10.0, 0.0, 10.0, 0.0))),
                 editor_id,
             )),
             editor_split_id,

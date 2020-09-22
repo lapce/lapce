@@ -79,13 +79,15 @@ impl<T, W: Widget<T>> CraneScroll<T, W> {
         self.scroll_component.scroll_offset
     }
 
-    /// Scroll `delta` units.
-    ///
-    /// Returns `true` if the scroll offset has changed.
-    pub fn scroll(&mut self, delta: Vec2, layout_size: Size) -> bool {
-        let scrolled = self.scroll_component.scroll(delta, layout_size);
-        self.child.set_viewport_offset(self.offset());
-        scrolled
+    pub fn scroll(&mut self, x: f64, y: f64) {
+        let mut offset = self.offset();
+        offset.x = offset.x + x;
+        offset.y = offset.y + y;
+        if offset.y < 0.0 {
+            offset.y = 0.0;
+        }
+        self.scroll_component.scroll_offset = offset;
+        self.child.set_viewport_offset(offset);
     }
 
     fn scroll_to(&mut self, x: f64, y: f64) {
@@ -99,32 +101,39 @@ impl<T, W: Widget<T>> CraneScroll<T, W> {
         scroll_size: Size,
         rect: &Rect,
         margin: &(f64, f64),
-    ) {
-        let mut offset = self.offset();
+    ) -> bool {
+        let mut new_offset = self.offset();
         let content_size = self.scroll_component.content_size;
 
         let (x_margin, y_margin) = margin;
 
-        offset.x = if offset.x < rect.x1 + x_margin - scroll_size.width {
+        new_offset.x = if new_offset.x < rect.x1 + x_margin - scroll_size.width
+        {
             (rect.x1 + x_margin - scroll_size.width)
                 .min(content_size.width - scroll_size.width)
-        } else if offset.x > rect.x0 - x_margin {
+        } else if new_offset.x > rect.x0 - x_margin {
             (rect.x0 - x_margin).max(0.0)
         } else {
-            offset.x
+            new_offset.x
         };
 
-        offset.y = if offset.y < rect.y1 + y_margin - scroll_size.height {
+        new_offset.y = if new_offset.y < rect.y1 + y_margin - scroll_size.height
+        {
             (rect.y1 + y_margin - scroll_size.height)
                 .min(content_size.height - scroll_size.height)
-        } else if offset.y > rect.y0 - y_margin {
+        } else if new_offset.y > rect.y0 - y_margin {
             (rect.y0 - y_margin).max(0.0)
         } else {
-            offset.y
+            new_offset.y
         };
 
-        self.scroll_component.scroll_offset = offset;
-        self.child.set_viewport_offset(offset);
+        if new_offset == self.offset() {
+            return false;
+        }
+
+        self.scroll_component.scroll_offset = new_offset;
+        self.child.set_viewport_offset(new_offset);
+        true
     }
 }
 
@@ -150,11 +159,18 @@ impl<T: Data, W: Widget<T>> Widget<T> for CraneScroll<T, W> {
                             ctx.request_paint();
                         }
                         CraneUICommand::EnsureVisible((rect, margin)) => {
-                            self.ensure_visible(ctx.size(), rect, margin);
+                            if self.ensure_visible(ctx.size(), rect, margin) {
+                                ctx.request_paint();
+                            }
                             return;
                         }
                         CraneUICommand::ScrollTo((x, y)) => {
                             self.scroll_to(*x, *y);
+                            return;
+                        }
+                        CraneUICommand::Scroll((x, y)) => {
+                            self.scroll(*x, *y);
+                            ctx.request_paint();
                             return;
                         }
                         _ => println!(
