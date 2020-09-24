@@ -92,7 +92,7 @@ impl<'a> WordCursor<'a> {
             let mut candidate = self.inner.pos();
             while let Some(prev) = self.inner.prev_codepoint() {
                 let prop_prev = get_word_property(prev);
-                if classify_boundary(prop_prev, prop).is_boundary() {
+                if classify_boundary(prop_prev, prop).is_start() {
                     break;
                 }
                 prop = prop_prev;
@@ -124,7 +124,7 @@ impl<'a> WordCursor<'a> {
             let mut candidate = self.inner.pos();
             while let Some(next) = self.inner.next_codepoint() {
                 let prop_next = get_word_property(next);
-                if classify_boundary(prop, prop_next).is_boundary() {
+                if classify_boundary(prop, prop_next).is_end() {
                     break;
                 }
                 prop = prop_next;
@@ -231,13 +231,12 @@ fn classify_boundary(prev: WordProperty, next: WordProperty) -> WordBoundary {
     use self::WordBoundary::*;
     use self::WordProperty::*;
     match (prev, next) {
+        (_, Lf) => Start,
+        (Lf, _) => Start,
         (_, Space) => Interior,
-        (_, Lf) => Interior,
-        (Lf, _) => Both,
-        (Space, Other) => Start,
-        (Space, Punctuation) => Start,
-        (Punctuation, Other) => Start,
-        (Other, Punctuation) => End,
+        (Space, _) => Both,
+        (Punctuation, Other) => Both,
+        (Other, Punctuation) => Both,
         _ => Interior,
     }
 }

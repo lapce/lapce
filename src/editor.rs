@@ -322,6 +322,10 @@ impl EditorState {
                     .prev_boundary()
                     .unwrap();
                 self.offset = new_offset;
+                let line_end_offset = self.line_end_offset(mode, buffer);
+                if self.offset > line_end_offset {
+                    self.offset = line_end_offset;
+                }
                 let (_, col) = buffer.offset_to_line_col(self.offset);
                 self.horiz = col;
                 self.request_paint();
