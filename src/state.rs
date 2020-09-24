@@ -65,6 +65,7 @@ pub struct CraneState {
     pub palette: Arc<Mutex<PaletteState>>,
     keypress_sequence: Arc<Mutex<String>>,
     pending_keypress: Arc<Mutex<Vec<KeyPress>>>,
+    count: Arc<Mutex<Option<usize>>>,
     keymaps: Arc<Mutex<Vec<KeyMap>>>,
     pub last_focus: Arc<Mutex<CraneWidget>>,
     pub focus: Arc<Mutex<CraneWidget>>,
@@ -80,6 +81,7 @@ impl CraneState {
                 Self::get_keymaps().unwrap_or(Vec::new()),
             )),
             keypress_sequence: Arc::new(Mutex::new("".to_string())),
+            count: Arc::new(Mutex::new(None)),
             ui_sink: Arc::new(Mutex::new(None)),
             focus: Arc::new(Mutex::new(CraneWidget::Editor)),
             last_focus: Arc::new(Mutex::new(CraneWidget::Editor)),
@@ -145,6 +147,8 @@ impl CraneState {
                         "delete" => druid::keyboard_types::Key::Delete,
                         "backspace" => druid::keyboard_types::Key::Backspace,
                         "bs" => druid::keyboard_types::Key::Backspace,
+                        "arrowup" => druid::keyboard_types::Key::ArrowUp,
+                        "arrowdown" => druid::keyboard_types::Key::ArrowDown,
                         "arrowright" => druid::keyboard_types::Key::ArrowRight,
                         "arrowleft" => druid::keyboard_types::Key::ArrowLeft,
                         "tab" => druid::keyboard_types::Key::Tab,
@@ -202,7 +206,36 @@ impl CraneState {
         }
     }
 
+    pub fn handle_count(&self, keypress: &KeyPress) -> bool {
+        if self.get_mode() == Mode::Insert {
+            return false;
+        }
+
+        match &keypress.key {
+            druid::keyboard_types::Key::Character(c) => {
+                if let Ok(n) = c.parse::<usize>() {
+                    let mut count = self.count.lock().unwrap();
+                    if count.is_some() || n > 0 {
+                        *count = Some(count.unwrap_or(0) * 10 + n);
+                        return true;
+                    }
+                }
+            }
+            _ => (),
+        }
+
+        false
+    }
+
+    pub fn get_count(&self) -> Option<usize> {
+        let mut count = self.count.lock().unwrap();
+        let new_count = count.clone();
+        *count = None;
+        new_count
+    }
+
     pub fn run_command(&self, command: &str) {
+        let count = self.get_count();
         if let Ok(cmd) = CraneCommand::from_str(command) {
             let foucus = self.focus.lock().unwrap().clone();
             match cmd {
@@ -214,9 +247,11 @@ impl CraneState {
                 }
                 _ => {
                     match foucus {
-                        CraneWidget::Editor => {
-                            self.editor_split.lock().unwrap().run_command(cmd)
-                        }
+                        CraneWidget::Editor => self
+                            .editor_split
+                            .lock()
+                            .unwrap()
+                            .run_command(count, cmd),
                         CraneWidget::Palette => match cmd {
                             CraneCommand::ListSelect => {
                                 self.palette.lock().unwrap().select();
@@ -308,18 +343,16 @@ impl CraneState {
         println!("key_event {:?}", key_event);
         let mut keypress_sequence = self.keypress_sequence.lock().unwrap();
         *keypress_sequence = uuid::Uuid::new_v4().to_string();
-        // let key = match &key_event.key {
-        //     druid::keyboard_types::Key::Character(c) => {
-        //         druid::keyboard_types::Key::Character(c.to_lowercase())
-        //     }
-        //     _ => key_event.key.clone(),
-        // };
         let mut mods = key_event.mods.clone();
         mods.set(Modifiers::SHIFT, false);
         let keypress = KeyPress {
             key: key_event.key.clone(),
             mods,
         };
+
+        if self.handle_count(&keypress) {
+            return;
+        }
 
         let mut full_match_keymap = None;
         let mut keypresses = self.pending_keypress.lock().unwrap().clone();
@@ -381,6 +414,13 @@ impl CraneState {
             self.run_command(&keymap.command);
             return;
         }
+
+        if self.get_mode() != Mode::Insert {
+            self.handle_count(&keypress);
+            return;
+        }
+
+        *self.count.lock().unwrap() = None;
 
         if mods.is_empty() {
             match &key_event.key {
@@ -460,6 +500,8 @@ mod tests {
     #[test]
     fn test_check_condition() {
         let rope = Rope::from_str("abc\nabc\n").unwrap();
-        assert_eq!(rope.next_grapheme_offset(8).unwrap(), 9);
+        // assert_eq!(rope.len(), 9);
+        assert_eq!(rope.offset_of_line(1), 1);
+        // assert_eq!(rope.line_of_offset(rope.len()), 9);
     }
 }

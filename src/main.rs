@@ -9,7 +9,7 @@ mod split;
 mod state;
 mod theme;
 
-use std::sync::Arc;
+use std::{sync::Arc, thread};
 
 use crate::container::CraneContainer;
 use crate::editor::Editor;
@@ -75,6 +75,9 @@ pub fn main() {
     let launcher = AppLauncher::with_window(window);
     let ui_event_sink = launcher.get_external_handle();
     CRANE_STATE.set_ui_sink(ui_event_sink);
+    thread::spawn(move || {
+        CRANE_STATE.open_file("/Users/Lulu/crane/src/editor.rs")
+    });
     launcher
         .use_simple_logger()
         .launch(0u32)

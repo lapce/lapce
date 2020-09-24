@@ -2,7 +2,7 @@ use druid::{
     kurbo::{Line, Rect},
     widget::Container,
     widget::IdentityWrapper,
-    Target, WidgetId,
+    KeyEvent, Target, WidgetId,
 };
 use druid::{
     theme, BoxConstraints, Color, Cursor, Data, Env, Event, EventCtx,
@@ -128,6 +128,8 @@ impl PaletteState {
             self.widget_id.unwrap(),
         );
     }
+
+    pub fn key_event(&mut self, key: &KeyEvent) {}
 
     pub fn insert(&mut self, content: &str) {
         self.input.insert_str(self.cursor, content);
@@ -884,7 +886,7 @@ impl<T: Data> Widget<T> for Palette<T> {
     }
 }
 
-impl<T> Widget<T> for PaletteContent {
+impl<T: Data> Widget<T> for PaletteContent {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -1054,7 +1056,7 @@ impl<T: Data> Widget<T> for PaletteWrapper<T> {
     }
 }
 
-impl<T> Widget<T> for PaletteInput {
+impl<T: Data> Widget<T> for PaletteInput {
     fn event(
         &mut self,
         ctx: &mut EventCtx,

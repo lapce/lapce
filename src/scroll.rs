@@ -7,6 +7,7 @@ use druid::{
 };
 
 use crate::command::{CraneUICommand, CRANE_UI_COMMAND};
+use crate::state::CRANE_STATE;
 
 #[derive(Debug, Clone)]
 enum ScrollDirection {
@@ -33,7 +34,7 @@ pub struct CraneScroll<T, W> {
     direction: ScrollDirection,
 }
 
-impl<T, W: Widget<T>> CraneScroll<T, W> {
+impl<T: Data, W: Widget<T>> CraneScroll<T, W> {
     /// Create a new scroll container.
     ///
     /// This method will allow scrolling in all directions if child's bounds
@@ -90,13 +91,13 @@ impl<T, W: Widget<T>> CraneScroll<T, W> {
         self.child.set_viewport_offset(offset);
     }
 
-    fn scroll_to(&mut self, x: f64, y: f64) {
+    pub fn scroll_to(&mut self, x: f64, y: f64) {
         let offset = Vec2::new(x, y);
         self.scroll_component.scroll_offset = offset;
         self.child.set_viewport_offset(offset);
     }
 
-    fn ensure_visible(
+    pub fn ensure_visible(
         &mut self,
         scroll_size: Size,
         rect: &Rect,

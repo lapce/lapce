@@ -2,13 +2,18 @@ use crate::{
     command::{CraneCommand, CRANE_COMMAND},
     editor::Editor,
     editor::EditorState,
+    editor::EditorView,
     palette::PaletteWrapper,
 };
 use crate::{palette::Palette, split::CraneSplit};
 use crate::{scroll::CraneScroll, state::CRANE_STATE};
 use druid::{
     kurbo::{Line, Rect},
+    widget::Container,
+    widget::Flex,
     widget::IdentityWrapper,
+    widget::Label,
+    widget::SizedBox,
     Command, MouseEvent, Selector, Target, WidgetId,
 };
 use druid::{
@@ -41,32 +46,21 @@ impl<T: Data> CraneContainer<T> {
             .lock()
             .unwrap()
             .set_widget_id(palette_id);
-        let editor_id = WidgetId::next();
-        let editor = Editor::new(editor_id);
-        // let scroll_id = WidgetId::next();
+
         let editor_split_id = WidgetId::next();
-        let editor_state = EditorState::new(editor_id, editor_split_id);
-        CRANE_STATE
-            .editor_split
-            .lock()
-            .unwrap()
-            .editors
-            .insert(editor_id, editor_state);
-        CRANE_STATE
-            .editor_split
-            .lock()
-            .unwrap()
-            .set_active(editor_id);
         CRANE_STATE
             .editor_split
             .lock()
             .unwrap()
             .set_widget_id(editor_split_id);
+        let editor_view = EditorView::new(editor_split_id, None);
+        CRANE_STATE
+            .editor_split
+            .lock()
+            .unwrap()
+            .set_active(editor_view.id().unwrap());
         let editor_split = WidgetPod::new(IdentityWrapper::wrap(
-            CraneSplit::new(true).with_child(IdentityWrapper::wrap(
-                CraneScroll::new(editor.padding((10.0, 0.0, 10.0, 0.0))),
-                editor_id,
-            )),
+            CraneSplit::new(true).with_child(editor_view),
             editor_split_id,
         ))
         .boxed();

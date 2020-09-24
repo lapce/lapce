@@ -73,10 +73,10 @@ pub enum CraneCommand {
     LineEnd,
     #[strum(serialize = "line_start")]
     LineStart,
-    #[strum(serialize = "first_line")]
-    FirstLine,
-    #[strum(serialize = "last_line")]
-    LastLine,
+    #[strum(serialize = "go_to_line_deault_last")]
+    GotoLineDefaultLast,
+    #[strum(serialize = "go_to_line_deault_first")]
+    GotoLineDefaultFirst,
     #[strum(serialize = "append")]
     Append,
     #[strum(serialize = "append_end_of_line")]

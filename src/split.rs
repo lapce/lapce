@@ -1,4 +1,4 @@
-use crate::{scroll::CraneScroll, state::CRANE_STATE};
+use crate::{editor::EditorView, scroll::CraneScroll, state::CRANE_STATE};
 use std::cmp::Ordering;
 
 use druid::{
@@ -138,20 +138,20 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                 _ if cmd.is(CRANE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(CRANE_UI_COMMAND);
                     match command {
-                        CraneUICommand::Split(vertical, editor_id) => {
+                        CraneUICommand::Split(vertical, view_id) => {
                             if self.children.len() == 1 {
                                 self.vertical = *vertical;
                             }
                             if &self.vertical != vertical {
                                 for child in &self.children {
-                                    if &child.id() == editor_id {}
+                                    if &child.id() == view_id {}
                                 }
                             } else {
                                 let mut index = 0;
                                 for (i, child) in
                                     self.children.iter().enumerate()
                                 {
-                                    if &child.id() == editor_id {
+                                    if &child.id() == view_id {
                                         index = i;
                                     }
                                 }
@@ -162,48 +162,22 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                                         .lock()
                                         .unwrap();
                                     let editor =
-                                        state.editors.get(editor_id).unwrap();
+                                        state.editors.get(view_id).unwrap();
                                     (editor.split_id, editor.buffer_id.clone())
                                 };
 
-                                let new_editor_id = WidgetId::next();
                                 let new_editor =
-                                    Editor::new(new_editor_id.clone());
-                                // let new_scroll_id = WidgetId::next();
-                                let mut new_editor_state = EditorState::new(
-                                    new_editor_id.clone(),
-                                    // new_scroll_id,
-                                    split_id.clone(),
-                                );
-                                new_editor_state.buffer_id = buffer_id;
-                                CRANE_STATE
-                                    .editor_split
-                                    .lock()
-                                    .unwrap()
-                                    .editors
-                                    .insert(
-                                        new_editor_id.clone(),
-                                        new_editor_state,
-                                    );
-
+                                    EditorView::new(split_id, buffer_id);
                                 let new_child =
-                                    WidgetPod::new(IdentityWrapper::wrap(
-                                        CraneScroll::new(
-                                            new_editor.padding((
-                                                10.0, 0.0, 10.0, 0.0,
-                                            )),
-                                        ),
-                                        new_editor_id,
-                                    ))
-                                    .boxed();
+                                    WidgetPod::new(new_editor).boxed();
                                 self.children.insert(index + 1, new_child);
                                 self.even_child_sizes();
                             }
                         }
-                        CraneUICommand::SplitExchange(editor_id) => {
+                        CraneUICommand::SplitExchange(view_id) => {
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
-                                if &child.id() == editor_id {
+                                if &child.id() == view_id {
                                     index = i;
                                 }
                             }
@@ -219,10 +193,10 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                                 ctx.request_layout();
                             }
                         }
-                        CraneUICommand::SplitMove(direction, editor_id) => {
+                        CraneUICommand::SplitMove(direction, view_id) => {
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
-                                if &child.id() == editor_id {
+                                if &child.id() == view_id {
                                     index = i;
                                 }
                             }
@@ -253,6 +227,7 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                                 }
                                 _ => (),
                             }
+                            ctx.request_paint();
                         }
                         _ => (),
                     }
@@ -358,11 +333,6 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                 self.children_sizes[i] * my_size.width,
                 my_size.height,
             );
-            CRANE_STATE
-                .editor_split
-                .lock()
-                .unwrap()
-                .set_editor_size(child.id(), child_size.clone());
             let child_bc =
                 BoxConstraints::new(child_size.clone(), child_size.clone());
             child.layout(ctx, &child_bc, data, env);

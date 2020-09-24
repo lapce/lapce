@@ -9,7 +9,6 @@ pub struct BufferId(pub usize);
 
 pub struct Buffer {
     pub rope: Rope,
-    pub num_lines: usize,
     pub max_line_len: usize,
 }
 
@@ -32,11 +31,7 @@ impl Buffer {
                 max_line_len = line_len;
             }
         }
-        Buffer {
-            rope,
-            num_lines,
-            max_line_len,
-        }
+        Buffer { rope, max_line_len }
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
@@ -57,6 +52,14 @@ impl Buffer {
 
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
         LogicalLines.offset_to_line_col(&self.rope, offset)
+    }
+
+    pub fn num_lines(&self) -> usize {
+        self.line_of_offset(self.rope.len()) + 1
+    }
+
+    pub fn last_line(&self) -> usize {
+        self.line_of_offset(self.rope.len())
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
