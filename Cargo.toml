@@ -5,6 +5,9 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+include_dir = "0.6.0"
+tree-sitter-highlight = "0.3.0"
+tree-sitter = "0.17.0"
 toml = "0.5.6"
 anyhow = "1.0.32"
 strum = "0.19"
@@ -20,3 +23,6 @@ fzyr = "0.1.2"
 uuid = { version = "0.7.4", features = ["v4"] }
 lsp-types = "0.61.0"
 druid = { git = "https://github.com/linebender/druid" }
+
+[build-dependencies]
+cc = "*"

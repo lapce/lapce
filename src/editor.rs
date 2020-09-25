@@ -12,16 +12,16 @@ use crate::{
     theme::LapceTheme,
 };
 use druid::{
-    kurbo::Line, theme, widget::IdentityWrapper, widget::Padding, Affine,
-    BoxConstraints, Data, Env, Event, EventCtx, ExtEventSink, Key, KeyEvent,
-    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect,
-    RenderContext, Selector, Size, Target, TextLayout, UpdateCtx, Vec2, Widget,
-    WidgetExt, WidgetId, WidgetPod,
+    kurbo::Line, widget::IdentityWrapper, widget::Padding, Affine,
+    BoxConstraints, Color, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
+    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lazy_static::lazy_static;
 use std::time::Duration;
 use std::{any::Any, thread};
 use std::{collections::HashMap, sync::Arc, sync::Mutex};
+use tree_sitter_highlight::Highlight;
 use xi_core_lib::line_offset::{LineOffset, LogicalLines};
 use xi_rope::{Cursor, Interval, Rope, RopeInfo};
 
@@ -993,10 +993,16 @@ struct EditorTextLayout {
     text: String,
 }
 
+struct HighlightTextLayout {
+    layouts: Vec<(f64, TextLayout)>,
+    text: String,
+    highlights: Option<Vec<(usize, usize, Highlight)>>,
+}
+
 pub struct Editor {
     text_layout: TextLayout,
     view_id: WidgetId,
-    text_layouts: HashMap<usize, EditorTextLayout>,
+    text_layouts: HashMap<usize, HighlightTextLayout>,
 }
 
 impl Editor {
@@ -1007,6 +1013,75 @@ impl Editor {
             view_id,
             text_layouts: HashMap::new(),
         }
+    }
+
+    fn paint_line(
+        &mut self,
+        ctx: &mut PaintCtx,
+        buffer: &Buffer,
+        line_height: f64,
+        line: usize,
+        line_content: &str,
+        env: &Env,
+    ) {
+        let start_offset = buffer.offset_of_line(line);
+        let end_offset = buffer.offset_of_line(line + 1);
+        let mut offset = start_offset;
+        let mut x = 0.0;
+        let mut layouts = Vec::new();
+        if let Some(line_highlight) = buffer.highlights.get(&line) {
+            println!("{:?}", line_highlight);
+            for (start, end, hl) in line_highlight {
+                if start > &offset {
+                    let mut layout = TextLayout::new(
+                        &line_content
+                            [offset - start_offset..*start - start_offset],
+                    );
+                    layout.set_font(LapceTheme::EDITOR_FONT);
+                    layout.rebuild_if_needed(&mut ctx.text(), env);
+                    layout.draw(ctx, Point::new(x, line_height * line as f64));
+                    let local_width =
+                        layout.point_for_text_position(start - offset).x;
+                    layouts.push((x, layout));
+                    x += local_width;
+                }
+
+                let mut layout = TextLayout::new(
+                    &line_content[*start - start_offset..*end - start_offset],
+                );
+                layout.set_font(LapceTheme::EDITOR_FONT);
+                layout.set_text_color(Color::rgb8(100, 100, 100));
+                layout.rebuild_if_needed(&mut ctx.text(), env);
+                layout.draw(ctx, Point::new(x, line_height * line as f64));
+                let local_width = layout.point_for_text_position(end - start).x;
+                layouts.push((x, layout));
+                x += local_width;
+                offset = *end;
+            }
+            if end_offset > offset {
+                let mut layout = TextLayout::new(
+                    &line_content
+                        [offset - start_offset..end_offset - start_offset],
+                );
+                layout.set_font(LapceTheme::EDITOR_FONT);
+                layout.set_text_color(Color::rgb8(100, 100, 100));
+                layout.rebuild_if_needed(&mut ctx.text(), env);
+                layout.draw(ctx, Point::new(x, line_height * line as f64));
+                layouts.push((x, layout));
+            }
+        } else {
+            let mut layout = TextLayout::new(&line_content[..]);
+            layout.set_font(LapceTheme::EDITOR_FONT);
+            layout.rebuild_if_needed(&mut ctx.text(), env);
+            layout.draw(ctx, Point::new(0.0, line_height * line as f64));
+            layouts.push((x, layout));
+        }
+        let text_layout = HighlightTextLayout {
+            layouts,
+            text: line_content.to_string(),
+            highlights: buffer.highlights.get(&line).map(|h| h.clone()),
+        };
+        self.text_layouts.insert(line, text_layout);
     }
 }
 
@@ -1190,33 +1265,37 @@ impl<T: Data> Widget<T> for Editor {
                             };
                         }
                     }
-                    let line_content = line_content.replace('\t', "    ");
                     if let Some(text_layout) = self.text_layouts.get_mut(&line)
                     {
-                        if text_layout.text != line_content {
-                            text_layout.layout.set_text(line_content.clone());
-                            text_layout.text = line_content;
-                            text_layout
-                                .layout
-                                .rebuild_if_needed(&mut ctx.text(), env);
+                        if text_layout.text != line_content.to_string()
+                            || text_layout.highlights.as_ref()
+                                != buffer.highlights.get(&line)
+                        {
+                            self.paint_line(
+                                ctx,
+                                buffer,
+                                line_height,
+                                line,
+                                line_content,
+                                env,
+                            );
+                        } else {
+                            for (x, layout) in &text_layout.layouts {
+                                layout.draw(
+                                    ctx,
+                                    Point::new(*x, line_height * line as f64),
+                                );
+                            }
                         }
-                        text_layout.layout.draw(
-                            ctx,
-                            Point::new(0.0, line_height * line as f64),
-                        );
                     } else {
-                        let mut layout = TextLayout::new(line_content.clone());
-                        layout.set_font(LapceTheme::EDITOR_FONT);
-                        layout.rebuild_if_needed(&mut ctx.text(), env);
-                        layout.draw(
+                        self.paint_line(
                             ctx,
-                            Point::new(0.0, line_height * line as f64),
+                            buffer,
+                            line_height,
+                            line,
+                            line_content,
+                            env,
                         );
-                        let text_layout = EditorTextLayout {
-                            layout,
-                            text: line_content,
-                        };
-                        self.text_layouts.insert(line, text_layout);
                     }
                 }
             }

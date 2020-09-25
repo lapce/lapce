@@ -21,6 +21,7 @@ use crate::{
     command::LAPCE_UI_COMMAND,
     command::{LapceCommand, LAPCE_COMMAND},
     editor::EditorSplitState,
+    language::TreeSitter,
     palette::PaletteState,
 };
 

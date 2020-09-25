@@ -1154,6 +1154,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "include_dir"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23d58bdeb22b1c4691106c084b1063781904c35d0f22eda2a283598968eac61a"
+dependencies = [
+ "glob",
+ "include_dir_impl",
+ "proc-macro-hack",
+]
+
+[[package]]
+name = "include_dir_impl"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "327869970574819d24d1dca25c891856144d29159ab797fa9dc725c5c3f57215"
+dependencies = [
+ "anyhow",
+ "proc-macro-hack",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "inotify"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1279,8 +1303,10 @@ name = "lapce"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "cc",
  "druid",
  "fzyr",
+ "include_dir",
  "lazy_static 1.4.0",
  "lsp-types",
  "serde",
@@ -1289,6 +1315,8 @@ dependencies = [
  "strum_macros 0.19.2",
  "syntect",
  "toml",
+ "tree-sitter",
+ "tree-sitter-highlight",
  "uuid",
  "xi-core-lib",
  "xi-rope",
@@ -2566,6 +2594,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffc92d160b1eef40665be3a05630d003936a3bc7da7421277846c2613e92c71a"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "tree-sitter"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70ee7370fec3aecde3862a7d64c571048f70a7298daef1815e8fc68b9de54b5c"
+dependencies = [
+ "cc",
+ "regex",
+]
+
+[[package]]
+name = "tree-sitter-highlight"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "856e1c23cdd0ee2a2d7f1c7d5ad2531911a71b907eca0f51629ca5feaaf735d1"
+dependencies = [
+ "regex",
+ "tree-sitter",
 ]
 
 [[package]]

@@ -3,6 +3,7 @@ mod command;
 mod container;
 mod editor;
 mod font;
+mod language;
 mod palette;
 mod scroll;
 mod split;
@@ -24,6 +25,11 @@ use druid::{
 };
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
 use palette::PaletteWrapper;
+use tree_sitter::{Language, Parser};
+
+extern "C" {
+    fn tree_sitter_rust() -> Language;
+}
 
 fn build_app() -> impl Widget<u32> {
     let container = LapceContainer::new();
@@ -78,6 +84,10 @@ pub fn main() {
     thread::spawn(move || {
         LAPCE_STATE.open_file("/Users/Lulu/lapce/src/editor.rs")
     });
+    let mut parser = Parser::new();
+    let language = unsafe { tree_sitter_rust() };
+    parser.set_language(language);
+    parser.parse("pub fn main() {}", None).unwrap();
     launcher
         .use_simple_logger()
         .launch(0u32)

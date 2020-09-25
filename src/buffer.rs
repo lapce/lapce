@@ -1,8 +1,15 @@
 use anyhow::Result;
-use std::fs::File;
+use language::{new_highlight_config, new_parser, LapceLanguage};
 use std::io::{self, Read, Write};
+use std::{collections::HashMap, fs::File};
+use tree_sitter::{Parser, Tree};
+use tree_sitter_highlight::{
+    Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
+};
 use xi_core_lib::line_offset::{LineOffset, LogicalLines};
 use xi_rope::{rope::Rope, Cursor, LinesMetric, RopeInfo};
+
+use crate::language;
 
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub struct BufferId(pub usize);
@@ -10,6 +17,10 @@ pub struct BufferId(pub usize);
 pub struct Buffer {
     pub rope: Rope,
     pub max_line_len: usize,
+    pub tree: Tree,
+    pub highlight_config: HighlightConfiguration,
+    pub highlight_names: Vec<String>,
+    pub highlights: HashMap<usize, Vec<(usize, usize, Highlight)>>,
 }
 
 impl Buffer {
@@ -19,6 +30,8 @@ impl Buffer {
         } else {
             Rope::from("")
         };
+        let mut parser = new_parser(LapceLanguage::Rust);
+        let tree = parser.parse(&rope.to_string(), None).unwrap();
         let num_lines = rope.line_of_offset(rope.len()) + 1;
 
         let mut pre_offset = 0;
@@ -31,7 +44,53 @@ impl Buffer {
                 max_line_len = line_len;
             }
         }
-        Buffer { rope, max_line_len }
+
+        let (highlight_config, highlight_names) =
+            new_highlight_config(LapceLanguage::Rust);
+        let mut highlighter = Highlighter::new();
+        let rope_str = rope.slice_to_cow(..rope.len());
+        let highlights = highlighter
+            .highlight(&highlight_config, &rope_str.as_bytes(), None, |_| None)
+            .unwrap();
+
+        let mut line_highlights: HashMap<
+            usize,
+            Vec<(usize, usize, Highlight)>,
+        > = HashMap::new();
+        let mut current_hl: Option<Highlight> = None;
+        for hightlight in highlights {
+            if let Ok(highlight) = hightlight {
+                match highlight {
+                    HighlightEvent::Source { start, end } => {
+                        if let Some(hl) = current_hl {
+                            let line = rope.line_of_offset(start);
+                            if let Some(line_highlight) =
+                                line_highlights.get_mut(&line)
+                            {
+                                line_highlight.push((start, end, hl.clone()));
+                            } else {
+                                let mut line_highlight = Vec::new();
+                                line_highlight.push((start, end, hl.clone()));
+                                line_highlights.insert(line, line_highlight);
+                            }
+                        }
+                    }
+                    HighlightEvent::HighlightStart(hl) => {
+                        current_hl = Some(hl);
+                    }
+                    HighlightEvent::HighlightEnd => current_hl = None,
+                }
+            }
+        }
+
+        Buffer {
+            rope,
+            max_line_len,
+            tree,
+            highlight_config,
+            highlight_names,
+            highlights: line_highlights,
+        }
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
