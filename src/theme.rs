@@ -1,21 +1,21 @@
 use druid::{Color, FontDescriptor, Key};
 
-pub struct CraneTheme {}
+pub struct LapceTheme {}
 
-impl CraneTheme {
+impl LapceTheme {
     pub const EDITOR_LINE_HEIGHT: Key<f64> =
-        Key::new("crane.editor_line_height");
+        Key::new("lapce.editor_line_height");
     pub const PALETTE_BACKGROUND: Key<Color> =
-        Key::new("crane.palette_background");
+        Key::new("lapce.palette_background");
     pub const PALETTE_INPUT_BACKGROUND: Key<Color> =
-        Key::new("crane.palette_input_background");
+        Key::new("lapce.palette_input_background");
     pub const PALETTE_INPUT_FOREROUND: Key<Color> =
-        Key::new("crane.palette_input_foreground");
+        Key::new("lapce.palette_input_foreground");
     pub const PALETTE_INPUT_BORDER: Key<Color> =
-        Key::new("crane.palette_input_border");
-    pub const EDITOR_FONT: Key<FontDescriptor> = Key::new("crane.eidtor_font");
+        Key::new("lapce.palette_input_border");
+    pub const EDITOR_FONT: Key<FontDescriptor> = Key::new("lapce.eidtor_font");
     pub const EDITOR_CURSOR_COLOR: Key<Color> =
-        Key::new("crane.eidtor_cursor_color");
+        Key::new("lapce.eidtor_cursor_color");
     pub const EDITOR_CURRENT_LINE_BACKGROUND: Key<Color> =
-        Key::new("crane.eidtor_current_line_background");
+        Key::new("lapce.eidtor_current_line_background");
 }

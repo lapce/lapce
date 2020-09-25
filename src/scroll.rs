@@ -6,8 +6,8 @@ use druid::{
     LifeCycle, LifeCycleCtx, PaintCtx, UpdateCtx, Widget, WidgetPod,
 };
 
-use crate::command::{CraneUICommand, CRANE_UI_COMMAND};
-use crate::state::CRANE_STATE;
+use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
+use crate::state::LAPCE_STATE;
 
 #[derive(Debug, Clone)]
 enum ScrollDirection {
@@ -28,20 +28,20 @@ enum ScrollDirection {
 ///
 /// [`vertical`]: struct.Scroll.html#method.vertical
 /// [`horizontal`]: struct.Scroll.html#method.horizontal
-pub struct CraneScroll<T, W> {
+pub struct LapceScroll<T, W> {
     child: WidgetPod<T, W>,
     scroll_component: ScrollComponent,
     direction: ScrollDirection,
 }
 
-impl<T: Data, W: Widget<T>> CraneScroll<T, W> {
+impl<T: Data, W: Widget<T>> LapceScroll<T, W> {
     /// Create a new scroll container.
     ///
     /// This method will allow scrolling in all directions if child's bounds
     /// are larger than the viewport. Use [vertical](#method.vertical) and
     /// [horizontal](#method.horizontal) methods to limit scrolling to a specific axis.
-    pub fn new(child: W) -> CraneScroll<T, W> {
-        CraneScroll {
+    pub fn new(child: W) -> LapceScroll<T, W> {
+        LapceScroll {
             child: WidgetPod::new(child),
             scroll_component: ScrollComponent::new(),
             direction: ScrollDirection::Bidirectional,
@@ -138,7 +138,7 @@ impl<T: Data, W: Widget<T>> CraneScroll<T, W> {
     }
 }
 
-impl<T: Data, W: Widget<T>> Widget<T> for CraneScroll<T, W> {
+impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -148,28 +148,28 @@ impl<T: Data, W: Widget<T>> Widget<T> for CraneScroll<T, W> {
     ) {
         match event {
             Event::Command(cmd) => match cmd {
-                _ if cmd.is(CRANE_UI_COMMAND) => {
-                    let command = cmd.get_unchecked(CRANE_UI_COMMAND);
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
-                        CraneUICommand::RequestLayout => {
+                        LapceUICommand::RequestLayout => {
                             println!("scroll request layout");
                             ctx.request_layout();
                         }
-                        CraneUICommand::RequestPaint => {
+                        LapceUICommand::RequestPaint => {
                             println!("scroll request paint");
                             ctx.request_paint();
                         }
-                        CraneUICommand::EnsureVisible((rect, margin)) => {
+                        LapceUICommand::EnsureVisible((rect, margin)) => {
                             if self.ensure_visible(ctx.size(), rect, margin) {
                                 ctx.request_paint();
                             }
                             return;
                         }
-                        CraneUICommand::ScrollTo((x, y)) => {
+                        LapceUICommand::ScrollTo((x, y)) => {
                             self.scroll_to(*x, *y);
                             return;
                         }
-                        CraneUICommand::Scroll((x, y)) => {
+                        LapceUICommand::Scroll((x, y)) => {
                             self.scroll(*x, *y);
                             ctx.request_paint();
                             return;

@@ -23,9 +23,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::{
-    command::CraneCommand, command::CraneUICommand, command::CRANE_COMMAND,
-    command::CRANE_UI_COMMAND, scroll::CraneScroll, state::CraneWidget,
-    state::CRANE_STATE, theme::CraneTheme,
+    command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
+    command::LAPCE_UI_COMMAND, scroll::LapceScroll, state::LapceWidget,
+    state::LAPCE_STATE, theme::LapceTheme,
 };
 
 #[derive(Clone, Debug)]
@@ -90,7 +90,7 @@ impl PaletteState {
     pub fn run(&mut self) {
         self.items = self.get_files();
         self.hidden = false;
-        *CRANE_STATE.focus.lock().unwrap() = CraneWidget::Palette;
+        *LAPCE_STATE.focus.lock().unwrap() = LapceWidget::Palette;
         self.request_layout();
     }
 
@@ -99,20 +99,20 @@ impl PaletteState {
         self.cursor = 0;
         self.index = 0;
         self.hidden = true;
-        *CRANE_STATE.focus.lock().unwrap() = CraneWidget::Editor;
+        *LAPCE_STATE.focus.lock().unwrap() = LapceWidget::Editor;
         self.request_paint();
     }
 
     fn request_layout(&self) {
-        CRANE_STATE.submit_ui_command(
-            CraneUICommand::RequestLayout,
+        LAPCE_STATE.submit_ui_command(
+            LapceUICommand::RequestLayout,
             self.widget_id.unwrap(),
         );
     }
 
     fn request_paint(&self) {
-        CRANE_STATE.submit_ui_command(
-            CraneUICommand::RequestPaint,
+        LAPCE_STATE.submit_ui_command(
+            LapceUICommand::RequestPaint,
             self.widget_id.unwrap(),
         );
     }
@@ -123,8 +123,8 @@ impl PaletteState {
             .with_size(Size::new(self.width, self.line_height));
         let margin = (0.0, 0.0);
 
-        CRANE_STATE.submit_ui_command(
-            CraneUICommand::EnsureVisible((rect, margin)),
+        LAPCE_STATE.submit_ui_command(
+            LapceUICommand::EnsureVisible((rect, margin)),
             self.widget_id.unwrap(),
         );
     }
@@ -239,7 +239,7 @@ impl PaletteState {
         if items.is_empty() {
             return;
         }
-        CRANE_STATE.open_file(&items[self.index].text);
+        LAPCE_STATE.open_file(&items[self.index].text);
         self.cancel();
     }
 
@@ -281,17 +281,17 @@ impl<T: Data> Palette<T> {
     pub fn new() -> Palette<T> {
         let palette_input = PaletteInput::new()
             .padding((5.0, 5.0, 5.0, 5.0))
-            .border(CraneTheme::PALETTE_INPUT_BORDER, 1.0)
-            .background(CraneTheme::PALETTE_INPUT_BACKGROUND)
+            .border(LapceTheme::PALETTE_INPUT_BORDER, 1.0)
+            .background(LapceTheme::PALETTE_INPUT_BACKGROUND)
             .padding((5.0, 5.0, 5.0, 5.0));
         let palette_scroll_id = WidgetId::next();
-        CRANE_STATE
+        LAPCE_STATE
             .palette
             .lock()
             .unwrap()
             .set_scroll_widget_id(palette_scroll_id);
         let palette_content = IdentityWrapper::wrap(
-            CraneScroll::new(PaletteContent::new()).vertical(),
+            LapceScroll::new(PaletteContent::new()).vertical(),
             palette_scroll_id,
         )
         .padding((5.0, 0.0, 5.0, 0.0));
@@ -306,7 +306,7 @@ impl<T: Data> Palette<T> {
     }
 
     pub fn run(&self) {
-        CRANE_STATE.palette.lock().unwrap().items = self.get_files();
+        LAPCE_STATE.palette.lock().unwrap().items = self.get_files();
         self.update_height();
     }
 
@@ -396,9 +396,9 @@ impl<T: Data> Palette<T> {
     }
 
     fn cancel(&self) {
-        CRANE_STATE.palette.lock().unwrap().input = "".to_string();
-        CRANE_STATE.palette.lock().unwrap().cursor = 0;
-        CRANE_STATE.palette.lock().unwrap().index = 0;
+        LAPCE_STATE.palette.lock().unwrap().input = "".to_string();
+        LAPCE_STATE.palette.lock().unwrap().cursor = 0;
+        LAPCE_STATE.palette.lock().unwrap().index = 0;
         // self.content.set_scroll(0.0, 0.0);
         // self.hide();
     }
@@ -726,7 +726,7 @@ impl<T: Data> PaletteWrapper<T> {
         let palette = WidgetPod::new(
             Palette::new()
                 .border(theme::BORDER_LIGHT, 1.0)
-                .background(CraneTheme::PALETTE_BACKGROUND),
+                .background(LapceTheme::PALETTE_BACKGROUND),
         )
         .boxed();
         PaletteWrapper { palette }
@@ -921,13 +921,13 @@ impl<T: Data> Widget<T> for PaletteContent {
         data: &T,
         env: &Env,
     ) -> Size {
-        let line_height = env.get(CraneTheme::EDITOR_LINE_HEIGHT);
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         {
-            let mut state = CRANE_STATE.palette.lock().unwrap();
+            let mut state = LAPCE_STATE.palette.lock().unwrap();
             state.set_line_height(line_height);
             state.set_width(bc.max().width);
         }
-        let state = CRANE_STATE.palette.lock().unwrap();
+        let state = LAPCE_STATE.palette.lock().unwrap();
         let items_len = if state.input != "" {
             state.filtered_items.len()
         } else {
@@ -938,9 +938,9 @@ impl<T: Data> Widget<T> for PaletteContent {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        let line_height = env.get(CraneTheme::EDITOR_LINE_HEIGHT);
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rects = ctx.region().rects().to_vec();
-        let state = CRANE_STATE.palette.lock().unwrap();
+        let state = LAPCE_STATE.palette.lock().unwrap();
         for rect in rects {
             let start = (rect.y0 / line_height).floor() as usize;
             let items = {
@@ -990,13 +990,13 @@ impl<T: Data> Widget<T> for PaletteWrapper<T> {
         match event {
             Event::Internal(_) => self.palette.event(ctx, event, data, env),
             Event::Command(cmd) => match cmd {
-                _ if cmd.is(CRANE_UI_COMMAND) => {
-                    let command = cmd.get_unchecked(CRANE_UI_COMMAND);
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
-                        CraneUICommand::RequestLayout => {
+                        LapceUICommand::RequestLayout => {
                             ctx.request_layout();
                         }
-                        CraneUICommand::RequestPaint => {
+                        LapceUICommand::RequestPaint => {
                             ctx.request_paint();
                         }
                         _ => println!(
@@ -1049,7 +1049,7 @@ impl<T: Data> Widget<T> for PaletteWrapper<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        if CRANE_STATE.palette.lock().unwrap().hidden {
+        if LAPCE_STATE.palette.lock().unwrap().hidden {
             return;
         }
         self.palette.paint(ctx, data, env);
@@ -1091,18 +1091,18 @@ impl<T: Data> Widget<T> for PaletteInput {
         data: &T,
         env: &Env,
     ) -> Size {
-        Size::new(bc.max().width, env.get(CraneTheme::EDITOR_LINE_HEIGHT))
+        Size::new(bc.max().width, env.get(LapceTheme::EDITOR_LINE_HEIGHT))
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        let line_height = env.get(CraneTheme::EDITOR_LINE_HEIGHT);
-        let text = CRANE_STATE.palette.lock().unwrap().input.clone();
-        let cursor = CRANE_STATE.palette.lock().unwrap().cursor;
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let text = LAPCE_STATE.palette.lock().unwrap().input.clone();
+        let cursor = LAPCE_STATE.palette.lock().unwrap().cursor;
         let mut text_layout = TextLayout::new(text.as_ref());
-        text_layout.set_text_color(CraneTheme::PALETTE_INPUT_FOREROUND);
+        text_layout.set_text_color(LapceTheme::PALETTE_INPUT_FOREROUND);
         text_layout.rebuild_if_needed(ctx.text(), env);
         let line = text_layout.cursor_line_for_text_position(cursor);
-        ctx.stroke(line, &env.get(CraneTheme::PALETTE_INPUT_FOREROUND), 1.0);
+        ctx.stroke(line, &env.get(LapceTheme::PALETTE_INPUT_FOREROUND), 1.0);
         text_layout.draw(ctx, Point::new(0.0, 0.0));
         // println!("input region {:?}", ctx.region());
         // let rects = ctx.region().rects().to_vec();

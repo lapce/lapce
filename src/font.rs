@@ -1,10 +1,10 @@
 use druid::{FontDescriptor, FontFamily, TextLayout};
 
-pub struct CraneFont {
+pub struct LapceFont {
     font: FontDescriptor,
 }
 
-impl CraneFont {
+impl LapceFont {
     pub fn new(font_name: &str, size: f64) {
         let font =
             FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))

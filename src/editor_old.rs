@@ -6,8 +6,6 @@ use crate::line_cache::{count_utf16, Annotation, Line, LineCache, Style};
 use crate::popup::Popup;
 use crate::rpc::Core;
 use cairo::{FontFace, FontOptions, FontSlant, FontWeight, Matrix, ScaledFont};
-use crane_ui::{WidgetState, WidgetTrait};
-use crane_ui_macros::WidgetBase;
 use druid::shell::keyboard::{KeyCode, KeyEvent, KeyModifiers};
 use druid::shell::platform::IdleHandle;
 use druid::shell::window::{MouseEvent, WinCtx, WinHandler, WindowHandle};
@@ -15,8 +13,8 @@ use druid::shell::{kurbo, piet, runloop, WindowBuilder};
 use druid::{PaintCtx, TimerToken};
 use kurbo::{Affine, Point, Rect, Size, Vec2};
 use piet::{
-    Color, FontBuilder, LinearGradient, Piet, RenderContext, Text, TextLayout, TextLayoutBuilder,
-    UnitPoint,
+    Color, FontBuilder, LinearGradient, Piet, RenderContext, Text, TextLayout,
+    TextLayoutBuilder, UnitPoint,
 };
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -90,32 +88,37 @@ impl Editor {
     pub fn get_completion_pos(&self) -> (usize, usize, String) {
         let view = self.state.lock().unwrap().view.clone();
         match view {
-            Some(view) => match view.line_cache.lock().unwrap().get_line(self.line()) {
-                Some(line) => {
-                    let col = self.col();
-                    let chars: Vec<char> = line.text()[..col].to_string().chars().collect();
-                    if chars.len() == 0 {
-                        (0, 0, "".to_string())
-                    } else {
-                        let mut i = chars.len() - 1;
-                        while let Some(ch) = chars.get(i) {
-                            if get_word_property(ch.clone()) != WordProperty::Other {
-                                break;
+            Some(view) => {
+                match view.line_cache.lock().unwrap().get_line(self.line()) {
+                    Some(line) => {
+                        let col = self.col();
+                        let chars: Vec<char> =
+                            line.text()[..col].to_string().chars().collect();
+                        if chars.len() == 0 {
+                            (0, 0, "".to_string())
+                        } else {
+                            let mut i = chars.len() - 1;
+                            while let Some(ch) = chars.get(i) {
+                                if get_word_property(ch.clone())
+                                    != WordProperty::Other
+                                {
+                                    break;
+                                }
+                                if i == 0 {
+                                    break;
+                                }
+                                i -= 1;
                             }
-                            if i == 0 {
-                                break;
-                            }
-                            i -= 1;
+                            (
+                                i + 1,
+                                self.line(),
+                                line.text()[i + 1..self.col()].to_string(),
+                            )
                         }
-                        (
-                            i + 1,
-                            self.line(),
-                            line.text()[i + 1..self.col()].to_string(),
-                        )
                     }
+                    None => (0, 0, "".to_string()),
                 }
-                None => (0, 0, "".to_string()),
-            },
+            }
             None => (0, 0, "".to_string()),
         }
     }
@@ -139,7 +142,9 @@ impl Editor {
     fn gutter_len(&self) -> usize {
         let view = self.state.lock().unwrap().view.clone();
         match view {
-            Some(view) => format!("{}", view.line_cache.lock().unwrap().height()).len(),
+            Some(view) => {
+                format!("{}", view.line_cache.lock().unwrap().height()).len()
+            }
             None => 0,
         }
     }
@@ -167,8 +172,10 @@ impl Editor {
         let vertical_scroll = self.vertical_scroll();
         let gutter_width = self.gutter_width();
         let app_font = self.app.config.font.lock().unwrap().clone();
-        let x = rect.x0 + gutter_width + col as f64 * app_font.width - horizontal_scroll;
-        let y = rect.y0 + (line + 1) as f64 * app_font.lineheight() - vertical_scroll;
+        let x = rect.x0 + gutter_width + col as f64 * app_font.width
+            - horizontal_scroll;
+        let y = rect.y0 + (line + 1) as f64 * app_font.lineheight()
+            - vertical_scroll;
         popup.set_pos(x, y);
     }
 
@@ -180,9 +187,13 @@ impl Editor {
             return;
         }
         let current_line = self.state.lock().unwrap().line;
-        let is_active = self.app.state.lock().unwrap().active_editor.clone() == self.id();
+        let is_active =
+            self.app.state.lock().unwrap().active_editor.clone() == self.id();
         let bg = self.app.config.theme.lock().unwrap().background.unwrap();
-        let rect = Rect::from_origin_size(Point::ORIGIN, self.widget_state.lock().unwrap().size());
+        let rect = Rect::from_origin_size(
+            Point::ORIGIN,
+            self.widget_state.lock().unwrap().size(),
+        );
         paint_ctx.fill(rect, &Color::rgba8(bg.r, bg.g, bg.b, bg.a));
 
         let line_cache = self
@@ -195,8 +206,10 @@ impl Editor {
             .line_cache
             .clone();
 
-        let horizontal_scroll = self.widget_state.lock().unwrap().horizontal_scroll();
-        let vertical_scroll = self.widget_state.lock().unwrap().vertical_scroll();
+        let horizontal_scroll =
+            self.widget_state.lock().unwrap().horizontal_scroll();
+        let vertical_scroll =
+            self.widget_state.lock().unwrap().vertical_scroll();
         let width = self.widget_state.lock().unwrap().size().width;
         let height = self.widget_state.lock().unwrap().size().height;
 
@@ -239,8 +252,14 @@ impl Editor {
         paint_ctx.restore();
     }
 
-    fn paint_gutter(&self, paint_ctx: &mut PaintCtx, start: usize, end: usize) -> f64 {
-        let vertical_scroll = self.widget_state.lock().unwrap().vertical_scroll();
+    fn paint_gutter(
+        &self,
+        paint_ctx: &mut PaintCtx,
+        start: usize,
+        end: usize,
+    ) -> f64 {
+        let vertical_scroll =
+            self.widget_state.lock().unwrap().vertical_scroll();
         let app_font = self.app.config.font.lock().unwrap();
         let fg = self.app.config.theme.lock().unwrap().foreground.unwrap();
         let fg_color = Color::rgba8(fg.r, fg.g, fg.b, 100);
@@ -271,7 +290,9 @@ impl Editor {
                 &layout,
                 Point::new(
                     x,
-                    app_font.lineheight() * i as f64 + app_font.ascent + app_font.linespace / 2.0
+                    app_font.lineheight() * i as f64
+                        + app_font.ascent
+                        + app_font.linespace / 2.0
                         - vertical_scroll,
                 ),
                 &fg_color,
@@ -317,7 +338,10 @@ impl Editor {
                         )
                     };
                     let size = if visual_line {
-                        Size::new(app_font.width * text_len as f64, app_font.lineheight())
+                        Size::new(
+                            app_font.width * text_len as f64,
+                            app_font.lineheight(),
+                        )
                     } else {
                         Size::new(
                             app_font.width * (end - start + 1) as f64,
@@ -403,7 +427,9 @@ impl Editor {
                 .build()
                 .unwrap()
                 .width();
-            if let Some(style) = self.app.config.styles.lock().unwrap().get(&style.style_id) {
+            if let Some(style) =
+                self.app.config.styles.lock().unwrap().get(&style.style_id)
+            {
                 if let Some(fg_color) = style.fg_color {
                     paint_ctx.draw_text(
                         &layout,
@@ -430,8 +456,10 @@ impl Editor {
         let size = self.widget_state.lock().unwrap().size();
         let width = size.width - gutter_width;
         let height = size.height;
-        let horizontal_scroll = self.widget_state.lock().unwrap().horizontal_scroll();
-        let vertical_scroll = self.widget_state.lock().unwrap().vertical_scroll();
+        let horizontal_scroll =
+            self.widget_state.lock().unwrap().horizontal_scroll();
+        let vertical_scroll =
+            self.widget_state.lock().unwrap().vertical_scroll();
         if view_width > width {
             let point = Point::new(
                 gutter_width + horizontal_scroll / view_width * width,
@@ -474,10 +502,14 @@ impl Editor {
             .id()
             .clone();
 
-        let horizontal_scroll = self.widget_state.lock().unwrap().horizontal_scroll();
-        let vertical_scroll = self.widget_state.lock().unwrap().vertical_scroll();
-        let line = ((event.pos.y as f64 + vertical_scroll) / font.lineheight()) as u32;
-        let col = ((event.pos.x as f64 + horizontal_scroll - gutter_width) / font.width) as u32;
+        let horizontal_scroll =
+            self.widget_state.lock().unwrap().horizontal_scroll();
+        let vertical_scroll =
+            self.widget_state.lock().unwrap().vertical_scroll();
+        let line =
+            ((event.pos.y as f64 + vertical_scroll) / font.lineheight()) as u32;
+        let col = ((event.pos.x as f64 + horizontal_scroll - gutter_width)
+            / font.width) as u32;
         self.app.core.send_notification(
             "edit",
             &json!({
@@ -502,9 +534,12 @@ impl Editor {
         let mut scroll_y = 0.0;
         let gutter_width = self.gutter_width();
         let size = self.widget_state.lock().unwrap().size();
-        let horizontal_scroll = self.widget_state.lock().unwrap().horizontal_scroll();
-        let vertical_scroll = self.widget_state.lock().unwrap().vertical_scroll();
-        let right_limit = size.width - gutter_width + horizontal_scroll - margin_x;
+        let horizontal_scroll =
+            self.widget_state.lock().unwrap().horizontal_scroll();
+        let vertical_scroll =
+            self.widget_state.lock().unwrap().vertical_scroll();
+        let right_limit =
+            size.width - gutter_width + horizontal_scroll - margin_x;
         let left_limit = horizontal_scroll + margin_x;
         if rect.x1 > right_limit {
             scroll_x = rect.x1 - right_limit;
@@ -535,8 +570,10 @@ impl Editor {
         let width = size.width - self.gutter_width();
         let height = size.height;
 
-        let mut horizontal_scroll = self.widget_state.lock().unwrap().horizontal_scroll();
-        let mut vertical_scroll = self.widget_state.lock().unwrap().vertical_scroll();
+        let mut horizontal_scroll =
+            self.widget_state.lock().unwrap().horizontal_scroll();
+        let mut vertical_scroll =
+            self.widget_state.lock().unwrap().vertical_scroll();
         horizontal_scroll += delta.x;
         if horizontal_scroll > view_width - width {
             horizontal_scroll = view_width - width;
@@ -667,7 +704,9 @@ impl Editor {
     }
 
     pub fn load_file(&self, file_path: String) {
-        if let Some(view) = self.app.path_views.lock().unwrap().get(&file_path).clone() {
+        if let Some(view) =
+            self.app.path_views.lock().unwrap().get(&file_path).clone()
+        {
             self.load_view(view.to_owned());
             self.invalidate();
             return;
@@ -705,8 +744,10 @@ impl Editor {
         }
         let view_id = view.as_ref().unwrap().id().clone();
         let lineheight = self.app.config.font.lock().unwrap().lineheight();
-        let horizontal_scroll = self.widget_state.lock().unwrap().horizontal_scroll();
-        let vertical_scroll = self.widget_state.lock().unwrap().vertical_scroll();
+        let horizontal_scroll =
+            self.widget_state.lock().unwrap().horizontal_scroll();
+        let vertical_scroll =
+            self.widget_state.lock().unwrap().vertical_scroll();
         let size = self.widget_state.lock().unwrap().size();
         let start = match (vertical_scroll / lineheight) as usize {
             s if s > 0 => s - 1,
@@ -766,7 +807,8 @@ impl CommandRunner for Editor {
         }
 
         let input_state = self.state.lock().unwrap().input.state.clone();
-        let line_selection = self.state.lock().unwrap().input.visual_line.clone();
+        let line_selection =
+            self.state.lock().unwrap().input.visual_line.clone();
 
         let caret = match input_state {
             InputState::Insert => true,
@@ -779,7 +821,8 @@ impl CommandRunner for Editor {
 
         match cmd.clone().cmd.unwrap() {
             Command::CommandPalette => {
-                let palette = self.app.state.lock().unwrap().palette.clone().unwrap();
+                let palette =
+                    self.app.state.lock().unwrap().palette.clone().unwrap();
                 palette.run();
             }
             Command::Insert => {
@@ -793,7 +836,8 @@ impl CommandRunner for Editor {
                     if line_selection {
                         self.app.core.no_move(&view_id, true, false, false);
                     } else {
-                        self.state.lock().unwrap().input.state = InputState::Normal;
+                        self.state.lock().unwrap().input.state =
+                            InputState::Normal;
                         self.app.core.no_move(&view_id, false, false, false);
                     }
                 } else {
@@ -809,7 +853,8 @@ impl CommandRunner for Editor {
                         self.app.core.no_move(&view_id, true, true, false);
                     } else {
                         self.state.lock().unwrap().input.visual_line = false;
-                        self.state.lock().unwrap().input.state = InputState::Normal;
+                        self.state.lock().unwrap().input.state =
+                            InputState::Normal;
                         self.app.core.no_move(&view_id, false, false, false);
                     }
                 } else {
@@ -982,7 +1027,9 @@ impl CommandRunner for Editor {
                         if filter == "" {
                             popup.hide();
                         } else {
-                            popup.filter_items(filter[..filter.len() - 1].to_string());
+                            popup.filter_items(
+                                filter[..filter.len() - 1].to_string(),
+                            );
                         }
                         popup.invalidate();
                     } else {
@@ -1161,7 +1208,8 @@ impl CommandRunner for Editor {
                 self.app.main_flex.invalidate();
             }
             Command::SplitVertical => {
-                let view = self.state.lock().unwrap().view.as_ref().unwrap().clone();
+                let view =
+                    self.state.lock().unwrap().view.as_ref().unwrap().clone();
                 let editor = Editor::new(self.app.clone());
                 self.app
                     .editors
@@ -1170,7 +1218,10 @@ impl CommandRunner for Editor {
                     .insert(editor.id().clone(), editor.clone());
                 editor.state.lock().unwrap().col = self.col();
                 editor.state.lock().unwrap().line = self.line();
-                editor.set_scroll(self.horizontal_scroll(), self.vertical_scroll());
+                editor.set_scroll(
+                    self.horizontal_scroll(),
+                    self.vertical_scroll(),
+                );
                 editor.load_view(view);
                 self.app.main_flex.add_child(Box::new(editor));
                 self.app.main_flex.invalidate();
@@ -1205,7 +1256,9 @@ impl CommandRunner for Editor {
                         match prop {
                             WordProperty::Other => {
                                 if popup.is_hidden() {
-                                    if get_word_property(ch) == WordProperty::Other {
+                                    if get_word_property(ch)
+                                        == WordProperty::Other
+                                    {
                                         self.app.core.send_notification(
                                             "edit",
                                             &json!({
@@ -1216,8 +1269,12 @@ impl CommandRunner for Editor {
                                         );
                                     }
                                 } else {
-                                    let (_col, _line, filter) = self.get_completion_pos();
-                                    popup.filter_items(format!("{}{}", filter, key_input.text));
+                                    let (_col, _line, filter) =
+                                        self.get_completion_pos();
+                                    popup.filter_items(format!(
+                                        "{}{}",
+                                        filter, key_input.text
+                                    ));
                                     popup.invalidate();
                                 }
                             }
@@ -1288,7 +1345,8 @@ impl View {
         let line_count = self.line_cache.lock().unwrap().height();
         for i in 0..line_count {
             if let Some(line) = self.line_cache.lock().unwrap().get_line(i) {
-                let current_width = count_utf16(line.text()) as f64 * font_width;
+                let current_width =
+                    count_utf16(line.text()) as f64 * font_width;
                 if current_width > width {
                     width = current_width;
                 }
@@ -1303,22 +1361,37 @@ impl View {
                 Some(view) => {
                     if view.id() == self.id {
                         let old_ln = editor.state.lock().unwrap().line;
-                        match view.line_cache.lock().unwrap().get_old_line(old_ln).clone() {
+                        match view
+                            .line_cache
+                            .lock()
+                            .unwrap()
+                            .get_old_line(old_ln)
+                            .clone()
+                        {
                             Some(old_line) => {
-                                editor.state.lock().unwrap().line = old_line.new_ln();
+                                editor.state.lock().unwrap().line =
+                                    old_line.new_ln();
                             }
                             None => (),
                         }
                         let gutter_width = editor.gutter_width();
-                        let vertical_scroll = editor.widget_state.lock().unwrap().vertical_scroll();
+                        let vertical_scroll = editor
+                            .widget_state
+                            .lock()
+                            .unwrap()
+                            .vertical_scroll();
                         let x = editor.gutter_width();
                         let y = start as f64 * lineheight - vertical_scroll;
 
-                        let width = editor.widget_state.lock().unwrap().size().width - gutter_width;
+                        let width =
+                            editor.widget_state.lock().unwrap().size().width
+                                - gutter_width;
                         let height = (end - start + 1) as f64 * lineheight;
 
-                        let rect =
-                            Rect::from_origin_size(Point::new(x, y), Size::new(width, height));
+                        let rect = Rect::from_origin_size(
+                            Point::new(x, y),
+                            Size::new(width, height),
+                        );
                         editor.invalidate_rect(rect);
                     }
                 }

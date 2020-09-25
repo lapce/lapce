@@ -1,15 +1,15 @@
 use crate::{
     buffer::WordCursor,
     buffer::{Buffer, BufferId},
-    command::CraneCommand,
-    command::CraneUICommand,
-    command::CRANE_UI_COMMAND,
-    container::CraneContainer,
-    scroll::CraneScroll,
+    command::LapceCommand,
+    command::LapceUICommand,
+    command::LAPCE_UI_COMMAND,
+    container::LapceContainer,
+    scroll::LapceScroll,
     split::SplitMoveDirection,
     state::Mode,
-    state::CRANE_STATE,
-    theme::CraneTheme,
+    state::LAPCE_STATE,
+    theme::LapceTheme,
 };
 use druid::{
     kurbo::Line, theme, widget::IdentityWrapper, widget::Padding, Affine,
@@ -25,8 +25,8 @@ use std::{collections::HashMap, sync::Arc, sync::Mutex};
 use xi_core_lib::line_offset::{LineOffset, LogicalLines};
 use xi_rope::{Cursor, Interval, Rope, RopeInfo};
 
-pub struct CraneUI {
-    container: CraneContainer<u32>,
+pub struct LapceUI {
+    container: LapceContainer<u32>,
 }
 
 #[derive(Debug, Default)]
@@ -217,76 +217,76 @@ impl EditorState {
         mode: Mode,
         count: Option<usize>,
         buffer: &mut Buffer,
-        cmd: CraneCommand,
+        cmd: LapceCommand,
     ) {
         match cmd {
-            CraneCommand::Left => {
+            LapceCommand::Left => {
                 let count = count.unwrap_or(1);
                 self.move_left(mode, count, buffer);
             }
-            CraneCommand::Right => {
+            LapceCommand::Right => {
                 let count = count.unwrap_or(1);
                 self.move_right(mode, count, buffer);
             }
-            CraneCommand::Up => {
+            LapceCommand::Up => {
                 let count = count.unwrap_or(1);
                 self.move_up(mode, count, buffer);
             }
-            CraneCommand::Down => {
+            LapceCommand::Down => {
                 let count = count.unwrap_or(1);
                 self.move_down(mode, count, buffer);
             }
-            CraneCommand::PageDown => {
+            LapceCommand::PageDown => {
                 let lines =
                     (self.height / self.line_height / 2.0).floor() as usize;
                 self.move_down(mode, lines, buffer);
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::Scroll((
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::Scroll((
                         0.0,
                         self.line_height * lines as f64,
                     )),
                     self.view_id,
                 );
             }
-            CraneCommand::PageUp => {
+            LapceCommand::PageUp => {
                 let lines =
                     (self.height / self.line_height / 2.0).floor() as usize;
                 self.move_up(mode, lines, buffer);
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::Scroll((
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::Scroll((
                         0.0,
                         -self.line_height * lines as f64,
                     )),
                     self.view_id,
                 );
             }
-            CraneCommand::SplitVertical => {
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::Split(true, self.view_id),
+            LapceCommand::SplitVertical => {
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::Split(true, self.view_id),
                     self.split_id,
                 );
             }
-            CraneCommand::ScrollUp => {
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::Scroll((0.0, -self.line_height)),
+            LapceCommand::ScrollUp => {
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::Scroll((0.0, -self.line_height)),
                     self.editor_id,
                 );
             }
-            CraneCommand::ScrollDown => {
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::Scroll((0.0, self.line_height)),
+            LapceCommand::ScrollDown => {
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::Scroll((0.0, self.line_height)),
                     self.editor_id,
                 );
             }
-            CraneCommand::LineEnd => {
+            LapceCommand::LineEnd => {
                 self.move_to_line_end(mode, buffer);
             }
-            CraneCommand::LineStart => {
+            LapceCommand::LineStart => {
                 self.offset = self.line_start_offset(buffer);
                 self.horiz = 0;
                 self.request_paint();
             }
-            CraneCommand::GotoLineDefaultFirst => {
+            LapceCommand::GotoLineDefaultFirst => {
                 let last_line = buffer.last_line();
                 let line = match count {
                     Some(count) => match count {
@@ -297,7 +297,7 @@ impl EditorState {
                 };
                 self.move_to_line(mode, buffer, line);
             }
-            CraneCommand::GotoLineDefaultLast => {
+            LapceCommand::GotoLineDefaultLast => {
                 let last_line = buffer.last_line();
                 let line = match count {
                     Some(count) => match count {
@@ -308,7 +308,7 @@ impl EditorState {
                 };
                 self.move_to_line(mode, buffer, line);
             }
-            CraneCommand::WordFoward => {
+            LapceCommand::WordFoward => {
                 let new_offset = WordCursor::new(&buffer.rope, self.offset)
                     .next_boundary()
                     .unwrap();
@@ -317,7 +317,7 @@ impl EditorState {
                 self.horiz = col;
                 self.request_paint();
             }
-            CraneCommand::WordBackward => {
+            LapceCommand::WordBackward => {
                 let new_offset = WordCursor::new(&buffer.rope, self.offset)
                     .prev_boundary()
                     .unwrap();
@@ -330,33 +330,33 @@ impl EditorState {
                 self.horiz = col;
                 self.request_paint();
             }
-            CraneCommand::SplitHorizontal => {}
-            CraneCommand::SplitRight => {
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::SplitMove(
+            LapceCommand::SplitHorizontal => {}
+            LapceCommand::SplitRight => {
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::SplitMove(
                         SplitMoveDirection::Right,
                         self.view_id,
                     ),
                     self.split_id,
                 );
             }
-            CraneCommand::SplitLeft => {
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::SplitMove(
+            LapceCommand::SplitLeft => {
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::SplitMove(
                         SplitMoveDirection::Left,
                         self.view_id,
                     ),
                     self.split_id,
                 );
             }
-            CraneCommand::SplitExchange => {
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::SplitExchange(self.view_id),
+            LapceCommand::SplitExchange => {
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::SplitExchange(self.view_id),
                     self.split_id,
                 );
             }
-            CraneCommand::NewLineAbove => {}
-            CraneCommand::NewLineBelow => {}
+            LapceCommand::NewLineAbove => {}
+            LapceCommand::NewLineBelow => {}
             _ => (),
         }
 
@@ -389,8 +389,8 @@ impl EditorState {
 
     pub fn ensure_cursor_visible(&self, buffer: &Buffer) {
         let (line, col) = buffer.offset_to_line_col(self.offset);
-        CRANE_STATE.submit_ui_command(
-            CraneUICommand::EnsureVisible((
+        LAPCE_STATE.submit_ui_command(
+            LapceUICommand::EnsureVisible((
                 Rect::ZERO
                     .with_origin(Point::new(
                         col as f64 * self.char_width,
@@ -404,13 +404,13 @@ impl EditorState {
     }
 
     pub fn request_layout(&self) {
-        CRANE_STATE
-            .submit_ui_command(CraneUICommand::RequestLayout, self.view_id);
+        LAPCE_STATE
+            .submit_ui_command(LapceUICommand::RequestLayout, self.view_id);
     }
 
     pub fn request_paint(&self) {
-        CRANE_STATE
-            .submit_ui_command(CraneUICommand::RequestPaint, self.view_id);
+        LAPCE_STATE
+            .submit_ui_command(LapceUICommand::RequestPaint, self.view_id);
     }
 
     pub fn set_line_height(&mut self, line_height: f64) {
@@ -473,12 +473,12 @@ impl EditorSplitState {
             }
             active_editor.offset = 0;
             active_editor.buffer_id = Some(buffer_id);
-            CRANE_STATE.submit_ui_command(
-                CraneUICommand::ScrollTo((0.0, 0.0)),
+            LAPCE_STATE.submit_ui_command(
+                LapceUICommand::ScrollTo((0.0, 0.0)),
                 active_editor.view_id,
             );
-            CRANE_STATE.submit_ui_command(
-                CraneUICommand::RequestLayout,
+            LAPCE_STATE.submit_ui_command(
+                LapceUICommand::RequestLayout,
                 active_editor.view_id,
             );
         }
@@ -518,8 +518,8 @@ impl EditorSplitState {
                     let line = buffer.rope.line_of_offset(editor.offset);
                     let col = editor.offset - buffer.rope.offset_of_line(line);
                     editor.ensure_cursor_visible(buffer);
-                    CRANE_STATE.submit_ui_command(
-                        CraneUICommand::RequestPaint,
+                    LAPCE_STATE.submit_ui_command(
+                        LapceUICommand::RequestPaint,
                         self.active,
                     );
                 }
@@ -527,31 +527,31 @@ impl EditorSplitState {
         }
     }
 
-    pub fn run_command(&mut self, count: Option<usize>, cmd: CraneCommand) {
+    pub fn run_command(&mut self, count: Option<usize>, cmd: LapceCommand) {
         println!("run command {}", cmd);
         match cmd {
-            CraneCommand::InsertMode => {
+            LapceCommand::InsertMode => {
                 self.mode = Mode::Insert;
-                CRANE_STATE.submit_ui_command(
-                    CraneUICommand::RequestPaint,
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::RequestPaint,
                     self.active,
                 );
             }
-            CraneCommand::NormalMode => {
+            LapceCommand::NormalMode => {
                 self.mode = Mode::Normal;
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
                             editor.move_left(self.mode.clone(), 1, buffer);
-                            CRANE_STATE.submit_ui_command(
-                                CraneUICommand::RequestPaint,
+                            LAPCE_STATE.submit_ui_command(
+                                LapceUICommand::RequestPaint,
                                 self.active,
                             );
                         }
                     }
                 }
             }
-            CraneCommand::Append => {
+            LapceCommand::Append => {
                 self.mode = Mode::Insert;
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
@@ -562,7 +562,7 @@ impl EditorSplitState {
                     }
                 }
             }
-            CraneCommand::AppendEndOfLine => {
+            LapceCommand::AppendEndOfLine => {
                 self.mode = Mode::Insert;
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
@@ -573,7 +573,7 @@ impl EditorSplitState {
                     }
                 }
             }
-            CraneCommand::NewLineAbove => {
+            LapceCommand::NewLineAbove => {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
@@ -589,7 +589,7 @@ impl EditorSplitState {
                 }
             }
 
-            CraneCommand::NewLineBelow => {
+            LapceCommand::NewLineBelow => {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
@@ -602,7 +602,7 @@ impl EditorSplitState {
                     }
                 }
             }
-            CraneCommand::InsertNewLine => {
+            LapceCommand::InsertNewLine => {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
@@ -613,7 +613,7 @@ impl EditorSplitState {
                     }
                 }
             }
-            CraneCommand::DeleteWordBackward => {
+            LapceCommand::DeleteWordBackward => {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
@@ -631,7 +631,7 @@ impl EditorSplitState {
                     }
                 }
             }
-            CraneCommand::DeleteBackward => {
+            LapceCommand::DeleteBackward => {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
@@ -669,8 +669,8 @@ impl EditorSplitState {
     }
 
     pub fn request_paint(&self) {
-        CRANE_STATE.submit_ui_command(
-            CraneUICommand::RequestPaint,
+        LAPCE_STATE.submit_ui_command(
+            LapceUICommand::RequestPaint,
             self.widget_id.unwrap(),
         );
     }
@@ -679,7 +679,7 @@ impl EditorSplitState {
 pub struct EditorView<T> {
     view_id: WidgetId,
     pub editor_id: WidgetId,
-    editor: WidgetPod<T, CraneScroll<T, Padding<T>>>,
+    editor: WidgetPod<T, LapceScroll<T, Padding<T>>>,
     gutter: WidgetPod<T, Box<dyn Widget<T>>>,
 }
 
@@ -691,10 +691,10 @@ impl<T: Data> EditorView<T> {
         let view_id = WidgetId::next();
         let editor_id = WidgetId::next();
         let editor = Editor::new(view_id);
-        let scroll = CraneScroll::new(editor.padding((10.0, 0.0, 10.0, 0.0)));
+        let scroll = LapceScroll::new(editor.padding((10.0, 0.0, 10.0, 0.0)));
         let editor_state =
             EditorState::new(editor_id, view_id, split_id, buffer_id);
-        CRANE_STATE
+        LAPCE_STATE
             .editor_split
             .lock()
             .unwrap()
@@ -727,16 +727,16 @@ impl<T: Data> Widget<T> for EditorView<T> {
                 self.editor.event(ctx, event, data, env);
             }
             Event::Command(cmd) => match cmd {
-                _ if cmd.is(CRANE_UI_COMMAND) => {
-                    let command = cmd.get_unchecked(CRANE_UI_COMMAND);
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
-                        CraneUICommand::RequestLayout => {
+                        LapceUICommand::RequestLayout => {
                             ctx.request_layout();
                         }
-                        CraneUICommand::RequestPaint => {
+                        LapceUICommand::RequestPaint => {
                             ctx.request_paint();
                         }
-                        CraneUICommand::EnsureVisible((rect, margin)) => {
+                        LapceUICommand::EnsureVisible((rect, margin)) => {
                             let editor = self.editor.widget_mut();
                             if editor.ensure_visible(ctx.size(), rect, margin) {
                                 let offset = editor.offset();
@@ -747,11 +747,11 @@ impl<T: Data> Widget<T> for EditorView<T> {
                             }
                             return;
                         }
-                        CraneUICommand::ScrollTo((x, y)) => {
+                        LapceUICommand::ScrollTo((x, y)) => {
                             self.editor.widget_mut().scroll_to(*x, *y);
                             return;
                         }
-                        CraneUICommand::Scroll((x, y)) => {
+                        LapceUICommand::Scroll((x, y)) => {
                             self.editor.widget_mut().scroll(*x, *y);
                             ctx.request_paint();
                             return;
@@ -802,7 +802,7 @@ impl<T: Data> Widget<T> for EditorView<T> {
         );
         let editor_size =
             Size::new(self_size.width - gutter_size.width, self_size.height);
-        CRANE_STATE
+        LAPCE_STATE
             .editor_split
             .lock()
             .unwrap()
@@ -887,14 +887,14 @@ impl<T: Data> Widget<T> for EditorGutter {
         env: &Env,
     ) -> Size {
         let buffer_id = {
-            CRANE_STATE
+            LAPCE_STATE
                 .editor_split
                 .lock()
                 .unwrap()
                 .get_buffer_id(&self.view_id)
         };
         if let Some(buffer_id) = buffer_id {
-            let buffers = &CRANE_STATE.editor_split.lock().unwrap().buffers;
+            let buffers = &LAPCE_STATE.editor_split.lock().unwrap().buffers;
             let buffer = buffers.get(&buffer_id).unwrap();
             let width = 7.6171875;
             Size::new(
@@ -907,9 +907,9 @@ impl<T: Data> Widget<T> for EditorGutter {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        let line_height = env.get(CraneTheme::EDITOR_LINE_HEIGHT);
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let buffer_id = {
-            CRANE_STATE
+            LAPCE_STATE
                 .editor_split
                 .lock()
                 .unwrap()
@@ -917,9 +917,9 @@ impl<T: Data> Widget<T> for EditorGutter {
                 .clone()
         };
         if let Some(buffer_id) = buffer_id {
-            let mut editor_split = CRANE_STATE.editor_split.lock().unwrap();
+            let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
             let mut layout = TextLayout::new("W");
-            layout.set_font(CraneTheme::EDITOR_FONT);
+            layout.set_font(LapceTheme::EDITOR_FONT);
             layout.rebuild_if_needed(&mut ctx.text(), env);
             let width = layout.point_for_text_position(1).x;
             let buffers = &editor_split.buffers;
@@ -970,7 +970,7 @@ impl<T: Data> Widget<T> for EditorGutter {
                         );
                     } else {
                         let mut layout = TextLayout::new(content.clone());
-                        layout.set_font(CraneTheme::EDITOR_FONT);
+                        layout.set_font(LapceTheme::EDITOR_FONT);
                         layout.rebuild_if_needed(&mut ctx.text(), env);
                         layout.draw(
                             ctx,
@@ -1020,14 +1020,14 @@ impl<T: Data> Widget<T> for Editor {
     ) {
         match event {
             Event::Command(cmd) => match cmd {
-                _ if cmd.is(CRANE_UI_COMMAND) => {
-                    let command = cmd.get_unchecked(CRANE_UI_COMMAND);
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
-                        CraneUICommand::RequestLayout => {
+                        LapceUICommand::RequestLayout => {
                             println!("editor request layout");
                             ctx.request_layout();
                         }
-                        CraneUICommand::RequestPaint => {
+                        LapceUICommand::RequestPaint => {
                             println!("editor request paint");
                             ctx.request_paint();
                         }
@@ -1069,14 +1069,14 @@ impl<T: Data> Widget<T> for Editor {
         env: &Env,
     ) -> Size {
         let buffer_id = {
-            CRANE_STATE
+            LAPCE_STATE
                 .editor_split
                 .lock()
                 .unwrap()
                 .get_buffer_id(&self.view_id)
         };
         if let Some(buffer_id) = buffer_id {
-            let buffers = &CRANE_STATE.editor_split.lock().unwrap().buffers;
+            let buffers = &LAPCE_STATE.editor_split.lock().unwrap().buffers;
             let buffer = buffers.get(&buffer_id).unwrap();
             let width = 7.6171875;
             Size::new(
@@ -1089,9 +1089,9 @@ impl<T: Data> Widget<T> for Editor {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        let line_height = env.get(CraneTheme::EDITOR_LINE_HEIGHT);
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let buffer_id = {
-            CRANE_STATE
+            LAPCE_STATE
                 .editor_split
                 .lock()
                 .unwrap()
@@ -1099,10 +1099,10 @@ impl<T: Data> Widget<T> for Editor {
                 .clone()
         };
         if let Some(buffer_id) = buffer_id {
-            let mut editor_split = CRANE_STATE.editor_split.lock().unwrap();
+            let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
 
             let mut layout = TextLayout::new("W");
-            layout.set_font(CraneTheme::EDITOR_FONT);
+            layout.set_font(LapceTheme::EDITOR_FONT);
             layout.rebuild_if_needed(&mut ctx.text(), env);
             let width = layout.point_for_text_position(1).x;
             let editor = editor_split.get_editor(&self.view_id);
@@ -1141,7 +1141,7 @@ impl<T: Data> Widget<T> for Editor {
                                     line_height,
                                 )),
                             &env.get(
-                                CraneTheme::EDITOR_CURRENT_LINE_BACKGROUND,
+                                LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
                             ),
                         );
 
@@ -1172,7 +1172,7 @@ impl<T: Data> Widget<T> for Editor {
                                             (cursor.0 + 1) as f64 * line_height,
                                         ),
                                     ),
-                                    &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
+                                    &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
                                     1.0,
                                 ),
                                 _ => ctx.fill(
@@ -1185,7 +1185,7 @@ impl<T: Data> Widget<T> for Editor {
                                             width,
                                             line_height,
                                         )),
-                                    &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
+                                    &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
                                 ),
                             };
                         }
@@ -1206,7 +1206,7 @@ impl<T: Data> Widget<T> for Editor {
                         );
                     } else {
                         let mut layout = TextLayout::new(line_content.clone());
-                        layout.set_font(CraneTheme::EDITOR_FONT);
+                        layout.set_font(LapceTheme::EDITOR_FONT);
                         layout.rebuild_if_needed(&mut ctx.text(), env);
                         layout.draw(
                             ctx,
@@ -1219,82 +1219,6 @@ impl<T: Data> Widget<T> for Editor {
                         self.text_layouts.insert(line, text_layout);
                     }
                 }
-                // for (i, line) in buffer
-                //     .rope
-                //     .lines(
-                //         buffer.rope.offset_of_line(start_line)
-                //             ..buffer.rope.offset_of_line(
-                //                 (start_line + num_lines + 1)
-                //                     .min(buffer.num_lines()),
-                //             ),
-                //     )
-                //     .enumerate()
-                // {
-                //     println!("{} {}", i, line);
-                //     if i + start_line == cursor.0 {
-                //         ctx.fill(
-                //             Rect::ZERO
-                //                 .with_origin(Point::new(
-                //                     0.0,
-                //                     cursor.0 as f64 * line_height,
-                //                 ))
-                //                 .with_size(Size::new(
-                //                     editor_width,
-                //                     line_height,
-                //                 )),
-                //             &env.get(
-                //                 CraneTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-                //             ),
-                //         );
-                //         let cursor_x = (line[..cursor.1]
-                //             .chars()
-                //             .filter_map(|c| {
-                //                 if c == '\t' {
-                //                     Some('\t')
-                //                 } else {
-                //                     None
-                //                 }
-                //             })
-                //             .count()
-                //             * 3
-                //             + cursor.1)
-                //             as f64
-                //             * width;
-                //         match editor_split.get_mode() {
-                //             Mode::Insert => ctx.stroke(
-                //                 Line::new(
-                //                     Point::new(
-                //                         cursor_x,
-                //                         cursor.0 as f64 * line_height,
-                //                     ),
-                //                     Point::new(
-                //                         cursor_x,
-                //                         (cursor.0 + 1) as f64 * line_height,
-                //                     ),
-                //                 ),
-                //                 &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
-                //                 1.0,
-                //             ),
-                //             _ => ctx.fill(
-                //                 Rect::ZERO
-                //                     .with_origin(Point::new(
-                //                         cursor_x,
-                //                         cursor.0 as f64 * line_height,
-                //                     ))
-                //                     .with_size(Size::new(width, line_height)),
-                //                 &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
-                //             ),
-                //         };
-                //     }
-                //     let mut layout =
-                //         TextLayout::new(line.replace('\t', "    "));
-                //     layout.set_font(CraneTheme::EDITOR_FONT);
-                //     layout.rebuild_if_needed(&mut ctx.text(), env);
-                //     layout.draw(
-                //         ctx,
-                //         Point::new(0.0, line_height * (i + start_line) as f64),
-                //     );
-                // }
             }
         }
     }

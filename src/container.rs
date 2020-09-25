@@ -1,12 +1,12 @@
 use crate::{
-    command::{CraneCommand, CRANE_COMMAND},
+    command::{LapceCommand, LAPCE_COMMAND},
     editor::Editor,
     editor::EditorState,
     editor::EditorView,
     palette::PaletteWrapper,
 };
-use crate::{palette::Palette, split::CraneSplit};
-use crate::{scroll::CraneScroll, state::CRANE_STATE};
+use crate::{palette::Palette, split::LapceSplit};
+use crate::{scroll::LapceScroll, state::LAPCE_STATE};
 use druid::{
     kurbo::{Line, Rect},
     widget::Container,
@@ -28,44 +28,44 @@ pub struct ChildState {
     pub hidden: bool,
 }
 
-pub struct CraneContainer<T> {
+pub struct LapceContainer<T> {
     palette_max_size: Size,
     palette_rect: Rect,
     palette: WidgetPod<T, Box<dyn Widget<T>>>,
     editor_split: WidgetPod<T, Box<dyn Widget<T>>>,
 }
 
-impl<T: Data> CraneContainer<T> {
+impl<T: Data> LapceContainer<T> {
     pub fn new() -> Self {
         let palette = PaletteWrapper::new();
         let palette_id = WidgetId::next();
         let palette =
             WidgetPod::new(IdentityWrapper::wrap(palette, palette_id)).boxed();
-        CRANE_STATE
+        LAPCE_STATE
             .palette
             .lock()
             .unwrap()
             .set_widget_id(palette_id);
 
         let editor_split_id = WidgetId::next();
-        CRANE_STATE
+        LAPCE_STATE
             .editor_split
             .lock()
             .unwrap()
             .set_widget_id(editor_split_id);
         let editor_view = EditorView::new(editor_split_id, None);
-        CRANE_STATE
+        LAPCE_STATE
             .editor_split
             .lock()
             .unwrap()
             .set_active(editor_view.id().unwrap());
         let editor_split = WidgetPod::new(IdentityWrapper::wrap(
-            CraneSplit::new(true).with_child(editor_view),
+            LapceSplit::new(true).with_child(editor_view),
             editor_split_id,
         ))
         .boxed();
 
-        CraneContainer {
+        LapceContainer {
             palette_max_size: Size::new(600.0, 400.0),
             palette_rect: Rect::ZERO
                 .with_origin(Point::new(200.0, 100.0))
@@ -76,7 +76,7 @@ impl<T: Data> CraneContainer<T> {
     }
 }
 
-impl<T: Data> Widget<T> for CraneContainer<T> {
+impl<T: Data> Widget<T> for LapceContainer<T> {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -90,13 +90,13 @@ impl<T: Data> Widget<T> for CraneContainer<T> {
                 self.palette.event(ctx, event, data, env);
                 self.editor_split.event(ctx, event, data, env);
             }
-            Event::KeyDown(key_event) => CRANE_STATE.key_down(key_event),
+            Event::KeyDown(key_event) => LAPCE_STATE.key_down(key_event),
             Event::Command(cmd) => {
                 match cmd {
-                    _ if cmd.is(CRANE_COMMAND) => {
-                        let cmd = cmd.get_unchecked(CRANE_COMMAND);
+                    _ if cmd.is(LAPCE_COMMAND) => {
+                        let cmd = cmd.get_unchecked(LAPCE_COMMAND);
                         match cmd {
-                            CraneCommand::Palette => (),
+                            LapceCommand::Palette => (),
                             _ => (),
                         };
                         self.palette.event(ctx, event, data, env)
@@ -113,7 +113,7 @@ impl<T: Data> Widget<T> for CraneContainer<T> {
             | Event::MouseUp(mouse)
             | Event::MouseMove(mouse)
             | Event::Wheel(mouse) => {
-                if !CRANE_STATE.palette.lock().unwrap().hidden
+                if !LAPCE_STATE.palette.lock().unwrap().hidden
                     && self.palette_rect.contains(mouse.pos)
                 {
                     self.palette.event(ctx, event, data, env);

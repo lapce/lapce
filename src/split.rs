@@ -1,4 +1,4 @@
-use crate::{editor::EditorView, scroll::CraneScroll, state::CRANE_STATE};
+use crate::{editor::EditorView, scroll::LapceScroll, state::LAPCE_STATE};
 use std::cmp::Ordering;
 
 use druid::{
@@ -13,7 +13,7 @@ use druid::{
 };
 
 use crate::{
-    command::{CraneUICommand, CRANE_UI_COMMAND},
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
     editor::Editor,
     editor::EditorState,
 };
@@ -26,16 +26,16 @@ pub enum SplitMoveDirection {
     Left,
 }
 
-pub struct CraneSplit<T> {
+pub struct LapceSplit<T> {
     vertical: bool,
     children: Vec<WidgetPod<T, Box<dyn Widget<T>>>>,
     children_sizes: Vec<f64>,
     current_bar_hover: usize,
 }
 
-impl<T> CraneSplit<T> {
+impl<T> LapceSplit<T> {
     pub fn new(vertical: bool) -> Self {
-        CraneSplit {
+        LapceSplit {
             vertical,
             children: Vec::new(),
             children_sizes: Vec::new(),
@@ -119,7 +119,7 @@ impl<T> CraneSplit<T> {
     }
 }
 
-impl<T: Data> Widget<T> for CraneSplit<T> {
+impl<T: Data> Widget<T> for LapceSplit<T> {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -135,10 +135,10 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                 return;
             }
             Event::Command(cmd) => match cmd {
-                _ if cmd.is(CRANE_UI_COMMAND) => {
-                    let command = cmd.get_unchecked(CRANE_UI_COMMAND);
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
-                        CraneUICommand::Split(vertical, view_id) => {
+                        LapceUICommand::Split(vertical, view_id) => {
                             if self.children.len() == 1 {
                                 self.vertical = *vertical;
                             }
@@ -157,7 +157,7 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                                 }
 
                                 let (split_id, buffer_id) = {
-                                    let state = CRANE_STATE
+                                    let state = LAPCE_STATE
                                         .editor_split
                                         .lock()
                                         .unwrap();
@@ -174,7 +174,7 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                                 self.even_child_sizes();
                             }
                         }
-                        CraneUICommand::SplitExchange(view_id) => {
+                        LapceUICommand::SplitExchange(view_id) => {
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
                                 if &child.id() == view_id {
@@ -183,7 +183,7 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                             }
                             if index >= self.children.len() - 1 {
                             } else {
-                                CRANE_STATE
+                                LAPCE_STATE
                                     .editor_split
                                     .lock()
                                     .unwrap()
@@ -193,7 +193,7 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                                 ctx.request_layout();
                             }
                         }
-                        CraneUICommand::SplitMove(direction, view_id) => {
+                        LapceUICommand::SplitMove(direction, view_id) => {
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
                                 if &child.id() == view_id {
@@ -205,7 +205,7 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                                     if index == 0 {
                                         return;
                                     }
-                                    CRANE_STATE
+                                    LAPCE_STATE
                                         .editor_split
                                         .lock()
                                         .unwrap()
@@ -217,7 +217,7 @@ impl<T: Data> Widget<T> for CraneSplit<T> {
                                     if index >= self.children.len() - 1 {
                                         return;
                                     }
-                                    CRANE_STATE
+                                    LAPCE_STATE
                                         .editor_split
                                         .lock()
                                         .unwrap()

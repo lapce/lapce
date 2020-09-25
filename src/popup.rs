@@ -1,7 +1,5 @@
 use crate::app::{App, CommandRunner};
 use crate::input::{Cmd, Command, Input, InputState, KeyInput};
-use crane_ui::{Flex, Row, Widget, WidgetState, WidgetTrait};
-use crane_ui_macros::WidgetBase;
 use druid::shell::keyboard::{KeyEvent, KeyModifiers};
 use druid::shell::window::{MouseEvent, WinCtx, WinHandler, WindowHandle};
 use druid::PaintCtx;
@@ -10,8 +8,8 @@ use fzyr::{has_match, locate, Score};
 use kurbo::{Affine, Point, Rect, Size, Vec2};
 use lsp_types::{CompletionItem, CompletionResponse};
 use piet::{
-    Color, FontBuilder, LinearGradient, RenderContext, Text, TextLayout, TextLayoutBuilder,
-    UnitPoint,
+    Color, FontBuilder, LinearGradient, RenderContext, Text, TextLayout,
+    TextLayoutBuilder, UnitPoint,
 };
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
@@ -133,7 +131,10 @@ impl Popup {
             let size = self.get_rect().size();
             let lines = if items.len() > 10 { 10 } else { items.len() };
             let app_font = self.app.config.font.lock().unwrap().clone();
-            self.set_content_size(size.width, items.len() as f64 * app_font.lineheight());
+            self.set_content_size(
+                size.width,
+                items.len() as f64 * app_font.lineheight(),
+            );
             lines as f64 * app_font.lineheight()
         };
         let size = self.get_rect().size();
@@ -155,7 +156,8 @@ impl Popup {
         })
         .collect();
 
-        let (_col, _line, filter) = self.app.get_active_editor().get_completion_pos();
+        let (_col, _line, filter) =
+            self.app.get_active_editor().get_completion_pos();
         self.state.lock().unwrap().items = items;
         self.filter_items(filter);
     }
@@ -182,12 +184,16 @@ impl Popup {
                 let result = locate(&filter, &item.label);
                 let mut filtered_item = item.clone();
                 filtered_item.score = result.score;
-                let index = match filtered_items.binary_search_by(|other_item| {
-                    filtered_item.score.partial_cmp(&other_item.score).unwrap()
-                }) {
-                    Ok(index) => index,
-                    Err(index) => index,
-                };
+                let index =
+                    match filtered_items.binary_search_by(|other_item| {
+                        filtered_item
+                            .score
+                            .partial_cmp(&other_item.score)
+                            .unwrap()
+                    }) {
+                        Ok(index) => index,
+                        Err(index) => index,
+                    };
                 filtered_items.insert(index, filtered_item);
             }
         }
@@ -242,7 +248,9 @@ impl Popup {
                 &layout,
                 Point::new(
                     0.0,
-                    app_font.ascent + app_font.linespace / 2.0 + i as f64 * app_font.lineheight(),
+                    app_font.ascent
+                        + app_font.linespace / 2.0
+                        + i as f64 * app_font.lineheight(),
                 ),
                 &Color::rgba8(fg.r, fg.g, fg.b, 255),
             );

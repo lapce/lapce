@@ -5,7 +5,6 @@ use crate::line_cache::Style;
 use crate::palette::Palette;
 use crate::popup::Popup;
 use crate::rpc::{Core, Handler};
-use crane_ui::{Column, Flex, WidgetTrait};
 use druid::shell::platform::IdleHandle;
 use druid::shell::platform::WindowHandle;
 use lsp_types::{CompletionResponse, Position};

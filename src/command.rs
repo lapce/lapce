@@ -4,13 +4,13 @@ use strum_macros::{Display, EnumProperty, EnumString};
 
 use crate::split::SplitMoveDirection;
 
-pub const CRANE_COMMAND: Selector<CraneCommand> =
-    Selector::new("crane.command");
-pub const CRANE_UI_COMMAND: Selector<CraneUICommand> =
-    Selector::new("crane.ui_command");
+pub const LAPCE_COMMAND: Selector<LapceCommand> =
+    Selector::new("lapce.command");
+pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
+    Selector::new("lapce.ui_command");
 
 #[derive(Display, EnumString, Clone, PartialEq)]
-pub enum CraneCommand {
+pub enum LapceCommand {
     #[strum(serialize = "palette")]
     Palette,
     #[strum(serialize = "palette.cancel")]
@@ -85,7 +85,7 @@ pub enum CraneCommand {
 }
 
 #[derive(Debug)]
-pub enum CraneUICommand {
+pub enum LapceUICommand {
     RequestLayout,
     RequestPaint,
     RequestPaintRect(Rect),

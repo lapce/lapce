@@ -17,15 +17,15 @@ use toml;
 use crate::{
     buffer::Buffer,
     buffer::BufferId,
-    command::CraneUICommand,
-    command::CRANE_UI_COMMAND,
-    command::{CraneCommand, CRANE_COMMAND},
+    command::LapceUICommand,
+    command::LAPCE_UI_COMMAND,
+    command::{LapceCommand, LAPCE_COMMAND},
     editor::EditorSplitState,
     palette::PaletteState,
 };
 
 lazy_static! {
-    pub static ref CRANE_STATE: CraneState = CraneState::new();
+    pub static ref LAPCE_STATE: LapceState = LapceState::new();
 }
 
 enum KeymapMatch {
@@ -34,7 +34,7 @@ enum KeymapMatch {
 }
 
 #[derive(Clone, PartialEq)]
-pub enum CraneWidget {
+pub enum LapceWidget {
     Palette,
     Editor,
 }
@@ -61,21 +61,21 @@ pub struct KeyMap {
 }
 
 #[derive(Clone)]
-pub struct CraneState {
+pub struct LapceState {
     pub palette: Arc<Mutex<PaletteState>>,
     keypress_sequence: Arc<Mutex<String>>,
     pending_keypress: Arc<Mutex<Vec<KeyPress>>>,
     count: Arc<Mutex<Option<usize>>>,
     keymaps: Arc<Mutex<Vec<KeyMap>>>,
-    pub last_focus: Arc<Mutex<CraneWidget>>,
-    pub focus: Arc<Mutex<CraneWidget>>,
+    pub last_focus: Arc<Mutex<LapceWidget>>,
+    pub focus: Arc<Mutex<LapceWidget>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
     pub editor_split: Arc<Mutex<EditorSplitState>>,
 }
 
-impl CraneState {
-    pub fn new() -> CraneState {
-        CraneState {
+impl LapceState {
+    pub fn new() -> LapceState {
+        LapceState {
             pending_keypress: Arc::new(Mutex::new(Vec::new())),
             keymaps: Arc::new(Mutex::new(
                 Self::get_keymaps().unwrap_or(Vec::new()),
@@ -83,8 +83,8 @@ impl CraneState {
             keypress_sequence: Arc::new(Mutex::new("".to_string())),
             count: Arc::new(Mutex::new(None)),
             ui_sink: Arc::new(Mutex::new(None)),
-            focus: Arc::new(Mutex::new(CraneWidget::Editor)),
-            last_focus: Arc::new(Mutex::new(CraneWidget::Editor)),
+            focus: Arc::new(Mutex::new(LapceWidget::Editor)),
+            last_focus: Arc::new(Mutex::new(LapceWidget::Editor)),
             palette: Arc::new(Mutex::new(PaletteState::new())),
             editor_split: Arc::new(Mutex::new(EditorSplitState::new())),
         }
@@ -189,18 +189,18 @@ impl CraneState {
     fn get_mode(&self) -> Mode {
         let foucus = self.focus.lock().unwrap().clone();
         match foucus {
-            CraneWidget::Palette => Mode::Insert,
-            CraneWidget::Editor => self.editor_split.lock().unwrap().get_mode(),
+            LapceWidget::Palette => Mode::Insert,
+            LapceWidget::Editor => self.editor_split.lock().unwrap().get_mode(),
         }
     }
 
     pub fn insert(&self, content: &str) {
         let foucus = self.focus.lock().unwrap().clone();
         match foucus {
-            CraneWidget::Palette => {
+            LapceWidget::Palette => {
                 self.palette.lock().unwrap().insert(content);
             }
-            CraneWidget::Editor => {
+            LapceWidget::Editor => {
                 self.editor_split.lock().unwrap().insert(content);
             }
         }
@@ -236,42 +236,42 @@ impl CraneState {
 
     pub fn run_command(&self, command: &str) {
         let count = self.get_count();
-        if let Ok(cmd) = CraneCommand::from_str(command) {
+        if let Ok(cmd) = LapceCommand::from_str(command) {
             let foucus = self.focus.lock().unwrap().clone();
             match cmd {
-                CraneCommand::Palette => {
+                LapceCommand::Palette => {
                     self.palette.lock().unwrap().run();
                 }
-                CraneCommand::PaletteCancel => {
+                LapceCommand::PaletteCancel => {
                     self.palette.lock().unwrap().cancel();
                 }
                 _ => {
                     match foucus {
-                        CraneWidget::Editor => self
+                        LapceWidget::Editor => self
                             .editor_split
                             .lock()
                             .unwrap()
                             .run_command(count, cmd),
-                        CraneWidget::Palette => match cmd {
-                            CraneCommand::ListSelect => {
+                        LapceWidget::Palette => match cmd {
+                            LapceCommand::ListSelect => {
                                 self.palette.lock().unwrap().select();
                             }
-                            CraneCommand::ListNext => {
+                            LapceCommand::ListNext => {
                                 self.palette.lock().unwrap().change_index(1);
                             }
-                            CraneCommand::ListPrevious => {
+                            LapceCommand::ListPrevious => {
                                 self.palette.lock().unwrap().change_index(-1);
                             }
-                            CraneCommand::Left => {
+                            LapceCommand::Left => {
                                 self.palette.lock().unwrap().move_cursor(-1);
                             }
-                            CraneCommand::Right => {
+                            LapceCommand::Right => {
                                 self.palette.lock().unwrap().move_cursor(1);
                             }
-                            CraneCommand::DeleteBackward => {
+                            LapceCommand::DeleteBackward => {
                                 self.palette.lock().unwrap().delete_backward();
                             }
-                            CraneCommand::DeleteToBeginningOfLine => {
+                            LapceCommand::DeleteToBeginningOfLine => {
                                 self.palette
                                     .lock()
                                     .unwrap()
@@ -466,9 +466,9 @@ impl CraneState {
     fn check_one_condition(&self, condition: &str) -> bool {
         match condition.trim() {
             "palette_focus" => {
-                *self.focus.lock().unwrap() == CraneWidget::Palette
+                *self.focus.lock().unwrap() == LapceWidget::Palette
             }
-            "list_focus" => *self.focus.lock().unwrap() == CraneWidget::Palette,
+            "list_focus" => *self.focus.lock().unwrap() == LapceWidget::Palette,
             _ => false,
         }
     }
@@ -481,13 +481,13 @@ impl CraneState {
         self.editor_split.lock().unwrap().open_file(path);
     }
 
-    pub fn submit_ui_command(&self, cmd: CraneUICommand, widget_id: WidgetId) {
+    pub fn submit_ui_command(&self, cmd: LapceUICommand, widget_id: WidgetId) {
         self.ui_sink
             .lock()
             .unwrap()
             .as_ref()
             .unwrap()
-            .submit_command(CRANE_UI_COMMAND, cmd, Target::Widget(widget_id));
+            .submit_command(LAPCE_UI_COMMAND, cmd, Target::Widget(widget_id));
     }
 }
 
