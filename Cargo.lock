@@ -443,26 +443,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crane"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "druid",
- "fzyr",
- "lazy_static 1.4.0",
- "lsp-types",
- "serde",
- "serde_json",
- "strum 0.19.2",
- "strum_macros 0.19.2",
- "syntect",
- "toml",
- "uuid",
- "xi-core-lib",
- "xi-rope",
-]
-
-[[package]]
 name = "crc32fast"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1292,6 +1272,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed9be561444b7e4c4ac33b4fa36af1f996ccca1f14840ea1a09ba034289502ed"
 dependencies = [
  "arrayvec 0.5.1",
+]
+
+[[package]]
+name = "lapce"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "druid",
+ "fzyr",
+ "lazy_static 1.4.0",
+ "lsp-types",
+ "serde",
+ "serde_json",
+ "strum 0.19.2",
+ "strum_macros 0.19.2",
+ "syntect",
+ "toml",
+ "uuid",
+ "xi-core-lib",
+ "xi-rope",
 ]
 
 [[package]]

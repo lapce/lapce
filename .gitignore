@@ -1,7 +1,3 @@
-moc*
-cmd/crane/crane
-crane
-target/
 .vscode
-.idea
-xi-lsp-plugin.log
+.lapce
+target/

@@ -1144,45 +1144,51 @@ impl<T: Data> Widget<T> for Editor {
                                 CraneTheme::EDITOR_CURRENT_LINE_BACKGROUND,
                             ),
                         );
-                        let cursor_x = (line_content[..cursor.1]
-                            .chars()
-                            .filter_map(|c| {
-                                if c == '\t' {
-                                    Some('\t')
-                                } else {
-                                    None
-                                }
-                            })
-                            .count()
-                            * 3
-                            + cursor.1)
-                            as f64
-                            * width;
-                        match editor_split.get_mode() {
-                            Mode::Insert => ctx.stroke(
-                                Line::new(
-                                    Point::new(
-                                        cursor_x,
-                                        cursor.0 as f64 * line_height,
+
+                        if editor_split.active == self.view_id {
+                            let cursor_x = (line_content[..cursor.1]
+                                .chars()
+                                .filter_map(|c| {
+                                    if c == '\t' {
+                                        Some('\t')
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .count()
+                                * 3
+                                + cursor.1)
+                                as f64
+                                * width;
+                            match editor_split.get_mode() {
+                                Mode::Insert => ctx.stroke(
+                                    Line::new(
+                                        Point::new(
+                                            cursor_x,
+                                            cursor.0 as f64 * line_height,
+                                        ),
+                                        Point::new(
+                                            cursor_x,
+                                            (cursor.0 + 1) as f64 * line_height,
+                                        ),
                                     ),
-                                    Point::new(
-                                        cursor_x,
-                                        (cursor.0 + 1) as f64 * line_height,
-                                    ),
+                                    &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
+                                    1.0,
                                 ),
-                                &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
-                                1.0,
-                            ),
-                            _ => ctx.fill(
-                                Rect::ZERO
-                                    .with_origin(Point::new(
-                                        cursor_x,
-                                        cursor.0 as f64 * line_height,
-                                    ))
-                                    .with_size(Size::new(width, line_height)),
-                                &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
-                            ),
-                        };
+                                _ => ctx.fill(
+                                    Rect::ZERO
+                                        .with_origin(Point::new(
+                                            cursor_x,
+                                            cursor.0 as f64 * line_height,
+                                        ))
+                                        .with_size(Size::new(
+                                            width,
+                                            line_height,
+                                        )),
+                                    &env.get(CraneTheme::EDITOR_CURSOR_COLOR),
+                                ),
+                            };
+                        }
                     }
                     let line_content = line_content.replace('\t', "    ");
                     if let Some(text_layout) = self.text_layouts.get_mut(&line)
