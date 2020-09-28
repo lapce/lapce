@@ -11,6 +11,7 @@ use crate::{
     state::LAPCE_STATE,
     theme::LapceTheme,
 };
+use druid::piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder};
 use druid::{
     kurbo::Line, widget::IdentityWrapper, widget::Padding, Affine,
     BoxConstraints, Color, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx,
@@ -132,8 +133,8 @@ impl EditorState {
         let line_end_offset = self.line_end_offset(mode, buffer);
 
         let mut new_offset = self.offset + count;
-        if new_offset > buffer.rope.len() {
-            new_offset = buffer.rope.len()
+        if new_offset > buffer.len() {
+            new_offset = buffer.len()
         }
         if new_offset > line_end_offset {
             new_offset = line_end_offset;
@@ -170,9 +171,8 @@ impl EditorState {
     pub fn move_up(&mut self, mode: Mode, count: usize, buffer: &mut Buffer) {
         let line = buffer.line_of_offset(self.offset);
         let line = if line > count { line - count } else { 0 };
-        let mut max_col = buffer.rope.offset_of_line(line + 1)
-            - buffer.rope.offset_of_line(line)
-            - 1;
+        let mut max_col =
+            buffer.offset_of_line(line + 1) - buffer.offset_of_line(line) - 1;
         if max_col > 0 && mode != Mode::Insert {
             max_col -= 1;
         }
@@ -181,7 +181,7 @@ impl EditorState {
         } else {
             max_col
         };
-        self.offset = buffer.rope.offset_of_line(line) + col;
+        self.offset = buffer.offset_of_line(line) + col;
         self.request_paint();
     }
 
@@ -309,19 +309,13 @@ impl EditorState {
                 self.move_to_line(mode, buffer, line);
             }
             LapceCommand::WordFoward => {
-                let new_offset = WordCursor::new(&buffer.rope, self.offset)
-                    .next_boundary()
-                    .unwrap();
-                self.offset = new_offset;
+                self.offset = buffer.word_forward(self.offset);
                 let (_, col) = buffer.offset_to_line_col(self.offset);
                 self.horiz = col;
                 self.request_paint();
             }
             LapceCommand::WordBackward => {
-                let new_offset = WordCursor::new(&buffer.rope, self.offset)
-                    .prev_boundary()
-                    .unwrap();
-                self.offset = new_offset;
+                self.offset = buffer.word_forward(self.offset);
                 let line_end_offset = self.line_end_offset(mode, buffer);
                 if self.offset > line_end_offset {
                     self.offset = line_end_offset;
@@ -365,7 +359,7 @@ impl EditorState {
     }
 
     pub fn insert_new_line(&mut self, buffer: &mut Buffer, offset: usize) {
-        let (line, col) = LogicalLines.offset_to_line_col(&buffer.rope, offset);
+        let (line, col) = buffer.offset_to_line_col(offset);
         let indent = buffer.indent_on_line(line);
 
         let indent = if indent.len() >= col {
@@ -380,7 +374,7 @@ impl EditorState {
         };
 
         let content = format!("{}{}", "\n", indent);
-        buffer.rope.edit(Interval::new(offset, offset), &content);
+        buffer.edit(Interval::new(offset, offset), &content);
         let new_offset = offset + content.len();
         self.offset = new_offset;
         self.ensure_cursor_visible(buffer);
@@ -513,10 +507,10 @@ impl EditorSplitState {
             if let Some(buffer_id) = editor.buffer_id.as_ref() {
                 if let Some(buffer) = self.buffers.get_mut(buffer_id) {
                     let offset = editor.offset;
-                    buffer.rope.edit(Interval::new(offset, offset), content);
+                    buffer.edit(Interval::new(offset, offset), content);
                     editor.offset = editor.offset + 1;
-                    let line = buffer.rope.line_of_offset(editor.offset);
-                    let col = editor.offset - buffer.rope.offset_of_line(line);
+                    let line = buffer.line_of_offset(editor.offset);
+                    let col = editor.offset - buffer.offset_of_line(line);
                     editor.ensure_cursor_visible(buffer);
                     LAPCE_STATE.submit_ui_command(
                         LapceUICommand::RequestPaint,
@@ -528,7 +522,6 @@ impl EditorSplitState {
     }
 
     pub fn run_command(&mut self, count: Option<usize>, cmd: LapceCommand) {
-        println!("run command {}", cmd);
         match cmd {
             LapceCommand::InsertMode => {
                 self.mode = Mode::Insert;
@@ -617,11 +610,8 @@ impl EditorSplitState {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            let new_offset =
-                                WordCursor::new(&buffer.rope, editor.offset)
-                                    .prev_boundary()
-                                    .unwrap();
-                            buffer.rope.edit(
+                            let new_offset = buffer.word_forward(editor.offset);
+                            buffer.edit(
                                 Interval::new(new_offset, editor.offset),
                                 "",
                             );
@@ -635,7 +625,7 @@ impl EditorSplitState {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            buffer.rope.edit(
+                            buffer.edit(
                                 Interval::new(editor.offset - 1, editor.offset),
                                 "",
                             );
@@ -971,6 +961,7 @@ impl<T: Data> Widget<T> for EditorGutter {
                     } else {
                         let mut layout = TextLayout::new(content.clone());
                         layout.set_font(LapceTheme::EDITOR_FONT);
+                        layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
                         layout.rebuild_if_needed(&mut ctx.text(), env);
                         layout.draw(
                             ctx,
@@ -994,9 +985,9 @@ struct EditorTextLayout {
 }
 
 struct HighlightTextLayout {
-    layouts: Vec<(f64, TextLayout)>,
+    layout: PietTextLayout,
     text: String,
-    highlights: Option<Vec<(usize, usize, Highlight)>>,
+    highlights: Vec<(usize, usize, String)>,
 }
 
 pub struct Editor {
@@ -1018,7 +1009,7 @@ impl Editor {
     fn paint_line(
         &mut self,
         ctx: &mut PaintCtx,
-        buffer: &Buffer,
+        buffer: &mut Buffer,
         line_height: f64,
         line: usize,
         line_content: &str,
@@ -1028,58 +1019,26 @@ impl Editor {
         let end_offset = buffer.offset_of_line(line + 1);
         let mut offset = start_offset;
         let mut x = 0.0;
-        let mut layouts = Vec::new();
-        if let Some(line_highlight) = buffer.highlights.get(&line) {
-            println!("{:?}", line_highlight);
-            for (start, end, hl) in line_highlight {
-                if start > &offset {
-                    let mut layout = TextLayout::new(
-                        &line_content
-                            [offset - start_offset..*start - start_offset],
-                    );
-                    layout.set_font(LapceTheme::EDITOR_FONT);
-                    layout.rebuild_if_needed(&mut ctx.text(), env);
-                    layout.draw(ctx, Point::new(x, line_height * line as f64));
-                    let local_width =
-                        layout.point_for_text_position(start - offset).x;
-                    layouts.push((x, layout));
-                    x += local_width;
-                }
+        let mut layout_builder = ctx
+            .text()
+            .new_text_layout(line_content.to_string())
+            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
 
-                let mut layout = TextLayout::new(
-                    &line_content[*start - start_offset..*end - start_offset],
+        for (start, end, hl) in buffer.get_line_highligh(line) {
+            if let Some(color) = LAPCE_STATE.theme.lock().unwrap().get(hl) {
+                layout_builder = layout_builder.range_attribute(
+                    start - start_offset..end - start_offset,
+                    TextAttribute::TextColor(color.clone()),
                 );
-                layout.set_font(LapceTheme::EDITOR_FONT);
-                layout.set_text_color(Color::rgb8(100, 100, 100));
-                layout.rebuild_if_needed(&mut ctx.text(), env);
-                layout.draw(ctx, Point::new(x, line_height * line as f64));
-                let local_width = layout.point_for_text_position(end - start).x;
-                layouts.push((x, layout));
-                x += local_width;
-                offset = *end;
             }
-            if end_offset > offset {
-                let mut layout = TextLayout::new(
-                    &line_content
-                        [offset - start_offset..end_offset - start_offset],
-                );
-                layout.set_font(LapceTheme::EDITOR_FONT);
-                layout.set_text_color(Color::rgb8(100, 100, 100));
-                layout.rebuild_if_needed(&mut ctx.text(), env);
-                layout.draw(ctx, Point::new(x, line_height * line as f64));
-                layouts.push((x, layout));
-            }
-        } else {
-            let mut layout = TextLayout::new(&line_content[..]);
-            layout.set_font(LapceTheme::EDITOR_FONT);
-            layout.rebuild_if_needed(&mut ctx.text(), env);
-            layout.draw(ctx, Point::new(0.0, line_height * line as f64));
-            layouts.push((x, layout));
         }
+        let layout = layout_builder.build().unwrap();
+        ctx.draw_text(&layout, Point::new(0.0, line_height * line as f64));
         let text_layout = HighlightTextLayout {
-            layouts,
+            layout,
             text: line_content.to_string(),
-            highlights: buffer.highlights.get(&line).map(|h| h.clone()),
+            highlights: buffer.get_line_highligh(line).clone(),
         };
         self.text_layouts.insert(line, text_layout);
     }
@@ -1180,19 +1139,19 @@ impl<T: Data> Widget<T> for Editor {
             layout.set_font(LapceTheme::EDITOR_FONT);
             layout.rebuild_if_needed(&mut ctx.text(), env);
             let width = layout.point_for_text_position(1).x;
-            let editor = editor_split.get_editor(&self.view_id);
-            editor.set_line_height(line_height);
-            editor.char_width = width;
-
-            let buffers = &editor_split.buffers;
-            let buffer = buffers.get(&buffer_id).unwrap();
-            let (cursor, editor_width) = {
-                let editor = editor_split.editors.get(&self.view_id).unwrap();
-                (buffer.offset_to_line_col(editor.offset), editor.width)
+            let mode = editor_split.get_mode().clone();
+            let active_view_id = editor_split.active.clone();
+            let (editor_width, editor_offset) = {
+                let editor = editor_split.get_editor(&self.view_id);
+                editor.set_line_height(line_height);
+                editor.char_width = width;
+                (editor.width, editor.offset)
             };
+
+            let mut buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+            let cursor = buffer.offset_to_line_col(editor_offset);
             let rects = ctx.region().rects().to_vec();
             for rect in rects {
-                println!("print rect {:?} {:?}", self.view_id, rect);
                 let start_line = (rect.y0 / line_height).floor() as usize;
                 let num_lines = (rect.height() / line_height).floor() as usize;
                 let last_line = buffer.last_line();
@@ -1200,10 +1159,12 @@ impl<T: Data> Widget<T> for Editor {
                     if line > last_line {
                         break;
                     }
-                    let line_content = &buffer.rope.slice_to_cow(
-                        buffer.offset_of_line(line)
-                            ..buffer.offset_of_line(line + 1),
-                    );
+                    let line_content = buffer
+                        .slice_to_cow(
+                            buffer.offset_of_line(line)
+                                ..buffer.offset_of_line(line + 1),
+                        )
+                        .to_string();
                     if line == cursor.0 {
                         ctx.fill(
                             Rect::ZERO
@@ -1220,7 +1181,7 @@ impl<T: Data> Widget<T> for Editor {
                             ),
                         );
 
-                        if editor_split.active == self.view_id {
+                        if active_view_id == self.view_id {
                             let cursor_x = (line_content[..cursor.1]
                                 .chars()
                                 .filter_map(|c| {
@@ -1235,7 +1196,7 @@ impl<T: Data> Widget<T> for Editor {
                                 + cursor.1)
                                 as f64
                                 * width;
-                            match editor_split.get_mode() {
+                            match mode {
                                 Mode::Insert => ctx.stroke(
                                     Line::new(
                                         Point::new(
@@ -1268,32 +1229,30 @@ impl<T: Data> Widget<T> for Editor {
                     if let Some(text_layout) = self.text_layouts.get_mut(&line)
                     {
                         if text_layout.text != line_content.to_string()
-                            || text_layout.highlights.as_ref()
-                                != buffer.highlights.get(&line)
+                            || &text_layout.highlights
+                                != buffer.get_line_highligh(line)
                         {
                             self.paint_line(
                                 ctx,
-                                buffer,
+                                &mut buffer,
                                 line_height,
                                 line,
-                                line_content,
+                                &line_content,
                                 env,
                             );
                         } else {
-                            for (x, layout) in &text_layout.layouts {
-                                layout.draw(
-                                    ctx,
-                                    Point::new(*x, line_height * line as f64),
-                                );
-                            }
+                            ctx.draw_text(
+                                &text_layout.layout,
+                                Point::new(0.0, line_height * line as f64),
+                            );
                         }
                     } else {
                         self.paint_line(
                             ctx,
-                            buffer,
+                            &mut buffer,
                             line_height,
                             line,
-                            line_content,
+                            &line_content,
                             env,
                         );
                     }

@@ -14,7 +14,7 @@ use druid::{
     widget::IdentityWrapper,
     widget::Label,
     widget::SizedBox,
-    Command, MouseEvent, Selector, Target, WidgetId,
+    Color, Command, MouseEvent, Selector, Target, WidgetId,
 };
 use druid::{
     theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
@@ -178,7 +178,14 @@ impl<T: Data> Widget<T> for LapceContainer<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        println!("container paint {:?}", ctx.region().rects());
+        let rects = ctx.region().rects().to_vec();
+        for rect in rects {
+            if let Some(background) =
+                LAPCE_STATE.theme.lock().unwrap().get("background")
+            {
+                ctx.fill(rect, background);
+            }
+        }
         self.editor_split.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
     }

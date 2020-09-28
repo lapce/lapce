@@ -18,7 +18,7 @@ use crate::palette::Palette;
 use crate::split::LapceSplit;
 use crate::state::LAPCE_STATE;
 
-use druid::{piet::Color, FontDescriptor, FontFamily, Size};
+use druid::{piet::Color, FontDescriptor, FontFamily, FontWeight, Key, Size};
 use druid::{
     widget::{Align, Container, Flex, Label, Padding, Scroll, Split},
     Point,
@@ -33,40 +33,48 @@ extern "C" {
 
 fn build_app() -> impl Widget<u32> {
     let container = LapceContainer::new();
-    container
-        .env_scope(|env: &mut druid::Env, data: &u32| {
-            env.set(theme::LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
-            env.set(
-                theme::LapceTheme::PALETTE_BACKGROUND,
-                Color::rgb8(125, 125, 125),
-            );
-            env.set(
-                theme::LapceTheme::PALETTE_INPUT_FOREROUND,
-                Color::rgb8(0, 0, 0),
-            );
-            env.set(
-                theme::LapceTheme::PALETTE_INPUT_BACKGROUND,
-                Color::rgb8(255, 255, 255),
-            );
-            env.set(
-                theme::LapceTheme::PALETTE_INPUT_BORDER,
-                Color::rgb8(0, 0, 0),
-            );
-            env.set(
-                theme::LapceTheme::EDITOR_FONT,
-                FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
-                    .with_size(13.0),
-            );
-            env.set(
-                theme::LapceTheme::EDITOR_CURSOR_COLOR,
-                Color::rgba8(255, 255, 255, 200),
-            );
+    container.env_scope(|env: &mut druid::Env, data: &u32| {
+        let theme = LAPCE_STATE.theme.lock().unwrap();
+        if let Some(line_highlight) = theme.get("line_highlight") {
             env.set(
                 theme::LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-                Color::rgba8(255, 255, 255, 100),
-            )
-        })
-        .debug_invalidation()
+                line_highlight.clone(),
+            );
+        };
+        if let Some(caret) = theme.get("caret") {
+            env.set(theme::LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
+        };
+        if let Some(foreground) = theme.get("foreground") {
+            env.set(theme::LapceTheme::EDITOR_FOREGROUND, foreground.clone());
+        };
+        env.set(theme::LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
+        env.set(
+            theme::LapceTheme::PALETTE_BACKGROUND,
+            Color::rgb8(125, 125, 125),
+        );
+        env.set(
+            theme::LapceTheme::PALETTE_INPUT_FOREROUND,
+            Color::rgb8(0, 0, 0),
+        );
+        env.set(
+            theme::LapceTheme::PALETTE_INPUT_BACKGROUND,
+            Color::rgb8(255, 255, 255),
+        );
+        env.set(
+            theme::LapceTheme::PALETTE_INPUT_BORDER,
+            Color::rgb8(0, 0, 0),
+        );
+        env.set(
+            theme::LapceTheme::EDITOR_FONT,
+            FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
+                .with_size(13.0),
+        );
+    })
+
+    // Label::new("test label")
+    //     .with_text_color(Color::rgb8(64, 120, 242))
+    //     .background(Color::rgb8(64, 120, 242))
+    // .debug_invalidation()
 }
 
 pub fn main() {

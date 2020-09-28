@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use druid::{ExtEventSink, KeyEvent, Modifiers, Target, WidgetId};
+use druid::{Color, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId};
 use lazy_static::lazy_static;
 use toml;
 
@@ -68,6 +68,7 @@ pub struct LapceState {
     pending_keypress: Arc<Mutex<Vec<KeyPress>>>,
     count: Arc<Mutex<Option<usize>>>,
     keymaps: Arc<Mutex<Vec<KeyMap>>>,
+    pub theme: Arc<Mutex<HashMap<String, Color>>>,
     pub last_focus: Arc<Mutex<LapceWidget>>,
     pub focus: Arc<Mutex<LapceWidget>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
@@ -81,6 +82,9 @@ impl LapceState {
             keymaps: Arc::new(Mutex::new(
                 Self::get_keymaps().unwrap_or(Vec::new()),
             )),
+            theme: Arc::new(Mutex::new(
+                Self::get_theme().unwrap_or(HashMap::new()),
+            )),
             keypress_sequence: Arc::new(Mutex::new("".to_string())),
             count: Arc::new(Mutex::new(None)),
             ui_sink: Arc::new(Mutex::new(None)),
@@ -89,6 +93,22 @@ impl LapceState {
             palette: Arc::new(Mutex::new(PaletteState::new())),
             editor_split: Arc::new(Mutex::new(EditorSplitState::new())),
         }
+    }
+
+    fn get_theme() -> Result<HashMap<String, Color>> {
+        let mut f = File::open("/Users/Lulu/lapce/.lapce/theme.toml")?;
+        let mut content = vec![];
+        f.read_to_end(&mut content)?;
+        let toml_theme: HashMap<String, String> = toml::from_slice(&content)?;
+
+        let mut theme = HashMap::new();
+        for (name, hex) in toml_theme.iter() {
+            println!("{}", name);
+            if let Ok(color) = hex_to_color(hex) {
+                theme.insert(name.to_string(), color);
+            }
+        }
+        Ok(theme)
     }
 
     fn get_keymaps() -> Result<Vec<KeyMap>> {
@@ -341,7 +361,6 @@ impl LapceState {
     }
 
     pub fn key_down(&self, key_event: &KeyEvent) {
-        println!("key_event {:?}", key_event);
         let mut keypress_sequence = self.keypress_sequence.lock().unwrap();
         *keypress_sequence = uuid::Uuid::new_v4().to_string();
         let mut mods = key_event.mods.clone();
@@ -490,6 +509,43 @@ impl LapceState {
             .unwrap()
             .submit_command(LAPCE_UI_COMMAND, cmd, Target::Widget(widget_id));
     }
+}
+
+pub fn hex_to_color(hex: &str) -> Result<Color> {
+    let hex = hex.trim_start_matches("#");
+    let (r, g, b, a) = match hex.len() {
+        3 => (
+            format!("{}{}", &hex[0..0], &hex[0..0]),
+            format!("{}{}", &hex[1..1], &hex[1..1]),
+            format!("{}{}", &hex[2..2], &hex[2..2]),
+            "ff".to_string(),
+        ),
+        6 => (
+            hex[0..2].to_string(),
+            hex[2..4].to_string(),
+            hex[4..6].to_string(),
+            "ff".to_string(),
+        ),
+        8 => (
+            hex[0..2].to_string(),
+            hex[2..4].to_string(),
+            hex[4..6].to_string(),
+            hex[6..8].to_string(),
+        ),
+        _ => return Err(anyhow!("invalid hex color")),
+    };
+    println!(
+        "{} {} {}",
+        u8::from_str_radix(&r, 16)?,
+        u8::from_str_radix(&g, 16)?,
+        u8::from_str_radix(&b, 16)?
+    );
+    Ok(Color::rgb8(
+        u8::from_str_radix(&r, 16)?,
+        u8::from_str_radix(&g, 16)?,
+        u8::from_str_radix(&b, 16)?,
+        // u8::from_str_radix(&a, 16)?,
+    ))
 }
 
 #[cfg(test)]

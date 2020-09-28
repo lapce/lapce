@@ -357,7 +357,6 @@ impl<T: Data> Widget<T> for LapceSplit<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        println!("split paint {:?}", ctx.region().rects());
         self.paint_bar(ctx, env);
         for child in self.children.as_mut_slice() {
             child.paint(ctx, &data, env);

@@ -56,10 +56,10 @@ pub fn new_highlight_config(
         "keyword",
         "string",
         "variable.parameter",
+        "variable.builtin",
         "operator",
         "attribute",
         "escape",
-        "variable.builtin",
     ]
     .iter()
     .map(|s| s.to_string())
