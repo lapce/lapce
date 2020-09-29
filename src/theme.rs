@@ -20,4 +20,6 @@ impl LapceTheme {
         Key::new("lapce.eidtor_cursor_color");
     pub const EDITOR_CURRENT_LINE_BACKGROUND: Key<Color> =
         Key::new("lapce.eidtor_current_line_background");
+    pub const EDITOR_SELECTION_COLOR: Key<Color> =
+        Key::new("lapce.editor_selection_color");
 }

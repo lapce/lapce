@@ -41,6 +41,13 @@ pub enum LapceWidget {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+pub enum VisualMode {
+    Normal,
+    Linewise,
+    Blockwise,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Mode {
     Insert,
     Visual,

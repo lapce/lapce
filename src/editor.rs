@@ -1,30 +1,31 @@
 use crate::{
-    buffer::WordCursor,
     buffer::{Buffer, BufferId},
     command::LapceCommand,
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
     container::LapceContainer,
+    movement::ColPosition,
+    movement::LinePosition,
+    movement::Movement,
+    movement::SelHoriz,
+    movement::SelRegion,
+    movement::Selection,
     scroll::LapceScroll,
     split::SplitMoveDirection,
     state::Mode,
+    state::VisualMode,
     state::LAPCE_STATE,
     theme::LapceTheme,
 };
 use druid::piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder};
 use druid::{
     kurbo::Line, widget::IdentityWrapper, widget::Padding, Affine,
-    BoxConstraints, Color, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, TextLayout,
+    UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use lazy_static::lazy_static;
-use std::time::Duration;
-use std::{any::Any, thread};
-use std::{collections::HashMap, sync::Arc, sync::Mutex};
-use tree_sitter_highlight::Highlight;
-use xi_core_lib::line_offset::{LineOffset, LogicalLines};
-use xi_rope::{Cursor, Interval, Rope, RopeInfo};
+use std::collections::HashMap;
+use xi_rope::Interval;
 
 pub struct LapceUI {
     container: LapceContainer<u32>,
@@ -46,8 +47,7 @@ pub struct EditorState {
     view_id: WidgetId,
     pub split_id: WidgetId,
     pub buffer_id: Option<BufferId>,
-    offset: usize,
-    horiz: usize,
+    selection: Selection,
     pub line_height: f64,
     pub char_width: f64,
     pub width: f64,
@@ -66,150 +66,12 @@ impl EditorState {
             view_id,
             split_id,
             buffer_id,
-            offset: 0,
-            horiz: 0,
+            selection: Selection::new_simple(),
             line_height: 0.0,
             char_width: 0.0,
             width: 0.0,
             height: 0.0,
         }
-    }
-
-    pub fn line_start_offset(&mut self, buffer: &mut Buffer) -> usize {
-        let line = buffer.line_of_offset(self.offset);
-        buffer.offset_of_line(line)
-    }
-
-    pub fn col_on_line(
-        &mut self,
-        mode: Mode,
-        buffer: &mut Buffer,
-        line: usize,
-    ) -> usize {
-        let max_col = match buffer.offset_of_line(line + 1)
-            - buffer.offset_of_line(line)
-        {
-            n if n == 0 => 0,
-            n if n == 1 => 0,
-            n => match mode {
-                Mode::Insert => n - 1,
-                _ => n - 2,
-            },
-        };
-        let col = if max_col > self.horiz {
-            self.horiz
-        } else {
-            max_col
-        };
-        col
-    }
-
-    pub fn line_end_offset(
-        &mut self,
-        mode: Mode,
-        buffer: &mut Buffer,
-    ) -> usize {
-        let line = buffer.line_of_offset(self.offset);
-        let line_start_offset = buffer.offset_of_line(line);
-        let line_end_offset = buffer.offset_of_line(line + 1);
-        let line_end_offset = if line_end_offset - line_start_offset <= 1 {
-            line_start_offset
-        } else {
-            if mode == Mode::Insert {
-                line_end_offset - 1
-            } else {
-                line_end_offset - 2
-            }
-        };
-        line_end_offset
-    }
-
-    pub fn move_right(
-        &mut self,
-        mode: Mode,
-        count: usize,
-        buffer: &mut Buffer,
-    ) {
-        let line_end_offset = self.line_end_offset(mode, buffer);
-
-        let mut new_offset = self.offset + count;
-        if new_offset > buffer.len() {
-            new_offset = buffer.len()
-        }
-        if new_offset > line_end_offset {
-            new_offset = line_end_offset;
-        }
-        if new_offset == self.offset {
-            return;
-        }
-
-        self.offset = new_offset;
-        let (_, col) = buffer.offset_to_line_col(self.offset);
-        self.horiz = col;
-        self.request_paint();
-    }
-
-    pub fn move_left(&mut self, mode: Mode, count: usize, buffer: &mut Buffer) {
-        let line = buffer.line_of_offset(self.offset);
-        let line_start_offset = buffer.offset_of_line(line);
-        let new_offset = if self.offset < count {
-            0
-        } else if self.offset - count > line_start_offset {
-            self.offset - count
-        } else {
-            line_start_offset
-        };
-        if new_offset == self.offset {
-            return;
-        }
-        self.offset = new_offset;
-        let (_, col) = buffer.offset_to_line_col(self.offset);
-        self.horiz = col;
-        self.request_paint();
-    }
-
-    pub fn move_up(&mut self, mode: Mode, count: usize, buffer: &mut Buffer) {
-        let line = buffer.line_of_offset(self.offset);
-        let line = if line > count { line - count } else { 0 };
-        let mut max_col =
-            buffer.offset_of_line(line + 1) - buffer.offset_of_line(line) - 1;
-        if max_col > 0 && mode != Mode::Insert {
-            max_col -= 1;
-        }
-        let col = if max_col > self.horiz {
-            self.horiz
-        } else {
-            max_col
-        };
-        self.offset = buffer.offset_of_line(line) + col;
-        self.request_paint();
-    }
-
-    pub fn move_down(&mut self, mode: Mode, count: usize, buffer: &mut Buffer) {
-        let last_line = buffer.last_line();
-        let line = buffer.line_of_offset(self.offset) + count;
-        let line = if line > last_line { last_line } else { line };
-        let col = self.col_on_line(mode, buffer, line);
-        self.offset = buffer.offset_of_line(line) + col;
-        self.request_paint();
-    }
-
-    pub fn move_to_line_end(&mut self, mode: Mode, buffer: &mut Buffer) {
-        self.offset = self.line_end_offset(mode, buffer);
-        let (_, col) = buffer.offset_to_line_col(self.offset);
-        self.horiz = col;
-        self.request_paint();
-    }
-
-    pub fn move_to_line(
-        &mut self,
-        mode: Mode,
-        buffer: &mut Buffer,
-        line: usize,
-    ) {
-        let col = self.col_on_line(mode, buffer, line);
-        self.offset = buffer.offset_of_line(line) + col;
-        self.request_paint();
     }
 
     pub fn run_command(
@@ -221,25 +83,34 @@ impl EditorState {
     ) {
         match cmd {
             LapceCommand::Left => {
-                let count = count.unwrap_or(1);
-                self.move_left(mode, count, buffer);
+                self.selection = Movement::Left(count.unwrap_or(1))
+                    .update_selection(&self.selection, buffer, &mode);
+                self.request_paint();
             }
             LapceCommand::Right => {
-                let count = count.unwrap_or(1);
-                self.move_right(mode, count, buffer);
+                self.selection = Movement::Right(count.unwrap_or(1))
+                    .update_selection(&self.selection, buffer, &mode);
+                self.request_paint();
             }
             LapceCommand::Up => {
-                let count = count.unwrap_or(1);
-                self.move_up(mode, count, buffer);
+                self.selection = Movement::Up(count.unwrap_or(1))
+                    .update_selection(&self.selection, buffer, &mode);
+                self.request_paint();
             }
             LapceCommand::Down => {
-                let count = count.unwrap_or(1);
-                self.move_down(mode, count, buffer);
+                self.selection = Movement::Down(count.unwrap_or(1))
+                    .update_selection(&self.selection, buffer, &mode);
+                self.request_paint();
             }
             LapceCommand::PageDown => {
                 let lines =
                     (self.height / self.line_height / 2.0).floor() as usize;
-                self.move_down(mode, lines, buffer);
+                self.selection = Movement::Down(lines).update_selection(
+                    &self.selection,
+                    buffer,
+                    &mode,
+                );
+                self.request_paint();
                 LAPCE_STATE.submit_ui_command(
                     LapceUICommand::Scroll((
                         0.0,
@@ -251,7 +122,12 @@ impl EditorState {
             LapceCommand::PageUp => {
                 let lines =
                     (self.height / self.line_height / 2.0).floor() as usize;
-                self.move_up(mode, lines, buffer);
+                self.selection = Movement::Up(lines).update_selection(
+                    &self.selection,
+                    buffer,
+                    &mode,
+                );
+                self.request_paint();
                 LAPCE_STATE.submit_ui_command(
                     LapceUICommand::Scroll((
                         0.0,
@@ -279,49 +155,53 @@ impl EditorState {
                 );
             }
             LapceCommand::LineEnd => {
-                self.move_to_line_end(mode, buffer);
+                self.selection = Movement::EndOfLine.update_selection(
+                    &self.selection,
+                    buffer,
+                    &mode,
+                );
+                self.request_paint();
             }
             LapceCommand::LineStart => {
-                self.offset = self.line_start_offset(buffer);
-                self.horiz = 0;
+                self.selection = Movement::StartOfLine.update_selection(
+                    &self.selection,
+                    buffer,
+                    &mode,
+                );
                 self.request_paint();
             }
             LapceCommand::GotoLineDefaultFirst => {
-                let last_line = buffer.last_line();
-                let line = match count {
-                    Some(count) => match count {
-                        _ if count > last_line => last_line,
-                        _ => count,
-                    },
-                    None => 0,
+                let position = match count {
+                    Some(count) => LinePosition::Line(count),
+                    None => LinePosition::First,
                 };
-                self.move_to_line(mode, buffer, line);
+                self.selection = Movement::Line(position).update_selection(
+                    &self.selection,
+                    buffer,
+                    &mode,
+                );
+                self.request_paint();
             }
             LapceCommand::GotoLineDefaultLast => {
-                let last_line = buffer.last_line();
-                let line = match count {
-                    Some(count) => match count {
-                        _ if count > last_line => last_line,
-                        _ => count,
-                    },
-                    None => last_line,
+                let position = match count {
+                    Some(count) => LinePosition::Line(count),
+                    None => LinePosition::Last,
                 };
-                self.move_to_line(mode, buffer, line);
+                self.selection = Movement::Line(position).update_selection(
+                    &self.selection,
+                    buffer,
+                    &mode,
+                );
+                self.request_paint();
             }
             LapceCommand::WordFoward => {
-                self.offset = buffer.word_forward(self.offset);
-                let (_, col) = buffer.offset_to_line_col(self.offset);
-                self.horiz = col;
+                self.selection = Movement::WordForward(count.unwrap_or(1))
+                    .update_selection(&self.selection, buffer, &mode);
                 self.request_paint();
             }
             LapceCommand::WordBackward => {
-                self.offset = buffer.word_forward(self.offset);
-                let line_end_offset = self.line_end_offset(mode, buffer);
-                if self.offset > line_end_offset {
-                    self.offset = line_end_offset;
-                }
-                let (_, col) = buffer.offset_to_line_col(self.offset);
-                self.horiz = col;
+                self.selection = Movement::WordBackward(count.unwrap_or(1))
+                    .update_selection(&self.selection, buffer, &mode);
                 self.request_paint();
             }
             LapceCommand::SplitHorizontal => {}
@@ -354,8 +234,59 @@ impl EditorState {
             _ => (),
         }
 
-        let (line, col) = buffer.offset_to_line_col(self.offset);
         self.ensure_cursor_visible(buffer);
+    }
+
+    pub fn insert_mode(
+        &mut self,
+        buffer: &mut Buffer,
+        mode: &Mode,
+        visual_mode: &VisualMode,
+        position: ColPosition,
+    ) {
+        match mode {
+            Mode::Visual => match visual_mode {
+                VisualMode::Blockwise => match position {
+                    ColPosition::FirstNonBlank => {
+                        let mut selection = Selection::new();
+                        for region in self.selection.regions() {
+                            let (start_line, start_col) =
+                                buffer.offset_to_line_col(region.min());
+                            let (end_line, end_col) =
+                                buffer.offset_to_line_col(region.max());
+                            let left = start_col.min(end_col);
+                            for line in start_line..end_line + 1 {
+                                let max_col =
+                                    buffer.max_col(&Mode::Insert, line);
+                                if left > max_col {
+                                    continue;
+                                }
+                                let offset = buffer.offset_of_line(line) + left;
+                                selection.add_region(SelRegion::new(
+                                    offset,
+                                    offset,
+                                    SelHoriz::Col(left),
+                                ));
+                            }
+                        }
+                        self.selection = selection;
+                    }
+                    _ => (),
+                },
+                _ => {
+                    let offset = self.selection.min();
+                    self.selection = Selection::caret(offset);
+                }
+            },
+            Mode::Normal => {
+                self.selection = Movement::StartOfLine.update_selection(
+                    &self.selection,
+                    buffer,
+                    mode,
+                )
+            }
+            _ => (),
+        }
     }
 
     pub fn insert_new_line(&mut self, buffer: &mut Buffer, offset: usize) {
@@ -374,15 +305,16 @@ impl EditorState {
         };
 
         let content = format!("{}{}", "\n", indent);
-        buffer.edit(Interval::new(offset, offset), &content);
-        let new_offset = offset + content.len();
-        self.offset = new_offset;
+        self.selection = buffer.insert(&content, &Selection::caret(offset));
+        // let new_offset = offset + content.len();
+        // self.selection = Selection::caret(new_offset);
         self.ensure_cursor_visible(buffer);
         self.request_layout();
     }
 
     pub fn ensure_cursor_visible(&self, buffer: &Buffer) {
-        let (line, col) = buffer.offset_to_line_col(self.offset);
+        let offset = self.selection.get_cursor_offset();
+        let (line, col) = buffer.offset_to_line_col(offset);
         LAPCE_STATE.submit_ui_command(
             LapceUICommand::EnsureVisible((
                 Rect::ZERO
@@ -420,6 +352,7 @@ pub struct EditorSplitState {
     open_files: HashMap<String, BufferId>,
     id_counter: Counter,
     mode: Mode,
+    visual_mode: VisualMode,
 }
 
 impl EditorSplitState {
@@ -432,6 +365,7 @@ impl EditorSplitState {
             buffers: HashMap::new(),
             open_files: HashMap::new(),
             mode: Mode::Normal,
+            visual_mode: VisualMode::Normal,
         }
     }
 
@@ -441,6 +375,10 @@ impl EditorSplitState {
 
     pub fn set_active(&mut self, widget_id: WidgetId) {
         self.active = widget_id;
+    }
+
+    pub fn active(&self) -> WidgetId {
+        self.active
     }
 
     pub fn set_editor_size(&mut self, editor_id: WidgetId, size: Size) {
@@ -465,7 +403,7 @@ impl EditorSplitState {
                     return;
                 }
             }
-            active_editor.offset = 0;
+            active_editor.selection = Selection::new_simple();
             active_editor.buffer_id = Some(buffer_id);
             LAPCE_STATE.submit_ui_command(
                 LapceUICommand::ScrollTo((0.0, 0.0)),
@@ -482,6 +420,10 @@ impl EditorSplitState {
         BufferId(self.id_counter.next())
     }
 
+    pub fn get_buffer(&mut self, id: &BufferId) -> Option<&mut Buffer> {
+        self.buffers.get_mut(id)
+    }
+
     pub fn get_buffer_id(&self, view_id: &WidgetId) -> Option<BufferId> {
         self.editors
             .get(view_id)
@@ -491,6 +433,24 @@ impl EditorSplitState {
 
     fn get_editor(&mut self, view_id: &WidgetId) -> &mut EditorState {
         self.editors.get_mut(view_id).unwrap()
+    }
+
+    fn toggle_visual(&mut self, visual_mode: VisualMode) {
+        match self.mode {
+            Mode::Visual => match self.visual_mode {
+                _ if self.visual_mode == visual_mode => {
+                    self.mode = Mode::Normal;
+                    if let Some(editor) = self.editors.get_mut(&self.active) {
+                        editor.selection = editor.selection.to_caret();
+                    }
+                }
+                _ => self.visual_mode = visual_mode,
+            },
+            _ => {
+                self.mode = Mode::Visual;
+                self.visual_mode = visual_mode;
+            }
+        };
     }
 
     fn get_active_editor(&mut self) -> Option<&mut EditorState> {
@@ -503,14 +463,12 @@ impl EditorSplitState {
         if self.mode != Mode::Insert {
             return;
         }
+
         if let Some(editor) = self.editors.get_mut(&self.active) {
             if let Some(buffer_id) = editor.buffer_id.as_ref() {
                 if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                    let offset = editor.offset;
-                    buffer.edit(Interval::new(offset, offset), content);
-                    editor.offset = editor.offset + 1;
-                    let line = buffer.line_of_offset(editor.offset);
-                    let col = editor.offset - buffer.offset_of_line(line);
+                    editor.selection =
+                        buffer.insert(content, &editor.selection);
                     editor.ensure_cursor_visible(buffer);
                     LAPCE_STATE.submit_ui_command(
                         LapceUICommand::RequestPaint,
@@ -530,12 +488,39 @@ impl EditorSplitState {
                     self.active,
                 );
             }
+            LapceCommand::InsertFirstNonBlank => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            editor.insert_mode(
+                                buffer,
+                                &self.mode,
+                                &self.visual_mode,
+                                ColPosition::FirstNonBlank,
+                            );
+                            editor.ensure_cursor_visible(buffer);
+                            editor.request_paint();
+                        }
+                    }
+                }
+                self.mode = Mode::Insert;
+            }
             LapceCommand::NormalMode => {
+                let old_mode = self.mode.clone();
                 self.mode = Mode::Normal;
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            editor.move_left(self.mode.clone(), 1, buffer);
+                            editor.selection = editor.selection.to_caret();
+                            if old_mode == Mode::Insert {
+                                editor.selection =
+                                    Movement::Left(count.unwrap_or(1))
+                                        .update_selection(
+                                            &editor.selection,
+                                            buffer,
+                                            &self.mode,
+                                        );
+                            }
                             LAPCE_STATE.submit_ui_command(
                                 LapceUICommand::RequestPaint,
                                 self.active,
@@ -544,12 +529,39 @@ impl EditorSplitState {
                     }
                 }
             }
+            LapceCommand::ToggleVisualMode => {
+                self.toggle_visual(VisualMode::Normal);
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::RequestPaint,
+                    self.active,
+                );
+            }
+            LapceCommand::ToggleLinewiseVisualMode => {
+                self.toggle_visual(VisualMode::Linewise);
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::RequestPaint,
+                    self.active,
+                );
+            }
+            LapceCommand::ToggleBlockwiseVisualMode => {
+                self.toggle_visual(VisualMode::Blockwise);
+                LAPCE_STATE.submit_ui_command(
+                    LapceUICommand::RequestPaint,
+                    self.active,
+                );
+            }
             LapceCommand::Append => {
                 self.mode = Mode::Insert;
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            editor.move_right(self.mode.clone(), 1, buffer);
+                            editor.selection =
+                                Movement::Right(count.unwrap_or(1))
+                                    .update_selection(
+                                        &editor.selection,
+                                        buffer,
+                                        &self.mode,
+                                    );
                             editor.request_paint();
                         }
                     }
@@ -560,7 +572,12 @@ impl EditorSplitState {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            editor.move_to_line_end(self.mode.clone(), buffer);
+                            editor.selection = Movement::EndOfLine
+                                .update_selection(
+                                    &editor.selection,
+                                    buffer,
+                                    &self.mode,
+                                );
                             editor.request_paint();
                         }
                     }
@@ -570,11 +587,13 @@ impl EditorSplitState {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            let line = buffer.line_of_offset(editor.offset);
+                            let line = buffer.line_of_offset(
+                                editor.selection.get_cursor_offset(),
+                            );
                             let offset =
                                 buffer.first_non_blank_character_on_line(line);
                             editor.insert_new_line(buffer, offset);
-                            editor.offset = offset;
+                            editor.selection = Selection::caret(offset);
                             self.mode = Mode::Insert;
                             editor.request_paint();
                         }
@@ -587,8 +606,10 @@ impl EditorSplitState {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
                             self.mode = Mode::Insert;
-                            let offset = editor
-                                .line_end_offset(self.mode.clone(), buffer);
+                            let offset = buffer.line_end_offset(
+                                &self.mode,
+                                editor.selection.get_cursor_offset(),
+                            );
                             editor.insert_new_line(buffer, offset);
                             editor.request_paint();
                         }
@@ -599,9 +620,17 @@ impl EditorSplitState {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            self.mode = Mode::Insert;
-                            editor.insert_new_line(buffer, editor.offset);
-                            editor.request_paint();
+                            if editor.selection.regions().len() == 1 {
+                                editor.insert_new_line(
+                                    buffer,
+                                    editor.selection.get_cursor_offset(),
+                                );
+                            } else {
+                                editor.selection =
+                                    buffer.insert("\n", &editor.selection);
+                            }
+                            editor.ensure_cursor_visible(buffer);
+                            editor.request_layout();
                         }
                     }
                 }
@@ -610,12 +639,13 @@ impl EditorSplitState {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            let new_offset = buffer.word_forward(editor.offset);
-                            buffer.edit(
-                                Interval::new(new_offset, editor.offset),
+                            let offset = editor.selection.get_cursor_offset();
+                            let new_offset = buffer.word_backword(offset);
+                            buffer.insert(
                                 "",
+                                &Selection::region(new_offset, offset),
                             );
-                            editor.offset = new_offset;
+                            editor.selection = Selection::caret(new_offset);
                             editor.request_paint();
                         }
                     }
@@ -625,11 +655,8 @@ impl EditorSplitState {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            buffer.edit(
-                                Interval::new(editor.offset - 1, editor.offset),
-                                "",
-                            );
-                            editor.offset = editor.offset - 1;
+                            editor.selection =
+                                buffer.delete_backward(&editor.selection);
                             editor.request_paint();
                         }
                     }
@@ -916,7 +943,7 @@ impl<T: Data> Widget<T> for EditorGutter {
             let buffer = buffers.get(&buffer_id).unwrap();
             let (current_line, _) = {
                 let editor = editor_split.editors.get(&self.view_id).unwrap();
-                buffer.offset_to_line_col(editor.offset)
+                buffer.offset_to_line_col(editor.selection.get_cursor_offset())
             };
             let active = editor_split.active;
             let rects = ctx.region().rects().to_vec();
@@ -1042,6 +1069,120 @@ impl Editor {
         };
         self.text_layouts.insert(line, text_layout);
     }
+
+    fn paint_insert_cusor(
+        &mut self,
+        ctx: &mut PaintCtx,
+        selection: &Selection,
+        buffer: &mut Buffer,
+        line_height: f64,
+        width: f64,
+        start_line: usize,
+        number_lines: usize,
+        env: &Env,
+    ) {
+        let start = buffer.offset_of_line(start_line);
+        let last_line = buffer.last_line();
+        let mut end_line = start_line + number_lines;
+        if end_line > last_line {
+            end_line = last_line;
+        }
+        let end = buffer.offset_of_line(end_line + 1);
+        let regions = selection.regions_in_range(start, end);
+        for region in regions {
+            let (line, col) = buffer.offset_to_line_col(region.min());
+            let x = col as f64 * width;
+            let y = line as f64 * line_height;
+            ctx.stroke(
+                Line::new(Point::new(x, y), Point::new(x, y + line_height)),
+                &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
+                2.0,
+            )
+        }
+    }
+
+    fn paint_selection(
+        &mut self,
+        ctx: &mut PaintCtx,
+        mode: &Mode,
+        visual_mode: &VisualMode,
+        selection: &Selection,
+        buffer: &mut Buffer,
+        line_height: f64,
+        width: f64,
+        start_line: usize,
+        number_lines: usize,
+        env: &Env,
+    ) {
+        match mode {
+            &Mode::Visual => (),
+            _ => return,
+        }
+        let start = buffer.offset_of_line(start_line);
+        let last_line = buffer.last_line();
+        let mut end_line = start_line + number_lines;
+        if end_line > last_line {
+            end_line = last_line;
+        }
+        let end = buffer.offset_of_line(end_line + 1);
+
+        let regions = selection.regions_in_range(start, end);
+        for region in regions {
+            let (start_line, start_col) =
+                buffer.offset_to_line_col(region.min());
+            let (end_line, end_col) = buffer.offset_to_line_col(region.max());
+
+            for line in start_line..end_line + 1 {
+                let x0 = match visual_mode {
+                    &VisualMode::Normal => match line {
+                        _ if line == start_line => start_col as f64 * width,
+                        _ => 0.0,
+                    },
+                    &VisualMode::Linewise => 0.0,
+                    &VisualMode::Blockwise => {
+                        let max_col = buffer.max_col(mode, line);
+                        let left = start_col.min(end_col);
+                        if left > max_col {
+                            continue;
+                        }
+                        left as f64 * width
+                    }
+                };
+
+                let x1 = match visual_mode {
+                    &VisualMode::Normal => match line {
+                        _ if line == end_line => (end_col + 1) as f64 * width,
+                        _ => {
+                            (buffer.offset_of_line(line + 1)
+                                - buffer.offset_of_line(line))
+                                as f64
+                                * width
+                        }
+                    },
+                    &VisualMode::Linewise => {
+                        (buffer.offset_of_line(line + 1)
+                            - buffer.offset_of_line(line))
+                            as f64
+                            * width
+                    }
+                    &VisualMode::Blockwise => {
+                        let max_col = buffer.max_col(mode, line) + 1;
+                        let right = match region.horiz() {
+                            &SelHoriz::EndOfLine => max_col,
+                            _ => (end_col.max(start_col) + 1).min(max_col),
+                        };
+                        right as f64 * width
+                    }
+                };
+                let y0 = line as f64 * line_height;
+                let y1 = y0 + line_height;
+                ctx.fill(
+                    Rect::new(x0, y0, x1, y1),
+                    &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
+                );
+            }
+        }
+    }
 }
 
 impl<T: Data> Widget<T> for Editor {
@@ -1140,12 +1281,17 @@ impl<T: Data> Widget<T> for Editor {
             layout.rebuild_if_needed(&mut ctx.text(), env);
             let width = layout.point_for_text_position(1).x;
             let mode = editor_split.get_mode().clone();
+            let visual_mode = editor_split.visual_mode.clone();
             let active_view_id = editor_split.active.clone();
-            let (editor_width, editor_offset) = {
+            let (editor_width, editor_offset, selection) = {
                 let editor = editor_split.get_editor(&self.view_id);
                 editor.set_line_height(line_height);
                 editor.char_width = width;
-                (editor.width, editor.offset)
+                (
+                    editor.width,
+                    editor.selection.get_cursor_offset(),
+                    editor.selection.clone(),
+                )
             };
 
             let mut buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
@@ -1154,6 +1300,20 @@ impl<T: Data> Widget<T> for Editor {
             for rect in rects {
                 let start_line = (rect.y0 / line_height).floor() as usize;
                 let num_lines = (rect.height() / line_height).floor() as usize;
+                if mode == Mode::Visual {
+                    self.paint_selection(
+                        ctx,
+                        &mode,
+                        &visual_mode,
+                        &selection,
+                        buffer,
+                        line_height,
+                        width,
+                        start_line,
+                        num_lines,
+                        env,
+                    );
+                }
                 let last_line = buffer.last_line();
                 for line in start_line..start_line + num_lines + 1 {
                     if line > last_line {
@@ -1166,20 +1326,25 @@ impl<T: Data> Widget<T> for Editor {
                         )
                         .to_string();
                     if line == cursor.0 {
-                        ctx.fill(
-                            Rect::ZERO
-                                .with_origin(Point::new(
-                                    0.0,
-                                    cursor.0 as f64 * line_height,
-                                ))
-                                .with_size(Size::new(
-                                    editor_width,
-                                    line_height,
-                                )),
-                            &env.get(
-                                LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-                            ),
-                        );
+                        match mode {
+                            Mode::Visual => (),
+                            _ => {
+                                ctx.fill(
+                                Rect::ZERO
+                                    .with_origin(Point::new(
+                                        0.0,
+                                        cursor.0 as f64 * line_height,
+                                    ))
+                                    .with_size(Size::new(
+                                        editor_width,
+                                        line_height,
+                                    )),
+                                &env.get(
+                                    LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
+                                ),
+                            );
+                            }
+                        };
 
                         if active_view_id == self.view_id {
                             let cursor_x = (line_content[..cursor.1]
@@ -1197,20 +1362,7 @@ impl<T: Data> Widget<T> for Editor {
                                 as f64
                                 * width;
                             match mode {
-                                Mode::Insert => ctx.stroke(
-                                    Line::new(
-                                        Point::new(
-                                            cursor_x,
-                                            cursor.0 as f64 * line_height,
-                                        ),
-                                        Point::new(
-                                            cursor_x,
-                                            (cursor.0 + 1) as f64 * line_height,
-                                        ),
-                                    ),
-                                    &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
-                                    1.0,
-                                ),
+                                Mode::Insert => (),
                                 _ => ctx.fill(
                                     Rect::ZERO
                                         .with_origin(Point::new(
@@ -1253,6 +1405,18 @@ impl<T: Data> Widget<T> for Editor {
                             line_height,
                             line,
                             &line_content,
+                            env,
+                        );
+                    }
+                    if mode == Mode::Insert {
+                        self.paint_insert_cusor(
+                            ctx,
+                            &selection,
+                            buffer,
+                            line_height,
+                            width,
+                            start_line,
+                            num_lines,
                             env,
                         );
                     }

@@ -4,6 +4,7 @@ mod container;
 mod editor;
 mod font;
 mod language;
+mod movement;
 mod palette;
 mod scroll;
 mod split;
@@ -46,6 +47,12 @@ fn build_app() -> impl Widget<u32> {
         };
         if let Some(foreground) = theme.get("foreground") {
             env.set(theme::LapceTheme::EDITOR_FOREGROUND, foreground.clone());
+        };
+        if let Some(selection) = theme.get("selection") {
+            env.set(
+                theme::LapceTheme::EDITOR_SELECTION_COLOR,
+                selection.clone(),
+            );
         };
         env.set(theme::LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
         env.set(

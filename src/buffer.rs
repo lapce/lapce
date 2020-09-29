@@ -3,31 +3,41 @@ use language::{new_highlight_config, new_parser, LapceLanguage};
 use std::{
     borrow::Cow,
     io::{self, Read, Write},
+    sync::Arc,
+    thread,
 };
 use std::{collections::HashMap, fs::File};
 use tree_sitter::{Parser, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
-use xi_core_lib::line_offset::{LineOffset, LogicalLines};
+use xi_core_lib::{
+    line_offset::{LineOffset, LogicalLines},
+    selection::InsertDrift,
+};
 use xi_rope::{
-    interval::IntervalBounds, rope::Rope, Cursor, Interval, LinesMetric,
-    RopeInfo,
+    interval::IntervalBounds, rope::Rope, Cursor, DeltaBuilder, Interval,
+    LinesMetric, RopeDelta, RopeInfo, Transformer,
 };
 
-use crate::language;
+use crate::{
+    command::LapceUICommand, language, movement::SelHoriz, movement::Selection,
+    state::Mode, state::LAPCE_STATE,
+};
 
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub struct BufferId(pub usize);
 
 pub struct Buffer {
+    id: BufferId,
     rope: Rope,
     pub max_line_len: usize,
     tree: Tree,
-    highlight_config: HighlightConfiguration,
+    highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
     highlights: Vec<(usize, usize, Highlight)>,
     line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
+    highlight_version: String,
 }
 
 impl Buffer {
@@ -56,13 +66,15 @@ impl Buffer {
             new_highlight_config(LapceLanguage::Rust);
 
         let mut buffer = Buffer {
+            id: buffer_id,
             rope,
             max_line_len,
             tree,
-            highlight_config,
+            highlight_config: Arc::new(highlight_config),
             highlight_names,
             highlights: Vec::new(),
             line_highlights: HashMap::new(),
+            highlight_version: "".to_string(),
         };
         buffer.update_highlights();
         buffer
@@ -72,36 +84,72 @@ impl Buffer {
         self.rope.len()
     }
 
+    pub fn highlights_apply_delta(
+        &mut self,
+        delta: &RopeDelta,
+    ) -> Vec<(usize, usize, Highlight)> {
+        let mut transformer = Transformer::new(delta);
+        self.highlights
+            .iter()
+            .map(|h| {
+                (
+                    transformer.transform(h.0, true),
+                    transformer.transform(h.1, true),
+                    h.2.clone(),
+                )
+            })
+            .collect()
+    }
+
     pub fn update_highlights(&mut self) {
-        let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
-        let mut highlighter = Highlighter::new();
-        let rope_str = self.slice_to_cow(..self.len());
-        let mut current_hl: Option<Highlight> = None;
-        for hightlight in highlighter
-            .highlight(
-                &self.highlight_config,
-                &rope_str.as_bytes(),
-                None,
-                |_| None,
-            )
-            .unwrap()
-        {
-            if let Ok(highlight) = hightlight {
-                match highlight {
-                    HighlightEvent::Source { start, end } => {
-                        if let Some(hl) = current_hl {
-                            highlights.push((start, end, hl.clone()));
+        let version = uuid::Uuid::new_v4().to_string();
+        self.line_highlights = HashMap::new();
+        self.highlight_version = version.clone();
+
+        let highlight_config = self.highlight_config.clone();
+        let rope_str = self.slice_to_cow(..self.len()).to_string();
+        let buffer_id = self.id.clone();
+        thread::spawn(move || {
+            let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
+            let mut highlighter = Highlighter::new();
+            let mut current_hl: Option<Highlight> = None;
+            for hightlight in highlighter
+                .highlight(
+                    &highlight_config,
+                    &rope_str.as_bytes(),
+                    None,
+                    |_| None,
+                )
+                .unwrap()
+            {
+                if let Ok(highlight) = hightlight {
+                    match highlight {
+                        HighlightEvent::Source { start, end } => {
+                            if let Some(hl) = current_hl {
+                                highlights.push((start, end, hl.clone()));
+                            }
                         }
+                        HighlightEvent::HighlightStart(hl) => {
+                            current_hl = Some(hl);
+                        }
+                        HighlightEvent::HighlightEnd => current_hl = None,
                     }
-                    HighlightEvent::HighlightStart(hl) => {
-                        current_hl = Some(hl);
-                    }
-                    HighlightEvent::HighlightEnd => current_hl = None,
                 }
             }
-        }
-        self.highlights = highlights;
-        self.line_highlights = HashMap::new();
+
+            let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
+            let active = editor_split.active();
+            if let Some(buffer) = editor_split.get_buffer(&buffer_id) {
+                if buffer.highlight_version == version {
+                    buffer.highlights = highlights;
+                    buffer.line_highlights = HashMap::new();
+                    LAPCE_STATE.submit_ui_command(
+                        LapceUICommand::RequestPaint,
+                        active,
+                    );
+                }
+            }
+        });
     }
 
     pub fn get_line_highligh(
@@ -113,7 +161,7 @@ impl Buffer {
             let start_offset = self.offset_of_line(line);
             let end_offset = self.offset_of_line(line + 1) - 1;
             for (start, end, hl) in &self.highlights {
-                if start > end_offset {
+                if *start > end_offset {
                     break;
                 }
                 if *start >= start_offset && *start <= end_offset {
@@ -129,9 +177,48 @@ impl Buffer {
         self.line_highlights.get(&line).unwrap()
     }
 
-    pub fn edit(&mut self, interval: Interval, new_text: &str) {
-        self.rope.edit(interval, new_text);
+    // pub fn edit(&mut self, interval: Interval, new_text: &str) {
+    //     self.rope.edit(interval, new_text);
+    //     self.update_highlights();
+    // }
+
+    fn apply_delta(
+        &mut self,
+        selection: &Selection,
+        delta: &RopeDelta,
+    ) -> Selection {
+        self.rope = delta.apply(&self.rope);
+        self.highlights = self.highlights_apply_delta(delta);
         self.update_highlights();
+        selection.apply_delta(delta, true, InsertDrift::Default)
+    }
+
+    pub fn delete_backward(&mut self, selection: &Selection) -> Selection {
+        let mut builder = DeltaBuilder::new(self.rope.len());
+        for region in selection.regions() {
+            let start = if !region.is_caret() {
+                region.min()
+            } else {
+                region.min() - 1
+            };
+            if start != region.max() {
+                builder.delete(start..region.max());
+            }
+        }
+        self.apply_delta(selection, &builder.build())
+    }
+
+    pub fn insert(
+        &mut self,
+        content: &str,
+        selection: &Selection,
+    ) -> Selection {
+        let rope = Rope::from(content);
+        let mut builder = DeltaBuilder::new(self.len());
+        for region in selection.regions() {
+            builder.replace(region.min()..region.max(), rope.clone());
+        }
+        self.apply_delta(selection, &builder.build())
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
@@ -160,6 +247,49 @@ impl Buffer {
 
     pub fn last_line(&self) -> usize {
         self.line_of_offset(self.rope.len())
+    }
+
+    pub fn max_col(&self, mode: &Mode, line: usize) -> usize {
+        match self.offset_of_line(line + 1) - self.offset_of_line(line) {
+            n if n == 0 => 0,
+            n if n == 1 => 0,
+            n => match mode {
+                &Mode::Insert => n - 1,
+                _ => n - 2,
+            },
+        }
+    }
+
+    pub fn col_on_line(
+        &self,
+        mode: &Mode,
+        line: usize,
+        horiz: &SelHoriz,
+    ) -> usize {
+        let max_col = self.max_col(mode, line);
+        match horiz {
+            SelHoriz::EndOfLine => max_col,
+            SelHoriz::Col(n) => match max_col > *n {
+                true => *n,
+                false => max_col,
+            },
+        }
+    }
+
+    pub fn line_end_offset(&self, mode: &Mode, offset: usize) -> usize {
+        let line = self.line_of_offset(offset);
+        let line_start_offset = self.offset_of_line(line);
+        let line_end_offset = self.offset_of_line(line + 1);
+        let line_end_offset = if line_end_offset - line_start_offset <= 1 {
+            line_start_offset
+        } else {
+            if mode == &Mode::Insert {
+                line_end_offset - 1
+            } else {
+                line_end_offset - 2
+            }
+        };
+        line_end_offset
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {

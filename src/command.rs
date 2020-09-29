@@ -55,8 +55,16 @@ pub enum LapceCommand {
     SplitLeft,
     #[strum(serialize = "insert_mode")]
     InsertMode,
+    #[strum(serialize = "insert_first_non_blank")]
+    InsertFirstNonBlank,
     #[strum(serialize = "normal_mode")]
     NormalMode,
+    #[strum(serialize = "toggle_visual_mode")]
+    ToggleVisualMode,
+    #[strum(serialize = "toggle_linewise_visual_mode")]
+    ToggleLinewiseVisualMode,
+    #[strum(serialize = "toggle_blockwise_visual_mode")]
+    ToggleBlockwiseVisualMode,
     #[strum(serialize = "new_line_above")]
     NewLineAbove,
     #[strum(serialize = "new_line_below")]
