@@ -241,6 +241,7 @@ impl EditorState {
         buffer: &Buffer,
         mode: &Mode,
         visual_mode: &VisualMode,
+        start_insert: bool,
     ) -> Selection {
         match mode {
             Mode::Normal => self.selection.clone(),
@@ -255,7 +256,10 @@ impl EditorState {
                         let start = buffer.offset_of_line(start_line);
                         let (end_line, _) =
                             buffer.offset_to_line_col(region.max());
-                        let max_col = buffer.max_col(mode, end_line);
+                        let max_col = buffer.max_col(
+                            if !start_insert { &Mode::Insert } else { mode },
+                            end_line,
+                        );
                         let end = buffer.offset_of_line(end_line) + max_col;
                         new_selection.add_region(SelRegion::new(
                             start,
@@ -732,18 +736,44 @@ impl EditorSplitState {
                 if let Some(editor) = self.editors.get_mut(&self.active) {
                     if let Some(buffer_id) = editor.buffer_id.as_ref() {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            editor.selection = buffer
-                                .delete_foreward(
-                                    &editor.get_selection(
-                                        buffer,
-                                        &self.mode,
-                                        &self.visual_mode,
-                                    ),
+                            editor.selection = buffer.delete_foreward(
+                                &editor.get_selection(
+                                    buffer,
                                     &self.mode,
-                                    count.unwrap_or(1),
-                                )
-                                .collapse();
-                            self.mode = Mode::Normal;
+                                    &self.visual_mode,
+                                    false,
+                                ),
+                                &self.mode,
+                                count.unwrap_or(1),
+                            );
+                            if self.mode == Mode::Visual {
+                                editor.selection = buffer.correct_offset(
+                                    &editor.selection.collapse(),
+                                    &self.mode,
+                                );
+                                self.mode = Mode::Normal;
+                            }
+                            editor.ensure_cursor_visible(buffer);
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            LapceCommand::DeleteForewardAndInsert => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            editor.selection = buffer.delete_foreward(
+                                &editor.get_selection(
+                                    buffer,
+                                    &self.mode,
+                                    &self.visual_mode,
+                                    true,
+                                ),
+                                &self.mode,
+                                count.unwrap_or(1),
+                            );
+                            self.mode = Mode::Insert;
                             editor.ensure_cursor_visible(buffer);
                             editor.request_paint();
                         }

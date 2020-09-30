@@ -251,7 +251,7 @@ impl Buffer {
         let mut builder = DeltaBuilder::new(self.rope.len());
 
         for region in selection.regions() {
-            let end = if !region.is_caret() {
+            let end = if mode != &Mode::Insert {
                 region.max() + 1
             } else {
                 Movement::Right(count)
@@ -262,8 +262,7 @@ impl Buffer {
                 builder.delete(region.min()..end);
             }
         }
-        let selection = self.apply_delta(selection, &builder.build());
-        self.correct_offset(&selection, mode)
+        self.apply_delta(selection, &builder.build())
     }
 
     pub fn delete_backward(&mut self, selection: &Selection) -> Selection {

@@ -19,6 +19,8 @@ pub enum LapceCommand {
     DeleteBackward,
     #[strum(serialize = "delete_foreward")]
     DeleteForeward,
+    #[strum(serialize = "delete_foreward_and_insert")]
+    DeleteForewardAndInsert,
     #[strum(serialize = "delete_word_backward")]
     DeleteWordBackward,
     #[strum(serialize = "delete_to_beginning_of_line")]
