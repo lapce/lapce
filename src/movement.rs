@@ -5,12 +5,6 @@ use crate::{buffer::Buffer, state::Mode};
 use std::cmp::{max, min};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum SelHoriz {
-    Col(usize),
-    EndOfLine,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ColPosition {
     FirstNonBlank,
     Start,
@@ -22,13 +16,18 @@ pub enum ColPosition {
 pub struct SelRegion {
     start: usize,
     end: usize,
-    horiz: SelHoriz,
+    horiz: Option<ColPosition>,
 }
 
 impl SelRegion {
-    pub fn new(start: usize, end: usize, horiz: SelHoriz) -> SelRegion {
+    pub fn new(
+        start: usize,
+        end: usize,
+        horiz: Option<ColPosition>,
+    ) -> SelRegion {
         SelRegion { start, end, horiz }
     }
+
     pub fn min(self) -> usize {
         min(self.start, self.end)
     }
@@ -37,8 +36,16 @@ impl SelRegion {
         max(self.start, self.end)
     }
 
-    pub fn horiz(&self) -> &SelHoriz {
-        &self.horiz
+    pub fn start(self) -> usize {
+        self.start
+    }
+
+    pub fn end(self) -> usize {
+        self.end
+    }
+
+    pub fn horiz(&self) -> Option<&ColPosition> {
+        self.horiz.as_ref()
     }
 
     pub fn is_caret(self) -> bool {
@@ -62,7 +69,7 @@ impl SelRegion {
         };
         // Could try to preserve horiz/affinity from one of the
         // sources, but very likely not worth it.
-        SelRegion::new(start, end, SelHoriz::Col(start))
+        SelRegion::new(start, end, None)
     }
 }
 
@@ -83,7 +90,7 @@ impl Selection {
             regions: vec![SelRegion {
                 start: 0,
                 end: 0,
-                horiz: SelHoriz::Col(0),
+                horiz: None,
             }],
         }
     }
@@ -93,7 +100,7 @@ impl Selection {
             regions: vec![SelRegion {
                 start: offset,
                 end: offset,
-                horiz: SelHoriz::Col(offset),
+                horiz: None,
             }],
         }
     }
@@ -103,9 +110,15 @@ impl Selection {
             regions: vec![SelRegion {
                 start,
                 end,
-                horiz: SelHoriz::Col(end),
+                horiz: None,
             }],
         }
+    }
+
+    pub fn collapse(&self) -> Selection {
+        let mut selection = Self::new();
+        selection.add_region(self.regions[0].clone());
+        selection
     }
 
     pub fn add_region(&mut self, region: SelRegion) {
@@ -207,7 +220,7 @@ impl Selection {
             let new_region = SelRegion::new(
                 transformer.transform(region.start, start_after),
                 transformer.transform(region.end, end_after),
-                region.horiz,
+                None,
             );
             result.add_region(new_region);
         }
@@ -245,10 +258,10 @@ impl Movement {
             let region = self.update_region(region, buffer, mode);
             new_selection.add_region(region);
         }
-        new_selection
+        buffer.fill_horiz(&new_selection)
     }
 
-    fn update_region(
+    pub fn update_region(
         &self,
         region: &SelRegion,
         buffer: &Buffer,
@@ -268,7 +281,7 @@ impl Movement {
                 };
                 let (_, col) = buffer.offset_to_line_col(new_end);
 
-                (new_end, SelHoriz::Col(col))
+                (new_end, Some(ColPosition::Col(col)))
             }
             Movement::Right(count) => {
                 let end = region.end;
@@ -283,7 +296,7 @@ impl Movement {
                 }
 
                 let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, SelHoriz::Col(col))
+                (new_end, Some(ColPosition::Col(col)))
             }
             Movement::Up(count) => {
                 let line = buffer.line_of_offset(region.end);
@@ -295,11 +308,12 @@ impl Movement {
                     max_col -= 1;
                 }
                 let col = match region.horiz {
-                    SelHoriz::EndOfLine => max_col,
-                    SelHoriz::Col(n) => match max_col > n {
+                    Some(ColPosition::End) => max_col,
+                    Some(ColPosition::Col(n)) => match max_col > n {
                         true => n,
                         false => max_col,
                     },
+                    _ => 0,
                 };
                 let new_end = buffer.offset_of_line(line) + col;
                 (new_end, region.horiz)
@@ -308,18 +322,18 @@ impl Movement {
                 let last_line = buffer.last_line();
                 let line = buffer.line_of_offset(region.end) + count;
                 let line = if line > last_line { last_line } else { line };
-                let col = buffer.col_on_line(mode, line, &region.horiz);
+                let col = buffer.col_on_line(mode, line, region.horiz.as_ref());
                 let new_end = buffer.offset_of_line(line) + col;
                 (new_end, region.horiz)
             }
             Movement::StartOfLine => {
                 let line = buffer.line_of_offset(region.end);
                 let new_end = buffer.offset_of_line(line);
-                (new_end, SelHoriz::Col(0))
+                (new_end, Some(ColPosition::Start))
             }
             Movement::EndOfLine => {
                 let new_end = buffer.line_end_offset(mode, region.end);
-                (new_end, SelHoriz::EndOfLine)
+                (new_end, Some(ColPosition::End))
             }
             Movement::Line(position) => {
                 let line = match position {
@@ -333,7 +347,7 @@ impl Movement {
                     LinePosition::First => 0,
                     LinePosition::Last => buffer.last_line(),
                 };
-                let col = buffer.col_on_line(mode, line, &region.horiz);
+                let col = buffer.col_on_line(mode, line, region.horiz.as_ref());
                 let new_end = buffer.offset_of_line(line) + col;
                 (new_end, region.horiz)
             }
@@ -343,7 +357,7 @@ impl Movement {
                     new_end = buffer.word_forward(new_end);
                 }
                 let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, SelHoriz::Col(col))
+                (new_end, Some(ColPosition::Col(col)))
             }
             Movement::WordBackward(count) => {
                 let mut new_end = region.end;
@@ -355,7 +369,7 @@ impl Movement {
                     new_end = line_end_offset;
                 }
                 let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, SelHoriz::Col(col))
+                (new_end, Some(ColPosition::Col(col)))
             }
         };
 

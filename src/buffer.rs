@@ -21,8 +21,10 @@ use xi_rope::{
 };
 
 use crate::{
-    command::LapceUICommand, language, movement::SelHoriz, movement::Selection,
-    state::Mode, state::LAPCE_STATE,
+    command::LapceUICommand,
+    language,
+    movement::{ColPosition, Movement, SelRegion, Selection},
+    state::{Mode, LAPCE_STATE},
 };
 
 #[derive(Eq, PartialEq, Hash, Clone)]
@@ -177,10 +179,53 @@ impl Buffer {
         self.line_highlights.get(&line).unwrap()
     }
 
-    // pub fn edit(&mut self, interval: Interval, new_text: &str) {
-    //     self.rope.edit(interval, new_text);
-    //     self.update_highlights();
-    // }
+    pub fn correct_offset(
+        &self,
+        selection: &Selection,
+        mode: &Mode,
+    ) -> Selection {
+        let mut result = Selection::new();
+        for region in selection.regions() {
+            let (line, col) = self.offset_to_line_col(region.start());
+            let max_col = self.max_col(mode, line);
+            let (start, col) = if col > max_col {
+                (self.offset_of_line(line) + max_col, max_col)
+            } else {
+                (region.start(), col)
+            };
+
+            let (line, col) = self.offset_to_line_col(region.start());
+            let max_col = self.max_col(mode, line);
+            let end = if col > max_col {
+                self.offset_of_line(line) + max_col
+            } else {
+                region.end()
+            };
+
+            let new_region =
+                SelRegion::new(start, end, Some(ColPosition::Col(col)));
+            result.add_region(new_region);
+        }
+        result
+    }
+
+    pub fn fill_horiz(&self, selection: &Selection) -> Selection {
+        let mut result = Selection::new();
+        for region in selection.regions() {
+            let new_region = if region.horiz().is_some() {
+                region.clone()
+            } else {
+                let (_, col) = self.offset_to_line_col(region.min());
+                SelRegion::new(
+                    region.start(),
+                    region.end(),
+                    Some(ColPosition::Col(col)),
+                )
+            };
+            result.add_region(new_region);
+        }
+        result
+    }
 
     fn apply_delta(
         &mut self,
@@ -190,7 +235,35 @@ impl Buffer {
         self.rope = delta.apply(&self.rope);
         self.highlights = self.highlights_apply_delta(delta);
         self.update_highlights();
-        selection.apply_delta(delta, true, InsertDrift::Default)
+        self.fill_horiz(&selection.apply_delta(
+            delta,
+            true,
+            InsertDrift::Default,
+        ))
+    }
+
+    pub fn delete_foreward(
+        &mut self,
+        selection: &Selection,
+        mode: &Mode,
+        count: usize,
+    ) -> Selection {
+        let mut builder = DeltaBuilder::new(self.rope.len());
+
+        for region in selection.regions() {
+            let end = if !region.is_caret() {
+                region.max() + 1
+            } else {
+                Movement::Right(count)
+                    .update_region(&region, &self, &Mode::Insert)
+                    .max()
+            };
+            if end != region.min() {
+                builder.delete(region.min()..end);
+            }
+        }
+        let selection = self.apply_delta(selection, &builder.build());
+        self.correct_offset(&selection, mode)
     }
 
     pub fn delete_backward(&mut self, selection: &Selection) -> Selection {
@@ -264,15 +337,16 @@ impl Buffer {
         &self,
         mode: &Mode,
         line: usize,
-        horiz: &SelHoriz,
+        horiz: Option<&ColPosition>,
     ) -> usize {
         let max_col = self.max_col(mode, line);
         match horiz {
-            SelHoriz::EndOfLine => max_col,
-            SelHoriz::Col(n) => match max_col > *n {
-                true => *n,
+            Some(&ColPosition::Col(n)) => match max_col > n {
+                true => n,
                 false => max_col,
             },
+            Some(&ColPosition::End) => max_col,
+            _ => 0,
         }
     }
 

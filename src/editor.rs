@@ -7,7 +7,6 @@ use crate::{
     movement::ColPosition,
     movement::LinePosition,
     movement::Movement,
-    movement::SelHoriz,
     movement::SelRegion,
     movement::Selection,
     scroll::LapceScroll,
@@ -237,6 +236,73 @@ impl EditorState {
         self.ensure_cursor_visible(buffer);
     }
 
+    pub fn get_selection(
+        &self,
+        buffer: &Buffer,
+        mode: &Mode,
+        visual_mode: &VisualMode,
+    ) -> Selection {
+        match mode {
+            Mode::Normal => self.selection.clone(),
+            Mode::Insert => self.selection.clone(),
+            Mode::Visual => match visual_mode {
+                VisualMode::Normal => self.selection.clone(),
+                VisualMode::Linewise => {
+                    let mut new_selection = Selection::new();
+                    for region in self.selection.regions() {
+                        let (start_line, _) =
+                            buffer.offset_to_line_col(region.min());
+                        let start = buffer.offset_of_line(start_line);
+                        let (end_line, _) =
+                            buffer.offset_to_line_col(region.max());
+                        let max_col = buffer.max_col(mode, end_line);
+                        let end = buffer.offset_of_line(end_line) + max_col;
+                        new_selection.add_region(SelRegion::new(
+                            start,
+                            end,
+                            Some(ColPosition::Col(0)),
+                        ));
+                    }
+                    new_selection
+                }
+                VisualMode::Blockwise => {
+                    let mut new_selection = Selection::new();
+                    for region in self.selection.regions() {
+                        let (start_line, start_col) =
+                            buffer.offset_to_line_col(region.min());
+                        let (end_line, end_col) =
+                            buffer.offset_to_line_col(region.max());
+                        let left = start_col.min(end_col);
+                        let right = start_col.max(end_col);
+                        for line in start_line..end_line + 1 {
+                            let max_col = buffer.max_col(mode, line);
+                            if left > max_col {
+                                continue;
+                            }
+                            let right = match region.horiz() {
+                                Some(&ColPosition::End) => max_col,
+                                _ => {
+                                    if right > max_col {
+                                        max_col
+                                    } else {
+                                        right
+                                    }
+                                }
+                            };
+                            let offset = buffer.offset_of_line(line);
+                            new_selection.add_region(SelRegion::new(
+                                offset + left,
+                                offset + right,
+                                Some(ColPosition::Col(left)),
+                            ));
+                        }
+                    }
+                    new_selection
+                }
+            },
+        }
+    }
+
     pub fn insert_mode(
         &mut self,
         buffer: &mut Buffer,
@@ -265,7 +331,7 @@ impl EditorState {
                                 selection.add_region(SelRegion::new(
                                     offset,
                                     offset,
-                                    SelHoriz::Col(left),
+                                    Some(ColPosition::Col(left)),
                                 ));
                             }
                         }
@@ -657,6 +723,28 @@ impl EditorSplitState {
                         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
                             editor.selection =
                                 buffer.delete_backward(&editor.selection);
+                            editor.request_paint();
+                        }
+                    }
+                }
+            }
+            LapceCommand::DeleteForeward => {
+                if let Some(editor) = self.editors.get_mut(&self.active) {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                            editor.selection = buffer
+                                .delete_foreward(
+                                    &editor.get_selection(
+                                        buffer,
+                                        &self.mode,
+                                        &self.visual_mode,
+                                    ),
+                                    &self.mode,
+                                    count.unwrap_or(1),
+                                )
+                                .collapse();
+                            self.mode = Mode::Normal;
+                            editor.ensure_cursor_visible(buffer);
                             editor.request_paint();
                         }
                     }
@@ -1168,7 +1256,7 @@ impl Editor {
                     &VisualMode::Blockwise => {
                         let max_col = buffer.max_col(mode, line) + 1;
                         let right = match region.horiz() {
-                            &SelHoriz::EndOfLine => max_col,
+                            Some(&ColPosition::End) => max_col,
                             _ => (end_col.max(start_col) + 1).min(max_col),
                         };
                         right as f64 * width
