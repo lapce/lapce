@@ -29,6 +29,7 @@ lazy_static! {
     pub static ref LAPCE_STATE: LapceState = LapceState::new();
 }
 
+#[derive(PartialEq)]
 enum KeymapMatch {
     Full,
     Prefix,
@@ -71,7 +72,7 @@ pub struct KeyMap {
 #[derive(Clone)]
 pub struct LapceState {
     pub palette: Arc<Mutex<PaletteState>>,
-    keypress_sequence: Arc<Mutex<String>>,
+    // keypress_sequence: Arc<Mutex<String>>,
     pending_keypress: Arc<Mutex<Vec<KeyPress>>>,
     count: Arc<Mutex<Option<usize>>>,
     keymaps: Arc<Mutex<Vec<KeyMap>>>,
@@ -92,7 +93,7 @@ impl LapceState {
             theme: Arc::new(Mutex::new(
                 Self::get_theme().unwrap_or(HashMap::new()),
             )),
-            keypress_sequence: Arc::new(Mutex::new("".to_string())),
+            // keypress_sequence: Arc::new(Mutex::new("".to_string())),
             count: Arc::new(Mutex::new(None)),
             ui_sink: Arc::new(Mutex::new(None)),
             focus: Arc::new(Mutex::new(LapceWidget::Editor)),
@@ -256,10 +257,7 @@ impl LapceState {
     }
 
     pub fn get_count(&self) -> Option<usize> {
-        let mut count = self.count.lock().unwrap();
-        let new_count = count.clone();
-        *count = None;
-        new_count
+        self.count.lock().unwrap().take()
     }
 
     pub fn run_command(&self, command: &str) {
@@ -368,8 +366,6 @@ impl LapceState {
     }
 
     pub fn key_down(&self, key_event: &KeyEvent) {
-        let mut keypress_sequence = self.keypress_sequence.lock().unwrap();
-        *keypress_sequence = uuid::Uuid::new_v4().to_string();
         let mut mods = key_event.mods.clone();
         mods.set(Modifiers::SHIFT, false);
         let keypress = KeyPress {
@@ -399,47 +395,38 @@ impl LapceState {
                             .lock()
                             .unwrap()
                             .push(keypress.clone());
-                        let keypress_sequence = self.keypress_sequence.clone();
-                        let keymaps = self.keymaps.clone();
-                        let state = self.clone();
-                        thread::spawn(move || {
-                            let pre_keypress_sequence =
-                                keypress_sequence.lock().unwrap().clone();
-                            thread::sleep(Duration::from_millis(3000));
-                            let keypress_sequence =
-                                keypress_sequence.lock().unwrap();
-                            if *keypress_sequence != pre_keypress_sequence {
-                                return;
-                            }
-                            let keypresses =
-                                state.pending_keypress.lock().unwrap().clone();
-                            *state.pending_keypress.lock().unwrap() =
-                                Vec::new();
-                            for keymap in keymaps.lock().unwrap().iter() {
-                                if let Some(match_result) =
-                                    state.match_keymap_new(&keypresses, keymap)
-                                {
-                                    match match_result {
-                                        KeymapMatch::Full => {
-                                            state.run_command(&keymap.command);
-                                            return;
-                                        }
-                                        _ => (),
-                                    }
-                                }
-                            }
-                        });
                         return;
                     }
                 }
             }
         }
 
+        let pending_keypresses = self.pending_keypress.lock().unwrap().clone();
         *self.pending_keypress.lock().unwrap() = Vec::new();
 
         if let Some(keymap) = full_match_keymap {
             self.run_command(&keymap.command);
             return;
+        }
+
+        if pending_keypresses.len() > 0 {
+            let mut full_match_keymap = None;
+            for keymap in self.keymaps.lock().unwrap().iter() {
+                if let Some(match_result) =
+                    self.match_keymap_new(&pending_keypresses, keymap)
+                {
+                    if match_result == KeymapMatch::Full {
+                        if full_match_keymap.is_none() {
+                            full_match_keymap = Some(keymap.clone());
+                        }
+                    }
+                }
+            }
+            if let Some(keymap) = full_match_keymap {
+                self.run_command(&keymap.command);
+                self.key_down(key_event);
+                return;
+            }
         }
 
         if self.get_mode() != Mode::Insert {
@@ -496,6 +483,10 @@ impl LapceState {
                 *self.focus.lock().unwrap() == LapceWidget::Palette
             }
             "list_focus" => *self.focus.lock().unwrap() == LapceWidget::Palette,
+            "editor_operator" => {
+                *self.focus.lock().unwrap() == LapceWidget::Editor
+                    && self.editor_split.lock().unwrap().has_operator()
+            }
             _ => false,
         }
     }

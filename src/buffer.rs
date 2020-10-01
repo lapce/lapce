@@ -22,6 +22,7 @@ use xi_rope::{
 
 use crate::{
     command::LapceUICommand,
+    editor::EditorOperator,
     language,
     movement::{ColPosition, Movement, SelRegion, Selection},
     state::{Mode, LAPCE_STATE},
@@ -179,15 +180,11 @@ impl Buffer {
         self.line_highlights.get(&line).unwrap()
     }
 
-    pub fn correct_offset(
-        &self,
-        selection: &Selection,
-        mode: &Mode,
-    ) -> Selection {
+    pub fn correct_offset(&self, selection: &Selection) -> Selection {
         let mut result = Selection::new();
         for region in selection.regions() {
             let (line, col) = self.offset_to_line_col(region.start());
-            let max_col = self.max_col(mode, line);
+            let max_col = self.line_max_col(line, false);
             let (start, col) = if col > max_col {
                 (self.offset_of_line(line) + max_col, max_col)
             } else {
@@ -195,7 +192,7 @@ impl Buffer {
             };
 
             let (line, col) = self.offset_to_line_col(region.start());
-            let max_col = self.max_col(mode, line);
+            let max_col = self.line_max_col(line, false);
             let end = if col > max_col {
                 self.offset_of_line(line) + max_col
             } else {
@@ -203,7 +200,7 @@ impl Buffer {
             };
 
             let new_region =
-                SelRegion::new(start, end, Some(ColPosition::Col(col)));
+                SelRegion::new(start, end, region.horiz().map(|h| h.clone()));
             result.add_region(new_region);
         }
         result
@@ -242,6 +239,34 @@ impl Buffer {
         ))
     }
 
+    pub fn yank(&self, selection: &Selection) -> Vec<String> {
+        selection
+            .regions()
+            .iter()
+            .map(|region| {
+                self.rope
+                    .slice_to_cow(region.min()..region.max())
+                    .to_string()
+            })
+            .collect()
+    }
+
+    pub fn delete(&mut self, selection: &Selection, mode: &Mode) -> Selection {
+        let mut builder = DeltaBuilder::new(self.rope.len());
+
+        for region in selection.regions() {
+            let end = if mode != &Mode::Insert {
+                region.max()
+            } else {
+                region.max()
+            };
+            if end != region.min() {
+                builder.delete(region.min()..end);
+            }
+        }
+        self.apply_delta(selection, &builder.build())
+    }
+
     pub fn delete_foreward(
         &mut self,
         selection: &Selection,
@@ -252,10 +277,10 @@ impl Buffer {
 
         for region in selection.regions() {
             let end = if mode != &Mode::Insert {
-                region.max() + 1
+                region.max()
             } else {
-                Movement::Right(count)
-                    .update_region(&region, &self, &Mode::Insert)
+                Movement::Right
+                    .update_region(&region, &self, count, true, false)
                     .max()
             };
             if end != region.min() {
@@ -278,6 +303,63 @@ impl Buffer {
             }
         }
         self.apply_delta(selection, &builder.build())
+    }
+
+    pub fn do_move(
+        &mut self,
+        mode: &Mode,
+        movement: Movement,
+        selection: &Selection,
+        operator: Option<EditorOperator>,
+        count: Option<usize>,
+    ) -> Selection {
+        if let Some(operator) = operator {
+            let selection = movement.update_selection(
+                selection,
+                &self,
+                count.unwrap_or(1),
+                true,
+                true,
+            );
+            let mut new_selection = Selection::new();
+            for region in selection.regions() {
+                let start_line = self.line_of_offset(region.min());
+                let end_line = self.line_of_offset(region.max());
+                let new_region = if movement.is_vertical() {
+                    let region = SelRegion::new(
+                        self.offset_of_line(start_line),
+                        self.offset_of_line(end_line + 1),
+                        Some(ColPosition::Col(0)),
+                    );
+                    region
+                } else {
+                    if movement.is_inclusive() {
+                        SelRegion::new(
+                            region.min(),
+                            region.max() + 1,
+                            region.horiz().map(|h| h.clone()),
+                        )
+                    } else {
+                        region.clone()
+                    }
+                };
+                new_selection.add_region(new_region);
+            }
+            match operator {
+                EditorOperator::Delete(_) => self.delete(&new_selection, mode),
+                EditorOperator::Yank(_) => {
+                    self.delete_foreward(&new_selection, mode, 1)
+                }
+            }
+        } else {
+            movement.update_selection(
+                &selection,
+                &self,
+                count.unwrap_or(1),
+                mode == &Mode::Insert,
+                mode == &Mode::Visual,
+            )
+        }
     }
 
     pub fn insert(
@@ -321,42 +403,46 @@ impl Buffer {
         self.line_of_offset(self.rope.len())
     }
 
-    pub fn max_col(&self, mode: &Mode, line: usize) -> usize {
+    pub fn line_max_col(&self, line: usize, include_newline: bool) -> usize {
         match self.offset_of_line(line + 1) - self.offset_of_line(line) {
             n if n == 0 => 0,
             n if n == 1 => 0,
-            n => match mode {
-                &Mode::Insert => n - 1,
-                _ => n - 2,
+            n => match include_newline {
+                true => n - 1,
+                false => n - 2,
             },
         }
     }
 
-    pub fn col_on_line(
+    pub fn line_horiz_col(
         &self,
-        mode: &Mode,
         line: usize,
-        horiz: Option<&ColPosition>,
+        horiz: &ColPosition,
+        include_newline: bool,
     ) -> usize {
-        let max_col = self.max_col(mode, line);
+        let max_col = self.line_max_col(line, include_newline);
         match horiz {
-            Some(&ColPosition::Col(n)) => match max_col > n {
+            &ColPosition::Col(n) => match max_col > n {
                 true => n,
                 false => max_col,
             },
-            Some(&ColPosition::End) => max_col,
+            &ColPosition::End => max_col,
             _ => 0,
         }
     }
 
-    pub fn line_end_offset(&self, mode: &Mode, offset: usize) -> usize {
+    pub fn line_end_offset(
+        &self,
+        offset: usize,
+        include_newline: bool,
+    ) -> usize {
         let line = self.line_of_offset(offset);
         let line_start_offset = self.offset_of_line(line);
         let line_end_offset = self.offset_of_line(line + 1);
         let line_end_offset = if line_end_offset - line_start_offset <= 1 {
             line_start_offset
         } else {
-            if mode == &Mode::Insert {
+            if include_newline {
                 line_end_offset - 1
             } else {
                 line_end_offset - 2
@@ -372,6 +458,10 @@ impl Buffer {
 
     pub fn word_forward(&self, offset: usize) -> usize {
         WordCursor::new(&self.rope, offset).next_boundary().unwrap()
+    }
+
+    pub fn word_end_forward(&self, offset: usize) -> usize {
+        WordCursor::new(&self.rope, offset).end_boundary().unwrap()
     }
 
     pub fn word_backword(&self, offset: usize) -> usize {
@@ -439,7 +529,7 @@ impl<'a> WordCursor<'a> {
             let mut candidate = self.inner.pos();
             while let Some(next) = self.inner.next_codepoint() {
                 let prop_next = get_word_property(next);
-                if classify_boundary(prop, prop_next).is_end() {
+                if classify_boundary(prop, prop_next).is_start() {
                     break;
                 }
                 prop = prop_next;
@@ -447,6 +537,25 @@ impl<'a> WordCursor<'a> {
             }
             self.inner.set(candidate);
             return Some(candidate);
+        }
+        None
+    }
+
+    pub fn end_boundary(&mut self) -> Option<usize> {
+        self.inner.next_codepoint();
+        if let Some(ch) = self.inner.next_codepoint() {
+            let mut prop = get_word_property(ch);
+            let mut candidate = self.inner.pos();
+            while let Some(next) = self.inner.next_codepoint() {
+                let prop_next = get_word_property(next);
+                if classify_boundary(prop, prop_next).is_end() {
+                    break;
+                }
+                prop = prop_next;
+                candidate = self.inner.pos();
+            }
+            self.inner.set(candidate);
+            return Some(candidate - 1);
         }
         None
     }
@@ -546,10 +655,13 @@ fn classify_boundary(prev: WordProperty, next: WordProperty) -> WordBoundary {
     use self::WordBoundary::*;
     use self::WordProperty::*;
     match (prev, next) {
-        (_, Lf) => Start,
+        (Lf, Lf) => Start,
+        (Lf, Space) => Interior,
+        (_, Lf) => End,
         (Lf, _) => Start,
-        (_, Space) => Interior,
-        (Space, _) => Both,
+        (Space, Space) => Interior,
+        (_, Space) => End,
+        (Space, _) => Start,
         (Punctuation, Other) => Both,
         (Other, Punctuation) => Both,
         _ => Interior,

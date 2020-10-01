@@ -115,6 +115,28 @@ impl Selection {
         }
     }
 
+    pub fn min(&self) -> Selection {
+        let mut selection = Self::new();
+        for region in &self.regions {
+            let new_region = SelRegion::new(region.min(), region.min(), None);
+            selection.add_region(new_region);
+        }
+        selection
+    }
+
+    pub fn expand(&self) -> Selection {
+        let mut selection = Self::new();
+        for region in &self.regions {
+            let new_region = SelRegion::new(
+                region.min(),
+                region.max() + 1,
+                region.horiz.map(|h| h.clone()),
+            );
+            selection.add_region(new_region);
+        }
+        selection
+    }
+
     pub fn collapse(&self) -> Selection {
         let mut selection = Self::new();
         selection.add_region(self.regions[0].clone());
@@ -155,9 +177,9 @@ impl Selection {
         self.regions[0].end
     }
 
-    pub fn min(&self) -> usize {
-        self.regions[self.regions.len() - 1].min()
-    }
+    // pub fn min(&self) -> usize {
+    //     self.regions[self.regions.len() - 1].min()
+    // }
 
     pub fn regions(&self) -> &[SelRegion] {
         &self.regions
@@ -235,27 +257,50 @@ pub enum LinePosition {
 }
 
 pub enum Movement {
-    Left(usize),
-    Right(usize),
-    Up(usize),
-    Down(usize),
+    Left,
+    Right,
+    Up,
+    Down,
     StartOfLine,
     EndOfLine,
     Line(LinePosition),
-    WordForward(usize),
-    WordBackward(usize),
+    WordEndForward,
+    WordForward,
+    WordBackward,
 }
 
 impl Movement {
+    pub fn is_vertical(&self) -> bool {
+        match self {
+            Movement::Up | Movement::Down | Movement::Line(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_inclusive(&self) -> bool {
+        match self {
+            Movement::WordEndForward => true,
+            _ => false,
+        }
+    }
+
     pub fn update_selection(
         &self,
         selection: &Selection,
         buffer: &Buffer,
-        mode: &Mode,
+        count: usize,
+        include_newline: bool,
+        modify: bool,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in &selection.regions {
-            let region = self.update_region(region, buffer, mode);
+            let region = self.update_region(
+                region,
+                buffer,
+                count,
+                include_newline,
+                modify,
+            );
             new_selection.add_region(region);
         }
         buffer.fill_horiz(&new_selection)
@@ -265,14 +310,22 @@ impl Movement {
         &self,
         region: &SelRegion,
         buffer: &Buffer,
-        mode: &Mode,
+        count: usize,
+        include_newline: bool,
+        modify: bool,
     ) -> SelRegion {
+        let horiz = if let Some(horiz) = region.horiz {
+            horiz
+        } else {
+            let (_, col) = buffer.offset_to_line_col(region.end);
+            ColPosition::Col(col)
+        };
         let (end, horiz) = match self {
-            Movement::Left(count) => {
+            Movement::Left => {
                 let end = region.end;
                 let line = buffer.line_of_offset(end);
                 let line_start_offset = buffer.offset_of_line(line);
-                let new_end = if end < *count {
+                let new_end = if end < count {
                     0
                 } else if end - count > line_start_offset {
                     end - count
@@ -281,11 +334,11 @@ impl Movement {
                 };
                 let (_, col) = buffer.offset_to_line_col(new_end);
 
-                (new_end, Some(ColPosition::Col(col)))
+                (new_end, ColPosition::Col(col))
             }
-            Movement::Right(count) => {
+            Movement::Right => {
                 let end = region.end;
-                let line_end = buffer.line_end_offset(mode, end);
+                let line_end = buffer.line_end_offset(end, include_newline);
 
                 let mut new_end = end + count;
                 if new_end > buffer.len() {
@@ -296,44 +349,40 @@ impl Movement {
                 }
 
                 let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, Some(ColPosition::Col(col)))
+                (new_end, ColPosition::Col(col))
             }
-            Movement::Up(count) => {
+            Movement::Up => {
                 let line = buffer.line_of_offset(region.end);
-                let line = if line > *count { line - count } else { 0 };
-                let mut max_col = buffer.offset_of_line(line + 1)
-                    - buffer.offset_of_line(line)
-                    - 1;
-                if max_col > 0 && mode != &Mode::Insert {
-                    max_col -= 1;
-                }
-                let col = match region.horiz {
-                    Some(ColPosition::End) => max_col,
-                    Some(ColPosition::Col(n)) => match max_col > n {
+                let line = if line > count { line - count } else { 0 };
+                let max_col = buffer.line_max_col(line, include_newline);
+                let col = match horiz {
+                    ColPosition::End => max_col,
+                    ColPosition::Col(n) => match max_col > n {
                         true => n,
                         false => max_col,
                     },
                     _ => 0,
                 };
                 let new_end = buffer.offset_of_line(line) + col;
-                (new_end, region.horiz)
+                (new_end, horiz)
             }
-            Movement::Down(count) => {
+            Movement::Down => {
                 let last_line = buffer.last_line();
                 let line = buffer.line_of_offset(region.end) + count;
                 let line = if line > last_line { last_line } else { line };
-                let col = buffer.col_on_line(mode, line, region.horiz.as_ref());
+                let col = buffer.line_horiz_col(line, &horiz, include_newline);
                 let new_end = buffer.offset_of_line(line) + col;
-                (new_end, region.horiz)
+                (new_end, horiz)
             }
             Movement::StartOfLine => {
                 let line = buffer.line_of_offset(region.end);
                 let new_end = buffer.offset_of_line(line);
-                (new_end, Some(ColPosition::Start))
+                (new_end, ColPosition::Start)
             }
             Movement::EndOfLine => {
-                let new_end = buffer.line_end_offset(mode, region.end);
-                (new_end, Some(ColPosition::End))
+                let new_end =
+                    buffer.line_end_offset(region.end, include_newline);
+                (new_end, ColPosition::End)
             }
             Movement::Line(position) => {
                 let line = match position {
@@ -347,38 +396,51 @@ impl Movement {
                     LinePosition::First => 0,
                     LinePosition::Last => buffer.last_line(),
                 };
-                let col = buffer.col_on_line(mode, line, region.horiz.as_ref());
+                let col = buffer.line_horiz_col(line, &horiz, include_newline);
                 let new_end = buffer.offset_of_line(line) + col;
-                (new_end, region.horiz)
+                (new_end, horiz)
             }
-            Movement::WordForward(count) => {
+            Movement::WordForward => {
                 let mut new_end = region.end;
-                for i in 0..*count {
+                for i in 0..count {
                     new_end = buffer.word_forward(new_end);
                 }
                 let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, Some(ColPosition::Col(col)))
+                (new_end, ColPosition::Col(col))
             }
-            Movement::WordBackward(count) => {
+            Movement::WordEndForward => {
                 let mut new_end = region.end;
-                for i in 0..*count {
+                for i in 0..count {
+                    new_end = buffer.word_end_forward(new_end);
+                }
+                let (_, col) = buffer.offset_to_line_col(new_end);
+                (new_end, ColPosition::Col(col))
+            }
+            Movement::WordBackward => {
+                let mut new_end = region.end;
+                for i in 0..count {
                     new_end = buffer.word_backword(new_end);
                 }
-                let line_end_offset = buffer.line_end_offset(mode, new_end);
+                let line_end_offset =
+                    buffer.line_end_offset(new_end, include_newline);
                 if new_end > line_end_offset {
                     new_end = line_end_offset;
                 }
                 let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, Some(ColPosition::Col(col)))
+                (new_end, ColPosition::Col(col))
             }
         };
 
-        let start = match mode {
-            &Mode::Visual => region.start,
-            _ => end,
+        let start = match modify {
+            true => region.start,
+            false => end,
         };
 
-        SelRegion { start, end, horiz }
+        SelRegion {
+            start,
+            end,
+            horiz: Some(horiz),
+        }
     }
 }
 

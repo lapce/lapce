@@ -21,6 +21,10 @@ pub enum LapceCommand {
     DeleteForeward,
     #[strum(serialize = "delete_foreward_and_insert")]
     DeleteForewardAndInsert,
+    #[strum(serialize = "delete_visual")]
+    DeleteVisual,
+    #[strum(serialize = "delete_operator")]
+    DeleteOperator,
     #[strum(serialize = "delete_word_backward")]
     DeleteWordBackward,
     #[strum(serialize = "delete_to_beginning_of_line")]
@@ -79,8 +83,8 @@ pub enum LapceCommand {
     WordBackward,
     #[strum(serialize = "word_foward")]
     WordFoward,
-    #[strum(serialize = "word_end_foward")]
-    WordEndFoward,
+    #[strum(serialize = "word_end_forward")]
+    WordEndForward,
     #[strum(serialize = "line_end")]
     LineEnd,
     #[strum(serialize = "line_start")]
@@ -93,6 +97,10 @@ pub enum LapceCommand {
     Append,
     #[strum(serialize = "append_end_of_line")]
     AppendEndOfLine,
+    #[strum(serialize = "yank")]
+    Yank,
+    #[strum(serialize = "paste")]
+    Paste,
     Insert(String),
 }
 
