@@ -23,24 +23,39 @@ use xi_rope::{
 use crate::{
     command::LapceUICommand,
     editor::EditorOperator,
+    editor::HighlightTextLayout,
     language,
     movement::{ColPosition, Movement, SelRegion, Selection},
     state::{Mode, LAPCE_STATE},
 };
 
-#[derive(Eq, PartialEq, Hash, Clone)]
+#[derive(Debug, Clone)]
+pub struct InvalLines {
+    pub start_line: usize,
+    pub inval_count: usize,
+    pub new_count: usize,
+}
+
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct BufferId(pub usize);
+
+#[derive(Clone)]
+pub struct BufferUIState {
+    id: BufferId,
+    text_layouts: Vec<Option<HighlightTextLayout>>,
+}
 
 pub struct Buffer {
     id: BufferId,
     rope: Rope,
-    pub max_line_len: usize,
     tree: Tree,
     highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
     highlights: Vec<(usize, usize, Highlight)>,
     line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
     highlight_version: String,
+    pub max_len_line: usize,
+    pub max_len: usize,
 }
 
 impl Buffer {
@@ -52,18 +67,6 @@ impl Buffer {
         };
         let mut parser = new_parser(LapceLanguage::Rust);
         let tree = parser.parse(&rope.to_string(), None).unwrap();
-        let num_lines = rope.line_of_offset(rope.len()) + 1;
-
-        let mut pre_offset = 0;
-        let mut max_line_len = 0;
-        for i in 0..num_lines {
-            let offset = rope.offset_of_line(i);
-            let line_len = offset - pre_offset;
-            pre_offset = offset;
-            if line_len > max_line_len {
-                max_line_len = line_len;
-            }
-        }
 
         let (highlight_config, highlight_names) =
             new_highlight_config(LapceLanguage::Rust);
@@ -71,15 +74,17 @@ impl Buffer {
         let mut buffer = Buffer {
             id: buffer_id,
             rope,
-            max_line_len,
             tree,
             highlight_config: Arc::new(highlight_config),
             highlight_names,
             highlights: Vec::new(),
             line_highlights: HashMap::new(),
             highlight_version: "".to_string(),
+            max_len_line: 0,
+            max_len: 0,
         };
-        buffer.update_highlights();
+        buffer.update_max_line_len();
+        buffer.update_highlights(None);
         buffer
     }
 
@@ -104,7 +109,7 @@ impl Buffer {
             .collect()
     }
 
-    pub fn update_highlights(&mut self) {
+    pub fn update_highlights(&mut self, inval_lines: Option<InvalLines>) {
         let version = uuid::Uuid::new_v4().to_string();
         self.line_highlights = HashMap::new();
         self.highlight_version = version.clone();
@@ -141,15 +146,19 @@ impl Buffer {
             }
 
             let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
-            let active = editor_split.active();
             if let Some(buffer) = editor_split.get_buffer(&buffer_id) {
                 if buffer.highlight_version == version {
                     buffer.highlights = highlights;
                     buffer.line_highlights = HashMap::new();
-                    LAPCE_STATE.submit_ui_command(
-                        LapceUICommand::RequestPaint,
-                        active,
-                    );
+                    if let Some(inval_lines) = inval_lines {
+                        LAPCE_STATE.submit_ui_command(
+                            LapceUICommand::BufferUpdate(
+                                buffer_id,
+                                inval_lines,
+                            ),
+                            LAPCE_STATE.container_id(),
+                        );
+                    }
                 }
             }
         });
@@ -229,9 +238,35 @@ impl Buffer {
         selection: &Selection,
         delta: &RopeDelta,
     ) -> Selection {
+        let (iv, newlen) = delta.summary();
+        let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
+        let old_logical_end_offset =
+            self.rope.offset_of_line(old_logical_end_line);
         self.rope = delta.apply(&self.rope);
+
+        let logical_start_line = self.rope.line_of_offset(iv.start);
+        let new_logical_end_line =
+            self.rope.line_of_offset(iv.start + newlen) + 1;
+        let old_hard_count = old_logical_end_line - logical_start_line;
+        let new_hard_count = new_logical_end_line - logical_start_line;
+
+        println!(
+            "{} {} {}",
+            logical_start_line, old_hard_count, new_hard_count
+        );
+
+        let inval_lines = InvalLines {
+            start_line: logical_start_line,
+            inval_count: old_hard_count,
+            new_count: new_hard_count,
+        };
+        LAPCE_STATE.submit_ui_command(
+            LapceUICommand::BufferUpdate(self.id.clone(), inval_lines.clone()),
+            LAPCE_STATE.container_id(),
+        );
+
         self.highlights = self.highlights_apply_delta(delta);
-        self.update_highlights();
+        self.update_highlights(Some(inval_lines));
         self.fill_horiz(&selection.apply_delta(
             delta,
             true,
@@ -397,6 +432,27 @@ impl Buffer {
 
     pub fn num_lines(&self) -> usize {
         self.line_of_offset(self.rope.len()) + 1
+    }
+
+    pub fn line_len(&self, line: usize) -> usize {
+        self.offset_of_line(line + 1) - self.offset_of_line(line)
+    }
+
+    pub fn update_max_line_len(&mut self) {
+        let mut pre_offset = 0;
+        let mut max_len = 0;
+        let mut max_len_line = 0;
+        for line in 0..self.num_lines() {
+            let offset = self.rope.offset_of_line(line);
+            let line_len = offset - pre_offset;
+            pre_offset = offset;
+            if line_len > max_len {
+                max_len = line_len;
+                max_len_line = line;
+            }
+        }
+        self.max_len = max_len;
+        self.max_len_line = max_len_line;
     }
 
     pub fn last_line(&self) -> usize {
@@ -697,13 +753,11 @@ enum WordProperty {
 
 fn get_word_property(codepoint: char) -> WordProperty {
     if codepoint <= ' ' {
-        // TODO: deal with \r
         if codepoint == '\n' {
             return WordProperty::Lf;
         }
         return WordProperty::Space;
     } else if codepoint <= '\u{3f}' {
-        // Hardcoded: !"#$%&'()*+,-./:;<=>?
         if (0xfc00fffe00000000u64 >> (codepoint as u32)) & 1 != 0 {
             return WordProperty::Punctuation;
         }
@@ -714,4 +768,27 @@ fn get_word_property(codepoint: char) -> WordProperty {
         }
     }
     WordProperty::Other
+}
+
+impl BufferUIState {
+    pub fn update(&mut self, inval_lines: &InvalLines) {
+        let mut new_layouts = Vec::new();
+        if inval_lines.start_line < self.text_layouts.len() {
+            new_layouts.extend_from_slice(
+                &self.text_layouts[..inval_lines.start_line],
+            );
+        }
+        for _ in 0..inval_lines.new_count {
+            new_layouts.push(None);
+        }
+        if inval_lines.start_line + inval_lines.inval_count
+            < self.text_layouts.len()
+        {
+            new_layouts.extend_from_slice(
+                &self.text_layouts
+                    [inval_lines.start_line + inval_lines.inval_count..],
+            );
+        }
+        self.text_layouts = new_layouts;
+    }
 }

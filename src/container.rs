@@ -1,9 +1,14 @@
+use std::collections::HashMap;
+
 use crate::{
-    command::{LapceCommand, LAPCE_COMMAND},
+    buffer::BufferId,
+    buffer::BufferUIState,
+    command::{LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     editor::Editor,
     editor::EditorState,
     editor::EditorView,
     palette::PaletteWrapper,
+    state::LapceUIState,
 };
 use crate::{palette::Palette, split::LapceSplit};
 use crate::{scroll::LapceScroll, state::LAPCE_STATE};
@@ -28,14 +33,14 @@ pub struct ChildState {
     pub hidden: bool,
 }
 
-pub struct LapceContainer<T> {
+pub struct LapceContainer {
     palette_max_size: Size,
     palette_rect: Rect,
-    palette: WidgetPod<T, Box<dyn Widget<T>>>,
-    editor_split: WidgetPod<T, Box<dyn Widget<T>>>,
+    palette: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
+    editor_split: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
 }
 
-impl<T: Data> LapceContainer<T> {
+impl LapceContainer {
     pub fn new() -> Self {
         let palette = PaletteWrapper::new();
         let palette_id = WidgetId::next();
@@ -76,12 +81,12 @@ impl<T: Data> LapceContainer<T> {
     }
 }
 
-impl<T: Data> Widget<T> for LapceContainer<T> {
+impl Widget<LapceUIState> for LapceContainer {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut T,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
         ctx.request_focus();
@@ -93,6 +98,26 @@ impl<T: Data> Widget<T> for LapceContainer<T> {
             Event::KeyDown(key_event) => LAPCE_STATE.key_down(key_event),
             Event::Command(cmd) => {
                 match cmd {
+                    _ if cmd.is(LAPCE_UI_COMMAND) => {
+                        let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                        match command {
+                            LapceUICommand::BufferUpdate(
+                                buffer_id,
+                                inval_lines,
+                            ) => {
+                                LAPCE_STATE
+                                    .editor_split
+                                    .lock()
+                                    .unwrap()
+                                    .buffer_update(
+                                        buffer_id,
+                                        data,
+                                        inval_lines,
+                                    );
+                            }
+                            _ => (),
+                        }
+                    }
                     _ if cmd.is(LAPCE_COMMAND) => {
                         let cmd = cmd.get_unchecked(LAPCE_COMMAND);
                         match cmd {
@@ -130,7 +155,7 @@ impl<T: Data> Widget<T> for LapceContainer<T> {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &T,
+        data: &LapceUIState,
         env: &Env,
     ) {
         self.palette.lifecycle(ctx, event, data, env);
@@ -140,17 +165,18 @@ impl<T: Data> Widget<T> for LapceContainer<T> {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &T,
-        data: &T,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
+        // println!("container data update");
     }
 
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &T,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         let size = bc.max();
@@ -177,7 +203,7 @@ impl<T: Data> Widget<T> for LapceContainer<T> {
         size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let rects = ctx.region().rects().to_vec();
         for rect in rects {
             if let Some(background) =

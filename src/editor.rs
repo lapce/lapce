@@ -1,5 +1,5 @@
 use crate::{
-    buffer::{Buffer, BufferId},
+    buffer::{Buffer, BufferId, BufferUIState, InvalLines},
     command::LapceCommand,
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
@@ -11,11 +11,13 @@ use crate::{
     movement::Selection,
     scroll::LapceScroll,
     split::SplitMoveDirection,
+    state::LapceUIState,
     state::Mode,
     state::VisualMode,
     state::LAPCE_STATE,
     theme::LapceTheme,
 };
+use anyhow::{anyhow, Result};
 use druid::{
     kurbo::Line, widget::IdentityWrapper, widget::Padding, Affine,
     BoxConstraints, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx, LifeCycle,
@@ -31,7 +33,7 @@ use std::iter::Iterator;
 use xi_rope::Interval;
 
 pub struct LapceUI {
-    container: LapceContainer<u32>,
+    container: LapceContainer,
 }
 
 #[derive(Debug, Default)]
@@ -441,6 +443,14 @@ impl EditorState {
             .submit_ui_command(LapceUICommand::RequestPaint, self.view_id);
     }
 
+    pub fn request_paint_rect(&self, rect: Rect) {
+        println!("request paint rect {:?} {:?}", &self.editor_id, &rect);
+        LAPCE_STATE.submit_ui_command(
+            LapceUICommand::RequestPaintRect(rect),
+            self.editor_id,
+        );
+    }
+
     pub fn set_line_height(&mut self, line_height: f64) {
         self.line_height = line_height;
     }
@@ -506,6 +516,7 @@ impl EditorSplitState {
             let buffer_id = self.next_buffer_id();
             let buffer = Buffer::new(buffer_id.clone(), path);
             self.buffers.insert(buffer_id.clone(), buffer);
+            self.open_files.insert(path.to_string(), buffer_id.clone());
             buffer_id
         };
         if let Some(active_editor) = self.editors.get_mut(&self.active) {
@@ -574,24 +585,32 @@ impl EditorSplitState {
         self.operator.is_some()
     }
 
-    pub fn insert(&mut self, content: &str) {
+    pub fn insert(&mut self, content: &str) -> Result<()> {
         if self.mode != Mode::Insert {
-            return;
+            return Ok(());
         }
 
-        if let Some(editor) = self.editors.get_mut(&self.active) {
-            if let Some(buffer_id) = editor.buffer_id.as_ref() {
-                if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                    editor.selection =
-                        buffer.insert(content, &editor.selection);
-                    editor.ensure_cursor_visible(buffer);
-                    LAPCE_STATE.submit_ui_command(
-                        LapceUICommand::RequestPaint,
-                        self.active,
-                    );
-                }
-            }
-        }
+        let buffer_id = {
+            let editor =
+                self.editors.get_mut(&self.active).ok_or(anyhow!(""))?;
+            let buffer_id = editor.buffer_id.as_ref().ok_or(anyhow!(""))?;
+            let buffer = self.buffers.get_mut(buffer_id).ok_or(anyhow!(""))?;
+            editor.selection = buffer.insert(content, &editor.selection);
+            editor.ensure_cursor_visible(buffer);
+            buffer_id.clone()
+        };
+
+        // for (_, e) in self.editors.iter() {
+        //     if let Some(current_buffer_id) = &e.buffer_id {
+        //         if current_buffer_id == &buffer_id {
+        //             LAPCE_STATE.submit_ui_command(
+        //                 LapceUICommand::RequestLayout,
+        //                 e.view_id,
+        //             );
+        //         }
+        //     }
+        // }
+        Ok(())
     }
 
     pub fn run_command(&mut self, count: Option<usize>, cmd: LapceCommand) {
@@ -924,6 +943,93 @@ impl EditorSplitState {
         // self.request_paint();
     }
 
+    pub fn buffer_request_paint(
+        &self,
+        buffer_id: &BufferId,
+        inval_lines: &InvalLines,
+    ) {
+        for (_, editor) in &self.editors {
+            if let Some(b) = &editor.buffer_id {
+                if b == buffer_id {
+                    let start = inval_lines.start_line;
+                    editor.request_paint_rect(
+                        Rect::ZERO
+                            .with_origin(Point::new(
+                                0.0,
+                                start as f64 * editor.line_height,
+                            ))
+                            .with_size(Size::new(
+                                editor.width,
+                                inval_lines.new_count as f64
+                                    * editor.line_height,
+                            )),
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn buffer_request_layout(&self, buffer_id: &BufferId) {
+        for (_, editor) in &self.editors {
+            if let Some(b) = &editor.buffer_id {
+                if b == buffer_id {
+                    editor.request_layout();
+                }
+            }
+        }
+    }
+
+    pub fn buffer_update(
+        &mut self,
+        buffer_id: &BufferId,
+        data: &mut LapceUIState,
+        inval_lines: &InvalLines,
+    ) {
+        let buffer = self.buffers.get_mut(&buffer_id).unwrap();
+
+        if let Some(buffer_ui) = data.buffers.get_mut(&buffer_id) {
+            buffer_ui.update(inval_lines);
+        }
+
+        let mut request_layout = false;
+        if buffer.max_len_line >= inval_lines.start_line
+            && buffer.max_len_line
+                < inval_lines.start_line + inval_lines.inval_count
+        {
+            buffer.update_max_line_len();
+            request_layout = true;
+        } else {
+            let mut max_len = 0;
+            let mut max_len_line = 0;
+            for line in inval_lines.start_line
+                ..inval_lines.start_line + inval_lines.new_count
+            {
+                let line_len = buffer.line_len(line);
+                if line_len > max_len {
+                    max_len = line_len;
+                    max_len_line = line;
+                }
+            }
+            if max_len > buffer.max_len {
+                buffer.max_len = max_len;
+                buffer.max_len_line = max_len_line;
+                request_layout = true;
+            } else if buffer.max_len >= inval_lines.start_line {
+                buffer.max_len_line = buffer.max_len_line
+                    + inval_lines.new_count
+                    - inval_lines.inval_count;
+            }
+            if inval_lines.new_count != inval_lines.inval_count {
+                request_layout = true;
+            }
+        }
+        if request_layout {
+            self.buffer_request_layout(buffer_id);
+            return;
+        }
+        self.buffer_request_paint(buffer_id, inval_lines);
+    }
+
     pub fn get_mode(&self) -> Mode {
         self.mode.clone()
     }
@@ -936,21 +1042,25 @@ impl EditorSplitState {
     }
 }
 
-pub struct EditorView<T> {
+pub struct EditorView {
     view_id: WidgetId,
     pub editor_id: WidgetId,
-    editor: WidgetPod<T, LapceScroll<T, Padding<T>>>,
-    gutter: WidgetPod<T, Box<dyn Widget<T>>>,
+    editor: WidgetPod<
+        LapceUIState,
+        LapceScroll<LapceUIState, Padding<LapceUIState>>,
+    >,
+    gutter: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
 }
 
-impl<T: Data> EditorView<T> {
+impl EditorView {
     pub fn new(
         split_id: WidgetId,
         buffer_id: Option<BufferId>,
-    ) -> IdentityWrapper<EditorView<T>> {
+    ) -> IdentityWrapper<EditorView> {
         let view_id = WidgetId::next();
         let editor_id = WidgetId::next();
-        let editor = Editor::new(view_id);
+        let editor =
+            IdentityWrapper::wrap(Editor::new(view_id), editor_id.clone());
         let scroll = LapceScroll::new(editor.padding((10.0, 0.0, 10.0, 0.0)));
         let editor_state =
             EditorState::new(editor_id, view_id, split_id, buffer_id);
@@ -973,12 +1083,12 @@ impl<T: Data> EditorView<T> {
     }
 }
 
-impl<T: Data> Widget<T> for EditorView<T> {
+impl Widget<LapceUIState> for EditorView {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut T,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
         match event {
@@ -1029,7 +1139,7 @@ impl<T: Data> Widget<T> for EditorView<T> {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &T,
+        data: &LapceUIState,
         env: &Env,
     ) {
         self.gutter.lifecycle(ctx, event, data, env);
@@ -1039,8 +1149,8 @@ impl<T: Data> Widget<T> for EditorView<T> {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &T,
-        data: &T,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
     }
@@ -1049,7 +1159,7 @@ impl<T: Data> Widget<T> for EditorView<T> {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &T,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
@@ -1080,7 +1190,7 @@ impl<T: Data> Widget<T> for EditorView<T> {
         self_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let viewport = ctx.size().to_rect();
         ctx.with_save(|ctx| {
             let scroll_offset = self.editor.widget().offset();
@@ -1254,7 +1364,8 @@ struct EditorTextLayout {
     text: String,
 }
 
-struct HighlightTextLayout {
+#[derive(Clone)]
+pub struct HighlightTextLayout {
     layout: PietTextLayout,
     text: String,
     highlights: Vec<(usize, usize, String)>,
@@ -1274,6 +1385,47 @@ impl Editor {
             view_id,
             text_layouts: HashMap::new(),
         }
+    }
+
+    fn paint_line_new(
+        &mut self,
+        ctx: &mut PaintCtx,
+        buffer: &mut Buffer,
+        line_height: f64,
+        line: usize,
+        line_content: &str,
+        text_layouts: &mut Vec<Option<HighlightTextLayout>>,
+        env: &Env,
+    ) {
+        let start_offset = buffer.offset_of_line(line);
+        let end_offset = buffer.offset_of_line(line + 1);
+        let mut offset = start_offset;
+        let mut x = 0.0;
+        let mut layout_builder = ctx
+            .text()
+            .new_text_layout(line_content.to_string())
+            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+
+        for (start, end, hl) in buffer.get_line_highligh(line) {
+            if let Some(color) = LAPCE_STATE.theme.lock().unwrap().get(hl) {
+                layout_builder = layout_builder.range_attribute(
+                    start - start_offset..end - start_offset,
+                    TextAttribute::TextColor(color.clone()),
+                );
+            }
+        }
+        let layout = layout_builder.build().unwrap();
+        ctx.draw_text(&layout, Point::new(0.0, line_height * line as f64));
+        let text_layout = HighlightTextLayout {
+            layout,
+            text: line_content.to_string(),
+            highlights: buffer.get_line_highligh(line).clone(),
+        };
+        for _ in text_layouts.len()..line {
+            text_layouts.push(None);
+        }
+        text_layouts[line] = Some(text_layout);
     }
 
     fn paint_line(
@@ -1428,12 +1580,12 @@ impl Editor {
     }
 }
 
-impl<T: Data> Widget<T> for Editor {
+impl Widget<LapceUIState> for Editor {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut T,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
         match event {
@@ -1448,6 +1600,9 @@ impl<T: Data> Widget<T> for Editor {
                         LapceUICommand::RequestPaint => {
                             println!("editor request paint");
                             ctx.request_paint();
+                        }
+                        LapceUICommand::RequestPaintRect(rect) => {
+                            ctx.request_paint_rect(*rect);
                         }
                         _ => println!(
                             "editor unprocessed ui command {:?}",
@@ -1465,7 +1620,7 @@ impl<T: Data> Widget<T> for Editor {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &T,
+        data: &LapceUIState,
         env: &Env,
     ) {
     }
@@ -1473,8 +1628,8 @@ impl<T: Data> Widget<T> for Editor {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &T,
-        data: &T,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
     }
@@ -1483,7 +1638,7 @@ impl<T: Data> Widget<T> for Editor {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &T,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         let buffer_id = {
@@ -1498,7 +1653,7 @@ impl<T: Data> Widget<T> for Editor {
             let buffer = buffers.get(&buffer_id).unwrap();
             let width = 7.6171875;
             Size::new(
-                width * buffer.max_line_len as f64,
+                width * buffer.max_len as f64,
                 25.0 * buffer.num_lines() as f64,
             )
         } else {
@@ -1506,7 +1661,7 @@ impl<T: Data> Widget<T> for Editor {
         }
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let buffer_id = {
             LAPCE_STATE

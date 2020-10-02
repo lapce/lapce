@@ -147,6 +147,9 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
         env: &Env,
     ) {
         match event {
+            Event::Internal(_) => {
+                self.child.event(ctx, event, data, env);
+            }
             Event::Command(cmd) => match cmd {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);

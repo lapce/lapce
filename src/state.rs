@@ -10,13 +10,14 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use druid::{Color, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId};
+use druid::{Color, Data, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId};
 use lazy_static::lazy_static;
 use toml;
 
 use crate::{
     buffer::Buffer,
     buffer::BufferId,
+    buffer::BufferUIState,
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
     command::{LapceCommand, LAPCE_COMMAND},
@@ -70,6 +71,25 @@ pub struct KeyMap {
 }
 
 #[derive(Clone)]
+pub struct LapceUIState {
+    pub buffers: HashMap<BufferId, BufferUIState>,
+}
+
+impl Data for LapceUIState {
+    fn same(&self, other: &Self) -> bool {
+        true
+    }
+}
+
+impl LapceUIState {
+    pub fn new() -> LapceUIState {
+        LapceUIState {
+            buffers: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct LapceState {
     pub palette: Arc<Mutex<PaletteState>>,
     // keypress_sequence: Arc<Mutex<String>>,
@@ -81,6 +101,7 @@ pub struct LapceState {
     pub focus: Arc<Mutex<LapceWidget>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
     pub editor_split: Arc<Mutex<EditorSplitState>>,
+    pub container: Arc<Mutex<Option<WidgetId>>>,
 }
 
 impl LapceState {
@@ -100,6 +121,7 @@ impl LapceState {
             last_focus: Arc::new(Mutex::new(LapceWidget::Editor)),
             palette: Arc::new(Mutex::new(PaletteState::new())),
             editor_split: Arc::new(Mutex::new(EditorSplitState::new())),
+            container: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -493,6 +515,14 @@ impl LapceState {
 
     pub fn set_ui_sink(&self, ui_sink: ExtEventSink) {
         *self.ui_sink.lock().unwrap() = Some(ui_sink);
+    }
+
+    pub fn container_id(&self) -> WidgetId {
+        self.container.lock().unwrap().unwrap().clone()
+    }
+
+    pub fn set_container(&self, container: WidgetId) {
+        *self.container.lock().unwrap() = Some(container);
     }
 
     pub fn open_file(&self, path: &str) {

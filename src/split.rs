@@ -1,4 +1,7 @@
-use crate::{editor::EditorView, scroll::LapceScroll, state::LAPCE_STATE};
+use crate::{
+    editor::EditorView, scroll::LapceScroll, state::LapceUIState,
+    state::LAPCE_STATE,
+};
 use std::cmp::Ordering;
 
 use druid::{
@@ -26,14 +29,14 @@ pub enum SplitMoveDirection {
     Left,
 }
 
-pub struct LapceSplit<T> {
+pub struct LapceSplit {
     vertical: bool,
-    children: Vec<WidgetPod<T, Box<dyn Widget<T>>>>,
+    children: Vec<WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>>,
     children_sizes: Vec<f64>,
     current_bar_hover: usize,
 }
 
-impl<T> LapceSplit<T> {
+impl LapceSplit {
     pub fn new(vertical: bool) -> Self {
         LapceSplit {
             vertical,
@@ -54,7 +57,10 @@ impl<T> LapceSplit<T> {
             .push(1.0 - self.children_sizes.iter().sum::<f64>());
     }
 
-    pub fn with_child(mut self, child: impl Widget<T> + 'static) -> Self {
+    pub fn with_child(
+        mut self,
+        child: impl Widget<LapceUIState> + 'static,
+    ) -> Self {
         let child = WidgetPod::new(child).boxed();
         self.children.push(child);
         self.even_child_sizes();
@@ -119,12 +125,12 @@ impl<T> LapceSplit<T> {
     }
 }
 
-impl<T: Data> Widget<T> for LapceSplit<T> {
+impl Widget<LapceUIState> for LapceSplit {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut T,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
         match event {
@@ -294,7 +300,7 @@ impl<T: Data> Widget<T> for LapceSplit<T> {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &T,
+        data: &LapceUIState,
         env: &Env,
     ) {
         for child in self.children.as_mut_slice() {
@@ -305,8 +311,8 @@ impl<T: Data> Widget<T> for LapceSplit<T> {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        _old_data: &T,
-        data: &T,
+        _old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
         for child in self.children.as_mut_slice() {
@@ -318,7 +324,7 @@ impl<T: Data> Widget<T> for LapceSplit<T> {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &T,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         let my_size = bc.max();
@@ -356,7 +362,7 @@ impl<T: Data> Widget<T> for LapceSplit<T> {
         my_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         self.paint_bar(ctx, env);
         for child in self.children.as_mut_slice() {
             child.paint(ctx, &data, env);

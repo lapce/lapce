@@ -2,7 +2,7 @@ use druid::{Rect, Selector, WidgetId};
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
 
-use crate::split::SplitMoveDirection;
+use crate::{buffer::BufferId, buffer::InvalLines, split::SplitMoveDirection};
 
 pub const LAPCE_COMMAND: Selector<LapceCommand> =
     Selector::new("lapce.command");
@@ -115,4 +115,5 @@ pub enum LapceUICommand {
     Split(bool, WidgetId),
     SplitExchange(WidgetId),
     SplitMove(SplitMoveDirection, WidgetId),
+    BufferUpdate(BufferId, InvalLines),
 }
