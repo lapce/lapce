@@ -19,10 +19,10 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use druid::{
-    kurbo::Line, widget::IdentityWrapper, widget::Padding, Affine,
-    BoxConstraints, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, TextLayout,
-    UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
+    kurbo::Line, piet::PietText, widget::IdentityWrapper, widget::Padding,
+    Affine, BoxConstraints, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
+    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
@@ -66,6 +66,7 @@ pub struct EditorState {
     pub char_width: f64,
     pub width: f64,
     pub height: f64,
+    pub scroll_offset: Vec2,
 }
 
 impl EditorState {
@@ -85,6 +86,7 @@ impl EditorState {
             char_width: 0.0,
             width: 0.0,
             height: 0.0,
+            scroll_offset: Vec2::ZERO,
         }
     }
 
@@ -444,7 +446,6 @@ impl EditorState {
     }
 
     pub fn request_paint_rect(&self, rect: Rect) {
-        println!("request paint rect {:?} {:?}", &self.editor_id, &rect);
         LAPCE_STATE.submit_ui_command(
             LapceUICommand::RequestPaintRect(rect),
             self.editor_id,
@@ -500,6 +501,16 @@ impl EditorSplitState {
 
     pub fn active(&self) -> WidgetId {
         self.active
+    }
+
+    pub fn set_editor_scroll_offset(
+        &mut self,
+        editor_id: WidgetId,
+        offset: Vec2,
+    ) {
+        if let Some(editor) = self.editors.get_mut(&editor_id) {
+            editor.scroll_offset = offset;
+        }
     }
 
     pub fn set_editor_size(&mut self, editor_id: WidgetId, size: Size) {
@@ -979,16 +990,71 @@ impl EditorSplitState {
         }
     }
 
+    pub fn editor_update_layouts(
+        &mut self,
+        editor_id: &WidgetId,
+        text: &mut PietText,
+        data: &mut LapceUIState,
+        env: &Env,
+    ) {
+        if let Some(editor) = self.editors.get(editor_id) {
+            if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                if let Some(buffer) = self.buffers.get_mut(buffer_id) {
+                    let start_line =
+                        (editor.scroll_offset.y / editor.line_height) as usize;
+                    let num_lines =
+                        (editor.height / editor.line_height) as usize;
+                    let lines = (start_line..start_line + num_lines)
+                        .collect::<Vec<usize>>();
+
+                    if let Some(buffer_ui) = data.buffers.get_mut(&buffer_id) {
+                        buffer_ui.update_layouts(text, buffer, &lines, env);
+                    } else {
+                        let mut buffer_ui = BufferUIState {
+                            id: buffer_id.clone(),
+                            text_layouts: Vec::new(),
+                        };
+                        buffer_ui.update_layouts(text, buffer, &lines, env);
+                        data.buffers.insert(buffer_id.clone(), buffer_ui);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn buffer_update(
         &mut self,
+        text: &mut PietText,
         buffer_id: &BufferId,
         data: &mut LapceUIState,
         inval_lines: &InvalLines,
+        env: &Env,
     ) {
         let buffer = self.buffers.get_mut(&buffer_id).unwrap();
 
+        let mut buffer_lines = HashMap::new();
+        for (_, editor) in &self.editors {
+            if let Some(b) = &editor.buffer_id {
+                if b == buffer_id {
+                    let start_line =
+                        (editor.scroll_offset.y / editor.line_height) as usize;
+                    let num_lines =
+                        (editor.height / editor.line_height) as usize;
+                    for line in start_line..start_line + num_lines {
+                        buffer_lines.insert(line, line);
+                    }
+                }
+            }
+        }
         if let Some(buffer_ui) = data.buffers.get_mut(&buffer_id) {
-            buffer_ui.update(inval_lines);
+            buffer_ui.update(text, buffer, inval_lines, buffer_lines, env);
+        } else {
+            let mut buffer_ui = BufferUIState {
+                id: buffer_id.clone(),
+                text_layouts: Vec::new(),
+            };
+            buffer_ui.update(text, buffer, inval_lines, buffer_lines, env);
+            data.buffers.insert(buffer_id.clone(), buffer_ui);
         }
 
         let mut request_layout = false;
@@ -1115,19 +1181,36 @@ impl Widget<LapceUIState> for EditorView {
                                 ));
                                 ctx.request_paint();
                             }
-                            return;
                         }
                         LapceUICommand::ScrollTo((x, y)) => {
-                            self.editor.widget_mut().scroll_to(*x, *y);
-                            return;
+                            let scroll = self.editor.widget_mut();
+                            scroll.scroll_to(*x, *y);
                         }
                         LapceUICommand::Scroll((x, y)) => {
-                            self.editor.widget_mut().scroll(*x, *y);
+                            let scroll = self.editor.widget_mut();
+                            scroll.scroll(*x, *y);
                             ctx.request_paint();
-                            return;
                         }
                         _ => (),
                     }
+                    LAPCE_STATE
+                        .editor_split
+                        .lock()
+                        .unwrap()
+                        .set_editor_scroll_offset(
+                            self.view_id,
+                            self.editor.widget_mut().offset(),
+                        );
+                    LAPCE_STATE
+                        .editor_split
+                        .lock()
+                        .unwrap()
+                        .editor_update_layouts(
+                            &self.view_id,
+                            ctx.text(),
+                            data,
+                            env,
+                        );
                 }
                 _ => (),
             },
@@ -1366,9 +1449,9 @@ struct EditorTextLayout {
 
 #[derive(Clone)]
 pub struct HighlightTextLayout {
-    layout: PietTextLayout,
-    text: String,
-    highlights: Vec<(usize, usize, String)>,
+    pub layout: PietTextLayout,
+    pub text: String,
+    pub highlights: Vec<(usize, usize, String)>,
 }
 
 pub struct Editor {
@@ -1394,7 +1477,7 @@ impl Editor {
         line_height: f64,
         line: usize,
         line_content: &str,
-        text_layouts: &mut Vec<Option<HighlightTextLayout>>,
+        // text_layouts: &mut Vec<Option<HighlightTextLayout>>,
         env: &Env,
     ) {
         let start_offset = buffer.offset_of_line(line);
@@ -1422,10 +1505,10 @@ impl Editor {
             text: line_content.to_string(),
             highlights: buffer.get_line_highligh(line).clone(),
         };
-        for _ in text_layouts.len()..line {
-            text_layouts.push(None);
-        }
-        text_layouts[line] = Some(text_layout);
+        // for _ in text_layouts.len()..line {
+        //     text_layouts.push(None);
+        // }
+        // text_layouts[line] = Some(text_layout);
     }
 
     fn paint_line(
@@ -1776,36 +1859,74 @@ impl Widget<LapceUIState> for Editor {
                             };
                         }
                     }
-                    if let Some(text_layout) = self.text_layouts.get_mut(&line)
-                    {
-                        if text_layout.text != line_content.to_string()
-                            || &text_layout.highlights
-                                != buffer.get_line_highligh(line)
-                        {
-                            self.paint_line(
-                                ctx,
-                                &mut buffer,
-                                line_height,
-                                line,
-                                &line_content,
-                                env,
-                            );
-                        } else {
-                            ctx.draw_text(
-                                &text_layout.layout,
-                                Point::new(0.0, line_height * line as f64),
-                            );
+
+                    let mut cache_draw = false;
+                    if let Some(buffer_ui) = data.buffers.get(&buffer_id) {
+                        if buffer_ui.text_layouts.len() > line {
+                            if let Some(layout) =
+                                buffer_ui.text_layouts[line].as_ref()
+                            {
+                                if layout.text == line_content.to_string()
+                                    && &layout.highlights
+                                        == buffer.get_line_highligh(line)
+                                {
+                                    ctx.draw_text(
+                                        &layout.layout,
+                                        Point::new(
+                                            0.0,
+                                            line_height * line as f64,
+                                        ),
+                                    );
+                                    cache_draw = true;
+                                }
+                            }
                         }
-                    } else {
-                        self.paint_line(
-                            ctx,
-                            &mut buffer,
-                            line_height,
-                            line,
-                            &line_content,
-                            env,
-                        );
                     }
+                    // if !cache_draw {
+                    //     println!("can't draw from cache");
+                    //     let text_layout = BufferUIState::get_text_layout(
+                    //         ctx.text(),
+                    //         buffer,
+                    //         line,
+                    //         line_content,
+                    //         env,
+                    //     );
+                    //     ctx.draw_text(
+                    //         &text_layout.layout,
+                    //         Point::new(0.0, line as f64 * line_height),
+                    //     );
+                    // }
+
+                    // if let Some(text_layout) = self.text_layouts.get_mut(&line)
+                    // {
+                    //     if text_layout.text != line_content.to_string()
+                    //         || &text_layout.highlights
+                    //             != buffer.get_line_highligh(line)
+                    //     {
+                    //         self.paint_line(
+                    //             ctx,
+                    //             &mut buffer,
+                    //             line_height,
+                    //             line,
+                    //             &line_content,
+                    //             env,
+                    //         );
+                    //     } else {
+                    //         ctx.draw_text(
+                    //             &text_layout.layout,
+                    //             Point::new(0.0, line_height * line as f64),
+                    //         );
+                    //     }
+                    // } else {
+                    //     self.paint_line(
+                    //         ctx,
+                    //         &mut buffer,
+                    //         line_height,
+                    //         line,
+                    //         &line_content,
+                    //         env,
+                    //     );
+                    // }
                     if mode == Mode::Insert {
                         self.paint_insert_cusor(
                             ctx,

@@ -41,54 +41,49 @@ fn build_app() -> impl Widget<LapceUIState> {
     let container =
         IdentityWrapper::wrap(LapceContainer::new(), container_id.clone());
     LAPCE_STATE.set_container(container_id);
-    container
-        .env_scope(|env: &mut druid::Env, data: &LapceUIState| {
-            let theme = LAPCE_STATE.theme.lock().unwrap();
-            if let Some(line_highlight) = theme.get("line_highlight") {
-                env.set(
-                    theme::LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-                    line_highlight.clone(),
-                );
-            };
-            if let Some(caret) = theme.get("caret") {
-                env.set(theme::LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
-            };
-            if let Some(foreground) = theme.get("foreground") {
-                env.set(
-                    theme::LapceTheme::EDITOR_FOREGROUND,
-                    foreground.clone(),
-                );
-            };
-            if let Some(selection) = theme.get("selection") {
-                env.set(
-                    theme::LapceTheme::EDITOR_SELECTION_COLOR,
-                    selection.clone(),
-                );
-            };
-            env.set(theme::LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
+    container.env_scope(|env: &mut druid::Env, data: &LapceUIState| {
+        let theme = LAPCE_STATE.theme.lock().unwrap();
+        if let Some(line_highlight) = theme.get("line_highlight") {
             env.set(
-                theme::LapceTheme::PALETTE_BACKGROUND,
-                Color::rgb8(125, 125, 125),
+                theme::LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
+                line_highlight.clone(),
             );
+        };
+        if let Some(caret) = theme.get("caret") {
+            env.set(theme::LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
+        };
+        if let Some(foreground) = theme.get("foreground") {
+            env.set(theme::LapceTheme::EDITOR_FOREGROUND, foreground.clone());
+        };
+        if let Some(selection) = theme.get("selection") {
             env.set(
-                theme::LapceTheme::PALETTE_INPUT_FOREROUND,
-                Color::rgb8(0, 0, 0),
+                theme::LapceTheme::EDITOR_SELECTION_COLOR,
+                selection.clone(),
             );
-            env.set(
-                theme::LapceTheme::PALETTE_INPUT_BACKGROUND,
-                Color::rgb8(255, 255, 255),
-            );
-            env.set(
-                theme::LapceTheme::PALETTE_INPUT_BORDER,
-                Color::rgb8(0, 0, 0),
-            );
-            env.set(
-                theme::LapceTheme::EDITOR_FONT,
-                FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
-                    .with_size(13.0),
-            );
-        })
-        .debug_invalidation()
+        };
+        env.set(theme::LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
+        env.set(
+            theme::LapceTheme::PALETTE_BACKGROUND,
+            Color::rgb8(125, 125, 125),
+        );
+        env.set(
+            theme::LapceTheme::PALETTE_INPUT_FOREROUND,
+            Color::rgb8(0, 0, 0),
+        );
+        env.set(
+            theme::LapceTheme::PALETTE_INPUT_BACKGROUND,
+            Color::rgb8(255, 255, 255),
+        );
+        env.set(
+            theme::LapceTheme::PALETTE_INPUT_BORDER,
+            Color::rgb8(0, 0, 0),
+        );
+        env.set(
+            theme::LapceTheme::EDITOR_FONT,
+            FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
+                .with_size(13.0),
+        );
+    })
 
     // Label::new("test label")
     //     .with_text_color(Color::rgb8(64, 120, 242))

@@ -110,9 +110,11 @@ impl Widget<LapceUIState> for LapceContainer {
                                     .lock()
                                     .unwrap()
                                     .buffer_update(
+                                        ctx.text(),
                                         buffer_id,
                                         data,
                                         inval_lines,
+                                        env,
                                     );
                             }
                             _ => (),
