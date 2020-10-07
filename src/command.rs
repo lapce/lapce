@@ -1,6 +1,7 @@
 use druid::{Rect, Selector, Size, WidgetId};
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
+use tree_sitter_highlight::Highlight;
 
 use crate::{
     buffer::BufferId, buffer::InvalLines, editor::HighlightTextLayout,
@@ -114,6 +115,7 @@ pub enum LapceUICommand {
     RequestLayout,
     RequestPaint,
     RequestPaintRect(Rect),
+    UpdateHighlights(BufferId, String, Vec<(usize, usize, Highlight)>),
     EnsureVisible((Rect, (f64, f64))),
     EditorViewSize(Size),
     Scroll((f64, f64)),

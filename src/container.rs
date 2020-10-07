@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::scroll::LapceScroll;
 use crate::{
@@ -42,35 +42,15 @@ pub struct LapceContainer {
 }
 
 impl LapceContainer {
-    pub fn new() -> Self {
+    pub fn new(editor_split_id: WidgetId, first_editor_id: WidgetId) -> Self {
         let palette = PaletteWrapper::new();
         let palette_id = WidgetId::next();
         let palette =
             WidgetPod::new(IdentityWrapper::wrap(palette, palette_id)).boxed();
-        // LAPCE_STATE
-        //     .palette
-        //     .lock()
-        //     .unwrap()
-        //     .set_widget_id(palette_id);
-
-        let editor_split_id = WidgetId::next();
-        // LAPCE_STATE
-        //     .editor_split
-        //     .lock()
-        //     .unwrap()
-        //     .set_widget_id(editor_split_id);
-        let editor_view = EditorView::new(
-            editor_split_id,
-            WidgetId::next(),
-            WidgetId::next(),
-        );
-        // LAPCE_STATE
-        //     .editor_split
-        //     .lock()
-        //     .unwrap()
-        //     .set_active(editor_view.id().unwrap());
+        let editor_view =
+            EditorView::new(editor_split_id, first_editor_id, WidgetId::next());
         let editor_split = WidgetPod::new(IdentityWrapper::wrap(
-            LapceSplit::new(true),
+            LapceSplit::new(true).with_child(editor_view),
             editor_split_id,
         ))
         .boxed();
@@ -95,7 +75,6 @@ impl Widget<LapceState> for LapceContainer {
         env: &Env,
     ) {
         ctx.request_focus();
-        data.editor_split.set_widget_id(self.editor_split.id());
         match event {
             Event::Internal(_) => {
                 self.palette.event(ctx, event, data, env);
@@ -107,7 +86,28 @@ impl Widget<LapceState> for LapceContainer {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
                         LapceUICommand::OpenFile(path) => {
-                            data.editor_split.open_file(ctx, path);
+                            let editor_split =
+                                Arc::make_mut(&mut data.editor_split);
+                            editor_split.open_file(ctx, path);
+                            ctx.request_layout();
+                        }
+                        LapceUICommand::UpdateHighlights(
+                            buffer_id,
+                            version,
+                            highlights,
+                        ) => {
+                            let editor_split =
+                                Arc::make_mut(&mut data.editor_split);
+                            let buffer = editor_split
+                                .buffers
+                                .get_mut(buffer_id)
+                                .unwrap();
+                            if version == &buffer.highlight_version {
+                                buffer.highlights = highlights.to_owned();
+                                buffer.line_highlights = HashMap::new();
+                                editor_split
+                                    .notify_fill_text_layouts(ctx, buffer_id);
+                            }
                         }
                         _ => (),
                     }

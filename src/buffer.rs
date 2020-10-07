@@ -1,7 +1,7 @@
 use anyhow::Result;
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
-    Color, UpdateCtx,
+    Color, ExtEventSink, Target, UpdateCtx,
 };
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
@@ -27,6 +27,7 @@ use xi_rope::{
 
 use crate::{
     command::LapceUICommand,
+    command::LAPCE_UI_COMMAND,
     editor::EditorOperator,
     editor::HighlightTextLayout,
     language,
@@ -59,9 +60,10 @@ pub struct Buffer {
     tree: Tree,
     highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
-    highlights: Vec<(usize, usize, Highlight)>,
-    line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
-    highlight_version: String,
+    pub highlights: Vec<(usize, usize, Highlight)>,
+    pub line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
+    pub highlight_version: String,
+    event_sink: ExtEventSink,
     pub max_len_line: usize,
     pub max_len: usize,
     pub text_layouts: Vec<Option<HighlightTextLayout>>,
@@ -69,7 +71,11 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(buffer_id: BufferId, path: &str) -> Buffer {
+    pub fn new(
+        buffer_id: BufferId,
+        path: &str,
+        event_sink: ExtEventSink,
+    ) -> Buffer {
         let rope = if let Ok(rope) = load_file(path) {
             rope
         } else {
@@ -93,7 +99,7 @@ impl Buffer {
             max_len_line: 0,
             max_len: 0,
             text_layouts: Vec::new(),
-            // inval_lines: None,
+            event_sink,
         };
         buffer.text_layouts = vec![None; buffer.num_lines()];
         buffer.update_max_line_len();
@@ -130,6 +136,7 @@ impl Buffer {
         let highlight_config = self.highlight_config.clone();
         let rope_str = self.slice_to_cow(..self.len()).to_string();
         let buffer_id = self.id.clone();
+        let event_sink = self.event_sink.clone();
         thread::spawn(move || {
             let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
             let mut highlighter = Highlighter::new();
@@ -158,27 +165,13 @@ impl Buffer {
                 }
             }
 
-            // let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
-            // if let Some(buffer) = editor_split.get_buffer(&buffer_id) {
-            //     if buffer.highlight_version == version {
-            //         buffer.highlights = highlights;
-            //         buffer.line_highlights = HashMap::new();
-            //         if let Some(inval_lines) = inval_lines {
-            //             let inval_lines = InvalLines {
-            //                 start_line: inval_lines.start_line,
-            //                 inval_count: inval_lines.new_count,
-            //                 new_count: inval_lines.new_count,
-            //             };
-            //             LAPCE_STATE.submit_ui_command(
-            //                 LapceUICommand::BufferUpdate(
-            //                     buffer_id,
-            //                     inval_lines,
-            //                 ),
-            //                 LAPCE_STATE.container_id(),
-            //             );
-            //         }
-            //     }
-            // }
+            event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateHighlights(
+                    buffer_id, version, highlights,
+                ),
+                Target::Global,
+            );
         });
     }
 
@@ -600,12 +593,17 @@ impl Buffer {
             return false;
         }
 
-        if self.text_layouts[line].is_none() {
-            let line_content = self
-                .slice_to_cow(
-                    self.offset_of_line(line)..self.offset_of_line(line + 1),
-                )
-                .to_string();
+        let line_content = self
+            .slice_to_cow(
+                self.offset_of_line(line)..self.offset_of_line(line + 1),
+            )
+            .to_string();
+        let line_hightlight = self.get_line_highligh(line).clone();
+        if self.text_layouts[line].is_none()
+            || self.text_layouts[line].as_ref().unwrap().text != line_content
+            || self.text_layouts[line].as_ref().unwrap().highlights
+                != line_hightlight
+        {
             self.text_layouts[line] = Some(self.get_text_layout(
                 text,
                 theme,

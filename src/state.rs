@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, io::Read, str::FromStr};
+use std::{collections::HashMap, fs::File, io::Read, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use druid::{
@@ -87,29 +87,28 @@ pub struct LapceState {
     pub theme: HashMap<String, Color>,
     pub last_focus: LapceWidget,
     pub focus: LapceWidget,
-    pub ui_sink: ExtEventSink,
-    pub editor_split: EditorSplitState,
+    // pub ui_sink: ExtEventSink,
+    pub editor_split: Arc<EditorSplitState>,
     pub container: Option<WidgetId>,
 }
 
 impl Data for LapceState {
     fn same(&self, other: &Self) -> bool {
-        false
+        self.editor_split.same(&other.editor_split)
     }
 }
 
 impl LapceState {
-    pub fn new(ui_sink: ExtEventSink) -> LapceState {
+    pub fn new() -> LapceState {
         LapceState {
             pending_keypress: Vec::new(),
             keymaps: Self::get_keymaps().unwrap_or(Vec::new()),
             theme: Self::get_theme().unwrap_or(HashMap::new()),
             count: None,
-            ui_sink,
             focus: LapceWidget::Editor,
             last_focus: LapceWidget::Editor,
             palette: PaletteState::new(),
-            editor_split: EditorSplitState::new(),
+            editor_split: Arc::new(EditorSplitState::new()),
             container: None,
         }
     }
@@ -239,7 +238,8 @@ impl LapceState {
                 self.palette.insert(content);
             }
             LapceWidget::Editor => {
-                self.editor_split.insert(ctx, content, env);
+                let editor_split = Arc::make_mut(&mut self.editor_split);
+                editor_split.insert(ctx, content, env);
             }
         }
     }
@@ -286,7 +286,9 @@ impl LapceState {
                 _ => {
                     match self.focus {
                         LapceWidget::Editor => {
-                            self.editor_split.run_command(ctx, count, cmd, env);
+                            let editor_split =
+                                Arc::make_mut(&mut self.editor_split);
+                            editor_split.run_command(ctx, count, cmd, env);
                         }
                         LapceWidget::Palette => match cmd {
                             LapceCommand::ListSelect => {
@@ -502,16 +504,17 @@ impl LapceState {
     }
 
     pub fn open_file(&mut self, ctx: &mut EventCtx, path: &str) {
-        self.editor_split.open_file(ctx, path);
+        let editor_split = Arc::make_mut(&mut self.editor_split);
+        editor_split.open_file(ctx, path);
     }
 
-    pub fn submit_ui_command(&self, cmd: LapceUICommand, widget_id: WidgetId) {
-        self.ui_sink.submit_command(
-            LAPCE_UI_COMMAND,
-            cmd,
-            Target::Widget(widget_id),
-        );
-    }
+    // pub fn submit_ui_command(&self, cmd: LapceUICommand, widget_id: WidgetId) {
+    //     self.ui_sink.submit_command(
+    //         LAPCE_UI_COMMAND,
+    //         cmd,
+    //         Target::Widget(widget_id),
+    //     );
+    // }
 }
 
 pub fn hex_to_color(hex: &str) -> Result<Color> {

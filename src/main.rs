@@ -11,7 +11,7 @@ mod split;
 mod state;
 mod theme;
 
-use std::{sync::Arc, thread};
+use std::{sync::Arc, thread, time::Duration};
 
 use crate::container::LapceContainer;
 use crate::editor::Editor;
@@ -37,77 +37,93 @@ extern "C" {
     fn tree_sitter_rust() -> Language;
 }
 
-fn build_app() -> impl Widget<LapceState> {
+fn build_app(
+    editor_split_id: WidgetId,
+    first_editor_id: WidgetId,
+) -> impl Widget<LapceState> {
     let container_id = WidgetId::next();
-    let container =
-        IdentityWrapper::wrap(LapceContainer::new(), container_id.clone());
+    let container = IdentityWrapper::wrap(
+        LapceContainer::new(editor_split_id, first_editor_id),
+        container_id.clone(),
+    );
     // LAPCE_STATE.set_container(container_id);
-    container.env_scope(|env: &mut druid::Env, data: &LapceState| {
-        if let Some(line_highlight) = data.theme.get("line_highlight") {
+    container
+        .env_scope(|env: &mut druid::Env, data: &LapceState| {
+            if let Some(line_highlight) = data.theme.get("line_highlight") {
+                env.set(
+                    theme::LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
+                    line_highlight.clone(),
+                );
+            };
+            if let Some(caret) = data.theme.get("caret") {
+                env.set(theme::LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
+            };
+            if let Some(foreground) = data.theme.get("foreground") {
+                env.set(
+                    theme::LapceTheme::EDITOR_FOREGROUND,
+                    foreground.clone(),
+                );
+            };
+            if let Some(selection) = data.theme.get("selection") {
+                env.set(
+                    theme::LapceTheme::EDITOR_SELECTION_COLOR,
+                    selection.clone(),
+                );
+            };
+            env.set(theme::LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
             env.set(
-                theme::LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-                line_highlight.clone(),
+                theme::LapceTheme::PALETTE_BACKGROUND,
+                Color::rgb8(125, 125, 125),
             );
-        };
-        if let Some(caret) = data.theme.get("caret") {
-            env.set(theme::LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
-        };
-        if let Some(foreground) = data.theme.get("foreground") {
-            env.set(theme::LapceTheme::EDITOR_FOREGROUND, foreground.clone());
-        };
-        if let Some(selection) = data.theme.get("selection") {
             env.set(
-                theme::LapceTheme::EDITOR_SELECTION_COLOR,
-                selection.clone(),
+                theme::LapceTheme::PALETTE_INPUT_FOREROUND,
+                Color::rgb8(0, 0, 0),
             );
-        };
-        env.set(theme::LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
-        env.set(
-            theme::LapceTheme::PALETTE_BACKGROUND,
-            Color::rgb8(125, 125, 125),
-        );
-        env.set(
-            theme::LapceTheme::PALETTE_INPUT_FOREROUND,
-            Color::rgb8(0, 0, 0),
-        );
-        env.set(
-            theme::LapceTheme::PALETTE_INPUT_BACKGROUND,
-            Color::rgb8(255, 255, 255),
-        );
-        env.set(
-            theme::LapceTheme::PALETTE_INPUT_BORDER,
-            Color::rgb8(0, 0, 0),
-        );
-        env.set(
-            theme::LapceTheme::EDITOR_FONT,
-            FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
-                .with_size(13.0),
-        );
-    })
-    // .debug_invalidation()
+            env.set(
+                theme::LapceTheme::PALETTE_INPUT_BACKGROUND,
+                Color::rgb8(255, 255, 255),
+            );
+            env.set(
+                theme::LapceTheme::PALETTE_INPUT_BORDER,
+                Color::rgb8(0, 0, 0),
+            );
+            env.set(
+                theme::LapceTheme::EDITOR_FONT,
+                FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
+                    .with_size(13.0),
+            );
+        })
+        .debug_invalidation()
     // Label::new("test label")
     //     .with_text_color(Color::rgb8(64, 120, 242))
     //     .background(Color::rgb8(64, 120, 242))
 }
 
 pub fn main() {
-    WindowDesc::new(|| LapceContainer::new());
-    let window = WindowDesc::new(build_app)
-        .title(
-            LocalizedString::new("split-demo-window-title")
-                .with_placeholder("Split Demo"),
-        )
-        .window_size(Size::new(800.0, 600.0))
-        .with_min_size(Size::new(800.0, 600.0));
+    // WindowDesc::new(|| LapceContainer::new());
+    let state = LapceState::new();
+    let editor_split_id = state.editor_split.widget_id.clone();
+    let first_editor_id = state.editor_split.active.clone();
+    let window =
+        WindowDesc::new(move || build_app(editor_split_id, first_editor_id))
+            .title(
+                LocalizedString::new("split-demo-window-title")
+                    .with_placeholder("Split Demo"),
+            )
+            .window_size(Size::new(800.0, 600.0))
+            .with_min_size(Size::new(800.0, 600.0));
 
     let launcher = AppLauncher::with_window(window);
     let ui_event_sink = launcher.get_external_handle();
-    let state = LapceState::new(ui_event_sink.clone());
-    ui_event_sink.submit_command(
-        LAPCE_UI_COMMAND,
-        LapceUICommand::OpenFile("/Users/Lulu/lapce/src/editor.rs".to_string()),
-        Target::Global,
-    );
+    thread::spawn(move || {
+        ui_event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::OpenFile(
+                "/Users/Lulu/lapce/src/editor.rs".to_string(),
+            ),
+            Target::Global,
+        );
+    });
     // LAPCE_STATE.set_ui_sink(ui_event_sink);
     // thread::spawn(move || {
     //     LAPCE_STATE.open_file("/Users/Lulu/lapce/src/editor.rs")

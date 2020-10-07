@@ -317,18 +317,6 @@ impl Widget<LapceState> for LapceSplit {
         data: &LapceState,
         env: &Env,
     ) {
-        // for (editor_id, editor) in data.editor_split.editors.iter() {
-        //     if !old_data.editor_split.editors.contains_key(editor_id) {
-        //         let editor_view = EditorView::new(
-        //             WidgetId::next(),
-        //             editor.view_id,
-        //             editor.editor_id,
-        //         );
-        //         self.add_child(editor_view);
-        //         ctx.request_layout();
-        //     }
-        // }
-
         for child in self.children.as_mut_slice() {
             child.update(ctx, &data, env);
         }
