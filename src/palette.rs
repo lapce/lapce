@@ -25,7 +25,7 @@ use std::thread;
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND, scroll::LapceScroll, state::LapceWidget,
-    state::LAPCE_STATE, theme::LapceTheme,
+    theme::LapceTheme,
 };
 
 #[derive(Clone, Debug)]
@@ -40,6 +40,7 @@ pub struct PaletteItem {
     score: Score,
 }
 
+#[derive(Clone)]
 pub struct PaletteState {
     widget_id: Option<WidgetId>,
     scroll_widget_id: Option<WidgetId>,
@@ -90,7 +91,7 @@ impl PaletteState {
     pub fn run(&mut self) {
         self.items = self.get_files();
         self.hidden = false;
-        *LAPCE_STATE.focus.lock().unwrap() = LapceWidget::Palette;
+        // *LAPCE_STATE.focus.lock().unwrap() = LapceWidget::Palette;
         self.request_layout();
     }
 
@@ -99,22 +100,22 @@ impl PaletteState {
         self.cursor = 0;
         self.index = 0;
         self.hidden = true;
-        *LAPCE_STATE.focus.lock().unwrap() = LapceWidget::Editor;
+        // *LAPCE_STATE.focus.lock().unwrap() = LapceWidget::Editor;
         self.request_paint();
     }
 
     fn request_layout(&self) {
-        LAPCE_STATE.submit_ui_command(
-            LapceUICommand::RequestLayout,
-            self.widget_id.unwrap(),
-        );
+        // LAPCE_STATE.submit_ui_command(
+        //     LapceUICommand::RequestLayout,
+        //     self.widget_id.unwrap(),
+        // );
     }
 
     fn request_paint(&self) {
-        LAPCE_STATE.submit_ui_command(
-            LapceUICommand::RequestPaint,
-            self.widget_id.unwrap(),
-        );
+        // LAPCE_STATE.submit_ui_command(
+        //     LapceUICommand::RequestPaint,
+        //     self.widget_id.unwrap(),
+        // );
     }
 
     fn ensure_visible(&self) {
@@ -123,10 +124,10 @@ impl PaletteState {
             .with_size(Size::new(self.width, self.line_height));
         let margin = (0.0, 0.0);
 
-        LAPCE_STATE.submit_ui_command(
-            LapceUICommand::EnsureVisible((rect, margin)),
-            self.widget_id.unwrap(),
-        );
+        // LAPCE_STATE.submit_ui_command(
+        //     LapceUICommand::EnsureVisible((rect, margin)),
+        //     self.widget_id.unwrap(),
+        // );
     }
 
     pub fn key_event(&mut self, key: &KeyEvent) {}
@@ -239,7 +240,7 @@ impl PaletteState {
         if items.is_empty() {
             return;
         }
-        LAPCE_STATE.open_file(&items[self.index].text);
+        // LAPCE_STATE.open_file(&items[self.index].text);
         self.cancel();
     }
 
@@ -285,11 +286,11 @@ impl<T: Data> Palette<T> {
             .background(LapceTheme::PALETTE_INPUT_BACKGROUND)
             .padding((5.0, 5.0, 5.0, 5.0));
         let palette_scroll_id = WidgetId::next();
-        LAPCE_STATE
-            .palette
-            .lock()
-            .unwrap()
-            .set_scroll_widget_id(palette_scroll_id);
+        // LAPCE_STATE
+        //     .palette
+        //     .lock()
+        //     .unwrap()
+        //     .set_scroll_widget_id(palette_scroll_id);
         let palette_content = IdentityWrapper::wrap(
             LapceScroll::new(PaletteContent::new()).vertical(),
             palette_scroll_id,
@@ -306,7 +307,7 @@ impl<T: Data> Palette<T> {
     }
 
     pub fn run(&self) {
-        LAPCE_STATE.palette.lock().unwrap().items = self.get_files();
+        // LAPCE_STATE.palette.lock().unwrap().items = self.get_files();
         self.update_height();
     }
 
@@ -396,9 +397,9 @@ impl<T: Data> Palette<T> {
     }
 
     fn cancel(&self) {
-        LAPCE_STATE.palette.lock().unwrap().input = "".to_string();
-        LAPCE_STATE.palette.lock().unwrap().cursor = 0;
-        LAPCE_STATE.palette.lock().unwrap().index = 0;
+        // LAPCE_STATE.palette.lock().unwrap().input = "".to_string();
+        // LAPCE_STATE.palette.lock().unwrap().cursor = 0;
+        // LAPCE_STATE.palette.lock().unwrap().index = 0;
         // self.content.set_scroll(0.0, 0.0);
         // self.hide();
     }
@@ -921,61 +922,62 @@ impl<T: Data> Widget<T> for PaletteContent {
         data: &T,
         env: &Env,
     ) -> Size {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        {
-            let mut state = LAPCE_STATE.palette.lock().unwrap();
-            state.set_line_height(line_height);
-            state.set_width(bc.max().width);
-        }
-        let state = LAPCE_STATE.palette.lock().unwrap();
-        let items_len = if state.input != "" {
-            state.filtered_items.len()
-        } else {
-            state.items.len()
-        };
-        let height = { line_height * items_len as f64 };
-        Size::new(bc.max().width, height)
+        // let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        // {
+        //     let mut state = LAPCE_STATE.palette.lock().unwrap();
+        //     state.set_line_height(line_height);
+        //     state.set_width(bc.max().width);
+        // }
+        // let state = LAPCE_STATE.palette.lock().unwrap();
+        // let items_len = if state.input != "" {
+        //     state.filtered_items.len()
+        // } else {
+        //     state.items.len()
+        // };
+        // let height = { line_height * items_len as f64 };
+        // Size::new(bc.max().width, height)
+        Size::new(0.0, 0.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let rects = ctx.region().rects().to_vec();
-        let state = LAPCE_STATE.palette.lock().unwrap();
-        for rect in rects {
-            let start = (rect.y0 / line_height).floor() as usize;
-            let items = {
-                let items = if state.input != "" {
-                    &state.filtered_items
-                } else {
-                    &state.items
-                };
-                let items_len = items.len();
-                &items[start
-                    ..((rect.y1 / line_height).floor() as usize + 1)
-                        .min(items_len)]
-                    .to_vec()
-            };
+        // let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        // let rects = ctx.region().rects().to_vec();
+        // let state = LAPCE_STATE.palette.lock().unwrap();
+        // for rect in rects {
+        //     let start = (rect.y0 / line_height).floor() as usize;
+        //     let items = {
+        //         let items = if state.input != "" {
+        //             &state.filtered_items
+        //         } else {
+        //             &state.items
+        //         };
+        //         let items_len = items.len();
+        //         &items[start
+        //             ..((rect.y1 / line_height).floor() as usize + 1)
+        //                 .min(items_len)]
+        //             .to_vec()
+        //     };
 
-            for (i, item) in items.iter().enumerate() {
-                if state.index == start + i {
-                    ctx.fill(
-                        Rect::ZERO
-                            .with_origin(Point::new(
-                                rect.x0,
-                                (start + i) as f64 * line_height,
-                            ))
-                            .with_size(Size::new(rect.width(), line_height)),
-                        &Color::rgb8(50, 50, 50),
-                    )
-                }
-                let mut text_layout = TextLayout::new(item.text.as_ref());
-                text_layout.rebuild_if_needed(ctx.text(), env);
-                text_layout.draw(
-                    ctx,
-                    Point::new(0.0, (start + i) as f64 * line_height),
-                );
-            }
-        }
+        //     for (i, item) in items.iter().enumerate() {
+        //         if state.index == start + i {
+        //             ctx.fill(
+        //                 Rect::ZERO
+        //                     .with_origin(Point::new(
+        //                         rect.x0,
+        //                         (start + i) as f64 * line_height,
+        //                     ))
+        //                     .with_size(Size::new(rect.width(), line_height)),
+        //                 &Color::rgb8(50, 50, 50),
+        //             )
+        //         }
+        //         let mut text_layout = TextLayout::new(item.text.as_ref());
+        //         text_layout.rebuild_if_needed(ctx.text(), env);
+        //         text_layout.draw(
+        //             ctx,
+        //             Point::new(0.0, (start + i) as f64 * line_height),
+        //         );
+        //     }
+        // }
     }
 }
 
@@ -1049,10 +1051,10 @@ impl<T: Data> Widget<T> for PaletteWrapper<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        if LAPCE_STATE.palette.lock().unwrap().hidden {
-            return;
-        }
-        self.palette.paint(ctx, data, env);
+        // if LAPCE_STATE.palette.lock().unwrap().hidden {
+        //     return;
+        // }
+        // self.palette.paint(ctx, data, env);
     }
 }
 
@@ -1095,19 +1097,14 @@ impl<T: Data> Widget<T> for PaletteInput {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let text = LAPCE_STATE.palette.lock().unwrap().input.clone();
-        let cursor = LAPCE_STATE.palette.lock().unwrap().cursor;
-        let mut text_layout = TextLayout::new(text.as_ref());
-        text_layout.set_text_color(LapceTheme::PALETTE_INPUT_FOREROUND);
-        text_layout.rebuild_if_needed(ctx.text(), env);
-        let line = text_layout.cursor_line_for_text_position(cursor);
-        ctx.stroke(line, &env.get(LapceTheme::PALETTE_INPUT_FOREROUND), 1.0);
-        text_layout.draw(ctx, Point::new(0.0, 0.0));
-        // println!("input region {:?}", ctx.region());
-        // let rects = ctx.region().rects().to_vec();
-        // for rect in rects {
-        //     ctx.fill(rect, &env.get(theme::BORDER_LIGHT))
-        // }
+        // let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        // let text = LAPCE_STATE.palette.lock().unwrap().input.clone();
+        // let cursor = LAPCE_STATE.palette.lock().unwrap().cursor;
+        // let mut text_layout = TextLayout::new(text.as_ref());
+        // text_layout.set_text_color(LapceTheme::PALETTE_INPUT_FOREROUND);
+        // text_layout.rebuild_if_needed(ctx.text(), env);
+        // let line = text_layout.cursor_line_for_text_position(cursor);
+        // ctx.stroke(line, &env.get(LapceTheme::PALETTE_INPUT_FOREROUND), 1.0);
+        // text_layout.draw(ctx, Point::new(0.0, 0.0));
     }
 }

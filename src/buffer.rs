@@ -1,5 +1,8 @@
 use anyhow::Result;
-use druid::piet::{PietText, Text, TextAttribute, TextLayoutBuilder};
+use druid::{
+    piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
+    Color, UpdateCtx,
+};
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
 use std::{
@@ -28,7 +31,8 @@ use crate::{
     editor::HighlightTextLayout,
     language,
     movement::{ColPosition, Movement, SelRegion, Selection},
-    state::{Mode, LAPCE_STATE},
+    state::LapceState,
+    state::Mode,
     theme::LapceTheme,
 };
 
@@ -48,6 +52,7 @@ pub struct BufferUIState {
     pub text_layouts: Vec<Option<HighlightTextLayout>>,
 }
 
+#[derive(Clone)]
 pub struct Buffer {
     id: BufferId,
     rope: Rope,
@@ -59,6 +64,8 @@ pub struct Buffer {
     highlight_version: String,
     pub max_len_line: usize,
     pub max_len: usize,
+    pub text_layouts: Vec<Option<HighlightTextLayout>>,
+    // pub inval_lines: Option<InvalLines>,
 }
 
 impl Buffer {
@@ -85,7 +92,10 @@ impl Buffer {
             highlight_version: "".to_string(),
             max_len_line: 0,
             max_len: 0,
+            text_layouts: Vec::new(),
+            // inval_lines: None,
         };
+        buffer.text_layouts = vec![None; buffer.num_lines()];
         buffer.update_max_line_len();
         buffer.update_highlights(None);
         buffer
@@ -148,27 +158,27 @@ impl Buffer {
                 }
             }
 
-            let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
-            if let Some(buffer) = editor_split.get_buffer(&buffer_id) {
-                if buffer.highlight_version == version {
-                    buffer.highlights = highlights;
-                    buffer.line_highlights = HashMap::new();
-                    if let Some(inval_lines) = inval_lines {
-                        let inval_lines = InvalLines {
-                            start_line: inval_lines.start_line,
-                            inval_count: inval_lines.new_count,
-                            new_count: inval_lines.new_count,
-                        };
-                        LAPCE_STATE.submit_ui_command(
-                            LapceUICommand::BufferUpdate(
-                                buffer_id,
-                                inval_lines,
-                            ),
-                            LAPCE_STATE.container_id(),
-                        );
-                    }
-                }
-            }
+            // let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
+            // if let Some(buffer) = editor_split.get_buffer(&buffer_id) {
+            //     if buffer.highlight_version == version {
+            //         buffer.highlights = highlights;
+            //         buffer.line_highlights = HashMap::new();
+            //         if let Some(inval_lines) = inval_lines {
+            //             let inval_lines = InvalLines {
+            //                 start_line: inval_lines.start_line,
+            //                 inval_count: inval_lines.new_count,
+            //                 new_count: inval_lines.new_count,
+            //             };
+            //             LAPCE_STATE.submit_ui_command(
+            //                 LapceUICommand::BufferUpdate(
+            //                     buffer_id,
+            //                     inval_lines,
+            //                 ),
+            //                 LAPCE_STATE.container_id(),
+            //             );
+            //         }
+            //     }
+            // }
         });
     }
 
@@ -241,6 +251,55 @@ impl Buffer {
         result
     }
 
+    fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
+        let mut new_layouts = Vec::new();
+        if inval_lines.start_line < self.text_layouts.len() {
+            new_layouts.extend_from_slice(
+                &self.text_layouts[..inval_lines.start_line],
+            );
+        }
+        for _ in 0..inval_lines.new_count {
+            new_layouts.push(None);
+        }
+        if inval_lines.start_line + inval_lines.inval_count
+            < self.text_layouts.len()
+        {
+            new_layouts.extend_from_slice(
+                &self.text_layouts
+                    [inval_lines.start_line + inval_lines.inval_count..],
+            );
+        }
+        self.text_layouts = new_layouts;
+    }
+
+    fn update_size(&mut self, inval_lines: &InvalLines) {
+        if self.max_len_line >= inval_lines.start_line
+            && self.max_len_line
+                < inval_lines.start_line + inval_lines.inval_count
+        {
+            self.update_max_line_len();
+        } else {
+            let mut max_len = 0;
+            let mut max_len_line = 0;
+            for line in inval_lines.start_line
+                ..inval_lines.start_line + inval_lines.new_count
+            {
+                let line_len = self.line_len(line);
+                if line_len > max_len {
+                    max_len = line_len;
+                    max_len_line = line;
+                }
+            }
+            if max_len > self.max_len {
+                self.max_len = max_len;
+                self.max_len_line = max_len_line;
+            } else if self.max_len >= inval_lines.start_line {
+                self.max_len_line = self.max_len_line + inval_lines.new_count
+                    - inval_lines.inval_count;
+            }
+        }
+    }
+
     fn apply_delta(
         &mut self,
         selection: &Selection,
@@ -265,10 +324,9 @@ impl Buffer {
         };
         self.highlights = self.highlights_apply_delta(delta);
         self.update_highlights(Some(inval_lines.clone()));
-        LAPCE_STATE.submit_ui_command(
-            LapceUICommand::BufferUpdate(self.id.clone(), inval_lines.clone()),
-            LAPCE_STATE.container_id(),
-        );
+        self.update_size(&inval_lines);
+        self.update_text_layouts(&inval_lines);
+        // self.inval_lines = Some(inval_lines);
 
         self.fill_horiz(&selection.apply_delta(
             delta,
@@ -530,6 +588,81 @@ impl Buffer {
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
     }
+
+    pub fn update_line_layouts(
+        &mut self,
+        text: &mut PietText,
+        theme: &HashMap<String, Color>,
+        line: usize,
+        env: &Env,
+    ) -> bool {
+        if line >= self.num_lines() {
+            return false;
+        }
+
+        if self.text_layouts[line].is_none() {
+            let line_content = self
+                .slice_to_cow(
+                    self.offset_of_line(line)..self.offset_of_line(line + 1),
+                )
+                .to_string();
+            self.text_layouts[line] = Some(self.get_text_layout(
+                text,
+                theme,
+                line,
+                line_content,
+                env,
+            ));
+            return true;
+        }
+
+        false
+
+        // if let Some(text_layout) = self.text_layouts[line].as_ref() {
+        //     if text_layout.text != line_content
+        //         || &text_layout.highlights != self.get_line_highligh(line)
+        //     {
+        //         self.text_layouts[line] = Some(self.get_text_layout(
+        //             text,
+        //             data,
+        //             line,
+        //             line_content,
+        //             env,
+        //         ));
+        //     }
+        // } else {
+        //     self.text_layouts[line] =
+        //         Some(self.get_text_layout(text, data, line, line_content, env));
+        // }
+    }
+
+    pub fn get_text_layout(
+        &mut self,
+        text: &mut PietText,
+        theme: &HashMap<String, Color>,
+        line: usize,
+        line_content: String,
+        env: &Env,
+    ) -> HighlightTextLayout {
+        let mut layout_builder = text
+            .new_text_layout(line_content.clone())
+            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        for (start, end, hl) in self.get_line_highligh(line) {
+            if let Some(color) = theme.get(hl) {
+                layout_builder = layout_builder.range_attribute(
+                    start..end,
+                    TextAttribute::TextColor(color.clone()),
+                );
+            }
+        }
+        let layout = layout_builder.build().unwrap();
+        HighlightTextLayout {
+            layout,
+            text: line_content,
+            highlights: self.get_line_highligh(line).clone(),
+        }
+    }
 }
 
 fn load_file(path: &str) -> Result<Rope> {
@@ -774,119 +907,119 @@ fn get_word_property(codepoint: char) -> WordProperty {
 }
 
 impl BufferUIState {
-    pub fn update(
-        &mut self,
-        text: &mut PietText,
-        buffer: &mut Buffer,
-        inval_lines: &InvalLines,
-        buffer_lines: HashMap<usize, usize>,
-        env: &Env,
-    ) {
-        let mut new_layouts = Vec::new();
-        if inval_lines.start_line < self.text_layouts.len() {
-            new_layouts.extend_from_slice(
-                &self.text_layouts[..inval_lines.start_line],
-            );
-        }
-        for _ in 0..inval_lines.new_count {
-            new_layouts.push(None);
-        }
-        if inval_lines.start_line + inval_lines.inval_count
-            < self.text_layouts.len()
-        {
-            new_layouts.extend_from_slice(
-                &self.text_layouts
-                    [inval_lines.start_line + inval_lines.inval_count..],
-            );
-        }
-        self.text_layouts = new_layouts;
+    // pub fn update(
+    //     &mut self,
+    //     text: &mut PietText,
+    //     buffer: &mut Buffer,
+    //     inval_lines: &InvalLines,
+    //     buffer_lines: HashMap<usize, usize>,
+    //     env: &Env,
+    // ) {
+    //     let mut new_layouts = Vec::new();
+    //     if inval_lines.start_line < self.text_layouts.len() {
+    //         new_layouts.extend_from_slice(
+    //             &self.text_layouts[..inval_lines.start_line],
+    //         );
+    //     }
+    //     for _ in 0..inval_lines.new_count {
+    //         new_layouts.push(None);
+    //     }
+    //     if inval_lines.start_line + inval_lines.inval_count
+    //         < self.text_layouts.len()
+    //     {
+    //         new_layouts.extend_from_slice(
+    //             &self.text_layouts
+    //                 [inval_lines.start_line + inval_lines.inval_count..],
+    //         );
+    //     }
+    //     self.text_layouts = new_layouts;
 
-        for (line, _) in buffer_lines.iter() {
-            self.update_line_layouts(text, buffer, *line, env);
-        }
-    }
+    //     for (line, _) in buffer_lines.iter() {
+    //         self.update_line_layouts(text, buffer, *line, env);
+    //     }
+    // }
 
-    pub fn update_layouts(
-        &mut self,
-        text: &mut PietText,
-        buffer: &mut Buffer,
-        buffer_lines: &[usize],
-        env: &Env,
-    ) {
-        for line in buffer_lines {
-            self.update_line_layouts(text, buffer, *line, env);
-        }
-    }
+    // pub fn update_layouts(
+    //     &mut self,
+    //     text: &mut PietText,
+    //     buffer: &mut Buffer,
+    //     buffer_lines: &[usize],
+    //     env: &Env,
+    // ) {
+    //     for line in buffer_lines {
+    //         self.update_line_layouts(text, buffer, *line, env);
+    //     }
+    // }
 
-    pub fn update_line_layouts(
-        &mut self,
-        text: &mut PietText,
-        buffer: &mut Buffer,
-        line: usize,
-        env: &Env,
-    ) {
-        if line >= buffer.num_lines() {
-            return;
-        }
-        let line_content = buffer
-            .slice_to_cow(
-                buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
-            )
-            .to_string();
-        if line >= self.text_layouts.len() {
-            for _ in self.text_layouts.len()..line + 1 {
-                self.text_layouts.push(None);
-            }
-        }
+    // pub fn update_line_layouts(
+    //     &mut self,
+    //     text: &mut PietText,
+    //     buffer: &mut Buffer,
+    //     line: usize,
+    //     env: &Env,
+    // ) {
+    //     if line >= buffer.num_lines() {
+    //         return;
+    //     }
+    //     let line_content = buffer
+    //         .slice_to_cow(
+    //             buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
+    //         )
+    //         .to_string();
+    //     if line >= self.text_layouts.len() {
+    //         for _ in self.text_layouts.len()..line + 1 {
+    //             self.text_layouts.push(None);
+    //         }
+    //     }
 
-        if let Some(text_layout) = self.text_layouts[line].as_ref() {
-            if text_layout.text != line_content
-                || &text_layout.highlights != buffer.get_line_highligh(line)
-            {
-                self.text_layouts[line] = Some(Self::get_text_layout(
-                    text,
-                    buffer,
-                    line,
-                    line_content,
-                    env,
-                ));
-            }
-        } else {
-            self.text_layouts[line] = Some(Self::get_text_layout(
-                text,
-                buffer,
-                line,
-                line_content,
-                env,
-            ));
-        }
-    }
+    //     if let Some(text_layout) = self.text_layouts[line].as_ref() {
+    //         if text_layout.text != line_content
+    //             || &text_layout.highlights != buffer.get_line_highligh(line)
+    //         {
+    //             self.text_layouts[line] = Some(Self::get_text_layout(
+    //                 text,
+    //                 buffer,
+    //                 line,
+    //                 line_content,
+    //                 env,
+    //             ));
+    //         }
+    //     } else {
+    //         self.text_layouts[line] = Some(Self::get_text_layout(
+    //             text,
+    //             buffer,
+    //             line,
+    //             line_content,
+    //             env,
+    //         ));
+    //     }
+    // }
 
-    pub fn get_text_layout(
-        text: &mut PietText,
-        buffer: &mut Buffer,
-        line: usize,
-        line_content: String,
-        env: &Env,
-    ) -> HighlightTextLayout {
-        // let start_offset = buffer.offset_of_line(line);
-        let mut layout_builder = text
-            .new_text_layout(line_content.clone())
-            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-        for (start, end, hl) in buffer.get_line_highligh(line) {
-            if let Some(color) = LAPCE_STATE.theme.lock().unwrap().get(hl) {
-                layout_builder = layout_builder.range_attribute(
-                    start..end,
-                    TextAttribute::TextColor(color.clone()),
-                );
-            }
-        }
-        let layout = layout_builder.build().unwrap();
-        HighlightTextLayout {
-            layout,
-            text: line_content,
-            highlights: buffer.get_line_highligh(line).clone(),
-        }
-    }
+    // pub fn get_text_layout(
+    //     text: &mut PietText,
+    //     buffer: &mut Buffer,
+    //     line: usize,
+    //     line_content: String,
+    //     env: &Env,
+    // ) -> HighlightTextLayout {
+    //     // let start_offset = buffer.offset_of_line(line);
+    //     let mut layout_builder = text
+    //         .new_text_layout(line_content.clone())
+    //         .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+    //         .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+    //     // for (start, end, hl) in buffer.get_line_highligh(line) {
+    //     //     if let Some(color) = LAPCE_STATE.theme.lock().unwrap().get(hl) {
+    //     //         layout_builder = layout_builder.range_attribute(
+    //     //             start..end,
+    //     //             TextAttribute::TextColor(color.clone()),
+    //     //         );
+    //     //     }
+    //     // }
+    //     let layout = layout_builder.build().unwrap();
+    //     HighlightTextLayout {
+    //         layout,
+    //         text: line_content,
+    //         highlights: buffer.get_line_highligh(line).clone(),
+    //     }
+    // }
 }

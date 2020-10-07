@@ -1,17 +1,10 @@
-use std::{
-    cell::Cell,
-    collections::HashMap,
-    fs::File,
-    io::Read,
-    str::FromStr,
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
+use std::{collections::HashMap, fs::File, io::Read, str::FromStr};
 
 use anyhow::{anyhow, Result};
-use druid::{Color, Data, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId};
-use lazy_static::lazy_static;
+use druid::{
+    Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target,
+    WidgetId,
+};
 use toml;
 
 use crate::{
@@ -25,10 +18,6 @@ use crate::{
     language::TreeSitter,
     palette::PaletteState,
 };
-
-lazy_static! {
-    pub static ref LAPCE_STATE: LapceState = LapceState::new();
-}
 
 #[derive(PartialEq)]
 enum KeymapMatch {
@@ -91,37 +80,37 @@ impl LapceUIState {
 
 #[derive(Clone)]
 pub struct LapceState {
-    pub palette: Arc<Mutex<PaletteState>>,
-    // keypress_sequence: Arc<Mutex<String>>,
-    pending_keypress: Arc<Mutex<Vec<KeyPress>>>,
-    count: Arc<Mutex<Option<usize>>>,
-    keymaps: Arc<Mutex<Vec<KeyMap>>>,
-    pub theme: Arc<Mutex<HashMap<String, Color>>>,
-    pub last_focus: Arc<Mutex<LapceWidget>>,
-    pub focus: Arc<Mutex<LapceWidget>>,
-    pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
-    pub editor_split: Arc<Mutex<EditorSplitState>>,
-    pub container: Arc<Mutex<Option<WidgetId>>>,
+    pub palette: PaletteState,
+    pending_keypress: Vec<KeyPress>,
+    count: Option<usize>,
+    keymaps: Vec<KeyMap>,
+    pub theme: HashMap<String, Color>,
+    pub last_focus: LapceWidget,
+    pub focus: LapceWidget,
+    pub ui_sink: ExtEventSink,
+    pub editor_split: EditorSplitState,
+    pub container: Option<WidgetId>,
+}
+
+impl Data for LapceState {
+    fn same(&self, other: &Self) -> bool {
+        false
+    }
 }
 
 impl LapceState {
-    pub fn new() -> LapceState {
+    pub fn new(ui_sink: ExtEventSink) -> LapceState {
         LapceState {
-            pending_keypress: Arc::new(Mutex::new(Vec::new())),
-            keymaps: Arc::new(Mutex::new(
-                Self::get_keymaps().unwrap_or(Vec::new()),
-            )),
-            theme: Arc::new(Mutex::new(
-                Self::get_theme().unwrap_or(HashMap::new()),
-            )),
-            // keypress_sequence: Arc::new(Mutex::new("".to_string())),
-            count: Arc::new(Mutex::new(None)),
-            ui_sink: Arc::new(Mutex::new(None)),
-            focus: Arc::new(Mutex::new(LapceWidget::Editor)),
-            last_focus: Arc::new(Mutex::new(LapceWidget::Editor)),
-            palette: Arc::new(Mutex::new(PaletteState::new())),
-            editor_split: Arc::new(Mutex::new(EditorSplitState::new())),
-            container: Arc::new(Mutex::new(None)),
+            pending_keypress: Vec::new(),
+            keymaps: Self::get_keymaps().unwrap_or(Vec::new()),
+            theme: Self::get_theme().unwrap_or(HashMap::new()),
+            count: None,
+            ui_sink,
+            focus: LapceWidget::Editor,
+            last_focus: LapceWidget::Editor,
+            palette: PaletteState::new(),
+            editor_split: EditorSplitState::new(),
+            container: None,
         }
     }
 
@@ -238,26 +227,24 @@ impl LapceState {
     }
 
     fn get_mode(&self) -> Mode {
-        let foucus = self.focus.lock().unwrap().clone();
-        match foucus {
+        match self.focus {
             LapceWidget::Palette => Mode::Insert,
-            LapceWidget::Editor => self.editor_split.lock().unwrap().get_mode(),
+            LapceWidget::Editor => self.editor_split.get_mode(),
         }
     }
 
-    pub fn insert(&self, content: &str) {
-        let foucus = self.focus.lock().unwrap().clone();
-        match foucus {
+    pub fn insert(&mut self, ctx: &mut EventCtx, content: &str, env: &Env) {
+        match self.focus {
             LapceWidget::Palette => {
-                self.palette.lock().unwrap().insert(content);
+                self.palette.insert(content);
             }
             LapceWidget::Editor => {
-                self.editor_split.lock().unwrap().insert(content);
+                self.editor_split.insert(ctx, content, env);
             }
         }
     }
 
-    pub fn handle_count(&self, keypress: &KeyPress) -> bool {
+    pub fn handle_count(&mut self, keypress: &KeyPress) -> bool {
         if self.get_mode() == Mode::Insert {
             return false;
         }
@@ -265,9 +252,8 @@ impl LapceState {
         match &keypress.key {
             druid::keyboard_types::Key::Character(c) => {
                 if let Ok(n) = c.parse::<usize>() {
-                    let mut count = self.count.lock().unwrap();
-                    if count.is_some() || n > 0 {
-                        *count = Some(count.unwrap_or(0) * 10 + n);
+                    if self.count.is_some() || n > 0 {
+                        self.count = Some(self.count.unwrap_or(0) * 10 + n);
                         return true;
                     }
                 }
@@ -278,52 +264,51 @@ impl LapceState {
         false
     }
 
-    pub fn get_count(&self) -> Option<usize> {
-        self.count.lock().unwrap().take()
+    pub fn get_count(&mut self) -> Option<usize> {
+        self.count.take()
     }
 
-    pub fn run_command(&self, command: &str) {
+    pub fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &str,
+        env: &Env,
+    ) {
         let count = self.get_count();
         if let Ok(cmd) = LapceCommand::from_str(command) {
-            let foucus = self.focus.lock().unwrap().clone();
             match cmd {
                 LapceCommand::Palette => {
-                    self.palette.lock().unwrap().run();
+                    self.palette.run();
                 }
                 LapceCommand::PaletteCancel => {
-                    self.palette.lock().unwrap().cancel();
+                    self.palette.cancel();
                 }
                 _ => {
-                    match foucus {
-                        LapceWidget::Editor => self
-                            .editor_split
-                            .lock()
-                            .unwrap()
-                            .run_command(count, cmd),
+                    match self.focus {
+                        LapceWidget::Editor => {
+                            self.editor_split.run_command(ctx, count, cmd, env);
+                        }
                         LapceWidget::Palette => match cmd {
                             LapceCommand::ListSelect => {
-                                self.palette.lock().unwrap().select();
+                                self.palette.select();
                             }
                             LapceCommand::ListNext => {
-                                self.palette.lock().unwrap().change_index(1);
+                                self.palette.change_index(1);
                             }
                             LapceCommand::ListPrevious => {
-                                self.palette.lock().unwrap().change_index(-1);
+                                self.palette.change_index(-1);
                             }
                             LapceCommand::Left => {
-                                self.palette.lock().unwrap().move_cursor(-1);
+                                self.palette.move_cursor(-1);
                             }
                             LapceCommand::Right => {
-                                self.palette.lock().unwrap().move_cursor(1);
+                                self.palette.move_cursor(1);
                             }
                             LapceCommand::DeleteBackward => {
-                                self.palette.lock().unwrap().delete_backward();
+                                self.palette.delete_backward();
                             }
                             LapceCommand::DeleteToBeginningOfLine => {
-                                self.palette
-                                    .lock()
-                                    .unwrap()
-                                    .delete_to_beginning_of_line();
+                                self.palette.delete_to_beginning_of_line();
                             }
                             _ => (),
                         },
@@ -338,11 +323,6 @@ impl LapceState {
         keypresses: &Vec<KeyPress>,
         keymap: &KeyMap,
     ) -> Option<KeymapMatch> {
-        // let mut keypresses = self.pending_keypress.lock().unwrap().clone();
-        // if let Some(keypress) = keypress {
-        //     keypresses.push(keypress.clone());
-        // }
-
         let match_result = if keymap.key.len() > keypresses.len() {
             if keymap.key[..keypresses.len()] == keypresses[..] {
                 Some(KeymapMatch::Prefix)
@@ -387,7 +367,12 @@ impl LapceState {
         true
     }
 
-    pub fn key_down(&self, key_event: &KeyEvent) {
+    pub fn key_down(
+        &mut self,
+        ctx: &mut EventCtx,
+        key_event: &KeyEvent,
+        env: &Env,
+    ) {
         let mut mods = key_event.mods.clone();
         mods.set(Modifiers::SHIFT, false);
         let keypress = KeyPress {
@@ -400,9 +385,9 @@ impl LapceState {
         }
 
         let mut full_match_keymap = None;
-        let mut keypresses = self.pending_keypress.lock().unwrap().clone();
+        let mut keypresses = self.pending_keypress.clone();
         keypresses.push(keypress.clone());
-        for keymap in self.keymaps.lock().unwrap().iter() {
+        for keymap in self.keymaps.iter() {
             if let Some(match_result) =
                 self.match_keymap_new(&keypresses, keymap)
             {
@@ -413,27 +398,24 @@ impl LapceState {
                         }
                     }
                     KeymapMatch::Prefix => {
-                        self.pending_keypress
-                            .lock()
-                            .unwrap()
-                            .push(keypress.clone());
+                        self.pending_keypress.push(keypress.clone());
                         return;
                     }
                 }
             }
         }
 
-        let pending_keypresses = self.pending_keypress.lock().unwrap().clone();
-        *self.pending_keypress.lock().unwrap() = Vec::new();
+        let pending_keypresses = self.pending_keypress.clone();
+        self.pending_keypress = Vec::new();
 
         if let Some(keymap) = full_match_keymap {
-            self.run_command(&keymap.command);
+            self.run_command(ctx, &keymap.command, env);
             return;
         }
 
         if pending_keypresses.len() > 0 {
             let mut full_match_keymap = None;
-            for keymap in self.keymaps.lock().unwrap().iter() {
+            for keymap in self.keymaps.iter() {
                 if let Some(match_result) =
                     self.match_keymap_new(&pending_keypresses, keymap)
                 {
@@ -445,8 +427,8 @@ impl LapceState {
                 }
             }
             if let Some(keymap) = full_match_keymap {
-                self.run_command(&keymap.command);
-                self.key_down(key_event);
+                self.run_command(ctx, &keymap.command, env);
+                self.key_down(ctx, key_event, env);
                 return;
             }
         }
@@ -456,12 +438,12 @@ impl LapceState {
             return;
         }
 
-        *self.count.lock().unwrap() = None;
+        self.count = None;
 
         if mods.is_empty() {
             match &key_event.key {
                 druid::keyboard_types::Key::Character(c) => {
-                    self.insert(c);
+                    self.insert(ctx, c, env);
                 }
                 _ => (),
             }
@@ -501,41 +483,34 @@ impl LapceState {
 
     fn check_one_condition(&self, condition: &str) -> bool {
         match condition.trim() {
-            "palette_focus" => {
-                *self.focus.lock().unwrap() == LapceWidget::Palette
-            }
-            "list_focus" => *self.focus.lock().unwrap() == LapceWidget::Palette,
+            "palette_focus" => self.focus == LapceWidget::Palette,
+            "list_focus" => self.focus == LapceWidget::Palette,
             "editor_operator" => {
-                *self.focus.lock().unwrap() == LapceWidget::Editor
-                    && self.editor_split.lock().unwrap().has_operator()
+                self.focus == LapceWidget::Editor
+                    && self.editor_split.has_operator()
             }
             _ => false,
         }
     }
 
-    pub fn set_ui_sink(&self, ui_sink: ExtEventSink) {
-        *self.ui_sink.lock().unwrap() = Some(ui_sink);
-    }
-
     pub fn container_id(&self) -> WidgetId {
-        self.container.lock().unwrap().unwrap().clone()
+        self.container.unwrap().clone()
     }
 
-    pub fn set_container(&self, container: WidgetId) {
-        *self.container.lock().unwrap() = Some(container);
+    pub fn set_container(&mut self, container: WidgetId) {
+        self.container = Some(container);
     }
 
-    pub fn open_file(&self, path: &str) {
-        self.editor_split.lock().unwrap().open_file(path);
+    pub fn open_file(&mut self, ctx: &mut EventCtx, path: &str) {
+        self.editor_split.open_file(ctx, path);
     }
 
     pub fn submit_ui_command(&self, cmd: LapceUICommand, widget_id: WidgetId) {
-        self.ui_sink
-            .lock()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .submit_command(LAPCE_UI_COMMAND, cmd, Target::Widget(widget_id));
+        self.ui_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            cmd,
+            Target::Widget(widget_id),
+        );
     }
 }
 

@@ -1,4 +1,4 @@
-use druid::{Rect, Selector, WidgetId};
+use druid::{Rect, Selector, Size, WidgetId};
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
 
@@ -109,10 +109,13 @@ pub enum LapceCommand {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
+    OpenFile(String),
+    FillTextLayouts,
     RequestLayout,
     RequestPaint,
     RequestPaintRect(Rect),
     EnsureVisible((Rect, (f64, f64))),
+    EditorViewSize(Size),
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
     Split(bool, WidgetId),

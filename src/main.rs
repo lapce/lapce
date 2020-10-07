@@ -17,10 +17,11 @@ use crate::container::LapceContainer;
 use crate::editor::Editor;
 use crate::palette::Palette;
 use crate::split::LapceSplit;
-use crate::state::LAPCE_STATE;
 
+use command::{LapceUICommand, LAPCE_UI_COMMAND};
 use druid::{
-    piet::Color, FontDescriptor, FontFamily, FontWeight, Key, Size, WidgetId,
+    piet::Color, FontDescriptor, FontFamily, FontWeight, Key, Size, Target,
+    WidgetId,
 };
 use druid::{
     widget::IdentityWrapper,
@@ -29,33 +30,32 @@ use druid::{
 };
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
 use palette::PaletteWrapper;
-use state::LapceUIState;
+use state::{LapceState, LapceUIState};
 use tree_sitter::{Language, Parser};
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
 }
 
-fn build_app() -> impl Widget<LapceUIState> {
+fn build_app() -> impl Widget<LapceState> {
     let container_id = WidgetId::next();
     let container =
         IdentityWrapper::wrap(LapceContainer::new(), container_id.clone());
-    LAPCE_STATE.set_container(container_id);
-    container.env_scope(|env: &mut druid::Env, data: &LapceUIState| {
-        let theme = LAPCE_STATE.theme.lock().unwrap();
-        if let Some(line_highlight) = theme.get("line_highlight") {
+    // LAPCE_STATE.set_container(container_id);
+    container.env_scope(|env: &mut druid::Env, data: &LapceState| {
+        if let Some(line_highlight) = data.theme.get("line_highlight") {
             env.set(
                 theme::LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
                 line_highlight.clone(),
             );
         };
-        if let Some(caret) = theme.get("caret") {
+        if let Some(caret) = data.theme.get("caret") {
             env.set(theme::LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
         };
-        if let Some(foreground) = theme.get("foreground") {
+        if let Some(foreground) = data.theme.get("foreground") {
             env.set(theme::LapceTheme::EDITOR_FOREGROUND, foreground.clone());
         };
-        if let Some(selection) = theme.get("selection") {
+        if let Some(selection) = data.theme.get("selection") {
             env.set(
                 theme::LapceTheme::EDITOR_SELECTION_COLOR,
                 selection.clone(),
@@ -84,14 +84,14 @@ fn build_app() -> impl Widget<LapceUIState> {
                 .with_size(13.0),
         );
     })
-
+    // .debug_invalidation()
     // Label::new("test label")
     //     .with_text_color(Color::rgb8(64, 120, 242))
     //     .background(Color::rgb8(64, 120, 242))
-    // .debug_invalidation()
 }
 
 pub fn main() {
+    WindowDesc::new(|| LapceContainer::new());
     let window = WindowDesc::new(build_app)
         .title(
             LocalizedString::new("split-demo-window-title")
@@ -102,16 +102,22 @@ pub fn main() {
 
     let launcher = AppLauncher::with_window(window);
     let ui_event_sink = launcher.get_external_handle();
-    LAPCE_STATE.set_ui_sink(ui_event_sink);
-    thread::spawn(move || {
-        LAPCE_STATE.open_file("/Users/Lulu/lapce/src/editor.rs")
-    });
+    let state = LapceState::new(ui_event_sink.clone());
+    ui_event_sink.submit_command(
+        LAPCE_UI_COMMAND,
+        LapceUICommand::OpenFile("/Users/Lulu/lapce/src/editor.rs".to_string()),
+        Target::Global,
+    );
+    // LAPCE_STATE.set_ui_sink(ui_event_sink);
+    // thread::spawn(move || {
+    //     LAPCE_STATE.open_file("/Users/Lulu/lapce/src/editor.rs")
+    // });
     let mut parser = Parser::new();
     let language = unsafe { tree_sitter_rust() };
     parser.set_language(language);
     parser.parse("pub fn main() {}", None).unwrap();
     launcher
         .use_simple_logger()
-        .launch(LapceUIState::new())
+        .launch(state)
         .expect("launch failed");
 }

@@ -1,7 +1,4 @@
-use crate::{
-    editor::EditorView, scroll::LapceScroll, state::LapceUIState,
-    state::LAPCE_STATE,
-};
+use crate::{editor::EditorView, scroll::LapceScroll, state::LapceState};
 use std::cmp::Ordering;
 
 use druid::{
@@ -31,7 +28,7 @@ pub enum SplitMoveDirection {
 
 pub struct LapceSplit {
     vertical: bool,
-    children: Vec<WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>>,
+    children: Vec<WidgetPod<LapceState, Box<dyn Widget<LapceState>>>>,
     children_sizes: Vec<f64>,
     current_bar_hover: usize,
 }
@@ -57,9 +54,15 @@ impl LapceSplit {
             .push(1.0 - self.children_sizes.iter().sum::<f64>());
     }
 
+    pub fn add_child(&mut self, child: impl Widget<LapceState> + 'static) {
+        let child = WidgetPod::new(child).boxed();
+        self.children.push(child);
+        self.even_child_sizes();
+    }
+
     pub fn with_child(
         mut self,
-        child: impl Widget<LapceUIState> + 'static,
+        child: impl Widget<LapceState> + 'static,
     ) -> Self {
         let child = WidgetPod::new(child).boxed();
         self.children.push(child);
@@ -125,12 +128,12 @@ impl LapceSplit {
     }
 }
 
-impl Widget<LapceUIState> for LapceSplit {
+impl Widget<LapceState> for LapceSplit {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceUIState,
+        data: &mut LapceState,
         env: &Env,
     ) {
         match event {
@@ -145,7 +148,7 @@ impl Widget<LapceUIState> for LapceSplit {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
                         LapceUICommand::Split(vertical, view_id) => {
-                            if self.children.len() == 1 {
+                            if self.children.len() <= 1 {
                                 self.vertical = *vertical;
                             }
                             if &self.vertical != vertical {
@@ -162,18 +165,17 @@ impl Widget<LapceUIState> for LapceSplit {
                                     }
                                 }
 
-                                let (split_id, buffer_id) = {
-                                    let state = LAPCE_STATE
-                                        .editor_split
-                                        .lock()
-                                        .unwrap();
-                                    let editor =
-                                        state.editors.get(view_id).unwrap();
-                                    (editor.split_id, editor.buffer_id.clone())
-                                };
+                                let editor = data
+                                    .editor_split
+                                    .editors
+                                    .get(view_id)
+                                    .unwrap();
 
-                                let new_editor =
-                                    EditorView::new(split_id, buffer_id);
+                                let new_editor = EditorView::new(
+                                    editor.split_id,
+                                    view_id.clone(),
+                                    editor.editor_id,
+                                );
                                 let new_child =
                                     WidgetPod::new(new_editor).boxed();
                                 self.children.insert(index + 1, new_child);
@@ -189,11 +191,11 @@ impl Widget<LapceUIState> for LapceSplit {
                             }
                             if index >= self.children.len() - 1 {
                             } else {
-                                LAPCE_STATE
-                                    .editor_split
-                                    .lock()
-                                    .unwrap()
-                                    .set_active(self.children[index + 1].id());
+                                // LAPCE_STATE
+                                //     .editor_split
+                                //     .lock()
+                                //     .unwrap()
+                                //     .set_active(self.children[index + 1].id());
                                 self.children.swap(index, index + 1);
                                 self.children_sizes.swap(index, index + 1);
                                 ctx.request_layout();
@@ -211,25 +213,25 @@ impl Widget<LapceUIState> for LapceSplit {
                                     if index == 0 {
                                         return;
                                     }
-                                    LAPCE_STATE
-                                        .editor_split
-                                        .lock()
-                                        .unwrap()
-                                        .set_active(
-                                            self.children[index - 1].id(),
-                                        )
+                                    // LAPCE_STATE
+                                    //     .editor_split
+                                    //     .lock()
+                                    //     .unwrap()
+                                    //     .set_active(
+                                    //         self.children[index - 1].id(),
+                                    //     )
                                 }
                                 SplitMoveDirection::Right => {
                                     if index >= self.children.len() - 1 {
                                         return;
                                     }
-                                    LAPCE_STATE
-                                        .editor_split
-                                        .lock()
-                                        .unwrap()
-                                        .set_active(
-                                            self.children[index + 1].id(),
-                                        )
+                                    // LAPCE_STATE
+                                    //     .editor_split
+                                    //     .lock()
+                                    //     .unwrap()
+                                    //     .set_active(
+                                    //         self.children[index + 1].id(),
+                                    //     )
                                 }
                                 _ => (),
                             }
@@ -300,7 +302,7 @@ impl Widget<LapceUIState> for LapceSplit {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceUIState,
+        data: &LapceState,
         env: &Env,
     ) {
         for child in self.children.as_mut_slice() {
@@ -311,10 +313,22 @@ impl Widget<LapceUIState> for LapceSplit {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        _old_data: &LapceUIState,
-        data: &LapceUIState,
+        old_data: &LapceState,
+        data: &LapceState,
         env: &Env,
     ) {
+        // for (editor_id, editor) in data.editor_split.editors.iter() {
+        //     if !old_data.editor_split.editors.contains_key(editor_id) {
+        //         let editor_view = EditorView::new(
+        //             WidgetId::next(),
+        //             editor.view_id,
+        //             editor.editor_id,
+        //         );
+        //         self.add_child(editor_view);
+        //         ctx.request_layout();
+        //     }
+        // }
+
         for child in self.children.as_mut_slice() {
             child.update(ctx, &data, env);
         }
@@ -324,7 +338,7 @@ impl Widget<LapceUIState> for LapceSplit {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceUIState,
+        data: &LapceState,
         env: &Env,
     ) -> Size {
         let my_size = bc.max();
@@ -362,7 +376,7 @@ impl Widget<LapceUIState> for LapceSplit {
         my_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
         self.paint_bar(ctx, env);
         for child in self.children.as_mut_slice() {
             child.paint(ctx, &data, env);

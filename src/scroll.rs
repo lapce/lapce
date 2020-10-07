@@ -7,7 +7,6 @@ use druid::{
 };
 
 use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
-use crate::state::LAPCE_STATE;
 
 #[derive(Debug, Clone)]
 enum ScrollDirection {
@@ -244,7 +243,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
             ScrollDirection::Horizontal => Size::new(INFINITY, bc.max().height),
         };
 
-        let child_bc = BoxConstraints::new(Size::ZERO, max_bc);
+        let child_bc = BoxConstraints::new(bc.max(), max_bc);
         let child_size = self.child.layout(ctx, &child_bc, data, env);
         self.scroll_component.content_size = child_size;
         self.child
