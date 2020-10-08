@@ -62,7 +62,7 @@ pub struct EditorState {
     pub view_id: WidgetId,
     pub split_id: WidgetId,
     pub buffer_id: Option<BufferId>,
-    selection: Selection,
+    pub selection: Selection,
     pub char_width: f64,
     pub width: f64,
     pub height: f64,
@@ -71,15 +71,10 @@ pub struct EditorState {
 }
 
 impl EditorState {
-    pub fn new(
-        id: WidgetId,
-        view_id: WidgetId,
-        split_id: WidgetId,
-        buffer_id: Option<BufferId>,
-    ) -> EditorState {
+    pub fn new(split_id: WidgetId, buffer_id: Option<BufferId>) -> EditorState {
         EditorState {
-            editor_id: id,
-            view_id,
+            editor_id: WidgetId::next(),
+            view_id: WidgetId::next(),
             split_id,
             buffer_id,
             selection: Selection::new_simple(),
@@ -121,35 +116,37 @@ impl EditorState {
             ctx.request_layout();
         }
 
-        for region in self.selection.regions() {
-            let start = buffer.line_of_offset(region.min());
-            let end = buffer.line_of_offset(region.max());
-            let rect = Rect::ZERO
-                .with_origin(Point::new(0.0, start as f64 * line_height))
-                .with_size(Size::new(
-                    ctx.size().width,
-                    (end + 1 - start) as f64 * line_height,
-                ));
-            ctx.request_paint_rect(rect);
-        }
+        if self.view_id == data.editor_split.active {
+            for region in self.selection.regions() {
+                let start = buffer.line_of_offset(region.min());
+                let end = buffer.line_of_offset(region.max());
+                let rect = Rect::ZERO
+                    .with_origin(Point::new(0.0, start as f64 * line_height))
+                    .with_size(Size::new(
+                        ctx.size().width,
+                        (end + 1 - start) as f64 * line_height,
+                    ));
+                ctx.request_paint_rect(rect);
+            }
 
-        for region in old_data
-            .editor_split
-            .editors
-            .get(&self.view_id)
-            .unwrap()
-            .selection
-            .regions()
-        {
-            let start = buffer.line_of_offset(region.min());
-            let end = buffer.line_of_offset(region.max());
-            let rect = Rect::ZERO
-                .with_origin(Point::new(0.0, start as f64 * line_height))
-                .with_size(Size::new(
-                    ctx.size().width,
-                    (end + 1 - start) as f64 * line_height,
-                ));
-            ctx.request_paint_rect(rect);
+            for region in old_data
+                .editor_split
+                .editors
+                .get(&self.view_id)
+                .unwrap()
+                .selection
+                .regions()
+            {
+                let start = buffer.line_of_offset(region.min());
+                let end = buffer.line_of_offset(region.max());
+                let rect = Rect::ZERO
+                    .with_origin(Point::new(0.0, start as f64 * line_height))
+                    .with_size(Size::new(
+                        ctx.size().width,
+                        (end + 1 - start) as f64 * line_height,
+                    ));
+                ctx.request_paint_rect(rect);
+            }
         }
 
         let offset = self.scroll_offset;
@@ -157,9 +154,13 @@ impl EditorState {
         let num_lines = (self.view_size.height / line_height) as usize;
         let mut updated_start_line = None;
         let mut updated_end_line = None;
-        for line in start_line..start_line + num_lines {
-            if buffer.text_layouts[line].as_ref().unwrap().text
-                != old_buffer.text_layouts[line].as_ref().unwrap().text
+        for line in start_line..start_line + num_lines + 1 {
+            if line >= buffer.text_layouts.len() {
+                break;
+            }
+            if old_buffer.text_layouts[line].is_none()
+                || buffer.text_layouts[line].as_ref().unwrap().text
+                    != old_buffer.text_layouts[line].as_ref().unwrap().text
                 || buffer.text_layouts[line].as_ref().unwrap().highlights
                     != old_buffer.text_layouts[line]
                         .as_ref()
@@ -305,12 +306,6 @@ impl EditorState {
                     Target::Widget(self.view_id),
                 ));
             }
-            LapceCommand::SplitVertical => {
-                // data.submit_ui_command(
-                //     LapceUICommand::Split(true, self.view_id),
-                //     self.split_id,
-                // );
-            }
             LapceCommand::ScrollUp => {
                 // data.submit_ui_command(
                 //     LapceUICommand::Scroll((0.0, -self.line_height)),
@@ -325,28 +320,25 @@ impl EditorState {
             }
             LapceCommand::SplitHorizontal => {}
             LapceCommand::SplitRight => {
-                // data.submit_ui_command(
-                //     LapceUICommand::SplitMove(
-                //         SplitMoveDirection::Right,
-                //         self.view_id,
-                //     ),
-                //     self.split_id,
-                // );
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitMove(SplitMoveDirection::Right),
+                    Target::Widget(self.split_id),
+                ));
             }
             LapceCommand::SplitLeft => {
-                // data.submit_ui_command(
-                //     LapceUICommand::SplitMove(
-                //         SplitMoveDirection::Left,
-                //         self.view_id,
-                //     ),
-                //     self.split_id,
-                // );
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitMove(SplitMoveDirection::Left),
+                    Target::Widget(self.split_id),
+                ));
             }
             LapceCommand::SplitExchange => {
-                // data.submit_ui_command(
-                //     LapceUICommand::SplitExchange(self.view_id),
-                //     self.split_id,
-                // );
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitExchange,
+                    Target::Widget(self.split_id),
+                ));
             }
             LapceCommand::NewLineAbove => {}
             LapceCommand::NewLineBelow => {}
@@ -600,16 +592,11 @@ pub struct EditorSplitState {
 
 impl EditorSplitState {
     pub fn new() -> EditorSplitState {
-        let active = WidgetId::next();
         let editor_split_id = WidgetId::next();
-        let editor = EditorState::new(
-            WidgetId::next(),
-            active.clone(),
-            editor_split_id.clone(),
-            None,
-        );
+        let editor = EditorState::new(editor_split_id.clone(), None);
+        let active = editor.view_id.clone();
         let mut editors = HashMap::new();
-        editors.insert(active.clone(), editor);
+        editors.insert(editor.view_id, editor);
         EditorSplitState {
             widget_id: editor_split_id,
             active,
@@ -630,6 +617,19 @@ impl EditorSplitState {
 
     pub fn active(&self) -> WidgetId {
         self.active
+    }
+
+    pub fn new_editor(
+        &mut self,
+        split_id: WidgetId,
+        buffer_id: Option<BufferId>,
+        selection: Selection,
+    ) -> &EditorState {
+        let mut editor = EditorState::new(split_id, buffer_id);
+        editor.selection = selection;
+        let view_id = editor.view_id.clone();
+        self.editors.insert(editor.view_id, editor);
+        self.editors.get(&view_id).unwrap()
     }
 
     pub fn set_editor_scroll_offset(
@@ -746,6 +746,7 @@ impl EditorSplitState {
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get_mut(&buffer_id)?;
         editor.selection = buffer.insert(content, &editor.selection);
+        editor.ensure_cursor_visible(ctx, buffer, env);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         None
     }
@@ -766,32 +767,9 @@ impl EditorSplitState {
         let size = ctx.size();
         let num_lines = (size.height / line_height) as usize;
         let text = ctx.text();
-        let mut updated = false;
-        // let mut updated_start_line = None;
-        // let mut updated_end_line = None;
         for line in start_line..start_line + num_lines + 1 {
-            if buffer.update_line_layouts(text, theme, line, env) {
-                // if updated_start_line.is_none() {
-                //     updated_start_line = Some(line);
-                // }
-                // updated_end_line = Some(line);
-            }
+            buffer.update_line_layouts(text, theme, line, env);
         }
-        // if let Some(updated_start_line) = updated_start_line {
-        //     let updated_end_line = updated_end_line.unwrap();
-        //     let rect = Rect::ZERO
-        //         .with_origin(Point::new(
-        //             0.0,
-        //             updated_start_line as f64 * line_height,
-        //         ))
-        //         .with_size(Size::new(
-        //             ctx.size().width,
-        //             (updated_end_line + 1 - updated_start_line) as f64
-        //                 * line_height,
-        //         ));
-        //     ctx.request_paint_rect(rect);
-        //     // ctx.request_paint();
-        // }
         None
     }
 
@@ -999,6 +977,13 @@ impl EditorSplitState {
                 editor.request_paint();
                 self.mode = Mode::Normal;
             }
+            LapceCommand::SplitVertical => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Split(true),
+                    Target::Widget(editor.split_id),
+                ));
+            }
             _ => {
                 editor.run_command(
                     ctx,
@@ -1015,32 +1000,6 @@ impl EditorSplitState {
         None
     }
 
-    // pub fn buffer_request_paint(
-    //     &self,
-    //     buffer_id: &BufferId,
-    //     inval_lines: &InvalLines,
-    // ) {
-    //     for (_, editor) in &self.editors {
-    //         if let Some(b) = &editor.buffer_id {
-    //             if b == buffer_id {
-    //                 let start = inval_lines.start_line;
-    //                 editor.request_paint_rect(
-    //                     Rect::ZERO
-    //                         .with_origin(Point::new(
-    //                             0.0,
-    //                             start as f64 * editor.line_height,
-    //                         ))
-    //                         .with_size(Size::new(
-    //                             editor.width,
-    //                             inval_lines.new_count as f64
-    //                                 * editor.line_height,
-    //                         )),
-    //                 );
-    //             }
-    //         }
-    //     }
-    // }
-
     pub fn buffer_request_layout(&self, buffer_id: &BufferId) {
         for (_, editor) in &self.editors {
             if let Some(b) = &editor.buffer_id {
@@ -1051,110 +1010,15 @@ impl EditorSplitState {
         }
     }
 
-    pub fn editor_update_layouts(
-        &mut self,
-        editor_id: &WidgetId,
-        text: &mut PietText,
-        data: &mut LapceState,
-        env: &Env,
-    ) {
-        // if let Some(editor) = self.editors.get(editor_id) {
-        //     if let Some(buffer_id) = editor.buffer_id.as_ref() {
-        //         if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-        //             let start_line =
-        //                 (editor.scroll_offset.y / editor.line_height) as usize;
-        //             let num_lines =
-        //                 (editor.height / editor.line_height) as usize;
-        //             let lines = (start_line..start_line + num_lines)
-        //                 .collect::<Vec<usize>>();
+    pub fn get_cursor(&self, view_id: &WidgetId) -> Option<(usize, usize)> {
+        if &self.active != view_id {
+            return None;
+        }
 
-        //             if let Some(buffer_ui) = data.buffers.get_mut(&buffer_id) {
-        //                 buffer_ui.update_layouts(text, buffer, &lines, env);
-        //             } else {
-        //                 let mut buffer_ui = BufferUIState {
-        //                     id: buffer_id.clone(),
-        //                     text_layouts: Vec::new(),
-        //                 };
-        //                 buffer_ui.update_layouts(text, buffer, &lines, env);
-        //                 data.buffers.insert(buffer_id.clone(), buffer_ui);
-        //             }
-        //         }
-        //     }
-        // }
-    }
-
-    pub fn buffer_update(
-        &mut self,
-        text: &mut PietText,
-        buffer_id: &BufferId,
-        data: &mut LapceState,
-        inval_lines: &InvalLines,
-        env: &Env,
-    ) {
-        // let buffer = self.buffers.get_mut(&buffer_id).unwrap();
-
-        // let mut buffer_lines = HashMap::new();
-        // for (_, editor) in &self.editors {
-        //     if let Some(b) = &editor.buffer_id {
-        //         if b == buffer_id {
-        //             let start_line =
-        //                 (editor.scroll_offset.y / editor.line_height) as usize;
-        //             let num_lines =
-        //                 (editor.height / editor.line_height) as usize;
-        //             for line in start_line..start_line + num_lines {
-        //                 buffer_lines.insert(line, line);
-        //             }
-        //         }
-        //     }
-        // }
-        // if let Some(buffer_ui) = data.buffers.get_mut(&buffer_id) {
-        //     buffer_ui.update(text, buffer, inval_lines, buffer_lines, env);
-        // } else {
-        //     let mut buffer_ui = BufferUIState {
-        //         id: buffer_id.clone(),
-        //         text_layouts: Vec::new(),
-        //     };
-        //     buffer_ui.update(text, buffer, inval_lines, buffer_lines, env);
-        //     data.buffers.insert(buffer_id.clone(), buffer_ui);
-        // }
-
-        // let mut request_layout = false;
-        // if buffer.max_len_line >= inval_lines.start_line
-        //     && buffer.max_len_line
-        //         < inval_lines.start_line + inval_lines.inval_count
-        // {
-        //     buffer.update_max_line_len();
-        //     request_layout = true;
-        // } else {
-        //     let mut max_len = 0;
-        //     let mut max_len_line = 0;
-        //     for line in inval_lines.start_line
-        //         ..inval_lines.start_line + inval_lines.new_count
-        //     {
-        //         let line_len = buffer.line_len(line);
-        //         if line_len > max_len {
-        //             max_len = line_len;
-        //             max_len_line = line;
-        //         }
-        //     }
-        //     if max_len > buffer.max_len {
-        //         buffer.max_len = max_len;
-        //         buffer.max_len_line = max_len_line;
-        //         request_layout = true;
-        //     } else if buffer.max_len >= inval_lines.start_line {
-        //         buffer.max_len_line = buffer.max_len_line
-        //             + inval_lines.new_count
-        //             - inval_lines.inval_count;
-        //     }
-        //     if inval_lines.new_count != inval_lines.inval_count {
-        //         request_layout = true;
-        //     }
-        // }
-        // if request_layout {
-        //     self.buffer_request_layout(buffer_id);
-        //     return;
-        // }
-        // self.buffer_request_paint(buffer_id, inval_lines);
+        let editor = self.editors.get(view_id)?;
+        let offset = editor.selection.get_cursor_offset();
+        let buffer = self.buffers.get(editor.buffer_id.as_ref()?)?;
+        Some(buffer.offset_to_line_col(offset))
     }
 
     pub fn get_mode(&self) -> Mode {
@@ -1213,6 +1077,18 @@ impl Widget<LapceState> for EditorView {
                 self.gutter.event(ctx, event, data, env);
                 self.editor.event(ctx, event, data, env);
             }
+            Event::Wheel(_) => {
+                self.editor.event(ctx, event, data, env);
+                let editor_split = Arc::make_mut(&mut data.editor_split);
+                editor_split.fill_text_layouts(
+                    ctx,
+                    self.editor.widget().offset(),
+                    &self.view_id,
+                    &data.theme,
+                    env,
+                );
+                ctx.request_paint();
+            }
             Event::Command(cmd) => match cmd {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -1263,32 +1139,29 @@ impl Widget<LapceState> for EditorView {
                         LapceUICommand::ScrollTo((x, y)) => {
                             let scroll = self.editor.widget_mut();
                             scroll.scroll_to(*x, *y);
+                            let editor_split =
+                                Arc::make_mut(&mut data.editor_split);
+                            editor_split
+                                .editors
+                                .get_mut(&self.view_id)
+                                .unwrap()
+                                .scroll_offset = scroll.offset();
+                            ctx.request_paint();
                         }
                         LapceUICommand::Scroll((x, y)) => {
                             let scroll = self.editor.widget_mut();
                             scroll.scroll(*x, *y);
+                            let editor_split =
+                                Arc::make_mut(&mut data.editor_split);
+                            editor_split
+                                .editors
+                                .get_mut(&self.view_id)
+                                .unwrap()
+                                .scroll_offset = scroll.offset();
                             ctx.request_paint();
                         }
                         _ => (),
                     }
-                    // LAPCE_STATE
-                    //     .editor_split
-                    //     .lock()
-                    //     .unwrap()
-                    //     .set_editor_scroll_offset(
-                    //         self.view_id,
-                    //         self.editor.widget_mut().offset(),
-                    //     );
-                    // LAPCE_STATE
-                    //     .editor_split
-                    //     .lock()
-                    //     .unwrap()
-                    //     .editor_update_layouts(
-                    //         &self.view_id,
-                    //         ctx.text(),
-                    //         data,
-                    //         env,
-                    //     );
                 }
                 _ => (),
             },
@@ -1304,11 +1177,18 @@ impl Widget<LapceState> for EditorView {
         env: &Env,
     ) {
         match event {
-            LifeCycle::Size(size) => ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::EditorViewSize(*size),
-                Target::Widget(self.view_id.clone()),
-            )),
+            LifeCycle::Size(size) => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EditorViewSize(*size),
+                    Target::Widget(self.view_id.clone()),
+                ));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::FillTextLayouts,
+                    Target::Widget(self.view_id.clone()),
+                ));
+            }
             _ => (),
         }
         self.gutter.lifecycle(ctx, event, data, env);
@@ -1323,6 +1203,7 @@ impl Widget<LapceState> for EditorView {
         env: &Env,
     ) {
         self.editor.update(ctx, data, env);
+        self.gutter.update(ctx, data, env);
         // self.update(ctx, old_data, data, env);
     }
 
@@ -1392,12 +1273,12 @@ impl EditorGutter {
     }
 }
 
-impl<T: Data> Widget<T> for EditorGutter {
+impl Widget<LapceState> for EditorGutter {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut T,
+        data: &mut LapceState,
         env: &Env,
     ) {
     }
@@ -1406,7 +1287,7 @@ impl<T: Data> Widget<T> for EditorGutter {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &T,
+        data: &LapceState,
         env: &Env,
     ) {
     }
@@ -1414,17 +1295,28 @@ impl<T: Data> Widget<T> for EditorGutter {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &T,
-        data: &T,
+        old_data: &LapceState,
+        data: &LapceState,
         env: &Env,
     ) {
+        let cursor = data.editor_split.get_cursor(&self.view_id);
+        let old_cursor = old_data.editor_split.get_cursor(&self.view_id);
+
+        if (cursor.is_none() && old_cursor.is_none())
+            || (cursor.is_some()
+                && old_cursor.is_some()
+                && cursor.unwrap().0 == old_cursor.unwrap().0)
+        {
+        } else {
+            ctx.request_paint();
+        }
     }
 
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &T,
+        data: &LapceState,
         env: &Env,
     ) -> Size {
         // let buffer_id = {
@@ -1434,22 +1326,99 @@ impl<T: Data> Widget<T> for EditorGutter {
         //         .unwrap()
         //         .get_buffer_id(&self.view_id)
         // };
-        // if let Some(buffer_id) = buffer_id {
-        //     let buffers = &LAPCE_STATE.editor_split.lock().unwrap().buffers;
-        //     let buffer = buffers.get(&buffer_id).unwrap();
-        //     let width = 7.6171875;
-        //     Size::new(
-        //         width * buffer.last_line().to_string().len() as f64,
-        //         25.0 * buffer.num_lines() as f64,
-        //     )
-        // } else {
-        //     Size::new(50.0, 50.0)
-        // }
-        Size::new(50.0, 50.0)
+        if let Some(buffer_id) = data
+            .editor_split
+            .editors
+            .get(&self.view_id)
+            .as_ref()
+            .unwrap()
+            .buffer_id
+            .as_ref()
+        {
+            let buffer = data.editor_split.buffers.get(buffer_id).unwrap();
+            let width = 7.6171875;
+            Size::new(
+                width * buffer.last_line().to_string().len() as f64,
+                25.0 * buffer.num_lines() as f64,
+            )
+        } else {
+            Size::new(50.0, 50.0)
+        }
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        // let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let buffer_id = data
+            .editor_split
+            .editors
+            .get(&self.view_id)
+            .as_ref()
+            .unwrap()
+            .buffer_id
+            .as_ref();
+        if buffer_id.is_none() {
+            return;
+        }
+
+        let mut layout = TextLayout::new("W");
+        layout.set_font(LapceTheme::EDITOR_FONT);
+        layout.rebuild_if_needed(&mut ctx.text(), env);
+        let width = layout.point_for_text_position(1).x;
+
+        let buffer = data.editor_split.buffers.get(buffer_id.unwrap()).unwrap();
+        let last_line = buffer.last_line();
+        let rects = ctx.region().rects().to_vec();
+        let active = data.editor_split.active;
+        let editor = data.editor_split.editors.get(&self.view_id).unwrap();
+        let (current_line, _) =
+            buffer.offset_to_line_col(editor.selection.get_cursor_offset());
+        for rect in rects {
+            let start_line = (rect.y0 / line_height).floor() as usize;
+            let num_lines = (rect.height() / line_height).floor() as usize;
+            for line in start_line..start_line + num_lines {
+                if line > last_line {
+                    break;
+                }
+                let content = if active != self.view_id {
+                    line
+                } else {
+                    if line == current_line {
+                        line
+                    } else if line > current_line {
+                        line - current_line
+                    } else {
+                        current_line - line
+                    }
+                };
+                let x = (last_line.to_string().len()
+                    - content.to_string().len()) as f64
+                    * width;
+                let content = content.to_string();
+                if let Some(text_layout) = self.text_layouts.get_mut(&content) {
+                    if text_layout.text != content {
+                        text_layout.layout.set_text(content.clone());
+                        text_layout.text = content;
+                        text_layout
+                            .layout
+                            .rebuild_if_needed(&mut ctx.text(), env);
+                    }
+                    text_layout
+                        .layout
+                        .draw(ctx, Point::new(x, line_height * line as f64));
+                } else {
+                    let mut layout = TextLayout::new(content.clone());
+                    layout.set_font(LapceTheme::EDITOR_FONT);
+                    layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                    layout.rebuild_if_needed(&mut ctx.text(), env);
+                    layout.draw(ctx, Point::new(x, line_height * line as f64));
+                    let text_layout = EditorTextLayout {
+                        layout,
+                        text: content.clone(),
+                    };
+                    self.text_layouts.insert(content, text_layout);
+                }
+            }
+        }
         // let buffer_id = {
         //     LAPCE_STATE
         //         .editor_split
@@ -1934,7 +1903,16 @@ impl Widget<LapceState> for Editor {
                             as f64
                             * width;
                         match mode {
-                            Mode::Insert => (),
+                            Mode::Insert => self.paint_insert_cusor(
+                                ctx,
+                                &editor.selection,
+                                buffer,
+                                line_height,
+                                width,
+                                start_line,
+                                num_lines,
+                                env,
+                            ),
                             _ => ctx.fill(
                                 Rect::ZERO
                                     .with_origin(Point::new(
@@ -1945,6 +1923,18 @@ impl Widget<LapceState> for Editor {
                                 &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
                             ),
                         };
+                        // if mode == Mode::Insert {
+                        //     self.paint_insert_cusor(
+                        //         ctx,
+                        //         &editor.selection,
+                        //         buffer,
+                        //         line_height,
+                        //         width,
+                        //         start_line,
+                        //         num_lines,
+                        //         env,
+                        //     );
+                        // }
                     }
                 }
                 if buffer.text_layouts.len() > line {
@@ -1955,18 +1945,6 @@ impl Widget<LapceState> for Editor {
                         );
                     }
                 }
-            }
-            if mode == Mode::Insert {
-                self.paint_insert_cusor(
-                    ctx,
-                    &editor.selection,
-                    buffer,
-                    line_height,
-                    width,
-                    start_line,
-                    num_lines,
-                    env,
-                );
             }
         }
         // if let Some(buffer_id) = buffer_id {

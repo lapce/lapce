@@ -1,10 +1,10 @@
 use crate::{editor::EditorView, scroll::LapceScroll, state::LapceState};
-use std::cmp::Ordering;
+use std::{cmp::Ordering, sync::Arc};
 
 use druid::{
     kurbo::{Line, Rect},
     widget::IdentityWrapper,
-    WidgetId,
+    Command, Target, WidgetId,
 };
 use druid::{
     theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
@@ -147,64 +147,89 @@ impl Widget<LapceState> for LapceSplit {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
-                        LapceUICommand::Split(vertical, view_id) => {
+                        LapceUICommand::Split(vertical) => {
                             if self.children.len() <= 1 {
                                 self.vertical = *vertical;
                             }
+                            let active = data.editor_split.active;
                             if &self.vertical != vertical {
                                 for child in &self.children {
-                                    if &child.id() == view_id {}
+                                    if child.id() == active {}
                                 }
                             } else {
                                 let mut index = 0;
                                 for (i, child) in
                                     self.children.iter().enumerate()
                                 {
-                                    if &child.id() == view_id {
+                                    if child.id() == active {
                                         index = i;
                                     }
                                 }
 
-                                let editor = data
+                                let old_editor = data
                                     .editor_split
                                     .editors
-                                    .get(view_id)
+                                    .get(&active)
                                     .unwrap();
 
-                                let new_editor = EditorView::new(
-                                    editor.split_id,
-                                    view_id.clone(),
-                                    editor.editor_id,
+                                let split_id = old_editor.split_id.clone();
+                                let buffer_id = old_editor.buffer_id.clone();
+                                let selection = old_editor.selection.clone();
+                                let scroll_offset =
+                                    old_editor.scroll_offset.clone();
+
+                                let editor_split =
+                                    Arc::make_mut(&mut data.editor_split);
+                                let new_editor = editor_split.new_editor(
+                                    split_id,
+                                    buffer_id,
+                                    selection.clone(),
+                                );
+
+                                let new_editor_view = EditorView::new(
+                                    new_editor.split_id,
+                                    new_editor.view_id,
+                                    new_editor.editor_id,
                                 );
                                 let new_child =
-                                    WidgetPod::new(new_editor).boxed();
+                                    WidgetPod::new(new_editor_view).boxed();
                                 self.children.insert(index + 1, new_child);
                                 self.even_child_sizes();
+                                ctx.request_layout();
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ScrollTo((
+                                        scroll_offset.x,
+                                        scroll_offset.y,
+                                    )),
+                                    Target::Widget(new_editor.view_id),
+                                ));
                             }
                         }
-                        LapceUICommand::SplitExchange(view_id) => {
+                        LapceUICommand::SplitExchange => {
+                            let active = data.editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
-                                if &child.id() == view_id {
+                                if child.id() == active {
                                     index = i;
                                 }
                             }
                             if index >= self.children.len() - 1 {
                             } else {
-                                // LAPCE_STATE
-                                //     .editor_split
-                                //     .lock()
-                                //     .unwrap()
-                                //     .set_active(self.children[index + 1].id());
+                                let editor_split =
+                                    Arc::make_mut(&mut data.editor_split);
+                                editor_split.active =
+                                    self.children[index + 1].id();
                                 self.children.swap(index, index + 1);
                                 self.children_sizes.swap(index, index + 1);
                                 ctx.request_layout();
                             }
                         }
-                        LapceUICommand::SplitMove(direction, view_id) => {
+                        LapceUICommand::SplitMove(direction) => {
+                            let active = data.editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
-                                if &child.id() == view_id {
+                                if child.id() == active {
                                     index = i;
                                 }
                             }
@@ -213,25 +238,19 @@ impl Widget<LapceState> for LapceSplit {
                                     if index == 0 {
                                         return;
                                     }
-                                    // LAPCE_STATE
-                                    //     .editor_split
-                                    //     .lock()
-                                    //     .unwrap()
-                                    //     .set_active(
-                                    //         self.children[index - 1].id(),
-                                    //     )
+                                    let editor_split =
+                                        Arc::make_mut(&mut data.editor_split);
+                                    editor_split.active =
+                                        self.children[index - 1].id();
                                 }
                                 SplitMoveDirection::Right => {
                                     if index >= self.children.len() - 1 {
                                         return;
                                     }
-                                    // LAPCE_STATE
-                                    //     .editor_split
-                                    //     .lock()
-                                    //     .unwrap()
-                                    //     .set_active(
-                                    //         self.children[index + 1].id(),
-                                    //     )
+                                    let editor_split =
+                                        Arc::make_mut(&mut data.editor_split);
+                                    editor_split.active =
+                                        self.children[index + 1].id();
                                 }
                                 _ => (),
                             }

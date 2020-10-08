@@ -120,8 +120,8 @@ pub enum LapceUICommand {
     EditorViewSize(Size),
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
-    Split(bool, WidgetId),
-    SplitExchange(WidgetId),
-    SplitMove(SplitMoveDirection, WidgetId),
+    Split(bool),
+    SplitExchange,
+    SplitMove(SplitMoveDirection),
     BufferUpdate(BufferId, InvalLines),
 }
