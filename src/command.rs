@@ -59,6 +59,8 @@ pub enum LapceCommand {
     SplitVertical,
     #[strum(serialize = "split_horizontal")]
     SplitHorizontal,
+    #[strum(serialize = "split_close")]
+    SplitClose,
     #[strum(serialize = "split_exchange")]
     SplitExchange,
     #[strum(serialize = "split_right")]
@@ -122,6 +124,7 @@ pub enum LapceUICommand {
     ScrollTo((f64, f64)),
     Split(bool),
     SplitExchange,
+    SplitClose,
     SplitMove(SplitMoveDirection),
     BufferUpdate(BufferId, InvalLines),
 }

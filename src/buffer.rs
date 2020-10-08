@@ -293,11 +293,7 @@ impl Buffer {
         }
     }
 
-    fn apply_delta(
-        &mut self,
-        selection: &Selection,
-        delta: &RopeDelta,
-    ) -> Selection {
+    fn apply_delta(&mut self, delta: &RopeDelta) {
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
         let old_logical_end_offset =
@@ -321,11 +317,12 @@ impl Buffer {
         self.update_text_layouts(&inval_lines);
         // self.inval_lines = Some(inval_lines);
 
-        self.fill_horiz(&selection.apply_delta(
-            delta,
-            true,
-            InsertDrift::Default,
-        ))
+        // delta
+        // self.fill_horiz(&selection.apply_delta(
+        //     delta,
+        //     true,
+        //     InsertDrift::Default,
+        // ))
     }
 
     pub fn yank(&self, selection: &Selection) -> Vec<String> {
@@ -353,7 +350,9 @@ impl Buffer {
                 builder.delete(region.min()..end);
             }
         }
-        self.apply_delta(selection, &builder.build())
+        let delta = builder.build();
+        self.apply_delta(&delta);
+        selection.apply_delta(&delta, true, InsertDrift::Default)
     }
 
     pub fn delete_foreward(
@@ -376,7 +375,9 @@ impl Buffer {
                 builder.delete(region.min()..end);
             }
         }
-        self.apply_delta(selection, &builder.build())
+        let delta = builder.build();
+        self.apply_delta(&delta);
+        selection.apply_delta(&delta, true, InsertDrift::Default)
     }
 
     pub fn delete_backward(&mut self, selection: &Selection) -> Selection {
@@ -391,7 +392,9 @@ impl Buffer {
                 builder.delete(start..region.max());
             }
         }
-        self.apply_delta(selection, &builder.build())
+        let delta = builder.build();
+        self.apply_delta(&delta);
+        selection.apply_delta(&delta, true, InsertDrift::Default)
     }
 
     pub fn do_move(
@@ -455,13 +458,15 @@ impl Buffer {
         &mut self,
         content: &str,
         selection: &Selection,
-    ) -> Selection {
+    ) -> RopeDelta {
         let rope = Rope::from(content);
         let mut builder = DeltaBuilder::new(self.len());
         for region in selection.regions() {
             builder.replace(region.min()..region.max(), rope.clone());
         }
-        self.apply_delta(selection, &builder.build())
+        let delta = builder.build();
+        self.apply_delta(&delta);
+        delta
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {

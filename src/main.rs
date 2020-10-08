@@ -29,23 +29,17 @@ use druid::{
     Point,
 };
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
-use palette::PaletteWrapper;
-use state::{LapceState, LapceUIState};
+use state::LapceState;
 use tree_sitter::{Language, Parser};
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
 }
 
-fn build_app(
-    editor_split_id: WidgetId,
-    first_editor_id: WidgetId,
-) -> impl Widget<LapceState> {
+fn build_app(state: LapceState) -> impl Widget<LapceState> {
     let container_id = WidgetId::next();
-    let container = IdentityWrapper::wrap(
-        LapceContainer::new(editor_split_id, first_editor_id),
-        container_id.clone(),
-    );
+    let container =
+        IdentityWrapper::wrap(LapceContainer::new(state), container_id.clone());
     // LAPCE_STATE.set_container(container_id);
     container
         .env_scope(|env: &mut druid::Env, data: &LapceState| {
@@ -102,16 +96,14 @@ fn build_app(
 pub fn main() {
     // WindowDesc::new(|| LapceContainer::new());
     let state = LapceState::new();
-    let editor_split_id = state.editor_split.widget_id.clone();
-    let first_editor_id = state.editor_split.active.clone();
-    let window =
-        WindowDesc::new(move || build_app(editor_split_id, first_editor_id))
-            .title(
-                LocalizedString::new("split-demo-window-title")
-                    .with_placeholder("Split Demo"),
-            )
-            .window_size(Size::new(800.0, 600.0))
-            .with_min_size(Size::new(800.0, 600.0));
+    let init_state = state.clone();
+    let window = WindowDesc::new(move || build_app(init_state))
+        .title(
+            LocalizedString::new("split-demo-window-title")
+                .with_placeholder("Split Demo"),
+        )
+        .window_size(Size::new(800.0, 600.0))
+        .with_min_size(Size::new(800.0, 600.0));
 
     let launcher = AppLauncher::with_window(window);
     let ui_event_sink = launcher.get_external_handle();

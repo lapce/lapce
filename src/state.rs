@@ -26,7 +26,7 @@ enum KeymapMatch {
 }
 
 #[derive(Clone, PartialEq)]
-pub enum LapceWidget {
+pub enum LapceFocus {
     Palette,
     Editor,
 }
@@ -60,33 +60,14 @@ pub struct KeyMap {
 }
 
 #[derive(Clone)]
-pub struct LapceUIState {
-    pub buffers: HashMap<BufferId, BufferUIState>,
-}
-
-impl Data for LapceUIState {
-    fn same(&self, other: &Self) -> bool {
-        true
-    }
-}
-
-impl LapceUIState {
-    pub fn new() -> LapceUIState {
-        LapceUIState {
-            buffers: HashMap::new(),
-        }
-    }
-}
-
-#[derive(Clone)]
 pub struct LapceState {
-    pub palette: PaletteState,
+    pub palette: Arc<PaletteState>,
     pending_keypress: Vec<KeyPress>,
     count: Option<usize>,
     keymaps: Vec<KeyMap>,
     pub theme: HashMap<String, Color>,
-    pub last_focus: LapceWidget,
-    pub focus: LapceWidget,
+    pub last_focus: LapceFocus,
+    pub focus: LapceFocus,
     // pub ui_sink: ExtEventSink,
     pub editor_split: Arc<EditorSplitState>,
     pub container: Option<WidgetId>,
@@ -95,6 +76,7 @@ pub struct LapceState {
 impl Data for LapceState {
     fn same(&self, other: &Self) -> bool {
         self.editor_split.same(&other.editor_split)
+            && self.palette.same(&other.palette)
     }
 }
 
@@ -105,9 +87,9 @@ impl LapceState {
             keymaps: Self::get_keymaps().unwrap_or(Vec::new()),
             theme: Self::get_theme().unwrap_or(HashMap::new()),
             count: None,
-            focus: LapceWidget::Editor,
-            last_focus: LapceWidget::Editor,
-            palette: PaletteState::new(),
+            focus: LapceFocus::Editor,
+            last_focus: LapceFocus::Editor,
+            palette: Arc::new(PaletteState::new()),
             editor_split: Arc::new(EditorSplitState::new()),
             container: None,
         }
@@ -227,17 +209,18 @@ impl LapceState {
 
     fn get_mode(&self) -> Mode {
         match self.focus {
-            LapceWidget::Palette => Mode::Insert,
-            LapceWidget::Editor => self.editor_split.get_mode(),
+            LapceFocus::Palette => Mode::Insert,
+            LapceFocus::Editor => self.editor_split.get_mode(),
         }
     }
 
     pub fn insert(&mut self, ctx: &mut EventCtx, content: &str, env: &Env) {
         match self.focus {
-            LapceWidget::Palette => {
-                self.palette.insert(content);
+            LapceFocus::Palette => {
+                let palette = Arc::make_mut(&mut self.palette);
+                palette.insert(ctx, content, env);
             }
-            LapceWidget::Editor => {
+            LapceFocus::Editor => {
                 let editor_split = Arc::make_mut(&mut self.editor_split);
                 editor_split.insert(ctx, content, env);
             }
@@ -278,42 +261,53 @@ impl LapceState {
         if let Ok(cmd) = LapceCommand::from_str(command) {
             match cmd {
                 LapceCommand::Palette => {
-                    self.palette.run();
+                    self.focus = LapceFocus::Palette;
+                    let palette = Arc::make_mut(&mut self.palette);
+                    palette.run();
                 }
                 LapceCommand::PaletteCancel => {
-                    self.palette.cancel();
+                    self.focus = LapceFocus::Editor;
+                    let palette = Arc::make_mut(&mut self.palette);
+                    palette.cancel();
                 }
                 _ => {
                     match self.focus {
-                        LapceWidget::Editor => {
+                        LapceFocus::Editor => {
                             let editor_split =
                                 Arc::make_mut(&mut self.editor_split);
                             editor_split.run_command(ctx, count, cmd, env);
                         }
-                        LapceWidget::Palette => match cmd {
-                            LapceCommand::ListSelect => {
-                                self.palette.select();
-                            }
-                            LapceCommand::ListNext => {
-                                self.palette.change_index(1);
-                            }
-                            LapceCommand::ListPrevious => {
-                                self.palette.change_index(-1);
-                            }
-                            LapceCommand::Left => {
-                                self.palette.move_cursor(-1);
-                            }
-                            LapceCommand::Right => {
-                                self.palette.move_cursor(1);
-                            }
-                            LapceCommand::DeleteBackward => {
-                                self.palette.delete_backward();
-                            }
-                            LapceCommand::DeleteToBeginningOfLine => {
-                                self.palette.delete_to_beginning_of_line();
-                            }
-                            _ => (),
-                        },
+                        LapceFocus::Palette => {
+                            let palette = Arc::make_mut(&mut self.palette);
+                            let editor_split =
+                                Arc::make_mut(&mut self.editor_split);
+                            match cmd {
+                                LapceCommand::ListSelect => {
+                                    palette.select(ctx, editor_split);
+                                    self.focus = LapceFocus::Editor;
+                                }
+                                LapceCommand::ListNext => {
+                                    palette.change_index(ctx, 1, env);
+                                }
+                                LapceCommand::ListPrevious => {
+                                    palette.change_index(ctx, -1, env);
+                                }
+                                LapceCommand::Left => {
+                                    palette.move_cursor(-1);
+                                }
+                                LapceCommand::Right => {
+                                    palette.move_cursor(1);
+                                }
+                                LapceCommand::DeleteBackward => {
+                                    palette.delete_backward(ctx, env);
+                                }
+                                LapceCommand::DeleteToBeginningOfLine => {
+                                    palette
+                                        .delete_to_beginning_of_line(ctx, env);
+                                }
+                                _ => (),
+                            };
+                        }
                     };
                 }
             };
@@ -485,10 +479,10 @@ impl LapceState {
 
     fn check_one_condition(&self, condition: &str) -> bool {
         match condition.trim() {
-            "palette_focus" => self.focus == LapceWidget::Palette,
-            "list_focus" => self.focus == LapceWidget::Palette,
+            "palette_focus" => self.focus == LapceFocus::Palette,
+            "list_focus" => self.focus == LapceFocus::Palette,
             "editor_operator" => {
-                self.focus == LapceWidget::Editor
+                self.focus == LapceFocus::Editor
                     && self.editor_split.has_operator()
             }
             _ => false,

@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::scroll::LapceScroll;
 use crate::{
     buffer::BufferId,
     buffer::BufferUIState,
@@ -8,11 +7,11 @@ use crate::{
     editor::Editor,
     editor::EditorState,
     editor::EditorView,
-    palette::PaletteWrapper,
     state::LapceState,
-    state::LapceUIState,
+    theme::LapceTheme,
 };
 use crate::{palette::Palette, split::LapceSplit};
+use crate::{scroll::LapceScroll, state::LapceFocus};
 use druid::{
     kurbo::{Line, Rect},
     widget::Container,
@@ -42,16 +41,21 @@ pub struct LapceContainer {
 }
 
 impl LapceContainer {
-    pub fn new(editor_split_id: WidgetId, first_editor_id: WidgetId) -> Self {
-        let palette = PaletteWrapper::new();
+    pub fn new(state: LapceState) -> Self {
+        let palette = Palette::new(state.palette.scroll_widget_id)
+            .border(theme::BORDER_LIGHT, 1.0)
+            .background(LapceTheme::PALETTE_BACKGROUND);
         let palette_id = WidgetId::next();
         let palette =
             WidgetPod::new(IdentityWrapper::wrap(palette, palette_id)).boxed();
-        let editor_view =
-            EditorView::new(editor_split_id, first_editor_id, WidgetId::next());
+        let editor_view = EditorView::new(
+            state.editor_split.widget_id,
+            state.editor_split.active,
+            WidgetId::next(),
+        );
         let editor_split = WidgetPod::new(IdentityWrapper::wrap(
             LapceSplit::new(true).with_child(editor_view),
-            editor_split_id,
+            state.editor_split.widget_id,
         ))
         .boxed();
 
@@ -126,7 +130,8 @@ impl Widget<LapceState> for LapceContainer {
             | Event::MouseUp(mouse)
             | Event::MouseMove(mouse)
             | Event::Wheel(mouse) => {
-                if data.palette.hidden && self.palette_rect.contains(mouse.pos)
+                if data.focus == LapceFocus::Palette
+                    && self.palette_rect.contains(mouse.pos)
                 {
                     self.palette.event(ctx, event, data, env);
                 } else {
@@ -155,6 +160,7 @@ impl Widget<LapceState> for LapceContainer {
         data: &LapceState,
         env: &Env,
     ) {
+        self.palette.update(ctx, data, env);
         self.editor_split.update(ctx, data, env);
         // println!("container data update");
     }
@@ -198,6 +204,8 @@ impl Widget<LapceState> for LapceContainer {
             }
         }
         self.editor_split.paint(ctx, data, env);
-        self.palette.paint(ctx, data, env);
+        if data.focus == LapceFocus::Palette {
+            self.palette.paint(ctx, data, env);
+        }
     }
 }

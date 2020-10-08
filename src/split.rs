@@ -206,6 +206,33 @@ impl Widget<LapceState> for LapceSplit {
                                 ));
                             }
                         }
+                        LapceUICommand::SplitClose => {
+                            if self.children.len() == 1 {
+                                return;
+                            }
+                            let active = data.editor_split.active;
+                            let mut index = 0;
+                            for (i, child) in self.children.iter().enumerate() {
+                                if child.id() == active {
+                                    index = i;
+                                }
+                            }
+                            let new_index = if index >= self.children.len() - 1
+                            {
+                                index - 1
+                            } else {
+                                index + 1
+                            };
+                            let new_active = self.children[new_index].id();
+                            self.children.remove(index);
+                            let editor_split =
+                                Arc::make_mut(&mut data.editor_split);
+                            editor_split.editors.remove(&active);
+                            editor_split.active = new_active;
+
+                            self.even_child_sizes();
+                            ctx.request_layout();
+                        }
                         LapceUICommand::SplitExchange => {
                             let active = data.editor_split.active;
                             let mut index = 0;
@@ -233,13 +260,13 @@ impl Widget<LapceState> for LapceSplit {
                                     index = i;
                                 }
                             }
+                            let editor_split =
+                                Arc::make_mut(&mut data.editor_split);
                             match direction {
                                 SplitMoveDirection::Left => {
                                     if index == 0 {
                                         return;
                                     }
-                                    let editor_split =
-                                        Arc::make_mut(&mut data.editor_split);
                                     editor_split.active =
                                         self.children[index - 1].id();
                                 }
@@ -247,13 +274,21 @@ impl Widget<LapceState> for LapceSplit {
                                     if index >= self.children.len() - 1 {
                                         return;
                                     }
-                                    let editor_split =
-                                        Arc::make_mut(&mut data.editor_split);
                                     editor_split.active =
                                         self.children[index + 1].id();
                                 }
                                 _ => (),
                             }
+                            let editor = editor_split
+                                .editors
+                                .get_mut(&editor_split.active)
+                                .unwrap();
+                            let buffer = editor_split
+                                .buffers
+                                .get(editor.buffer_id.as_ref().unwrap())
+                                .unwrap();
+                            editor.ensure_cursor_visible(ctx, buffer, env);
+
                             ctx.request_paint();
                         }
                         _ => (),
@@ -336,6 +371,10 @@ impl Widget<LapceState> for LapceSplit {
         data: &LapceState,
         env: &Env,
     ) {
+        if data.editor_split.same(&old_data.editor_split) {
+            return;
+        }
+
         for child in self.children.as_mut_slice() {
             child.update(ctx, &data, env);
         }
