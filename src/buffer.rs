@@ -21,8 +21,8 @@ use xi_core_lib::{
     selection::InsertDrift,
 };
 use xi_rope::{
-    interval::IntervalBounds, rope::Rope, Cursor, DeltaBuilder, Interval,
-    LinesMetric, RopeDelta, RopeInfo, Transformer,
+    interval::IntervalBounds, rope::Rope, Cursor, Delta, DeltaBuilder,
+    Interval, LinesMetric, RopeDelta, RopeInfo, Transformer,
 };
 
 use crate::{
@@ -67,6 +67,8 @@ pub struct Buffer {
     pub max_len_line: usize,
     pub max_len: usize,
     pub text_layouts: Vec<Option<HighlightTextLayout>>,
+    undos: Vec<Vec<(Delta<RopeInfo>, Delta<RopeInfo>)>>,
+    current_undo: usize,
     // pub inval_lines: Option<InvalLines>,
 }
 
@@ -99,11 +101,13 @@ impl Buffer {
             max_len_line: 0,
             max_len: 0,
             text_layouts: Vec::new(),
+            undos: Vec::new(),
+            current_undo: 0,
             event_sink,
         };
         buffer.text_layouts = vec![None; buffer.num_lines()];
         buffer.update_max_line_len();
-        buffer.update_highlights(None);
+        buffer.update_highlights();
         buffer
     }
 
@@ -128,7 +132,7 @@ impl Buffer {
             .collect()
     }
 
-    pub fn update_highlights(&mut self, inval_lines: Option<InvalLines>) {
+    pub fn update_highlights(&mut self) {
         let version = uuid::Uuid::new_v4().to_string();
         self.line_highlights = HashMap::new();
         self.highlight_version = version.clone();
@@ -293,11 +297,62 @@ impl Buffer {
         }
     }
 
+    fn inv_delta(&self, delta: &RopeDelta) -> RopeDelta {
+        let (ins, del) = delta.clone().factor();
+        let del_rope = del.complement().delete_from(&self.rope);
+        let ins = ins.inserted_subset();
+        let del = del.transform_expand(&ins);
+        Delta::synthesize(&del_rope, &del, &ins)
+    }
+
+    fn add_undo(&mut self, delta: &RopeDelta, new_undo_group: bool) {
+        let inv_delta = self.inv_delta(delta);
+        if new_undo_group {
+            self.undos.truncate(self.current_undo);
+            self.undos.push(vec![(delta.clone(), inv_delta)]);
+            self.current_undo += 1;
+        } else {
+            if self.undos.is_empty() {
+                self.undos.push(Vec::new());
+                self.current_undo += 1;
+            }
+            self.undos[self.current_undo - 1].push((delta.clone(), inv_delta));
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if self.current_undo >= self.undos.len() {
+            return;
+        }
+
+        let deltas = self.undos[self.current_undo].clone();
+        self.current_undo += 1;
+        for (delta, __) in deltas.iter() {
+            self.apply_delta(&delta);
+        }
+        self.update_highlights();
+    }
+
+    pub fn undo(&mut self) -> Option<usize> {
+        if self.current_undo < 1 {
+            return None;
+        }
+
+        self.current_undo -= 1;
+        let deltas = self.undos[self.current_undo].clone();
+        for (_, delta) in deltas.iter().rev() {
+            self.apply_delta(&delta);
+        }
+        self.update_highlights();
+        Some(deltas[0].1.summary().0.start())
+    }
+
     fn apply_delta(&mut self, delta: &RopeDelta) {
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
         let old_logical_end_offset =
             self.rope.offset_of_line(old_logical_end_line);
+
         self.rope = delta.apply(&self.rope);
 
         let logical_start_line = self.rope.line_of_offset(iv.start);
@@ -312,17 +367,8 @@ impl Buffer {
             new_count: new_hard_count,
         };
         self.highlights = self.highlights_apply_delta(delta);
-        self.update_highlights(Some(inval_lines.clone()));
         self.update_size(&inval_lines);
         self.update_text_layouts(&inval_lines);
-        // self.inval_lines = Some(inval_lines);
-
-        // delta
-        // self.fill_horiz(&selection.apply_delta(
-        //     delta,
-        //     true,
-        //     InsertDrift::Default,
-        // ))
     }
 
     pub fn yank(&self, selection: &Selection) -> Vec<String> {
@@ -335,66 +381,6 @@ impl Buffer {
                     .to_string()
             })
             .collect()
-    }
-
-    pub fn delete(&mut self, selection: &Selection, mode: &Mode) -> Selection {
-        let mut builder = DeltaBuilder::new(self.rope.len());
-
-        for region in selection.regions() {
-            let end = if mode != &Mode::Insert {
-                region.max()
-            } else {
-                region.max()
-            };
-            if end != region.min() {
-                builder.delete(region.min()..end);
-            }
-        }
-        let delta = builder.build();
-        self.apply_delta(&delta);
-        selection.apply_delta(&delta, true, InsertDrift::Default)
-    }
-
-    pub fn delete_foreward(
-        &mut self,
-        selection: &Selection,
-        mode: &Mode,
-        count: usize,
-    ) -> Selection {
-        let mut builder = DeltaBuilder::new(self.rope.len());
-
-        for region in selection.regions() {
-            let end = if mode != &Mode::Insert {
-                region.max()
-            } else {
-                Movement::Right
-                    .update_region(&region, &self, count, true, false)
-                    .max()
-            };
-            if end != region.min() {
-                builder.delete(region.min()..end);
-            }
-        }
-        let delta = builder.build();
-        self.apply_delta(&delta);
-        selection.apply_delta(&delta, true, InsertDrift::Default)
-    }
-
-    pub fn delete_backward(&mut self, selection: &Selection) -> Selection {
-        let mut builder = DeltaBuilder::new(self.rope.len());
-        for region in selection.regions() {
-            let start = if !region.is_caret() {
-                region.min()
-            } else {
-                region.min() - 1
-            };
-            if start != region.max() {
-                builder.delete(start..region.max());
-            }
-        }
-        let delta = builder.build();
-        self.apply_delta(&delta);
-        selection.apply_delta(&delta, true, InsertDrift::Default)
     }
 
     pub fn do_move(
@@ -438,10 +424,15 @@ impl Buffer {
                 new_selection.add_region(new_region);
             }
             match operator {
-                EditorOperator::Delete(_) => self.delete(&new_selection, mode),
-                EditorOperator::Yank(_) => {
-                    self.delete_foreward(&new_selection, mode, 1)
+                EditorOperator::Delete(_) => {
+                    let delta = self.edit("", &new_selection, true);
+                    new_selection.apply_delta(
+                        &delta,
+                        true,
+                        InsertDrift::Default,
+                    )
                 }
+                EditorOperator::Yank(_) => new_selection,
             }
         } else {
             movement.update_selection(
@@ -454,10 +445,11 @@ impl Buffer {
         }
     }
 
-    pub fn insert(
+    pub fn edit(
         &mut self,
         content: &str,
         selection: &Selection,
+        new_undo_group: bool,
     ) -> RopeDelta {
         let rope = Rope::from(content);
         let mut builder = DeltaBuilder::new(self.len());
@@ -465,7 +457,9 @@ impl Buffer {
             builder.replace(region.min()..region.max(), rope.clone());
         }
         let delta = builder.build();
+        self.add_undo(&delta, new_undo_group);
         self.apply_delta(&delta);
+        self.update_highlights();
         delta
     }
 
@@ -1025,4 +1019,46 @@ impl BufferUIState {
     //         highlights: buffer.get_line_highligh(line).clone(),
     //     }
     // }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use xi_rope::Delta;
+    use xi_rope::Rope;
+
+    use super::*;
+
+    #[test]
+    fn test_reverse_delta() {
+        let rope =
+            Rope::from_str("abc\nabc\ncdfdsfasdf\nsdlkfjdslkf\n").unwrap();
+        let mut builder = DeltaBuilder::new(rope.len());
+        builder.replace(0..4, Rope::from("1 skdjfl\n"));
+        let delta1 = builder.build();
+        let middle_rope = delta1.apply(&rope);
+
+        let mut builder = DeltaBuilder::new(middle_rope.len());
+        builder.replace(5..6, Rope::from("1 skdjfl\n"));
+        let delta2 = builder.build();
+        let new_rope = delta2.apply(&middle_rope);
+
+        let (ins1, del1) = delta1.factor();
+        let (ins2, del2) = delta2.factor();
+
+        let union_rope = ins2.apply(&middle_rope);
+        let ins2 = ins2.inserted_subset();
+        let tombstones = ins2.complement().delete_from(&union_rope);
+        let del = del2.transform_union(&del1.transform_expand(&ins2));
+        // let new_d = Delta::synthesize(&tombstones, &ins2, &del);
+
+        // let ins1 = ins1.inserted_subset();
+        // let ins2 = ins2.inserted_subset();
+        // let ins = ins1.union(&ins2);
+        // let del = del1.union(&del2);
+        // let del = del.transform_expand(&ins);
+        // let tombstones = ins.complement().delete_from(&union_rope);
+        // let new_delta = Delta::synthesize(&tombstones, &ins, &del);
+        // assert_eq!(new_rope.to_string(), new_delta.apply(&rope).to_string());
+    }
 }

@@ -138,8 +138,8 @@ impl EditorState {
                 .selection
                 .regions()
             {
-                let start = buffer.line_of_offset(region.min());
-                let end = buffer.line_of_offset(region.max());
+                let start = old_buffer.line_of_offset(region.min());
+                let end = old_buffer.line_of_offset(region.max());
                 let rect = Rect::ZERO
                     .with_origin(Point::new(0.0, start as f64 * line_height))
                     .with_size(Size::new(
@@ -486,7 +486,8 @@ impl EditorState {
                     buffer.line_end_offset(old_offset, true) + 1,
                 );
                 for s in &content.content {
-                    let delta = buffer.insert(&format!("{}", s), &selection);
+                    let delta =
+                        buffer.edit(&format!("{}", s), &selection, true);
                     selection = selection.apply_delta(
                         &delta,
                         true,
@@ -501,7 +502,7 @@ impl EditorState {
                 let mut selection =
                     Selection::caret(self.selection.get_cursor_offset() + 1);
                 for s in &content.content {
-                    let delta = buffer.insert(s, &selection);
+                    let delta = buffer.edit(s, &selection, true);
                     selection = selection.apply_delta(
                         &delta,
                         true,
@@ -516,41 +517,65 @@ impl EditorState {
         self.request_paint()
     }
 
-    pub fn insert_new_line(
-        &mut self,
-        ctx: &mut EventCtx,
-        buffer: &mut Buffer,
-        offset: usize,
-        env: &Env,
-    ) {
-        let (line, col) = buffer.offset_to_line_col(offset);
-        let indent = buffer.indent_on_line(line);
+    // pub fn insert_new_line(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     buffer: &mut Buffer,
+    //     offset: usize,
+    //     env: &Env,
+    // ) {
+    //     let (line, col) = buffer.offset_to_line_col(offset);
+    //     let indent = buffer.indent_on_line(line);
 
-        let indent = if indent.len() >= col {
-            indent[..col].to_string()
-        } else {
-            let next_line_indent = buffer.indent_on_line(line + 1);
-            if next_line_indent.len() > indent.len() {
-                next_line_indent
-            } else {
-                indent
-            }
-        };
+    //     let indent = if indent.len() >= col {
+    //         indent[..col].to_string()
+    //     } else {
+    //         let next_line_indent = buffer.indent_on_line(line + 1);
+    //         if next_line_indent.len() > indent.len() {
+    //             next_line_indent
+    //         } else {
+    //             indent
+    //         }
+    //     };
 
-        let content = format!("{}{}", "\n", indent);
-        let selection = Selection::caret(offset);
-        let delta = buffer.insert(&content, &selection);
-        self.selection =
-            selection.apply_delta(&delta, true, InsertDrift::Default);
-        // let new_offset = offset + content.len();
-        // self.selection = Selection::caret(new_offset);
-        self.ensure_cursor_visible(ctx, buffer, env);
-    }
+    //     let content = format!("{}{}", "\n", indent);
+    //     let selection = Selection::caret(offset);
+    //     let delta = buffer.insert(&content, &selection);
+    //     self.selection =
+    //         selection.apply_delta(&delta, true, InsertDrift::Default);
+    //     // let new_offset = offset + content.len();
+    //     // self.selection = Selection::caret(new_offset);
+    //     self.ensure_cursor_visible(ctx, buffer, env);
+    // }
 
     pub fn selection_apply_delta(&mut self, delta: &RopeDelta) {
         self.selection =
             self.selection
                 .apply_delta(delta, true, InsertDrift::Default);
+    }
+
+    pub fn delete(
+        &mut self,
+        mode: &Mode,
+        visual_mode: &VisualMode,
+        buffer: &mut Buffer,
+        movement: Movement,
+        count: Option<usize>,
+    ) {
+        let mut selection =
+            self.get_selection(buffer, mode, visual_mode, false);
+        if mode != &Mode::Visual {
+            selection = movement.update_selection(
+                &selection,
+                buffer,
+                count.unwrap_or(1),
+                mode == &Mode::Insert,
+                true,
+            );
+        }
+        let delta = buffer.edit("", &selection, mode != &Mode::Insert);
+        self.selection =
+            selection.apply_delta(&delta, true, InsertDrift::Default);
     }
 
     pub fn ensure_cursor_visible(
@@ -614,6 +639,7 @@ pub struct EditorSplitState {
     visual_mode: VisualMode,
     operator: Option<EditorOperator>,
     register: HashMap<String, RegisterContent>,
+    inserting: bool,
 }
 
 impl EditorSplitState {
@@ -634,6 +660,7 @@ impl EditorSplitState {
             visual_mode: VisualMode::Normal,
             operator: None,
             register: HashMap::new(),
+            inserting: false,
         }
     }
 
@@ -777,11 +804,12 @@ impl EditorSplitState {
         let editor = self.editors.get_mut(&self.active)?;
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get_mut(&buffer_id)?;
-        let delta = buffer.insert(content, &editor.selection);
+        let delta = buffer.edit(content, &editor.selection, !self.inserting);
         editor.selection_apply_delta(&delta);
         editor.ensure_cursor_visible(ctx, buffer, env);
         self.inactive_editor_apply_delta(&delta);
         self.notify_fill_text_layouts(ctx, &buffer_id);
+        self.inserting = true;
         None
     }
 
@@ -811,6 +839,7 @@ impl EditorSplitState {
         &mut self,
         ctx: &mut EventCtx,
         offset: usize,
+        new_undo_group: bool,
         env: &Env,
     ) -> Option<()> {
         let editor = self.editors.get_mut(&self.active)?;
@@ -833,7 +862,7 @@ impl EditorSplitState {
 
         let content = format!("{}{}", "\n", indent);
         let selection = Selection::caret(offset);
-        let delta = buffer.insert(&content, &selection);
+        let delta = buffer.edit(&content, &selection, new_undo_group);
         editor.selection =
             selection.apply_delta(&delta, true, InsertDrift::Default);
         editor.ensure_cursor_visible(ctx, buffer, env);
@@ -890,6 +919,7 @@ impl EditorSplitState {
                 self.mode = Mode::Insert;
             }
             LapceCommand::NormalMode => {
+                self.inserting = false;
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer =
                     self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
@@ -948,11 +978,12 @@ impl EditorSplitState {
                 let line =
                     buffer.line_of_offset(editor.selection.get_cursor_offset());
                 let offset = buffer.first_non_blank_character_on_line(line);
-                self.insert_new_line(ctx, offset, env);
+                self.insert_new_line(ctx, offset, true, env);
 
                 let editor = self.editors.get_mut(&self.active)?;
                 editor.selection = Selection::caret(offset);
                 self.mode = Mode::Insert;
+                self.inserting = true;
             }
 
             LapceCommand::NewLineBelow => {
@@ -964,7 +995,8 @@ impl EditorSplitState {
                     editor.selection.get_cursor_offset(),
                     true,
                 );
-                self.insert_new_line(ctx, offset, env);
+                self.insert_new_line(ctx, offset, true, env);
+                self.inserting = true;
                 // editor.insert_new_line(ctx, buffer, offset, env);
             }
             LapceCommand::InsertNewLine => {
@@ -973,12 +1005,15 @@ impl EditorSplitState {
                     self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 if editor.selection.regions().len() == 1 {
                     let offset = editor.selection.get_cursor_offset();
-                    self.insert_new_line(ctx, offset, env);
+                    self.insert_new_line(ctx, offset, false, env);
                 } else {
-                    let delta = buffer.insert("\n", &editor.selection);
+                    let delta = buffer.edit("\n", &editor.selection, false);
                     editor.selection_apply_delta(&delta);
                     editor.ensure_cursor_visible(ctx, buffer, env);
                     self.inactive_editor_apply_delta(&delta);
+                }
+                if self.mode == Mode::Insert {
+                    self.inserting = true;
                 }
             }
             LapceCommand::DeleteWordBackward => {
@@ -987,34 +1022,48 @@ impl EditorSplitState {
                     self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let offset = editor.selection.get_cursor_offset();
                 let new_offset = buffer.word_backword(offset);
-                buffer.insert("", &Selection::region(new_offset, offset));
+                buffer.edit(
+                    "",
+                    &Selection::region(new_offset, offset),
+                    self.mode != Mode::Insert,
+                );
                 editor.selection = Selection::caret(new_offset);
-                editor.request_paint();
+                editor.ensure_cursor_visible(ctx, buffer, env);
+                if self.mode == Mode::Insert {
+                    self.inserting = true;
+                }
+                // editor.request_paint();
             }
             LapceCommand::DeleteBackward => {
-                if let Some(editor) = self.editors.get_mut(&self.active) {
-                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
-                        if let Some(buffer) = self.buffers.get_mut(buffer_id) {
-                            editor.selection =
-                                buffer.delete_backward(&editor.selection);
-                            editor.request_paint();
-                        }
-                    }
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer =
+                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                editor.delete(
+                    &self.mode,
+                    &self.visual_mode,
+                    buffer,
+                    Movement::Left,
+                    count,
+                );
+                if self.mode == Mode::Visual {
+                    self.mode = Mode::Normal;
+                }
+                editor.ensure_cursor_visible(ctx, buffer, env);
+                if self.mode == Mode::Insert {
+                    self.inserting = true;
                 }
             }
             LapceCommand::DeleteForeward => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer =
                     self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
-                editor.selection = buffer.delete_foreward(
-                    &editor.get_selection(
-                        buffer,
-                        &self.mode,
-                        &self.visual_mode,
-                        false,
-                    ),
+
+                editor.delete(
                     &self.mode,
-                    count.unwrap_or(1),
+                    &self.visual_mode,
+                    buffer,
+                    Movement::Right,
+                    count,
                 );
                 if self.mode == Mode::Visual {
                     editor.selection =
@@ -1022,24 +1071,24 @@ impl EditorSplitState {
                     self.mode = Mode::Normal;
                 }
                 editor.ensure_cursor_visible(ctx, buffer, env);
+                if self.mode == Mode::Insert {
+                    self.inserting = true;
+                }
             }
             LapceCommand::DeleteForewardAndInsert => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer =
                     self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
-                editor.selection = buffer.delete_foreward(
-                    &editor.get_selection(
-                        buffer,
-                        &self.mode,
-                        &self.visual_mode,
-                        true,
-                    ),
+                editor.delete(
                     &self.mode,
-                    count.unwrap_or(1),
+                    &self.visual_mode,
+                    buffer,
+                    Movement::Right,
+                    count,
                 );
                 self.mode = Mode::Insert;
                 editor.ensure_cursor_visible(ctx, buffer, env);
-                editor.request_paint();
+                self.inserting = true;
             }
             LapceCommand::DeleteOperator => {
                 self.operator =
@@ -1070,17 +1119,18 @@ impl EditorSplitState {
                         content,
                     },
                 );
-                editor.selection = buffer.delete(
-                    &editor.get_selection(
-                        buffer,
-                        &self.mode,
-                        &self.visual_mode,
-                        false,
-                    ),
+                let selection = editor.get_selection(
+                    buffer,
                     &self.mode,
+                    &self.visual_mode,
+                    false,
                 );
-                editor.selection =
-                    buffer.correct_offset(&editor.selection.collapse());
+                let delta = buffer.edit("", &selection, true);
+                editor.selection = buffer.correct_offset(
+                    &selection
+                        .apply_delta(&delta, true, InsertDrift::Default)
+                        .collapse(),
+                );
                 self.mode = Mode::Normal;
                 editor.ensure_cursor_visible(ctx, buffer, env);
                 self.mode = Mode::Normal;
@@ -1103,6 +1153,7 @@ impl EditorSplitState {
                     },
                 );
                 editor.selection = editor.selection.min();
+                editor.ensure_cursor_visible(ctx, buffer, env);
                 editor.request_paint();
                 self.mode = Mode::Normal;
             }
@@ -1113,6 +1164,23 @@ impl EditorSplitState {
                     LapceUICommand::Split(true),
                     Target::Widget(editor.split_id),
                 ));
+            }
+            LapceCommand::Undo => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer =
+                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                if let Some(offset) = buffer.undo() {
+                    let line = buffer.line_of_offset(offset);
+                    let offset = buffer.offset_of_line(line);
+                    editor.selection = Selection::caret(offset);
+                    editor.ensure_cursor_visible(ctx, buffer, env);
+                }
+            }
+            LapceCommand::Redo => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer =
+                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                buffer.redo();
             }
             _ => {
                 let editor = self.editors.get_mut(&self.active)?;

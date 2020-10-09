@@ -107,6 +107,10 @@ pub enum LapceCommand {
     Yank,
     #[strum(serialize = "paste")]
     Paste,
+    #[strum(serialize = "undo")]
+    Undo,
+    #[strum(serialize = "redo")]
+    Redo,
     Insert(String),
 }
 
