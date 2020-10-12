@@ -320,9 +320,9 @@ impl Buffer {
         }
     }
 
-    pub fn redo(&mut self) {
+    pub fn redo(&mut self) -> Option<usize> {
         if self.current_undo >= self.undos.len() {
-            return;
+            return None;
         }
 
         let deltas = self.undos[self.current_undo].clone();
@@ -331,6 +331,7 @@ impl Buffer {
             self.apply_delta(&delta);
         }
         self.update_highlights();
+        Some(deltas[0].1.summary().0.start())
     }
 
     pub fn undo(&mut self) -> Option<usize> {

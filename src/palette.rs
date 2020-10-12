@@ -85,7 +85,7 @@ impl PaletteState {
 
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::EnsureVisible((rect, margin)),
+            LapceUICommand::EnsureVisible((rect, margin, None)),
             Target::Widget(self.scroll_widget_id),
         ));
     }
@@ -172,6 +172,9 @@ impl PaletteState {
             for entry in fs::read_dir(dir).unwrap() {
                 let entry = entry.unwrap();
                 let path = entry.path();
+                if entry.file_name().to_str().unwrap().starts_with(".") {
+                    continue;
+                }
                 if path.is_dir() {
                     if path.as_path().to_str().unwrap().to_string()
                         != "./target"

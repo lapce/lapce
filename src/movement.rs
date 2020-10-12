@@ -185,6 +185,17 @@ impl Selection {
         &self.regions
     }
 
+    pub fn to_start_caret(&self) -> Selection {
+        let region = self.regions[0];
+        Selection {
+            regions: vec![SelRegion {
+                start: region.start,
+                end: region.start,
+                horiz: None,
+            }],
+        }
+    }
+
     pub fn to_caret(&self) -> Selection {
         let region = self.regions[0];
         Selection {

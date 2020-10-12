@@ -161,7 +161,11 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
                             println!("scroll request paint");
                             ctx.request_paint();
                         }
-                        LapceUICommand::EnsureVisible((rect, margin)) => {
+                        LapceUICommand::EnsureVisible((
+                            rect,
+                            margin,
+                            position,
+                        )) => {
                             if self.ensure_visible(ctx.size(), rect, margin) {
                                 ctx.request_paint();
                             }

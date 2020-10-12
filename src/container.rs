@@ -54,7 +54,7 @@ impl LapceContainer {
             WidgetId::next(),
         );
         let editor_split = WidgetPod::new(IdentityWrapper::wrap(
-            LapceSplit::new(true).with_child(editor_view),
+            LapceSplit::new(true).with_flex_child(editor_view, 1.0),
             state.editor_split.widget_id,
         ))
         .boxed();

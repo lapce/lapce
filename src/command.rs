@@ -111,7 +111,14 @@ pub enum LapceCommand {
     Undo,
     #[strum(serialize = "redo")]
     Redo,
+    #[strum(serialize = "center_of_window")]
+    CenterOfWindow,
     Insert(String),
+}
+
+#[derive(Debug)]
+pub enum EnsureVisiblePosition {
+    CenterOfWindow,
 }
 
 #[derive(Debug)]
@@ -122,7 +129,7 @@ pub enum LapceUICommand {
     RequestPaint,
     RequestPaintRect(Rect),
     UpdateHighlights(BufferId, String, Vec<(usize, usize, Highlight)>),
-    EnsureVisible((Rect, (f64, f64))),
+    EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EditorViewSize(Size),
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),

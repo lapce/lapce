@@ -28,9 +28,15 @@ pub enum SplitMoveDirection {
 
 pub struct LapceSplit {
     vertical: bool,
-    children: Vec<WidgetPod<LapceState, Box<dyn Widget<LapceState>>>>,
-    children_sizes: Vec<f64>,
+    children: Vec<ChildWidget>,
     current_bar_hover: usize,
+}
+
+struct ChildWidget {
+    widget: WidgetPod<LapceState, Box<dyn Widget<LapceState>>>,
+    flex: bool,
+    params: f64,
+    layout_rect: Rect,
 }
 
 impl LapceSplit {
@@ -38,61 +44,85 @@ impl LapceSplit {
         LapceSplit {
             vertical,
             children: Vec::new(),
-            children_sizes: Vec::new(),
             current_bar_hover: 0,
         }
-    }
-
-    pub fn even_child_sizes(&mut self) {
-        let children_len = self.children.len();
-        let child_size = 1.0 / children_len as f64;
-        self.children_sizes = (0..children_len - 1)
-            .into_iter()
-            .map(|i| child_size)
-            .collect();
-        self.children_sizes
-            .push(1.0 - self.children_sizes.iter().sum::<f64>());
-    }
-
-    pub fn add_child(&mut self, child: impl Widget<LapceState> + 'static) {
-        let child = WidgetPod::new(child).boxed();
-        self.children.push(child);
-        self.even_child_sizes();
     }
 
     pub fn with_child(
         mut self,
         child: impl Widget<LapceState> + 'static,
+        params: f64,
     ) -> Self {
-        let child = WidgetPod::new(child).boxed();
+        let child = ChildWidget {
+            widget: WidgetPod::new(child).boxed(),
+            flex: false,
+            params,
+            layout_rect: Rect::ZERO,
+        };
         self.children.push(child);
-        self.even_child_sizes();
         self
+    }
+
+    pub fn with_flex_child(
+        mut self,
+        child: impl Widget<LapceState> + 'static,
+        params: f64,
+    ) -> Self {
+        let child = ChildWidget {
+            widget: WidgetPod::new(child).boxed(),
+            flex: true,
+            params,
+            layout_rect: Rect::ZERO,
+        };
+        self.children.push(child);
+        self
+    }
+
+    pub fn even_flex_children(&mut self) {
+        for child in self.children.iter_mut() {
+            if child.flex {
+                child.params = 1.0;
+            }
+        }
     }
 
     fn update_split_point(&mut self, size: Size, mouse_pos: Point) {
         let limit = 50.0;
-        let left = self.children_sizes[..self.current_bar_hover]
-            .iter()
-            .sum::<f64>()
-            * size.width;
-
-        let right = self.children_sizes[..self.current_bar_hover + 2]
-            .iter()
-            .sum::<f64>()
-            * size.width;
+        let left = self.children[self.current_bar_hover - 1].layout_rect.x0;
+        let right = self.children[self.current_bar_hover].layout_rect.x1;
 
         if mouse_pos.x < left + limit || mouse_pos.x > right - limit {
             return;
         }
 
-        let old_size = self.children_sizes[self.current_bar_hover];
-        let new_size = mouse_pos.x / size.width
-            - self.children_sizes[..self.current_bar_hover]
-                .iter()
-                .sum::<f64>();
-        self.children_sizes[self.current_bar_hover] = new_size;
-        self.children_sizes[self.current_bar_hover + 1] += old_size - new_size;
+        if !self.children[self.current_bar_hover - 1].flex {
+            self.children[self.current_bar_hover - 1].params =
+                mouse_pos.x - left;
+        } else {
+            if !self.children[self.current_bar_hover].flex {
+                self.children[self.current_bar_hover].params =
+                    right - mouse_pos.x;
+            }
+            for (i, child) in self.children.iter_mut().enumerate() {
+                if child.flex {
+                    if i == self.current_bar_hover - 1 {
+                        child.params = (mouse_pos.x - left) / size.width;
+                    } else if i == self.current_bar_hover {
+                        child.params = (right - mouse_pos.x) / size.width;
+                    } else {
+                        child.params = child.layout_rect.width() / size.width;
+                    }
+                }
+            }
+        }
+
+        // let old_size = self.children_sizes[self.current_bar_hover];
+        // let new_size = mouse_pos.x / size.width
+        //     - self.children_sizes[..self.current_bar_hover]
+        //         .iter()
+        //         .sum::<f64>();
+        // self.children_sizes[self.current_bar_hover] = new_size;
+        // self.children_sizes[self.current_bar_hover + 1] += old_size - new_size;
     }
 
     fn bar_hit_test(&self, size: Size, mouse_pos: Point) -> Option<usize> {
@@ -100,9 +130,8 @@ impl LapceSplit {
         if children_len <= 1 {
             return None;
         }
-        for i in 0..children_len - 1 {
-            let x =
-                self.children_sizes[..i + 1].iter().sum::<f64>() * size.width;
+        for i in 1..children_len {
+            let x = self.children[i].layout_rect.x0;
             if mouse_pos.x >= x - 3.0 && mouse_pos.x <= x + 3.0 {
                 return Some(i);
             }
@@ -117,9 +146,8 @@ impl LapceSplit {
         }
 
         let size = ctx.size();
-        for i in 0..children_len - 1 {
-            let x =
-                self.children_sizes[..i + 1].iter().sum::<f64>() * size.width;
+        for i in 1..children_len {
+            let x = self.children[i].layout_rect.x0;
             let line =
                 Line::new(Point::new(x, 0.0), Point::new(x, size.height));
             let color = env.get(theme::BORDER_LIGHT);
@@ -139,7 +167,7 @@ impl Widget<LapceState> for LapceSplit {
         match event {
             Event::Internal(_) => {
                 for child in self.children.as_mut_slice() {
-                    child.event(ctx, event, data, env);
+                    child.widget.event(ctx, event, data, env);
                 }
                 return;
             }
@@ -154,14 +182,14 @@ impl Widget<LapceState> for LapceSplit {
                             let active = data.editor_split.active;
                             if &self.vertical != vertical {
                                 for child in &self.children {
-                                    if child.id() == active {}
+                                    if child.widget.id() == active {}
                                 }
                             } else {
                                 let mut index = 0;
                                 for (i, child) in
                                     self.children.iter().enumerate()
                                 {
-                                    if child.id() == active {
+                                    if child.widget.id() == active {
                                         index = i;
                                     }
                                 }
@@ -191,10 +219,15 @@ impl Widget<LapceState> for LapceSplit {
                                     new_editor.view_id,
                                     new_editor.editor_id,
                                 );
-                                let new_child =
-                                    WidgetPod::new(new_editor_view).boxed();
+                                let new_child = ChildWidget {
+                                    widget: WidgetPod::new(new_editor_view)
+                                        .boxed(),
+                                    flex: true,
+                                    params: 1.0,
+                                    layout_rect: Rect::ZERO,
+                                };
                                 self.children.insert(index + 1, new_child);
-                                self.even_child_sizes();
+                                self.even_flex_children();
                                 ctx.request_layout();
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
@@ -213,7 +246,7 @@ impl Widget<LapceState> for LapceSplit {
                             let active = data.editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
-                                if child.id() == active {
+                                if child.widget.id() == active {
                                     index = i;
                                 }
                             }
@@ -223,21 +256,22 @@ impl Widget<LapceState> for LapceSplit {
                             } else {
                                 index + 1
                             };
-                            let new_active = self.children[new_index].id();
+                            let new_active =
+                                self.children[new_index].widget.id();
                             self.children.remove(index);
                             let editor_split =
                                 Arc::make_mut(&mut data.editor_split);
                             editor_split.editors.remove(&active);
                             editor_split.active = new_active;
 
-                            self.even_child_sizes();
+                            self.even_flex_children();
                             ctx.request_layout();
                         }
                         LapceUICommand::SplitExchange => {
                             let active = data.editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
-                                if child.id() == active {
+                                if child.widget.id() == active {
                                     index = i;
                                 }
                             }
@@ -246,9 +280,8 @@ impl Widget<LapceState> for LapceSplit {
                                 let editor_split =
                                     Arc::make_mut(&mut data.editor_split);
                                 editor_split.active =
-                                    self.children[index + 1].id();
+                                    self.children[index + 1].widget.id();
                                 self.children.swap(index, index + 1);
-                                self.children_sizes.swap(index, index + 1);
                                 ctx.request_layout();
                             }
                         }
@@ -256,7 +289,7 @@ impl Widget<LapceState> for LapceSplit {
                             let active = data.editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
-                                if child.id() == active {
+                                if child.widget.id() == active {
                                     index = i;
                                 }
                             }
@@ -268,14 +301,14 @@ impl Widget<LapceState> for LapceSplit {
                                         return;
                                     }
                                     editor_split.active =
-                                        self.children[index - 1].id();
+                                        self.children[index - 1].widget.id();
                                 }
                                 SplitMoveDirection::Right => {
                                     if index >= self.children.len() - 1 {
                                         return;
                                     }
                                     editor_split.active =
-                                        self.children[index + 1].id();
+                                        self.children[index + 1].widget.id();
                                 }
                                 _ => (),
                             }
@@ -287,7 +320,8 @@ impl Widget<LapceState> for LapceSplit {
                                 .buffers
                                 .get(editor.buffer_id.as_ref().unwrap())
                                 .unwrap();
-                            editor.ensure_cursor_visible(ctx, buffer, env);
+                            editor
+                                .ensure_cursor_visible(ctx, buffer, env, None);
 
                             ctx.request_paint();
                         }
@@ -299,8 +333,8 @@ impl Widget<LapceState> for LapceSplit {
             _ => (),
         }
         for child in self.children.as_mut_slice() {
-            if child.is_active() {
-                child.event(ctx, event, data, env);
+            if child.widget.is_active() {
+                child.widget.event(ctx, event, data, env);
                 if ctx.is_handled() {
                     return;
                 }
@@ -346,8 +380,8 @@ impl Widget<LapceState> for LapceSplit {
         }
 
         for child in self.children.as_mut_slice() {
-            if !child.is_active() {
-                child.event(ctx, event, data, env);
+            if !child.widget.is_active() {
+                child.widget.event(ctx, event, data, env);
             }
         }
     }
@@ -360,7 +394,7 @@ impl Widget<LapceState> for LapceSplit {
         env: &Env,
     ) {
         for child in self.children.as_mut_slice() {
-            child.lifecycle(ctx, event, data, env);
+            child.widget.lifecycle(ctx, event, data, env);
         }
     }
 
@@ -371,12 +405,8 @@ impl Widget<LapceState> for LapceSplit {
         data: &LapceState,
         env: &Env,
     ) {
-        if data.editor_split.same(&old_data.editor_split) {
-            return;
-        }
-
         for child in self.children.as_mut_slice() {
-            child.update(ctx, &data, env);
+            child.widget.update(ctx, &data, env);
         }
     }
 
@@ -394,29 +424,50 @@ impl Widget<LapceState> for LapceSplit {
             return my_size;
         }
 
-        for (i, child) in self.children.iter_mut().enumerate() {
-            let child_size = Size::new(
-                self.children_sizes[i] * my_size.width,
-                my_size.height,
-            );
-            let child_bc =
-                BoxConstraints::new(child_size.clone(), child_size.clone());
-            child.layout(ctx, &child_bc, data, env);
-            child.set_layout_rect(
-                ctx,
-                data,
-                env,
-                Rect::ZERO
-                    .with_origin(Point::new(
-                        self.children_sizes[..i].iter().sum::<f64>()
-                            * my_size.width,
-                        0.0,
-                    ))
-                    .with_size(Size::new(
-                        my_size.width * self.children_sizes[i],
-                        my_size.height,
-                    )),
-            );
+        let mut non_flex_total = 0.0;
+        for child in self.children.iter_mut() {
+            if !child.flex {
+                let size = Size::new(child.params, my_size.height);
+                let child_size = child.widget.layout(
+                    ctx,
+                    &BoxConstraints::new(size, size),
+                    data,
+                    env,
+                );
+                child.layout_rect = child.layout_rect.with_size(child_size);
+                non_flex_total += child_size.width;
+            }
+        }
+
+        let mut flex_sum = 0.0;
+        for child in &self.children {
+            if child.flex {
+                flex_sum += child.params;
+            }
+        }
+
+        let flex_total = my_size.width - non_flex_total;
+        let mut x = 0.0;
+        let mut y = 0.0;
+        for child in self.children.iter_mut() {
+            child.layout_rect = child.layout_rect.with_origin(Point::new(x, y));
+            if !child.flex {
+                x += child.layout_rect.width();
+            } else {
+                let width = flex_total / flex_sum * child.params;
+                let size = Size::new(width, my_size.height);
+                child.widget.layout(
+                    ctx,
+                    &BoxConstraints::new(size, size),
+                    data,
+                    env,
+                );
+                child.layout_rect = child.layout_rect.with_size(size);
+                x += width;
+            }
+            child
+                .widget
+                .set_layout_rect(ctx, data, env, child.layout_rect);
         }
 
         my_size
@@ -425,7 +476,7 @@ impl Widget<LapceState> for LapceSplit {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
         self.paint_bar(ctx, env);
         for child in self.children.as_mut_slice() {
-            child.paint(ctx, &data, env);
+            child.widget.paint(ctx, &data, env);
         }
     }
 }

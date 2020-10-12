@@ -41,7 +41,10 @@ fn build_app(state: LapceState) -> impl Widget<LapceState> {
     let container =
         IdentityWrapper::wrap(LapceContainer::new(state), container_id.clone());
     // LAPCE_STATE.set_container(container_id);
-    container
+    let main_split = LapceSplit::new(true)
+        .with_child(Label::new("abc"), 300.0)
+        .with_flex_child(container, 1.0);
+    main_split
         .env_scope(|env: &mut druid::Env, data: &LapceState| {
             if let Some(line_highlight) = data.theme.get("line_highlight") {
                 env.set(
