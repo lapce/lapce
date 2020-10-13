@@ -555,7 +555,7 @@ impl EditorState {
                     let delta = buffer.edit(s, &selection, true);
                     selection = selection.apply_delta(
                         &delta,
-                        false,
+                        true,
                         InsertDrift::Default,
                     );
                 }
@@ -1860,80 +1860,6 @@ impl Editor {
             text_layouts: HashMap::new(),
             view_size: Size::ZERO,
         }
-    }
-
-    fn paint_line_new(
-        &mut self,
-        ctx: &mut PaintCtx,
-        buffer: &mut Buffer,
-        line_height: f64,
-        line: usize,
-        line_content: &str,
-        // text_layouts: &mut Vec<Option<HighlightTextLayout>>,
-        env: &Env,
-    ) {
-        // let start_offset = buffer.offset_of_line(line);
-        // let end_offset = buffer.offset_of_line(line + 1);
-        // let mut offset = start_offset;
-        // let mut x = 0.0;
-        // let mut layout_builder = ctx
-        //     .text()
-        //     .new_text_layout(line_content.to_string())
-        //     .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-        //     .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-
-        // for (start, end, hl) in buffer.get_line_highligh(line) {
-        //     if let Some(color) = LAPCE_STATE.theme.lock().unwrap().get(hl) {
-        //         layout_builder = layout_builder.range_attribute(
-        //             start - start_offset..end - start_offset,
-        //             TextAttribute::TextColor(color.clone()),
-        //         );
-        //     }
-        // }
-        // let layout = layout_builder.build().unwrap();
-        // ctx.draw_text(&layout, Point::new(0.0, line_height * line as f64));
-        // let text_layout = HighlightTextLayout {
-        //     layout,
-        //     text: line_content.to_string(),
-        //     highlights: buffer.get_line_highligh(line).clone(),
-        // };
-    }
-
-    fn paint_line(
-        &mut self,
-        ctx: &mut PaintCtx,
-        buffer: &mut Buffer,
-        line_height: f64,
-        line: usize,
-        line_content: &str,
-        env: &Env,
-    ) {
-        // let start_offset = buffer.offset_of_line(line);
-        // let end_offset = buffer.offset_of_line(line + 1);
-        // let mut offset = start_offset;
-        // let mut x = 0.0;
-        // let mut layout_builder = ctx
-        //     .text()
-        //     .new_text_layout(line_content.to_string())
-        //     .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-        //     .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-
-        // for (start, end, hl) in buffer.get_line_highligh(line) {
-        //     if let Some(color) = LAPCE_STATE.theme.lock().unwrap().get(hl) {
-        //         layout_builder = layout_builder.range_attribute(
-        //             start - start_offset..end - start_offset,
-        //             TextAttribute::TextColor(color.clone()),
-        //         );
-        //     }
-        // }
-        // let layout = layout_builder.build().unwrap();
-        // ctx.draw_text(&layout, Point::new(0.0, line_height * line as f64));
-        // let text_layout = HighlightTextLayout {
-        //     layout,
-        //     text: line_content.to_string(),
-        //     highlights: buffer.get_line_highligh(line).clone(),
-        // };
-        // self.text_layouts.insert(line, text_layout);
     }
 
     fn paint_insert_cusor(

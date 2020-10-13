@@ -15,6 +15,7 @@ use crate::{
     command::LAPCE_UI_COMMAND,
     command::{LapceCommand, LAPCE_COMMAND},
     editor::EditorSplitState,
+    explorer::FileExplorerState,
     language::TreeSitter,
     palette::PaletteState,
 };
@@ -29,6 +30,7 @@ enum KeymapMatch {
 pub enum LapceFocus {
     Palette,
     Editor,
+    FileExplorer,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -71,12 +73,14 @@ pub struct LapceState {
     // pub ui_sink: ExtEventSink,
     pub editor_split: Arc<EditorSplitState>,
     pub container: Option<WidgetId>,
+    pub file_explorer: Arc<FileExplorerState>,
 }
 
 impl Data for LapceState {
     fn same(&self, other: &Self) -> bool {
         self.editor_split.same(&other.editor_split)
             && self.palette.same(&other.palette)
+            && self.file_explorer.same(&other.file_explorer)
     }
 }
 
@@ -91,6 +95,7 @@ impl LapceState {
             last_focus: LapceFocus::Editor,
             palette: Arc::new(PaletteState::new()),
             editor_split: Arc::new(EditorSplitState::new()),
+            file_explorer: Arc::new(FileExplorerState::new()),
             container: None,
         }
     }
@@ -211,6 +216,7 @@ impl LapceState {
         match self.focus {
             LapceFocus::Palette => Mode::Insert,
             LapceFocus::Editor => self.editor_split.get_mode(),
+            LapceFocus::FileExplorer => Mode::Normal,
         }
     }
 
@@ -224,6 +230,7 @@ impl LapceState {
                 let editor_split = Arc::make_mut(&mut self.editor_split);
                 editor_split.insert(ctx, content, env);
             }
+            _ => (),
         }
     }
 
@@ -270,8 +277,26 @@ impl LapceState {
                     let palette = Arc::make_mut(&mut self.palette);
                     palette.cancel();
                 }
+                LapceCommand::FileExplorer => {
+                    self.focus = LapceFocus::FileExplorer;
+                }
+                LapceCommand::FileExplorerCancel => {
+                    self.focus = LapceFocus::Editor;
+                }
                 _ => {
                     match self.focus {
+                        LapceFocus::FileExplorer => {
+                            let file_explorer =
+                                Arc::make_mut(&mut self.file_explorer);
+                            let editor_split =
+                                Arc::make_mut(&mut self.editor_split);
+                            self.focus = file_explorer.run_command(
+                                ctx,
+                                editor_split,
+                                count,
+                                cmd,
+                            );
+                        }
                         LapceFocus::Editor => {
                             let editor_split =
                                 Arc::make_mut(&mut self.editor_split);
@@ -479,8 +504,12 @@ impl LapceState {
 
     fn check_one_condition(&self, condition: &str) -> bool {
         match condition.trim() {
+            "file_explorer_focus" => self.focus == LapceFocus::FileExplorer,
             "palette_focus" => self.focus == LapceFocus::Palette,
-            "list_focus" => self.focus == LapceFocus::Palette,
+            "list_focus" => {
+                self.focus == LapceFocus::Palette
+                    || self.focus == LapceFocus::FileExplorer
+            }
             "editor_operator" => {
                 self.focus == LapceFocus::Editor
                     && self.editor_split.has_operator()

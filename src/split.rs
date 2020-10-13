@@ -474,9 +474,9 @@ impl Widget<LapceState> for LapceSplit {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
-        self.paint_bar(ctx, env);
         for child in self.children.as_mut_slice() {
             child.widget.paint(ctx, &data, env);
         }
+        self.paint_bar(ctx, env);
     }
 }

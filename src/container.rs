@@ -160,6 +160,9 @@ impl Widget<LapceState> for LapceContainer {
         data: &LapceState,
         env: &Env,
     ) {
+        if data.focus != old_data.focus {
+            ctx.request_paint();
+        }
         self.palette.update(ctx, data, env);
         self.editor_split.update(ctx, data, env);
         // println!("container data update");

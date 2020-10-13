@@ -15,6 +15,10 @@ pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
 
 #[derive(Display, EnumString, Clone, PartialEq)]
 pub enum LapceCommand {
+    #[strum(serialize = "file_explorer")]
+    FileExplorer,
+    #[strum(serialize = "file_explorer.cancel")]
+    FileExplorerCancel,
     #[strum(serialize = "palette")]
     Palette,
     #[strum(serialize = "palette.cancel")]

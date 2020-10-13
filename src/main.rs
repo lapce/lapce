@@ -2,6 +2,7 @@ mod buffer;
 mod command;
 mod container;
 mod editor;
+mod explorer;
 mod font;
 mod language;
 mod movement;
@@ -29,6 +30,7 @@ use druid::{
     Point,
 };
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
+use explorer::FileExplorer;
 use state::LapceState;
 use tree_sitter::{Language, Parser};
 
@@ -42,7 +44,7 @@ fn build_app(state: LapceState) -> impl Widget<LapceState> {
         IdentityWrapper::wrap(LapceContainer::new(state), container_id.clone());
     // LAPCE_STATE.set_container(container_id);
     let main_split = LapceSplit::new(true)
-        .with_child(Label::new("abc"), 300.0)
+        .with_child(FileExplorer::new(), 300.0)
         .with_flex_child(container, 1.0);
     main_split
         .env_scope(|env: &mut druid::Env, data: &LapceState| {

@@ -317,6 +317,31 @@ impl Movement {
         buffer.fill_horiz(&new_selection)
     }
 
+    pub fn update_index(
+        &self,
+        index: usize,
+        len: usize,
+        count: usize,
+        recursive: bool,
+    ) -> usize {
+        match self {
+            Movement::Up => {
+                format_index(index as i64 - count as i64, len, recursive)
+            }
+            Movement::Down => {
+                format_index(index as i64 + count as i64, len, recursive)
+            }
+            Movement::Line(position) => match position {
+                LinePosition::Line(n) => {
+                    format_index(*n as i64, len, recursive)
+                }
+                LinePosition::First => 0,
+                LinePosition::Last => len - 1,
+            },
+            _ => index,
+        }
+    }
+
     pub fn update_region(
         &self,
         region: &SelRegion,
@@ -460,5 +485,25 @@ pub fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
         v.remove(index);
     } else if n > 1 {
         v.splice(index..index + n, std::iter::empty());
+    }
+}
+
+fn format_index(index: i64, len: usize, recursive: bool) -> usize {
+    if recursive {
+        if index >= len as i64 {
+            (index % len as i64) as usize
+        } else if index < 0 {
+            len - (-index % len as i64) as usize
+        } else {
+            index as usize
+        }
+    } else {
+        if index >= len as i64 {
+            len - 1
+        } else if index < 0 {
+            0
+        } else {
+            index as usize
+        }
     }
 }
