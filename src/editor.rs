@@ -343,16 +343,20 @@ impl EditorState {
                 self.center_of_window(ctx, buffer, env);
             }
             LapceCommand::ScrollUp => {
-                // data.submit_ui_command(
-                //     LapceUICommand::Scroll((0.0, -self.line_height)),
-                //     self.editor_id,
-                // );
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Scroll((0.0, -line_height)),
+                    Target::Widget(self.view_id),
+                ));
             }
             LapceCommand::ScrollDown => {
-                // data.submit_ui_command(
-                //     LapceUICommand::Scroll((0.0, self.line_height)),
-                //     self.editor_id,
-                // );
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Scroll((0.0, line_height)),
+                    Target::Widget(self.view_id),
+                ));
             }
             LapceCommand::SplitHorizontal => {}
             LapceCommand::SplitRight => {

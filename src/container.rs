@@ -48,14 +48,16 @@ impl LapceContainer {
         let palette_id = WidgetId::next();
         let palette =
             WidgetPod::new(IdentityWrapper::wrap(palette, palette_id)).boxed();
+
+        let editor_split = state.editor_split.lock();
         let editor_view = EditorView::new(
-            state.editor_split.widget_id,
-            state.editor_split.active,
+            editor_split.widget_id,
+            editor_split.active,
             WidgetId::next(),
         );
         let editor_split = WidgetPod::new(IdentityWrapper::wrap(
             LapceSplit::new(true).with_flex_child(editor_view, 1.0),
-            state.editor_split.widget_id,
+            editor_split.widget_id,
         ))
         .boxed();
 

@@ -1,3 +1,4 @@
+use parking_lot::Mutex;
 use std::{collections::HashMap, fs::File, io::Read, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, Result};
@@ -71,7 +72,7 @@ pub struct LapceState {
     pub last_focus: LapceFocus,
     pub focus: LapceFocus,
     // pub ui_sink: ExtEventSink,
-    pub editor_split: Arc<EditorSplitState>,
+    pub editor_split: Arc<Mutex<EditorSplitState>>,
     pub container: Option<WidgetId>,
     pub file_explorer: Arc<FileExplorerState>,
 }
@@ -94,7 +95,7 @@ impl LapceState {
             focus: LapceFocus::Editor,
             last_focus: LapceFocus::Editor,
             palette: Arc::new(PaletteState::new()),
-            editor_split: Arc::new(EditorSplitState::new()),
+            editor_split: Arc::new(Mutex::new(EditorSplitState::new())),
             file_explorer: Arc::new(FileExplorerState::new()),
             container: None,
         }

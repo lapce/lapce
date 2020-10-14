@@ -7,6 +7,7 @@ mod font;
 mod language;
 mod movement;
 mod palette;
+mod plugin;
 mod scroll;
 mod split;
 mod state;

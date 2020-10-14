@@ -1419,6 +1419,7 @@ dependencies = [
  "include_dir",
  "lazy_static 1.4.0",
  "lsp-types",
+ "parking_lot 0.11.0",
  "serde",
  "serde_json",
  "strum 0.19.2",
@@ -1430,6 +1431,7 @@ dependencies = [
  "uuid 0.7.4",
  "xi-core-lib",
  "xi-rope",
+ "xi-rpc",
 ]
 
 [[package]]

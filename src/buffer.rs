@@ -69,6 +69,7 @@ pub struct Buffer {
     pub text_layouts: Vec<Option<HighlightTextLayout>>,
     undos: Vec<Vec<(Delta<RopeInfo>, Delta<RopeInfo>)>>,
     current_undo: usize,
+    path: String,
     // pub inval_lines: Option<InvalLines>,
 }
 
@@ -104,12 +105,15 @@ impl Buffer {
             undos: Vec::new(),
             current_undo: 0,
             event_sink,
+            path: path.to_string(),
         };
         buffer.text_layouts = vec![None; buffer.num_lines()];
         buffer.update_max_line_len();
         buffer.update_highlights();
         buffer
     }
+
+    fn get_lsp_client(&self) {}
 
     pub fn len(&self) -> usize {
         self.rope.len()
