@@ -52,6 +52,8 @@ pub struct BufferId(pub usize);
 pub struct BufferUIState {
     pub id: BufferId,
     pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
+    pub max_len_line: usize,
+    pub max_len: usize,
 }
 
 #[derive(Clone)]
@@ -65,8 +67,8 @@ pub struct Buffer {
     pub line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
     pub highlight_version: String,
     event_sink: ExtEventSink,
-    pub max_len_line: usize,
-    pub max_len: usize,
+    // pub max_len_line: usize,
+    // pub max_len: usize,
     // pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
     undos: Vec<Vec<(Delta<RopeInfo>, Delta<RopeInfo>)>>,
     current_undo: usize,
@@ -100,8 +102,8 @@ impl Buffer {
             highlights: Vec::new(),
             line_highlights: HashMap::new(),
             highlight_version: "".to_string(),
-            max_len_line: 0,
-            max_len: 0,
+            // max_len_line: 0,
+            // max_len: 0,
             // text_layouts: Vec::new(),
             undos: Vec::new(),
             current_undo: 0,
@@ -109,7 +111,7 @@ impl Buffer {
             path: path.to_string(),
         };
         // buffer.text_layouts = vec![Arc::new(None); buffer.num_lines()];
-        buffer.update_max_line_len();
+        // buffer.update_max_line_len();
         buffer.update_highlights();
         buffer
     }
@@ -253,12 +255,18 @@ impl Buffer {
         result
     }
 
-    fn update_size(&mut self, inval_lines: &InvalLines) {
-        if self.max_len_line >= inval_lines.start_line
-            && self.max_len_line
+    fn update_size(
+        &mut self,
+        ui_state: &mut BufferUIState,
+        inval_lines: &InvalLines,
+    ) {
+        if ui_state.max_len_line >= inval_lines.start_line
+            && ui_state.max_len_line
                 < inval_lines.start_line + inval_lines.inval_count
         {
-            self.update_max_line_len();
+            let (max_len, max_len_line) = self.get_max_line_len();
+            ui_state.max_len = max_len;
+            ui_state.max_len_line = max_len_line;
         } else {
             let mut max_len = 0;
             let mut max_len_line = 0;
@@ -271,11 +279,12 @@ impl Buffer {
                     max_len_line = line;
                 }
             }
-            if max_len > self.max_len {
-                self.max_len = max_len;
-                self.max_len_line = max_len_line;
-            } else if self.max_len >= inval_lines.start_line {
-                self.max_len_line = self.max_len_line + inval_lines.new_count
+            if max_len > ui_state.max_len {
+                ui_state.max_len = max_len;
+                ui_state.max_len_line = max_len_line;
+            } else if ui_state.max_len >= inval_lines.start_line {
+                ui_state.max_len_line = ui_state.max_len_line
+                    + inval_lines.new_count
                     - inval_lines.inval_count;
             }
         }
@@ -364,8 +373,7 @@ impl Buffer {
             new_count: new_hard_count,
         };
         self.highlights = self.highlights_apply_delta(delta);
-        let old_max_len = self.max_len;
-        self.update_size(&inval_lines);
+        self.update_size(ui_state, &inval_lines);
         ui_state.update_text_layouts(&inval_lines);
     }
 
@@ -494,7 +502,7 @@ impl Buffer {
         self.offset_of_line(line + 1) - self.offset_of_line(line)
     }
 
-    pub fn update_max_line_len(&mut self) {
+    pub fn get_max_line_len(&self) -> (usize, usize) {
         let mut pre_offset = 0;
         let mut max_len = 0;
         let mut max_len_line = 0;
@@ -507,8 +515,7 @@ impl Buffer {
                 max_len_line = line;
             }
         }
-        self.max_len = max_len;
-        self.max_len_line = max_len_line;
+        (max_len, max_len_line)
     }
 
     pub fn last_line(&self) -> usize {
@@ -894,10 +901,17 @@ fn get_word_property(codepoint: char) -> WordProperty {
 }
 
 impl BufferUIState {
-    pub fn new(buffer_id: BufferId, lines: usize) -> BufferUIState {
+    pub fn new(
+        buffer_id: BufferId,
+        lines: usize,
+        max_len: usize,
+        max_len_line: usize,
+    ) -> BufferUIState {
         BufferUIState {
             id: buffer_id,
             text_layouts: vec![Arc::new(None); lines],
+            max_len,
+            max_len_line,
         }
     }
 

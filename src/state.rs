@@ -6,6 +6,7 @@ use crate::{
     command::LAPCE_UI_COMMAND,
     command::{LapceCommand, LAPCE_COMMAND},
     editor::EditorSplitState,
+    editor::EditorUIState,
     editor::HighlightTextLayout,
     explorer::FileExplorerState,
     keypress::KeyPressState,
@@ -73,26 +74,55 @@ pub struct KeyMap {
 pub struct LapceUIState {
     pub focus: LapceFocus,
     pub buffers: Arc<HashMap<BufferId, Arc<BufferUIState>>>,
+    pub editors: Arc<HashMap<WidgetId, EditorUIState>>,
 }
 
 impl Data for LapceUIState {
     fn same(&self, other: &Self) -> bool {
-        self.focus == other.focus && self.buffers.same(&other.buffers)
+        self.focus == other.focus
+            && self.buffers.same(&other.buffers)
+            && self.editors.same(&other.editors)
     }
 }
 
 impl LapceUIState {
     pub fn new() -> LapceUIState {
+        let active = LAPCE_STATE.editor_split.lock().active;
+        let editor_ui_state = EditorUIState::new();
+        let mut editors = HashMap::new();
+        editors.insert(active, editor_ui_state);
         LapceUIState {
             buffers: Arc::new(HashMap::new()),
             focus: LapceFocus::Editor,
+            editors: Arc::new(editors),
         }
     }
 
-    pub fn get_buffer(&mut self, buffer_id: &BufferId) -> &mut BufferUIState {
+    pub fn get_buffer_mut(
+        &mut self,
+        buffer_id: &BufferId,
+    ) -> &mut BufferUIState {
         Arc::make_mut(
             Arc::make_mut(&mut self.buffers).get_mut(buffer_id).unwrap(),
         )
+    }
+
+    pub fn get_buffer(&self, buffer_id: &BufferId) -> &BufferUIState {
+        self.buffers.get(buffer_id).unwrap()
+    }
+
+    pub fn new_editor(&mut self, editor_id: &WidgetId) {
+        let editor_ui_state = EditorUIState::new();
+        Arc::make_mut(&mut self.editors)
+            .insert(editor_id.clone(), editor_ui_state);
+    }
+
+    pub fn get_editor_mut(&mut self, view_id: &WidgetId) -> &mut EditorUIState {
+        Arc::make_mut(&mut self.editors).get_mut(view_id).unwrap()
+    }
+
+    pub fn get_editor(&self, view_id: &WidgetId) -> &EditorUIState {
+        self.editors.get(view_id).unwrap()
     }
 }
 
@@ -168,7 +198,7 @@ impl LapceState {
             }
             _ => (),
         }
-        ctx.request_layout();
+        // ctx.request_layout();
     }
 
     pub fn run_command(
@@ -241,7 +271,7 @@ impl LapceState {
             }
         };
         ui_state.focus = self.focus.lock().clone();
-        ctx.request_layout();
+        // ctx.request_layout();
         Ok(())
     }
 

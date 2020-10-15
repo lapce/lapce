@@ -213,6 +213,7 @@ impl Widget<LapceUIState> for LapceSplit {
                                     buffer_id,
                                     selection.clone(),
                                 );
+                                data.new_editor(&new_editor.view_id);
 
                                 let new_editor_view = EditorView::new(
                                     new_editor.split_id,

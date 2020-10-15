@@ -73,7 +73,7 @@ impl SelRegion {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Selection {
     regions: Vec<SelRegion>,
 }
@@ -113,6 +113,22 @@ impl Selection {
                 horiz: None,
             }],
         }
+    }
+
+    pub fn min_offset(&self) -> usize {
+        let mut offset = self.regions()[0].min();
+        for region in &self.regions {
+            offset = offset.min(region.min());
+        }
+        offset
+    }
+
+    pub fn max_offset(&self) -> usize {
+        let mut offset = self.regions()[0].max();
+        for region in &self.regions {
+            offset = offset.max(region.max());
+        }
+        offset
     }
 
     pub fn min(&self) -> Selection {

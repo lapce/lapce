@@ -6,6 +6,7 @@ use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     editor::Editor,
     editor::EditorState,
+    editor::EditorUIState,
     editor::EditorView,
     state::LapceState,
     state::LapceUIState,
@@ -100,7 +101,7 @@ impl Widget<LapceUIState> for LapceContainer {
                                 .editor_split
                                 .lock()
                                 .open_file(ctx, data, path);
-                            ctx.request_layout();
+                            // ctx.request_layout();
                         }
                         LapceUICommand::UpdateHighlights(
                             buffer_id,
