@@ -14,7 +14,7 @@ use crate::{
     state::LAPCE_STATE, theme::LapceTheme,
 };
 
-const ICONS_DIR: Dir = include_dir!("icons");
+const ICONS_DIR: Dir = include_dir!("../icons");
 
 #[derive(Clone)]
 pub struct FileExplorerState {

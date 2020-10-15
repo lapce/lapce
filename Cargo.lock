@@ -1474,6 +1474,7 @@ dependencies = [
  "druid",
  "fzyr",
  "include_dir",
+ "lapce-core",
  "lazy_static 1.4.0",
  "lsp-types",
  "parking_lot 0.11.0",
@@ -1496,9 +1497,24 @@ name = "lapce-core"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "cc",
+ "druid",
+ "fzyr",
+ "include_dir",
+ "lazy_static 1.4.0",
+ "lsp-types",
+ "parking_lot 0.11.0",
  "serde",
  "serde_json",
+ "strum 0.19.2",
+ "strum_macros 0.19.2",
+ "syntect",
  "toml",
+ "tree-sitter",
+ "tree-sitter-highlight",
+ "uuid 0.7.4",
+ "xi-core-lib",
+ "xi-rope",
  "xi-rpc",
 ]
 

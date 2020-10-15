@@ -4,7 +4,7 @@ use include_dir::{include_dir, Dir};
 use tree_sitter::{Language, Parser};
 use tree_sitter_highlight::HighlightConfiguration;
 
-const LIB_DIR: Dir = include_dir!("lib");
+const LIB_DIR: Dir = include_dir!("../lib");
 
 extern "C" {
     fn tree_sitter_rust() -> Language;

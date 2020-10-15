@@ -1,4 +1,4 @@
-use lapce::plugin::{HostNotfication, HostRequest};
+use lapce_core::plugin::{HostNotification, HostRequest};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use xi_rpc::Handler;

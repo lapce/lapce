@@ -1,5 +1,14 @@
 pub mod buffer;
 pub mod command;
+pub mod container;
 pub mod editor;
+pub mod explorer;
+pub mod keypress;
+pub mod language;
+pub mod movement;
+pub mod palette;
 pub mod plugin;
+pub mod scroll;
+pub mod split;
 pub mod state;
+pub mod theme;
