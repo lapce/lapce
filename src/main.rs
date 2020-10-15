@@ -40,10 +40,10 @@ extern "C" {
     fn tree_sitter_rust() -> Language;
 }
 
-fn build_app(state: LapceState) -> impl Widget<LapceUIState> {
+fn build_app() -> impl Widget<LapceUIState> {
     let container_id = WidgetId::next();
     let container =
-        IdentityWrapper::wrap(LapceContainer::new(state), container_id.clone());
+        IdentityWrapper::wrap(LapceContainer::new(), container_id.clone());
     // LAPCE_STATE.set_container(container_id);
     let main_split = LapceSplit::new(true)
         .with_child(FileExplorer::new(), 300.0)
@@ -127,9 +127,7 @@ pub fn main() {
         });
     }
     // WindowDesc::new(|| LapceContainer::new());
-    let state = LapceState::new();
-    let init_state = state.clone();
-    let window = WindowDesc::new(move || build_app(init_state))
+    let window = WindowDesc::new(build_app)
         .title(
             LocalizedString::new("split-demo-window-title")
                 .with_placeholder("Split Demo"),

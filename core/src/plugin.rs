@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{
     collections::HashMap,
@@ -12,9 +12,9 @@ use std::{
     thread,
 };
 use toml;
-use xi_rpc::{self, RpcLoop, RpcPeer};
+use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
-use crate::{editor::Counter, state::LapceState};
+use crate::{editor::Counter, state::LAPCE_STATE};
 
 pub type PluginName = String;
 
@@ -25,13 +25,17 @@ pub struct PluginCatalog {
     items: HashMap<PluginName, Arc<PluginDescription>>,
     locations: HashMap<PathBuf, Arc<PluginDescription>>,
     id_counter: Counter,
+    running: Vec<Plugin>,
 }
+
+pub struct PluginHandler {}
 
 #[derive(Deserialize)]
 pub struct PluginDescription {
     pub name: String,
     pub version: String,
     pub exec_path: PathBuf,
+    dir: Option<PathBuf>,
 }
 
 pub struct Plugin {
@@ -47,6 +51,7 @@ impl PluginCatalog {
             items: HashMap::new(),
             locations: HashMap::new(),
             id_counter: Counter::default(),
+            running: Vec::new(),
         }
     }
 
@@ -73,6 +78,12 @@ impl PluginCatalog {
             }
         }
     }
+
+    pub fn start_all(&mut self) {
+        for (_, manifest) in self.items.clone().iter() {
+            start_plugin_process(manifest.clone(), self.next_plugin_id());
+        }
+    }
 }
 
 fn find_all_manifests(paths: &[PathBuf]) -> Vec<PathBuf> {
@@ -91,6 +102,7 @@ fn find_all_manifests(paths: &[PathBuf]) -> Vec<PathBuf> {
                 .for_each(|f| manifest_paths.push(f))
         });
     }
+    println!("mainfiest paths {:?}", manifest_paths);
     manifest_paths
 }
 
@@ -100,6 +112,7 @@ fn load_manifest(path: &Path) -> Result<PluginDescription> {
     file.read_to_string(&mut contents)?;
     let mut manifest: PluginDescription = toml::from_str(&contents)?;
     // normalize relative paths
+    manifest.dir = Some(path.parent().unwrap().canonicalize()?);
     if manifest.exec_path.starts_with("./") {
         manifest.exec_path = path
             .parent()
@@ -110,17 +123,26 @@ fn load_manifest(path: &Path) -> Result<PluginDescription> {
     Ok(manifest)
 }
 
-fn start_plugin_process(
-    plugin_desc: Arc<PluginDescription>,
-    id: PluginId,
-    state: LapceState,
-) {
+fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
     thread::spawn(move || {
-        let child = Command::new(&plugin_desc.exec_path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn();
-        child.map(|mut child| {
+        println!(
+            "start plugin {:?} {:?}",
+            plugin_desc.exec_path, plugin_desc.dir
+        );
+        let parts: Vec<&str> = plugin_desc
+            .exec_path
+            .to_str()
+            .unwrap()
+            .split(" ")
+            .into_iter()
+            .collect();
+        let mut child = Command::new(parts[0]);
+        for part in &parts[1..] {
+            child.arg(part);
+        }
+        child.current_dir(plugin_desc.dir.as_ref().unwrap());
+        let child = child.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn();
+        if let Err(e) = child.map(|mut child| {
             let child_stdin = child.stdin.take().unwrap();
             let child_stdout = child.stdout.take().unwrap();
             let mut looper = RpcLoop::new(child_stdin);
@@ -133,7 +155,55 @@ fn start_plugin_process(
                 id,
             };
 
-            // looper.mainloop(|| BufReader::new(child_stdout), handler);
-        });
+            LAPCE_STATE.plugins.lock().running.push(plugin);
+
+            let mut handler = PluginHandler {};
+            if let Err(e) =
+                looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
+            {
+                println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
+            }
+        }) {
+            println!(
+                "can't start plugin sub process {} {:?}",
+                e, plugin_desc.exec_path
+            );
+        }
     });
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// RPC Notifications sent from the host
+pub enum HostNotification {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// RPC Request sent from the host
+pub enum HostRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub enum PluginNotification {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub enum PluginRequest {}
+
+impl Handler for PluginHandler {
+    type Notification = PluginNotification;
+    type Request = PluginRequest;
+
+    fn handle_notification(
+        &mut self,
+        ctx: &xi_rpc::RpcCtx,
+        rpc: Self::Notification,
+    ) {
+    }
+
+    fn handle_request(
+        &mut self,
+        ctx: &xi_rpc::RpcCtx,
+        rpc: Self::Request,
+    ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
+        Err(xi_rpc::RemoteError::InvalidRequest(None))
+    }
 }

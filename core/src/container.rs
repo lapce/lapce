@@ -43,8 +43,8 @@ pub struct LapceContainer {
 }
 
 impl LapceContainer {
-    pub fn new(state: LapceState) -> Self {
-        let palette = Palette::new(state.palette.lock().scroll_widget_id)
+    pub fn new() -> Self {
+        let palette = Palette::new(LAPCE_STATE.palette.lock().scroll_widget_id)
             .border(theme::BORDER_LIGHT, 1.0)
             .background(LapceTheme::PALETTE_BACKGROUND);
         let palette_id = WidgetId::next();

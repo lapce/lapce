@@ -12,6 +12,7 @@ use crate::{
     keypress::KeyPressState,
     language::TreeSitter,
     palette::PaletteState,
+    plugin::PluginCatalog,
 };
 use anyhow::{anyhow, Result};
 use druid::{
@@ -21,7 +22,8 @@ use druid::{
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use std::{
-    collections::HashMap, fs::File, io::Read, str::FromStr, sync::Arc, thread,
+    collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
+    sync::Arc, thread,
 };
 use toml;
 
@@ -135,6 +137,7 @@ pub struct LapceState {
     pub editor_split: Arc<Mutex<EditorSplitState>>,
     pub container: Option<WidgetId>,
     pub file_explorer: Arc<Mutex<FileExplorerState>>,
+    pub plugins: Arc<Mutex<PluginCatalog>>,
 }
 
 impl Data for LapceState {
@@ -147,6 +150,9 @@ impl Data for LapceState {
 
 impl LapceState {
     pub fn new() -> LapceState {
+        let mut plugins = PluginCatalog::new();
+        plugins.reload_from_paths(&[PathBuf::from_str("./lsp").unwrap()]);
+        plugins.start_all();
         LapceState {
             theme: Self::get_theme().unwrap_or(HashMap::new()),
             focus: Arc::new(Mutex::new(LapceFocus::Editor)),
@@ -155,6 +161,7 @@ impl LapceState {
             file_explorer: Arc::new(Mutex::new(FileExplorerState::new())),
             container: None,
             keypress: Arc::new(Mutex::new(KeyPressState::new())),
+            plugins: Arc::new(Mutex::new(plugins)),
         }
     }
 
@@ -166,7 +173,6 @@ impl LapceState {
 
         let mut theme = HashMap::new();
         for (name, hex) in toml_theme.iter() {
-            println!("{}", name);
             if let Ok(color) = hex_to_color(hex) {
                 theme.insert(name.to_string(), color);
             }
@@ -355,12 +361,6 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
         ),
         _ => return Err(anyhow!("invalid hex color")),
     };
-    println!(
-        "{} {} {}",
-        u8::from_str_radix(&r, 16)?,
-        u8::from_str_radix(&g, 16)?,
-        u8::from_str_radix(&b, 16)?
-    );
     Ok(Color::rgb8(
         u8::from_str_radix(&r, 16)?,
         u8::from_str_radix(&g, 16)?,

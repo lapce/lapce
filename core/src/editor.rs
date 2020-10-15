@@ -63,6 +63,7 @@ pub enum EditorOperator {
 #[derive(Clone)]
 pub struct EditorUIState {
     pub cursor: (usize, usize),
+    pub mode: Mode,
     pub visual_mode: VisualMode,
     pub selection: Selection,
     pub selection_start_line: usize,
@@ -122,6 +123,7 @@ impl EditorState {
 
         if editor.selection != old_editor.selection
             || editor.visual_mode != old_editor.visual_mode
+            || editor.mode != old_editor.mode
         {
             let rect = Rect::ZERO
                 .with_origin(Point::new(
@@ -681,6 +683,7 @@ impl EditorUIState {
     pub fn new() -> EditorUIState {
         EditorUIState {
             cursor: (0, 0),
+            mode: Mode::Normal,
             visual_mode: VisualMode::Normal,
             selection: Selection::new(),
             selection_start_line: 0,
@@ -1356,6 +1359,7 @@ impl EditorSplitState {
         editor_ui_state.cursor =
             buffer.offset_to_line_col(editor.selection.get_cursor_offset());
         editor_ui_state.visual_mode = self.visual_mode.clone();
+        editor_ui_state.mode = self.mode.clone();
         self.notify_fill_text_layouts(ctx, &buffer_id);
         None
     }
@@ -1505,15 +1509,6 @@ impl Widget<LapceUIState> for EditorView {
                         LapceUICommand::RequestPaint => {
                             ctx.request_paint();
                         }
-                        LapceUICommand::EditorViewSize(size) => {
-                            LAPCE_STATE
-                                .editor_split
-                                .lock()
-                                .editors
-                                .get_mut(&self.view_id)
-                                .unwrap()
-                                .view_size = *size;
-                        }
                         LapceUICommand::FillTextLayouts => {
                             LAPCE_STATE.editor_split.lock().fill_text_layouts(
                                 ctx,
@@ -1631,11 +1626,13 @@ impl Widget<LapceUIState> for EditorView {
     ) {
         match event {
             LifeCycle::Size(size) => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::EditorViewSize(*size),
-                    Target::Widget(self.view_id.clone()),
-                ));
+                LAPCE_STATE
+                    .editor_split
+                    .lock()
+                    .editors
+                    .get_mut(&self.view_id)
+                    .unwrap()
+                    .view_size = *size;
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::FillTextLayouts,

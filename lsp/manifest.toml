@@ -1,0 +1,3 @@
+name = "lapce-lsp-plugin"
+version = "0.1"
+exec_path = "cargo run --bin lapce-lsp-plugin"

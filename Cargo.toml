@@ -14,7 +14,6 @@ anyhow = "1.0.32"
 strum = "0.19"
 strum_macros = "0.19"
 lazy_static = "1.4.0"
-# piet-cairo = "0.0.6"
 serde = "1.0"
 serde_json = "1.0"
 syntect = "3.2"
@@ -28,3 +27,6 @@ druid = { git = "https://github.com/linebender/druid", features = ["svg"] }
 
 [build-dependencies]
 cc = "*"
+
+[workspace]
+members = ["lsp", "core"]

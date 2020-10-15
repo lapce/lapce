@@ -214,6 +214,23 @@ impl Widget<LapceUIState> for LapceSplit {
                                     selection.clone(),
                                 );
                                 data.new_editor(&new_editor.view_id);
+                                let editor_ui = data.get_editor(&active);
+                                let selection = editor_ui.selection.clone();
+                                let visual_mode = editor_ui.visual_mode.clone();
+                                let mode = editor_ui.mode.clone();
+                                let selection_start_line =
+                                    editor_ui.selection_start_line;
+                                let selection_end_line =
+                                    editor_ui.selection_end_line;
+                                let new_editor_ui =
+                                    data.get_editor_mut(&new_editor.view_id);
+                                new_editor_ui.selection = selection;
+                                new_editor_ui.visual_mode = visual_mode;
+                                new_editor_ui.mode = mode;
+                                new_editor_ui.selection_start_line =
+                                    selection_start_line;
+                                new_editor_ui.selection_end_line =
+                                    selection_end_line;
 
                                 let new_editor_view = EditorView::new(
                                     new_editor.split_id,
