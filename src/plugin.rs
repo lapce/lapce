@@ -133,7 +133,7 @@ fn start_plugin_process(
                 id,
             };
 
-            looper.mainloop(|| BufReader::new(child_stdout), handler);
+            // looper.mainloop(|| BufReader::new(child_stdout), handler);
         });
     });
 }

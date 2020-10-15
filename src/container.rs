@@ -8,10 +8,11 @@ use crate::{
     editor::EditorState,
     editor::EditorView,
     state::LapceState,
+    state::LapceUIState,
     theme::LapceTheme,
 };
 use crate::{palette::Palette, split::LapceSplit};
-use crate::{scroll::LapceScroll, state::LapceFocus};
+use crate::{scroll::LapceScroll, state::LapceFocus, state::LAPCE_STATE};
 use druid::{
     kurbo::{Line, Rect},
     widget::Container,
@@ -36,28 +37,28 @@ pub struct ChildState {
 pub struct LapceContainer {
     palette_max_size: Size,
     palette_rect: Rect,
-    palette: WidgetPod<LapceState, Box<dyn Widget<LapceState>>>,
-    editor_split: WidgetPod<LapceState, Box<dyn Widget<LapceState>>>,
+    palette: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
+    editor_split: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
 }
 
 impl LapceContainer {
     pub fn new(state: LapceState) -> Self {
-        let palette = Palette::new(state.palette.scroll_widget_id)
+        let palette = Palette::new(state.palette.lock().scroll_widget_id)
             .border(theme::BORDER_LIGHT, 1.0)
             .background(LapceTheme::PALETTE_BACKGROUND);
         let palette_id = WidgetId::next();
         let palette =
             WidgetPod::new(IdentityWrapper::wrap(palette, palette_id)).boxed();
 
-        let editor_split = state.editor_split.lock();
+        let editor_split_state = LAPCE_STATE.editor_split.lock();
         let editor_view = EditorView::new(
-            editor_split.widget_id,
-            editor_split.active,
+            editor_split_state.widget_id,
+            editor_split_state.active,
             WidgetId::next(),
         );
         let editor_split = WidgetPod::new(IdentityWrapper::wrap(
             LapceSplit::new(true).with_flex_child(editor_view, 1.0),
-            editor_split.widget_id,
+            editor_split_state.widget_id,
         ))
         .boxed();
 
@@ -72,12 +73,12 @@ impl LapceContainer {
     }
 }
 
-impl Widget<LapceState> for LapceContainer {
+impl Widget<LapceUIState> for LapceContainer {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceState,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
         ctx.request_focus();
@@ -86,15 +87,19 @@ impl Widget<LapceState> for LapceContainer {
                 self.palette.event(ctx, event, data, env);
                 self.editor_split.event(ctx, event, data, env);
             }
-            Event::KeyDown(key_event) => data.key_down(ctx, key_event, env),
+            Event::KeyDown(key_event) => LAPCE_STATE
+                .keypress
+                .lock()
+                .key_down(ctx, data, key_event, env),
             Event::Command(cmd) => match cmd {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
                         LapceUICommand::OpenFile(path) => {
-                            let editor_split =
-                                Arc::make_mut(&mut data.editor_split);
-                            editor_split.open_file(ctx, path);
+                            LAPCE_STATE
+                                .editor_split
+                                .lock()
+                                .open_file(ctx, data, path);
                             ctx.request_layout();
                         }
                         LapceUICommand::UpdateHighlights(
@@ -102,8 +107,8 @@ impl Widget<LapceState> for LapceContainer {
                             version,
                             highlights,
                         ) => {
-                            let editor_split =
-                                Arc::make_mut(&mut data.editor_split);
+                            let mut editor_split =
+                                LAPCE_STATE.editor_split.lock();
                             let buffer = editor_split
                                 .buffers
                                 .get_mut(buffer_id)
@@ -132,7 +137,7 @@ impl Widget<LapceState> for LapceContainer {
             | Event::MouseUp(mouse)
             | Event::MouseMove(mouse)
             | Event::Wheel(mouse) => {
-                if data.focus == LapceFocus::Palette
+                if *LAPCE_STATE.focus.lock() == LapceFocus::Palette
                     && self.palette_rect.contains(mouse.pos)
                 {
                     self.palette.event(ctx, event, data, env);
@@ -148,7 +153,7 @@ impl Widget<LapceState> for LapceContainer {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) {
         self.palette.lifecycle(ctx, event, data, env);
@@ -158,13 +163,13 @@ impl Widget<LapceState> for LapceContainer {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceState,
-        data: &LapceState,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
-        if data.focus != old_data.focus {
-            ctx.request_paint();
-        }
+        // if data.focus != old_data.focus {
+        //     ctx.request_paint();
+        // }
         self.palette.update(ctx, data, env);
         self.editor_split.update(ctx, data, env);
         // println!("container data update");
@@ -174,7 +179,7 @@ impl Widget<LapceState> for LapceContainer {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         let size = bc.max();
@@ -187,7 +192,6 @@ impl Widget<LapceState> for LapceContainer {
                 ((size.height - self.palette_max_size.height) / 4.0).max(0.0),
             ))
             .with_size(palette_size);
-        println!("palette_size {:?}", palette_size);
         self.palette
             .set_layout_rect(ctx, data, env, self.palette_rect);
 
@@ -201,15 +205,15 @@ impl Widget<LapceState> for LapceContainer {
         size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let rects = ctx.region().rects().to_vec();
         for rect in rects {
-            if let Some(background) = data.theme.get("background") {
+            if let Some(background) = LAPCE_STATE.theme.get("background") {
                 ctx.fill(rect, background);
             }
         }
         self.editor_split.paint(ctx, data, env);
-        if data.focus == LapceFocus::Palette {
+        if *LAPCE_STATE.focus.lock() == LapceFocus::Palette {
             self.palette.paint(ctx, data, env);
         }
     }

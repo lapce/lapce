@@ -1,4 +1,7 @@
-use crate::{editor::EditorView, scroll::LapceScroll, state::LapceState};
+use crate::{
+    editor::EditorView, scroll::LapceScroll, state::LapceState,
+    state::LapceUIState, state::LAPCE_STATE,
+};
 use std::{cmp::Ordering, sync::Arc};
 
 use druid::{
@@ -33,7 +36,7 @@ pub struct LapceSplit {
 }
 
 struct ChildWidget {
-    widget: WidgetPod<LapceState, Box<dyn Widget<LapceState>>>,
+    widget: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     flex: bool,
     params: f64,
     layout_rect: Rect,
@@ -50,7 +53,7 @@ impl LapceSplit {
 
     pub fn with_child(
         mut self,
-        child: impl Widget<LapceState> + 'static,
+        child: impl Widget<LapceUIState> + 'static,
         params: f64,
     ) -> Self {
         let child = ChildWidget {
@@ -65,7 +68,7 @@ impl LapceSplit {
 
     pub fn with_flex_child(
         mut self,
-        child: impl Widget<LapceState> + 'static,
+        child: impl Widget<LapceUIState> + 'static,
         params: f64,
     ) -> Self {
         let child = ChildWidget {
@@ -156,12 +159,12 @@ impl LapceSplit {
     }
 }
 
-impl Widget<LapceState> for LapceSplit {
+impl Widget<LapceUIState> for LapceSplit {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceState,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
         match event {
@@ -179,7 +182,9 @@ impl Widget<LapceState> for LapceSplit {
                             if self.children.len() <= 1 {
                                 self.vertical = *vertical;
                             }
-                            let active = data.editor_split.active;
+                            let mut editor_split =
+                                LAPCE_STATE.editor_split.lock();
+                            let active = editor_split.active;
                             if &self.vertical != vertical {
                                 for child in &self.children {
                                     if child.widget.id() == active {}
@@ -194,11 +199,8 @@ impl Widget<LapceState> for LapceSplit {
                                     }
                                 }
 
-                                let old_editor = data
-                                    .editor_split
-                                    .editors
-                                    .get(&active)
-                                    .unwrap();
+                                let old_editor =
+                                    editor_split.editors.get(&active).unwrap();
 
                                 let split_id = old_editor.split_id.clone();
                                 let buffer_id = old_editor.buffer_id.clone();
@@ -206,8 +208,6 @@ impl Widget<LapceState> for LapceSplit {
                                 let scroll_offset =
                                     old_editor.scroll_offset.clone();
 
-                                let editor_split =
-                                    Arc::make_mut(&mut data.editor_split);
                                 let new_editor = editor_split.new_editor(
                                     split_id,
                                     buffer_id,
@@ -243,7 +243,9 @@ impl Widget<LapceState> for LapceSplit {
                             if self.children.len() == 1 {
                                 return;
                             }
-                            let active = data.editor_split.active;
+                            let mut editor_split =
+                                LAPCE_STATE.editor_split.lock();
+                            let active = editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
                                 if child.widget.id() == active {
@@ -259,8 +261,6 @@ impl Widget<LapceState> for LapceSplit {
                             let new_active =
                                 self.children[new_index].widget.id();
                             self.children.remove(index);
-                            let editor_split =
-                                Arc::make_mut(&mut data.editor_split);
                             editor_split.editors.remove(&active);
                             editor_split.active = new_active;
 
@@ -268,7 +268,9 @@ impl Widget<LapceState> for LapceSplit {
                             ctx.request_layout();
                         }
                         LapceUICommand::SplitExchange => {
-                            let active = data.editor_split.active;
+                            let mut editor_split =
+                                LAPCE_STATE.editor_split.lock();
+                            let active = editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
                                 if child.widget.id() == active {
@@ -277,8 +279,6 @@ impl Widget<LapceState> for LapceSplit {
                             }
                             if index >= self.children.len() - 1 {
                             } else {
-                                let editor_split =
-                                    Arc::make_mut(&mut data.editor_split);
                                 editor_split.active =
                                     self.children[index + 1].widget.id();
                                 self.children.swap(index, index + 1);
@@ -286,15 +286,15 @@ impl Widget<LapceState> for LapceSplit {
                             }
                         }
                         LapceUICommand::SplitMove(direction) => {
-                            let active = data.editor_split.active;
+                            let mut editor_split =
+                                LAPCE_STATE.editor_split.lock();
+                            let active = editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
                                 if child.widget.id() == active {
                                     index = i;
                                 }
                             }
-                            let editor_split =
-                                Arc::make_mut(&mut data.editor_split);
                             match direction {
                                 SplitMoveDirection::Left => {
                                     if index == 0 {
@@ -314,7 +314,7 @@ impl Widget<LapceState> for LapceSplit {
                             }
                             let editor = editor_split
                                 .editors
-                                .get_mut(&editor_split.active)
+                                .get(&editor_split.active)
                                 .unwrap();
                             let buffer = editor_split
                                 .buffers
@@ -390,7 +390,7 @@ impl Widget<LapceState> for LapceSplit {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) {
         for child in self.children.as_mut_slice() {
@@ -401,8 +401,8 @@ impl Widget<LapceState> for LapceSplit {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceState,
-        data: &LapceState,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
         for child in self.children.as_mut_slice() {
@@ -414,7 +414,7 @@ impl Widget<LapceState> for LapceSplit {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         let my_size = bc.max();
@@ -473,7 +473,7 @@ impl Widget<LapceState> for LapceSplit {
         my_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         for child in self.children.as_mut_slice() {
             child.widget.paint(ctx, &data, env);
         }

@@ -5,7 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-parking_lot = "0.11.0"
+parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
 tree-sitter-highlight = "0.3.0"
 tree-sitter = "0.17.0"

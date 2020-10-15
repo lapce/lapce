@@ -4,6 +4,7 @@ mod container;
 mod editor;
 mod explorer;
 mod font;
+mod keypress;
 mod language;
 mod movement;
 mod palette;
@@ -32,14 +33,14 @@ use druid::{
 };
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
 use explorer::FileExplorer;
-use state::LapceState;
+use state::{LapceState, LapceUIState, LAPCE_STATE};
 use tree_sitter::{Language, Parser};
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
 }
 
-fn build_app(state: LapceState) -> impl Widget<LapceState> {
+fn build_app(state: LapceState) -> impl Widget<LapceUIState> {
     let container_id = WidgetId::next();
     let container =
         IdentityWrapper::wrap(LapceContainer::new(state), container_id.clone());
@@ -48,23 +49,24 @@ fn build_app(state: LapceState) -> impl Widget<LapceState> {
         .with_child(FileExplorer::new(), 300.0)
         .with_flex_child(container, 1.0);
     main_split
-        .env_scope(|env: &mut druid::Env, data: &LapceState| {
-            if let Some(line_highlight) = data.theme.get("line_highlight") {
+        .env_scope(|env: &mut druid::Env, data: &LapceUIState| {
+            let theme = &LAPCE_STATE.theme;
+            if let Some(line_highlight) = theme.get("line_highlight") {
                 env.set(
                     theme::LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
                     line_highlight.clone(),
                 );
             };
-            if let Some(caret) = data.theme.get("caret") {
+            if let Some(caret) = theme.get("caret") {
                 env.set(theme::LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
             };
-            if let Some(foreground) = data.theme.get("foreground") {
+            if let Some(foreground) = theme.get("foreground") {
                 env.set(
                     theme::LapceTheme::EDITOR_FOREGROUND,
                     foreground.clone(),
                 );
             };
-            if let Some(selection) = data.theme.get("selection") {
+            if let Some(selection) = theme.get("selection") {
                 env.set(
                     theme::LapceTheme::EDITOR_SELECTION_COLOR,
                     selection.clone(),
@@ -100,6 +102,30 @@ fn build_app(state: LapceState) -> impl Widget<LapceState> {
 }
 
 pub fn main() {
+    {
+        // only for #[cfg]
+        use parking_lot::deadlock;
+        use std::thread;
+        use std::time::Duration;
+
+        // Create a background thread which checks for deadlocks every 10s
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(10));
+            let deadlocks = deadlock::check_deadlock();
+            if deadlocks.is_empty() {
+                continue;
+            }
+
+            println!("{} deadlocks detected", deadlocks.len());
+            for (i, threads) in deadlocks.iter().enumerate() {
+                println!("Deadlock #{}", i);
+                for t in threads {
+                    println!("Thread Id {:#?}", t.thread_id());
+                    println!("{:#?}", t.backtrace());
+                }
+            }
+        });
+    }
     // WindowDesc::new(|| LapceContainer::new());
     let state = LapceState::new();
     let init_state = state.clone();
@@ -130,8 +156,9 @@ pub fn main() {
     let language = unsafe { tree_sitter_rust() };
     parser.set_language(language);
     parser.parse("pub fn main() {}", None).unwrap();
+    let ui_state = LapceUIState::new();
     launcher
         .use_simple_logger()
-        .launch(state)
+        .launch(ui_state)
         .expect("launch failed");
 }

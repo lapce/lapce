@@ -25,7 +25,8 @@ use std::thread;
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND, editor::EditorSplitState, scroll::LapceScroll,
-    state::LapceFocus, state::LapceState, theme::LapceTheme,
+    state::LapceFocus, state::LapceUIState, state::LAPCE_STATE,
+    theme::LapceTheme,
 };
 
 #[derive(Clone, Debug)]
@@ -194,11 +195,7 @@ impl PaletteState {
         items
     }
 
-    pub fn select(
-        &mut self,
-        ctx: &mut EventCtx,
-        editor_split: &mut EditorSplitState,
-    ) {
+    pub fn select(&mut self, ctx: &mut EventCtx, ui_state: &mut LapceUIState) {
         let items = if self.input != "" {
             &self.filtered_items
         } else {
@@ -207,7 +204,11 @@ impl PaletteState {
         if items.is_empty() {
             return;
         }
-        editor_split.open_file(ctx, &items[self.index].text);
+        LAPCE_STATE.editor_split.lock().open_file(
+            ctx,
+            ui_state,
+            &items[self.index].text,
+        );
         self.cancel();
     }
 
@@ -231,8 +232,8 @@ impl PaletteState {
 }
 
 pub struct Palette {
-    content: WidgetPod<LapceState, Box<dyn Widget<LapceState>>>,
-    input: WidgetPod<LapceState, Box<dyn Widget<LapceState>>>,
+    content: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
+    input: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     rect: Rect,
 }
 
@@ -373,12 +374,12 @@ impl PaletteContent {
     }
 }
 
-impl Widget<LapceState> for Palette {
+impl Widget<LapceUIState> for Palette {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceState,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
         self.content.event(ctx, event, data, env);
@@ -388,7 +389,7 @@ impl Widget<LapceState> for Palette {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) {
         self.content.lifecycle(ctx, event, data, env);
@@ -398,33 +399,33 @@ impl Widget<LapceState> for Palette {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceState,
-        data: &LapceState,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
-        if data.palette.same(&old_data.palette) {
-            return;
-        }
+        // if data.palette.same(&old_data.palette) {
+        //     return;
+        // }
 
-        if data.focus == LapceFocus::Palette {
-            if old_data.focus == LapceFocus::Palette {
-                self.input.update(ctx, data, env);
-                self.content.update(ctx, data, env);
-            } else {
-                ctx.request_layout();
-            }
-        } else {
-            if old_data.focus == LapceFocus::Palette {
-                ctx.request_paint();
-            }
-        }
+        // if data.focus == LapceFocus::Palette {
+        //     if old_data.focus == LapceFocus::Palette {
+        //         self.input.update(ctx, data, env);
+        //         self.content.update(ctx, data, env);
+        //     } else {
+        //         ctx.request_layout();
+        //     }
+        // } else {
+        //     if old_data.focus == LapceFocus::Palette {
+        //         ctx.request_paint();
+        //     }
+        // }
     }
 
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         // let flex_size = self.flex.layout(ctx, bc, data, env);
@@ -454,8 +455,8 @@ impl Widget<LapceState> for Palette {
         size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
-        if data.focus != LapceFocus::Palette {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
+        if *LAPCE_STATE.focus.lock() != LapceFocus::Palette {
             return;
         }
         let rects = ctx.region().rects();
@@ -464,12 +465,12 @@ impl Widget<LapceState> for Palette {
     }
 }
 
-impl Widget<LapceState> for PaletteContent {
+impl Widget<LapceUIState> for PaletteContent {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceState,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
     }
@@ -478,7 +479,7 @@ impl Widget<LapceState> for PaletteContent {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) {
     }
@@ -486,51 +487,52 @@ impl Widget<LapceState> for PaletteContent {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceState,
-        data: &LapceState,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
-        if data.palette.index != old_data.palette.index {
-            ctx.request_paint()
-        }
-        if data.palette.filtered_items.len()
-            != old_data.palette.filtered_items.len()
-        {
-            ctx.request_layout()
-        }
-        if data.palette.items.len() != old_data.palette.items.len() {
-            ctx.request_layout()
-        }
+        // if data.palette.index != old_data.palette.index {
+        //     ctx.request_paint()
+        // }
+        // if data.palette.filtered_items.len()
+        //     != old_data.palette.filtered_items.len()
+        // {
+        //     ctx.request_layout()
+        // }
+        // if data.palette.items.len() != old_data.palette.items.len() {
+        //     ctx.request_layout()
+        // }
     }
 
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let items_len = if data.palette.input != "" {
-            data.palette.filtered_items.len()
+        let palette = LAPCE_STATE.palette.lock();
+        let items_len = if palette.input != "" {
+            palette.filtered_items.len()
         } else {
-            data.palette.items.len()
+            palette.items.len()
         };
         let height = { line_height * items_len as f64 };
         Size::new(bc.max().width, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rects = ctx.region().rects().to_vec();
-        // let state = LAPCE_STATE.palette.lock().unwrap();
+        let palette = LAPCE_STATE.palette.lock();
         for rect in rects {
             let start = (rect.y0 / line_height).floor() as usize;
             let items = {
-                let items = if data.palette.input != "" {
-                    &data.palette.filtered_items
+                let items = if palette.input != "" {
+                    &palette.filtered_items
                 } else {
-                    &data.palette.items
+                    &palette.items
                 };
                 let items_len = items.len();
                 &items[start
@@ -540,7 +542,7 @@ impl Widget<LapceState> for PaletteContent {
             };
 
             for (i, item) in items.iter().enumerate() {
-                if data.palette.index == start + i {
+                if palette.index == start + i {
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(
@@ -562,12 +564,12 @@ impl Widget<LapceState> for PaletteContent {
     }
 }
 
-impl Widget<LapceState> for PaletteInput {
+impl Widget<LapceUIState> for PaletteInput {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceState,
+        data: &mut LapceUIState,
         env: &Env,
     ) {
     }
@@ -576,7 +578,7 @@ impl Widget<LapceState> for PaletteInput {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) {
     }
@@ -584,33 +586,32 @@ impl Widget<LapceState> for PaletteInput {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceState,
-        data: &LapceState,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &Env,
     ) {
-        if old_data.palette.input != data.palette.input
-            || old_data.palette.cursor != data.palette.cursor
-        {
-            ctx.request_paint();
-        }
+        // if old_data.palette.input != data.palette.input
+        //     || old_data.palette.cursor != data.palette.cursor
+        // {
+        //     ctx.request_paint();
+        // }
     }
 
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &Env,
     ) -> Size {
         Size::new(bc.max().width, env.get(LapceTheme::EDITOR_LINE_HEIGHT))
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceState, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
+        let palette = LAPCE_STATE.palette.lock();
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let text = data.palette.input.clone();
-        let cursor = data.palette.cursor;
-        // let text = LAPCE_STATE.palette.lock().unwrap().input.clone();
-        // let cursor = LAPCE_STATE.palette.lock().unwrap().cursor;
+        let text = palette.input.clone();
+        let cursor = palette.cursor;
         let mut text_layout = TextLayout::new(text.as_ref());
         text_layout.set_text_color(LapceTheme::PALETTE_INPUT_FOREROUND);
         text_layout.rebuild_if_needed(ctx.text(), env);

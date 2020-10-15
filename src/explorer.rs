@@ -1,16 +1,17 @@
-use std::str::FromStr;
 use std::{cmp, path::PathBuf};
+use std::{str::FromStr, sync::Arc};
 
 use druid::{
     piet::PietTextLayout, widget::SvgData, Affine, EventCtx, Point, Rect,
     RenderContext, Size, TextLayout, Vec2, Widget,
 };
 use include_dir::{include_dir, Dir};
+use parking_lot::Mutex;
 
 use crate::{
     command::LapceCommand, editor::EditorSplitState, movement::LinePosition,
-    movement::Movement, state::LapceFocus, state::LapceState,
-    theme::LapceTheme,
+    movement::Movement, state::LapceFocus, state::LapceUIState,
+    state::LAPCE_STATE, theme::LapceTheme,
 };
 
 const ICONS_DIR: Dir = include_dir!("icons");
@@ -77,7 +78,7 @@ impl FileExplorerState {
     pub fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        editor_split: &mut EditorSplitState,
+        data: &mut LapceUIState,
         count: Option<usize>,
         command: LapceCommand,
     ) -> LapceFocus {
@@ -147,7 +148,11 @@ impl FileExplorerState {
             LapceCommand::ListSelect => {
                 let path_buf = &self.items[self.index].path_buf;
                 if !path_buf.is_dir() {
-                    editor_split.open_file(ctx, path_buf.to_str().unwrap());
+                    LAPCE_STATE.editor_split.lock().open_file(
+                        ctx,
+                        data,
+                        path_buf.to_str().unwrap(),
+                    );
                     LapceFocus::Editor
                 } else {
                     LapceFocus::FileExplorer
@@ -166,12 +171,12 @@ impl FileExplorer {
     }
 }
 
-impl Widget<LapceState> for FileExplorer {
+impl Widget<LapceUIState> for FileExplorer {
     fn event(
         &mut self,
         ctx: &mut druid::EventCtx,
         event: &druid::Event,
-        data: &mut LapceState,
+        data: &mut LapceUIState,
         env: &druid::Env,
     ) {
     }
@@ -180,7 +185,7 @@ impl Widget<LapceState> for FileExplorer {
         &mut self,
         ctx: &mut druid::LifeCycleCtx,
         event: &druid::LifeCycle,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &druid::Env,
     ) {
     }
@@ -188,22 +193,22 @@ impl Widget<LapceState> for FileExplorer {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        old_data: &LapceState,
-        data: &LapceState,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
         env: &druid::Env,
     ) {
-        let file_explorer = &data.file_explorer;
-        let old_file_explorer = &old_data.file_explorer;
-        if file_explorer.index != old_file_explorer.index {
-            ctx.request_paint();
-        }
+        // let file_explorer = &data.file_explorer;
+        // let old_file_explorer = &old_data.file_explorer;
+        // if file_explorer.index != old_file_explorer.index {
+        //     ctx.request_paint();
+        // }
     }
 
     fn layout(
         &mut self,
         ctx: &mut druid::LayoutCtx,
         bc: &druid::BoxConstraints,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &druid::Env,
     ) -> druid::Size {
         bc.max()
@@ -212,19 +217,20 @@ impl Widget<LapceState> for FileExplorer {
     fn paint(
         &mut self,
         ctx: &mut druid::PaintCtx,
-        data: &LapceState,
+        data: &LapceUIState,
         env: &druid::Env,
     ) {
         let rects = ctx.region().rects().to_vec();
         let size = ctx.size();
         for rect in rects {
-            if let Some(background) = data.theme.get("background") {
+            if let Some(background) = LAPCE_STATE.theme.get("background") {
                 ctx.fill(rect, background);
             }
         }
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        for (i, item) in data.file_explorer.items.iter().enumerate() {
-            if i == data.file_explorer.index {
+        let file_explorer = LAPCE_STATE.file_explorer.lock();
+        for (i, item) in file_explorer.items.iter().enumerate() {
+            if i == file_explorer.index {
                 ctx.fill(
                     Rect::ZERO
                         .with_origin(Point::new(0.0, i as f64 * line_height))

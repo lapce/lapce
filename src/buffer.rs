@@ -1,7 +1,7 @@
 use anyhow::Result;
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
-    Color, ExtEventSink, Target, UpdateCtx,
+    Color, Command, EventCtx, ExtEventSink, Target, UpdateCtx,
 };
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
@@ -34,6 +34,7 @@ use crate::{
     movement::{ColPosition, Movement, SelRegion, Selection},
     state::LapceState,
     state::Mode,
+    state::LAPCE_STATE,
     theme::LapceTheme,
 };
 
@@ -50,14 +51,14 @@ pub struct BufferId(pub usize);
 #[derive(Clone)]
 pub struct BufferUIState {
     pub id: BufferId,
-    pub text_layouts: Vec<Option<HighlightTextLayout>>,
+    pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
 }
 
 #[derive(Clone)]
 pub struct Buffer {
     id: BufferId,
     rope: Rope,
-    tree: Tree,
+    // tree: Tree,
     highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
     pub highlights: Vec<(usize, usize, Highlight)>,
@@ -66,7 +67,7 @@ pub struct Buffer {
     event_sink: ExtEventSink,
     pub max_len_line: usize,
     pub max_len: usize,
-    pub text_layouts: Vec<Option<HighlightTextLayout>>,
+    // pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
     undos: Vec<Vec<(Delta<RopeInfo>, Delta<RopeInfo>)>>,
     current_undo: usize,
     path: String,
@@ -93,7 +94,7 @@ impl Buffer {
         let mut buffer = Buffer {
             id: buffer_id,
             rope,
-            tree,
+            // tree,
             highlight_config: Arc::new(highlight_config),
             highlight_names,
             highlights: Vec::new(),
@@ -101,13 +102,13 @@ impl Buffer {
             highlight_version: "".to_string(),
             max_len_line: 0,
             max_len: 0,
-            text_layouts: Vec::new(),
+            // text_layouts: Vec::new(),
             undos: Vec::new(),
             current_undo: 0,
             event_sink,
             path: path.to_string(),
         };
-        buffer.text_layouts = vec![None; buffer.num_lines()];
+        // buffer.text_layouts = vec![Arc::new(None); buffer.num_lines()];
         buffer.update_max_line_len();
         buffer.update_highlights();
         buffer
@@ -252,27 +253,6 @@ impl Buffer {
         result
     }
 
-    fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
-        let mut new_layouts = Vec::new();
-        if inval_lines.start_line < self.text_layouts.len() {
-            new_layouts.extend_from_slice(
-                &self.text_layouts[..inval_lines.start_line],
-            );
-        }
-        for _ in 0..inval_lines.new_count {
-            new_layouts.push(None);
-        }
-        if inval_lines.start_line + inval_lines.inval_count
-            < self.text_layouts.len()
-        {
-            new_layouts.extend_from_slice(
-                &self.text_layouts
-                    [inval_lines.start_line + inval_lines.inval_count..],
-            );
-        }
-        self.text_layouts = new_layouts;
-    }
-
     fn update_size(&mut self, inval_lines: &InvalLines) {
         if self.max_len_line >= inval_lines.start_line
             && self.max_len_line
@@ -324,21 +304,28 @@ impl Buffer {
         }
     }
 
-    pub fn redo(&mut self) -> Option<usize> {
+    pub fn redo(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut BufferUIState,
+    ) -> Option<usize> {
         if self.current_undo >= self.undos.len() {
             return None;
         }
-
         let deltas = self.undos[self.current_undo].clone();
         self.current_undo += 1;
         for (delta, __) in deltas.iter() {
-            self.apply_delta(&delta);
+            self.apply_delta(ctx, ui_state, &delta);
         }
         self.update_highlights();
         Some(deltas[0].1.summary().0.start())
     }
 
-    pub fn undo(&mut self) -> Option<usize> {
+    pub fn undo(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut BufferUIState,
+    ) -> Option<usize> {
         if self.current_undo < 1 {
             return None;
         }
@@ -346,13 +333,18 @@ impl Buffer {
         self.current_undo -= 1;
         let deltas = self.undos[self.current_undo].clone();
         for (_, delta) in deltas.iter().rev() {
-            self.apply_delta(&delta);
+            self.apply_delta(ctx, ui_state, &delta);
         }
         self.update_highlights();
         Some(deltas[0].1.summary().0.start())
     }
 
-    fn apply_delta(&mut self, delta: &RopeDelta) {
+    fn apply_delta(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut BufferUIState,
+        delta: &RopeDelta,
+    ) {
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
         let old_logical_end_offset =
@@ -372,8 +364,9 @@ impl Buffer {
             new_count: new_hard_count,
         };
         self.highlights = self.highlights_apply_delta(delta);
+        let old_max_len = self.max_len;
         self.update_size(&inval_lines);
-        self.update_text_layouts(&inval_lines);
+        ui_state.update_text_layouts(&inval_lines);
     }
 
     pub fn yank(&self, selection: &Selection) -> Vec<String> {
@@ -390,6 +383,8 @@ impl Buffer {
 
     pub fn do_move(
         &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut BufferUIState,
         mode: &Mode,
         movement: Movement,
         selection: &Selection,
@@ -430,7 +425,8 @@ impl Buffer {
             }
             match operator {
                 EditorOperator::Delete(_) => {
-                    let delta = self.edit("", &new_selection, true);
+                    let delta =
+                        self.edit(ctx, ui_state, "", &new_selection, true);
                     new_selection.apply_delta(
                         &delta,
                         true,
@@ -452,6 +448,8 @@ impl Buffer {
 
     pub fn edit(
         &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut BufferUIState,
         content: &str,
         selection: &Selection,
         new_undo_group: bool,
@@ -463,7 +461,7 @@ impl Buffer {
         }
         let delta = builder.build();
         self.add_undo(&delta, new_undo_group);
-        self.apply_delta(&delta);
+        self.apply_delta(ctx, ui_state, &delta);
         self.update_highlights();
         delta
     }
@@ -589,53 +587,40 @@ impl Buffer {
     pub fn update_line_layouts(
         &mut self,
         text: &mut PietText,
-        theme: &HashMap<String, Color>,
         line: usize,
         env: &Env,
     ) -> bool {
-        if line >= self.num_lines() {
-            return false;
-        }
+        // if line >= self.num_lines() {
+        //     return false;
+        // }
 
-        let line_content = self
-            .slice_to_cow(
-                self.offset_of_line(line)..self.offset_of_line(line + 1),
-            )
-            .to_string();
-        let line_hightlight = self.get_line_highligh(line).clone();
-        if self.text_layouts[line].is_none()
-            || self.text_layouts[line].as_ref().unwrap().text != line_content
-            || self.text_layouts[line].as_ref().unwrap().highlights
-                != line_hightlight
-        {
-            self.text_layouts[line] = Some(self.get_text_layout(
-                text,
-                theme,
-                line,
-                line_content,
-                env,
-            ));
-            return true;
-        }
+        // let theme = &LAPCE_STATE.theme;
+
+        // let line_hightlight = self.get_line_highligh(line).clone();
+        // if self.text_layouts[line].is_none()
+        //     || self.text_layouts[line]
+        //         .as_ref()
+        //         .as_ref()
+        //         .unwrap()
+        //         .highlights
+        //         != line_hightlight
+        // {
+        //     let line_content = self
+        //         .slice_to_cow(
+        //             self.offset_of_line(line)..self.offset_of_line(line + 1),
+        //         )
+        //         .to_string();
+        //     self.text_layouts[line] = Arc::new(Some(self.get_text_layout(
+        //         text,
+        //         theme,
+        //         line,
+        //         line_content,
+        //         env,
+        //     )));
+        //     return true;
+        // }
 
         false
-
-        // if let Some(text_layout) = self.text_layouts[line].as_ref() {
-        //     if text_layout.text != line_content
-        //         || &text_layout.highlights != self.get_line_highligh(line)
-        //     {
-        //         self.text_layouts[line] = Some(self.get_text_layout(
-        //             text,
-        //             data,
-        //             line,
-        //             line_content,
-        //             env,
-        //         ));
-        //     }
-        // } else {
-        //     self.text_layouts[line] =
-        //         Some(self.get_text_layout(text, data, line, line_content, env));
-        // }
     }
 
     pub fn get_text_layout(
@@ -909,6 +894,122 @@ fn get_word_property(codepoint: char) -> WordProperty {
 }
 
 impl BufferUIState {
+    pub fn new(buffer_id: BufferId, lines: usize) -> BufferUIState {
+        BufferUIState {
+            id: buffer_id,
+            text_layouts: vec![Arc::new(None); lines],
+        }
+    }
+
+    fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
+        let mut new_layouts = Vec::new();
+        if inval_lines.start_line < self.text_layouts.len() {
+            new_layouts.extend_from_slice(
+                &self.text_layouts[..inval_lines.start_line],
+            );
+        }
+        for _ in 0..inval_lines.new_count {
+            new_layouts.push(Arc::new(None));
+        }
+        if inval_lines.start_line + inval_lines.inval_count
+            < self.text_layouts.len()
+        {
+            new_layouts.extend_from_slice(
+                &self.text_layouts
+                    [inval_lines.start_line + inval_lines.inval_count..],
+            );
+        }
+        self.text_layouts = new_layouts;
+    }
+
+    pub fn update_line_layouts(
+        &mut self,
+        text: &mut PietText,
+        buffer: &mut Buffer,
+        line: usize,
+        env: &Env,
+    ) -> bool {
+        if line >= self.text_layouts.len() {
+            return false;
+        }
+
+        let theme = &LAPCE_STATE.theme;
+
+        let line_hightlight = buffer.get_line_highligh(line).clone();
+        if self.text_layouts[line].is_none()
+            || self.text_layouts[line]
+                .as_ref()
+                .as_ref()
+                .unwrap()
+                .highlights
+                != line_hightlight
+        {
+            let line_content = buffer
+                .slice_to_cow(
+                    buffer.offset_of_line(line)
+                        ..buffer.offset_of_line(line + 1),
+                )
+                .to_string();
+            self.text_layouts[line] = Arc::new(Some(self.get_text_layout(
+                text,
+                buffer,
+                theme,
+                line,
+                line_content,
+                env,
+            )));
+            return true;
+        }
+
+        false
+
+        // if let Some(text_layout) = self.text_layouts[line].as_ref() {
+        //     if text_layout.text != line_content
+        //         || &text_layout.highlights != self.get_line_highligh(line)
+        //     {
+        //         self.text_layouts[line] = Some(self.get_text_layout(
+        //             text,
+        //             data,
+        //             line,
+        //             line_content,
+        //             env,
+        //         ));
+        //     }
+        // } else {
+        //     self.text_layouts[line] =
+        //         Some(self.get_text_layout(text, data, line, line_content, env));
+        // }
+    }
+
+    pub fn get_text_layout(
+        &mut self,
+        text: &mut PietText,
+        buffer: &mut Buffer,
+        theme: &HashMap<String, Color>,
+        line: usize,
+        line_content: String,
+        env: &Env,
+    ) -> HighlightTextLayout {
+        let mut layout_builder = text
+            .new_text_layout(line_content.clone())
+            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        let highlights = buffer.get_line_highligh(line);
+        for (start, end, hl) in highlights {
+            if let Some(color) = theme.get(hl) {
+                layout_builder = layout_builder.range_attribute(
+                    start..end,
+                    TextAttribute::TextColor(color.clone()),
+                );
+            }
+        }
+        let layout = layout_builder.build().unwrap();
+        HighlightTextLayout {
+            layout,
+            text: line_content,
+            highlights: highlights.clone(),
+        }
+    }
     // pub fn update(
     //     &mut self,
     //     text: &mut PietText,

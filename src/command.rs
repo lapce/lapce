@@ -141,5 +141,5 @@ pub enum LapceUICommand {
     SplitExchange,
     SplitClose,
     SplitMove(SplitMoveDirection),
-    BufferUpdate(BufferId, InvalLines),
+    // BufferUpdate(BufferId, InvalLines),
 }
