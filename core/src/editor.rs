@@ -21,11 +21,10 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use druid::{
-    kurbo::Line, piet::PietText, widget::IdentityWrapper, widget::Padding,
-    Affine, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
-    KeyEvent, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget,
-    WidgetExt, WidgetId, WidgetPod,
+    kurbo::Line, piet::PietText, widget::IdentityWrapper, widget::Padding, Affine,
+    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
@@ -132,8 +131,7 @@ impl EditorState {
                 ))
                 .with_size(Size::new(
                     ctx.size().width,
-                    (editor.selection_end_line + 1
-                        - editor.selection_start_line)
+                    (editor.selection_end_line + 1 - editor.selection_start_line)
                         as f64
                         * line_height,
                 ));
@@ -180,8 +178,7 @@ impl EditorState {
                 ))
                 .with_size(Size::new(
                     self.view_size.width,
-                    (updated_end_line + 1 - updated_start_line) as f64
-                        * line_height,
+                    (updated_end_line + 1 - updated_start_line) as f64 * line_height,
                 ));
             ctx.request_paint_rect(rect);
         }
@@ -292,8 +289,8 @@ impl EditorState {
         match cmd {
             LapceCommand::PageDown => {
                 let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-                let lines = (self.view_size.height / line_height / 2.0).floor()
-                    as usize;
+                let lines =
+                    (self.view_size.height / line_height / 2.0).floor() as usize;
                 self.selection = Movement::Down.update_selection(
                     &self.selection,
                     buffer,
@@ -309,8 +306,8 @@ impl EditorState {
             }
             LapceCommand::PageUp => {
                 let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-                let lines = (self.view_size.height / line_height / 2.0).floor()
-                    as usize;
+                let lines =
+                    (self.view_size.height / line_height / 2.0).floor() as usize;
                 self.selection = Movement::Up.update_selection(
                     &self.selection,
                     buffer,
@@ -320,10 +317,7 @@ impl EditorState {
                 );
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::Scroll((
-                        0.0,
-                        -(lines as f64 * line_height),
-                    )),
+                    LapceUICommand::Scroll((0.0, -(lines as f64 * line_height))),
                     Target::Widget(self.view_id),
                 ));
             }
@@ -401,8 +395,7 @@ impl EditorState {
                         let (start_line, _) =
                             buffer.offset_to_line_col(region.min());
                         let start = buffer.offset_of_line(start_line);
-                        let (end_line, _) =
-                            buffer.offset_to_line_col(region.max());
+                        let (end_line, _) = buffer.offset_to_line_col(region.max());
                         let mut end = buffer.offset_of_line(end_line + 1);
                         if start_insert {
                             end -= 1;
@@ -521,9 +514,7 @@ impl EditorState {
                 let mut selection = if mode == &Mode::Visual {
                     self.get_selection(buffer, mode, visual_mode, false)
                 } else {
-                    Selection::caret(
-                        buffer.line_end_offset(old_offset, true) + 1,
-                    )
+                    Selection::caret(buffer.line_end_offset(old_offset, true) + 1)
                 };
                 for s in &content.content {
                     let delta = buffer.edit(
@@ -533,11 +524,8 @@ impl EditorState {
                         &selection,
                         true,
                     );
-                    selection = selection.apply_delta(
-                        &delta,
-                        false,
-                        InsertDrift::Default,
-                    );
+                    selection =
+                        selection.apply_delta(&delta, false, InsertDrift::Default);
                 }
                 // let (old_line, _) = buffer.offset_to_line_col(old_offset);
                 // let new_offset = buffer.offset_of_line(old_line + 1);
@@ -551,14 +539,10 @@ impl EditorState {
                 };
                 for s in &content.content {
                     let delta = buffer.edit(ctx, ui_state, s, &selection, true);
-                    selection = selection.apply_delta(
-                        &delta,
-                        true,
-                        InsertDrift::Default,
-                    );
+                    selection =
+                        selection.apply_delta(&delta, true, InsertDrift::Default);
                 }
-                self.selection =
-                    Selection::caret(selection.get_cursor_offset() - 1);
+                self.selection = Selection::caret(selection.get_cursor_offset() - 1);
             }
             VisualMode::Blockwise => (),
         };
@@ -617,8 +601,7 @@ impl EditorState {
         movement: Movement,
         count: Option<usize>,
     ) {
-        let mut selection =
-            self.get_selection(buffer, mode, visual_mode, false);
+        let mut selection = self.get_selection(buffer, mode, visual_mode, false);
         if mode != &Mode::Visual {
             selection = movement.update_selection(
                 &selection,
@@ -630,8 +613,7 @@ impl EditorState {
         }
         let delta =
             buffer.edit(ctx, ui_state, "", &selection, mode != &Mode::Insert);
-        self.selection =
-            selection.apply_delta(&delta, true, InsertDrift::Default);
+        self.selection = selection.apply_delta(&delta, true, InsertDrift::Default);
     }
 
     pub fn ensure_cursor_visible(
@@ -756,11 +738,7 @@ impl EditorSplitState {
         self.editors.get(&view_id).unwrap()
     }
 
-    pub fn set_editor_scroll_offset(
-        &mut self,
-        editor_id: WidgetId,
-        offset: Vec2,
-    ) {
+    pub fn set_editor_scroll_offset(&mut self, editor_id: WidgetId, offset: Vec2) {
         if let Some(editor) = self.editors.get_mut(&editor_id) {
             editor.scroll_offset = offset;
         }
@@ -961,27 +939,17 @@ impl EditorSplitState {
 
         let content = format!("{}{}", "\n", indent);
         let selection = Selection::caret(offset);
-        let delta = buffer.edit(
-            ctx,
-            buffer_ui_state,
-            &content,
-            &selection,
-            new_undo_group,
-        );
-        editor.selection =
-            selection.apply_delta(&delta, true, InsertDrift::Default);
+        let delta =
+            buffer.edit(ctx, buffer_ui_state, &content, &selection, new_undo_group);
+        editor.selection = selection.apply_delta(&delta, true, InsertDrift::Default);
         editor.ensure_cursor_visible(ctx, buffer, env, None);
 
         self.inactive_editor_apply_delta(&delta);
         None
     }
 
-    pub fn inactive_editor_apply_delta(
-        &mut self,
-        delta: &RopeDelta,
-    ) -> Option<()> {
-        let buffer_id =
-            self.editors.get(&self.active)?.buffer_id.as_ref()?.clone();
+    pub fn inactive_editor_apply_delta(&mut self, delta: &RopeDelta) -> Option<()> {
+        let buffer_id = self.editors.get(&self.active)?.buffer_id.as_ref()?.clone();
         for (_, other_editor) in self.editors.iter_mut() {
             if self.active != other_editor.view_id
                 && other_editor.buffer_id.as_ref() == Some(&buffer_id)
@@ -1013,8 +981,7 @@ impl EditorSplitState {
             }
             LapceCommand::InsertFirstNonBlank => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 editor.insert_mode(
                     buffer,
                     &self.mode,
@@ -1026,8 +993,7 @@ impl EditorSplitState {
             LapceCommand::NormalMode => {
                 self.inserting = false;
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let old_mode = self.mode.clone();
                 self.mode = Mode::Normal;
                 editor.selection = editor.selection.to_caret();
@@ -1052,8 +1018,7 @@ impl EditorSplitState {
             }
             LapceCommand::Append => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 self.mode = Mode::Insert;
                 editor.selection = Movement::Right.update_selection(
                     &editor.selection,
@@ -1065,8 +1030,7 @@ impl EditorSplitState {
             }
             LapceCommand::AppendEndOfLine => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 self.mode = Mode::Insert;
                 editor.selection = Movement::EndOfLine.update_selection(
                     &editor.selection,
@@ -1078,8 +1042,7 @@ impl EditorSplitState {
             }
             LapceCommand::NewLineAbove => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let line =
                     buffer.line_of_offset(editor.selection.get_cursor_offset());
                 let offset = buffer.first_non_blank_character_on_line(line);
@@ -1093,21 +1056,17 @@ impl EditorSplitState {
 
             LapceCommand::NewLineBelow => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 self.mode = Mode::Insert;
-                let offset = buffer.line_end_offset(
-                    editor.selection.get_cursor_offset(),
-                    true,
-                );
+                let offset = buffer
+                    .line_end_offset(editor.selection.get_cursor_offset(), true);
                 self.insert_new_line(ctx, ui_state, offset, true, env);
                 self.inserting = true;
                 // editor.insert_new_line(ctx, buffer, offset, env);
             }
             LapceCommand::InsertNewLine => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 if editor.selection.regions().len() == 1 {
                     let offset = editor.selection.get_cursor_offset();
                     self.insert_new_line(ctx, ui_state, offset, false, env);
@@ -1129,8 +1088,7 @@ impl EditorSplitState {
             }
             LapceCommand::DeleteWordBackward => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let offset = editor.selection.get_cursor_offset();
                 let new_offset = buffer.word_backword(offset);
                 buffer.edit(
@@ -1149,8 +1107,7 @@ impl EditorSplitState {
             }
             LapceCommand::DeleteBackward => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 editor.delete(
                     ctx,
                     buffer_ui_state,
@@ -1170,8 +1127,7 @@ impl EditorSplitState {
             }
             LapceCommand::DeleteForeward => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
 
                 editor.delete(
                     ctx,
@@ -1194,8 +1150,7 @@ impl EditorSplitState {
             }
             LapceCommand::DeleteForewardAndInsert => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 editor.delete(
                     ctx,
                     buffer_ui_state,
@@ -1210,13 +1165,11 @@ impl EditorSplitState {
                 self.inserting = true;
             }
             LapceCommand::DeleteOperator => {
-                self.operator =
-                    Some(EditorOperator::Delete(EditorCount(count)));
+                self.operator = Some(EditorOperator::Delete(EditorCount(count)));
             }
             LapceCommand::Paste => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 if let Some(content) = self.register.get("x") {
                     editor.paste(
                         ctx,
@@ -1232,8 +1185,7 @@ impl EditorSplitState {
             }
             LapceCommand::DeleteVisual => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let content = buffer.yank(&editor.get_selection(
                     buffer,
                     &self.mode,
@@ -1253,8 +1205,7 @@ impl EditorSplitState {
                     &self.visual_mode,
                     false,
                 );
-                let delta =
-                    buffer.edit(ctx, buffer_ui_state, "", &selection, true);
+                let delta = buffer.edit(ctx, buffer_ui_state, "", &selection, true);
                 editor.selection = buffer.correct_offset(
                     &selection
                         .apply_delta(&delta, true, InsertDrift::Default)
@@ -1266,8 +1217,7 @@ impl EditorSplitState {
             }
             LapceCommand::Yank => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let content = buffer.yank(&editor.get_selection(
                     buffer,
                     &self.mode,
@@ -1296,8 +1246,7 @@ impl EditorSplitState {
             }
             LapceCommand::Undo => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 if let Some(offset) = buffer.undo(ctx, buffer_ui_state) {
                     let line = buffer.line_of_offset(offset);
                     let offset = buffer.offset_of_line(line);
@@ -1312,8 +1261,7 @@ impl EditorSplitState {
             }
             LapceCommand::Redo => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 if let Some(offset) = buffer.redo(ctx, buffer_ui_state) {
                     let line = buffer.line_of_offset(offset);
                     let offset = buffer.offset_of_line(line);
@@ -1328,8 +1276,7 @@ impl EditorSplitState {
             }
             _ => {
                 let editor = self.editors.get_mut(&self.active)?;
-                let buffer =
-                    self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 editor.run_command(
                     ctx,
                     buffer_ui_state,
@@ -1401,10 +1348,8 @@ pub struct EditorView {
     split_id: WidgetId,
     view_id: WidgetId,
     pub editor_id: WidgetId,
-    editor: WidgetPod<
-        LapceUIState,
-        LapceScroll<LapceUIState, Padding<LapceUIState>>,
-    >,
+    editor:
+        WidgetPod<LapceUIState, LapceScroll<LapceUIState, Padding<LapceUIState>>>,
     gutter: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
 }
 
@@ -1414,8 +1359,7 @@ impl EditorView {
         view_id: WidgetId,
         editor_id: WidgetId,
     ) -> IdentityWrapper<EditorView> {
-        let editor =
-            IdentityWrapper::wrap(Editor::new(view_id), editor_id.clone());
+        let editor = IdentityWrapper::wrap(Editor::new(view_id), editor_id.clone());
         let scroll = LapceScroll::new(editor.padding((10.0, 0.0, 10.0, 0.0)));
         EditorView {
             split_id,
@@ -1518,19 +1462,12 @@ impl Widget<LapceUIState> for EditorView {
                                 env,
                             );
                         }
-                        LapceUICommand::EnsureVisible((
-                            rect,
-                            margin,
-                            position,
-                        )) => {
-                            let mut editor_split =
-                                LAPCE_STATE.editor_split.lock();
+                        LapceUICommand::EnsureVisible((rect, margin, position)) => {
+                            let mut editor_split = LAPCE_STATE.editor_split.lock();
                             let editor = self.editor.widget_mut();
                             if editor.ensure_visible(ctx.size(), rect, margin) {
                                 match position {
-                                    Some(
-                                        EnsureVisiblePosition::CenterOfWindow,
-                                    ) => {
+                                    Some(EnsureVisiblePosition::CenterOfWindow) => {
                                         let editor_state = editor_split
                                             .editors
                                             .get_mut(&self.view_id)
@@ -1540,9 +1477,8 @@ impl Widget<LapceUIState> for EditorView {
                                             .as_ref()
                                             .unwrap()
                                             .clone();
-                                        let line_height = env.get(
-                                            LapceTheme::EDITOR_LINE_HEIGHT,
-                                        );
+                                        let line_height =
+                                            env.get(LapceTheme::EDITOR_LINE_HEIGHT);
                                         let offset = editor_state
                                             .selection
                                             .get_cursor_offset();
@@ -1550,8 +1486,7 @@ impl Widget<LapceUIState> for EditorView {
                                             .buffers
                                             .get(&buffer_id)
                                             .unwrap();
-                                        let line =
-                                            buffer.line_of_offset(offset);
+                                        let line = buffer.line_of_offset(offset);
                                         let y = if line as f64 * line_height
                                             > ctx.size().height / 2.0
                                         {
@@ -1566,8 +1501,7 @@ impl Widget<LapceUIState> for EditorView {
                                             .editors
                                             .get_mut(&self.view_id)
                                             .unwrap();
-                                        editor_state.scroll_offset =
-                                            scroll.offset();
+                                        editor_state.scroll_offset = scroll.offset();
                                     }
                                     None => {
                                         let offset = editor.offset();
@@ -1576,9 +1510,9 @@ impl Widget<LapceUIState> for EditorView {
                                             .get_mut(&self.view_id)
                                             .unwrap()
                                             .scroll_offset = offset;
-                                        self.gutter.set_viewport_offset(
-                                            Vec2::new(0.0, offset.y),
-                                        );
+                                        self.gutter.set_viewport_offset(Vec2::new(
+                                            0.0, offset.y,
+                                        ));
                                     }
                                 }
                                 ctx.request_paint();
@@ -1835,17 +1769,15 @@ impl Widget<LapceUIState> for EditorGutter {
                         current_line - line
                     }
                 };
-                let x = (last_line.to_string().len()
-                    - content.to_string().len()) as f64
+                let x = (last_line.to_string().len() - content.to_string().len())
+                    as f64
                     * width;
                 let content = content.to_string();
                 if let Some(text_layout) = self.text_layouts.get_mut(&content) {
                     if text_layout.text != content {
                         text_layout.layout.set_text(content.clone());
                         text_layout.text = content;
-                        text_layout
-                            .layout
-                            .rebuild_if_needed(&mut ctx.text(), env);
+                        text_layout.layout.rebuild_if_needed(&mut ctx.text(), env);
                     }
                     text_layout
                         .layout
@@ -2028,8 +1960,7 @@ impl Editor {
 
         let regions = selection.regions_in_range(start, end);
         for region in regions {
-            let (start_line, start_col) =
-                buffer.offset_to_line_col(region.min());
+            let (start_line, start_col) = buffer.offset_to_line_col(region.min());
             let (end_line, end_col) = buffer.offset_to_line_col(region.max());
 
             for line in start_line..end_line + 1 {
@@ -2109,10 +2040,7 @@ impl Widget<LapceUIState> for Editor {
                         LapceUICommand::RequestPaintRect(rect) => {
                             ctx.request_paint_rect(*rect);
                         }
-                        _ => println!(
-                            "editor unprocessed ui command {:?}",
-                            command
-                        ),
+                        _ => println!("editor unprocessed ui command {:?}", command),
                     }
                 }
                 _ => (),
@@ -2223,13 +2151,8 @@ impl Widget<LapceUIState> for Editor {
                                         0.0,
                                         cursor.0 as f64 * line_height,
                                     ))
-                                    .with_size(Size::new(
-                                        size.width,
-                                        line_height,
-                                    )),
-                                &env.get(
-                                    LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-                                ),
+                                    .with_size(Size::new(size.width, line_height)),
+                                &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND),
                             );
                         }
                     };
@@ -2241,20 +2164,20 @@ impl Widget<LapceUIState> for Editor {
                         )
                         .to_string();
                     if editor_split.active == self.view_id {
-                        let cursor_x = (line_content[..cursor.1]
-                            .chars()
-                            .filter_map(|c| {
-                                if c == '\t' {
-                                    Some('\t')
-                                } else {
-                                    None
-                                }
-                            })
-                            .count()
-                            * 3
-                            + cursor.1)
-                            as f64
-                            * width;
+                        let cursor_x =
+                            (line_content[..cursor.1]
+                                .chars()
+                                .filter_map(|c| {
+                                    if c == '\t' {
+                                        Some('\t')
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .count()
+                                * 3
+                                + cursor.1) as f64
+                                * width;
                         match mode {
                             Mode::Insert => self.paint_insert_cusor(
                                 ctx,
@@ -2280,8 +2203,7 @@ impl Widget<LapceUIState> for Editor {
                 }
                 let buffer_ui = data.buffers.get(&buffer_id).unwrap();
                 if buffer_ui.text_layouts.len() > line {
-                    if let Some(layout) = buffer_ui.text_layouts[line].as_ref()
-                    {
+                    if let Some(layout) = buffer_ui.text_layouts[line].as_ref() {
                         ctx.draw_text(
                             &layout.layout,
                             Point::new(0.0, line_height * line as f64),

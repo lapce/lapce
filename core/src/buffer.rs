@@ -5,6 +5,7 @@ use druid::{
 };
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{
     borrow::Cow,
     io::{self, Read, Write},
@@ -21,8 +22,8 @@ use xi_core_lib::{
     selection::InsertDrift,
 };
 use xi_rope::{
-    interval::IntervalBounds, rope::Rope, Cursor, Delta, DeltaBuilder,
-    Interval, LinesMetric, RopeDelta, RopeInfo, Transformer,
+    interval::IntervalBounds, rope::Rope, Cursor, Delta, DeltaBuilder, Interval,
+    LinesMetric, RopeDelta, RopeInfo, Transformer,
 };
 
 use crate::{
@@ -32,6 +33,7 @@ use crate::{
     editor::HighlightTextLayout,
     language,
     movement::{ColPosition, Movement, SelRegion, Selection},
+    plugin::PluginBufferInfo,
     state::LapceState,
     state::Mode,
     state::LAPCE_STATE,
@@ -45,7 +47,7 @@ pub struct InvalLines {
     pub new_count: usize,
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct BufferId(pub usize);
 
 #[derive(Clone)]
@@ -77,11 +79,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(
-        buffer_id: BufferId,
-        path: &str,
-        event_sink: ExtEventSink,
-    ) -> Buffer {
+    pub fn new(buffer_id: BufferId, path: &str, event_sink: ExtEventSink) -> Buffer {
         let rope = if let Ok(rope) = load_file(path) {
             rope
         } else {
@@ -94,24 +92,21 @@ impl Buffer {
             new_highlight_config(LapceLanguage::Rust);
 
         let mut buffer = Buffer {
-            id: buffer_id,
+            id: buffer_id.clone(),
             rope,
-            // tree,
             highlight_config: Arc::new(highlight_config),
             highlight_names,
             highlights: Vec::new(),
             line_highlights: HashMap::new(),
             highlight_version: "".to_string(),
-            // max_len_line: 0,
-            // max_len: 0,
-            // text_layouts: Vec::new(),
             undos: Vec::new(),
             current_undo: 0,
             event_sink,
             path: path.to_string(),
         };
-        // buffer.text_layouts = vec![Arc::new(None); buffer.num_lines()];
-        // buffer.update_max_line_len();
+        LAPCE_STATE.plugins.lock().new_buffer(&PluginBufferInfo {
+            buffer_id: buffer_id.clone(),
+        });
         buffer.update_highlights();
         buffer
     }
@@ -153,12 +148,7 @@ impl Buffer {
             let mut highlighter = Highlighter::new();
             let mut current_hl: Option<Highlight> = None;
             for hightlight in highlighter
-                .highlight(
-                    &highlight_config,
-                    &rope_str.as_bytes(),
-                    None,
-                    |_| None,
-                )
+                .highlight(&highlight_config, &rope_str.as_bytes(), None, |_| None)
                 .unwrap()
             {
                 if let Ok(highlight) = hightlight {
@@ -178,9 +168,7 @@ impl Buffer {
 
             event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateHighlights(
-                    buffer_id, version, highlights,
-                ),
+                LapceUICommand::UpdateHighlights(buffer_id, version, highlights),
                 Target::Global,
             );
         });
@@ -356,14 +344,12 @@ impl Buffer {
     ) {
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
-        let old_logical_end_offset =
-            self.rope.offset_of_line(old_logical_end_line);
+        let old_logical_end_offset = self.rope.offset_of_line(old_logical_end_line);
 
         self.rope = delta.apply(&self.rope);
 
         let logical_start_line = self.rope.line_of_offset(iv.start);
-        let new_logical_end_line =
-            self.rope.line_of_offset(iv.start + newlen) + 1;
+        let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
         let old_hard_count = old_logical_end_line - logical_start_line;
         let new_hard_count = new_logical_end_line - logical_start_line;
 
@@ -433,13 +419,8 @@ impl Buffer {
             }
             match operator {
                 EditorOperator::Delete(_) => {
-                    let delta =
-                        self.edit(ctx, ui_state, "", &new_selection, true);
-                    new_selection.apply_delta(
-                        &delta,
-                        true,
-                        InsertDrift::Default,
-                    )
+                    let delta = self.edit(ctx, ui_state, "", &new_selection, true);
+                    new_selection.apply_delta(&delta, true, InsertDrift::Default)
                 }
                 EditorOperator::Yank(_) => new_selection,
             }
@@ -476,8 +457,8 @@ impl Buffer {
 
     pub fn indent_on_line(&self, line: usize) -> String {
         let line_start_offset = self.rope.offset_of_line(line);
-        let word_boundary = WordCursor::new(&self.rope, line_start_offset)
-            .next_non_blank_char();
+        let word_boundary =
+            WordCursor::new(&self.rope, line_start_offset).next_non_blank_char();
         let indent = self.rope.slice_to_cow(line_start_offset..word_boundary);
         indent.to_string()
     }
@@ -550,11 +531,7 @@ impl Buffer {
         }
     }
 
-    pub fn line_end_offset(
-        &self,
-        offset: usize,
-        include_newline: bool,
-    ) -> usize {
+    pub fn line_end_offset(&self, offset: usize, include_newline: bool) -> usize {
         let line = self.line_of_offset(offset);
         let line_start_offset = self.offset_of_line(line);
         let line_end_offset = self.offset_of_line(line + 1);
@@ -750,11 +727,9 @@ impl<'a> WordCursor<'a> {
     /// cursor is moved to the end of that selection.
     pub fn select_word(&mut self) -> (usize, usize) {
         let initial = self.inner.pos();
-        let init_prop_after =
-            self.inner.next_codepoint().map(get_word_property);
+        let init_prop_after = self.inner.next_codepoint().map(get_word_property);
         self.inner.set(initial);
-        let init_prop_before =
-            self.inner.prev_codepoint().map(get_word_property);
+        let init_prop_before = self.inner.prev_codepoint().map(get_word_property);
         let mut start = initial;
         let init_boundary =
             if let (Some(pb), Some(pa)) = (init_prop_before, init_prop_after) {
@@ -918,15 +893,13 @@ impl BufferUIState {
     fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
         let mut new_layouts = Vec::new();
         if inval_lines.start_line < self.text_layouts.len() {
-            new_layouts.extend_from_slice(
-                &self.text_layouts[..inval_lines.start_line],
-            );
+            new_layouts
+                .extend_from_slice(&self.text_layouts[..inval_lines.start_line]);
         }
         for _ in 0..inval_lines.new_count {
             new_layouts.push(Arc::new(None));
         }
-        if inval_lines.start_line + inval_lines.inval_count
-            < self.text_layouts.len()
+        if inval_lines.start_line + inval_lines.inval_count < self.text_layouts.len()
         {
             new_layouts.extend_from_slice(
                 &self.text_layouts
@@ -960,8 +933,7 @@ impl BufferUIState {
         {
             let line_content = buffer
                 .slice_to_cow(
-                    buffer.offset_of_line(line)
-                        ..buffer.offset_of_line(line + 1),
+                    buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
                 )
                 .to_string();
             self.text_layouts[line] = Arc::new(Some(self.get_text_layout(
@@ -1151,8 +1123,7 @@ mod tests {
 
     #[test]
     fn test_reverse_delta() {
-        let rope =
-            Rope::from_str("abc\nabc\ncdfdsfasdf\nsdlkfjdslkf\n").unwrap();
+        let rope = Rope::from_str("abc\nabc\ncdfdsfasdf\nsdlkfjdslkf\n").unwrap();
         let mut builder = DeltaBuilder::new(rope.len());
         builder.replace(0..4, Rope::from("1 skdjfl\n"));
         let delta1 = builder.build();

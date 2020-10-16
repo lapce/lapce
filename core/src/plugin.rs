@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::json;
 use std::{
     collections::HashMap,
     fs,
@@ -14,7 +15,7 @@ use std::{
 use toml;
 use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
-use crate::{editor::Counter, state::LAPCE_STATE};
+use crate::{buffer::BufferId, editor::Counter, state::LAPCE_STATE};
 
 pub type PluginName = String;
 
@@ -43,6 +44,13 @@ pub struct Plugin {
     id: PluginId,
     name: String,
     process: Child,
+}
+
+impl Plugin {
+    pub fn new_buffer(&self, info: &PluginBufferInfo) {
+        self.peer
+            .send_rpc_notification("new_buffer", &json!({ "buffer_info": [info] }))
+    }
 }
 
 impl PluginCatalog {
@@ -83,6 +91,23 @@ impl PluginCatalog {
         for (_, manifest) in self.items.clone().iter() {
             start_plugin_process(manifest.clone(), self.next_plugin_id());
         }
+    }
+
+    pub fn send_rpc_notification(&self, notification: HostNotification) {
+        let notification = serde_json::to_value(notification).unwrap();
+        let method = notification.get("method").unwrap().as_str().unwrap();
+        let params = notification.get("params").unwrap();
+        self.running.iter().for_each(|plugin| {
+            println!("send new_buffer notification");
+            plugin.peer.send_rpc_notification(method, params);
+        });
+    }
+
+    pub fn new_buffer(&self, info: &PluginBufferInfo) {
+        let notification = HostNotification::NewBuffer {
+            buffer_info: info.clone(),
+        };
+        self.send_rpc_notification(notification);
     }
 }
 
@@ -163,6 +188,7 @@ fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
             {
                 println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
             }
+            println!("plugin main loop exit {:?}", plugin_desc.dir);
         }) {
             println!(
                 "can't start plugin sub process {} {:?}",
@@ -173,12 +199,21 @@ fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-/// RPC Notifications sent from the host
-pub enum HostNotification {}
+pub struct PluginBufferInfo {
+    pub buffer_id: BufferId,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+/// RPC Notifications sent from the host
+pub enum HostNotification {
+    NewBuffer { buffer_info: PluginBufferInfo },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
 /// RPC Request sent from the host
 pub enum HostRequest {}
 

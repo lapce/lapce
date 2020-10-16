@@ -7,8 +7,7 @@ use lapce_core::split::LapceSplit;
 use lapce_core::theme::LapceTheme;
 
 use druid::{
-    piet::Color, FontDescriptor, FontFamily, FontWeight, Key, Size, Target,
-    WidgetId,
+    piet::Color, FontDescriptor, FontFamily, FontWeight, Key, Size, Target, WidgetId,
 };
 use druid::{
     widget::IdentityWrapper,
@@ -111,7 +110,7 @@ pub fn main() {
         ui_event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::OpenFile(
-                "/Users/Lulu/lapce/src/editor.rs".to_string(),
+                "/Users/Lulu/lapce/core/src/editor.rs".to_string(),
             ),
             Target::Global,
         );
