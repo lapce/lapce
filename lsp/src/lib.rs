@@ -1,5 +1,6 @@
 mod dispatch;
 mod lsp;
+mod lsp_client;
 mod plugin;
 
 use dispatch::Dispatcher;

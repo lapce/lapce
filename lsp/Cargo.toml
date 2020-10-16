@@ -10,3 +10,5 @@ serde_json = "1.0.59"
 xi-rpc = { path = "../../xi-editor/rust/rpc/" }
 lapce-core = { path = "../core" }
 anyhow = "1.0.32"
+parking_lot = "0.11.0"
+jsonrpc-lite = "0.5.0"

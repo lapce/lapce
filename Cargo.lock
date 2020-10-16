@@ -1438,6 +1438,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpc-lite"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a98d245f26984add78277a5306ca0cf774863d4eddb4912b31d94ee3fa1a22d4"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
 name = "kernel32-sys"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1523,7 +1534,9 @@ name = "lapce-lsp"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "jsonrpc-lite",
  "lapce-core",
+ "parking_lot 0.11.0",
  "serde",
  "serde_json",
  "xi-rpc",
