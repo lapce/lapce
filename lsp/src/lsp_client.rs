@@ -1,17 +1,52 @@
-use jsonrpc_lite::{Id, JsonRpc, Params};
+use jsonrpc_lite::{Error as JsonRpcError, Id, JsonRpc, Params};
+use languageserver_types::*;
+use lapce_core::buffer::BufferId;
 use parking_lot::Mutex;
+use serde_json::{to_value, Value};
 use std::{
-    io::BufRead, io::BufReader, io::BufWriter, io::Write, process::Command,
-    process::Stdio, sync::Arc, thread,
+    collections::HashMap,
+    io::BufRead,
+    io::BufReader,
+    io::BufWriter,
+    io::Write,
+    process::Command,
+    process::{self, Stdio},
+    sync::Arc,
+    thread,
 };
+
+pub trait Callable: Send {
+    fn call(
+        self: Box<Self>,
+        client: &mut LspClient,
+        result: Result<Value, JsonRpcError>,
+    );
+}
+
+impl<F: Send + FnOnce(&mut LspClient, Result<Value, JsonRpcError>)> Callable for F {
+    fn call(
+        self: Box<F>,
+        client: &mut LspClient,
+        result: Result<Value, JsonRpcError>,
+    ) {
+        (*self)(client, result)
+    }
+}
+
+pub type Callback = Box<dyn Callable>;
 
 pub struct LspClient {
     writer: Box<dyn Write + Send>,
+    next_id: u64,
+    pending: HashMap<u64, Callback>,
+    pub server_capabilities: Option<ServerCapabilities>,
+    pub opened_documents: HashMap<BufferId, Url>,
+    pub is_initialized: bool,
 }
 
 impl LspClient {
     pub fn new() -> Arc<Mutex<LspClient>> {
-        let mut process = Command::new("rust-anaylzer-mac")
+        let mut process = Command::new("rust-analyzer-mac")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -19,7 +54,14 @@ impl LspClient {
 
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
 
-        let lsp_client = Arc::new(Mutex::new(LspClient { writer }));
+        let lsp_client = Arc::new(Mutex::new(LspClient {
+            writer,
+            next_id: 0,
+            pending: HashMap::new(),
+            server_capabilities: None,
+            opened_documents: HashMap::new(),
+            is_initialized: false,
+        }));
 
         let local_lsp_client = lsp_client.clone();
         let mut stdout = process.stdout;
@@ -62,6 +104,132 @@ impl LspClient {
             Err(err) => eprintln!("Error in parsing incoming string: {}", err),
         }
     }
+
+    pub fn write(&mut self, msg: &str) {
+        self.writer
+            .write_all(msg.as_bytes())
+            .expect("error writing to stdin");
+
+        self.writer.flush().expect("error flushing child stdin");
+    }
+
+    pub fn send_request(
+        &mut self,
+        method: &str,
+        params: Params,
+        completion: Callback,
+    ) {
+        let request = JsonRpc::request_with_params(
+            Id::Num(self.next_id as i64),
+            method,
+            params,
+        );
+
+        self.pending.insert(self.next_id, completion);
+        self.next_id += 1;
+
+        self.send_rpc(&to_value(&request).unwrap());
+    }
+
+    fn send_rpc(&mut self, value: &Value) {
+        let rpc = match prepare_lsp_json(value) {
+            Ok(r) => r,
+            Err(err) => panic!("Encoding Error {:?}", err),
+        };
+
+        self.write(rpc.as_ref());
+    }
+
+    pub fn send_notification(&mut self, method: &str, params: Params) {
+        let notification = JsonRpc::notification_with_params(method, params);
+        let res = to_value(&notification).unwrap();
+        self.send_rpc(&res);
+    }
+
+    pub fn send_initialize<CB>(&mut self, root_uri: Option<Url>, on_init: CB)
+    where
+        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value, JsonRpcError>),
+    {
+        let client_capabilities = ClientCapabilities::default();
+
+        let init_params = InitializeParams {
+            process_id: Some(u64::from(process::id())),
+            root_uri,
+            root_path: None,
+            initialization_options: None,
+            capabilities: client_capabilities,
+            trace: Some(TraceOption::Verbose),
+            workspace_folders: None,
+        };
+
+        let params = Params::from(serde_json::to_value(init_params).unwrap());
+        self.send_request("initialize", params, Box::new(on_init));
+    }
+
+    pub fn send_did_open(
+        &mut self,
+        buffer_id: &BufferId,
+        document_uri: Url,
+        document_text: String,
+    ) {
+        self.opened_documents
+            .insert(buffer_id.clone(), document_uri.clone());
+
+        let text_document_did_open_params = DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                language_id: "rust".to_string(),
+                uri: document_uri,
+                version: 0,
+                text: document_text,
+            },
+        };
+
+        let params = Params::from(
+            serde_json::to_value(text_document_did_open_params).unwrap(),
+        );
+        self.send_notification("textDocument/didOpen", params);
+    }
+
+    pub fn send_did_change(
+        &mut self,
+        buffer_id: &BufferId,
+        changes: Vec<TextDocumentContentChangeEvent>,
+        version: u64,
+    ) {
+        let uri = self.opened_documents.get(buffer_id).unwrap().clone();
+        let text_document_did_change_params = DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier {
+                uri,
+                version: Some(version),
+            },
+            content_changes: changes,
+        };
+
+        let params = Params::from(
+            serde_json::to_value(text_document_did_change_params).unwrap(),
+        );
+        self.send_notification("textDocument/didChange", params);
+    }
+
+    pub fn get_sync_kind(&mut self) -> TextDocumentSyncKind {
+        match self
+            .server_capabilities
+            .as_ref()
+            .and_then(|c| c.text_document_sync.as_ref())
+        {
+            Some(&TextDocumentSyncCapability::Kind(kind)) => kind,
+            _ => TextDocumentSyncKind::Full,
+        }
+    }
+}
+
+fn prepare_lsp_json(msg: &Value) -> Result<String, serde_json::error::Error> {
+    let request = serde_json::to_string(&msg)?;
+    Ok(format!(
+        "Content-Length: {}\r\n\r\n{}",
+        request.len(),
+        request
+    ))
 }
 
 const HEADER_CONTENT_LENGTH: &str = "content-length";

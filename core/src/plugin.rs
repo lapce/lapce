@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::json;
+use serde::{de, ser, Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     fs,
@@ -13,13 +13,14 @@ use std::{
     thread,
 };
 use toml;
+use xi_rope::RopeDelta;
 use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
 use crate::{buffer::BufferId, editor::Counter, state::LAPCE_STATE};
 
 pub type PluginName = String;
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct PluginId(pub usize);
 
 pub struct PluginCatalog {
@@ -50,6 +51,15 @@ impl Plugin {
     pub fn new_buffer(&self, info: &PluginBufferInfo) {
         self.peer
             .send_rpc_notification("new_buffer", &json!({ "buffer_info": [info] }))
+    }
+
+    pub fn initialize(&self) {
+        self.peer.send_rpc_notification(
+            "initialize",
+            &json!({
+                "plugin_id": self.id,
+            }),
+        )
     }
 }
 
@@ -106,6 +116,14 @@ impl PluginCatalog {
     pub fn new_buffer(&self, info: &PluginBufferInfo) {
         let notification = HostNotification::NewBuffer {
             buffer_info: info.clone(),
+        };
+        self.send_rpc_notification(notification);
+    }
+
+    pub fn update(&self, buffer_id: &BufferId, delta: &RopeDelta) {
+        let notification = HostNotification::Update {
+            buffer_id: buffer_id.clone(),
+            delta: delta.clone(),
         };
         self.send_rpc_notification(notification);
     }
@@ -180,6 +198,7 @@ fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
                 id,
             };
 
+            plugin.initialize();
             LAPCE_STATE.plugins.lock().running.push(plugin);
 
             let mut handler = PluginHandler {};
@@ -201,6 +220,8 @@ fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginBufferInfo {
     pub buffer_id: BufferId,
+    pub language_id: String,
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -208,7 +229,16 @@ pub struct PluginBufferInfo {
 #[serde(tag = "method", content = "params")]
 /// RPC Notifications sent from the host
 pub enum HostNotification {
-    NewBuffer { buffer_info: PluginBufferInfo },
+    Initialize {
+        plugin_id: PluginId,
+    },
+    Update {
+        buffer_id: BufferId,
+        delta: RopeDelta,
+    },
+    NewBuffer {
+        buffer_info: PluginBufferInfo,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -218,14 +248,73 @@ pub enum HostNotification {
 pub enum HostRequest {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
 pub enum PluginNotification {}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub enum PluginRequest {}
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum PluginRequest {
+    GetData { rev: usize },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetDataResponse {
+    pub chunk: String,
+}
+
+pub struct PluginCommand<T> {
+    pub buffer_id: BufferId,
+    pub plugin_id: PluginId,
+    pub cmd: T,
+}
+
+impl<T: Serialize> Serialize for PluginCommand<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut v = serde_json::to_value(&self.cmd).map_err(ser::Error::custom)?;
+        v["params"]["view_id"] = json!(self.buffer_id);
+        v["params"]["plugin_id"] = json!(self.plugin_id);
+        v.serialize(serializer)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for PluginCommand<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct InnerIds {
+            buffer_id: BufferId,
+            plugin_id: PluginId,
+        }
+        #[derive(Deserialize)]
+        struct IdsWrapper {
+            params: InnerIds,
+        }
+
+        let v = Value::deserialize(deserializer)?;
+        let helper = IdsWrapper::deserialize(&v).map_err(de::Error::custom)?;
+        let InnerIds {
+            buffer_id,
+            plugin_id,
+        } = helper.params;
+        let cmd = T::deserialize(v).map_err(de::Error::custom)?;
+        Ok(PluginCommand {
+            buffer_id,
+            plugin_id,
+            cmd,
+        })
+    }
+}
 
 impl Handler for PluginHandler {
-    type Notification = PluginNotification;
-    type Request = PluginRequest;
+    type Notification = PluginCommand<PluginNotification>;
+    type Request = PluginCommand<PluginRequest>;
 
     fn handle_notification(
         &mut self,
@@ -239,6 +328,21 @@ impl Handler for PluginHandler {
         ctx: &xi_rpc::RpcCtx,
         rpc: Self::Request,
     ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
+        let PluginCommand {
+            buffer_id,
+            plugin_id,
+            cmd,
+        } = rpc;
+        match cmd {
+            PluginRequest::GetData { rev } => {
+                let mut editor_split = LAPCE_STATE.editor_split.lock();
+                let buffer = editor_split.get_buffer(&buffer_id).unwrap();
+                return Ok(json!(GetDataResponse {
+                    chunk: buffer.get_document(),
+                }));
+            }
+        }
+        println!("get request from plugin");
         Err(xi_rpc::RemoteError::InvalidRequest(None))
     }
 }

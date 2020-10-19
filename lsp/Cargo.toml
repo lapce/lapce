@@ -5,9 +5,12 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+memchr = "2.3.3"
+languageserver-types = "0.54"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.59"
 xi-rpc = { path = "../../xi-editor/rust/rpc/" }
+xi-rope = { path = "../../xi-editor/rust/rope/" }
 lapce-core = { path = "../core" }
 anyhow = "1.0.32"
 parking_lot = "0.11.0"

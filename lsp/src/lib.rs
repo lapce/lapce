@@ -1,10 +1,11 @@
 mod dispatch;
-mod lsp;
 mod lsp_client;
+mod lsp_plugin;
 mod plugin;
+mod buffer;
 
 use dispatch::Dispatcher;
-use lsp::LspPlugin;
+use lsp_plugin::LspPlugin;
 use std::io;
 use xi_rpc::RpcLoop;
 

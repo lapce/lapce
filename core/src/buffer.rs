@@ -106,12 +106,12 @@ impl Buffer {
         };
         LAPCE_STATE.plugins.lock().new_buffer(&PluginBufferInfo {
             buffer_id: buffer_id.clone(),
+            language_id: "rust".to_string(),
+            path: path.to_string(),
         });
         buffer.update_highlights();
         buffer
     }
-
-    fn get_lsp_client(&self) {}
 
     pub fn len(&self) -> usize {
         self.rope.len()
@@ -361,6 +361,7 @@ impl Buffer {
         self.highlights = self.highlights_apply_delta(delta);
         self.update_size(ui_state, &inval_lines);
         ui_state.update_text_layouts(&inval_lines);
+        LAPCE_STATE.plugins.lock().update(&self.id, delta);
     }
 
     pub fn yank(&self, selection: &Selection) -> Vec<String> {
@@ -633,6 +634,10 @@ impl Buffer {
             text: line_content,
             highlights: self.get_line_highligh(line).clone(),
         }
+    }
+
+    pub fn get_document(&self) -> String {
+        self.rope.to_string()
     }
 }
 
