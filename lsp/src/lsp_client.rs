@@ -1,8 +1,9 @@
+use anyhow::Result;
 use jsonrpc_lite::{Error as JsonRpcError, Id, JsonRpc, Params};
 use languageserver_types::*;
 use lapce_core::buffer::BufferId;
 use parking_lot::Mutex;
-use serde_json::{to_value, Value};
+use serde_json::{json, to_value, Value};
 use std::{
     collections::HashMap,
     io::BufRead,
@@ -72,7 +73,9 @@ impl LspClient {
                     Ok(message_str) => {
                         local_lsp_client.lock().handle_message(message_str.as_ref());
                     }
-                    Err(err) => eprintln!("Error occurred {:?}", err),
+                    Err(err) => {
+                        // eprintln!("Error occurred {:?}", err);
+                    }
                 };
             }
         });
@@ -86,23 +89,35 @@ impl LspClient {
                 // trace!("client received unexpected request: {:?}", obj)
             }
             Ok(value @ JsonRpc::Notification(_)) => {
-                //     self.handle_notification(
+                // self.handle_notification(
                 //     value.get_method().unwrap(),
                 //     value.get_params().unwrap(),
                 // );
             }
             Ok(value @ JsonRpc::Success(_)) => {
-                // let id = number_from_id(&value.get_id().unwrap());
-                // let result = value.get_result().unwrap();
-                // self.handle_response(id, Ok(result.clone()));
+                let id = number_from_id(&value.get_id().unwrap());
+                let result = value.get_result().unwrap();
+                self.handle_response(id, Ok(result.clone()));
             }
             Ok(value @ JsonRpc::Error(_)) => {
-                // let id = number_from_id(&value.get_id().unwrap());
-                // let error = value.get_error().unwrap();
-                // self.handle_response(id, Err(error.clone()));
+                let id = number_from_id(&value.get_id().unwrap());
+                let error = value.get_error().unwrap();
+                self.handle_response(id, Err(error.clone()));
             }
             Err(err) => eprintln!("Error in parsing incoming string: {}", err),
         }
+    }
+
+    pub fn handle_response(
+        &mut self,
+        id: u64,
+        result: Result<Value, jsonrpc_lite::Error>,
+    ) {
+        let callback = self
+            .pending
+            .remove(&id)
+            .unwrap_or_else(|| panic!("id {} missing from request table", id));
+        callback.call(self, result);
     }
 
     pub fn write(&mut self, msg: &str) {
@@ -146,6 +161,10 @@ impl LspClient {
         self.send_rpc(&res);
     }
 
+    pub fn send_initialized(&mut self) {
+        self.send_notification("initialized", Params::from(json!({})));
+    }
+
     pub fn send_initialize<CB>(&mut self, root_uri: Option<Url>, on_init: CB)
     where
         CB: 'static + Send + FnOnce(&mut LspClient, Result<Value, JsonRpcError>),
@@ -162,8 +181,30 @@ impl LspClient {
             workspace_folders: None,
         };
 
+        eprintln!("send initilize");
         let params = Params::from(serde_json::to_value(init_params).unwrap());
         self.send_request("initialize", params, Box::new(on_init));
+    }
+
+    pub fn request_completion<CB>(
+        &mut self,
+        document_uri: Url,
+        position: Position,
+        on_completion: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value, JsonRpcError>),
+    {
+        let completion_params = CompletionParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            position,
+            context: None,
+        };
+        let params = Params::from(serde_json::to_value(completion_params).unwrap());
+        self.send_request(
+            "textDocument/completion",
+            params,
+            Box::new(on_completion),
+        );
     }
 
     pub fn send_did_open(
@@ -174,6 +215,7 @@ impl LspClient {
     ) {
         self.opened_documents
             .insert(buffer_id.clone(), document_uri.clone());
+        eprintln!("open docuemnts insert {:?}", buffer_id);
 
         let text_document_did_open_params = DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
@@ -196,6 +238,7 @@ impl LspClient {
         changes: Vec<TextDocumentContentChangeEvent>,
         version: u64,
     ) {
+        eprintln!("send did change {:?}", buffer_id);
         let uri = self.opened_documents.get(buffer_id).unwrap().clone();
         let text_document_did_change_params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier {
@@ -307,6 +350,7 @@ pub fn read_message<T: BufRead>(reader: &mut T) -> Result<String, ParseError> {
         buffer.clear();
         let _result = reader.read_line(&mut buffer);
 
+        // eprintln!("got message {} {}", buffer, buffer.trim().is_empty());
         match &buffer {
             s if s.trim().is_empty() => break,
             s => {
@@ -326,4 +370,14 @@ pub fn read_message<T: BufRead>(reader: &mut T) -> Result<String, ParseError> {
 
     let body = String::from_utf8(body_buffer)?;
     Ok(body)
+}
+
+fn number_from_id(id: &Id) -> u64 {
+    match *id {
+        Id::Num(n) => n as u64,
+        Id::Str(ref s) => {
+            u64::from_str_radix(s, 10).expect("failed to convert string id to u64")
+        }
+        _ => panic!("unexpected value for id: None"),
+    }
 }

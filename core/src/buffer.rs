@@ -47,7 +47,7 @@ pub struct InvalLines {
     pub new_count: usize,
 }
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct BufferId(pub usize);
 
 #[derive(Clone)]
@@ -61,7 +61,7 @@ pub struct BufferUIState {
 #[derive(Clone)]
 pub struct Buffer {
     id: BufferId,
-    rope: Rope,
+    pub rope: Rope,
     // tree: Tree,
     highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
@@ -75,6 +75,7 @@ pub struct Buffer {
     undos: Vec<Vec<(Delta<RopeInfo>, Delta<RopeInfo>)>>,
     current_undo: usize,
     path: String,
+    rev: u64,
     // pub inval_lines: Option<InvalLines>,
 }
 
@@ -102,12 +103,16 @@ impl Buffer {
             undos: Vec::new(),
             current_undo: 0,
             event_sink,
+            rev: 0,
             path: path.to_string(),
         };
         LAPCE_STATE.plugins.lock().new_buffer(&PluginBufferInfo {
             buffer_id: buffer_id.clone(),
             language_id: "rust".to_string(),
             path: path.to_string(),
+            nb_lines: buffer.num_lines(),
+            buf_size: buffer.len(),
+            rev: buffer.rev,
         });
         buffer.update_highlights();
         buffer
@@ -342,6 +347,7 @@ impl Buffer {
         ui_state: &mut BufferUIState,
         delta: &RopeDelta,
     ) {
+        self.rev += 1;
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
         let old_logical_end_offset = self.rope.offset_of_line(old_logical_end_line);
@@ -361,7 +367,13 @@ impl Buffer {
         self.highlights = self.highlights_apply_delta(delta);
         self.update_size(ui_state, &inval_lines);
         ui_state.update_text_layouts(&inval_lines);
-        LAPCE_STATE.plugins.lock().update(&self.id, delta);
+        LAPCE_STATE.plugins.lock().update(
+            &self.id,
+            delta,
+            self.len(),
+            self.num_lines(),
+            self.rev,
+        );
     }
 
     pub fn yank(&self, selection: &Selection) -> Vec<String> {

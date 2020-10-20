@@ -1274,6 +1274,15 @@ impl EditorSplitState {
                     );
                 }
             }
+            LapceCommand::GetCompletion => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let offset = editor.selection.get_cursor_offset();
+                LAPCE_STATE
+                    .plugins
+                    .lock()
+                    .get_completion(&buffer_id, 0, offset);
+            }
             _ => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;

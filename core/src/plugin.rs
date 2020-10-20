@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 use serde::{de, ser, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value};
 use std::{
+    borrow::Borrow,
+    borrow::Cow,
     collections::HashMap,
     fs,
     io::BufReader,
@@ -13,7 +15,7 @@ use std::{
     thread,
 };
 use toml;
-use xi_rope::RopeDelta;
+use xi_rope::{LinesMetric, Rope, RopeDelta};
 use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
 use crate::{buffer::BufferId, editor::Counter, state::LAPCE_STATE};
@@ -108,7 +110,7 @@ impl PluginCatalog {
         let method = notification.get("method").unwrap().as_str().unwrap();
         let params = notification.get("params").unwrap();
         self.running.iter().for_each(|plugin| {
-            println!("send new_buffer notification");
+            println!("send plugin notification");
             plugin.peer.send_rpc_notification(method, params);
         });
     }
@@ -120,10 +122,34 @@ impl PluginCatalog {
         self.send_rpc_notification(notification);
     }
 
-    pub fn update(&self, buffer_id: &BufferId, delta: &RopeDelta) {
+    pub fn update(
+        &self,
+        buffer_id: &BufferId,
+        delta: &RopeDelta,
+        new_len: usize,
+        new_line_count: usize,
+        rev: u64,
+    ) {
         let notification = HostNotification::Update {
             buffer_id: buffer_id.clone(),
             delta: delta.clone(),
+            new_len,
+            new_line_count,
+            rev,
+        };
+        self.send_rpc_notification(notification);
+    }
+
+    pub fn get_completion(
+        &self,
+        buffer_id: &BufferId,
+        request_id: usize,
+        offset: usize,
+    ) {
+        let notification = HostNotification::GetCompletion {
+            buffer_id: buffer_id.clone(),
+            request_id,
+            offset,
         };
         self.send_rpc_notification(notification);
     }
@@ -222,6 +248,9 @@ pub struct PluginBufferInfo {
     pub buffer_id: BufferId,
     pub language_id: String,
     pub path: String,
+    pub rev: u64,
+    pub buf_size: usize,
+    pub nb_lines: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -235,6 +264,14 @@ pub enum HostNotification {
     Update {
         buffer_id: BufferId,
         delta: RopeDelta,
+        new_len: usize,
+        new_line_count: usize,
+        rev: u64,
+    },
+    GetCompletion {
+        buffer_id: BufferId,
+        request_id: usize,
+        offset: usize,
     },
     NewBuffer {
         buffer_info: PluginBufferInfo,
@@ -250,18 +287,56 @@ pub enum HostRequest {}
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
-pub enum PluginNotification {}
+pub enum PluginNotification {
+    ShowCompletion { request_id: usize, result: Value },
+}
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum PluginRequest {
-    GetData { rev: usize },
+    GetData {
+        start: usize,
+        unit: TextUnit,
+        max_size: usize,
+        rev: u64,
+    },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum TextUnit {
+    /// The requested offset is in bytes. The returned chunk will be valid
+    /// UTF8, and is guaranteed to include the byte specified the offset.
+    Utf8,
+    /// The requested offset is a line number. The returned chunk will begin
+    /// at the offset of the requested line.
+    Line,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetDataResponse {
     pub chunk: String,
+    pub offset: usize,
+    pub first_line: usize,
+    pub first_line_offset: usize,
+}
+
+/// Range expressed in terms of PluginPosition. Meant to be sent from
+/// plugin to core.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub struct Range {
+    pub start: usize,
+    pub end: usize,
+}
+
+/// Hover Item sent from Plugin to Core
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub struct Hover {
+    pub content: String,
+    pub range: Option<Range>,
 }
 
 pub struct PluginCommand<T> {
@@ -321,6 +396,16 @@ impl Handler for PluginHandler {
         ctx: &xi_rpc::RpcCtx,
         rpc: Self::Notification,
     ) {
+        let PluginCommand {
+            buffer_id,
+            plugin_id,
+            cmd,
+        } = rpc;
+        match cmd {
+            PluginNotification::ShowCompletion { request_id, result } => {
+                println!("got show completion {:?}", result);
+            }
+        }
     }
 
     fn handle_request(
@@ -334,15 +419,72 @@ impl Handler for PluginHandler {
             cmd,
         } = rpc;
         match cmd {
-            PluginRequest::GetData { rev } => {
+            PluginRequest::GetData {
+                start,
+                unit,
+                max_size,
+                rev,
+            } => {
                 let mut editor_split = LAPCE_STATE.editor_split.lock();
                 let buffer = editor_split.get_buffer(&buffer_id).unwrap();
+                let text_cow = Cow::Borrowed(&buffer.rope);
+                let text = &text_cow;
+                let offset = unit.resolve_offset(text.borrow(), start);
+                if offset.is_none() {
+                    return Err(xi_rpc::RemoteError::InvalidRequest(None));
+                }
+                let offset = offset.unwrap();
+                let mut end_off = offset.saturating_add(max_size);
+                if end_off >= text.len() {
+                    end_off = text.len();
+                } else {
+                    // Snap end to codepoint boundary.
+                    end_off = text.prev_codepoint_offset(end_off + 1).unwrap();
+                }
+
+                let chunk = text.slice_to_cow(offset..end_off).into_owned();
+                let first_line = text.line_of_offset(offset);
+                let first_line_offset = offset - text.offset_of_line(first_line);
+
+                // Some(GetDataResponse { chunk, offset, first_line, first_line_offset })
                 return Ok(json!(GetDataResponse {
-                    chunk: buffer.get_document(),
+                    chunk,
+                    offset,
+                    first_line,
+                    first_line_offset,
                 }));
             }
         }
         println!("get request from plugin");
         Err(xi_rpc::RemoteError::InvalidRequest(None))
+    }
+}
+
+impl TextUnit {
+    /// Converts an offset in some unit to a concrete byte offset. Returns
+    /// `None` if the input offset is out of bounds in its unit space.
+    pub fn resolve_offset<T: Borrow<Rope>>(
+        self,
+        text: T,
+        offset: usize,
+    ) -> Option<usize> {
+        let text = text.borrow();
+        match self {
+            TextUnit::Utf8 => {
+                if offset > text.len() {
+                    None
+                } else {
+                    text.at_or_prev_codepoint_boundary(offset)
+                }
+            }
+            TextUnit::Line => {
+                let max_line_number = text.measure::<LinesMetric>() + 1;
+                if offset > max_line_number {
+                    None
+                } else {
+                    text.offset_of_line(offset).into()
+                }
+            }
+        }
     }
 }

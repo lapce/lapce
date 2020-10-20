@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 
-use crate::{buffer::Buffer, plugin::Plugin};
+use crate::{
+    buffer::Buffer,
+    plugin::{CoreProxy, Plugin},
+};
 use lapce_core::{
     buffer::BufferId,
     plugin::{HostNotification, HostRequest, PluginId},
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use xi_rpc::Handler;
+use xi_rpc::{Handler, RpcCtx};
 
 pub struct Dispatcher<'a, P: 'a + Plugin> {
     plugin: &'a mut P,
@@ -36,7 +39,9 @@ impl<'a, P: Plugin> Handler for Dispatcher<'a, P> {
     ) {
         match rpc {
             HostNotification::Initialize { plugin_id } => {
-                self.plugin_id = Some(plugin_id);
+                self.plugin_id = Some(plugin_id.clone());
+                let core_proxy = CoreProxy::new(plugin_id, ctx);
+                self.plugin.initialize(core_proxy);
             }
             HostNotification::NewBuffer { buffer_info } => {
                 let buffer_id = buffer_info.buffer_id.clone();
@@ -50,9 +55,24 @@ impl<'a, P: Plugin> Handler for Dispatcher<'a, P> {
                 let buffer = self.buffers.get_mut(&buffer_id).unwrap();
                 self.plugin.new_buffer(buffer);
             }
-            HostNotification::Update { buffer_id, delta } => {
+            HostNotification::Update {
+                buffer_id,
+                delta,
+                new_len,
+                new_line_count,
+                rev,
+            } => {
                 let buffer = self.buffers.get_mut(&buffer_id).unwrap();
-                self.plugin.update(buffer, &delta);
+                buffer.update(&delta, new_len, new_line_count, rev);
+                self.plugin.update(buffer, &delta, rev);
+            }
+            HostNotification::GetCompletion {
+                buffer_id,
+                request_id,
+                offset,
+            } => {
+                let buffer = self.buffers.get_mut(&buffer_id).unwrap();
+                self.plugin.get_completion(buffer, request_id, offset);
             }
         }
     }
@@ -63,5 +83,11 @@ impl<'a, P: Plugin> Handler for Dispatcher<'a, P> {
         rpc: Self::Request,
     ) -> Result<Value, xi_rpc::RemoteError> {
         Err(xi_rpc::RemoteError::InvalidRequest(None))
+    }
+
+    fn idle(&mut self, ctx: &RpcCtx, token: usize) {
+        let buffer_id: BufferId = BufferId(token);
+        let buffer = self.buffers.get_mut(&buffer_id).unwrap();
+        self.plugin.idle(buffer);
     }
 }

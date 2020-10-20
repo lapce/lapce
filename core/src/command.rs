@@ -8,8 +8,7 @@ use crate::{
     split::SplitMoveDirection,
 };
 
-pub const LAPCE_COMMAND: Selector<LapceCommand> =
-    Selector::new("lapce.command");
+pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.command");
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
 
@@ -87,6 +86,8 @@ pub enum LapceCommand {
     NewLineAbove,
     #[strum(serialize = "new_line_below")]
     NewLineBelow,
+    #[strum(serialize = "get_completion")]
+    GetCompletion,
     #[strum(serialize = "insert_new_line")]
     InsertNewLine,
     #[strum(serialize = "word_backward")]
