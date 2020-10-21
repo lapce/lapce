@@ -1,6 +1,6 @@
 use crate::{
-    editor::EditorView, scroll::LapceScroll, state::LapceState,
-    state::LapceUIState, state::LAPCE_STATE,
+    editor::EditorView, scroll::LapceScroll, state::LapceState, state::LapceUIState,
+    state::LAPCE_STATE,
 };
 use std::{cmp::Ordering, sync::Arc};
 
@@ -10,9 +10,9 @@ use druid::{
     Command, Target, WidgetId,
 };
 use druid::{
-    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx,
-    Widget, WidgetExt, WidgetPod,
+    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
+    WidgetExt, WidgetPod,
 };
 
 use crate::{
@@ -99,12 +99,10 @@ impl LapceSplit {
         }
 
         if !self.children[self.current_bar_hover - 1].flex {
-            self.children[self.current_bar_hover - 1].params =
-                mouse_pos.x - left;
+            self.children[self.current_bar_hover - 1].params = mouse_pos.x - left;
         } else {
             if !self.children[self.current_bar_hover].flex {
-                self.children[self.current_bar_hover].params =
-                    right - mouse_pos.x;
+                self.children[self.current_bar_hover].params = right - mouse_pos.x;
             }
             for (i, child) in self.children.iter_mut().enumerate() {
                 if child.flex {
@@ -151,8 +149,7 @@ impl LapceSplit {
         let size = ctx.size();
         for i in 1..children_len {
             let x = self.children[i].layout_rect.x0;
-            let line =
-                Line::new(Point::new(x, 0.0), Point::new(x, size.height));
+            let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
             let color = env.get(theme::BORDER_LIGHT);
             ctx.stroke(line, &color, 1.0);
         }
@@ -178,12 +175,14 @@ impl Widget<LapceUIState> for LapceSplit {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
+                        LapceUICommand::RequestLayout => {
+                            ctx.request_layout();
+                        }
                         LapceUICommand::Split(vertical) => {
                             if self.children.len() <= 1 {
                                 self.vertical = *vertical;
                             }
-                            let mut editor_split =
-                                LAPCE_STATE.editor_split.lock();
+                            let mut editor_split = LAPCE_STATE.editor_split.lock();
                             let active = editor_split.active;
                             if &self.vertical != vertical {
                                 for child in &self.children {
@@ -191,9 +190,7 @@ impl Widget<LapceUIState> for LapceSplit {
                                 }
                             } else {
                                 let mut index = 0;
-                                for (i, child) in
-                                    self.children.iter().enumerate()
-                                {
+                                for (i, child) in self.children.iter().enumerate() {
                                     if child.widget.id() == active {
                                         index = i;
                                     }
@@ -205,8 +202,7 @@ impl Widget<LapceUIState> for LapceSplit {
                                 let split_id = old_editor.split_id.clone();
                                 let buffer_id = old_editor.buffer_id.clone();
                                 let selection = old_editor.selection.clone();
-                                let scroll_offset =
-                                    old_editor.scroll_offset.clone();
+                                let scroll_offset = old_editor.scroll_offset.clone();
 
                                 let new_editor = editor_split.new_editor(
                                     split_id,
@@ -238,8 +234,7 @@ impl Widget<LapceUIState> for LapceSplit {
                                     new_editor.editor_id,
                                 );
                                 let new_child = ChildWidget {
-                                    widget: WidgetPod::new(new_editor_view)
-                                        .boxed(),
+                                    widget: WidgetPod::new(new_editor_view).boxed(),
                                     flex: true,
                                     params: 1.0,
                                     layout_rect: Rect::ZERO,
@@ -261,8 +256,7 @@ impl Widget<LapceUIState> for LapceSplit {
                             if self.children.len() == 1 {
                                 return;
                             }
-                            let mut editor_split =
-                                LAPCE_STATE.editor_split.lock();
+                            let mut editor_split = LAPCE_STATE.editor_split.lock();
                             let active = editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
@@ -270,14 +264,12 @@ impl Widget<LapceUIState> for LapceSplit {
                                     index = i;
                                 }
                             }
-                            let new_index = if index >= self.children.len() - 1
-                            {
+                            let new_index = if index >= self.children.len() - 1 {
                                 index - 1
                             } else {
                                 index + 1
                             };
-                            let new_active =
-                                self.children[new_index].widget.id();
+                            let new_active = self.children[new_index].widget.id();
                             self.children.remove(index);
                             editor_split.editors.remove(&active);
                             editor_split.active = new_active;
@@ -286,8 +278,7 @@ impl Widget<LapceUIState> for LapceSplit {
                             ctx.request_layout();
                         }
                         LapceUICommand::SplitExchange => {
-                            let mut editor_split =
-                                LAPCE_STATE.editor_split.lock();
+                            let mut editor_split = LAPCE_STATE.editor_split.lock();
                             let active = editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
@@ -304,8 +295,7 @@ impl Widget<LapceUIState> for LapceSplit {
                             }
                         }
                         LapceUICommand::SplitMove(direction) => {
-                            let mut editor_split =
-                                LAPCE_STATE.editor_split.lock();
+                            let mut editor_split = LAPCE_STATE.editor_split.lock();
                             let active = editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
@@ -338,8 +328,7 @@ impl Widget<LapceUIState> for LapceSplit {
                                 .buffers
                                 .get(editor.buffer_id.as_ref().unwrap())
                                 .unwrap();
-                            editor
-                                .ensure_cursor_visible(ctx, buffer, env, None);
+                            editor.ensure_cursor_visible(ctx, buffer, env, None);
 
                             ctx.request_paint();
                         }
@@ -384,8 +373,7 @@ impl Widget<LapceUIState> for LapceSplit {
                     ctx.request_layout();
                 }
 
-                if ctx.is_hot()
-                    && self.bar_hit_test(ctx.size(), mouse.pos).is_some()
+                if ctx.is_hot() && self.bar_hit_test(ctx.size(), mouse.pos).is_some()
                     || ctx.is_active()
                 {
                     match self.vertical {

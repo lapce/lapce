@@ -110,7 +110,6 @@ impl PluginCatalog {
         let method = notification.get("method").unwrap().as_str().unwrap();
         let params = notification.get("params").unwrap();
         self.running.iter().for_each(|plugin| {
-            println!("send plugin notification");
             plugin.peer.send_rpc_notification(method, params);
         });
     }
@@ -146,6 +145,7 @@ impl PluginCatalog {
         request_id: usize,
         offset: usize,
     ) {
+        println!("retrive completion");
         let notification = HostNotification::GetCompletion {
             buffer_id: buffer_id.clone(),
             request_id,
@@ -403,7 +403,10 @@ impl Handler for PluginHandler {
         } = rpc;
         match cmd {
             PluginNotification::ShowCompletion { request_id, result } => {
-                println!("got show completion {:?}", result);
+                LAPCE_STATE
+                    .editor_split
+                    .lock()
+                    .show_completion(request_id, result);
             }
         }
     }

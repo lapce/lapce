@@ -20,17 +20,21 @@ use crate::{
     theme::LapceTheme,
 };
 use anyhow::{anyhow, Result};
+use bit_vec::BitVec;
 use druid::{
-    kurbo::Line, piet::PietText, widget::IdentityWrapper, widget::Padding, Affine,
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, KeyEvent, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
+    kurbo::Line, piet::PietText, theme, widget::IdentityWrapper, widget::Padding,
+    Affine, BoxConstraints, Color, Command, Data, Env, Event, EventCtx, KeyEvent,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
     FontWeight,
 };
-use std::iter::Iterator;
+use fzyr::{has_match, locate};
+use languageserver_types::{CompletionItem, CompletionResponse};
+use serde_json::Value;
+use std::{cmp::Ordering, iter::Iterator};
 use std::{collections::HashMap, sync::Arc};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{Interval, RopeDelta};
@@ -681,6 +685,88 @@ pub struct RegisterContent {
 }
 
 #[derive(Clone)]
+pub struct ScoredCompletionItem {
+    item: CompletionItem,
+    index: usize,
+    score: f64,
+    match_mask: BitVec,
+}
+
+#[derive(Clone)]
+pub struct CompletionState {
+    pub items: Vec<ScoredCompletionItem>,
+    input: String,
+    offset: usize,
+    index: usize,
+}
+
+impl CompletionState {
+    pub fn new() -> CompletionState {
+        CompletionState {
+            items: Vec::new(),
+            input: "".to_string(),
+            offset: 0,
+            index: 0,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.iter().filter(|i| i.score.is_normal()).count()
+    }
+
+    pub fn current_items(&self) -> Vec<&ScoredCompletionItem> {
+        self.items.iter().filter(|i| i.score.is_normal()).collect()
+    }
+
+    pub fn cancel(&mut self) {
+        self.input = "".to_string();
+        self.items = Vec::new();
+        self.offset = 0;
+        self.index = 0;
+    }
+
+    pub fn update(&mut self, input: String, completion_items: Vec<CompletionItem>) {
+        self.items = completion_items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                let mut item = ScoredCompletionItem {
+                    item: item.to_owned(),
+                    score: -1.0 - index as f64,
+                    index: index,
+                    match_mask: BitVec::new(),
+                };
+                if input != "" {
+                    let result = locate(&input, &item.item.label);
+                    item.score = result.score;
+                    item.match_mask = result.match_mask;
+                }
+                item
+            })
+            .collect();
+        self.items
+            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
+        self.input = input;
+    }
+
+    pub fn update_input(&mut self, input: String) {
+        for item in self.items.iter_mut() {
+            if input != "" {
+                let result = locate(&input, &item.item.label);
+                item.score = result.score;
+                item.match_mask = result.match_mask;
+            } else {
+                item.score = -1.0 - item.index as f64;
+            }
+        }
+        self.items
+            .sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(Ordering::Less));
+        self.input = input;
+        self.index = 0;
+    }
+}
+
+#[derive(Clone)]
 pub struct EditorSplitState {
     pub widget_id: WidgetId,
     pub active: WidgetId,
@@ -693,6 +779,7 @@ pub struct EditorSplitState {
     operator: Option<EditorOperator>,
     register: HashMap<String, RegisterContent>,
     inserting: bool,
+    pub completion: CompletionState,
 }
 
 impl EditorSplitState {
@@ -714,6 +801,7 @@ impl EditorSplitState {
             operator: None,
             register: HashMap::new(),
             inserting: false,
+            completion: CompletionState::new(),
         }
     }
 
@@ -880,9 +968,40 @@ impl EditorSplitState {
         );
         editor.selection_apply_delta(&delta);
         editor.ensure_cursor_visible(ctx, buffer, env, None);
+        self.update_completion();
         self.inactive_editor_apply_delta(&delta);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         self.inserting = true;
+        None
+    }
+
+    pub fn update_completion(&mut self) -> Option<()> {
+        let editor = self.editors.get(&self.active)?;
+        let buffer_id = editor.buffer_id.clone()?;
+        let buffer = self.buffers.get(&buffer_id)?;
+        let offset = editor.selection.get_cursor_offset();
+        let prev_offset = buffer.prev_code_boundary(offset);
+        let next_offset = buffer.next_code_boundary(offset);
+        let prev_char = buffer
+            .slice_to_cow(prev_offset - 1..prev_offset)
+            .to_string();
+        let input = buffer.slice_to_cow(prev_offset..next_offset).to_string();
+        if input == "" && prev_char != "." && prev_char != ":" {
+            self.completion.cancel();
+            return None;
+        }
+        if prev_offset != self.completion.offset {
+            self.completion.offset = prev_offset;
+            LAPCE_STATE.plugins.lock().get_completion(
+                &buffer_id,
+                prev_offset,
+                prev_offset,
+            );
+        } else {
+            self.completion.update_input(input);
+        }
+        self.request_layout();
+
         None
     }
 
@@ -964,6 +1083,41 @@ impl EditorSplitState {
         None
     }
 
+    pub fn show_completion(
+        &mut self,
+        request_id: usize,
+        value: Value,
+    ) -> Option<()> {
+        let resp: Result<CompletionResponse, serde_json::Error> =
+            serde_json::from_value(value);
+        if let Ok(resp) = resp {
+            let items = match resp {
+                CompletionResponse::Array(items) => items,
+                CompletionResponse::List(list) => list.items,
+            };
+            let editor = self.editors.get(&self.active)?;
+            let buffer_id = editor.buffer_id?;
+            let buffer = self.buffers.get(&buffer_id)?;
+            let offset = editor.selection.get_cursor_offset();
+            let prev_offset = buffer.prev_code_boundary(offset);
+            if request_id != prev_offset {
+                return None;
+            }
+
+            let input = buffer.slice_to_cow(prev_offset..offset).to_string();
+            self.completion.update(input, items);
+            self.request_layout();
+        }
+        None
+    }
+
+    pub fn request_layout(&self) {
+        LAPCE_STATE.submit_ui_command(
+            LapceUICommand::RequestLayout,
+            self.widget_id.clone(),
+        );
+    }
+
     pub fn run_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -990,7 +1144,49 @@ impl EditorSplitState {
                 );
                 self.mode = Mode::Insert;
             }
+            LapceCommand::ListSelect => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer_id = editor.buffer_id.clone()?;
+                let buffer = self.buffers.get_mut(&buffer_id)?;
+                let offset = editor.selection.get_cursor_offset();
+                let prev_offset = buffer.prev_code_boundary(offset);
+                let next_offset = buffer.next_code_boundary(offset);
+                let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
+                let selection = Selection::region(prev_offset, next_offset);
+                let delta = buffer.edit(
+                    ctx,
+                    buffer_ui_state,
+                    &self.completion.current_items()[self.completion.index]
+                        .item
+                        .label,
+                    &selection,
+                    true,
+                );
+                editor.selection_apply_delta(&delta);
+                editor.ensure_cursor_visible(ctx, buffer, env, None);
+                self.inactive_editor_apply_delta(&delta);
+                self.completion.cancel();
+            }
+            LapceCommand::ListNext => {
+                self.completion.index = Movement::Down.update_index(
+                    self.completion.index,
+                    self.completion.len(),
+                    1,
+                    true,
+                );
+                self.request_layout();
+            }
+            LapceCommand::ListPrevious => {
+                self.completion.index = Movement::Up.update_index(
+                    self.completion.index,
+                    self.completion.len(),
+                    1,
+                    true,
+                );
+                self.request_layout();
+            }
             LapceCommand::NormalMode => {
+                self.completion.cancel();
                 self.inserting = false;
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
@@ -1102,6 +1298,7 @@ impl EditorSplitState {
                 editor.ensure_cursor_visible(ctx, buffer, env, None);
                 if self.mode == Mode::Insert {
                     self.inserting = true;
+                    self.update_completion();
                 }
                 // editor.request_paint();
             }
@@ -1123,6 +1320,7 @@ impl EditorSplitState {
                 editor.ensure_cursor_visible(ctx, buffer, env, None);
                 if self.mode == Mode::Insert {
                     self.inserting = true;
+                    self.update_completion();
                 }
             }
             LapceCommand::DeleteForeward => {
@@ -2221,148 +2419,43 @@ impl Widget<LapceUIState> for Editor {
                 }
             }
         }
-        // if let Some(buffer_id) = buffer_id {
-        //     let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
-
-        //     let mut layout = TextLayout::new("W");
-        //     layout.set_font(LapceTheme::EDITOR_FONT);
-        //     layout.rebuild_if_needed(&mut ctx.text(), env);
-        //     let width = layout.point_for_text_position(1).x;
-        //     let mode = editor_split.get_mode().clone();
-        //     let visual_mode = editor_split.visual_mode.clone();
-        //     let active_view_id = editor_split.active.clone();
-        //     let (editor_width, editor_offset, selection) = {
-        //         let editor = editor_split.get_editor(&self.view_id);
-        //         editor.set_line_height(line_height);
-        //         editor.char_width = width;
-        //         (
-        //             editor.width,
-        //             editor.selection.get_cursor_offset(),
-        //             editor.selection.clone(),
-        //         )
-        //     };
-
-        //     let mut buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
-        //     let cursor = buffer.offset_to_line_col(editor_offset);
-        //     let rects = ctx.region().rects().to_vec();
-        //     for rect in rects {
-        //         let start_line = (rect.y0 / line_height).floor() as usize;
-        //         let num_lines = (rect.height() / line_height).floor() as usize;
-        //         if mode == Mode::Visual {
-        //             self.paint_selection(
-        //                 ctx,
-        //                 &mode,
-        //                 &visual_mode,
-        //                 &selection,
-        //                 buffer,
-        //                 line_height,
-        //                 width,
-        //                 start_line,
-        //                 num_lines,
-        //                 env,
-        //             );
-        //         }
-        //         let last_line = buffer.last_line();
-        //         for line in start_line..start_line + num_lines + 1 {
-        //             if line > last_line {
-        //                 break;
-        //             }
-        //             let line_content = buffer
-        //                 .slice_to_cow(
-        //                     buffer.offset_of_line(line)
-        //                         ..buffer.offset_of_line(line + 1),
-        //                 )
-        //                 .to_string();
-        //             if line == cursor.0 {
-        //                 match mode {
-        //                     Mode::Visual => (),
-        //                     _ => {
-        //                         ctx.fill(
-        //                         Rect::ZERO
-        //                             .with_origin(Point::new(
-        //                                 0.0,
-        //                                 cursor.0 as f64 * line_height,
-        //                             ))
-        //                             .with_size(Size::new(
-        //                                 editor_width,
-        //                                 line_height,
-        //                             )),
-        //                         &env.get(
-        //                             LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-        //                         ),
-        //                     );
-        //                     }
-        //                 };
-
-        //                 if active_view_id == self.view_id {
-        //                     let cursor_x = (line_content[..cursor.1]
-        //                         .chars()
-        //                         .filter_map(|c| {
-        //                             if c == '\t' {
-        //                                 Some('\t')
-        //                             } else {
-        //                                 None
-        //                             }
-        //                         })
-        //                         .count()
-        //                         * 3
-        //                         + cursor.1)
-        //                         as f64
-        //                         * width;
-        //                     match mode {
-        //                         Mode::Insert => (),
-        //                         _ => ctx.fill(
-        //                             Rect::ZERO
-        //                                 .with_origin(Point::new(
-        //                                     cursor_x,
-        //                                     cursor.0 as f64 * line_height,
-        //                                 ))
-        //                                 .with_size(Size::new(
-        //                                     width,
-        //                                     line_height,
-        //                                 )),
-        //                             &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
-        //                         ),
-        //                     };
-        //                 }
-        //             }
-
-        //             let mut cache_draw = false;
-        //             if let Some(buffer_ui) = data.buffers.get(&buffer_id) {
-        //                 if buffer_ui.text_layouts.len() > line {
-        //                     if let Some(layout) =
-        //                         buffer_ui.text_layouts[line].as_ref()
-        //                     {
-        //                         if layout.text == line_content.to_string()
-        //                             && &layout.highlights
-        //                                 == buffer.get_line_highligh(line)
-        //                         {
-        //                             ctx.draw_text(
-        //                                 &layout.layout,
-        //                                 Point::new(
-        //                                     0.0,
-        //                                     line_height * line as f64,
-        //                                 ),
-        //                             );
-        //                             cache_draw = true;
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //             if mode == Mode::Insert {
-        //                 self.paint_insert_cusor(
-        //                     ctx,
-        //                     &selection,
-        //                     buffer,
-        //                     line_height,
-        //                     width,
-        //                     start_line,
-        //                     num_lines,
-        //                     env,
-        //                 );
-        //             }
-        //         }
-        //     }
-        // }
+        let items: Vec<&ScoredCompletionItem> = editor_split
+            .completion
+            .items
+            .iter()
+            .filter(|i| i.score.is_normal())
+            .collect();
+        if items.len() > 0 {
+            let (line, col) =
+                buffer.offset_to_line_col(editor_split.completion.offset);
+            let rect = Size::new(300.0, 500.0).to_rect().with_origin(Point::new(
+                width * col as f64 - 5.0,
+                line_height * (line + 1) as f64,
+            ));
+            ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+            for (i, item) in items.iter().enumerate() {
+                if i == editor_split.completion.index {
+                    let rect = Size::new(300.0, line_height).to_rect().with_origin(
+                        Point::new(
+                            width * col as f64 - 5.0,
+                            line_height * (line + 1 + i) as f64,
+                        ),
+                    );
+                    if let Some(background) = LAPCE_STATE.theme.get("background") {
+                        ctx.fill(rect, background);
+                    }
+                }
+                let mut layout = TextLayout::new(item.item.label.as_str());
+                layout.set_font(LapceTheme::EDITOR_FONT);
+                layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                layout.rebuild_if_needed(&mut ctx.text(), env);
+                let point = Point::new(
+                    width * col as f64,
+                    line_height * (line + 1 + i) as f64,
+                );
+                layout.draw(ctx, point);
+            }
+            ctx.stroke(rect, &env.get(theme::BORDER_LIGHT), 1.0);
+        }
     }
 }

@@ -6,9 +6,11 @@ use druid::{
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
 use serde::{Deserialize, Deserializer, Serialize};
+use std::str::FromStr;
 use std::{
     borrow::Cow,
     io::{self, Read, Write},
+    path::PathBuf,
     sync::Arc,
     thread,
 };
@@ -62,21 +64,17 @@ pub struct BufferUIState {
 pub struct Buffer {
     id: BufferId,
     pub rope: Rope,
-    // tree: Tree,
     highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
     pub highlights: Vec<(usize, usize, Highlight)>,
     pub line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
     pub highlight_version: String,
     event_sink: ExtEventSink,
-    // pub max_len_line: usize,
-    // pub max_len: usize,
-    // pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
     undos: Vec<Vec<(Delta<RopeInfo>, Delta<RopeInfo>)>>,
     current_undo: usize,
     path: String,
+    language_id: String,
     rev: u64,
-    // pub inval_lines: Option<InvalLines>,
 }
 
 impl Buffer {
@@ -92,6 +90,9 @@ impl Buffer {
         let (highlight_config, highlight_names) =
             new_highlight_config(LapceLanguage::Rust);
 
+        let path_buf = PathBuf::from_str(path).unwrap();
+        path_buf.extension().unwrap().to_str().unwrap().to_string();
+
         let mut buffer = Buffer {
             id: buffer_id.clone(),
             rope,
@@ -104,11 +105,12 @@ impl Buffer {
             current_undo: 0,
             event_sink,
             rev: 0,
+            language_id: language_id_from_path(path).unwrap_or("".to_string()),
             path: path.to_string(),
         };
         LAPCE_STATE.plugins.lock().new_buffer(&PluginBufferInfo {
             buffer_id: buffer_id.clone(),
-            language_id: "rust".to_string(),
+            language_id: buffer.language_id.clone(),
             path: path.to_string(),
             nb_lines: buffer.num_lines(),
             buf_size: buffer.len(),
@@ -577,6 +579,14 @@ impl Buffer {
         WordCursor::new(&self.rope, offset).prev_boundary().unwrap()
     }
 
+    pub fn prev_code_boundary(&self, offset: usize) -> usize {
+        WordCursor::new(&self.rope, offset).prev_code_boundary()
+    }
+
+    pub fn next_code_boundary(&self, offset: usize) -> usize {
+        WordCursor::new(&self.rope, offset).next_code_boundary()
+    }
+
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
     }
@@ -738,6 +748,30 @@ impl<'a> WordCursor<'a> {
             return Some(candidate - 1);
         }
         None
+    }
+
+    pub fn prev_code_boundary(&mut self) -> usize {
+        let mut candidate = self.inner.pos();
+        while let Some(prev) = self.inner.prev_codepoint() {
+            let prop_prev = get_word_property(prev);
+            if prop_prev != WordProperty::Other {
+                break;
+            }
+            candidate = self.inner.pos();
+        }
+        return candidate;
+    }
+
+    pub fn next_code_boundary(&mut self) -> usize {
+        let mut candidate = self.inner.pos();
+        while let Some(prev) = self.inner.next_codepoint() {
+            let prop_prev = get_word_property(prev);
+            if prop_prev != WordProperty::Other {
+                break;
+            }
+            candidate = self.inner.pos();
+        }
+        return candidate;
     }
 
     /// Return the selection for the word containing the current cursor. The
@@ -1169,4 +1203,9 @@ mod tests {
         // let new_delta = Delta::synthesize(&tombstones, &ins, &del);
         // assert_eq!(new_rope.to_string(), new_delta.apply(&rope).to_string());
     }
+}
+
+fn language_id_from_path(path: &str) -> Option<String> {
+    let path_buf = PathBuf::from_str(path).ok()?;
+    Some(path_buf.extension()?.to_str()?.to_string())
 }

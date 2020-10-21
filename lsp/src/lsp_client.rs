@@ -47,7 +47,7 @@ pub struct LspClient {
 
 impl LspClient {
     pub fn new() -> Arc<Mutex<LspClient>> {
-        let mut process = Command::new("rust-analyzer-mac")
+        let mut process = Command::new("gopls")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -238,7 +238,6 @@ impl LspClient {
         changes: Vec<TextDocumentContentChangeEvent>,
         version: u64,
     ) {
-        eprintln!("send did change {:?}", buffer_id);
         let uri = self.opened_documents.get(buffer_id).unwrap().clone();
         let text_document_did_change_params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier {

@@ -1535,10 +1535,12 @@ name = "lapce-core"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "bit-vec",
  "cc",
  "druid",
  "fzyr",
  "include_dir",
+ "languageserver-types",
  "lazy_static 1.4.0",
  "lsp-types",
  "parking_lot 0.11.0",

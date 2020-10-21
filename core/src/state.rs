@@ -16,8 +16,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use druid::{
-    Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target,
-    WidgetId,
+    Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId,
 };
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
@@ -100,13 +99,8 @@ impl LapceUIState {
         }
     }
 
-    pub fn get_buffer_mut(
-        &mut self,
-        buffer_id: &BufferId,
-    ) -> &mut BufferUIState {
-        Arc::make_mut(
-            Arc::make_mut(&mut self.buffers).get_mut(buffer_id).unwrap(),
-        )
+    pub fn get_buffer_mut(&mut self, buffer_id: &BufferId) -> &mut BufferUIState {
+        Arc::make_mut(Arc::make_mut(&mut self.buffers).get_mut(buffer_id).unwrap())
     }
 
     pub fn get_buffer(&self, buffer_id: &BufferId) -> &BufferUIState {
@@ -115,8 +109,7 @@ impl LapceUIState {
 
     pub fn new_editor(&mut self, editor_id: &WidgetId) {
         let editor_ui_state = EditorUIState::new();
-        Arc::make_mut(&mut self.editors)
-            .insert(editor_id.clone(), editor_ui_state);
+        Arc::make_mut(&mut self.editors).insert(editor_id.clone(), editor_ui_state);
     }
 
     pub fn get_editor_mut(&mut self, view_id: &WidgetId) -> &mut EditorUIState {
@@ -138,6 +131,7 @@ pub struct LapceState {
     pub container: Option<WidgetId>,
     pub file_explorer: Arc<Mutex<FileExplorerState>>,
     pub plugins: Arc<Mutex<PluginCatalog>>,
+    pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
 }
 
 impl Data for LapceState {
@@ -162,6 +156,7 @@ impl LapceState {
             container: None,
             keypress: Arc::new(Mutex::new(KeyPressState::new())),
             plugins: Arc::new(Mutex::new(plugins)),
+            ui_sink: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -186,6 +181,18 @@ impl LapceState {
             LapceFocus::Editor => self.editor_split.lock().get_mode(),
             LapceFocus::FileExplorer => Mode::Normal,
         }
+    }
+
+    pub fn set_ui_sink(&self, ui_event_sink: ExtEventSink) {
+        *self.ui_sink.lock() = Some(ui_event_sink);
+    }
+
+    pub fn submit_ui_command(&self, comand: LapceUICommand, widget_id: WidgetId) {
+        self.ui_sink.lock().as_ref().unwrap().submit_command(
+            LAPCE_UI_COMMAND,
+            comand,
+            Target::Widget(widget_id),
+        );
     }
 
     pub fn insert(
@@ -297,16 +304,11 @@ impl LapceState {
                     && self.check_condition(&condition[and_indics[0].0 + 2..]);
             } else {
                 if or_indics[0].0 < and_indics[0].0 {
-                    return self
-                        .check_one_condition(&condition[..or_indics[0].0])
-                        || self
-                            .check_condition(&condition[or_indics[0].0 + 2..]);
+                    return self.check_one_condition(&condition[..or_indics[0].0])
+                        || self.check_condition(&condition[or_indics[0].0 + 2..]);
                 } else {
-                    return self
-                        .check_one_condition(&condition[..and_indics[0].0])
-                        && self.check_condition(
-                            &condition[and_indics[0].0 + 2..],
-                        );
+                    return self.check_one_condition(&condition[..and_indics[0].0])
+                        && self.check_condition(&condition[and_indics[0].0 + 2..]);
                 }
             }
         }
@@ -320,6 +322,8 @@ impl LapceState {
             "list_focus" => {
                 *focus == LapceFocus::Palette
                     || *focus == LapceFocus::FileExplorer
+                    || (*focus == LapceFocus::Editor
+                        && self.editor_split.lock().completion.len() > 0)
             }
             "editor_operator" => {
                 *focus == LapceFocus::Editor

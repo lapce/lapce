@@ -24,9 +24,9 @@ use druid::{
     Color, Command, MouseEvent, Selector, Target, WidgetId,
 };
 use druid::{
-    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx,
-    Widget, WidgetExt, WidgetPod,
+    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
+    WidgetExt, WidgetPod,
 };
 
 pub struct ChildState {
@@ -101,19 +101,16 @@ impl Widget<LapceUIState> for LapceContainer {
                                 .editor_split
                                 .lock()
                                 .open_file(ctx, data, path);
-                            // ctx.request_layout();
+                            ctx.request_layout();
                         }
                         LapceUICommand::UpdateHighlights(
                             buffer_id,
                             version,
                             highlights,
                         ) => {
-                            let mut editor_split =
-                                LAPCE_STATE.editor_split.lock();
-                            let buffer = editor_split
-                                .buffers
-                                .get_mut(buffer_id)
-                                .unwrap();
+                            let mut editor_split = LAPCE_STATE.editor_split.lock();
+                            let buffer =
+                                editor_split.buffers.get_mut(buffer_id).unwrap();
                             if version == &buffer.highlight_version {
                                 buffer.highlights = highlights.to_owned();
                                 buffer.line_highlights = HashMap::new();

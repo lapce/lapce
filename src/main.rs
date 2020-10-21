@@ -110,12 +110,13 @@ pub fn main() {
         ui_event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::OpenFile(
-                "/Users/Lulu/lapce/core/src/editor.rs".to_string(),
+                "/Users/Lulu/go/src/uni/main.go".to_string(),
+                // "/Users/Lulu/lapce/core/src/editor.rs".to_string(),
             ),
             Target::Global,
         );
     });
-    // LAPCE_STATE.set_ui_sink(ui_event_sink);
+    LAPCE_STATE.set_ui_sink(launcher.get_external_handle());
     // thread::spawn(move || {
     //     LAPCE_STATE.open_file("/Users/Lulu/lapce/src/editor.rs")
     // });
