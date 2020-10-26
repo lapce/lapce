@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 
 use bit_vec::BitVec;
 use druid::{
-    scroll_component::ScrollComponent, theme, Color, Command, Env, Event, EventCtx,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, Vec2, Widget,
-    WidgetId,
+    scroll_component::ScrollComponent, theme, Affine, Color, Command, Env, Event,
+    EventCtx, Insets, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    TextLayout, Vec2, Widget, WidgetId,
 };
 use fzyr::{has_match, locate};
 use lsp_types::CompletionItem;
@@ -135,6 +135,68 @@ impl Completion {
     pub fn new(id: WidgetId) -> Completion {
         Completion { id }
     }
+
+    fn paint_raw(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let mut completion = &mut LAPCE_STATE.editor_split.lock().completion;
+        let items = completion.current_items();
+        let rect = ctx.region().rects()[0];
+        let size = rect.size();
+
+        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+
+        let current_line_offset = completion.index as f64 * line_height;
+        let items_height = items.len() as f64 * line_height;
+        let scroll_offset = if completion.scroll_offset
+            < current_line_offset + line_height - size.height
+        {
+            (current_line_offset + line_height - size.height)
+                .min(items_height - size.height)
+        } else if completion.scroll_offset > current_line_offset {
+            current_line_offset
+        } else {
+            completion.scroll_offset
+        };
+
+        let start_line = (scroll_offset / line_height).floor() as usize;
+        let num_lines = (size.height / line_height).floor() as usize;
+        for line in start_line..start_line + num_lines {
+            if line >= items.len() {
+                break;
+            }
+
+            if line == completion.index {
+                let rect = Size::new(size.width, line_height).to_rect().with_origin(
+                    Point::new(0.0, line_height * line as f64 - scroll_offset),
+                );
+                if let Some(background) = LAPCE_STATE.theme.get("background") {
+                    ctx.fill(rect, background);
+                }
+            }
+
+            let item = items[line];
+            let mut layout = TextLayout::new(item.item.label.as_str());
+            layout.set_font(LapceTheme::EDITOR_FONT);
+            layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+            layout.rebuild_if_needed(&mut ctx.text(), env);
+            let point = Point::new(0.0, line_height * line as f64 - scroll_offset);
+            layout.draw(ctx, point);
+        }
+
+        if size.height < items_height {
+            let scroll_bar_height = size.height * (size.height / items_height);
+            let scroll_y = size.height * (scroll_offset / items_height);
+            let scroll_bar_width = 10.0;
+            ctx.render_ctx.fill(
+                Rect::ZERO
+                    .with_origin(Point::new(size.width - scroll_bar_width, scroll_y))
+                    .with_size(Size::new(scroll_bar_width, scroll_bar_height)),
+                &env.get(theme::SCROLLBAR_COLOR),
+            );
+        }
+
+        completion.scroll_offset = scroll_offset;
+    }
 }
 
 impl Widget<LapceUIState> for Completion {
@@ -195,71 +257,31 @@ impl Widget<LapceUIState> for Completion {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let mut completion = &mut LAPCE_STATE.editor_split.lock().completion;
-        let items = completion.current_items();
-        let items_height = line_height * (items.len() as f64);
-        let size = if items_height < ctx.size().height {
-            Size::new(ctx.size().width, items_height)
-        } else {
-            ctx.size()
-        };
-        let rect = size.to_rect();
-
-        // let blur_color = Color::grey8(100);
-        // ctx.blurred_rect(rect + Vec2::new(0.0, 2.5), 5.0, &blur_color);
-        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
-
-        let current_line_offset = completion.index as f64 * line_height;
-        let items_height = items.len() as f64 * line_height;
-        let scroll_offset = if completion.scroll_offset
-            < current_line_offset + line_height - size.height
-        {
-            (current_line_offset + line_height - size.height)
-                .min(items_height - size.height)
-        } else if completion.scroll_offset > current_line_offset {
-            current_line_offset
-        } else {
-            completion.scroll_offset
+        let shadow_width = 5.0;
+        let shift = shadow_width * 2.0;
+        let size = {
+            let completion = &mut LAPCE_STATE.editor_split.lock().completion;
+            let items = completion.current_items();
+            let items_height = line_height * (items.len() as f64) + shift * 2.0;
+            if items_height < ctx.size().height {
+                Size::new(ctx.size().width, items_height)
+            } else {
+                ctx.size()
+            }
         };
 
-        let start_line = (scroll_offset / line_height).floor() as usize;
-        let num_lines = (size.height / line_height).floor() as usize;
-        for line in start_line..start_line + num_lines {
-            if line >= items.len() {
-                break;
-            }
+        let content_rect = size.to_rect() - Insets::new(shift, shift, shift, shift);
 
-            if line == completion.index {
-                let rect = Size::new(size.width, line_height).to_rect().with_origin(
-                    Point::new(0.0, line_height * line as f64 - scroll_offset),
-                );
-                if let Some(background) = LAPCE_STATE.theme.get("background") {
-                    ctx.fill(rect, background);
-                }
-            }
+        let blur_color = Color::grey8(100);
+        ctx.blurred_rect(content_rect, shadow_width, &blur_color);
 
-            let item = items[line];
-            let mut layout = TextLayout::new(item.item.label.as_str());
-            layout.set_font(LapceTheme::EDITOR_FONT);
-            layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-            layout.rebuild_if_needed(&mut ctx.text(), env);
-            let point = Point::new(0.0, line_height * line as f64 - scroll_offset);
-            layout.draw(ctx, point);
-        }
-
-        if size.height < items_height {
-            let scroll_bar_height = size.height * (size.height / items_height);
-            let scroll_y = size.height * (scroll_offset / items_height);
-            let scroll_bar_width = 10.0;
-            ctx.render_ctx.fill(
-                Rect::ZERO
-                    .with_origin(Point::new(size.width - scroll_bar_width, scroll_y))
-                    .with_size(Size::new(scroll_bar_width, scroll_bar_height)),
-                &env.get(theme::SCROLLBAR_COLOR),
-            );
-        }
-
-        completion.scroll_offset = scroll_offset;
+        ctx.with_save(|ctx| {
+            let origin = content_rect.origin().to_vec2();
+            ctx.transform(Affine::translate(origin));
+            ctx.with_child_ctx(content_rect - origin, |ctx| {
+                self.paint_raw(ctx, data, env);
+            });
+        });
     }
 
     fn id(&self) -> Option<WidgetId> {

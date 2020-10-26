@@ -240,7 +240,7 @@ impl LapceState {
             }
             LapceCommand::PaletteCancel => {
                 *self.focus.lock() = LapceFocus::Editor;
-                self.palette.lock().cancel(ctx);
+                self.palette.lock().cancel(ctx, ui_state);
                 ctx.request_layout();
             }
             LapceCommand::FileExplorer => {

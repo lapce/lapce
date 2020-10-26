@@ -53,6 +53,9 @@ fn build_app() -> impl Widget<LapceUIState> {
         if let Some(selection) = theme.get("selection") {
             env.set(LapceTheme::EDITOR_SELECTION_COLOR, selection.clone());
         };
+        if let Some(color) = theme.get("comment") {
+            env.set(LapceTheme::EDITOR_COMMENT, color.clone());
+        };
         env.set(LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
         env.set(LapceTheme::PALETTE_BACKGROUND, Color::rgb8(125, 125, 125));
         env.set(LapceTheme::PALETTE_INPUT_FOREROUND, Color::rgb8(0, 0, 0));
@@ -69,9 +72,6 @@ fn build_app() -> impl Widget<LapceUIState> {
         env.set(theme::SCROLLBAR_COLOR, hex_to_color("#c4c4c4").unwrap());
     })
     // .debug_invalidation()
-    // Label::new("test label")
-    //     .with_text_color(Color::rgb8(64, 120, 242))
-    //     .background(Color::rgb8(64, 120, 242))
 }
 
 pub fn main() {

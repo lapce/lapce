@@ -1,10 +1,13 @@
+use bit_vec::BitVec;
 use druid::{
     kurbo::{Line, Rect},
+    piet::TextAttribute,
     widget::Container,
     widget::IdentityWrapper,
-    Command, KeyEvent, Target, WidgetId,
+    Command, FontFamily, FontWeight, KeyEvent, Target, WidgetId,
 };
 use druid::{
+    piet::{Text, TextLayoutBuilder},
     theme, BoxConstraints, Color, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx,
     Widget, WidgetExt, WidgetPod,
@@ -41,6 +44,7 @@ pub struct PaletteItem {
     text: String,
     score: Score,
     index: usize,
+    match_mask: BitVec,
 }
 
 #[derive(Clone)]
@@ -76,16 +80,22 @@ impl PaletteState {
                 self.input = "/".to_string();
                 self.cursor = 1;
                 self.items = self.get_lines().unwrap_or(Vec::new());
-                let mut editor_split = LAPCE_STATE.editor_split.lock();
-                let active = editor_split.active.clone();
-                let editor = editor_split.editors.get_mut(&active).unwrap();
-                editor.store_selection();
+                LAPCE_STATE.editor_split.lock().save_selection();
             }
             _ => self.items = self.get_files(),
         }
     }
 
-    pub fn cancel(&mut self, ctx: &mut EventCtx) {
+    pub fn cancel(&mut self, ctx: &mut EventCtx, ui_state: &mut LapceUIState) {
+        match &self.palette_type {
+            &PaletteType::Line => {
+                LAPCE_STATE
+                    .editor_split
+                    .lock()
+                    .restore_selection(ctx, ui_state);
+            }
+            _ => (),
+        }
         self.reset(ctx);
     }
 
@@ -195,8 +205,18 @@ impl PaletteState {
             return;
         }
 
-        self.input.replace_range(..self.cursor, "");
-        self.cursor = 0;
+        let start = match &self.palette_type {
+            &PaletteType::File => 0,
+            &PaletteType::Line => 1,
+        };
+
+        if self.cursor == start {
+            self.input = "".to_string();
+            self.cursor = 0;
+        } else {
+            self.input.replace_range(start..self.cursor, "");
+            self.cursor = start;
+        }
         self.update_palette(ctx, ui_state, env);
     }
 
@@ -212,10 +232,12 @@ impl PaletteState {
         for item in self.items.iter_mut() {
             if input == "" {
                 item.score = -1.0 - item.index as f64;
+                item.match_mask = BitVec::new();
             } else {
                 if has_match(&input, &item.text) {
                     let result = locate(&input, &item.text);
                     item.score = result.score;
+                    item.match_mask = result.match_mask;
                 } else {
                     item.score = f64::NEG_INFINITY;
                 }
@@ -241,6 +263,7 @@ impl PaletteState {
                     text: format!("{}: {}", i, l.to_string()),
                     score: 0.0,
                     index: i,
+                    match_mask: BitVec::new(),
                 })
                 .collect(),
         )
@@ -269,6 +292,7 @@ impl PaletteState {
                         text: file,
                         score: 0.0,
                         index,
+                        match_mask: BitVec::new(),
                     });
                     index += 1;
                 }
@@ -392,97 +416,6 @@ impl Palette {
                 .with_size(Size::new(100.0, 50.0)),
         };
         palette
-    }
-
-    pub fn run(&self) {
-        // LAPCE_STATE.palette.lock().unwrap().items = self.get_files();
-        self.update_height();
-    }
-
-    fn change_index(&self, n: i64) {
-        // let input = self.state.lock().unwrap().input.clone();
-        // let app_font = self.app.config.font.lock().unwrap().clone();
-        // let size = self.get_rect().size();
-        // let items = if input == "" {
-        //     self.state.lock().unwrap().items.clone()
-        // } else {
-        //     self.state.lock().unwrap().filtered_items.clone()
-        // };
-        // let index = self.state.lock().unwrap().index;
-
-        // let new_index = if index as i64 + n < 0 {
-        //     items.len() as i64 + index as i64 + n
-        // } else if index as i64 + n > items.len() as i64 - 1 {
-        //     index as i64 + n - items.len() as i64
-        // } else {
-        //     index as i64 + n
-        // } as usize;
-
-        // self.state.lock().unwrap().index = new_index;
-        // self.content.ensure_visble(
-        //     Rect::from_origin_size(
-        //         Point::new(0.0, new_index as f64 * app_font.lineheight()),
-        //         Size::new(size.width, app_font.lineheight()),
-        //     ),
-        //     0.0,
-        //     0.0,
-        // );
-        // self.invalidate();
-    }
-
-    fn update_height(&self) {
-        // let height = {
-        //     let input = &self.state.lock().unwrap().input.clone();
-        //     let items = if input == "" {
-        //         self.state.lock().unwrap().items.clone()
-        //     } else {
-        //         self.state.lock().unwrap().filtered_items.clone()
-        //     };
-        //     let size = self.get_rect().size();
-        //     let padding = 5.0;
-        //     let lines = if items.len() > 10 { 10 } else { items.len() };
-        //     let app_font = self.app.config.font.lock().unwrap().clone();
-        //     self.content.set_content_size(
-        //         size.width,
-        //         items.len() as f64 * app_font.lineheight(),
-        //     );
-        //     padding * 2.0
-        //         + app_font.lineheight()
-        //         + lines as f64 * app_font.lineheight()
-        // };
-        // let size = self.get_rect().size();
-        // if height != size.height {
-        //     self.invalidate();
-        //     self.set_size(size.width, height);
-        // }
-    }
-
-    fn get_files(&self) -> Vec<PaletteItem> {
-        let mut items = Vec::new();
-        let mut dirs = Vec::new();
-        let mut index = 0;
-        dirs.push(PathBuf::from("./"));
-        while let Some(dir) = dirs.pop() {
-            for entry in fs::read_dir(dir).unwrap() {
-                let entry = entry.unwrap();
-                let path = entry.path();
-                if path.is_dir() {
-                    if path.as_path().to_str().unwrap().to_string() != "./target" {
-                        dirs.push(path);
-                    }
-                } else {
-                    let file = path.as_path().to_str().unwrap().to_string();
-                    items.push(PaletteItem {
-                        kind: PaletteType::File,
-                        text: file,
-                        score: 0.0,
-                        index,
-                    });
-                    index += 1;
-                }
-            }
-        }
-        items
     }
 
     fn cancel(&self) {
@@ -692,11 +625,28 @@ impl Widget<LapceUIState> for PaletteContent {
                         )
                     }
                 }
-                let mut text_layout = TextLayout::new(item.text.as_ref());
-                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                text_layout.rebuild_if_needed(ctx.text(), env);
-                text_layout
-                    .draw(ctx, Point::new(0.0, (start + i) as f64 * line_height));
+                let mut text_layout = ctx
+                    .text()
+                    .new_text_layout(item.text.clone())
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+                for (i, _) in item.text.chars().enumerate() {
+                    if item.match_mask.get(i).unwrap_or(false) {
+                        text_layout = text_layout.range_attribute(
+                            i..i + 1,
+                            TextAttribute::TextColor(Color::rgb8(0, 0, 0)),
+                        );
+                        text_layout = text_layout.range_attribute(
+                            i..i + 1,
+                            TextAttribute::Weight(FontWeight::BOLD),
+                        );
+                    }
+                }
+                let text_layout = text_layout.build().unwrap();
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(0.0, (start + i) as f64 * line_height),
+                );
             }
         }
     }

@@ -24,9 +24,10 @@ use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
 use druid::{
     kurbo::Line, piet::PietText, theme, widget::IdentityWrapper, widget::Padding,
-    Affine, BoxConstraints, Color, Command, Data, Env, Event, EventCtx, KeyEvent,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
+    Affine, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
+    FontDescriptor, FontFamily, Insets, KeyEvent, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout,
+    UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
@@ -35,7 +36,8 @@ use druid::{
 use fzyr::{has_match, locate};
 use lsp_types::{CompletionItem, CompletionResponse};
 use serde_json::Value;
-use std::{cmp::Ordering, iter::Iterator};
+use std::str::FromStr;
+use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{Interval, RopeDelta};
@@ -87,8 +89,9 @@ pub struct EditorState {
     pub scroll_offset: Vec2,
     pub view_size: Size,
     pub gutter_width: f64,
-    pub stored_selection: Selection,
-    pub stored_scroll_offset: Vec2,
+    pub header_height: f64,
+    pub saved_selection: Selection,
+    pub saved_scroll_offset: Vec2,
 }
 
 impl EditorState {
@@ -105,8 +108,9 @@ impl EditorState {
             scroll_offset: Vec2::ZERO,
             view_size: Size::ZERO,
             gutter_width: 0.0,
-            stored_selection: Selection::new_simple(),
-            stored_scroll_offset: Vec2::ZERO,
+            header_height: 0.0,
+            saved_selection: Selection::new_simple(),
+            saved_scroll_offset: Vec2::ZERO,
         }
     }
 
@@ -197,9 +201,20 @@ impl EditorState {
         None
     }
 
-    pub fn store_selection(&mut self) {
-        self.stored_selection = self.selection.clone();
-        self.stored_scroll_offset = self.scroll_offset.clone();
+    pub fn update_ui_state(
+        &mut self,
+        ui_state: &mut LapceUIState,
+        buffer: &Buffer,
+    ) -> Option<()> {
+        let editor_ui_state = ui_state.get_editor_mut(&self.view_id);
+        editor_ui_state.selection_start_line =
+            buffer.line_of_offset(self.selection.min_offset());
+        editor_ui_state.selection_end_line =
+            buffer.line_of_offset(self.selection.max_offset());
+        editor_ui_state.selection = self.selection.clone();
+        editor_ui_state.cursor =
+            buffer.offset_to_line_col(self.selection.get_cursor_offset());
+        None
     }
 
     fn get_count(
@@ -882,6 +897,33 @@ impl EditorSplitState {
         }
     }
 
+    pub fn save_selection(&mut self) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        editor.saved_selection = editor.selection.clone();
+        editor.saved_scroll_offset = editor.scroll_offset.clone();
+        None
+    }
+
+    pub fn restore_selection(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+    ) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer = self.buffers.get(editor.buffer_id.as_ref()?)?;
+        editor.selection = editor.saved_selection.clone();
+        editor.update_ui_state(ui_state, buffer);
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::ScrollTo((
+                editor.saved_scroll_offset.x,
+                editor.saved_scroll_offset.y,
+            )),
+            Target::Widget(editor.view_id),
+        ));
+        None
+    }
+
     pub fn jump_to_line(
         &mut self,
         ctx: &mut EventCtx,
@@ -908,15 +950,7 @@ impl EditorSplitState {
             env,
             Some(EnsureVisiblePosition::CenterOfWindow),
         );
-        let editor_ui_state = ui_state.get_editor_mut(&self.active);
-        editor_ui_state.selection_start_line =
-            buffer.line_of_offset(editor.selection.min_offset());
-        editor_ui_state.selection_end_line =
-            buffer.line_of_offset(editor.selection.max_offset());
-        editor_ui_state.selection = editor.selection.clone();
-        editor_ui_state.cursor =
-            buffer.offset_to_line_col(editor.selection.get_cursor_offset());
-        editor_ui_state.visual_mode = self.visual_mode.clone();
+        editor.update_ui_state(ui_state, buffer);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         None
     }
@@ -1485,16 +1519,10 @@ impl EditorSplitState {
             .buffer_id
             .as_ref()?
             .clone();
-        let editor_ui_state = ui_state.get_editor_mut(&self.active);
         let editor = self.editors.get_mut(&self.active)?;
         let buffer = self.buffers.get(editor.buffer_id.as_ref()?)?;
-        editor_ui_state.selection_start_line =
-            buffer.line_of_offset(editor.selection.min_offset());
-        editor_ui_state.selection_end_line =
-            buffer.line_of_offset(editor.selection.max_offset());
-        editor_ui_state.selection = editor.selection.clone();
-        editor_ui_state.cursor =
-            buffer.offset_to_line_col(editor.selection.get_cursor_offset());
+        editor.update_ui_state(ui_state, buffer);
+        let editor_ui_state = ui_state.get_editor_mut(&self.active);
         editor_ui_state.visual_mode = self.visual_mode.clone();
         editor_ui_state.mode = self.mode.clone();
         self.notify_fill_text_layouts(ctx, &buffer_id);
@@ -1534,6 +1562,112 @@ impl EditorSplitState {
     }
 }
 
+pub struct EditorHeader {
+    view_id: WidgetId,
+}
+
+impl EditorHeader {
+    pub fn new(view_id: WidgetId) -> EditorHeader {
+        EditorHeader { view_id }
+    }
+}
+
+impl Widget<LapceUIState> for EditorHeader {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceUIState,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceUIState,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
+        env: &Env,
+    ) {
+        let cursor = data.get_editor(&self.view_id).cursor;
+        let old_cursor = old_data.get_editor(&self.view_id).cursor;
+
+        if cursor.0 != old_cursor.0 {
+            ctx.request_paint();
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceUIState,
+        env: &Env,
+    ) -> Size {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        Size::new(bc.max().width, line_height + 10.0)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
+        let size = ctx.size();
+        let rect = size.to_rect();
+        let blur_color = Color::grey8(100);
+        let shadow_width = 5.0;
+        let shift = 2.0;
+        ctx.blurred_rect(
+            rect - Insets::new(shift, 0.0, shift, shadow_width),
+            shadow_width,
+            &blur_color,
+        );
+        ctx.fill(
+            rect - Insets::new(0.0, 0.0, 0.0, shadow_width),
+            &env.get(LapceTheme::EDITOR_BACKGROUND),
+        );
+
+        let editor_split = LAPCE_STATE.editor_split.lock();
+        let editor = editor_split.editors.get(&self.view_id).unwrap();
+        if let Some(buffer_id) = editor.buffer_id.as_ref() {
+            let buffer = editor_split.buffers.get(buffer_id).unwrap();
+            let path = PathBuf::from_str(&buffer.path).unwrap();
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let mut x = 10.0;
+
+            let mut text_layout = TextLayout::new(file_name.clone());
+            text_layout.set_font(
+                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+            );
+            text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+            text_layout.rebuild_if_needed(ctx.text(), env);
+            text_layout.draw(ctx, Point::new(10.0, 5.0));
+            x += text_layout.size().width;
+
+            let cwd = PathBuf::from_str("./").unwrap().canonicalize().unwrap();
+            let dir = if let Ok(dir) = path.strip_prefix(cwd) {
+                dir
+            } else {
+                path.as_path()
+            };
+            let dir = dir.to_str().unwrap().to_string();
+            let mut text_layout = TextLayout::new(dir);
+            text_layout.set_font(
+                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+            );
+            text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
+            text_layout.rebuild_if_needed(ctx.text(), env);
+            text_layout.draw(ctx, Point::new(5.0 + x, 5.0));
+        }
+    }
+}
+
 pub struct EditorView {
     split_id: WidgetId,
     view_id: WidgetId,
@@ -1541,6 +1675,7 @@ pub struct EditorView {
     editor:
         WidgetPod<LapceUIState, LapceScroll<LapceUIState, Padding<LapceUIState>>>,
     gutter: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
+    header: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
 }
 
 impl EditorView {
@@ -1560,6 +1695,7 @@ impl EditorView {
                 EditorGutter::new(view_id).padding((10.0, 0.0, 10.0, 0.0)),
             )
             .boxed(),
+            header: WidgetPod::new(EditorHeader::new(view_id)).boxed(),
         }
         .with_id(view_id)
     }
@@ -1765,6 +1901,7 @@ impl Widget<LapceUIState> for EditorView {
             }
             _ => (),
         }
+        self.header.lifecycle(ctx, event, data, env);
         self.gutter.lifecycle(ctx, event, data, env);
         self.editor.lifecycle(ctx, event, data, env);
     }
@@ -1789,6 +1926,18 @@ impl Widget<LapceUIState> for EditorView {
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
+        let header_size = self.header.layout(ctx, bc, data, env);
+        {
+            let mut editor_split = LAPCE_STATE.editor_split.lock();
+            let editor = editor_split.editors.get_mut(&self.view_id).unwrap();
+            editor.header_height = header_size.height;
+        }
+        self.header.set_layout_rect(
+            ctx,
+            data,
+            env,
+            Rect::ZERO.with_size(header_size),
+        );
         let gutter_size = self.gutter.layout(ctx, bc, data, env);
         {
             let mut editor_split = LAPCE_STATE.editor_split.lock();
@@ -1799,7 +1948,9 @@ impl Widget<LapceUIState> for EditorView {
             ctx,
             data,
             env,
-            Rect::ZERO.with_size(gutter_size),
+            Rect::ZERO
+                .with_size(gutter_size)
+                .with_origin(Point::new(0.0, header_size.height)),
         );
         let editor_size =
             Size::new(self_size.width - gutter_size.width, self_size.height);
@@ -1815,7 +1966,7 @@ impl Widget<LapceUIState> for EditorView {
             data,
             env,
             Rect::ZERO
-                .with_origin(Point::new(gutter_size.width, 0.0))
+                .with_origin(Point::new(gutter_size.width, header_size.height))
                 .with_size(editor_size),
         );
         self_size
@@ -1835,6 +1986,7 @@ impl Widget<LapceUIState> for EditorView {
             })
         });
         self.editor.paint(ctx, data, env);
+        self.header.paint(ctx, data, env);
     }
 }
 
