@@ -5,9 +5,9 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
-languageserver-types = "0.54"
 include_dir = "0.6.0"
 tree-sitter-highlight = "0.3.0"
 tree-sitter = "0.17.0"
@@ -24,7 +24,7 @@ xi-rope = { path = "../../xi-editor/rust/rope/" }
 xi-rpc = { path = "../../xi-editor/rust/rpc/" }
 fzyr = "0.1.2"
 uuid = { version = "0.7.4", features = ["v4"] }
-lsp-types = "0.61.0"
+lsp-types = "0.82.0"
 druid = { git = "https://github.com/linebender/druid", features = ["svg"] }
 
 [build-dependencies]

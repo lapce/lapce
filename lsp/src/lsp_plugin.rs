@@ -60,6 +60,11 @@ impl LspPlugin {
 impl Plugin for LspPlugin {
     fn initialize(&mut self, core: CoreProxy) {
         self.core = Some(core);
+        self.core.as_mut().unwrap().start_lsp_server("gopls", "go");
+        self.core
+            .as_mut()
+            .unwrap()
+            .start_lsp_server("rust-analyzer-mac", "rust");
     }
 
     fn new_buffer(&mut self, buffer: &mut Buffer) {

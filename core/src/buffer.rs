@@ -5,6 +5,7 @@ use druid::{
 };
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
+use lsp_types::Position;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::str::FromStr;
 use std::{
@@ -62,7 +63,7 @@ pub struct BufferUIState {
 
 #[derive(Clone)]
 pub struct Buffer {
-    id: BufferId,
+    pub id: BufferId,
     pub rope: Rope,
     highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
@@ -70,10 +71,10 @@ pub struct Buffer {
     pub line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
     pub highlight_version: String,
     event_sink: ExtEventSink,
-    undos: Vec<Vec<(Delta<RopeInfo>, Delta<RopeInfo>)>>,
+    undos: Vec<Vec<(RopeDelta, RopeDelta)>>,
     current_undo: usize,
-    path: String,
-    language_id: String,
+    pub path: String,
+    pub language_id: String,
     rev: u64,
 }
 
@@ -105,7 +106,7 @@ impl Buffer {
             current_undo: 0,
             event_sink,
             rev: 0,
-            language_id: language_id_from_path(path).unwrap_or("".to_string()),
+            language_id: language_id_from_path(path).unwrap_or("").to_string(),
             path: path.to_string(),
         };
         LAPCE_STATE.plugins.lock().new_buffer(&PluginBufferInfo {
@@ -116,6 +117,12 @@ impl Buffer {
             buf_size: buffer.len(),
             rev: buffer.rev,
         });
+        LAPCE_STATE.lsp.lock().new_buffer(
+            &buffer_id,
+            path,
+            &buffer.language_id,
+            buffer.rope.to_string(),
+        );
         buffer.update_highlights();
         buffer
     }
@@ -304,6 +311,9 @@ impl Buffer {
                 self.undos.push(Vec::new());
                 self.current_undo += 1;
             }
+            // let mut undos = &self.undos[self.current_undo - 1];
+            // let last_undo = &undos[undos.len() - 1];
+            // last_undo.0.is_identity();
             self.undos[self.current_undo - 1].push((delta.clone(), inv_delta));
         }
     }
@@ -376,6 +386,7 @@ impl Buffer {
             self.num_lines(),
             self.rev,
         );
+        LAPCE_STATE.lsp.lock().update(&self, delta, self.rev);
     }
 
     pub fn yank(&self, selection: &Selection) -> Vec<String> {
@@ -488,6 +499,14 @@ impl Buffer {
 
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
         LogicalLines.offset_to_line_col(&self.rope, offset)
+    }
+
+    pub fn offset_to_position(&self, offset: usize) -> Position {
+        let (line, col) = LogicalLines.offset_to_line_col(&self.rope, offset);
+        Position {
+            line: line as u64,
+            character: col as u64,
+        }
     }
 
     pub fn num_lines(&self) -> usize {
@@ -1174,38 +1193,44 @@ mod tests {
 
     #[test]
     fn test_reverse_delta() {
-        let rope = Rope::from_str("abc\nabc\ncdfdsfasdf\nsdlkfjdslkf\n").unwrap();
+        let rope = Rope::from_str("0123456789").unwrap();
         let mut builder = DeltaBuilder::new(rope.len());
-        builder.replace(0..4, Rope::from("1 skdjfl\n"));
+        builder.replace(3..4, Rope::from_str("a").unwrap());
         let delta1 = builder.build();
+        println!("{:?}", delta1);
         let middle_rope = delta1.apply(&rope);
 
         let mut builder = DeltaBuilder::new(middle_rope.len());
-        builder.replace(5..6, Rope::from("1 skdjfl\n"));
+        builder.replace(1..5, Rope::from_str("b").unwrap());
         let delta2 = builder.build();
+        println!("{:?}", delta2);
         let new_rope = delta2.apply(&middle_rope);
 
         let (ins1, del1) = delta1.factor();
+        let in1 = ins1.inserted_subset();
         let (ins2, del2) = delta2.factor();
+        let in2 = ins2.inserted_subset();
 
-        let union_rope = ins2.apply(&middle_rope);
-        let ins2 = ins2.inserted_subset();
-        let tombstones = ins2.complement().delete_from(&union_rope);
-        let del = del2.transform_union(&del1.transform_expand(&ins2));
-        // let new_d = Delta::synthesize(&tombstones, &ins2, &del);
-
-        // let ins1 = ins1.inserted_subset();
-        // let ins2 = ins2.inserted_subset();
-        // let ins = ins1.union(&ins2);
+        ins2.transform_expand(&in1, true)
+            .inserted_subset()
+            .transform_union(&in1);
+        // del1.transform_expand(&in1).transform_expand(&del2);
+        // let del1 = del1.transform_expand(&in1).transform_expand(&in2);
+        // let del2 = del2.transform_expand(&in2);
         // let del = del1.union(&del2);
-        // let del = del.transform_expand(&ins);
-        // let tombstones = ins.complement().delete_from(&union_rope);
-        // let new_delta = Delta::synthesize(&tombstones, &ins, &del);
-        // assert_eq!(new_rope.to_string(), new_delta.apply(&rope).to_string());
+        let union = ins2.transform_expand(&in1, true).apply(&ins1.apply(&rope));
+
+        println!("{}", union);
+
+        // if delta1.is_simple_delete()
     }
 }
 
-fn language_id_from_path(path: &str) -> Option<String> {
+fn language_id_from_path(path: &str) -> Option<&str> {
     let path_buf = PathBuf::from_str(path).ok()?;
-    Some(path_buf.extension()?.to_str()?.to_string())
+    Some(match path_buf.extension()?.to_str()? {
+        "rs" => "rust",
+        "go" => "go",
+        _ => return None,
+    })
 }

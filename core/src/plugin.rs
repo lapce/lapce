@@ -115,10 +115,10 @@ impl PluginCatalog {
     }
 
     pub fn new_buffer(&self, info: &PluginBufferInfo) {
-        let notification = HostNotification::NewBuffer {
-            buffer_info: info.clone(),
-        };
-        self.send_rpc_notification(notification);
+        // let notification = HostNotification::NewBuffer {
+        //     buffer_info: info.clone(),
+        // };
+        // self.send_rpc_notification(notification);
     }
 
     pub fn update(
@@ -129,14 +129,14 @@ impl PluginCatalog {
         new_line_count: usize,
         rev: u64,
     ) {
-        let notification = HostNotification::Update {
-            buffer_id: buffer_id.clone(),
-            delta: delta.clone(),
-            new_len,
-            new_line_count,
-            rev,
-        };
-        self.send_rpc_notification(notification);
+        // let notification = HostNotification::Update {
+        //     buffer_id: buffer_id.clone(),
+        //     delta: delta.clone(),
+        //     new_len,
+        //     new_line_count,
+        //     rev,
+        // };
+        // self.send_rpc_notification(notification);
     }
 
     pub fn get_completion(
@@ -145,13 +145,13 @@ impl PluginCatalog {
         request_id: usize,
         offset: usize,
     ) {
-        println!("retrive completion");
-        let notification = HostNotification::GetCompletion {
-            buffer_id: buffer_id.clone(),
-            request_id,
-            offset,
-        };
-        self.send_rpc_notification(notification);
+        // println!("retrive completion");
+        // let notification = HostNotification::GetCompletion {
+        //     buffer_id: buffer_id.clone(),
+        //     request_id,
+        //     offset,
+        // };
+        // self.send_rpc_notification(notification);
     }
 }
 
@@ -288,7 +288,14 @@ pub enum HostRequest {}
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum PluginNotification {
-    ShowCompletion { request_id: usize, result: Value },
+    ShowCompletion {
+        request_id: usize,
+        result: Value,
+    },
+    StartLspServer {
+        exec_path: String,
+        language_id: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -407,6 +414,15 @@ impl Handler for PluginHandler {
                     .editor_split
                     .lock()
                     .show_completion(request_id, result);
+            }
+            PluginNotification::StartLspServer {
+                exec_path,
+                language_id,
+            } => {
+                LAPCE_STATE
+                    .lsp
+                    .lock()
+                    .start_server(&exec_path, &language_id);
             }
         }
     }

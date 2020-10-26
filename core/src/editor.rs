@@ -1,10 +1,10 @@
-use crate::state::LAPCE_STATE;
 use crate::{
     buffer::{Buffer, BufferId, BufferUIState, InvalLines},
     command::EnsureVisiblePosition,
     command::LapceCommand,
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
+    completion::ScoredCompletionItem,
     container::LapceContainer,
     movement::ColPosition,
     movement::LinePosition,
@@ -19,6 +19,7 @@ use crate::{
     state::VisualMode,
     theme::LapceTheme,
 };
+use crate::{completion::CompletionState, state::LAPCE_STATE};
 use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
 use druid::{
@@ -32,7 +33,7 @@ use druid::{
     FontWeight,
 };
 use fzyr::{has_match, locate};
-use languageserver_types::{CompletionItem, CompletionResponse};
+use lsp_types::{CompletionItem, CompletionResponse};
 use serde_json::Value;
 use std::{cmp::Ordering, iter::Iterator};
 use std::{collections::HashMap, sync::Arc};
@@ -79,12 +80,15 @@ pub struct EditorState {
     pub view_id: WidgetId,
     pub split_id: WidgetId,
     pub buffer_id: Option<BufferId>,
-    pub selection: Selection,
     pub char_width: f64,
     pub width: f64,
     pub height: f64,
+    pub selection: Selection,
     pub scroll_offset: Vec2,
     pub view_size: Size,
+    pub gutter_width: f64,
+    pub stored_selection: Selection,
+    pub stored_scroll_offset: Vec2,
 }
 
 impl EditorState {
@@ -94,12 +98,15 @@ impl EditorState {
             view_id: WidgetId::next(),
             split_id,
             buffer_id,
-            selection: Selection::new_simple(),
             char_width: 0.0,
             width: 0.0,
             height: 0.0,
+            selection: Selection::new_simple(),
             scroll_offset: Vec2::ZERO,
             view_size: Size::ZERO,
+            gutter_width: 0.0,
+            stored_selection: Selection::new_simple(),
+            stored_scroll_offset: Vec2::ZERO,
         }
     }
 
@@ -188,6 +195,11 @@ impl EditorState {
         }
 
         None
+    }
+
+    pub fn store_selection(&mut self) {
+        self.stored_selection = self.selection.clone();
+        self.stored_scroll_offset = self.scroll_offset.clone();
     }
 
     fn get_count(
@@ -685,88 +697,6 @@ pub struct RegisterContent {
 }
 
 #[derive(Clone)]
-pub struct ScoredCompletionItem {
-    item: CompletionItem,
-    index: usize,
-    score: f64,
-    match_mask: BitVec,
-}
-
-#[derive(Clone)]
-pub struct CompletionState {
-    pub items: Vec<ScoredCompletionItem>,
-    input: String,
-    offset: usize,
-    index: usize,
-}
-
-impl CompletionState {
-    pub fn new() -> CompletionState {
-        CompletionState {
-            items: Vec::new(),
-            input: "".to_string(),
-            offset: 0,
-            index: 0,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.items.iter().filter(|i| i.score.is_normal()).count()
-    }
-
-    pub fn current_items(&self) -> Vec<&ScoredCompletionItem> {
-        self.items.iter().filter(|i| i.score.is_normal()).collect()
-    }
-
-    pub fn cancel(&mut self) {
-        self.input = "".to_string();
-        self.items = Vec::new();
-        self.offset = 0;
-        self.index = 0;
-    }
-
-    pub fn update(&mut self, input: String, completion_items: Vec<CompletionItem>) {
-        self.items = completion_items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| {
-                let mut item = ScoredCompletionItem {
-                    item: item.to_owned(),
-                    score: -1.0 - index as f64,
-                    index: index,
-                    match_mask: BitVec::new(),
-                };
-                if input != "" {
-                    let result = locate(&input, &item.item.label);
-                    item.score = result.score;
-                    item.match_mask = result.match_mask;
-                }
-                item
-            })
-            .collect();
-        self.items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        self.input = input;
-    }
-
-    pub fn update_input(&mut self, input: String) {
-        for item in self.items.iter_mut() {
-            if input != "" {
-                let result = locate(&input, &item.item.label);
-                item.score = result.score;
-                item.match_mask = result.match_mask;
-            } else {
-                item.score = -1.0 - item.index as f64;
-            }
-        }
-        self.items
-            .sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(Ordering::Less));
-        self.input = input;
-        self.index = 0;
-    }
-}
-
-#[derive(Clone)]
 pub struct EditorSplitState {
     pub widget_id: WidgetId,
     pub active: WidgetId,
@@ -871,6 +801,13 @@ impl EditorSplitState {
         if editor.buffer_id.as_ref() == Some(&buffer_id) {
             return;
         }
+        // if let Some(old_buffer_id) = editor.buffer_id.as_ref() {
+        //     let old_buffer_ui = Arc::make_mut(&mut ui_state.buffers)
+        //         .get_mut(old_buffer_id)
+        //         .unwrap();
+        //     Arc::make_mut(old_buffer_ui).text_layouts =
+        //         vec![Arc::new(None); old_buffer_ui.text_layouts.len()]
+        // }
         editor.buffer_id = Some(buffer_id.clone());
         editor.selection = Selection::new_simple();
         ctx.submit_command(Command::new(
@@ -945,6 +882,45 @@ impl EditorSplitState {
         }
     }
 
+    pub fn jump_to_line(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        line: usize,
+        env: &Env,
+    ) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id?;
+        let buffer = self.buffers.get_mut(&buffer_id)?;
+        let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
+        editor.selection = buffer.do_move(
+            ctx,
+            buffer_ui_state,
+            &Mode::Normal,
+            Movement::Line(LinePosition::Line(line)),
+            &editor.selection,
+            None,
+            None,
+        );
+        editor.ensure_cursor_visible(
+            ctx,
+            buffer,
+            env,
+            Some(EnsureVisiblePosition::CenterOfWindow),
+        );
+        let editor_ui_state = ui_state.get_editor_mut(&self.active);
+        editor_ui_state.selection_start_line =
+            buffer.line_of_offset(editor.selection.min_offset());
+        editor_ui_state.selection_end_line =
+            buffer.line_of_offset(editor.selection.max_offset());
+        editor_ui_state.selection = editor.selection.clone();
+        editor_ui_state.cursor =
+            buffer.offset_to_line_col(editor.selection.get_cursor_offset());
+        editor_ui_state.visual_mode = self.visual_mode.clone();
+        self.notify_fill_text_layouts(ctx, &buffer_id);
+        None
+    }
+
     pub fn insert(
         &mut self,
         ctx: &mut EventCtx,
@@ -968,14 +944,14 @@ impl EditorSplitState {
         );
         editor.selection_apply_delta(&delta);
         editor.ensure_cursor_visible(ctx, buffer, env, None);
-        self.update_completion();
+        self.update_completion(ctx);
         self.inactive_editor_apply_delta(&delta);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         self.inserting = true;
         None
     }
 
-    pub fn update_completion(&mut self) -> Option<()> {
+    pub fn update_completion(&mut self, ctx: &mut EventCtx) -> Option<()> {
         let editor = self.editors.get(&self.active)?;
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get(&buffer_id)?;
@@ -987,7 +963,7 @@ impl EditorSplitState {
             .to_string();
         let input = buffer.slice_to_cow(prev_offset..next_offset).to_string();
         if input == "" && prev_char != "." && prev_char != ":" {
-            self.completion.cancel();
+            self.completion.cancel(ctx);
             return None;
         }
         if prev_offset != self.completion.offset {
@@ -997,10 +973,14 @@ impl EditorSplitState {
                 prev_offset,
                 prev_offset,
             );
+            LAPCE_STATE.lsp.lock().get_completion(
+                prev_offset,
+                buffer,
+                buffer.offset_to_position(prev_offset),
+            );
         } else {
-            self.completion.update_input(input);
+            self.completion.update_input(ctx, input);
         }
-        self.request_layout();
 
         None
     }
@@ -1106,7 +1086,10 @@ impl EditorSplitState {
 
             let input = buffer.slice_to_cow(prev_offset..offset).to_string();
             self.completion.update(input, items);
-            self.request_layout();
+            LAPCE_STATE.submit_ui_command(
+                LapceUICommand::RequestLayout,
+                self.completion.widget_id,
+            );
         }
         None
     }
@@ -1165,7 +1148,7 @@ impl EditorSplitState {
                 editor.selection_apply_delta(&delta);
                 editor.ensure_cursor_visible(ctx, buffer, env, None);
                 self.inactive_editor_apply_delta(&delta);
-                self.completion.cancel();
+                self.completion.cancel(ctx);
             }
             LapceCommand::ListNext => {
                 self.completion.index = Movement::Down.update_index(
@@ -1174,7 +1157,7 @@ impl EditorSplitState {
                     1,
                     true,
                 );
-                self.request_layout();
+                self.completion.request_paint(ctx);
             }
             LapceCommand::ListPrevious => {
                 self.completion.index = Movement::Up.update_index(
@@ -1183,10 +1166,10 @@ impl EditorSplitState {
                     1,
                     true,
                 );
-                self.request_layout();
+                self.completion.request_paint(ctx);
             }
             LapceCommand::NormalMode => {
-                self.completion.cancel();
+                self.completion.cancel(ctx);
                 self.inserting = false;
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
@@ -1298,7 +1281,7 @@ impl EditorSplitState {
                 editor.ensure_cursor_visible(ctx, buffer, env, None);
                 if self.mode == Mode::Insert {
                     self.inserting = true;
-                    self.update_completion();
+                    self.update_completion(ctx);
                 }
                 // editor.request_paint();
             }
@@ -1320,7 +1303,7 @@ impl EditorSplitState {
                 editor.ensure_cursor_visible(ctx, buffer, env, None);
                 if self.mode == Mode::Insert {
                     self.inserting = true;
-                    self.update_completion();
+                    self.update_completion(ctx);
                 }
             }
             LapceCommand::DeleteForeward => {
@@ -1807,6 +1790,11 @@ impl Widget<LapceUIState> for EditorView {
     ) -> Size {
         let self_size = bc.max();
         let gutter_size = self.gutter.layout(ctx, bc, data, env);
+        {
+            let mut editor_split = LAPCE_STATE.editor_split.lock();
+            let editor = editor_split.editors.get_mut(&self.view_id).unwrap();
+            editor.gutter_width = gutter_size.width;
+        }
         self.gutter.set_layout_rect(
             ctx,
             data,
@@ -1923,10 +1911,9 @@ impl Widget<LapceUIState> for EditorGutter {
         {
             let buffer = editor_split.buffers.get(&buffer_id).unwrap();
             let width = 7.6171875;
-            Size::new(
-                width * buffer.last_line().to_string().len() as f64,
-                25.0 * buffer.num_lines() as f64,
-            )
+            let gutter_width = width * buffer.last_line().to_string().len() as f64;
+            let gutter_height = 25.0 * buffer.num_lines() as f64;
+            Size::new(gutter_width, gutter_height)
         } else {
             Size::new(50.0, 50.0)
         }
@@ -2419,43 +2406,38 @@ impl Widget<LapceUIState> for Editor {
                 }
             }
         }
-        let items: Vec<&ScoredCompletionItem> = editor_split
-            .completion
-            .items
-            .iter()
-            .filter(|i| i.score.is_normal())
-            .collect();
-        if items.len() > 0 {
-            let (line, col) =
-                buffer.offset_to_line_col(editor_split.completion.offset);
-            let rect = Size::new(300.0, 500.0).to_rect().with_origin(Point::new(
-                width * col as f64 - 5.0,
-                line_height * (line + 1) as f64,
-            ));
-            ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
-            for (i, item) in items.iter().enumerate() {
-                if i == editor_split.completion.index {
-                    let rect = Size::new(300.0, line_height).to_rect().with_origin(
-                        Point::new(
-                            width * col as f64 - 5.0,
-                            line_height * (line + 1 + i) as f64,
-                        ),
-                    );
-                    if let Some(background) = LAPCE_STATE.theme.get("background") {
-                        ctx.fill(rect, background);
-                    }
-                }
-                let mut layout = TextLayout::new(item.item.label.as_str());
-                layout.set_font(LapceTheme::EDITOR_FONT);
-                layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                layout.rebuild_if_needed(&mut ctx.text(), env);
-                let point = Point::new(
-                    width * col as f64,
-                    line_height * (line + 1 + i) as f64,
-                );
-                layout.draw(ctx, point);
-            }
-            ctx.stroke(rect, &env.get(theme::BORDER_LIGHT), 1.0);
-        }
+        // let items = editor_split.completion.current_items();
+        // if items.len() > 0 {
+        //     let (line, col) =
+        //         buffer.offset_to_line_col(editor_split.completion.offset);
+        //     let rect = Size::new(300.0, 500.0).to_rect().with_origin(Point::new(
+        //         width * col as f64 - 5.0,
+        //         line_height * (line + 1) as f64,
+        //     ));
+        //     ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+        //     for (i, item) in items.iter().enumerate() {
+        //         if i == editor_split.completion.index {
+        //             let rect = Size::new(300.0, line_height).to_rect().with_origin(
+        //                 Point::new(
+        //                     width * col as f64 - 5.0,
+        //                     line_height * (line + 1 + i) as f64,
+        //                 ),
+        //             );
+        //             if let Some(background) = LAPCE_STATE.theme.get("background") {
+        //                 ctx.fill(rect, background);
+        //             }
+        //         }
+        //         let mut layout = TextLayout::new(item.item.label.as_str());
+        //         layout.set_font(LapceTheme::EDITOR_FONT);
+        //         layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+        //         layout.rebuild_if_needed(&mut ctx.text(), env);
+        //         let point = Point::new(
+        //             width * col as f64,
+        //             line_height * (line + 1 + i) as f64,
+        //         );
+        //         layout.draw(ctx, point);
+        //     }
+        //     ctx.stroke(rect, &env.get(theme::BORDER_LIGHT), 1.0);
+        // }
     }
 }

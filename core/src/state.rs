@@ -11,7 +11,9 @@ use crate::{
     explorer::FileExplorerState,
     keypress::KeyPressState,
     language::TreeSitter,
+    lsp::LspCatalog,
     palette::PaletteState,
+    palette::PaletteType,
     plugin::PluginCatalog,
 };
 use anyhow::{anyhow, Result};
@@ -131,6 +133,7 @@ pub struct LapceState {
     pub container: Option<WidgetId>,
     pub file_explorer: Arc<Mutex<FileExplorerState>>,
     pub plugins: Arc<Mutex<PluginCatalog>>,
+    pub lsp: Arc<Mutex<LspCatalog>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
 }
 
@@ -156,6 +159,7 @@ impl LapceState {
             container: None,
             keypress: Arc::new(Mutex::new(KeyPressState::new())),
             plugins: Arc::new(Mutex::new(plugins)),
+            lsp: Arc::new(Mutex::new(LspCatalog::new())),
             ui_sink: Arc::new(Mutex::new(None)),
         }
     }
@@ -204,7 +208,7 @@ impl LapceState {
     ) {
         match *self.focus.lock() {
             LapceFocus::Palette => {
-                self.palette.lock().insert(ctx, content, env);
+                self.palette.lock().insert(ctx, ui_state, content, env);
             }
             LapceFocus::Editor => {
                 self.editor_split.lock().insert(ctx, ui_state, content, env);
@@ -226,11 +230,18 @@ impl LapceState {
         match cmd {
             LapceCommand::Palette => {
                 *self.focus.lock() = LapceFocus::Palette;
-                self.palette.lock().run();
+                self.palette.lock().run(None);
+                ctx.request_layout();
+            }
+            LapceCommand::PaletteLine => {
+                *self.focus.lock() = LapceFocus::Palette;
+                self.palette.lock().run(Some(PaletteType::Line));
+                ctx.request_layout();
             }
             LapceCommand::PaletteCancel => {
                 *self.focus.lock() = LapceFocus::Editor;
-                self.palette.lock().cancel();
+                self.palette.lock().cancel(ctx);
+                ctx.request_layout();
             }
             LapceCommand::FileExplorer => {
                 *self.focus.lock() = LapceFocus::FileExplorer;
@@ -256,26 +267,28 @@ impl LapceState {
                         let mut palette = self.palette.lock();
                         match cmd {
                             LapceCommand::ListSelect => {
-                                palette.select(ctx, ui_state);
+                                palette.select(ctx, ui_state, env);
                                 *focus = LapceFocus::Editor;
+                                ctx.request_layout();
                             }
                             LapceCommand::ListNext => {
-                                palette.change_index(ctx, 1, env);
+                                palette.change_index(ctx, ui_state, 1, env);
                             }
                             LapceCommand::ListPrevious => {
-                                palette.change_index(ctx, -1, env);
+                                palette.change_index(ctx, ui_state, -1, env);
                             }
                             LapceCommand::Left => {
-                                palette.move_cursor(-1);
+                                palette.move_cursor(ctx, -1);
                             }
                             LapceCommand::Right => {
-                                palette.move_cursor(1);
+                                palette.move_cursor(ctx, 1);
                             }
                             LapceCommand::DeleteBackward => {
-                                palette.delete_backward(ctx, env);
+                                palette.delete_backward(ctx, ui_state, env);
                             }
                             LapceCommand::DeleteToBeginningOfLine => {
-                                palette.delete_to_beginning_of_line(ctx, env);
+                                palette
+                                    .delete_to_beginning_of_line(ctx, ui_state, env);
                             }
                             _ => (),
                         };
@@ -365,11 +378,11 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
         ),
         _ => return Err(anyhow!("invalid hex color")),
     };
-    Ok(Color::rgb8(
+    Ok(Color::rgba8(
         u8::from_str_radix(&r, 16)?,
         u8::from_str_radix(&g, 16)?,
         u8::from_str_radix(&b, 16)?,
-        // u8::from_str_radix(&a, 16)?,
+        u8::from_str_radix(&a, 16)?,
     ))
 }
 

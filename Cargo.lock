@@ -1514,7 +1514,7 @@ dependencies = [
  "include_dir",
  "lapce-core",
  "lazy_static 1.4.0",
- "lsp-types",
+ "lsp-types 0.61.0",
  "parking_lot 0.11.0",
  "serde",
  "serde_json",
@@ -1540,9 +1540,9 @@ dependencies = [
  "druid",
  "fzyr",
  "include_dir",
- "languageserver-types",
+ "jsonrpc-lite",
  "lazy_static 1.4.0",
- "lsp-types",
+ "lsp-types 0.82.0",
  "parking_lot 0.11.0",
  "serde",
  "serde_json",
@@ -1657,6 +1657,20 @@ version = "0.61.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa3268fbe8beb2795c2fb327bf44f4f3d24f5fe9ebc18d7e2980afd444d72bcf"
 dependencies = [
+ "bitflags",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "url 2.1.1",
+]
+
+[[package]]
+name = "lsp-types"
+version = "0.82.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db895abb8527cf59e3de893ab2acf52cf904faeb65e60ea6f373e11fe86464e8"
+dependencies = [
+ "base64 0.12.3",
  "bitflags",
  "serde",
  "serde_json",

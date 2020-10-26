@@ -4,6 +4,7 @@ use crate::{
     buffer::BufferId,
     buffer::BufferUIState,
     command::{LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
+    completion::Completion,
     editor::Editor,
     editor::EditorState,
     editor::EditorUIState,
@@ -21,7 +22,7 @@ use druid::{
     widget::IdentityWrapper,
     widget::Label,
     widget::SizedBox,
-    Color, Command, MouseEvent, Selector, Target, WidgetId,
+    Color, Command, MouseEvent, Selector, Target, Vec2, WidgetId,
 };
 use druid::{
     theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
@@ -39,17 +40,21 @@ pub struct LapceContainer {
     palette_max_size: Size,
     palette_rect: Rect,
     palette: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
-    editor_split: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
+    editor_split: WidgetPod<LapceUIState, LapceSplit>,
+    completion: WidgetPod<LapceUIState, Completion>,
 }
 
 impl LapceContainer {
     pub fn new() -> Self {
-        let palette = Palette::new(LAPCE_STATE.palette.lock().scroll_widget_id)
+        let (widget_id, scroll_widget_id) = {
+            let palette = LAPCE_STATE.palette.lock();
+            (palette.widget_id.clone(), palette.scroll_widget_id.clone())
+        };
+        let palette = Palette::new(scroll_widget_id)
+            .with_id(widget_id)
             .border(theme::BORDER_LIGHT, 1.0)
-            .background(LapceTheme::PALETTE_BACKGROUND);
-        let palette_id = WidgetId::next();
-        let palette =
-            WidgetPod::new(IdentityWrapper::wrap(palette, palette_id)).boxed();
+            .background(LapceTheme::EDITOR_SELECTION_COLOR);
+        let palette = WidgetPod::new(palette).boxed();
 
         let editor_split_state = LAPCE_STATE.editor_split.lock();
         let editor_view = EditorView::new(
@@ -57,11 +62,14 @@ impl LapceContainer {
             editor_split_state.active,
             WidgetId::next(),
         );
-        let editor_split = WidgetPod::new(IdentityWrapper::wrap(
-            LapceSplit::new(true).with_flex_child(editor_view, 1.0),
-            editor_split_state.widget_id,
-        ))
-        .boxed();
+        let editor_split = WidgetPod::new(
+            LapceSplit::new(true)
+                .with_id(editor_split_state.widget_id)
+                .with_flex_child(editor_view, 1.0),
+        );
+
+        let completion =
+            WidgetPod::new(Completion::new(editor_split_state.completion.widget_id));
 
         LapceContainer {
             palette_max_size: Size::new(600.0, 400.0),
@@ -70,6 +78,7 @@ impl LapceContainer {
                 .with_size(Size::new(600.0, 400.0)),
             palette,
             editor_split,
+            completion,
         }
     }
 }
@@ -87,6 +96,7 @@ impl Widget<LapceUIState> for LapceContainer {
             Event::Internal(_) => {
                 self.palette.event(ctx, event, data, env);
                 self.editor_split.event(ctx, event, data, env);
+                self.completion.event(ctx, event, data, env);
             }
             Event::KeyDown(key_event) => LAPCE_STATE
                 .keypress
@@ -156,6 +166,7 @@ impl Widget<LapceUIState> for LapceContainer {
     ) {
         self.palette.lifecycle(ctx, event, data, env);
         self.editor_split.lifecycle(ctx, event, data, env);
+        self.completion.lifecycle(ctx, event, data, env);
     }
 
     fn update(
@@ -193,6 +204,37 @@ impl Widget<LapceUIState> for LapceContainer {
         self.palette
             .set_layout_rect(ctx, data, env, self.palette_rect);
 
+        {
+            self.completion.layout(ctx, bc, data, env);
+            let editor_split = LAPCE_STATE.editor_split.lock();
+            let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+            for child in &self.editor_split.widget().children {
+                if child.widget.id() == editor_split.active {
+                    let editor =
+                        editor_split.editors.get(&editor_split.active).unwrap();
+                    if editor.buffer_id.is_none() {
+                        continue;
+                    }
+                    let buffer_id = editor.buffer_id.as_ref().unwrap();
+                    let buffer = editor_split.buffers.get(buffer_id).unwrap();
+                    let (line, col) =
+                        buffer.offset_to_line_col(editor_split.completion.offset);
+                    let char_width = 7.6171875;
+                    let origin = child.widget.layout_rect().origin()
+                        + Vec2::new(
+                            editor.gutter_width + 10.0 + col as f64 * char_width,
+                            (line + 1) as f64 * line_height,
+                        )
+                        - editor.scroll_offset;
+                    let layout_rect = Rect::from_origin_size(
+                        origin,
+                        Size::new(300.0, 12.0 * line_height),
+                    );
+                    self.completion.set_layout_rect(ctx, data, env, layout_rect);
+                }
+            }
+        }
+
         self.editor_split.layout(ctx, bc, data, env);
         self.editor_split.set_layout_rect(
             ctx,
@@ -212,7 +254,13 @@ impl Widget<LapceUIState> for LapceContainer {
         }
         self.editor_split.paint(ctx, data, env);
         if *LAPCE_STATE.focus.lock() == LapceFocus::Palette {
+            let blur_color = Color::grey8(100);
+            ctx.blurred_rect(self.palette.layout_rect(), 5.0, &blur_color);
             self.palette.paint(ctx, data, env);
+        }
+
+        if LAPCE_STATE.editor_split.lock().completion.len() > 0 {
+            self.completion.paint(ctx, data, env);
         }
     }
 }

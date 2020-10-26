@@ -30,13 +30,14 @@ pub enum SplitMoveDirection {
 }
 
 pub struct LapceSplit {
+    id: Option<WidgetId>,
     vertical: bool,
-    children: Vec<ChildWidget>,
+    pub children: Vec<ChildWidget>,
     current_bar_hover: usize,
 }
 
-struct ChildWidget {
-    widget: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
+pub struct ChildWidget {
+    pub widget: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     flex: bool,
     params: f64,
     layout_rect: Rect,
@@ -45,10 +46,16 @@ struct ChildWidget {
 impl LapceSplit {
     pub fn new(vertical: bool) -> Self {
         LapceSplit {
+            id: None,
             vertical,
             children: Vec::new(),
             current_bar_hover: 0,
         }
+    }
+
+    pub fn with_id(mut self, id: WidgetId) -> Self {
+        self.id = Some(id);
+        self
     }
 
     pub fn with_child(
@@ -484,5 +491,9 @@ impl Widget<LapceUIState> for LapceSplit {
             child.widget.paint(ctx, &data, env);
         }
         self.paint_bar(ctx, env);
+    }
+
+    fn id(&self) -> Option<WidgetId> {
+        self.id
     }
 }
