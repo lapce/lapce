@@ -440,7 +440,7 @@ impl EditorState {
         start_insert: bool,
     ) -> Selection {
         match mode {
-            Mode::Normal => self.selection.expand(),
+            Mode::Normal => self.selection.clone(),
             Mode::Insert => self.selection.clone(),
             Mode::Visual => match visual_mode {
                 VisualMode::Normal => self.selection.expand(),
@@ -662,9 +662,12 @@ impl EditorState {
                 &selection,
                 buffer,
                 count.unwrap_or(1),
-                mode == &Mode::Insert,
+                true,
                 true,
             );
+        }
+        if selection.min_offset() == selection.max_offset() {
+            return;
         }
         let delta =
             buffer.edit(ctx, ui_state, "", &selection, mode != &Mode::Insert);
@@ -1121,6 +1124,17 @@ impl EditorSplitState {
                 );
             }
         }
+
+        let buffer = self.buffers.get(&buffer_id)?;
+        for (_, editor) in self.editors.iter_mut() {
+            for location in editor.locations.iter_mut() {
+                if location.path == buffer.path {
+                    location.offset = Selection::caret(location.offset)
+                        .apply_delta(delta, true, InsertDrift::Default)
+                        .get_cursor_offset();
+                }
+            }
+        }
         None
     }
 
@@ -1508,9 +1522,11 @@ impl EditorSplitState {
                     Movement::Right,
                     count,
                 );
-                if self.mode == Mode::Visual {
+                if self.mode == Mode::Normal || self.mode == Mode::Visual {
                     editor.selection =
                         buffer.correct_offset(&editor.selection.collapse());
+                }
+                if self.mode == Mode::Visual {
                     self.mode = Mode::Normal;
                 }
                 editor.ensure_cursor_visible(ctx, buffer, env, None);
@@ -1618,8 +1634,6 @@ impl EditorSplitState {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 if let Some(offset) = buffer.undo(ctx, buffer_ui_state) {
-                    let line = buffer.line_of_offset(offset);
-                    let offset = buffer.offset_of_line(line);
                     editor.selection = Selection::caret(offset);
                     editor.ensure_cursor_visible(
                         ctx,
@@ -1633,8 +1647,6 @@ impl EditorSplitState {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 if let Some(offset) = buffer.redo(ctx, buffer_ui_state) {
-                    let line = buffer.line_of_offset(offset);
-                    let offset = buffer.offset_of_line(line);
                     editor.selection = Selection::caret(offset);
                     editor.ensure_cursor_visible(
                         ctx,
