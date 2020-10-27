@@ -722,11 +722,9 @@ impl PaletteItem {
                     .unwrap()
                     .canonicalize()
                     .unwrap();
-                LAPCE_STATE.editor_split.lock().open_file(
-                    ctx,
-                    ui_state,
-                    path.to_str().unwrap(),
-                );
+                let mut editor_split = LAPCE_STATE.editor_split.lock();
+                editor_split.save_jump_location();
+                editor_split.open_file(ctx, ui_state, path.to_str().unwrap());
             }
             &PaletteType::Line => {
                 let line = self

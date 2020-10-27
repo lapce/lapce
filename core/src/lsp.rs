@@ -18,8 +18,8 @@ use xi_rope::RopeDelta;
 use lsp_types::{
     ClientCapabilities, CompletionCapability, CompletionItemCapability,
     CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    InitializeParams, InitializeResult, PartialResultParams, Position, Range,
-    ServerCapabilities, TextDocumentClientCapabilities,
+    GotoDefinitionParams, InitializeParams, InitializeResult, PartialResultParams,
+    Position, Range, ServerCapabilities, TextDocumentClientCapabilities,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
     TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
     TraceOption, Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
@@ -85,6 +85,17 @@ impl LspCatalog {
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             client.lock().get_completion(request_id, buffer, position);
+        }
+    }
+
+    pub fn go_to_definition(
+        &self,
+        request_id: usize,
+        buffer: &Buffer,
+        position: Position,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.lock().go_to_definition(request_id, buffer, position);
         }
     }
 }
@@ -294,6 +305,49 @@ impl LspClient {
 
         let params = Params::from(serde_json::to_value(init_params).unwrap());
         self.send_request("initialize", params, Box::new(on_init));
+    }
+
+    pub fn go_to_definition(
+        &mut self,
+        request_id: usize,
+        buffer: &Buffer,
+        position: Position,
+    ) {
+        let uri = self.get_uri(buffer);
+        self.request_definition(uri, position, move |lsp_client, result| {
+            if let Ok(res) = result {
+                thread::spawn(move || {
+                    LAPCE_STATE
+                        .editor_split
+                        .lock()
+                        .go_to_definition(request_id, res);
+                });
+            }
+        })
+    }
+
+    pub fn request_definition<CB>(
+        &mut self,
+        document_uri: Url,
+        position: Position,
+        on_definition: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+    {
+        let params = GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: document_uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request(
+            "textDocument/definition",
+            params,
+            Box::new(on_definition),
+        );
     }
 
     pub fn request_completion<CB>(

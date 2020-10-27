@@ -1,10 +1,13 @@
 use druid::{Rect, Selector, Size, WidgetId};
+use lsp_types::Location;
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
 use tree_sitter_highlight::Highlight;
 
 use crate::{
-    buffer::BufferId, buffer::InvalLines, editor::HighlightTextLayout,
+    buffer::BufferId,
+    buffer::InvalLines,
+    editor::{EditorLocation, HighlightTextLayout},
     split::SplitMoveDirection,
 };
 
@@ -120,6 +123,12 @@ pub enum LapceCommand {
     Redo,
     #[strum(serialize = "center_of_window")]
     CenterOfWindow,
+    #[strum(serialize = "goto_definition")]
+    GotoDefinition,
+    #[strum(serialize = "jump_location_backward")]
+    JumpLocationBackward,
+    #[strum(serialize = "jump_location_forward")]
+    JumpLocationForward,
     Insert(String),
 }
 
@@ -136,6 +145,7 @@ pub enum LapceUICommand {
     RequestPaint,
     RequestPaintRect(Rect),
     UpdateHighlights(BufferId, String, Vec<(usize, usize, Highlight)>),
+    CenterOfWindow,
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EditorViewSize(Size),
     Scroll((f64, f64)),
@@ -144,5 +154,5 @@ pub enum LapceUICommand {
     SplitExchange,
     SplitClose,
     SplitMove(SplitMoveDirection),
-    // BufferUpdate(BufferId, InvalLines),
+    GotoLocation(Location),
 }

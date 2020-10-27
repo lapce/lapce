@@ -1,5 +1,8 @@
 use crate::{
-    editor::EditorView, scroll::LapceScroll, state::LapceState, state::LapceUIState,
+    editor::{EditorLocation, EditorView},
+    scroll::LapceScroll,
+    state::LapceState,
+    state::LapceUIState,
     state::LAPCE_STATE,
 };
 use std::{cmp::Ordering, sync::Arc};
@@ -185,6 +188,21 @@ impl Widget<LapceUIState> for LapceSplit {
                         LapceUICommand::RequestLayout => {
                             ctx.request_layout();
                         }
+                        LapceUICommand::GotoLocation(location) => {
+                            let mut editor_split = LAPCE_STATE.editor_split.lock();
+                            editor_split.save_jump_location();
+                            let path = location.uri.path().to_string();
+                            let buffer =
+                                editor_split.get_buffer_from_path(ctx, data, &path);
+                            let location = EditorLocation {
+                                path,
+                                offset: buffer.offset_of_line(
+                                    location.range.start.line as usize,
+                                ) + location.range.start.character as usize,
+                                scroll_offset: None,
+                            };
+                            editor_split.jump_to_location(ctx, data, &location, env);
+                        }
                         LapceUICommand::Split(vertical) => {
                             if self.children.len() <= 1 {
                                 self.vertical = *vertical;
@@ -210,12 +228,16 @@ impl Widget<LapceUIState> for LapceSplit {
                                 let buffer_id = old_editor.buffer_id.clone();
                                 let selection = old_editor.selection.clone();
                                 let scroll_offset = old_editor.scroll_offset.clone();
+                                let locations = old_editor.locations.clone();
+                                let current_location = old_editor.current_location;
 
-                                let new_editor = editor_split.new_editor(
+                                let mut new_editor = editor_split.new_editor(
                                     split_id,
                                     buffer_id,
                                     selection.clone(),
                                 );
+                                new_editor.locations = locations;
+                                new_editor.current_location = current_location;
                                 data.new_editor(&new_editor.view_id);
                                 let editor_ui = data.get_editor(&active);
                                 let selection = editor_ui.selection.clone();

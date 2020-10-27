@@ -406,7 +406,7 @@ impl Buffer {
         ctx: &mut EventCtx,
         ui_state: &mut BufferUIState,
         mode: &Mode,
-        movement: Movement,
+        movement: &Movement,
         selection: &Selection,
         operator: Option<EditorOperator>,
         count: Option<usize>,

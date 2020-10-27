@@ -20,11 +20,7 @@ pub struct SelRegion {
 }
 
 impl SelRegion {
-    pub fn new(
-        start: usize,
-        end: usize,
-        horiz: Option<ColPosition>,
-    ) -> SelRegion {
+    pub fn new(start: usize, end: usize, horiz: Option<ColPosition>) -> SelRegion {
         SelRegion { start, end, horiz }
     }
 
@@ -54,8 +50,7 @@ impl SelRegion {
 
     fn should_merge(self, other: SelRegion) -> bool {
         other.min() < self.max()
-            || ((self.is_caret() || other.is_caret())
-                && other.min() == self.max())
+            || ((self.is_caret() || other.is_caret()) && other.min() == self.max())
     }
 
     fn merge_with(self, other: SelRegion) -> SelRegion {
@@ -224,9 +219,7 @@ impl Selection {
     }
 
     pub fn search(&self, offset: usize) -> usize {
-        if self.regions.is_empty()
-            || offset > self.regions.last().unwrap().max()
-        {
+        if self.regions.is_empty() || offset > self.regions.last().unwrap().max() {
             return self.regions.len();
         }
         match self.regions.binary_search_by(|r| r.max().cmp(&offset)) {
@@ -311,6 +304,13 @@ impl Movement {
         }
     }
 
+    pub fn is_jump(&self) -> bool {
+        match self {
+            Movement::Line(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn update_selection(
         &self,
         selection: &Selection,
@@ -321,13 +321,8 @@ impl Movement {
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in &selection.regions {
-            let region = self.update_region(
-                region,
-                buffer,
-                count,
-                include_newline,
-                modify,
-            );
+            let region =
+                self.update_region(region, buffer, count, include_newline, modify);
             new_selection.add_region(region);
         }
         buffer.fill_horiz(&new_selection)
@@ -348,9 +343,7 @@ impl Movement {
                 format_index(index as i64 + count as i64, len, recursive)
             }
             Movement::Line(position) => match position {
-                LinePosition::Line(n) => {
-                    format_index(*n as i64, len, recursive)
-                }
+                LinePosition::Line(n) => format_index(*n as i64, len, recursive),
                 LinePosition::First => 0,
                 LinePosition::Last => len - 1,
             },
@@ -432,8 +425,7 @@ impl Movement {
                 (new_end, ColPosition::Start)
             }
             Movement::EndOfLine => {
-                let new_end =
-                    buffer.line_end_offset(region.end, include_newline);
+                let new_end = buffer.line_end_offset(region.end, include_newline);
                 (new_end, ColPosition::End)
             }
             Movement::Line(position) => {

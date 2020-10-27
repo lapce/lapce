@@ -34,7 +34,9 @@ use druid::{
     FontWeight,
 };
 use fzyr::{has_match, locate};
-use lsp_types::{CompletionItem, CompletionResponse};
+use lsp_types::{
+    CompletionItem, CompletionResponse, GotoDefinitionResponse, Location,
+};
 use serde_json::Value;
 use std::str::FromStr;
 use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
@@ -90,8 +92,17 @@ pub struct EditorState {
     pub view_size: Size,
     pub gutter_width: f64,
     pub header_height: f64,
+    pub locations: Vec<EditorLocation>,
+    pub current_location: usize,
     pub saved_selection: Selection,
     pub saved_scroll_offset: Vec2,
+}
+
+#[derive(Clone, Debug)]
+pub struct EditorLocation {
+    pub path: String,
+    pub offset: usize,
+    pub scroll_offset: Option<Vec2>,
 }
 
 impl EditorState {
@@ -109,6 +120,8 @@ impl EditorState {
             view_size: Size::ZERO,
             gutter_width: 0.0,
             header_height: 0.0,
+            locations: Vec::new(),
+            current_location: 0,
             saved_selection: Selection::new_simple(),
             saved_scroll_offset: Vec2::ZERO,
         }
@@ -250,6 +263,16 @@ impl EditorState {
         ));
     }
 
+    pub fn save_jump_location(&mut self, buffer: &Buffer) {
+        // self.locations.truncate(self.current_location + 1);
+        self.locations.push(EditorLocation {
+            path: buffer.path.clone(),
+            offset: self.selection.get_cursor_offset(),
+            scroll_offset: Some(self.scroll_offset),
+        });
+        self.current_location = self.locations.len();
+    }
+
     fn move_command(
         &self,
         count: Option<usize>,
@@ -290,11 +313,14 @@ impl EditorState {
     ) {
         let count = self.get_count(count, operator);
         if let Some(movement) = self.move_command(count, &cmd) {
+            if movement.is_jump() {
+                self.save_jump_location(buffer);
+            }
             self.selection = buffer.do_move(
                 ctx,
                 ui_state,
                 &mode,
-                movement,
+                &movement,
                 &self.selection,
                 operator,
                 count,
@@ -302,9 +328,7 @@ impl EditorState {
             if mode != Mode::Insert {
                 self.selection = buffer.correct_offset(&self.selection);
             }
-            if cmd == LapceCommand::GotoLineDefaultFirst
-                || cmd == LapceCommand::GotoLineDefaultLast
-            {
+            if movement.is_jump() {
                 self.ensure_cursor_visible(
                     ctx,
                     buffer,
@@ -763,12 +787,12 @@ impl EditorSplitState {
         split_id: WidgetId,
         buffer_id: Option<BufferId>,
         selection: Selection,
-    ) -> &EditorState {
+    ) -> &mut EditorState {
         let mut editor = EditorState::new(split_id, buffer_id);
         editor.selection = selection;
         let view_id = editor.view_id.clone();
         self.editors.insert(editor.view_id, editor);
-        self.editors.get(&view_id).unwrap()
+        self.editors.get_mut(&view_id).unwrap()
     }
 
     pub fn set_editor_scroll_offset(&mut self, editor_id: WidgetId, offset: Vec2) {
@@ -784,12 +808,12 @@ impl EditorSplitState {
         }
     }
 
-    pub fn open_file(
+    pub fn get_buffer_from_path(
         &mut self,
         ctx: &mut EventCtx,
         ui_state: &mut LapceUIState,
         path: &str,
-    ) {
+    ) -> &Buffer {
         let buffer_id = if let Some(buffer_id) = self.open_files.get(path) {
             buffer_id.clone()
         } else {
@@ -811,18 +835,21 @@ impl EditorSplitState {
             self.open_files.insert(path.to_string(), buffer_id.clone());
             buffer_id
         };
+        self.buffers.get(&buffer_id).unwrap()
+    }
 
+    pub fn open_file(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        path: &str,
+    ) {
+        let buffer = self.get_buffer_from_path(ctx, ui_state, path);
+        let buffer_id = buffer.id.clone();
         let editor = self.editors.get_mut(&self.active).unwrap();
         if editor.buffer_id.as_ref() == Some(&buffer_id) {
             return;
         }
-        // if let Some(old_buffer_id) = editor.buffer_id.as_ref() {
-        //     let old_buffer_ui = Arc::make_mut(&mut ui_state.buffers)
-        //         .get_mut(old_buffer_id)
-        //         .unwrap();
-        //     Arc::make_mut(old_buffer_ui).text_layouts =
-        //         vec![Arc::new(None); old_buffer_ui.text_layouts.len()]
-        // }
         editor.buffer_id = Some(buffer_id.clone());
         editor.selection = Selection::new_simple();
         ctx.submit_command(Command::new(
@@ -830,8 +857,8 @@ impl EditorSplitState {
             LapceUICommand::ScrollTo((0.0, 0.0)),
             Target::Widget(editor.view_id),
         ));
-        // ctx.request_layout();
         self.notify_fill_text_layouts(ctx, &buffer_id);
+        ctx.request_layout();
     }
 
     fn next_buffer_id(&mut self) -> BufferId {
@@ -939,7 +966,7 @@ impl EditorSplitState {
             ctx,
             buffer_ui_state,
             &Mode::Normal,
-            Movement::Line(LinePosition::Line(line)),
+            &Movement::Line(LinePosition::Line(line)),
             &editor.selection,
             None,
             None,
@@ -1093,6 +1120,134 @@ impl EditorSplitState {
                     InsertDrift::Default,
                 );
             }
+        }
+        None
+    }
+
+    pub fn jump_location_forward(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        env: &Env,
+    ) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        if editor.current_location >= editor.locations.len() - 1 {
+            return None;
+        }
+        editor.current_location += 1;
+        let location = editor.locations[editor.current_location].clone();
+        self.jump_to_location(ctx, ui_state, &location, env);
+        None
+    }
+
+    pub fn jump_location_backward(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        env: &Env,
+    ) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id.as_ref()?;
+        let buffer = self.buffers.get(buffer_id)?;
+        if editor.current_location < 1 {
+            return None;
+        }
+        if editor.current_location >= editor.locations.len() {
+            editor.save_jump_location(buffer);
+            editor.current_location -= 1;
+        }
+        editor.current_location -= 1;
+        let location = editor.locations[editor.current_location].clone();
+        self.jump_to_location(ctx, ui_state, &location, env);
+        None
+    }
+
+    pub fn save_jump_location(&mut self) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id.as_ref()?;
+        let buffer = self.buffers.get(buffer_id)?;
+        editor.save_jump_location(buffer);
+        None
+    }
+
+    pub fn jump_to_location(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        location: &EditorLocation,
+        env: &Env,
+    ) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id.as_ref()?;
+        let buffer = self.buffers.get(buffer_id)?;
+
+        let mut new_buffer = false;
+        if buffer.path != location.path {
+            self.open_file(ctx, ui_state, &location.path);
+            new_buffer = true;
+        }
+
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id.clone()?;
+        let buffer = self.buffers.get(&buffer_id)?;
+        editor.selection = Selection::caret(location.offset);
+        if let Some(scroll_offset) = location.scroll_offset {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ScrollTo((scroll_offset.x, scroll_offset.y)),
+                Target::Widget(editor.view_id),
+            ));
+        } else {
+            if new_buffer {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::CenterOfWindow,
+                    Target::Widget(editor.view_id),
+                ));
+            } else {
+                editor.ensure_cursor_visible(
+                    ctx,
+                    buffer,
+                    env,
+                    Some(EnsureVisiblePosition::CenterOfWindow),
+                );
+            }
+        }
+        editor.update_ui_state(ui_state, buffer);
+        self.notify_fill_text_layouts(ctx, &buffer_id);
+        None
+    }
+
+    pub fn go_to_definition(
+        &mut self,
+        request_id: usize,
+        value: Value,
+    ) -> Option<()> {
+        let editor = self.editors.get(&self.active)?;
+        let offset = editor.selection.get_cursor_offset();
+        if offset != request_id {
+            return None;
+        }
+
+        let resp: Result<GotoDefinitionResponse, serde_json::Error> =
+            serde_json::from_value(value);
+        let resp = resp.ok()?;
+
+        if let Some(location) = match resp {
+            GotoDefinitionResponse::Scalar(location) => Some(location),
+            GotoDefinitionResponse::Array(locations) => {
+                if locations.len() > 0 {
+                    Some(locations[0].clone())
+                } else {
+                    None
+                }
+            }
+            GotoDefinitionResponse::Link(location_links) => None,
+        } {
+            LAPCE_STATE.submit_ui_command(
+                LapceUICommand::GotoLocation(location),
+                self.widget_id,
+            );
         }
         None
     }
@@ -1498,6 +1653,22 @@ impl EditorSplitState {
                     .lock()
                     .get_completion(&buffer_id, 0, offset);
             }
+            LapceCommand::GotoDefinition => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let offset = editor.selection.get_cursor_offset();
+                LAPCE_STATE.lsp.lock().go_to_definition(
+                    offset,
+                    buffer,
+                    buffer.offset_to_position(offset),
+                );
+            }
+            LapceCommand::JumpLocationBackward => {
+                self.jump_location_backward(ctx, ui_state, env);
+            }
+            LapceCommand::JumpLocationForward => {
+                self.jump_location_forward(ctx, ui_state, env);
+            }
             _ => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
@@ -1699,6 +1870,26 @@ impl EditorView {
         }
         .with_id(view_id)
     }
+
+    pub fn center_of_window(&mut self, ctx: &mut EventCtx, env: &Env) {
+        let mut editor_split = LAPCE_STATE.editor_split.lock();
+        let editor_state = editor_split.editors.get_mut(&self.view_id).unwrap();
+        let buffer_id = editor_state.buffer_id.as_ref().unwrap().clone();
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let offset = editor_state.selection.get_cursor_offset();
+        let buffer = editor_split.buffers.get(&buffer_id).unwrap();
+        let line = buffer.line_of_offset(offset);
+        let y = if line as f64 * line_height > ctx.size().height / 2.0 {
+            line as f64 * line_height - ctx.size().height / 2.0
+        } else {
+            0.0
+        };
+        let scroll = self.editor.widget_mut();
+        scroll.scroll_to(0.0, y);
+        let editor_state = editor_split.editors.get_mut(&self.view_id).unwrap();
+        editor_state.scroll_offset = scroll.offset();
+        ctx.request_paint();
+    }
 }
 
 impl Widget<LapceUIState> for EditorView {
@@ -1729,50 +1920,6 @@ impl Widget<LapceUIState> for EditorView {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
-                        // LapceUICommand::BufferUpdate(
-                        //     buffer_id,
-                        //     inval_lines,
-                        // ) => {
-                        //     if Some(buffer_id)
-                        //         == LAPCE_STATE
-                        //             .editor_split
-                        //             .lock()
-                        //             .editors
-                        //             .get(&self.view_id)
-                        //             .unwrap()
-                        //             .buffer_id
-                        //             .as_ref()
-                        //     {
-                        //         let buffer_ui = Arc::make_mut(
-                        //             Arc::make_mut(&mut data.buffers)
-                        //                 .get_mut(buffer_id)
-                        //                 .unwrap(),
-                        //         );
-                        //         let mut new_layouts = Vec::new();
-                        //         if inval_lines.start_line
-                        //             < buffer_ui.text_layouts.len()
-                        //         {
-                        //             new_layouts.extend_from_slice(
-                        //                 &buffer_ui.text_layouts
-                        //                     [..inval_lines.start_line],
-                        //             );
-                        //         }
-                        //         for _ in 0..inval_lines.new_count {
-                        //             new_layouts.push(Arc::new(None));
-                        //         }
-                        //         if inval_lines.start_line
-                        //             + inval_lines.inval_count
-                        //             < buffer_ui.text_layouts.len()
-                        //         {
-                        //             new_layouts.extend_from_slice(
-                        //                 &buffer_ui.text_layouts[inval_lines
-                        //                     .start_line
-                        //                     + inval_lines.inval_count..],
-                        //             );
-                        //         }
-                        //         buffer_ui.text_layouts = new_layouts;
-                        //     }
-                        // }
                         LapceUICommand::RequestLayout => {
                             ctx.request_layout();
                         }
@@ -1788,48 +1935,19 @@ impl Widget<LapceUIState> for EditorView {
                                 env,
                             );
                         }
+                        LapceUICommand::CenterOfWindow => {
+                            self.center_of_window(ctx, env);
+                        }
                         LapceUICommand::EnsureVisible((rect, margin, position)) => {
-                            let mut editor_split = LAPCE_STATE.editor_split.lock();
                             let editor = self.editor.widget_mut();
                             if editor.ensure_visible(ctx.size(), rect, margin) {
                                 match position {
                                     Some(EnsureVisiblePosition::CenterOfWindow) => {
-                                        let editor_state = editor_split
-                                            .editors
-                                            .get_mut(&self.view_id)
-                                            .unwrap();
-                                        let buffer_id = editor_state
-                                            .buffer_id
-                                            .as_ref()
-                                            .unwrap()
-                                            .clone();
-                                        let line_height =
-                                            env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-                                        let offset = editor_state
-                                            .selection
-                                            .get_cursor_offset();
-                                        let buffer = editor_split
-                                            .buffers
-                                            .get(&buffer_id)
-                                            .unwrap();
-                                        let line = buffer.line_of_offset(offset);
-                                        let y = if line as f64 * line_height
-                                            > ctx.size().height / 2.0
-                                        {
-                                            line as f64 * line_height
-                                                - ctx.size().height / 2.0
-                                        } else {
-                                            0.0
-                                        };
-                                        let scroll = self.editor.widget_mut();
-                                        scroll.scroll_to(0.0, y);
-                                        let editor_state = editor_split
-                                            .editors
-                                            .get_mut(&self.view_id)
-                                            .unwrap();
-                                        editor_state.scroll_offset = scroll.offset();
+                                        self.center_of_window(ctx, env);
                                     }
                                     None => {
+                                        let mut editor_split =
+                                            LAPCE_STATE.editor_split.lock();
                                         let offset = editor.offset();
                                         editor_split
                                             .editors
