@@ -1,5 +1,5 @@
 use druid::{Rect, Selector, Size, WidgetId};
-use lsp_types::Location;
+use lsp_types::{Location, TextEdit};
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
 use tree_sitter_highlight::Highlight;
@@ -27,6 +27,8 @@ pub enum LapceCommand {
     Palette,
     #[strum(serialize = "palette.cancel")]
     PaletteCancel,
+    #[strum(serialize = "palette.symbol")]
+    PaletteSymbol,
     #[strum(serialize = "delete_backward")]
     DeleteBackward,
     #[strum(serialize = "delete_foreward")]
@@ -133,6 +135,10 @@ pub enum LapceCommand {
     NextError,
     #[strum(serialize = "previous_error")]
     PreviousError,
+    #[strum(serialize = "document_formatting")]
+    DocumentFormatting,
+    #[strum(serialize = "save")]
+    Save,
     Insert(String),
 }
 
@@ -148,6 +154,7 @@ pub enum LapceUICommand {
     RequestLayout,
     RequestPaint,
     RequestPaintRect(Rect),
+    ApplyEdits(u64, Vec<TextEdit>),
     UpdateHighlights(BufferId, String, Vec<(usize, usize, Highlight)>),
     CenterOfWindow,
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),

@@ -7,15 +7,16 @@ use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
 use lsp_types::Position;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::str::FromStr;
 use std::{
     borrow::Cow,
+    ffi::OsString,
     io::{self, Read, Write},
     path::PathBuf,
     sync::Arc,
     thread,
 };
 use std::{collections::HashMap, fs::File};
+use std::{fs, str::FromStr};
 use tree_sitter::{Parser, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
@@ -59,6 +60,7 @@ pub struct BufferUIState {
     pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
     pub max_len_line: usize,
     pub max_len: usize,
+    pub dirty: bool,
 }
 
 #[derive(Clone)]
@@ -75,7 +77,8 @@ pub struct Buffer {
     current_undo: usize,
     pub path: String,
     pub language_id: String,
-    rev: u64,
+    pub rev: u64,
+    pub dirty: bool,
 }
 
 impl Buffer {
@@ -106,6 +109,7 @@ impl Buffer {
             current_undo: 0,
             event_sink,
             rev: 0,
+            dirty: false,
             language_id: language_id_from_path(path).unwrap_or("").to_string(),
             path: path.to_string(),
         };
@@ -125,6 +129,31 @@ impl Buffer {
         );
         buffer.update_highlights();
         buffer
+    }
+
+    pub fn save(&mut self) -> Result<()> {
+        if !self.dirty {
+            return Ok(());
+        }
+
+        let path = PathBuf::from_str(&self.path)?;
+        let tmp_extension = path.extension().map_or_else(
+            || OsString::from("swp"),
+            |ext| {
+                let mut ext = ext.to_os_string();
+                ext.push(".swp");
+                ext
+            },
+        );
+        let tmp_path = &path.with_extension(tmp_extension);
+
+        let mut f = File::create(tmp_path)?;
+        for chunk in self.rope.iter_chunks(..self.rope.len()) {
+            f.write_all(chunk.as_bytes())?;
+        }
+        fs::rename(tmp_path, path)?;
+        self.dirty = false;
+        Ok(())
     }
 
     pub fn len(&self) -> usize {
@@ -360,6 +389,7 @@ impl Buffer {
         delta: &RopeDelta,
     ) {
         self.rev += 1;
+        self.dirty = true;
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
         let old_logical_end_offset = self.rope.offset_of_line(old_logical_end_line);
@@ -461,6 +491,27 @@ impl Buffer {
         }
     }
 
+    pub fn edit_multiple(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut BufferUIState,
+        edits: Vec<(&Selection, &str)>,
+        new_undo_group: bool,
+    ) -> RopeDelta {
+        let mut builder = DeltaBuilder::new(self.len());
+        for (selection, content) in edits {
+            let rope = Rope::from(content);
+            for region in selection.regions() {
+                builder.replace(region.min()..region.max(), rope.clone());
+            }
+        }
+        let delta = builder.build();
+        self.add_undo(&delta, new_undo_group);
+        self.apply_delta(ctx, ui_state, &delta);
+        self.update_highlights();
+        delta
+    }
+
     pub fn edit(
         &mut self,
         ctx: &mut EventCtx,
@@ -469,16 +520,7 @@ impl Buffer {
         selection: &Selection,
         new_undo_group: bool,
     ) -> RopeDelta {
-        let rope = Rope::from(content);
-        let mut builder = DeltaBuilder::new(self.len());
-        for region in selection.regions() {
-            builder.replace(region.min()..region.max(), rope.clone());
-        }
-        let delta = builder.build();
-        self.add_undo(&delta, new_undo_group);
-        self.apply_delta(ctx, ui_state, &delta);
-        self.update_highlights();
-        delta
+        self.edit_multiple(ctx, ui_state, vec![(selection, content)], new_undo_group)
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
@@ -507,6 +549,10 @@ impl Buffer {
             line: line as u64,
             character: col as u64,
         }
+    }
+
+    pub fn offset_of_position(&self, position: &Position) -> usize {
+        self.offset_of_line(position.line as usize) + position.character as usize
     }
 
     pub fn num_lines(&self) -> usize {
@@ -957,6 +1003,7 @@ impl BufferUIState {
             text_layouts: vec![Arc::new(None); lines],
             max_len,
             max_len_line,
+            dirty: false,
         }
     }
 

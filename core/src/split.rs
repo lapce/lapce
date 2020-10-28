@@ -188,6 +188,12 @@ impl Widget<LapceUIState> for LapceSplit {
                         LapceUICommand::RequestLayout => {
                             ctx.request_layout();
                         }
+                        LapceUICommand::ApplyEdits(rev, edits) => {
+                            LAPCE_STATE
+                                .editor_split
+                                .lock()
+                                .apply_edits(ctx, data, *rev, edits);
+                        }
                         LapceUICommand::GotoLocation(location) => {
                             let mut editor_split = LAPCE_STATE.editor_split.lock();
                             editor_split.save_jump_location();

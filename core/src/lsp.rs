@@ -1,4 +1,4 @@
-use crate::state::LAPCE_STATE;
+use crate::{command::LapceUICommand, state::LAPCE_STATE};
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use parking_lot::Mutex;
@@ -10,19 +10,23 @@ use std::{
     io::Write,
     process::Command,
     process::{self, Stdio},
+    sync::mpsc::{channel, Receiver},
     sync::Arc,
     thread,
+    time::Duration,
 };
 use xi_rope::RopeDelta;
 
 use lsp_types::{
     ClientCapabilities, CompletionCapability, CompletionItemCapability,
     CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    GotoDefinitionParams, InitializeParams, InitializeResult, PartialResultParams,
-    Position, PublishDiagnosticsParams, Range, ServerCapabilities,
+    DidSaveTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FormattingOptions, GotoDefinitionParams,
+    InitializeParams, InitializeResult, PartialResultParams, Position,
+    PublishDiagnosticsParams, Range, ServerCapabilities,
     TextDocumentClientCapabilities, TextDocumentContentChangeEvent,
     TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TraceOption, Url,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TraceOption, Url,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use serde_json::{json, to_value, Value};
@@ -52,6 +56,12 @@ impl LspCatalog {
     pub fn start_server(&mut self, exec_path: &str, language_id: &str) {
         let client = LspClient::new(exec_path);
         self.clients.insert(language_id.to_string(), client);
+    }
+
+    pub fn save_buffer(&self, buffer: &Buffer) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.lock().send_did_save(buffer);
+        }
     }
 
     pub fn new_buffer(
@@ -89,6 +99,22 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_document_symbols(
+        &self,
+        buffer: &Buffer,
+    ) -> Option<DocumentSymbolResponse> {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let receiver = { client.lock().get_document_symbols(buffer) };
+            let result = receiver.recv_timeout(Duration::from_millis(100));
+            println!("recv {:?}", result);
+            let result = result.ok()?;
+            let value = result.ok()?;
+            let resp: DocumentSymbolResponse = serde_json::from_value(value).ok()?;
+            return Some(resp);
+        }
+        None
+    }
+
     pub fn go_to_definition(
         &self,
         request_id: usize,
@@ -97,6 +123,27 @@ impl LspCatalog {
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             client.lock().go_to_definition(request_id, buffer, position);
+        }
+    }
+
+    pub fn get_document_formatting(
+        &self,
+        buffer: &Buffer,
+    ) -> Option<Vec<TextEdit>> {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let receiver = { client.lock().get_document_formatting(buffer) };
+            let result = receiver.recv_timeout(Duration::from_millis(100));
+            let result = result.ok()?;
+            let value = result.ok()?;
+            let resp: Vec<TextEdit> = serde_json::from_value(value).ok()?;
+            return Some(resp);
+        }
+        None
+    }
+
+    pub fn request_document_formatting(&self, buffer: &Buffer) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.lock().document_formatting(buffer);
         }
     }
 }
@@ -332,6 +379,82 @@ impl LspClient {
         self.send_request("initialize", params, Box::new(on_init));
     }
 
+    pub fn get_document_symbols(
+        &mut self,
+        buffer: &Buffer,
+    ) -> Receiver<Result<Value>> {
+        let uri = self.get_uri(buffer);
+        let (sender, receiver) = channel();
+        self.request_document_symbols(uri, move |lsp_client, result| {
+            let result = sender.send(result);
+            println!("send {:?}", result);
+        });
+        return receiver;
+    }
+
+    pub fn request_document_symbols<CB>(&mut self, document_uri: Url, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+    {
+        let params = DocumentSymbolParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/documentSymbol", params, Box::new(cb));
+    }
+
+    pub fn get_document_formatting(
+        &mut self,
+        buffer: &Buffer,
+    ) -> Receiver<Result<Value>> {
+        let uri = self.get_uri(buffer);
+        let (sender, receiver) = channel();
+        self.request_document_formatting(uri, move |lsp_client, result| {
+            let result = sender.send(result);
+        });
+        return receiver;
+    }
+
+    pub fn document_formatting(&mut self, buffer: &Buffer) {
+        let uri = self.get_uri(buffer);
+        let rev = buffer.rev;
+        self.request_document_formatting(uri, move |lsp_client, result| {
+            if let Ok(res) = result {
+                let edits: Result<Vec<TextEdit>, serde_json::Error> =
+                    serde_json::from_value(res);
+                if let Ok(edits) = edits {
+                    if edits.len() > 0 {
+                        thread::spawn(move || {
+                            LAPCE_STATE.submit_ui_command(
+                                LapceUICommand::ApplyEdits(rev, edits),
+                                LAPCE_STATE.editor_split.lock().widget_id,
+                            );
+                        });
+                    }
+                }
+            }
+        })
+    }
+
+    pub fn request_document_formatting<CB>(&mut self, document_uri: Url, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+    {
+        let params = DocumentFormattingParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            options: FormattingOptions {
+                tab_size: 4,
+                insert_spaces: true,
+                ..Default::default()
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/formatting", params, Box::new(cb));
+    }
+
     pub fn go_to_definition(
         &mut self,
         request_id: usize,
@@ -437,6 +560,16 @@ impl LspClient {
         } else {
             self.send_notification("textDocument/didOpen", params);
         }
+    }
+
+    pub fn send_did_save(&mut self, buffer: &Buffer) {
+        let uri = self.get_uri(buffer);
+        let params = DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier { uri },
+            text: None,
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_notification("textDocument/didSave", params);
     }
 
     pub fn send_did_change(

@@ -240,6 +240,11 @@ impl LapceState {
                 self.palette.lock().run(Some(PaletteType::Line));
                 ctx.request_layout();
             }
+            LapceCommand::PaletteSymbol => {
+                *self.focus.lock() = LapceFocus::Palette;
+                self.palette.lock().run(Some(PaletteType::DocumentSymbol));
+                ctx.request_layout();
+            }
             LapceCommand::PaletteCancel => {
                 *self.focus.lock() = LapceFocus::Editor;
                 self.palette.lock().cancel(ctx, ui_state);

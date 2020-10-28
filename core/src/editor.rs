@@ -36,7 +36,7 @@ use druid::{
 use fzyr::{has_match, locate};
 use lsp_types::{
     CompletionItem, CompletionResponse, Diagnostic, DiagnosticSeverity,
-    GotoDefinitionResponse, Location,
+    GotoDefinitionResponse, Location, Position, TextEdit,
 };
 use serde_json::Value;
 use std::str::FromStr;
@@ -71,6 +71,7 @@ pub enum EditorOperator {
 
 #[derive(Clone)]
 pub struct EditorUIState {
+    pub buffer_id: BufferId,
     pub cursor: (usize, usize),
     pub mode: Mode,
     pub visual_mode: VisualMode,
@@ -723,6 +724,7 @@ impl EditorState {
 impl EditorUIState {
     pub fn new() -> EditorUIState {
         EditorUIState {
+            buffer_id: BufferId(0),
             cursor: (0, 0),
             mode: Mode::Normal,
             visual_mode: VisualMode::Normal,
@@ -954,6 +956,30 @@ impl EditorSplitState {
             )),
             Target::Widget(editor.view_id),
         ));
+        None
+    }
+
+    pub fn jump_to_postion(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        position: &Position,
+        env: &Env,
+    ) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id?;
+        let buffer = self.buffers.get_mut(&buffer_id)?;
+        let offset = buffer.offset_of_line(position.line as usize)
+            + position.character as usize;
+        editor.selection = Selection::caret(offset);
+        editor.ensure_cursor_visible(
+            ctx,
+            buffer,
+            env,
+            Some(EnsureVisiblePosition::CenterOfWindow),
+        );
+        editor.update_ui_state(ui_state, buffer);
+        self.notify_fill_text_layouts(ctx, &buffer_id);
         None
     }
 
@@ -1362,6 +1388,40 @@ impl EditorSplitState {
         );
     }
 
+    pub fn apply_edits(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        rev: u64,
+        edits: &Vec<TextEdit>,
+    ) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id.clone()?;
+        let buffer = self.buffers.get_mut(&buffer_id)?;
+        let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
+        if buffer.rev != rev {
+            return None;
+        }
+        let edits: Vec<(Selection, String)> = edits
+            .iter()
+            .map(|edit| {
+                let selection = Selection::region(
+                    buffer.offset_of_position(&edit.range.start),
+                    buffer.offset_of_position(&edit.range.end),
+                );
+                (selection, edit.new_text.clone())
+            })
+            .collect();
+        buffer.edit_multiple(
+            ctx,
+            buffer_ui_state,
+            edits.iter().map(|(s, c)| (s, c.as_ref())).collect(),
+            true,
+        );
+        self.notify_fill_text_layouts(ctx, &buffer_id);
+        None
+    }
+
     pub fn run_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -1743,6 +1803,29 @@ impl EditorSplitState {
                 self.next_error(ctx, ui_state, env);
             }
             LapceCommand::PreviousError => {}
+            LapceCommand::DocumentFormatting => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                LAPCE_STATE.lsp.lock().request_document_formatting(buffer);
+            }
+            LapceCommand::Save => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer_id = editor.buffer_id.clone()?;
+                let buffer = self.buffers.get_mut(&buffer_id)?;
+                let rev = buffer.rev;
+                if let Some(edits) =
+                    LAPCE_STATE.lsp.lock().get_document_formatting(buffer)
+                {
+                    if edits.len() > 0 {
+                        self.apply_edits(ctx, ui_state, rev, &edits);
+                    }
+                }
+                let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
+                let buffer = self.buffers.get_mut(&buffer_id)?;
+                buffer.save();
+                buffer_ui_state.dirty = buffer.dirty;
+                LAPCE_STATE.lsp.lock().save_buffer(buffer);
+            }
             _ => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
@@ -1843,11 +1926,28 @@ impl Widget<LapceUIState> for EditorHeader {
         data: &LapceUIState,
         env: &Env,
     ) {
-        let cursor = data.get_editor(&self.view_id).cursor;
-        let old_cursor = old_data.get_editor(&self.view_id).cursor;
+        let editor = data.get_editor(&self.view_id);
+        let old_editor = old_data.get_editor(&self.view_id);
+        let cursor = editor.cursor;
+        let old_cursor = old_editor.cursor;
 
         if cursor.0 != old_cursor.0 {
             ctx.request_paint();
+            return;
+        }
+
+        if editor.buffer_id != old_editor.buffer_id {
+            ctx.request_paint();
+            return;
+        }
+
+        if let Some(buffer) = data.buffers.get(&editor.buffer_id) {
+            if let Some(old_buffer) = old_data.buffers.get(&editor.buffer_id) {
+                if buffer.dirty != old_buffer.dirty {
+                    ctx.request_paint();
+                    return;
+                }
+            }
         }
     }
 
@@ -1883,7 +1983,11 @@ impl Widget<LapceUIState> for EditorHeader {
         if let Some(buffer_id) = editor.buffer_id.as_ref() {
             let buffer = editor_split.buffers.get(buffer_id).unwrap();
             let path = PathBuf::from_str(&buffer.path).unwrap();
-            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let file_name = format!(
+                "{}{}",
+                if buffer.dirty { "*" } else { "" },
+                path.file_name().unwrap().to_str().unwrap().to_string()
+            );
             let mut x = 10.0;
 
             let mut text_layout = TextLayout::new(file_name.clone());

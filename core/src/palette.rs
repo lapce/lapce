@@ -4,10 +4,11 @@ use druid::{
     piet::TextAttribute,
     widget::Container,
     widget::IdentityWrapper,
-    Command, FontFamily, FontWeight, KeyEvent, Target, WidgetId,
+    widget::SvgData,
+    Affine, Command, FontFamily, FontWeight, KeyEvent, Target, Vec2, WidgetId,
 };
 use druid::{
-    piet::{Text, TextLayoutBuilder},
+    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     theme, BoxConstraints, Color, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx,
     Widget, WidgetExt, WidgetPod,
@@ -17,6 +18,7 @@ use druid::{
     TextLayout,
 };
 use fzyr::{has_match, locate, Score};
+use lsp_types::{DocumentSymbolResponse, Location, Position, SymbolKind};
 use serde_json::{self, json, Value};
 use std::cmp::Ordering;
 use std::fs::{self, DirEntry};
@@ -28,20 +30,32 @@ use std::thread;
 
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
-    command::LAPCE_UI_COMMAND, editor::EditorSplitState, scroll::LapceScroll,
-    state::LapceFocus, state::LapceUIState, state::LAPCE_STATE, theme::LapceTheme,
+    command::LAPCE_UI_COMMAND, editor::EditorSplitState, explorer::ICONS_DIR,
+    scroll::LapceScroll, state::LapceFocus, state::LapceUIState, state::LAPCE_STATE,
+    theme::LapceTheme,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaletteType {
     File,
     Line,
+    DocumentSymbol,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaletteIcon {
+    File(String),
+    Symbol(SymbolKind),
+    None,
 }
 
 #[derive(Clone, Debug)]
 pub struct PaletteItem {
+    icon: PaletteIcon,
     kind: PaletteType,
     text: String,
+    hint: Option<String>,
+    position: Option<Position>,
     score: Score,
     index: usize,
     match_mask: BitVec,
@@ -82,6 +96,12 @@ impl PaletteState {
                 self.items = self.get_lines().unwrap_or(Vec::new());
                 LAPCE_STATE.editor_split.lock().save_selection();
             }
+            &PaletteType::DocumentSymbol => {
+                self.input = "@".to_string();
+                self.cursor = 1;
+                self.items = self.get_document_symbols().unwrap_or(Vec::new());
+                LAPCE_STATE.editor_split.lock().save_selection();
+            }
             _ => self.items = self.get_files(),
         }
     }
@@ -89,6 +109,12 @@ impl PaletteState {
     pub fn cancel(&mut self, ctx: &mut EventCtx, ui_state: &mut LapceUIState) {
         match &self.palette_type {
             &PaletteType::Line => {
+                LAPCE_STATE
+                    .editor_split
+                    .lock()
+                    .restore_selection(ctx, ui_state);
+            }
+            &PaletteType::DocumentSymbol => {
                 LAPCE_STATE
                     .editor_split
                     .lock()
@@ -129,6 +155,7 @@ impl PaletteState {
         }
         match self.input {
             _ if self.input.starts_with("/") => PaletteType::Line,
+            _ if self.input.starts_with("@") => PaletteType::DocumentSymbol,
             _ => PaletteType::File,
         }
     }
@@ -159,6 +186,9 @@ impl PaletteState {
                 &PaletteType::File => self.items = self.get_files(),
                 &PaletteType::Line => {
                     self.items = self.get_lines().unwrap_or(Vec::new())
+                }
+                &PaletteType::DocumentSymbol => {
+                    self.items = self.get_document_symbols().unwrap_or(Vec::new())
                 }
             }
             self.request_layout(ctx);
@@ -208,6 +238,7 @@ impl PaletteState {
         let start = match &self.palette_type {
             &PaletteType::File => 0,
             &PaletteType::Line => 1,
+            &PaletteType::DocumentSymbol => 1,
         };
 
         if self.cursor == start {
@@ -224,6 +255,7 @@ impl PaletteState {
         match &self.palette_type {
             PaletteType::File => &self.input,
             PaletteType::Line => &self.input[1..],
+            PaletteType::DocumentSymbol => &self.input[1..],
         }
     }
 
@@ -234,8 +266,9 @@ impl PaletteState {
                 item.score = -1.0 - item.index as f64;
                 item.match_mask = BitVec::new();
             } else {
-                if has_match(&input, &item.text) {
-                    let result = locate(&input, &item.text);
+                let text = item.get_text();
+                if has_match(&input, &text) {
+                    let result = locate(&input, &text);
                     item.score = result.score;
                     item.match_mask = result.match_mask;
                 } else {
@@ -246,6 +279,44 @@ impl PaletteState {
         self.items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
         self.request_layout(ctx);
+    }
+
+    fn get_document_symbols(&self) -> Option<Vec<PaletteItem>> {
+        let editor_split = LAPCE_STATE.editor_split.lock();
+        let editor = editor_split.editors.get(&editor_split.active)?;
+        let buffer_id = editor.buffer_id?;
+        let buffer = editor_split.buffers.get(&buffer_id)?;
+        let resp = LAPCE_STATE.lsp.lock().get_document_symbols(buffer)?;
+        Some(match resp {
+            DocumentSymbolResponse::Flat(symbols) => symbols
+                .iter()
+                .enumerate()
+                .map(|(i, s)| PaletteItem {
+                    kind: PaletteType::DocumentSymbol,
+                    text: s.name.clone(),
+                    hint: s.container_name.clone(),
+                    position: Some(s.location.range.start),
+                    score: 0.0,
+                    index: i,
+                    match_mask: BitVec::new(),
+                    icon: PaletteIcon::Symbol(s.kind),
+                })
+                .collect(),
+            DocumentSymbolResponse::Nested(symbols) => symbols
+                .iter()
+                .enumerate()
+                .map(|(i, s)| PaletteItem {
+                    kind: PaletteType::DocumentSymbol,
+                    text: s.name.clone(),
+                    hint: None,
+                    position: Some(s.range.start),
+                    score: 0.0,
+                    index: i,
+                    match_mask: BitVec::new(),
+                    icon: PaletteIcon::Symbol(s.kind),
+                })
+                .collect(),
+        })
     }
 
     fn get_lines(&self) -> Option<Vec<PaletteItem>> {
@@ -261,9 +332,12 @@ impl PaletteState {
                 .map(|(i, l)| PaletteItem {
                     kind: PaletteType::Line,
                     text: format!("{}: {}", i, l.to_string()),
+                    hint: None,
+                    position: None,
                     score: 0.0,
                     index: i,
                     match_mask: BitVec::new(),
+                    icon: PaletteIcon::None,
                 })
                 .collect(),
         )
@@ -290,9 +364,12 @@ impl PaletteState {
                     items.push(PaletteItem {
                         kind: PaletteType::File,
                         text: file,
+                        hint: None,
+                        position: None,
                         score: 0.0,
                         index,
                         match_mask: BitVec::new(),
+                        icon: PaletteIcon::None,
                     });
                     index += 1;
                 }
@@ -329,6 +406,9 @@ impl PaletteState {
         let item = item.unwrap();
         match &item.kind {
             &PaletteType::Line => {
+                item.select(ctx, ui_state, env);
+            }
+            &PaletteType::DocumentSymbol => {
                 item.select(ctx, ui_state, env);
             }
             _ => (),
@@ -625,11 +705,43 @@ impl Widget<LapceUIState> for PaletteContent {
                         )
                     }
                 }
+                match item.icon {
+                    PaletteIcon::Symbol(symbol) => {
+                        if let Some(svg) = symbol_svg(&symbol) {
+                            svg.to_piet(
+                                Affine::translate(Vec2::new(
+                                    1.0,
+                                    (start + i) as f64 * line_height + 2.0,
+                                )),
+                                ctx,
+                            );
+                        }
+                    }
+                    _ => (),
+                }
                 let mut text_layout = ctx
                     .text()
                     .new_text_layout(item.text.clone())
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+                // if item.hint.is_some() {
+                //     // text_layout = text_layout.range_attribute(
+                //     //     item.text.len()
+                //     //         ..item.text.len()
+                //     //             + item.hint.as_ref().unwrap().len()
+                //     //             + 1,
+                //     //     TextAttribute::FontSize(13.0),
+                //     // );
+                //     text_layout = text_layout.range_attribute(
+                //         item.text.len()
+                //             ..item.text.len()
+                //                 + item.hint.as_ref().unwrap().len()
+                //                 + 1,
+                //         TextAttribute::TextColor(
+                //             env.get(LapceTheme::EDITOR_FOREGROUND).with_alpha(0.8),
+                //         ),
+                //     );
+                // }
                 for (i, _) in item.text.chars().enumerate() {
                     if item.match_mask.get(i).unwrap_or(false) {
                         text_layout = text_layout.range_attribute(
@@ -645,11 +757,82 @@ impl Widget<LapceUIState> for PaletteContent {
                 let text_layout = text_layout.build().unwrap();
                 ctx.draw_text(
                     &text_layout,
-                    Point::new(0.0, (start + i) as f64 * line_height),
+                    Point::new(20.0, (start + i) as f64 * line_height),
                 );
+
+                let text_x =
+                    text_layout.hit_test_text_position(item.text.len()).point.x;
+                let text_len = item.text.len();
+                if let Some(hint) = item.hint.as_ref() {
+                    let mut text_layout = ctx
+                        .text()
+                        .new_text_layout(hint.clone())
+                        .font(FontFamily::SYSTEM_UI, 13.0)
+                        .text_color(
+                            env.get(LapceTheme::EDITOR_FOREGROUND).with_alpha(0.6),
+                        );
+                    for (i, _) in item.text.chars().enumerate() {
+                        if item.match_mask.get(i + 1 + text_len).unwrap_or(false) {
+                            text_layout = text_layout.range_attribute(
+                                i..i + 1,
+                                TextAttribute::TextColor(Color::rgb8(0, 0, 0)),
+                            );
+                            text_layout = text_layout.range_attribute(
+                                i..i + 1,
+                                TextAttribute::Weight(FontWeight::BOLD),
+                            );
+                        }
+                    }
+                    let text_layout = text_layout.build().unwrap();
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            20.0 + text_x + 5.0,
+                            (start + i) as f64 * line_height + 1.0,
+                        ),
+                    );
+                }
             }
         }
     }
+}
+
+fn symbol_svg(kind: &SymbolKind) -> Option<SvgData> {
+    let kind_str = match kind {
+        SymbolKind::Array => "array",
+        SymbolKind::Boolean => "boolean",
+        SymbolKind::Class => "class",
+        SymbolKind::Constant => "constant",
+        SymbolKind::EnumMember => "enum-member",
+        SymbolKind::Enum => "enum",
+        SymbolKind::Event => "event",
+        SymbolKind::Field => "field",
+        SymbolKind::File => "file",
+        SymbolKind::Interface => "interface",
+        SymbolKind::Key => "key",
+        SymbolKind::Function => "method",
+        SymbolKind::Method => "method",
+        SymbolKind::Object => "namespace",
+        SymbolKind::Namespace => "namespace",
+        SymbolKind::Number => "numeric",
+        SymbolKind::Operator => "operator",
+        SymbolKind::TypeParameter => "parameter",
+        SymbolKind::Property => "property",
+        SymbolKind::String => "string",
+        SymbolKind::Struct => "structure",
+        SymbolKind::Variable => "variable",
+        _ => return None,
+    };
+
+    Some(
+        SvgData::from_str(
+            ICONS_DIR
+                .get_file(format!("symbol-{}.svg", kind_str))
+                .unwrap()
+                .contents_utf8()?,
+        )
+        .ok()?,
+    )
 }
 
 impl Widget<LapceUIState> for PaletteInput {
@@ -710,6 +893,14 @@ impl Widget<LapceUIState> for PaletteInput {
 }
 
 impl PaletteItem {
+    fn get_text(&self) -> String {
+        if let Some(hint) = &self.hint {
+            format!("{} {}", self.text, hint)
+        } else {
+            self.text.clone()
+        }
+    }
+
     pub fn select(
         &self,
         ctx: &mut EventCtx,
@@ -738,6 +929,14 @@ impl PaletteItem {
                     .editor_split
                     .lock()
                     .jump_to_line(ctx, ui_state, line, env);
+            }
+            &PaletteType::DocumentSymbol => {
+                LAPCE_STATE.editor_split.lock().jump_to_postion(
+                    ctx,
+                    ui_state,
+                    self.position.as_ref().unwrap(),
+                    env,
+                );
             }
         }
     }

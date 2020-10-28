@@ -10,11 +10,11 @@ use parking_lot::Mutex;
 
 use crate::{
     command::LapceCommand, editor::EditorSplitState, movement::LinePosition,
-    movement::Movement, state::LapceFocus, state::LapceUIState,
-    state::LAPCE_STATE, theme::LapceTheme,
+    movement::Movement, state::LapceFocus, state::LapceUIState, state::LAPCE_STATE,
+    theme::LapceTheme,
 };
 
-const ICONS_DIR: Dir = include_dir!("../icons");
+pub const ICONS_DIR: Dir = include_dir!("../icons");
 
 #[derive(Clone)]
 pub struct FileExplorerState {
@@ -39,16 +39,12 @@ impl std::cmp::PartialOrd for FileNodeItem {
             return Some(cmp::Ordering::Greater);
         }
 
-        let self_file_name =
-            self.path_buf.file_name()?.to_str()?.to_lowercase();
-        let other_file_name =
-            other.path_buf.file_name()?.to_str()?.to_lowercase();
-        if self_file_name.starts_with(".") && !other_file_name.starts_with(".")
-        {
+        let self_file_name = self.path_buf.file_name()?.to_str()?.to_lowercase();
+        let other_file_name = other.path_buf.file_name()?.to_str()?.to_lowercase();
+        if self_file_name.starts_with(".") && !other_file_name.starts_with(".") {
             return Some(cmp::Ordering::Less);
         }
-        if !self_file_name.starts_with(".") && other_file_name.starts_with(".")
-        {
+        if !self_file_name.starts_with(".") && other_file_name.starts_with(".") {
             return Some(cmp::Ordering::Greater);
         }
         self_file_name.partial_cmp(&other_file_name)
