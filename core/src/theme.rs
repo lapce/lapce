@@ -15,6 +15,8 @@ impl LapceTheme {
     pub const EDITOR_COMMENT: Key<Color> = Key::new("lapce.eidtor_comment");
     pub const EDITOR_FOREGROUND: Key<Color> = Key::new("lapce.eidtor_foreground");
     pub const EDITOR_BACKGROUND: Key<Color> = Key::new("lapce.eidtor_background");
+    pub const EDITOR_ERROR: Key<Color> = Key::new("lapce.eidtor_error");
+    pub const EDITOR_WARN: Key<Color> = Key::new("lapce.eidtor_warn");
     pub const EDITOR_CURSOR_COLOR: Key<Color> =
         Key::new("lapce.eidtor_cursor_color");
     pub const EDITOR_CURRENT_LINE_BACKGROUND: Key<Color> =

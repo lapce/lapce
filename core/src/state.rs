@@ -131,6 +131,7 @@ pub struct LapceState {
     pub focus: Arc<Mutex<LapceFocus>>,
     pub editor_split: Arc<Mutex<EditorSplitState>>,
     pub container: Option<WidgetId>,
+    pub window_id: WidgetId,
     pub file_explorer: Arc<Mutex<FileExplorerState>>,
     pub plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
@@ -157,6 +158,7 @@ impl LapceState {
             editor_split: Arc::new(Mutex::new(EditorSplitState::new())),
             file_explorer: Arc::new(Mutex::new(FileExplorerState::new())),
             container: None,
+            window_id: WidgetId::next(),
             keypress: Arc::new(Mutex::new(KeyPressState::new())),
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
@@ -299,6 +301,10 @@ impl LapceState {
         ui_state.focus = self.focus.lock().clone();
         // ctx.request_layout();
         Ok(())
+    }
+
+    pub fn request_paint(&self) {
+        self.submit_ui_command(LapceUICommand::RequestPaint, self.window_id);
     }
 
     pub fn check_condition(&self, condition: &str) -> bool {

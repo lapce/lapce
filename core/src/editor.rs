@@ -35,7 +35,8 @@ use druid::{
 };
 use fzyr::{has_match, locate};
 use lsp_types::{
-    CompletionItem, CompletionResponse, GotoDefinitionResponse, Location,
+    CompletionItem, CompletionResponse, Diagnostic, DiagnosticSeverity,
+    GotoDefinitionResponse, Location,
 };
 use serde_json::Value;
 use std::str::FromStr;
@@ -752,6 +753,7 @@ pub struct EditorSplitState {
     register: HashMap<String, RegisterContent>,
     inserting: bool,
     pub completion: CompletionState,
+    pub diagnostics: HashMap<String, Vec<Diagnostic>>,
 }
 
 impl EditorSplitState {
@@ -774,6 +776,7 @@ impl EditorSplitState {
             register: HashMap::new(),
             inserting: false,
             completion: CompletionState::new(),
+            diagnostics: HashMap::new(),
         }
     }
 
@@ -1135,6 +1138,61 @@ impl EditorSplitState {
                 }
             }
         }
+        None
+    }
+
+    pub fn next_error(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        env: &Env,
+    ) -> Option<()> {
+        let diagnostics = self.diagnostics.clone();
+        let mut file_diagnostics = diagnostics
+            .iter()
+            .filter_map(|(path, diagnositics)| {
+                let buffer = self.get_buffer_from_path(ctx, ui_state, path);
+                let mut errors: Vec<usize> = diagnositics
+                    .iter()
+                    .filter_map(|d| {
+                        let severity = d.severity?;
+                        if severity != DiagnosticSeverity::Error {
+                            return None;
+                        }
+                        Some(
+                            buffer.offset_of_line(d.range.start.line as usize)
+                                + d.range.start.character as usize,
+                        )
+                    })
+                    .collect();
+                if errors.len() == 0 {
+                    None
+                } else {
+                    errors.sort();
+                    Some((path, errors))
+                }
+            })
+            .collect::<Vec<(&String, Vec<usize>)>>();
+        if file_diagnostics.len() == 0 {
+            return None;
+        }
+        file_diagnostics.sort_by(|a, b| a.0.cmp(b.0));
+
+        let editor = self.editors.get(&self.active)?;
+        let buffer_id = editor.buffer_id.as_ref()?;
+        let buffer = self.buffers.get(buffer_id)?;
+        let (path, offset) = next_in_file_errors_offset(
+            editor.selection.get_cursor_offset(),
+            &buffer.path,
+            &file_diagnostics,
+        );
+        let location = EditorLocation {
+            path,
+            offset,
+            scroll_offset: None,
+        };
+        self.save_jump_location();
+        self.jump_to_location(ctx, ui_state, &location, env);
         None
     }
 
@@ -1681,6 +1739,10 @@ impl EditorSplitState {
             LapceCommand::JumpLocationForward => {
                 self.jump_location_forward(ctx, ui_state, env);
             }
+            LapceCommand::NextError => {
+                self.next_error(ctx, ui_state, env);
+            }
+            LapceCommand::PreviousError => {}
             _ => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
@@ -2682,8 +2744,46 @@ impl Widget<LapceUIState> for Editor {
                     if let Some(layout) = buffer_ui.text_layouts[line].as_ref() {
                         ctx.draw_text(
                             &layout.layout,
-                            Point::new(0.0, line_height * line as f64),
+                            Point::new(0.0, line_height * line as f64 + 5.0),
                         );
+                    }
+                }
+            }
+            if let Some(diagnostics) = editor_split.diagnostics.get(&buffer.path) {
+                for diagnositic in diagnostics {
+                    if let Some(severity) = diagnositic.severity {
+                        let color = match severity {
+                            DiagnosticSeverity::Error => {
+                                env.get(LapceTheme::EDITOR_ERROR)
+                            }
+                            DiagnosticSeverity::Warning => {
+                                env.get(LapceTheme::EDITOR_WARN)
+                            }
+                            _ => env.get(LapceTheme::EDITOR_WARN),
+                        };
+                        let start = diagnositic.range.start;
+                        let end = diagnositic.range.end;
+                        if (start.line as usize) < start_line + num_lines
+                            || (end.line as usize) > start_line
+                        {
+                            for line in start.line as usize..end.line as usize + 1 {
+                                let x0 = if line == start.line as usize {
+                                    start.character as f64 * width
+                                } else {
+                                    buffer.first_non_blank_character_on_line(line)
+                                        as f64
+                                        * width
+                                };
+                                let x1 = if line == start.line as usize {
+                                    end.character as f64 * width
+                                } else {
+                                    buffer.line_len(line) as f64 * width
+                                };
+                                let y1 = (line + 1) as f64 * line_height;
+                                let y0 = (line + 1) as f64 * line_height - 2.0;
+                                ctx.fill(Rect::new(x0, y0, x1, y1), &color);
+                            }
+                        }
                     }
                 }
             }
@@ -2722,4 +2822,24 @@ impl Widget<LapceUIState> for Editor {
         //     ctx.stroke(rect, &env.get(theme::BORDER_LIGHT), 1.0);
         // }
     }
+}
+
+fn next_in_file_errors_offset(
+    offset: usize,
+    path: &String,
+    file_diagnostics: &Vec<(&String, Vec<usize>)>,
+) -> (String, usize) {
+    for (current_path, offsets) in file_diagnostics {
+        if &path == current_path {
+            for error_offset in offsets {
+                if *error_offset > offset {
+                    return ((*current_path).clone(), *error_offset);
+                }
+            }
+        }
+        if current_path > &path {
+            return ((*current_path).clone(), offsets[0]);
+        }
+    }
+    ((*file_diagnostics[0].0).clone(), file_diagnostics[0].1[0])
 }

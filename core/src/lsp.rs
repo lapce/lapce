@@ -19,10 +19,11 @@ use lsp_types::{
     ClientCapabilities, CompletionCapability, CompletionItemCapability,
     CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
     GotoDefinitionParams, InitializeParams, InitializeResult, PartialResultParams,
-    Position, Range, ServerCapabilities, TextDocumentClientCapabilities,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TraceOption, Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    Position, PublishDiagnosticsParams, Range, ServerCapabilities,
+    TextDocumentClientCapabilities, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TraceOption, Url,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use serde_json::{json, to_value, Value};
 
@@ -202,10 +203,10 @@ impl LspClient {
                 // trace!("client received unexpected request: {:?}", obj)
             }
             Ok(value @ JsonRpc::Notification(_)) => {
-                // self.handle_notification(
-                //     value.get_method().unwrap(),
-                //     value.get_params().unwrap(),
-                // );
+                self.handle_notification(
+                    value.get_method().unwrap(),
+                    value.get_params().unwrap(),
+                );
             }
             Ok(value @ JsonRpc::Success(_)) => {
                 let id = number_from_id(&value.get_id().unwrap());
@@ -218,6 +219,30 @@ impl LspClient {
                 self.handle_response(id, Err(anyhow!("{}", error)));
             }
             Err(err) => eprintln!("Error in parsing incoming string: {}", err),
+        }
+    }
+
+    pub fn handle_notification(&mut self, method: &str, params: Params) {
+        match method {
+            "textDocument/publishDiagnostics" => {
+                thread::spawn(move || {
+                    let diagnostics: Result<
+                        PublishDiagnosticsParams,
+                        serde_json::Error,
+                    > = serde_json::from_value(
+                        serde_json::to_value(params).unwrap(),
+                    );
+                    if let Ok(diagnostics) = diagnostics {
+                        let mut editor_split = LAPCE_STATE.editor_split.lock();
+                        editor_split.diagnostics.insert(
+                            diagnostics.uri.path().to_string(),
+                            diagnostics.diagnostics,
+                        );
+                        LAPCE_STATE.request_paint();
+                    }
+                });
+            }
+            _ => (),
         }
     }
 

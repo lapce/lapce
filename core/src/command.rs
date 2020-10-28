@@ -129,6 +129,10 @@ pub enum LapceCommand {
     JumpLocationBackward,
     #[strum(serialize = "jump_location_forward")]
     JumpLocationForward,
+    #[strum(serialize = "next_error")]
+    NextError,
+    #[strum(serialize = "previous_error")]
+    PreviousError,
     Insert(String),
 }
 

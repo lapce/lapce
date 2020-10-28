@@ -13,4 +13,6 @@ pub mod plugin;
 pub mod scroll;
 pub mod split;
 pub mod state;
+pub mod status;
 pub mod theme;
+pub mod window;
