@@ -126,10 +126,7 @@ impl LspCatalog {
         }
     }
 
-    pub fn get_document_formatting(
-        &self,
-        buffer: &Buffer,
-    ) -> Option<Vec<TextEdit>> {
+    pub fn get_document_formatting(&self, buffer: &Buffer) -> Option<Vec<TextEdit>> {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let receiver = { client.lock().get_document_formatting(buffer) };
             let result = receiver.recv_timeout(Duration::from_millis(100));
@@ -412,7 +409,7 @@ impl LspClient {
         let uri = self.get_uri(buffer);
         let (sender, receiver) = channel();
         self.request_document_formatting(uri, move |lsp_client, result| {
-            let result = sender.send(result);
+            sender.send(result);
         });
         return receiver;
     }

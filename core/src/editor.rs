@@ -91,6 +91,7 @@ pub struct EditorState {
     pub height: f64,
     pub selection: Selection,
     pub scroll_offset: Vec2,
+    pub scroll_size: Size,
     pub view_size: Size,
     pub gutter_width: f64,
     pub header_height: f64,
@@ -114,11 +115,12 @@ impl EditorState {
             view_id: WidgetId::next(),
             split_id,
             buffer_id,
-            char_width: 0.0,
+            char_width: 7.6171875,
             width: 0.0,
             height: 0.0,
             selection: Selection::new_simple(),
             scroll_offset: Vec2::ZERO,
+            scroll_size: Size::ZERO,
             view_size: Size::ZERO,
             gutter_width: 0.0,
             header_height: 0.0,
@@ -1813,13 +1815,17 @@ impl EditorSplitState {
                 let buffer_id = editor.buffer_id.clone()?;
                 let buffer = self.buffers.get_mut(&buffer_id)?;
                 let rev = buffer.rev;
-                if let Some(edits) =
-                    LAPCE_STATE.lsp.lock().get_document_formatting(buffer)
-                {
+
+                if let Some(edits) = {
+                    let lsp = LAPCE_STATE.lsp.lock();
+                    let edits = lsp.get_document_formatting(buffer);
+                    edits
+                } {
                     if edits.len() > 0 {
                         self.apply_edits(ctx, ui_state, rev, &edits);
                     }
                 }
+
                 let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
                 let buffer = self.buffers.get_mut(&buffer_id)?;
                 buffer.save();
@@ -2117,8 +2123,15 @@ impl Widget<LapceUIState> for EditorView {
                             self.center_of_window(ctx, env);
                         }
                         LapceUICommand::EnsureVisible((rect, margin, position)) => {
+                            let scroll_size = {
+                                let editor_split = LAPCE_STATE.editor_split.lock();
+                                let editor =
+                                    editor_split.editors.get(&self.view_id).unwrap();
+                                let size = editor.scroll_size.clone();
+                                size
+                            };
                             let editor = self.editor.widget_mut();
-                            if editor.ensure_visible(ctx.size(), rect, margin) {
+                            if editor.ensure_visible(scroll_size, rect, margin) {
                                 match position {
                                     Some(EnsureVisiblePosition::CenterOfWindow) => {
                                         self.center_of_window(ctx, env);
@@ -2248,13 +2261,15 @@ impl Widget<LapceUIState> for EditorView {
                 .with_size(gutter_size)
                 .with_origin(Point::new(0.0, header_size.height)),
         );
-        let editor_size =
-            Size::new(self_size.width - gutter_size.width, self_size.height);
-        // LAPCE_STATE
-        //     .editor_split
-        //     .lock()
-        //     .unwrap()
-        //     .set_editor_size(self.view_id, editor_size);
+        let editor_size = Size::new(
+            self_size.width - gutter_size.width,
+            self_size.height - header_size.height,
+        );
+        {
+            let mut editor_split = LAPCE_STATE.editor_split.lock();
+            let editor = editor_split.editors.get_mut(&self.view_id).unwrap();
+            editor.scroll_size = editor_size.clone();
+        }
         let editor_bc = BoxConstraints::new(Size::ZERO, editor_size);
         self.editor.layout(ctx, &editor_bc, data, env);
         self.editor.set_layout_rect(
@@ -2878,7 +2893,7 @@ impl Widget<LapceUIState> for Editor {
                                         as f64
                                         * width
                                 };
-                                let x1 = if line == start.line as usize {
+                                let x1 = if line == end.line as usize {
                                     end.character as f64 * width
                                 } else {
                                     buffer.line_len(line) as f64 * width
@@ -2886,6 +2901,39 @@ impl Widget<LapceUIState> for Editor {
                                 let y1 = (line + 1) as f64 * line_height;
                                 let y0 = (line + 1) as f64 * line_height - 2.0;
                                 ctx.fill(Rect::new(x0, y0, x1, y1), &color);
+                            }
+                            if editor.selection.get_cursor_offset()
+                                == buffer.offset_of_position(&start)
+                            {
+                                let mut text_layout =
+                                    TextLayout::new(diagnositic.message.clone());
+                                text_layout.set_font(
+                                    FontDescriptor::new(FontFamily::SYSTEM_UI)
+                                        .with_size(13.0),
+                                );
+                                text_layout
+                                    .set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                                text_layout.rebuild_if_needed(ctx.text(), env);
+                                let text_width = text_layout.size().width;
+                                ctx.fill(
+                                    Rect::ZERO
+                                        .with_origin(Point::new(
+                                            10.0,
+                                            (start.line - 1) as f64 * line_height,
+                                        ))
+                                        .with_size(Size::new(
+                                            text_width,
+                                            line_height,
+                                        )),
+                                    &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
+                                );
+                                text_layout.draw(
+                                    ctx,
+                                    Point::new(
+                                        10.0,
+                                        (start.line - 1) as f64 * line_height,
+                                    ),
+                                );
                             }
                         }
                     }
