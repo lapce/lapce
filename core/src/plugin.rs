@@ -18,7 +18,10 @@ use toml;
 use xi_rope::{LinesMetric, Rope, RopeDelta};
 use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
-use crate::{buffer::BufferId, editor::Counter, state::LAPCE_STATE};
+use crate::{
+    buffer::BufferId, editor::Counter, ssh::SshSession, state::LapceWorkspaceType,
+    state::LAPCE_STATE,
+};
 
 pub type PluginName = String;
 
@@ -46,7 +49,7 @@ pub struct Plugin {
     peer: RpcPeer,
     id: PluginId,
     name: String,
-    process: Child,
+    // process: Child,
 }
 
 impl Plugin {
@@ -80,29 +83,76 @@ impl PluginCatalog {
     }
 
     pub fn reload_from_paths(&mut self, paths: &[PathBuf]) {
+        println!("plugin reload from paths");
         self.items.clear();
         self.locations.clear();
         self.load_from_paths(paths);
     }
 
-    pub fn load_from_paths(&mut self, paths: &[PathBuf]) {
-        let all_manifests = find_all_manifests(paths);
-        for manifest_path in &all_manifests {
-            match load_manifest(manifest_path) {
-                Err(e) => (),
-                Ok(manifest) => {
+    pub fn load_from_paths(&mut self, paths: &[PathBuf]) -> Result<()> {
+        println!("{:?}", &LAPCE_STATE.workspace.kind);
+        match &LAPCE_STATE.workspace.kind {
+            LapceWorkspaceType::Local => {
+                let all_manifests = find_all_manifests(paths);
+                for manifest_path in &all_manifests {
+                    match load_manifest(manifest_path) {
+                        Err(e) => (),
+                        Ok(manifest) => {
+                            let manifest = Arc::new(manifest);
+                            self.items
+                                .insert(manifest.name.clone(), manifest.clone());
+                            self.locations.insert(manifest_path.clone(), manifest);
+                        }
+                    }
+                }
+            }
+            LapceWorkspaceType::RemoteSSH(host) => {
+                println!("load plugins for remote ssh");
+                LAPCE_STATE.get_ssh_session(host)?;
+                let ssh_session = LAPCE_STATE.ssh_session.lock();
+                let ssh_session = ssh_session.as_ref().unwrap();
+                println!("pwd {:?}", ssh_session.pwd);
+                let dirs = ssh_session
+                    .read_dirs(&ssh_session.pwd.join(".lapce/plugins/"))?;
+                println!("dirs {:?}", dirs);
+                for dir in dirs {
+                    let file = dir.join("manifest.toml");
+                    println!("manifest path {:?}", file);
+                    let contents = ssh_session.read_file(file.to_str().unwrap())?;
+                    let mut manifest: PluginDescription =
+                        toml::from_slice(&contents)?;
+                    manifest.dir = Some(dir.clone());
+                    if manifest.exec_path.starts_with("./") {
+                        manifest.exec_path =
+                            dir.join(manifest.exec_path).canonicalize()?;
+                    }
                     let manifest = Arc::new(manifest);
                     self.items.insert(manifest.name.clone(), manifest.clone());
-                    self.locations.insert(manifest_path.clone(), manifest);
+                    self.locations.insert(dir.clone(), manifest);
                 }
             }
         }
+        Ok(())
     }
 
-    pub fn start_all(&mut self) {
-        for (_, manifest) in self.items.clone().iter() {
-            start_plugin_process(manifest.clone(), self.next_plugin_id());
-        }
+    pub fn start_all(&mut self) -> Result<()> {
+        match &LAPCE_STATE.workspace.kind {
+            LapceWorkspaceType::Local => {
+                for (_, manifest) in self.items.clone().iter() {
+                    start_plugin_process(manifest.clone(), self.next_plugin_id());
+                }
+            }
+            LapceWorkspaceType::RemoteSSH(host) => {
+                for (_, manifest) in self.items.clone().iter() {
+                    let manifest = manifest.clone();
+                    let plugin_id = self.next_plugin_id();
+                    thread::spawn(move || {
+                        start_plugin_ssh(manifest, plugin_id, host);
+                    });
+                }
+            }
+        };
+        Ok(())
     }
 
     pub fn send_rpc_notification(&self, notification: HostNotification) {
@@ -182,14 +232,47 @@ fn load_manifest(path: &Path) -> Result<PluginDescription> {
     let mut manifest: PluginDescription = toml::from_str(&contents)?;
     // normalize relative paths
     manifest.dir = Some(path.parent().unwrap().canonicalize()?);
-    if manifest.exec_path.starts_with("./") {
-        manifest.exec_path = path
-            .parent()
-            .unwrap()
-            .join(manifest.exec_path)
-            .canonicalize()?;
-    }
+    //    if manifest.exec_path.starts_with("./") {
+    manifest.exec_path = path
+        .parent()
+        .unwrap()
+        .join(manifest.exec_path)
+        .canonicalize()?;
+    //   }
     Ok(manifest)
+}
+
+fn start_plugin_ssh(
+    plugin_desc: Arc<PluginDescription>,
+    id: PluginId,
+    host: &str,
+) -> Result<()> {
+    println!(
+        "start plugin {:?} {:?}",
+        plugin_desc.exec_path, plugin_desc.dir
+    );
+    let ssh_session = SshSession::new(host)?;
+    let mut channel = ssh_session.session.channel_session()?;
+    channel.exec(plugin_desc.exec_path.to_str().unwrap())?;
+    let mut looper = RpcLoop::new(channel.stream(0));
+    let peer: RpcPeer = Box::new(looper.get_raw_peer());
+    let name = plugin_desc.name.clone();
+    let plugin = Plugin {
+        peer,
+        //process: child,
+        name,
+        id,
+    };
+
+    plugin.initialize();
+    LAPCE_STATE.plugins.lock().running.push(plugin);
+
+    let mut handler = PluginHandler {};
+    if let Err(e) = looper.mainloop(|| BufReader::new(channel), &mut handler) {
+        println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
+    }
+    println!("plugin main loop exit {:?}", plugin_desc.dir);
+    Ok(())
 }
 
 fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
@@ -219,7 +302,7 @@ fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
             let name = plugin_desc.name.clone();
             let plugin = Plugin {
                 peer,
-                process: child,
+                //process: child,
                 name,
                 id,
             };
@@ -295,6 +378,7 @@ pub enum PluginNotification {
     StartLspServer {
         exec_path: String,
         language_id: String,
+        options: Option<Value>,
     },
 }
 
@@ -418,11 +502,13 @@ impl Handler for PluginHandler {
             PluginNotification::StartLspServer {
                 exec_path,
                 language_id,
+                options,
             } => {
-                LAPCE_STATE
-                    .lsp
-                    .lock()
-                    .start_server(&exec_path, &language_id);
+                LAPCE_STATE.lsp.lock().start_server(
+                    &exec_path,
+                    &language_id,
+                    options,
+                );
             }
         }
     }

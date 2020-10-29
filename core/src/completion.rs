@@ -2,15 +2,17 @@ use std::cmp::Ordering;
 
 use bit_vec::BitVec;
 use druid::{
-    scroll_component::ScrollComponent, theme, Affine, Color, Command, Env, Event,
-    EventCtx, Insets, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    TextLayout, Vec2, Widget, WidgetId,
+    scroll_component::ScrollComponent, theme, widget::SvgData, Affine, Color,
+    Command, Env, Event, EventCtx, Insets, PaintCtx, Point, Rect, RenderContext,
+    Size, Target, TextLayout, Vec2, Widget, WidgetId,
 };
 use fzyr::{has_match, locate};
-use lsp_types::CompletionItem;
+use lsp_types::{CompletionItem, CompletionItemKind};
+use std::str::FromStr;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    explorer::ICONS_DIR,
     state::{LapceUIState, LAPCE_STATE},
     theme::LapceTheme,
 };
@@ -175,11 +177,22 @@ impl Completion {
             }
 
             let item = items[line];
+
+            if let Some(svg) = completion_svg(item.item.kind) {
+                svg.to_piet(
+                    Affine::translate(Vec2::new(
+                        1.0,
+                        line_height * line as f64 - scroll_offset,
+                    )),
+                    ctx,
+                );
+            }
+
             let mut layout = TextLayout::new(item.item.label.as_str());
             layout.set_font(LapceTheme::EDITOR_FONT);
             layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
             layout.rebuild_if_needed(&mut ctx.text(), env);
-            let point = Point::new(0.0, line_height * line as f64 - scroll_offset);
+            let point = Point::new(20.0, line_height * line as f64 - scroll_offset);
             layout.draw(ctx, point);
         }
 
@@ -287,4 +300,34 @@ impl Widget<LapceUIState> for Completion {
     fn id(&self) -> Option<WidgetId> {
         Some(self.id)
     }
+}
+
+fn completion_svg(kind: Option<CompletionItemKind>) -> Option<SvgData> {
+    let kind = kind?;
+    let kind_str = match kind {
+        CompletionItemKind::Method => "method",
+        CompletionItemKind::Function => "method",
+        CompletionItemKind::Enum => "enum",
+        CompletionItemKind::EnumMember => "enum-member",
+        CompletionItemKind::Class => "class",
+        CompletionItemKind::Variable => "variable",
+        CompletionItemKind::Struct => "structure",
+        CompletionItemKind::Keyword => "keyword",
+        CompletionItemKind::Constant => "constant",
+        CompletionItemKind::Property => "property",
+        CompletionItemKind::Field => "field",
+        CompletionItemKind::Interface => "interface",
+        CompletionItemKind::Snippet => "snippet",
+        CompletionItemKind::Module => "namespace",
+        _ => return None,
+    };
+    Some(
+        SvgData::from_str(
+            ICONS_DIR
+                .get_file(format!("symbol-{}.svg", kind_str))
+                .unwrap()
+                .contents_utf8()?,
+        )
+        .ok()?,
+    )
 }

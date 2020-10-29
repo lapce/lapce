@@ -18,6 +18,7 @@ use druid::{
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
 use lapce_core::command::{LapceUICommand, LAPCE_UI_COMMAND};
 use lapce_core::explorer::FileExplorer;
+use lapce_core::ssh::SshSession;
 use lapce_core::state::{LapceState, LapceUIState, LAPCE_STATE};
 use tree_sitter::{Language, Parser};
 
@@ -117,20 +118,17 @@ pub fn main() {
 
     let launcher = AppLauncher::with_window(window);
     let ui_event_sink = launcher.get_external_handle();
-    thread::spawn(move || {
-        ui_event_sink.submit_command(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::OpenFile(
-                "/Users/Lulu/go/src/uni/main.go".to_string(),
-                // "/Users/Lulu/lapce/core/src/editor.rs".to_string(),
-            ),
-            Target::Global,
-        );
-    });
-    LAPCE_STATE.set_ui_sink(launcher.get_external_handle());
     // thread::spawn(move || {
-    //     LAPCE_STATE.open_file("/Users/Lulu/lapce/src/editor.rs")
+    //     ui_event_sink.submit_command(
+    //         LAPCE_UI_COMMAND,
+    //         LapceUICommand::OpenFile(
+    //             "/Users/Lulu/go/src/uni/main.go".to_string(),
+    //             // "/Users/Lulu/lapce/core/src/editor.rs".to_string(),
+    //         ),
+    //         Target::Global,
+    //     );
     // });
+    LAPCE_STATE.set_ui_sink(launcher.get_external_handle());
     let mut parser = Parser::new();
     let language = unsafe { tree_sitter_rust() };
     parser.set_language(language);

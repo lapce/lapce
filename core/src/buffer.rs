@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Color, Command, EventCtx, ExtEventSink, Target, UpdateCtx,
@@ -11,7 +11,7 @@ use std::{
     borrow::Cow,
     ffi::OsString,
     io::{self, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     thread,
 };
@@ -39,6 +39,7 @@ use crate::{
     movement::{ColPosition, Movement, SelRegion, Selection},
     plugin::PluginBufferInfo,
     state::LapceState,
+    state::LapceWorkspaceType,
     state::Mode,
     state::LAPCE_STATE,
     theme::LapceTheme,
@@ -136,22 +137,51 @@ impl Buffer {
             return Ok(());
         }
 
-        let path = PathBuf::from_str(&self.path)?;
-        let tmp_extension = path.extension().map_or_else(
-            || OsString::from("swp"),
-            |ext| {
-                let mut ext = ext.to_os_string();
-                ext.push(".swp");
-                ext
-            },
-        );
-        let tmp_path = &path.with_extension(tmp_extension);
+        match &LAPCE_STATE.workspace.kind {
+            LapceWorkspaceType::RemoteSSH(host) => {
+                LAPCE_STATE.get_ssh_session(host)?;
+                let ssh_session = LAPCE_STATE.ssh_session.lock();
+                let ssh_session = ssh_session.as_ref().unwrap();
+                let tmp_path = format!("{}.swp", self.path);
+                let mut remote_file = ssh_session.session.scp_send(
+                    Path::new(&tmp_path),
+                    0o644,
+                    self.len() as u64,
+                    None,
+                )?;
+                for chunk in self.rope.iter_chunks(..self.rope.len()) {
+                    remote_file.write(chunk.as_bytes())?;
+                }
+                println!("send remote_file {}", tmp_path);
+                let mut channel = ssh_session.session.channel_session()?;
+                channel.exec(&format!("mv {} {}", tmp_path, self.path))?;
+                let mut s = String::new();
+                channel.read_to_string(&mut s)?;
+                channel.wait_close()?;
+                let status = channel.exit_status()?;
+                if status != 0 {
+                    return Err(anyhow!("rename file failed"));
+                }
+            }
+            LapceWorkspaceType::Local => {
+                let path = PathBuf::from_str(&self.path)?;
+                let tmp_extension = path.extension().map_or_else(
+                    || OsString::from("swp"),
+                    |ext| {
+                        let mut ext = ext.to_os_string();
+                        ext.push(".swp");
+                        ext
+                    },
+                );
+                let tmp_path = &path.with_extension(tmp_extension);
 
-        let mut f = File::create(tmp_path)?;
-        for chunk in self.rope.iter_chunks(..self.rope.len()) {
-            f.write_all(chunk.as_bytes())?;
-        }
-        fs::rename(tmp_path, path)?;
+                let mut f = File::create(tmp_path)?;
+                for chunk in self.rope.iter_chunks(..self.rope.len()) {
+                    f.write_all(chunk.as_bytes())?;
+                }
+                fs::rename(tmp_path, path)?;
+            }
+        };
         self.dirty = false;
         Ok(())
     }
@@ -729,9 +759,20 @@ impl Buffer {
 }
 
 fn load_file(path: &str) -> Result<Rope> {
-    let mut f = File::open(path)?;
-    let mut bytes = Vec::new();
-    f.read_to_end(&mut bytes)?;
+    let bytes = match &LAPCE_STATE.workspace.kind {
+        LapceWorkspaceType::Local => {
+            let mut f = File::open(path)?;
+            let mut bytes = Vec::new();
+            f.read_to_end(&mut bytes)?;
+            bytes
+        }
+        LapceWorkspaceType::RemoteSSH(host) => {
+            LAPCE_STATE.get_ssh_session(host)?;
+            let ssh_session = LAPCE_STATE.ssh_session.lock();
+            let ssh_session = ssh_session.as_ref().unwrap();
+            ssh_session.read_file(path)?
+        }
+    };
     Ok(Rope::from(std::str::from_utf8(&bytes)?))
 }
 

@@ -1424,6 +1424,27 @@ impl EditorSplitState {
         None
     }
 
+    pub fn check_diagnositics(&self, ctx: &mut EventCtx) -> Option<()> {
+        let editor = self.editors.get(&self.active)?;
+        let buffer_id = editor.buffer_id.clone()?;
+        let buffer = self.buffers.get(&buffer_id)?;
+        let diagnositics = self.diagnostics.get(&buffer.path)?;
+        let offset = editor.selection.get_cursor_offset();
+        for diagnostic in diagnositics {
+            let diagnostic_offset =
+                buffer.offset_of_position(&diagnostic.range.start);
+            if offset == diagnostic_offset {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RequestPaint,
+                    Target::Widget(editor.view_id),
+                ));
+                return None;
+            }
+        }
+        None
+    }
+
     pub fn run_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -1828,7 +1849,9 @@ impl EditorSplitState {
 
                 let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
                 let buffer = self.buffers.get_mut(&buffer_id)?;
-                buffer.save();
+                if let Err(e) = buffer.save() {
+                    println!("buffer save error {}", e);
+                }
                 buffer_ui_state.dirty = buffer.dirty;
                 LAPCE_STATE.lsp.lock().save_buffer(buffer);
             }
@@ -1860,6 +1883,7 @@ impl EditorSplitState {
         editor_ui_state.visual_mode = self.visual_mode.clone();
         editor_ui_state.mode = self.mode.clone();
         self.notify_fill_text_layouts(ctx, &buffer_id);
+        self.check_diagnositics(ctx);
         None
     }
 
@@ -1888,12 +1912,7 @@ impl EditorSplitState {
         self.mode.clone()
     }
 
-    pub fn request_paint(&self) {
-        // LAPCE_STATE.submit_ui_command(
-        //     LapceUICommand::RequestPaint,
-        //     self.widget_id.unwrap(),
-        // );
-    }
+    pub fn request_paint(&self) {}
 }
 
 pub struct EditorHeader {
@@ -2453,84 +2472,6 @@ impl Widget<LapceUIState> for EditorGutter {
                 }
             }
         }
-        // let buffer_id = {
-        //     LAPCE_STATE
-        //         .editor_split
-        //         .lock()
-        //         .unwrap()
-        //         .get_buffer_id(&self.view_id)
-        //         .clone()
-        // };
-        // if let Some(buffer_id) = buffer_id {
-        //     let mut editor_split = LAPCE_STATE.editor_split.lock().unwrap();
-        //     let mut layout = TextLayout::new("W");
-        //     layout.set_font(LapceTheme::EDITOR_FONT);
-        //     layout.rebuild_if_needed(&mut ctx.text(), env);
-        //     let width = layout.point_for_text_position(1).x;
-        //     let buffers = &editor_split.buffers;
-        //     let buffer = buffers.get(&buffer_id).unwrap();
-        //     let (current_line, _) = {
-        //         let editor = editor_split.editors.get(&self.view_id).unwrap();
-        //         buffer.offset_to_line_col(editor.selection.get_cursor_offset())
-        //     };
-        //     let active = editor_split.active;
-        //     let rects = ctx.region().rects().to_vec();
-        //     for rect in rects {
-        //         let start_line = (rect.y0 / line_height).floor() as usize;
-        //         let num_lines = (rect.height() / line_height).floor() as usize;
-        //         let last_line = buffer.last_line();
-        //         for line in start_line..start_line + num_lines {
-        //             if line > last_line {
-        //                 break;
-        //             }
-        //             let content = if active != self.view_id {
-        //                 line
-        //             } else {
-        //                 if line == current_line {
-        //                     line
-        //                 } else if line > current_line {
-        //                     line - current_line
-        //                 } else {
-        //                     current_line - line
-        //                 }
-        //             };
-        //             let x = (last_line.to_string().len()
-        //                 - content.to_string().len())
-        //                 as f64
-        //                 * width;
-        //             let content = content.to_string();
-        //             if let Some(text_layout) =
-        //                 self.text_layouts.get_mut(&content)
-        //             {
-        //                 if text_layout.text != content {
-        //                     text_layout.layout.set_text(content.clone());
-        //                     text_layout.text = content;
-        //                     text_layout
-        //                         .layout
-        //                         .rebuild_if_needed(&mut ctx.text(), env);
-        //                 }
-        //                 text_layout.layout.draw(
-        //                     ctx,
-        //                     Point::new(x, line_height * line as f64),
-        //                 );
-        //             } else {
-        //                 let mut layout = TextLayout::new(content.clone());
-        //                 layout.set_font(LapceTheme::EDITOR_FONT);
-        //                 layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-        //                 layout.rebuild_if_needed(&mut ctx.text(), env);
-        //                 layout.draw(
-        //                     ctx,
-        //                     Point::new(x, line_height * line as f64),
-        //                 );
-        //                 let text_layout = EditorTextLayout {
-        //                     layout,
-        //                     text: content.clone(),
-        //                 };
-        //                 self.text_layouts.insert(content, text_layout);
-        //             }
-        //         }
-        //     }
-        // }
     }
 }
 
@@ -2909,21 +2850,21 @@ impl Widget<LapceUIState> for Editor {
                                     TextLayout::new(diagnositic.message.clone());
                                 text_layout.set_font(
                                     FontDescriptor::new(FontFamily::SYSTEM_UI)
-                                        .with_size(13.0),
+                                        .with_size(14.0),
                                 );
                                 text_layout
                                     .set_text_color(LapceTheme::EDITOR_FOREGROUND);
                                 text_layout.rebuild_if_needed(ctx.text(), env);
-                                let text_width = text_layout.size().width;
+                                let text_size = text_layout.size();
                                 ctx.fill(
                                     Rect::ZERO
                                         .with_origin(Point::new(
-                                            10.0,
-                                            (start.line - 1) as f64 * line_height,
+                                            0.0,
+                                            (start.line + 1) as f64 * line_height,
                                         ))
                                         .with_size(Size::new(
-                                            text_width,
-                                            line_height,
+                                            size.width,
+                                            text_size.height + 20.0,
                                         )),
                                     &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
                                 );
@@ -2931,7 +2872,7 @@ impl Widget<LapceUIState> for Editor {
                                     ctx,
                                     Point::new(
                                         10.0,
-                                        (start.line - 1) as f64 * line_height,
+                                        (start.line + 1) as f64 * line_height + 10.0,
                                     ),
                                 );
                             }
@@ -2940,39 +2881,6 @@ impl Widget<LapceUIState> for Editor {
                 }
             }
         }
-        // let items = editor_split.completion.current_items();
-        // if items.len() > 0 {
-        //     let (line, col) =
-        //         buffer.offset_to_line_col(editor_split.completion.offset);
-        //     let rect = Size::new(300.0, 500.0).to_rect().with_origin(Point::new(
-        //         width * col as f64 - 5.0,
-        //         line_height * (line + 1) as f64,
-        //     ));
-        //     ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
-        //     for (i, item) in items.iter().enumerate() {
-        //         if i == editor_split.completion.index {
-        //             let rect = Size::new(300.0, line_height).to_rect().with_origin(
-        //                 Point::new(
-        //                     width * col as f64 - 5.0,
-        //                     line_height * (line + 1 + i) as f64,
-        //                 ),
-        //             );
-        //             if let Some(background) = LAPCE_STATE.theme.get("background") {
-        //                 ctx.fill(rect, background);
-        //             }
-        //         }
-        //         let mut layout = TextLayout::new(item.item.label.as_str());
-        //         layout.set_font(LapceTheme::EDITOR_FONT);
-        //         layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-        //         layout.rebuild_if_needed(&mut ctx.text(), env);
-        //         let point = Point::new(
-        //             width * col as f64,
-        //             line_height * (line + 1 + i) as f64,
-        //         );
-        //         layout.draw(ctx, point);
-        //     }
-        //     ctx.stroke(rect, &env.get(theme::BORDER_LIGHT), 1.0);
-        // }
     }
 }
 

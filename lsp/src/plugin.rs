@@ -23,12 +23,18 @@ impl CoreProxy {
         }
     }
 
-    pub fn start_lsp_server(&mut self, exec_path: &str, language_id: &str) {
+    pub fn start_lsp_server(
+        &mut self,
+        exec_path: &str,
+        language_id: &str,
+        options: Option<Value>,
+    ) {
         let params = json!({
             "plugin_id": self.plugin_id,
             "buffer_id": BufferId(0),
             "exec_path": exec_path,
             "language_id": language_id,
+            "options": options,
         });
 
         self.peer.send_rpc_notification("start_lsp_server", &params);

@@ -15,6 +15,7 @@ use crate::{
     palette::PaletteState,
     palette::PaletteType,
     plugin::PluginCatalog,
+    ssh::SshSession,
 };
 use anyhow::{anyhow, Result};
 use druid::{
@@ -123,8 +124,21 @@ impl LapceUIState {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum LapceWorkspaceType {
+    Local,
+    RemoteSSH(String),
+}
+
+#[derive(Clone)]
+pub struct LapceWorkspace {
+    pub kind: LapceWorkspaceType,
+    pub path: PathBuf,
+}
+
 #[derive(Clone)]
 pub struct LapceState {
+    pub workspace: LapceWorkspace,
     pub palette: Arc<Mutex<PaletteState>>,
     pub keypress: Arc<Mutex<KeyPressState>>,
     pub theme: HashMap<String, Color>,
@@ -136,6 +150,7 @@ pub struct LapceState {
     pub plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
+    pub ssh_session: Arc<Mutex<Option<SshSession>>>,
 }
 
 impl Data for LapceState {
@@ -148,10 +163,11 @@ impl Data for LapceState {
 
 impl LapceState {
     pub fn new() -> LapceState {
-        let mut plugins = PluginCatalog::new();
-        plugins.reload_from_paths(&[PathBuf::from_str("./lsp").unwrap()]);
-        plugins.start_all();
-        LapceState {
+        let state = LapceState {
+            workspace: LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+                path: PathBuf::from("/home/dz/go/src/galaxy"),
+            },
             theme: Self::get_theme().unwrap_or(HashMap::new()),
             focus: Arc::new(Mutex::new(LapceFocus::Editor)),
             palette: Arc::new(Mutex::new(PaletteState::new())),
@@ -160,10 +176,22 @@ impl LapceState {
             container: None,
             window_id: WidgetId::next(),
             keypress: Arc::new(Mutex::new(KeyPressState::new())),
-            plugins: Arc::new(Mutex::new(plugins)),
+            plugins: Arc::new(Mutex::new(PluginCatalog::new())),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
             ui_sink: Arc::new(Mutex::new(None)),
-        }
+            ssh_session: Arc::new(Mutex::new(None)),
+        };
+        let local_state = state.clone();
+        thread::spawn(move || {
+            local_state.start_plugin();
+        });
+        state
+    }
+
+    pub fn start_plugin(&self) {
+        let mut plugins = self.plugins.lock();
+        plugins.reload_from_paths(&[PathBuf::from_str("./lsp").unwrap()]);
+        plugins.start_all();
     }
 
     fn get_theme() -> Result<HashMap<String, Color>> {
@@ -187,6 +215,15 @@ impl LapceState {
             LapceFocus::Editor => self.editor_split.lock().get_mode(),
             LapceFocus::FileExplorer => Mode::Normal,
         }
+    }
+
+    pub fn get_ssh_session(&self, host: &str) -> Result<()> {
+        let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+        if ssh_session.is_none() {
+            let session = SshSession::new(host)?;
+            *ssh_session = Some(session);
+        }
+        Ok(())
     }
 
     pub fn set_ui_sink(&self, ui_event_sink: ExtEventSink) {

@@ -12,6 +12,7 @@ pub mod palette;
 pub mod plugin;
 pub mod scroll;
 pub mod split;
+pub mod ssh;
 pub mod state;
 pub mod status;
 pub mod theme;

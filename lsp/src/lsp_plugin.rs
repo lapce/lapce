@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{collections::HashMap, collections::VecDeque, sync::Arc};
 
 use languageserver_types::{
@@ -60,11 +60,18 @@ impl LspPlugin {
 impl Plugin for LspPlugin {
     fn initialize(&mut self, core: CoreProxy) {
         self.core = Some(core);
-        self.core.as_mut().unwrap().start_lsp_server("gopls", "go");
         self.core
             .as_mut()
             .unwrap()
-            .start_lsp_server("rust-analyzer-mac", "rust");
+            .start_lsp_server("gopls", "go", None);
+        self.core.as_mut().unwrap().start_lsp_server(
+            "rust-analyzer-mac",
+            "rust",
+            Some(json!({
+                "diagnostics.enable": false,
+                "diagnostics.enableExperimental": false,
+            })),
+        );
     }
 
     fn new_buffer(&mut self, buffer: &mut Buffer) {

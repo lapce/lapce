@@ -1,4 +1,8 @@
-use crate::{command::LapceUICommand, state::LAPCE_STATE};
+use crate::{
+    command::LapceUICommand,
+    ssh::SshSession,
+    state::{LapceWorkspaceType, LAPCE_STATE},
+};
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use parking_lot::Mutex;
@@ -53,9 +57,23 @@ impl LspCatalog {
         }
     }
 
-    pub fn start_server(&mut self, exec_path: &str, language_id: &str) {
-        let client = LspClient::new(exec_path);
-        self.clients.insert(language_id.to_string(), client);
+    pub fn start_server(
+        &mut self,
+        exec_path: &str,
+        language_id: &str,
+        options: Option<Value>,
+    ) {
+        match &LAPCE_STATE.workspace.kind {
+            LapceWorkspaceType::Local => {
+                let client = LspClient::new(exec_path, options);
+                self.clients.insert(language_id.to_string(), client);
+            }
+            LapceWorkspaceType::RemoteSSH(host) => {
+                if let Ok(client) = LspClient::new_ssh(exec_path, options, host) {
+                    self.clients.insert(language_id.to_string(), client);
+                }
+            }
+        };
     }
 
     pub fn save_buffer(&self, buffer: &Buffer) {
@@ -106,7 +124,6 @@ impl LspCatalog {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let receiver = { client.lock().get_document_symbols(buffer) };
             let result = receiver.recv_timeout(Duration::from_millis(100));
-            println!("recv {:?}", result);
             let result = result.ok()?;
             let value = result.ok()?;
             let resp: DocumentSymbolResponse = serde_json::from_value(value).ok()?;
@@ -159,13 +176,14 @@ pub struct LspClient {
     writer: Box<dyn Write + Send>,
     next_id: u64,
     pending: HashMap<u64, Callback>,
+    options: Option<Value>,
     pub server_capabilities: Option<ServerCapabilities>,
     pub opened_documents: HashMap<BufferId, Url>,
     pub is_initialized: bool,
 }
 
 impl LspClient {
-    pub fn new(exec_path: &str) -> Arc<Mutex<LspClient>> {
+    pub fn new(exec_path: &str, options: Option<Value>) -> Arc<Mutex<LspClient>> {
         let mut process = Command::new(exec_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -181,6 +199,7 @@ impl LspClient {
             server_capabilities: None,
             opened_documents: HashMap::new(),
             is_initialized: false,
+            options,
         }));
 
         let local_lsp_client = lsp_client.clone();
@@ -200,6 +219,44 @@ impl LspClient {
         });
 
         lsp_client
+    }
+
+    pub fn new_ssh(
+        exec_path: &str,
+        options: Option<Value>,
+        host: &str,
+    ) -> Result<Arc<Mutex<LspClient>>> {
+        let ssh_session = SshSession::new(host)?;
+        let mut channel = ssh_session.session.channel_session()?;
+        channel.exec(exec_path)?;
+        println!("lsp {}", exec_path);
+        let writer = Box::new(channel.stream(0));
+        let lsp_client = Arc::new(Mutex::new(LspClient {
+            writer,
+            next_id: 0,
+            pending: HashMap::new(),
+            server_capabilities: None,
+            opened_documents: HashMap::new(),
+            is_initialized: false,
+            options,
+        }));
+
+        let local_lsp_client = lsp_client.clone();
+        thread::spawn(move || {
+            let mut reader = Box::new(BufReader::new(channel));
+            loop {
+                match read_message(&mut reader) {
+                    Ok(message_str) => {
+                        local_lsp_client.lock().handle_message(message_str.as_ref());
+                    }
+                    Err(err) => {
+                        //println!("Error occurred {:?}", err);
+                    }
+                };
+            }
+        });
+
+        Ok(lsp_client)
     }
 
     pub fn update(&mut self, buffer: &Buffer, delta: &RopeDelta, rev: u64) {
@@ -242,6 +299,7 @@ impl LspClient {
     }
 
     pub fn handle_message(&mut self, message: &str) {
+        println!("handle message {}", message);
         match JsonRpc::parse(message) {
             Ok(JsonRpc::Request(obj)) => {
                 // trace!("client received unexpected request: {:?}", obj)
@@ -364,7 +422,7 @@ impl LspClient {
         let init_params = InitializeParams {
             process_id: Some(u64::from(process::id())),
             root_uri,
-            initialization_options: None,
+            initialization_options: self.options.clone(),
             capabilities: client_capabilities,
             trace: Some(TraceOption::Verbose),
             workspace_folders: None,
@@ -384,7 +442,6 @@ impl LspClient {
         let (sender, receiver) = channel();
         self.request_document_symbols(uri, move |lsp_client, result| {
             let result = sender.send(result);
-            println!("send {:?}", result);
         });
         return receiver;
     }

@@ -31,8 +31,8 @@ use std::thread;
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND, editor::EditorSplitState, explorer::ICONS_DIR,
-    scroll::LapceScroll, state::LapceFocus, state::LapceUIState, state::LAPCE_STATE,
-    theme::LapceTheme,
+    scroll::LapceScroll, ssh::SshSession, state::LapceFocus, state::LapceUIState,
+    state::LapceWorkspaceType, state::LAPCE_STATE, theme::LapceTheme,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -344,6 +344,43 @@ impl PaletteState {
     }
 
     fn get_files(&self) -> Vec<PaletteItem> {
+        match &LAPCE_STATE.workspace.kind {
+            LapceWorkspaceType::RemoteSSH(host) => self.get_ssh_files(&host),
+            LapceWorkspaceType::Local => self.get_local_files(),
+        }
+    }
+
+    fn get_ssh_files(&self, host: &str) -> Vec<PaletteItem> {
+        let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+        if ssh_session.is_none() {
+            if let Ok(session) = SshSession::new(host) {
+                *ssh_session = Some(session);
+            } else {
+                return Vec::new();
+            }
+        }
+        let ssh_session = ssh_session.as_mut().unwrap();
+        let dir = LAPCE_STATE.workspace.path.to_str().unwrap();
+        if let Ok(paths) = ssh_session.read_dir(dir) {
+            return paths
+                .iter()
+                .enumerate()
+                .map(|(index, p)| PaletteItem {
+                    kind: PaletteType::File,
+                    text: p.to_string(),
+                    hint: None,
+                    position: None,
+                    score: 0.0,
+                    index,
+                    match_mask: BitVec::new(),
+                    icon: PaletteIcon::None,
+                })
+                .collect();
+        }
+        Vec::new()
+    }
+
+    fn get_local_files(&self) -> Vec<PaletteItem> {
         let mut items = Vec::new();
         let mut dirs = Vec::new();
         let mut index = 0;
@@ -909,13 +946,9 @@ impl PaletteItem {
     ) {
         match &self.kind {
             &PaletteType::File => {
-                let mut path = PathBuf::from_str(&self.text)
-                    .unwrap()
-                    .canonicalize()
-                    .unwrap();
                 let mut editor_split = LAPCE_STATE.editor_split.lock();
                 editor_split.save_jump_location();
-                editor_split.open_file(ctx, ui_state, path.to_str().unwrap());
+                editor_split.open_file(ctx, ui_state, &self.text);
             }
             &PaletteType::Line => {
                 let line = self

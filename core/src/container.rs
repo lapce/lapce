@@ -222,7 +222,7 @@ impl Widget<LapceUIState> for LapceContainer {
                     let char_width = 7.6171875;
                     let origin = child.widget.layout_rect().origin()
                         + Vec2::new(
-                            editor.gutter_width + col as f64 * char_width,
+                            editor.gutter_width + col as f64 * char_width - 20.0,
                             editor.header_height + (line + 1) as f64 * line_height
                                 - 10.0,
                         )
