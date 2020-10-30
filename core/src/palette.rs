@@ -4,6 +4,7 @@ use druid::{
     piet::TextAttribute,
     widget::Container,
     widget::IdentityWrapper,
+    widget::Svg,
     widget::SvgData,
     Affine, Command, FontFamily, FontWeight, KeyEvent, Target, Vec2, WidgetId,
 };
@@ -399,19 +400,36 @@ impl PaletteState {
                     continue;
                 }
                 if path.is_dir() {
-                    if path.as_path().to_str().unwrap().to_string() != "./target" {
+                    if !path
+                        .as_path()
+                        .to_str()
+                        .unwrap()
+                        .to_string()
+                        .ends_with("target")
+                    {
                         dirs.push(path);
                     }
                 } else {
                     let text =
                         path.file_name().unwrap().to_str().unwrap().to_string();
                     let folder = path.parent().unwrap();
-                    let folder = if let Ok(folder) = folder.strip_prefix(&workspace_path) {
-                        folder
+                    let folder =
+                        if let Ok(folder) = folder.strip_prefix(&workspace_path) {
+                            folder
+                        } else {
+                            folder
+                        };
+                    let icon = if let Some(exten) = path.extension() {
+                        match exten.to_str().unwrap() {
+                            "rs" => PaletteIcon::File("rust".to_string()),
+                            "md" => PaletteIcon::File("markdown".to_string()),
+                            "cc" => PaletteIcon::File("cpp".to_string()),
+                            s => PaletteIcon::File(s.to_string()),
+                        }
                     } else {
-                        folder
+                        PaletteIcon::None
                     };
-                   // let file = path.as_path().to_str().unwrap().to_string();
+                    // let file = path.as_path().to_str().unwrap().to_string();
                     let hint = folder.to_str().unwrap().to_string();
                     items.push(PaletteItem {
                         kind: PaletteType::File,
@@ -422,7 +440,7 @@ impl PaletteState {
                         score: 0.0,
                         index,
                         match_mask: BitVec::new(),
-                        icon: PaletteIcon::None,
+                        icon,
                     });
                     index += 1;
                 }
@@ -758,7 +776,15 @@ impl Widget<LapceUIState> for PaletteContent {
                         )
                     }
                 }
-                match item.icon {
+                match &item.icon {
+                    PaletteIcon::File(exten) => {
+                        if let Some(svg_data) = file_svg(&exten) {
+                            let x = 1.0;
+                            let y = (start + i) as f64 * line_height + 2.0;
+                            let affine = Affine::new([0.5, 0.0, 0.0, 0.5, x, y]);
+                            svg_data.to_piet(affine, ctx);
+                        }
+                    }
                     PaletteIcon::Symbol(symbol) => {
                         if let Some(svg) = symbol_svg(&symbol) {
                             svg.to_piet(
@@ -848,6 +874,17 @@ impl Widget<LapceUIState> for PaletteContent {
             }
         }
     }
+}
+
+fn file_svg(exten: &str) -> Option<SvgData> {
+    Some(
+        SvgData::from_str(
+            ICONS_DIR
+                .get_file(format!("file_type_{}.svg", exten))?
+                .contents_utf8()?,
+        )
+        .ok()?,
+    )
 }
 
 fn symbol_svg(kind: &SymbolKind) -> Option<SvgData> {
@@ -964,7 +1001,11 @@ impl PaletteItem {
             &PaletteType::File => {
                 let mut editor_split = LAPCE_STATE.editor_split.lock();
                 editor_split.save_jump_location();
-                editor_split.open_file(ctx, ui_state, self.path.as_ref().unwrap().to_str().unwrap());
+                editor_split.open_file(
+                    ctx,
+                    ui_state,
+                    self.path.as_ref().unwrap().to_str().unwrap(),
+                );
             }
             &PaletteType::Line => {
                 let line = self
