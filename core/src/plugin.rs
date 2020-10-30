@@ -19,7 +19,10 @@ use xi_rope::{LinesMetric, Rope, RopeDelta};
 use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
 use crate::{
-    buffer::BufferId, editor::Counter, ssh::SshSession, state::LapceWorkspaceType,
+    buffer::BufferId,
+    editor::Counter,
+    ssh::{SshSession, SshStream},
+    state::LapceWorkspaceType,
     state::LAPCE_STATE,
 };
 
@@ -108,17 +111,23 @@ impl PluginCatalog {
             }
             LapceWorkspaceType::RemoteSSH(host) => {
                 println!("load plugins for remote ssh");
-                LAPCE_STATE.get_ssh_session(host)?;
-                let ssh_session = LAPCE_STATE.ssh_session.lock();
-                let ssh_session = ssh_session.as_ref().unwrap();
-                println!("pwd {:?}", ssh_session.pwd);
-                let dirs = ssh_session
-                    .read_dirs(&ssh_session.pwd.join(".lapce/plugins/"))?;
+                if let Err(e) = LAPCE_STATE.get_ssh_session(host) {
+                    println!("get ssh session error {}", e);
+                    return Err(e);
+                }
+                let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+                let ssh_session = ssh_session.as_mut().unwrap();
+                let pwd = ssh_session.get_pwd();
+                println!("pwd {:?}", pwd);
+                let pwd = pwd?;
+                let dirs = ssh_session.read_dirs(&pwd.join(".lapce/plugins/"))?;
                 println!("dirs {:?}", dirs);
                 for dir in dirs {
                     let file = dir.join("manifest.toml");
                     println!("manifest path {:?}", file);
-                    let contents = ssh_session.read_file(file.to_str().unwrap())?;
+                    let contents = ssh_session.read_file(file.to_str().unwrap());
+                    println!("manifest contents {:?}", contents);
+                    let contents = contents?;
                     let mut manifest: PluginDescription =
                         toml::from_slice(&contents)?;
                     manifest.dir = Some(dir.clone());
@@ -147,7 +156,9 @@ impl PluginCatalog {
                     let manifest = manifest.clone();
                     let plugin_id = self.next_plugin_id();
                     thread::spawn(move || {
-                        start_plugin_ssh(manifest, plugin_id, host);
+                        if let Err(e) = start_plugin_ssh(manifest, plugin_id, host) {
+                            println!("start plugin ssh error {}", e);
+                        }
                     });
                 }
             }
@@ -165,10 +176,10 @@ impl PluginCatalog {
     }
 
     pub fn new_buffer(&self, info: &PluginBufferInfo) {
-        // let notification = HostNotification::NewBuffer {
-        //     buffer_info: info.clone(),
-        // };
-        // self.send_rpc_notification(notification);
+        let notification = HostNotification::NewBuffer {
+            buffer_info: info.clone(),
+        };
+        self.send_rpc_notification(notification);
     }
 
     pub fn update(
@@ -251,10 +262,11 @@ fn start_plugin_ssh(
         "start plugin {:?} {:?}",
         plugin_desc.exec_path, plugin_desc.dir
     );
-    let ssh_session = SshSession::new(host)?;
-    let mut channel = ssh_session.session.channel_session()?;
-    channel.exec(plugin_desc.exec_path.to_str().unwrap())?;
-    let mut looper = RpcLoop::new(channel.stream(0));
+    let mut ssh_session = SshSession::new(host)?;
+    let mut channel = ssh_session.get_channel()?;
+    ssh_session
+        .channel_exec(&mut channel, plugin_desc.exec_path.to_str().unwrap())?;
+    let mut looper = RpcLoop::new(ssh_session.get_stream(&channel));
     let peer: RpcPeer = Box::new(looper.get_raw_peer());
     let name = plugin_desc.name.clone();
     let plugin = Plugin {
@@ -265,10 +277,15 @@ fn start_plugin_ssh(
     };
 
     plugin.initialize();
+
     LAPCE_STATE.plugins.lock().running.push(plugin);
 
+    //    let reader = ssh_session.get_async_stream(channel.stream(0))?;
     let mut handler = PluginHandler {};
-    if let Err(e) = looper.mainloop(|| BufReader::new(channel), &mut handler) {
+    if let Err(e) = looper.mainloop(
+        || BufReader::new(ssh_session.get_stream(&channel)),
+        &mut handler,
+    ) {
         println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
     }
     println!("plugin main loop exit {:?}", plugin_desc.dir);

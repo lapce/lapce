@@ -1,6 +1,6 @@
 use crate::{
     command::LapceUICommand,
-    ssh::SshSession,
+    ssh::{SshSession, SshStream},
     state::{LapceWorkspaceType, LAPCE_STATE},
 };
 use anyhow::{anyhow, Result};
@@ -226,11 +226,11 @@ impl LspClient {
         options: Option<Value>,
         host: &str,
     ) -> Result<Arc<Mutex<LspClient>>> {
-        let ssh_session = SshSession::new(host)?;
-        let mut channel = ssh_session.session.channel_session()?;
-        channel.exec(exec_path)?;
+        let mut ssh_session = SshSession::new(host)?;
+        let mut channel = ssh_session.get_channel()?;
+        ssh_session.channel_exec(&mut channel, exec_path)?;
         println!("lsp {}", exec_path);
-        let writer = Box::new(channel.stream(0));
+        let writer = Box::new(ssh_session.get_stream(&channel));
         let lsp_client = Arc::new(Mutex::new(LspClient {
             writer,
             next_id: 0,
@@ -242,8 +242,10 @@ impl LspClient {
         }));
 
         let local_lsp_client = lsp_client.clone();
+        //  let reader = ssh_session.get_async_stream(channel.stream(0))?;
         thread::spawn(move || {
-            let mut reader = Box::new(BufReader::new(channel));
+            let mut reader =
+                Box::new(BufReader::new(ssh_session.get_stream(&channel)));
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
@@ -260,8 +262,9 @@ impl LspClient {
     }
 
     pub fn update(&mut self, buffer: &Buffer, delta: &RopeDelta, rev: u64) {
-        let sync_kind = self.get_sync_kind();
-        if let Some(changes) = get_change_for_sync_kind(sync_kind, buffer, delta) {
+        let sync_kind = self.get_sync_kind().unwrap_or(TextDocumentSyncKind::Full);
+        let changes = get_change_for_sync_kind(sync_kind, buffer, delta);
+        if let Some(changes) = changes {
             self.send_did_change(buffer, changes, rev);
         }
     }
@@ -299,7 +302,6 @@ impl LspClient {
     }
 
     pub fn handle_message(&mut self, message: &str) {
-        println!("handle message {}", message);
         match JsonRpc::parse(message) {
             Ok(JsonRpc::Request(obj)) => {
                 // trace!("client received unexpected request: {:?}", obj)
@@ -599,8 +601,10 @@ impl LspClient {
         let params = Params::from(
             serde_json::to_value(text_document_did_open_params).unwrap(),
         );
+        let root_url =
+            Url::from_directory_path(LAPCE_STATE.workspace.path.clone()).unwrap();
         if !self.is_initialized {
-            self.send_initialize(None, move |lsp_client, result| {
+            self.send_initialize(Some(root_url), move |lsp_client, result| {
                 if let Ok(result) = result {
                     let init_result: InitializeResult =
                         serde_json::from_value(result).unwrap();
@@ -647,14 +651,14 @@ impl LspClient {
         self.send_notification("textDocument/didChange", params);
     }
 
-    pub fn get_sync_kind(&mut self) -> TextDocumentSyncKind {
-        match self
+    pub fn get_sync_kind(&self) -> Option<TextDocumentSyncKind> {
+        let text_document_sync = self
             .server_capabilities
             .as_ref()
-            .and_then(|c| c.text_document_sync.as_ref())
-        {
-            Some(&TextDocumentSyncCapability::Kind(kind)) => kind,
-            _ => TextDocumentSyncKind::Full,
+            .and_then(|c| c.text_document_sync.as_ref())?;
+        match &text_document_sync {
+            &TextDocumentSyncCapability::Kind(kind) => Some(kind.clone()),
+            &TextDocumentSyncCapability::Options(options) => options.clone().change,
         }
     }
 }

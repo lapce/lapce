@@ -384,7 +384,7 @@ impl PaletteState {
         let mut items = Vec::new();
         let mut dirs = Vec::new();
         let mut index = 0;
-        dirs.push(PathBuf::from("./"));
+        dirs.push(LAPCE_STATE.workspace.path.clone());
         while let Some(dir) = dirs.pop() {
             for entry in fs::read_dir(dir).unwrap() {
                 let entry = entry.unwrap();

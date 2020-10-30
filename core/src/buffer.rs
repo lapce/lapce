@@ -7,6 +7,7 @@ use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
 use lsp_types::Position;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
     borrow::Cow,
     ffi::OsString,
@@ -72,14 +73,15 @@ pub struct Buffer {
     highlight_names: Vec<String>,
     pub highlights: Vec<(usize, usize, Highlight)>,
     pub line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
-    pub highlight_version: String,
-    event_sink: ExtEventSink,
+    // pub highlight_version: String,
+    // event_sink: ExtEventSink,
     undos: Vec<Vec<(RopeDelta, RopeDelta)>>,
     current_undo: usize,
     pub path: String,
     pub language_id: String,
     pub rev: u64,
     pub dirty: bool,
+    sender: Sender<u64>,
 }
 
 impl Buffer {
@@ -98,6 +100,8 @@ impl Buffer {
         let path_buf = PathBuf::from_str(path).unwrap();
         path_buf.extension().unwrap().to_str().unwrap().to_string();
 
+        let (sender, receiver) = channel();
+
         let mut buffer = Buffer {
             id: buffer_id.clone(),
             rope,
@@ -105,15 +109,20 @@ impl Buffer {
             highlight_names,
             highlights: Vec::new(),
             line_highlights: HashMap::new(),
-            highlight_version: "".to_string(),
             undos: Vec::new(),
             current_undo: 0,
-            event_sink,
             rev: 0,
             dirty: false,
             language_id: language_id_from_path(path).unwrap_or("").to_string(),
             path: path.to_string(),
+            sender,
         };
+
+        let language_id = buffer.language_id.clone();
+        thread::spawn(move || {
+            highlights_process(language_id, receiver, buffer_id, event_sink);
+        });
+
         LAPCE_STATE.plugins.lock().new_buffer(&PluginBufferInfo {
             buffer_id: buffer_id.clone(),
             language_id: buffer.language_id.clone(),
@@ -140,28 +149,25 @@ impl Buffer {
         match &LAPCE_STATE.workspace.kind {
             LapceWorkspaceType::RemoteSSH(host) => {
                 LAPCE_STATE.get_ssh_session(host)?;
-                let ssh_session = LAPCE_STATE.ssh_session.lock();
-                let ssh_session = ssh_session.as_ref().unwrap();
+                let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+                let ssh_session = ssh_session.as_mut().unwrap();
                 let tmp_path = format!("{}.swp", self.path);
-                let mut remote_file = ssh_session.session.scp_send(
-                    Path::new(&tmp_path),
-                    0o644,
-                    self.len() as u64,
-                    None,
-                )?;
+                let mut remote_file =
+                    ssh_session.send(&tmp_path, 0o644, self.len() as u64)?;
                 for chunk in self.rope.iter_chunks(..self.rope.len()) {
-                    remote_file.write(chunk.as_bytes())?;
+                    ssh_session.channel_write(&mut remote_file, chunk.as_bytes())?;
                 }
                 println!("send remote_file {}", tmp_path);
-                let mut channel = ssh_session.session.channel_session()?;
-                channel.exec(&format!("mv {} {}", tmp_path, self.path))?;
-                let mut s = String::new();
-                channel.read_to_string(&mut s)?;
-                channel.wait_close()?;
-                let status = channel.exit_status()?;
-                if status != 0 {
-                    return Err(anyhow!("rename file failed"));
-                }
+                ssh_session.exec(&format!("mv {} {}", tmp_path, self.path))?;
+                // let mut channel = ssh_session.session.channel_session()?;
+                // channel.exec(&format!("mv {} {}", tmp_path, self.path))?;
+                // let mut s = String::new();
+                // channel.read_to_string(&mut s)?;
+                // channel.wait_close()?;
+                // let status = channel.exit_status()?;
+                // if status != 0 {
+                //     return Err(anyhow!("rename file failed"));
+                // }
             }
             LapceWorkspaceType::Local => {
                 let path = PathBuf::from_str(&self.path)?;
@@ -208,43 +214,44 @@ impl Buffer {
     }
 
     pub fn update_highlights(&mut self) {
-        let version = uuid::Uuid::new_v4().to_string();
+        //        let version = uuid::Uuid::new_v4().to_string();
         self.line_highlights = HashMap::new();
-        self.highlight_version = version.clone();
+        //        self.highlight_version = version.clone();
+        self.sender.send(self.rev);
 
-        let highlight_config = self.highlight_config.clone();
-        let rope_str = self.slice_to_cow(..self.len()).to_string();
-        let buffer_id = self.id.clone();
-        let event_sink = self.event_sink.clone();
-        thread::spawn(move || {
-            let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
-            let mut highlighter = Highlighter::new();
-            let mut current_hl: Option<Highlight> = None;
-            for hightlight in highlighter
-                .highlight(&highlight_config, &rope_str.as_bytes(), None, |_| None)
-                .unwrap()
-            {
-                if let Ok(highlight) = hightlight {
-                    match highlight {
-                        HighlightEvent::Source { start, end } => {
-                            if let Some(hl) = current_hl {
-                                highlights.push((start, end, hl.clone()));
-                            }
-                        }
-                        HighlightEvent::HighlightStart(hl) => {
-                            current_hl = Some(hl);
-                        }
-                        HighlightEvent::HighlightEnd => current_hl = None,
-                    }
-                }
-            }
+        //  let highlight_config = self.highlight_config.clone();
+        //  let rope_str = self.slice_to_cow(..self.len()).to_string();
+        //  let buffer_id = self.id.clone();
+        //  let event_sink = self.event_sink.clone();
+        //  thread::spawn(move || {
+        //      let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
+        //      let mut highlighter = Highlighter::new();
+        //      let mut current_hl: Option<Highlight> = None;
+        //      for hightlight in highlighter
+        //          .highlight(&highlight_config, &rope_str.as_bytes(), None, |_| None)
+        //          .unwrap()
+        //      {
+        //          if let Ok(highlight) = hightlight {
+        //              match highlight {
+        //                  HighlightEvent::Source { start, end } => {
+        //                      if let Some(hl) = current_hl {
+        //                          highlights.push((start, end, hl.clone()));
+        //                      }
+        //                  }
+        //                  HighlightEvent::HighlightStart(hl) => {
+        //                      current_hl = Some(hl);
+        //                  }
+        //                  HighlightEvent::HighlightEnd => current_hl = None,
+        //              }
+        //          }
+        //      }
 
-            event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateHighlights(buffer_id, version, highlights),
-                Target::Global,
-            );
-        });
+        //      event_sink.submit_command(
+        //          LAPCE_UI_COMMAND,
+        //          LapceUICommand::UpdateHighlights(buffer_id, version, highlights),
+        //          Target::Global,
+        //      );
+        //  });
     }
 
     pub fn get_line_highligh(
@@ -768,8 +775,8 @@ fn load_file(path: &str) -> Result<Rope> {
         }
         LapceWorkspaceType::RemoteSSH(host) => {
             LAPCE_STATE.get_ssh_session(host)?;
-            let ssh_session = LAPCE_STATE.ssh_session.lock();
-            let ssh_session = ssh_session.as_ref().unwrap();
+            let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+            let ssh_session = ssh_session.as_mut().unwrap();
             ssh_session.read_file(path)?
         }
     };
@@ -1269,6 +1276,68 @@ impl BufferUIState {
     //         highlights: buffer.get_line_highligh(line).clone(),
     //     }
     // }
+}
+
+fn highlights_process(
+    language_id: String,
+    receiver: Receiver<u64>,
+    buffer_id: BufferId,
+    event_sink: ExtEventSink,
+) -> Result<()> {
+    let language = match language_id.as_ref() {
+        "rust" => LapceLanguage::Rust,
+        "go" => LapceLanguage::Go,
+        _ => return Ok(()),
+    };
+    let mut highlighter = Highlighter::new();
+    let (highlight_config, highlight_names) = new_highlight_config(language);
+    loop {
+        let rev = receiver.recv()?;
+        let rope_str = {
+            let editor_split = LAPCE_STATE.editor_split.lock();
+            let buffer = editor_split.buffers.get(&buffer_id).unwrap();
+            if buffer.rev != rev {
+                continue;
+            } else {
+                buffer.slice_to_cow(..buffer.len()).to_string()
+            }
+        };
+
+        let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
+        let mut current_hl: Option<Highlight> = None;
+        for hightlight in highlighter
+            .highlight(&highlight_config, &rope_str.as_bytes(), None, |_| None)
+            .unwrap()
+        {
+            if let Ok(highlight) = hightlight {
+                match highlight {
+                    HighlightEvent::Source { start, end } => {
+                        if let Some(hl) = current_hl {
+                            highlights.push((start, end, hl.clone()));
+                        }
+                    }
+                    HighlightEvent::HighlightStart(hl) => {
+                        current_hl = Some(hl);
+                    }
+                    HighlightEvent::HighlightEnd => current_hl = None,
+                }
+            }
+        }
+
+        {
+            let editor_split = LAPCE_STATE.editor_split.lock();
+            let buffer = editor_split.buffers.get(&buffer_id).unwrap();
+            if buffer.rev != rev {
+                continue;
+            }
+        }
+
+        event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::UpdateHighlights(buffer_id, rev, highlights),
+            Target::Global,
+        );
+    }
 }
 
 #[cfg(test)]

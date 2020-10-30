@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+mio = { version = "0.7.4", features = ["os-poll", "tcp"] }
 ssh2 = "0.8.2"
 jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"

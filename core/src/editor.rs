@@ -856,10 +856,35 @@ impl EditorSplitState {
     ) {
         let buffer = self.get_buffer_from_path(ctx, ui_state, path);
         let buffer_id = buffer.id.clone();
-        let editor = self.editors.get_mut(&self.active).unwrap();
+        let editor = self.editors.get(&self.active).unwrap();
         if editor.buffer_id.as_ref() == Some(&buffer_id) {
             return;
         }
+        if let Some(buffer_id) = editor.buffer_id.as_ref() {
+            let mut display = false;
+            for (view_id, editor) in self.editors.iter() {
+                if view_id != &self.active {
+                    if editor.buffer_id.as_ref() == Some(buffer_id) {
+                        display = true;
+                        break;
+                    }
+                }
+            }
+            if !display {
+                let mut old_buffer = Arc::make_mut(&mut ui_state.buffers)
+                    .get_mut(buffer_id)
+                    .unwrap();
+                for mut text_layout in
+                    Arc::make_mut(&mut old_buffer).text_layouts.iter_mut()
+                {
+                    if text_layout.is_some() {
+                        *Arc::make_mut(&mut text_layout) = None;
+                    }
+                }
+            }
+        }
+
+        let editor = self.editors.get_mut(&self.active).unwrap();
         editor.buffer_id = Some(buffer_id.clone());
         editor.selection = Selection::new_simple();
         ctx.submit_command(Command::new(

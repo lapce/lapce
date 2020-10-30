@@ -115,13 +115,13 @@ impl Widget<LapceUIState> for LapceContainer {
                         }
                         LapceUICommand::UpdateHighlights(
                             buffer_id,
-                            version,
+                            rev,
                             highlights,
                         ) => {
                             let mut editor_split = LAPCE_STATE.editor_split.lock();
                             let buffer =
                                 editor_split.buffers.get_mut(buffer_id).unwrap();
-                            if version == &buffer.highlight_version {
+                            if *rev == buffer.rev {
                                 buffer.highlights = highlights.to_owned();
                                 buffer.line_highlights = HashMap::new();
                                 editor_split

@@ -22,6 +22,7 @@ use druid::{
     Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId,
 };
 use lazy_static::lazy_static;
+use mio::{Events, Interest, Poll, Token};
 use parking_lot::Mutex;
 use std::{
     collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
@@ -163,11 +164,16 @@ impl Data for LapceState {
 
 impl LapceState {
     pub fn new() -> LapceState {
+        let workspace = LapceWorkspace {
+            kind: LapceWorkspaceType::Local,
+            path: PathBuf::from("/Users/Lulu/lapce"),
+        };
+        //let workspace = LapceWorkspace {
+        //    kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+        //    path: PathBuf::from("/home/dz/go/src/galaxy"),
+        //};
         let state = LapceState {
-            workspace: LapceWorkspace {
-                kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
-                path: PathBuf::from("/home/dz/go/src/galaxy"),
-            },
+            workspace,
             theme: Self::get_theme().unwrap_or(HashMap::new()),
             focus: Arc::new(Mutex::new(LapceFocus::Editor)),
             palette: Arc::new(Mutex::new(PaletteState::new())),

@@ -155,7 +155,7 @@ pub enum LapceUICommand {
     RequestPaint,
     RequestPaintRect(Rect),
     ApplyEdits(u64, Vec<TextEdit>),
-    UpdateHighlights(BufferId, String, Vec<(usize, usize, Highlight)>),
+    UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
     CenterOfWindow,
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EditorViewSize(Size),
