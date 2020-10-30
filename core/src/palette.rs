@@ -56,6 +56,7 @@ pub struct PaletteItem {
     text: String,
     hint: Option<String>,
     position: Option<Position>,
+    path: Option<PathBuf>,
     score: Score,
     index: usize,
     match_mask: BitVec,
@@ -296,6 +297,7 @@ impl PaletteState {
                     text: s.name.clone(),
                     hint: s.container_name.clone(),
                     position: Some(s.location.range.start),
+                    path: None,
                     score: 0.0,
                     index: i,
                     match_mask: BitVec::new(),
@@ -309,6 +311,7 @@ impl PaletteState {
                     kind: PaletteType::DocumentSymbol,
                     text: s.name.clone(),
                     hint: None,
+                    path: None,
                     position: Some(s.range.start),
                     score: 0.0,
                     index: i,
@@ -334,6 +337,7 @@ impl PaletteState {
                     text: format!("{}: {}", i, l.to_string()),
                     hint: None,
                     position: None,
+                    path: None,
                     score: 0.0,
                     index: i,
                     match_mask: BitVec::new(),
@@ -370,6 +374,7 @@ impl PaletteState {
                     text: p.to_string(),
                     hint: None,
                     position: None,
+                    path: None,
                     score: 0.0,
                     index,
                     match_mask: BitVec::new(),
@@ -384,7 +389,8 @@ impl PaletteState {
         let mut items = Vec::new();
         let mut dirs = Vec::new();
         let mut index = 0;
-        dirs.push(LAPCE_STATE.workspace.path.clone());
+        let workspace_path = LAPCE_STATE.workspace.path.clone();
+        dirs.push(workspace_path.clone());
         while let Some(dir) = dirs.pop() {
             for entry in fs::read_dir(dir).unwrap() {
                 let entry = entry.unwrap();
@@ -397,12 +403,22 @@ impl PaletteState {
                         dirs.push(path);
                     }
                 } else {
-                    let file = path.as_path().to_str().unwrap().to_string();
+                    let text =
+                        path.file_name().unwrap().to_str().unwrap().to_string();
+                    let folder = path.parent().unwrap();
+                    let folder = if let Ok(folder) = folder.strip_prefix(&workspace_path) {
+                        folder
+                    } else {
+                        folder
+                    };
+                   // let file = path.as_path().to_str().unwrap().to_string();
+                    let hint = folder.to_str().unwrap().to_string();
                     items.push(PaletteItem {
                         kind: PaletteType::File,
-                        text: file,
-                        hint: None,
+                        text,
+                        hint: Some(hint),
                         position: None,
+                        path: Some(path),
                         score: 0.0,
                         index,
                         match_mask: BitVec::new(),
@@ -948,7 +964,7 @@ impl PaletteItem {
             &PaletteType::File => {
                 let mut editor_split = LAPCE_STATE.editor_split.lock();
                 editor_split.save_jump_location();
-                editor_split.open_file(ctx, ui_state, &self.text);
+                editor_split.open_file(ctx, ui_state, self.path.as_ref().unwrap().to_str().unwrap());
             }
             &PaletteType::Line => {
                 let line = self
