@@ -267,9 +267,14 @@ impl Buffer {
                     break;
                 }
                 if *start >= start_offset && *start <= end_offset {
+                    let end = if *end > end_offset {
+                        end_offset - start_offset
+                    } else {
+                        end - start_offset
+                    };
                     line_highlight.push((
                         start - start_offset,
-                        end - start_offset,
+                        end,
                         self.highlight_names[hl.0].to_string(),
                     ));
                 }
@@ -1135,23 +1140,6 @@ impl BufferUIState {
         }
 
         false
-
-        // if let Some(text_layout) = self.text_layouts[line].as_ref() {
-        //     if text_layout.text != line_content
-        //         || &text_layout.highlights != self.get_line_highligh(line)
-        //     {
-        //         self.text_layouts[line] = Some(self.get_text_layout(
-        //             text,
-        //             data,
-        //             line,
-        //             line_content,
-        //             env,
-        //         ));
-        //     }
-        // } else {
-        //     self.text_layouts[line] =
-        //         Some(self.get_text_layout(text, data, line, line_content, env));
-        // }
     }
 
     pub fn get_text_layout(
@@ -1164,11 +1152,13 @@ impl BufferUIState {
         env: &Env,
     ) -> HighlightTextLayout {
         let mut layout_builder = text
-            .new_text_layout(line_content.clone())
+            .new_text_layout(line_content.replace('\t', "    "))
             .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
             .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
         let highlights = buffer.get_line_highligh(line);
         for (start, end, hl) in highlights {
+            let start = start + &line_content[..*start].matches('\t').count() * 3;
+            let end = end + &line_content[..*end].matches('\t').count() * 3;
             if let Some(color) = theme.get(hl) {
                 layout_builder = layout_builder.range_attribute(
                     start..end,
@@ -1183,121 +1173,6 @@ impl BufferUIState {
             highlights: highlights.clone(),
         }
     }
-    // pub fn update(
-    //     &mut self,
-    //     text: &mut PietText,
-    //     buffer: &mut Buffer,
-    //     inval_lines: &InvalLines,
-    //     buffer_lines: HashMap<usize, usize>,
-    //     env: &Env,
-    // ) {
-    //     let mut new_layouts = Vec::new();
-    //     if inval_lines.start_line < self.text_layouts.len() {
-    //         new_layouts.extend_from_slice(
-    //             &self.text_layouts[..inval_lines.start_line],
-    //         );
-    //     }
-    //     for _ in 0..inval_lines.new_count {
-    //         new_layouts.push(None);
-    //     }
-    //     if inval_lines.start_line + inval_lines.inval_count
-    //         < self.text_layouts.len()
-    //     {
-    //         new_layouts.extend_from_slice(
-    //             &self.text_layouts
-    //                 [inval_lines.start_line + inval_lines.inval_count..],
-    //         );
-    //     }
-    //     self.text_layouts = new_layouts;
-
-    //     for (line, _) in buffer_lines.iter() {
-    //         self.update_line_layouts(text, buffer, *line, env);
-    //     }
-    // }
-
-    // pub fn update_layouts(
-    //     &mut self,
-    //     text: &mut PietText,
-    //     buffer: &mut Buffer,
-    //     buffer_lines: &[usize],
-    //     env: &Env,
-    // ) {
-    //     for line in buffer_lines {
-    //         self.update_line_layouts(text, buffer, *line, env);
-    //     }
-    // }
-
-    // pub fn update_line_layouts(
-    //     &mut self,
-    //     text: &mut PietText,
-    //     buffer: &mut Buffer,
-    //     line: usize,
-    //     env: &Env,
-    // ) {
-    //     if line >= buffer.num_lines() {
-    //         return;
-    //     }
-    //     let line_content = buffer
-    //         .slice_to_cow(
-    //             buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
-    //         )
-    //         .to_string();
-    //     if line >= self.text_layouts.len() {
-    //         for _ in self.text_layouts.len()..line + 1 {
-    //             self.text_layouts.push(None);
-    //         }
-    //     }
-
-    //     if let Some(text_layout) = self.text_layouts[line].as_ref() {
-    //         if text_layout.text != line_content
-    //             || &text_layout.highlights != buffer.get_line_highligh(line)
-    //         {
-    //             self.text_layouts[line] = Some(Self::get_text_layout(
-    //                 text,
-    //                 buffer,
-    //                 line,
-    //                 line_content,
-    //                 env,
-    //             ));
-    //         }
-    //     } else {
-    //         self.text_layouts[line] = Some(Self::get_text_layout(
-    //             text,
-    //             buffer,
-    //             line,
-    //             line_content,
-    //             env,
-    //         ));
-    //     }
-    // }
-
-    // pub fn get_text_layout(
-    //     text: &mut PietText,
-    //     buffer: &mut Buffer,
-    //     line: usize,
-    //     line_content: String,
-    //     env: &Env,
-    // ) -> HighlightTextLayout {
-    //     // let start_offset = buffer.offset_of_line(line);
-    //     let mut layout_builder = text
-    //         .new_text_layout(line_content.clone())
-    //         .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-    //         .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-    //     // for (start, end, hl) in buffer.get_line_highligh(line) {
-    //     //     if let Some(color) = LAPCE_STATE.theme.lock().unwrap().get(hl) {
-    //     //         layout_builder = layout_builder.range_attribute(
-    //     //             start..end,
-    //     //             TextAttribute::TextColor(color.clone()),
-    //     //         );
-    //     //     }
-    //     // }
-    //     let layout = layout_builder.build().unwrap();
-    //     HighlightTextLayout {
-    //         layout,
-    //         text: line_content,
-    //         highlights: buffer.get_line_highligh(line).clone(),
-    //     }
-    // }
 }
 
 fn highlights_process(
@@ -1443,14 +1318,14 @@ pub fn get_document_content_changes(
 
         // Hack around sending VSCode Style Positions to Language Server.
         // See this issue to understand: https://github.com/Microsoft/vscode/issues/23173
-        if end_position.character == 0 {
-            // There is an assumption here that the line separator character is exactly
-            // 1 byte wide which is true for "\n" but it will be an issue if they are not
-            // for example for u+2028
-            let mut ep = buffer.offset_to_position(end - 1);
-            ep.character += 1;
-            end_position = ep;
-        }
+       // if end_position.character == 0 {
+       //     // There is an assumption here that the line separator character is exactly
+       //     // 1 byte wide which is true for "\n" but it will be an issue if they are not
+       //     // for example for u+2028
+       //     let mut ep = buffer.offset_to_position(end - 1);
+       //     ep.character += 1;
+       //     end_position = ep;
+       // }
 
         let text_document_content_change_event = TextDocumentContentChangeEvent {
             range: Some(Range {

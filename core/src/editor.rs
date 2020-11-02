@@ -2548,7 +2548,18 @@ impl Editor {
         let regions = selection.regions_in_range(start, end);
         for region in regions {
             let (line, col) = buffer.offset_to_line_col(region.min());
-            let x = col as f64 * width;
+            let line_content = buffer
+                .slice_to_cow(
+                    buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
+                )
+                .to_string();
+            let x = (line_content[..col]
+                .chars()
+                .filter_map(|c| if c == '\t' { Some('\t') } else { None })
+                .count()
+                * 3
+                + col) as f64
+                * width;
             let y = line as f64 * line_height;
             ctx.stroke(
                 Line::new(Point::new(x, y), Point::new(x, y + line_height)),
@@ -2589,37 +2600,43 @@ impl Editor {
             let (end_line, end_col) = buffer.offset_to_line_col(region.max());
 
             for line in start_line..end_line + 1 {
-                let x0 = match visual_mode {
+                let line_content = buffer
+                    .slice_to_cow(
+                        buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
+                    )
+                    .to_string();
+
+                let left_col = match visual_mode {
                     &VisualMode::Normal => match line {
-                        _ if line == start_line => start_col as f64 * width,
-                        _ => 0.0,
+                        _ if line == start_line => start_col,
+                        _ => 0,
                     },
-                    &VisualMode::Linewise => 0.0,
+                    &VisualMode::Linewise => 0,
                     &VisualMode::Blockwise => {
                         let max_col = buffer.line_max_col(line, false);
                         let left = start_col.min(end_col);
                         if left > max_col {
                             continue;
                         }
-                        left as f64 * width
+                        left
                     }
                 };
+                let x0 = (left_col
+                    + &line_content[..left_col].matches('\t').count() * 3)
+                    as f64
+                    * width;
 
-                let x1 = match visual_mode {
+                let right_col = match visual_mode {
                     &VisualMode::Normal => match line {
-                        _ if line == end_line => (end_col + 1) as f64 * width,
+                        _ if line == end_line => end_col + 1,
                         _ => {
-                            (buffer.offset_of_line(line + 1)
-                                - buffer.offset_of_line(line))
-                                as f64
-                                * width
+                            buffer.offset_of_line(line + 1)
+                                - buffer.offset_of_line(line)
                         }
                     },
                     &VisualMode::Linewise => {
-                        (buffer.offset_of_line(line + 1)
-                            - buffer.offset_of_line(line))
-                            as f64
-                            * width
+                        buffer.offset_of_line(line + 1)
+                            - buffer.offset_of_line(line)
                     }
                     &VisualMode::Blockwise => {
                         let max_col = buffer.line_max_col(line, false) + 1;
@@ -2627,9 +2644,14 @@ impl Editor {
                             Some(&ColPosition::End) => max_col,
                             _ => (end_col.max(start_col) + 1).min(max_col),
                         };
-                        right as f64 * width
+                        right
                     }
                 };
+                let x1 = (right_col
+                    + &line_content[..right_col].matches('\t').count() * 3)
+                    as f64
+                    * width;
+
                 let y0 = line as f64 * line_height;
                 let y1 = y0 + line_height;
                 ctx.fill(

@@ -332,7 +332,9 @@ impl LspClient {
                 let error = value.get_error().unwrap();
                 self.handle_response(id, Err(anyhow!("{}", error)));
             }
-            Err(err) => eprintln!("Error in parsing incoming string: {}", err),
+            Err(err) => {
+                eprintln!("Error in parsing incoming string: {} \n {}", err, message)
+            }
         }
     }
 

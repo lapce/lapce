@@ -166,14 +166,14 @@ impl Data for LapceState {
 
 impl LapceState {
     pub fn new() -> LapceState {
-        let workspace = LapceWorkspace {
-            kind: LapceWorkspaceType::Local,
-            path: PathBuf::from("/Users/Lulu/lapce"),
-        };
         //let workspace = LapceWorkspace {
-        //    kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
-        //    path: PathBuf::from("/home/dz/go/src/galaxy"),
+        //    kind: LapceWorkspaceType::Local,
+        //    path: PathBuf::from("/Users/Lulu/lapce"),
         //};
+        let workspace = LapceWorkspace {
+            kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+            path: PathBuf::from("/home/dz/go/src/galaxy"),
+        };
         let state = LapceState {
             workspace,
             theme: Self::get_theme().unwrap_or(HashMap::new()),

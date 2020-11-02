@@ -426,15 +426,15 @@ impl Write for SshStream {
 impl Read for SshStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         loop {
-            //match self.stream.read(buf) {
-            //    Ok(n) => return Ok(n),
-            //    Err(e) => {
-            //        if e.kind() != io::ErrorKind::WouldBlock {
-            //            return Err(e);
-            //        } else {
-            //        }
-            //    }
-            //};
+            match self.stream.read(buf) {
+                Ok(n) => return Ok(n),
+                Err(e) => {
+                    if e.kind() != io::ErrorKind::WouldBlock {
+                        return Err(e);
+                    } else {
+                    }
+                }
+            };
             self.poll.lock().poll(&mut self.events, None)?;
             for event in &self.events {
                 match event.token() {

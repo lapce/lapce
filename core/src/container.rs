@@ -219,6 +219,13 @@ impl Widget<LapceUIState> for LapceContainer {
                     let buffer = editor_split.buffers.get(buffer_id).unwrap();
                     let (line, col) =
                         buffer.offset_to_line_col(editor_split.completion.offset);
+                    let line_content = buffer
+                        .slice_to_cow(
+                            buffer.offset_of_line(line)
+                                ..buffer.offset_of_line(line + 1),
+                        )
+                        .to_string();
+                    let col = col + &line_content[..col].matches('\t').count() * 3;
                     let char_width = 7.6171875;
                     let origin = child.widget.layout_rect().origin()
                         + Vec2::new(
