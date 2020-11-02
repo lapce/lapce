@@ -30,4 +30,4 @@ druid = { git = "https://github.com/linebender/druid", features = ["svg"] }
 cc = "*"
 
 [workspace]
-members = ["lsp", "core"]
+members = ["lsp", "core", "proxy"]

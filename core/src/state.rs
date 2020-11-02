@@ -8,7 +8,7 @@ use crate::{
     editor::EditorSplitState,
     editor::EditorUIState,
     editor::HighlightTextLayout,
-    explorer::FileExplorerState,
+    explorer::{FileExplorerState, ICONS_DIR},
     keypress::KeyPressState,
     language::TreeSitter,
     lsp::LspCatalog,
@@ -19,7 +19,8 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use druid::{
-    Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId,
+    widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers,
+    Target, WidgetId,
 };
 use lazy_static::lazy_static;
 use mio::{Events, Interest, Poll, Token};
@@ -152,6 +153,7 @@ pub struct LapceState {
     pub lsp: Arc<Mutex<LspCatalog>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
     pub ssh_session: Arc<Mutex<Option<SshSession>>>,
+    //    pub icons: Arc<Mutex<HashMap<String, Option<SvgData>>>>,
 }
 
 impl Data for LapceState {
@@ -186,6 +188,7 @@ impl LapceState {
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
             ui_sink: Arc::new(Mutex::new(None)),
             ssh_session: Arc::new(Mutex::new(None)),
+            //            icons: Arc::new(Mutex::new(HashMap::new())),
         };
         let local_state = state.clone();
         thread::spawn(move || {
@@ -198,6 +201,10 @@ impl LapceState {
         let mut plugins = self.plugins.lock();
         plugins.reload_from_paths(&[PathBuf::from_str("./lsp").unwrap()]);
         plugins.start_all();
+    }
+
+    pub fn get_icon(&self, name: &str) -> Option<&SvgData> {
+        None
     }
 
     fn get_theme() -> Result<HashMap<String, Color>> {

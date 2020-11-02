@@ -366,20 +366,45 @@ impl PaletteState {
         }
         let ssh_session = ssh_session.as_mut().unwrap();
         let dir = LAPCE_STATE.workspace.path.to_str().unwrap();
+        let workspace_path = LAPCE_STATE.workspace.path.clone();
         if let Ok(paths) = ssh_session.read_dir(dir) {
             return paths
                 .iter()
                 .enumerate()
-                .map(|(index, p)| PaletteItem {
-                    kind: PaletteType::File,
-                    text: p.to_string(),
-                    hint: None,
-                    position: None,
-                    path: None,
-                    score: 0.0,
-                    index,
-                    match_mask: BitVec::new(),
-                    icon: PaletteIcon::None,
+                .map(|(index, p)| {
+                    let path = PathBuf::from(p);
+                    let text =
+                        path.file_name().unwrap().to_str().unwrap().to_string();
+                    let folder = path.parent().unwrap();
+                    let folder =
+                        if let Ok(folder) = folder.strip_prefix(&workspace_path) {
+                            folder
+                        } else {
+                            folder
+                        };
+                    let icon = if let Some(exten) = path.extension() {
+                        match exten.to_str().unwrap() {
+                            "rs" => PaletteIcon::File("rust".to_string()),
+                            "md" => PaletteIcon::File("markdown".to_string()),
+                            "go" => PaletteIcon::File("go_small".to_string()),
+                            "cc" => PaletteIcon::File("cpp".to_string()),
+                            s => PaletteIcon::File(s.to_string()),
+                        }
+                    } else {
+                        PaletteIcon::None
+                    };
+                    let hint = folder.to_str().unwrap().to_string();
+                    PaletteItem {
+                        icon,
+                        hint: Some(hint),
+                        index,
+                        kind: PaletteType::File,
+                        text ,
+                        position: None,
+                        path: Some(path),
+                        score: 0.0,
+                        match_mask: BitVec::new(),
+                    }
                 })
                 .collect();
         }

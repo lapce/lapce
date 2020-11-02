@@ -5,7 +5,7 @@ use druid::{
 };
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
-use lsp_types::Position;
+use lsp_types::{Position, Range, TextDocumentContentChangeEvent};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
@@ -431,7 +431,29 @@ impl Buffer {
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
         let old_logical_end_offset = self.rope.offset_of_line(old_logical_end_line);
 
+        let content_change = get_document_content_changes(delta, self);
+
         self.rope = delta.apply(&self.rope);
+        let content_change = match content_change {
+            Some(content_change) => content_change,
+            None => TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: self.get_document(),
+            },
+        };
+
+        LAPCE_STATE.plugins.lock().update(
+            &self.id,
+            delta,
+            self.len(),
+            self.num_lines(),
+            self.rev,
+        );
+        LAPCE_STATE
+            .lsp
+            .lock()
+            .update(&self, &content_change, self.rev);
 
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
@@ -446,14 +468,6 @@ impl Buffer {
         self.highlights = self.highlights_apply_delta(delta);
         self.update_size(ui_state, &inval_lines);
         ui_state.update_text_layouts(&inval_lines);
-        LAPCE_STATE.plugins.lock().update(
-            &self.id,
-            delta,
-            self.len(),
-            self.num_lines(),
-            self.rev,
-        );
-        LAPCE_STATE.lsp.lock().update(&self, delta, self.rev);
     }
 
     pub fn yank(&self, selection: &Selection) -> Vec<String> {
@@ -588,8 +602,16 @@ impl Buffer {
         }
     }
 
-    pub fn offset_of_position(&self, position: &Position) -> usize {
-        self.offset_of_line(position.line as usize) + position.character as usize
+    pub fn offset_of_position(&self, position: &Position) -> Option<usize> {
+        let line = position.line as usize;
+        if line > self.num_lines() {
+            return None;
+        }
+        let offset = self.offset_of_line(line) + position.character as usize;
+        if offset > self.len() {
+            return None;
+        }
+        Some(offset)
     }
 
     pub fn num_lines(&self) -> usize {
@@ -1390,4 +1412,57 @@ fn language_id_from_path(path: &str) -> Option<&str> {
         "go" => "go",
         _ => return None,
     })
+}
+
+pub fn get_document_content_changes(
+    delta: &RopeDelta,
+    buffer: &Buffer,
+) -> Option<TextDocumentContentChangeEvent> {
+    let (interval, _) = delta.summary();
+    let (start, end) = interval.start_end();
+
+    // TODO: Handle more trivial cases like typing when there's a selection or transpose
+    if let Some(node) = delta.as_simple_insert() {
+        let text = String::from(node);
+
+        let (start, end) = interval.start_end();
+        let text_document_content_change_event = TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start: buffer.offset_to_position(start),
+                end: buffer.offset_to_position(end),
+            }),
+            range_length: Some((end - start) as u64),
+            text,
+        };
+
+        return Some(text_document_content_change_event);
+    }
+    // Or a simple delete
+    else if delta.is_simple_delete() {
+        let mut end_position = buffer.offset_to_position(end);
+
+        // Hack around sending VSCode Style Positions to Language Server.
+        // See this issue to understand: https://github.com/Microsoft/vscode/issues/23173
+        if end_position.character == 0 {
+            // There is an assumption here that the line separator character is exactly
+            // 1 byte wide which is true for "\n" but it will be an issue if they are not
+            // for example for u+2028
+            let mut ep = buffer.offset_to_position(end - 1);
+            ep.character += 1;
+            end_position = ep;
+        }
+
+        let text_document_content_change_event = TextDocumentContentChangeEvent {
+            range: Some(Range {
+                start: buffer.offset_to_position(start),
+                end: end_position,
+            }),
+            range_length: Some((end - start) as u64),
+            text: String::new(),
+        };
+
+        return Some(text_document_content_change_event);
+    }
+
+    None
 }

@@ -100,9 +100,14 @@ impl LspCatalog {
         }
     }
 
-    pub fn update(&self, buffer: &Buffer, delta: &RopeDelta, rev: u64) {
+    pub fn update(
+        &self,
+        buffer: &Buffer,
+        content_change: &TextDocumentContentChangeEvent,
+        rev: u64,
+    ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            client.lock().update(buffer, delta, rev);
+            client.lock().update(buffer, content_change, rev);
         }
     }
 
@@ -261,9 +266,14 @@ impl LspClient {
         Ok(lsp_client)
     }
 
-    pub fn update(&mut self, buffer: &Buffer, delta: &RopeDelta, rev: u64) {
+    pub fn update(
+        &mut self,
+        buffer: &Buffer,
+        content_change: &TextDocumentContentChangeEvent,
+        rev: u64,
+    ) {
         let sync_kind = self.get_sync_kind().unwrap_or(TextDocumentSyncKind::Full);
-        let changes = get_change_for_sync_kind(sync_kind, buffer, delta);
+        let changes = get_change_for_sync_kind(sync_kind, buffer, content_change);
         if let Some(changes) = changes {
             self.send_did_change(buffer, changes, rev);
         }
@@ -729,7 +739,7 @@ fn number_from_id(id: &Id) -> u64 {
 pub fn get_change_for_sync_kind(
     sync_kind: TextDocumentSyncKind,
     buffer: &Buffer,
-    delta: &RopeDelta,
+    content_change: &TextDocumentContentChangeEvent,
 ) -> Option<Vec<TextDocumentContentChangeEvent>> {
     match sync_kind {
         TextDocumentSyncKind::None => None,
@@ -742,78 +752,6 @@ pub fn get_change_for_sync_kind(
                 };
             Some(vec![text_document_content_change_event])
         }
-        TextDocumentSyncKind::Incremental => {
-            match get_document_content_changes(delta, buffer) {
-                Ok(result) => Some(result),
-                Err(err) => {
-                    let text_document_content_change_event =
-                        TextDocumentContentChangeEvent {
-                            range: None,
-                            range_length: None,
-                            text: buffer.get_document(),
-                        };
-                    Some(vec![text_document_content_change_event])
-                }
-            }
-        }
+        TextDocumentSyncKind::Incremental => Some(vec![content_change.clone()]),
     }
-}
-
-pub fn get_document_content_changes(
-    delta: &RopeDelta,
-    buffer: &Buffer,
-) -> Result<Vec<TextDocumentContentChangeEvent>> {
-    let (interval, _) = delta.summary();
-    let (start, end) = interval.start_end();
-
-    // TODO: Handle more trivial cases like typing when there's a selection or transpose
-    if let Some(node) = delta.as_simple_insert() {
-        let text = String::from(node);
-
-        let (start, end) = interval.start_end();
-        let text_document_content_change_event = TextDocumentContentChangeEvent {
-            range: Some(Range {
-                start: buffer.offset_to_position(start),
-                end: buffer.offset_to_position(end),
-            }),
-            range_length: Some((end - start) as u64),
-            text,
-        };
-
-        return Ok(vec![text_document_content_change_event]);
-    }
-    // Or a simple delete
-    else if delta.is_simple_delete() {
-        let mut end_position = buffer.offset_to_position(end);
-
-        // Hack around sending VSCode Style Positions to Language Server.
-        // See this issue to understand: https://github.com/Microsoft/vscode/issues/23173
-        if end_position.character == 0 {
-            // There is an assumption here that the line separator character is exactly
-            // 1 byte wide which is true for "\n" but it will be an issue if they are not
-            // for example for u+2028
-            let mut ep = buffer.offset_to_position(end - 1);
-            ep.character += 1;
-            end_position = ep;
-        }
-
-        let text_document_content_change_event = TextDocumentContentChangeEvent {
-            range: Some(Range {
-                start: buffer.offset_to_position(start),
-                end: end_position,
-            }),
-            range_length: Some((end - start) as u64),
-            text: String::new(),
-        };
-
-        return Ok(vec![text_document_content_change_event]);
-    }
-
-    let text_document_content_change_event = TextDocumentContentChangeEvent {
-        range: None,
-        range_length: None,
-        text: buffer.get_document(),
-    };
-
-    Ok(vec![text_document_content_change_event])
 }

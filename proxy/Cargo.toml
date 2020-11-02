@@ -1,0 +1,11 @@
+[package]
+name = "lapce-proxy"
+version = "0.0.1"
+authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+xi-rpc = { path = "../../xi-editor/rust/rpc/" }
+xi-rope = { path = "../../xi-editor/rust/rope/" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.59"

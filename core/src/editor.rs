@@ -1433,8 +1433,8 @@ impl EditorSplitState {
             .iter()
             .map(|edit| {
                 let selection = Selection::region(
-                    buffer.offset_of_position(&edit.range.start),
-                    buffer.offset_of_position(&edit.range.end),
+                    buffer.offset_of_position(&edit.range.start).unwrap(),
+                    buffer.offset_of_position(&edit.range.end).unwrap(),
                 );
                 (selection, edit.new_text.clone())
             })
@@ -1456,15 +1456,17 @@ impl EditorSplitState {
         let diagnositics = self.diagnostics.get(&buffer.path)?;
         let offset = editor.selection.get_cursor_offset();
         for diagnostic in diagnositics {
-            let diagnostic_offset =
-                buffer.offset_of_position(&diagnostic.range.start);
-            if offset == diagnostic_offset {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::RequestPaint,
-                    Target::Widget(editor.view_id),
-                ));
-                return None;
+            if let Some(diagnostic_offset) =
+                buffer.offset_of_position(&diagnostic.range.start)
+            {
+                if offset == diagnostic_offset {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RequestPaint,
+                        Target::Widget(editor.view_id),
+                    ));
+                    return None;
+                }
             }
         }
         None
@@ -2703,6 +2705,7 @@ impl Widget<LapceUIState> for Editor {
         data: &LapceUIState,
         env: &Env,
     ) -> Size {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         self.view_size = bc.min();
         let editor_split = LAPCE_STATE.editor_split.lock();
         if let Some(buffer_id) = editor_split.get_buffer_id(&self.view_id) {
@@ -2710,7 +2713,8 @@ impl Widget<LapceUIState> for Editor {
             let width = 7.6171875;
             Size::new(
                 (width * buffer.max_len as f64).max(bc.min().width),
-                25.0 * buffer.text_layouts.len() as f64,
+                25.0 * buffer.text_layouts.len() as f64 + bc.min().height
+                    - line_height,
             )
         } else {
             Size::new(0.0, 0.0)
@@ -2852,6 +2856,9 @@ impl Widget<LapceUIState> for Editor {
                             || (end.line as usize) > start_line
                         {
                             for line in start.line as usize..end.line as usize + 1 {
+                                if line > last_line {
+                                    break;
+                                }
                                 let x0 = if line == start.line as usize {
                                     start.character as f64 * width
                                 } else {
@@ -2868,7 +2875,7 @@ impl Widget<LapceUIState> for Editor {
                                 let y0 = (line + 1) as f64 * line_height - 2.0;
                                 ctx.fill(Rect::new(x0, y0, x1, y1), &color);
                             }
-                            if editor.selection.get_cursor_offset()
+                            if Some(editor.selection.get_cursor_offset())
                                 == buffer.offset_of_position(&start)
                             {
                                 let mut text_layout =
