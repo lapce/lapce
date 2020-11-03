@@ -688,7 +688,6 @@ impl EditorState {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let offset = self.selection.get_cursor_offset();
         let (line, col) = buffer.offset_to_line_col(offset);
-        ctx.set_handled();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::EnsureVisible((
@@ -2078,7 +2077,7 @@ pub struct EditorView {
     split_id: WidgetId,
     view_id: WidgetId,
     pub editor_id: WidgetId,
-    editor:
+    pub editor:
         WidgetPod<LapceUIState, LapceScroll<LapceUIState, Padding<LapceUIState>>>,
     gutter: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     header: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
@@ -2089,7 +2088,7 @@ impl EditorView {
         split_id: WidgetId,
         view_id: WidgetId,
         editor_id: WidgetId,
-    ) -> IdentityWrapper<EditorView> {
+    ) -> EditorView {
         let editor = IdentityWrapper::wrap(Editor::new(view_id), editor_id.clone());
         let scroll = LapceScroll::new(editor.padding((10.0, 0.0, 10.0, 0.0)));
         EditorView {
@@ -2103,7 +2102,6 @@ impl EditorView {
             .boxed(),
             header: WidgetPod::new(EditorHeader::new(view_id)).boxed(),
         }
-        .with_id(view_id)
     }
 
     pub fn center_of_window(&mut self, ctx: &mut EventCtx, env: &Env) {
@@ -2349,6 +2347,10 @@ impl Widget<LapceUIState> for EditorView {
         });
         self.editor.paint(ctx, data, env);
         self.header.paint(ctx, data, env);
+    }
+
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.view_id)
     }
 }
 

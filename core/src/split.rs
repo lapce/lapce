@@ -236,6 +236,7 @@ impl Widget<LapceUIState> for LapceSplit {
                                 let scroll_offset = old_editor.scroll_offset.clone();
                                 let locations = old_editor.locations.clone();
                                 let current_location = old_editor.current_location;
+                                let scroll_size = old_editor.scroll_size;
 
                                 let mut new_editor = editor_split.new_editor(
                                     split_id,
@@ -244,6 +245,7 @@ impl Widget<LapceUIState> for LapceSplit {
                                 );
                                 new_editor.locations = locations;
                                 new_editor.current_location = current_location;
+                                new_editor.scroll_size = scroll_size;
                                 data.new_editor(&new_editor.view_id);
                                 let editor_ui = data.get_editor(&active);
                                 let selection = editor_ui.selection.clone();
@@ -263,11 +265,18 @@ impl Widget<LapceUIState> for LapceSplit {
                                 new_editor_ui.selection_end_line =
                                     selection_end_line;
 
-                                let new_editor_view = EditorView::new(
+                                let mut new_editor_view = EditorView::new(
                                     new_editor.split_id,
                                     new_editor.view_id,
                                     new_editor.editor_id,
                                 );
+                                println!("scroll_offset is {:?}", scroll_offset);
+                                new_editor_view
+                                    .editor
+                                    .widget_mut()
+                                    .scroll_to(scroll_offset.x, scroll_offset.y);
+                                new_editor.scroll_offset = scroll_offset;
+
                                 let new_child = ChildWidget {
                                     widget: WidgetPod::new(new_editor_view).boxed(),
                                     flex: true,
@@ -276,15 +285,16 @@ impl Widget<LapceUIState> for LapceSplit {
                                 };
                                 self.children.insert(index + 1, new_child);
                                 self.even_flex_children();
-                                ctx.request_layout();
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::ScrollTo((
-                                        scroll_offset.x,
-                                        scroll_offset.y,
-                                    )),
-                                    Target::Widget(new_editor.view_id),
-                                ));
+                                ctx.children_changed();
+                                //ctx.request_layout();
+                                //ctx.submit_command(Command::new(
+                                //    LAPCE_UI_COMMAND,
+                                //    LapceUICommand::ScrollTo((
+                                //        scroll_offset.x,
+                                //        scroll_offset.y,
+                                //    )),
+                                //    Target::Widget(new_editor.view_id),
+                                //));
                             }
                         }
                         LapceUICommand::SplitClose => {
@@ -320,7 +330,7 @@ impl Widget<LapceUIState> for LapceSplit {
                             }
 
                             self.even_flex_children();
-                            ctx.request_layout();
+                            ctx.children_changed();
                         }
                         LapceUICommand::SplitExchange => {
                             let mut editor_split = LAPCE_STATE.editor_split.lock();

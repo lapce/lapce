@@ -399,7 +399,7 @@ impl PaletteState {
                         hint: Some(hint),
                         index,
                         kind: PaletteType::File,
-                        text ,
+                        text,
                         position: None,
                         path: Some(path),
                         score: 0.0,
