@@ -227,55 +227,34 @@ impl Widget<LapceUIState> for LapceSplit {
                                     }
                                 }
 
-                                let old_editor =
-                                    editor_split.editors.get(&active).unwrap();
+                                let mut new_editor = editor_split
+                                    .editors
+                                    .get(&active)
+                                    .unwrap()
+                                    .clone();
+                                new_editor.view_id = WidgetId::next();
+                                new_editor.editor_id = WidgetId::next();
+                                let scroll_offset = new_editor.scroll_offset;
+                                let new_editor_id = new_editor.editor_id.clone();
+                                let new_view_id = new_editor.view_id.clone();
+                                let split_id = new_editor.split_id.clone();
+                                editor_split
+                                    .editors
+                                    .insert(new_view_id.clone(), new_editor);
 
-                                let split_id = old_editor.split_id.clone();
-                                let buffer_id = old_editor.buffer_id.clone();
-                                let selection = old_editor.selection.clone();
-                                let scroll_offset = old_editor.scroll_offset.clone();
-                                let locations = old_editor.locations.clone();
-                                let current_location = old_editor.current_location;
-                                let scroll_size = old_editor.scroll_size;
-
-                                let mut new_editor = editor_split.new_editor(
-                                    split_id,
-                                    buffer_id,
-                                    selection.clone(),
-                                );
-                                new_editor.locations = locations;
-                                new_editor.current_location = current_location;
-                                new_editor.scroll_size = scroll_size;
-                                data.new_editor(&new_editor.view_id);
-                                let editor_ui = data.get_editor(&active);
-                                let selection = editor_ui.selection.clone();
-                                let visual_mode = editor_ui.visual_mode.clone();
-                                let mode = editor_ui.mode.clone();
-                                let selection_start_line =
-                                    editor_ui.selection_start_line;
-                                let selection_end_line =
-                                    editor_ui.selection_end_line;
-                                let new_editor_ui =
-                                    data.get_editor_mut(&new_editor.view_id);
-                                new_editor_ui.selection = selection;
-                                new_editor_ui.visual_mode = visual_mode;
-                                new_editor_ui.mode = mode;
-                                new_editor_ui.selection_start_line =
-                                    selection_start_line;
-                                new_editor_ui.selection_end_line =
-                                    selection_end_line;
+                                let new_editor_ui = data.get_editor(&active).clone();
+                                Arc::make_mut(&mut data.editors)
+                                    .insert(new_view_id.clone(), new_editor_ui);
 
                                 let mut new_editor_view = EditorView::new(
-                                    new_editor.split_id,
-                                    new_editor.view_id,
-                                    new_editor.editor_id,
+                                    split_id,
+                                    new_view_id,
+                                    new_editor_id,
                                 );
-                                println!("scroll_offset is {:?}", scroll_offset);
                                 new_editor_view
                                     .editor
                                     .widget_mut()
                                     .scroll_to(scroll_offset.x, scroll_offset.y);
-                                new_editor.scroll_offset = scroll_offset;
 
                                 let new_child = ChildWidget {
                                     widget: WidgetPod::new(new_editor_view).boxed(),
@@ -286,15 +265,6 @@ impl Widget<LapceUIState> for LapceSplit {
                                 self.children.insert(index + 1, new_child);
                                 self.even_flex_children();
                                 ctx.children_changed();
-                                //ctx.request_layout();
-                                //ctx.submit_command(Command::new(
-                                //    LAPCE_UI_COMMAND,
-                                //    LapceUICommand::ScrollTo((
-                                //        scroll_offset.x,
-                                //        scroll_offset.y,
-                                //    )),
-                                //    Target::Widget(new_editor.view_id),
-                                //));
                             }
                         }
                         LapceUICommand::SplitClose => {
@@ -323,6 +293,7 @@ impl Widget<LapceUIState> for LapceSplit {
                             let new_active = self.children[new_index].widget.id();
                             self.children.remove(index);
                             editor_split.editors.remove(&active);
+                            Arc::make_mut(&mut data.editors).remove(&active);
                             editor_split.active = new_active;
                             if let Some(buffer_id) = buffer_id {
                                 editor_split
