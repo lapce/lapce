@@ -11,7 +11,7 @@ extern "C" {
     fn tree_sitter_go() -> Language;
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub enum LapceLanguage {
     Rust,
     Go,

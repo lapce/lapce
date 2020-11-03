@@ -1,4 +1,5 @@
 use crate::{
+    buffer::start_buffer_highlights,
     buffer::Buffer,
     buffer::BufferId,
     buffer::BufferUIState,
@@ -25,6 +26,7 @@ use druid::{
 use lazy_static::lazy_static;
 use mio::{Events, Interest, Poll, Token};
 use parking_lot::Mutex;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
     collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
     sync::Arc, thread,
@@ -81,6 +83,7 @@ pub struct LapceUIState {
     pub focus: LapceFocus,
     pub buffers: Arc<HashMap<BufferId, Arc<BufferUIState>>>,
     pub editors: Arc<HashMap<WidgetId, EditorUIState>>,
+    pub highlight_sender: Sender<(BufferId, u64)>,
 }
 
 impl Data for LapceUIState {
@@ -92,16 +95,22 @@ impl Data for LapceUIState {
 }
 
 impl LapceUIState {
-    pub fn new() -> LapceUIState {
+    pub fn new(event_sink: ExtEventSink) -> LapceUIState {
         let active = LAPCE_STATE.editor_split.lock().active;
         let editor_ui_state = EditorUIState::new();
         let mut editors = HashMap::new();
         editors.insert(active, editor_ui_state);
-        LapceUIState {
+        let (sender, receiver) = channel();
+        let state = LapceUIState {
             buffers: Arc::new(HashMap::new()),
             focus: LapceFocus::Editor,
             editors: Arc::new(editors),
-        }
+            highlight_sender: sender,
+        };
+        thread::spawn(move || {
+            start_buffer_highlights(receiver, event_sink);
+        });
+        state
     }
 
     pub fn get_buffer_mut(&mut self, buffer_id: &BufferId) -> &mut BufferUIState {
@@ -166,14 +175,14 @@ impl Data for LapceState {
 
 impl LapceState {
     pub fn new() -> LapceState {
-        //let workspace = LapceWorkspace {
-        //    kind: LapceWorkspaceType::Local,
-        //    path: PathBuf::from("/Users/Lulu/lapce"),
-        //};
         let workspace = LapceWorkspace {
-            kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
-            path: PathBuf::from("/home/dz/go/src/galaxy"),
+            kind: LapceWorkspaceType::Local,
+            path: PathBuf::from("/Users/Lulu/lapce"),
         };
+        //let workspace = LapceWorkspace {
+        //    kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+        //    path: PathBuf::from("/home/dz/cosmos"),
+        //};
         let state = LapceState {
             workspace,
             theme: Self::get_theme().unwrap_or(HashMap::new()),

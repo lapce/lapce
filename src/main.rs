@@ -117,7 +117,6 @@ pub fn main() {
         .with_min_size(Size::new(800.0, 600.0));
 
     let launcher = AppLauncher::with_window(window);
-    let ui_event_sink = launcher.get_external_handle();
     // thread::spawn(move || {
     //     ui_event_sink.submit_command(
     //         LAPCE_UI_COMMAND,
@@ -133,7 +132,8 @@ pub fn main() {
     let language = unsafe { tree_sitter_rust() };
     parser.set_language(language);
     parser.parse("pub fn main() {}", None).unwrap();
-    let ui_state = LapceUIState::new();
+    let ui_event_sink = launcher.get_external_handle();
+    let ui_state = LapceUIState::new(ui_event_sink);
     launcher
         .use_simple_logger()
         .launch(ui_state)

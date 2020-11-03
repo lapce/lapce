@@ -828,8 +828,12 @@ impl EditorSplitState {
             buffer_id.clone()
         } else {
             let buffer_id = self.next_buffer_id();
-            let buffer =
-                Buffer::new(buffer_id.clone(), path, ctx.get_external_handle());
+            let buffer = Buffer::new(
+                buffer_id.clone(),
+                path,
+                ctx.get_external_handle(),
+                ui_state.highlight_sender.clone(),
+            );
             let num_lines = buffer.num_lines();
             let (max_len, max_len_line) = buffer.get_max_line_len();
             self.buffers.insert(buffer_id.clone(), buffer);
@@ -848,6 +852,27 @@ impl EditorSplitState {
         self.buffers.get(&buffer_id).unwrap()
     }
 
+    pub fn clear_buffer_text_layouts(
+        &mut self,
+        ui_state: &mut LapceUIState,
+        buffer_id: BufferId,
+    ) {
+        for (view_id, editor) in self.editors.iter() {
+            if editor.buffer_id.as_ref() == Some(&buffer_id) {
+                return;
+            }
+        }
+        let mut old_buffer = Arc::make_mut(&mut ui_state.buffers)
+            .get_mut(&buffer_id)
+            .unwrap();
+        for mut text_layout in Arc::make_mut(&mut old_buffer).text_layouts.iter_mut()
+        {
+            if text_layout.is_some() {
+                *Arc::make_mut(&mut text_layout) = None;
+            }
+        }
+    }
+
     pub fn open_file(
         &mut self,
         ctx: &mut EventCtx,
@@ -860,30 +885,7 @@ impl EditorSplitState {
         if editor.buffer_id.as_ref() == Some(&buffer_id) {
             return;
         }
-        if let Some(buffer_id) = editor.buffer_id.as_ref() {
-            let mut display = false;
-            for (view_id, editor) in self.editors.iter() {
-                if view_id != &self.active {
-                    if editor.buffer_id.as_ref() == Some(buffer_id) {
-                        display = true;
-                        break;
-                    }
-                }
-            }
-            if !display {
-                let mut old_buffer = Arc::make_mut(&mut ui_state.buffers)
-                    .get_mut(buffer_id)
-                    .unwrap();
-                for mut text_layout in
-                    Arc::make_mut(&mut old_buffer).text_layouts.iter_mut()
-                {
-                    if text_layout.is_some() {
-                        *Arc::make_mut(&mut text_layout) = None;
-                    }
-                }
-            }
-        }
-
+        let old_buffer_id = editor.buffer_id.clone();
         let editor = self.editors.get_mut(&self.active).unwrap();
         editor.buffer_id = Some(buffer_id.clone());
         editor.selection = Selection::new_simple();
@@ -892,6 +894,9 @@ impl EditorSplitState {
             LapceUICommand::ScrollTo((0.0, 0.0)),
             Target::Widget(editor.view_id),
         ));
+        if let Some(old_buffer_id) = old_buffer_id {
+            self.clear_buffer_text_layouts(ui_state, old_buffer_id);
+        }
         self.notify_fill_text_layouts(ctx, &buffer_id);
         ctx.request_layout();
     }
@@ -2635,8 +2640,7 @@ impl Editor {
                         }
                     },
                     &VisualMode::Linewise => {
-                        buffer.offset_of_line(line + 1)
-                            - buffer.offset_of_line(line)
+                        buffer.offset_of_line(line + 1) - buffer.offset_of_line(line)
                     }
                     &VisualMode::Blockwise => {
                         let max_col = buffer.line_max_col(line, false) + 1;
@@ -2910,18 +2914,20 @@ impl Widget<LapceUIState> for Editor {
                                     .set_text_color(LapceTheme::EDITOR_FOREGROUND);
                                 text_layout.rebuild_if_needed(ctx.text(), env);
                                 let text_size = text_layout.size();
+                                let rect = Rect::ZERO
+                                    .with_origin(Point::new(
+                                        0.0,
+                                        (start.line + 1) as f64 * line_height,
+                                    ))
+                                    .with_size(Size::new(
+                                        size.width,
+                                        text_size.height + 20.0,
+                                    ));
                                 ctx.fill(
-                                    Rect::ZERO
-                                        .with_origin(Point::new(
-                                            0.0,
-                                            (start.line + 1) as f64 * line_height,
-                                        ))
-                                        .with_size(Size::new(
-                                            size.width,
-                                            text_size.height + 20.0,
-                                        )),
+                                    rect,
                                     &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
                                 );
+                                ctx.stroke(rect, &color, 1.0);
                                 text_layout.draw(
                                     ctx,
                                     Point::new(

@@ -81,11 +81,16 @@ pub struct Buffer {
     pub language_id: String,
     pub rev: u64,
     pub dirty: bool,
-    sender: Sender<u64>,
+    sender: Sender<(BufferId, u64)>,
 }
 
 impl Buffer {
-    pub fn new(buffer_id: BufferId, path: &str, event_sink: ExtEventSink) -> Buffer {
+    pub fn new(
+        buffer_id: BufferId,
+        path: &str,
+        event_sink: ExtEventSink,
+        sender: Sender<(BufferId, u64)>,
+    ) -> Buffer {
         let rope = if let Ok(rope) = load_file(path) {
             rope
         } else {
@@ -99,8 +104,6 @@ impl Buffer {
 
         let path_buf = PathBuf::from_str(path).unwrap();
         path_buf.extension().unwrap().to_str().unwrap().to_string();
-
-        let (sender, receiver) = channel();
 
         let mut buffer = Buffer {
             id: buffer_id.clone(),
@@ -119,9 +122,6 @@ impl Buffer {
         };
 
         let language_id = buffer.language_id.clone();
-        thread::spawn(move || {
-            highlights_process(language_id, receiver, buffer_id, event_sink);
-        });
 
         LAPCE_STATE.plugins.lock().new_buffer(&PluginBufferInfo {
             buffer_id: buffer_id.clone(),
@@ -217,7 +217,7 @@ impl Buffer {
         //        let version = uuid::Uuid::new_v4().to_string();
         self.line_highlights = HashMap::new();
         //        self.highlight_version = version.clone();
-        self.sender.send(self.rev);
+        self.sender.send((self.id, self.rev));
 
         //  let highlight_config = self.highlight_config.clone();
         //  let rope_str = self.slice_to_cow(..self.len()).to_string();
@@ -1175,6 +1175,77 @@ impl BufferUIState {
     }
 }
 
+pub fn start_buffer_highlights(
+    receiver: Receiver<(BufferId, u64)>,
+    event_sink: ExtEventSink,
+) -> Result<()> {
+    let mut highlighter = Highlighter::new();
+    let mut highlight_configs = HashMap::new();
+
+    loop {
+        let (buffer_id, rev) = receiver.recv()?;
+        let (language, rope_str) = {
+            let editor_split = LAPCE_STATE.editor_split.lock();
+            let buffer = editor_split.buffers.get(&buffer_id).unwrap();
+            let language = match buffer.language_id.as_str() {
+                "rust" => LapceLanguage::Rust,
+                "go" => LapceLanguage::Go,
+                _ => continue,
+            };
+            if buffer.rev != rev {
+                continue;
+            } else {
+                (language, buffer.slice_to_cow(..buffer.len()).to_string())
+            }
+        };
+
+        if !highlight_configs.contains_key(&language) {
+            let (highlight_config, highlight_names) = new_highlight_config(language);
+            highlight_configs.insert(language, highlight_config);
+        }
+        let highlight_config = highlight_configs.get(&language).unwrap();
+
+        let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
+        let mut current_hl: Option<Highlight> = None;
+        for hightlight in highlighter
+            .highlight(highlight_config, &rope_str.as_bytes(), None, |_| None)
+            .unwrap()
+        {
+            if let Ok(highlight) = hightlight {
+                match highlight {
+                    HighlightEvent::Source { start, end } => {
+                        if let Some(hl) = current_hl {
+                            highlights.push((start, end, hl.clone()));
+                        }
+                    }
+                    HighlightEvent::HighlightStart(hl) => {
+                        current_hl = Some(hl);
+                    }
+                    HighlightEvent::HighlightEnd => current_hl = None,
+                }
+            }
+        }
+
+        let mut editor_split = LAPCE_STATE.editor_split.lock();
+        let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+        if buffer.rev != rev {
+            continue;
+        }
+        buffer.highlights = highlights.to_owned();
+        buffer.line_highlights = HashMap::new();
+
+        for (view_id, editor) in editor_split.editors.iter() {
+            if editor.buffer_id.as_ref() == Some(&buffer_id) {
+                event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::FillTextLayouts,
+                    Target::Widget(view_id.clone()),
+                );
+            }
+        }
+    }
+}
+
 fn highlights_process(
     language_id: String,
     receiver: Receiver<u64>,
@@ -1221,19 +1292,23 @@ fn highlights_process(
             }
         }
 
-        {
-            let editor_split = LAPCE_STATE.editor_split.lock();
-            let buffer = editor_split.buffers.get(&buffer_id).unwrap();
-            if buffer.rev != rev {
-                continue;
+        let mut editor_split = LAPCE_STATE.editor_split.lock();
+        let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+        if buffer.rev != rev {
+            continue;
+        }
+        buffer.highlights = highlights.to_owned();
+        buffer.line_highlights = HashMap::new();
+
+        for (view_id, editor) in editor_split.editors.iter() {
+            if editor.buffer_id.as_ref() == Some(&buffer_id) {
+                event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::FillTextLayouts,
+                    Target::Widget(view_id.clone()),
+                );
             }
         }
-
-        event_sink.submit_command(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateHighlights(buffer_id, rev, highlights),
-            Target::Global,
-        );
     }
 }
 
@@ -1315,17 +1390,6 @@ pub fn get_document_content_changes(
     // Or a simple delete
     else if delta.is_simple_delete() {
         let mut end_position = buffer.offset_to_position(end);
-
-        // Hack around sending VSCode Style Positions to Language Server.
-        // See this issue to understand: https://github.com/Microsoft/vscode/issues/23173
-       // if end_position.character == 0 {
-       //     // There is an assumption here that the line separator character is exactly
-       //     // 1 byte wide which is true for "\n" but it will be an issue if they are not
-       //     // for example for u+2028
-       //     let mut ep = buffer.offset_to_position(end - 1);
-       //     ep.character += 1;
-       //     end_position = ep;
-       // }
 
         let text_document_content_change_event = TextDocumentContentChangeEvent {
             range: Some(Range {

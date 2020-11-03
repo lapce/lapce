@@ -293,6 +293,12 @@ impl Widget<LapceUIState> for LapceSplit {
                             }
                             let mut editor_split = LAPCE_STATE.editor_split.lock();
                             let active = editor_split.active;
+                            let buffer_id = editor_split
+                                .editors
+                                .get(&active)
+                                .unwrap()
+                                .buffer_id
+                                .clone();
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
                                 if child.widget.id() == active {
@@ -308,6 +314,10 @@ impl Widget<LapceUIState> for LapceSplit {
                             self.children.remove(index);
                             editor_split.editors.remove(&active);
                             editor_split.active = new_active;
+                            if let Some(buffer_id) = buffer_id {
+                                editor_split
+                                    .clear_buffer_text_layouts(data, buffer_id);
+                            }
 
                             self.even_flex_children();
                             ctx.request_layout();
