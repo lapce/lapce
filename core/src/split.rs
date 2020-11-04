@@ -1,27 +1,24 @@
 use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    editor::Editor,
+    editor::EditorState,
     editor::{EditorLocation, EditorView},
     scroll::LapceScroll,
-    state::LapceState,
+    state::LapceTabState,
     state::LapceUIState,
-    state::LAPCE_STATE,
+    state::LAPCE_APP_STATE,
 };
 use std::{cmp::Ordering, sync::Arc};
 
 use druid::{
     kurbo::{Line, Rect},
     widget::IdentityWrapper,
-    Command, Target, WidgetId,
+    Command, Target, WidgetId, WindowId,
 };
 use druid::{
     theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
     WidgetExt, WidgetPod,
-};
-
-use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    editor::Editor,
-    editor::EditorState,
 };
 
 #[derive(Debug)]
@@ -33,6 +30,8 @@ pub enum SplitMoveDirection {
 }
 
 pub struct LapceSplit {
+    window_id: WindowId,
+    tab_id: WidgetId,
     id: Option<WidgetId>,
     vertical: bool,
     pub children: Vec<ChildWidget>,
@@ -47,8 +46,10 @@ pub struct ChildWidget {
 }
 
 impl LapceSplit {
-    pub fn new(vertical: bool) -> Self {
+    pub fn new(window_id: WindowId, tab_id: WidgetId, vertical: bool) -> Self {
         LapceSplit {
+            window_id,
+            tab_id,
             id: None,
             vertical,
             children: Vec::new(),
@@ -189,13 +190,16 @@ impl Widget<LapceUIState> for LapceSplit {
                             ctx.request_layout();
                         }
                         LapceUICommand::ApplyEdits(rev, edits) => {
-                            LAPCE_STATE
+                            LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id)
                                 .editor_split
                                 .lock()
                                 .apply_edits(ctx, data, *rev, edits);
                         }
                         LapceUICommand::GotoLocation(location) => {
-                            let mut editor_split = LAPCE_STATE.editor_split.lock();
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
                             editor_split.save_jump_location();
                             let path = location.uri.path().to_string();
                             let buffer =
@@ -213,7 +217,9 @@ impl Widget<LapceUIState> for LapceSplit {
                             if self.children.len() <= 1 {
                                 self.vertical = *vertical;
                             }
-                            let mut editor_split = LAPCE_STATE.editor_split.lock();
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
                             let active = editor_split.active;
                             if &self.vertical != vertical {
                                 for child in &self.children {
@@ -238,6 +244,7 @@ impl Widget<LapceUIState> for LapceSplit {
                                 let new_editor_id = new_editor.editor_id.clone();
                                 let new_view_id = new_editor.view_id.clone();
                                 let split_id = new_editor.split_id.clone();
+                                let tab_id = new_editor.tab_id.clone();
                                 editor_split
                                     .editors
                                     .insert(new_view_id.clone(), new_editor);
@@ -247,6 +254,8 @@ impl Widget<LapceUIState> for LapceSplit {
                                     .insert(new_view_id.clone(), new_editor_ui);
 
                                 let mut new_editor_view = EditorView::new(
+                                    self.window_id,
+                                    tab_id,
                                     split_id,
                                     new_view_id,
                                     new_editor_id,
@@ -271,7 +280,9 @@ impl Widget<LapceUIState> for LapceSplit {
                             if self.children.len() == 1 {
                                 return;
                             }
-                            let mut editor_split = LAPCE_STATE.editor_split.lock();
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
                             let active = editor_split.active;
                             let buffer_id = editor_split
                                 .editors
@@ -304,7 +315,9 @@ impl Widget<LapceUIState> for LapceSplit {
                             ctx.children_changed();
                         }
                         LapceUICommand::SplitExchange => {
-                            let mut editor_split = LAPCE_STATE.editor_split.lock();
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
                             let active = editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {
@@ -321,7 +334,9 @@ impl Widget<LapceUIState> for LapceSplit {
                             }
                         }
                         LapceUICommand::SplitMove(direction) => {
-                            let mut editor_split = LAPCE_STATE.editor_split.lock();
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
                             let active = editor_split.active;
                             let mut index = 0;
                             for (i, child) in self.children.iter().enumerate() {

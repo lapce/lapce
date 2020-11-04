@@ -4,14 +4,14 @@ use std::{fs::File, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use druid::{
-    Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target,
-    WidgetId,
+    Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId,
+    WindowId,
 };
 use toml;
 
 use crate::{
     command::LapceCommand,
-    state::{LapceFocus, LapceState, LapceUIState, Mode, LAPCE_STATE},
+    state::{LapceFocus, LapceTabState, LapceUIState, Mode, LAPCE_APP_STATE},
 };
 
 #[derive(PartialEq)]
@@ -35,14 +35,18 @@ pub struct KeyMap {
 }
 
 pub struct KeyPressState {
+    window_id: WindowId,
+    tab_id: WidgetId,
     pending_keypress: Vec<KeyPress>,
     count: Option<usize>,
     keymaps: Vec<KeyMap>,
 }
 
 impl KeyPressState {
-    pub fn new() -> KeyPressState {
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> KeyPressState {
         KeyPressState {
+            window_id,
+            tab_id,
             pending_keypress: Vec::new(),
             count: None,
             keymaps: Self::get_keymaps().unwrap_or(Vec::new()),
@@ -94,9 +98,7 @@ impl KeyPressState {
                         "tab" => druid::keyboard_types::Key::Tab,
                         "enter" => druid::keyboard_types::Key::Enter,
                         "del" => druid::keyboard_types::Key::Delete,
-                        _ => druid::keyboard_types::Key::Character(
-                            part.to_string(),
-                        ),
+                        _ => druid::keyboard_types::Key::Character(part.to_string()),
                     }
                 } else {
                     match part.to_lowercase().as_ref() {
@@ -132,13 +134,11 @@ impl KeyPressState {
             .and_then(|v| v.as_str())
             .map(|m| {
                 m.chars()
-                    .filter_map(|c| {
-                        match c.to_lowercase().to_string().as_ref() {
-                            "i" => Some(Mode::Insert),
-                            "n" => Some(Mode::Normal),
-                            "v" => Some(Mode::Visual),
-                            _ => None,
-                        }
+                    .filter_map(|c| match c.to_lowercase().to_string().as_ref() {
+                        "i" => Some(Mode::Insert),
+                        "n" => Some(Mode::Normal),
+                        "v" => Some(Mode::Visual),
+                        _ => None,
                     })
                     .collect()
             })
@@ -159,7 +159,9 @@ impl KeyPressState {
             mods,
         };
 
-        let mode = LAPCE_STATE.get_mode();
+        let mode = LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .get_mode();
         if self.handle_count(&mode, &keypress) {
             return;
         }
@@ -189,13 +191,9 @@ impl KeyPressState {
         self.pending_keypress = Vec::new();
 
         if let Some(keymap) = full_match_keymap {
-            LAPCE_STATE.run_command(
-                ctx,
-                ui_state,
-                self.take_count(),
-                &keymap.command,
-                env,
-            );
+            LAPCE_APP_STATE
+                .get_tab_state(&self.window_id, &self.tab_id)
+                .run_command(ctx, ui_state, self.take_count(), &keymap.command, env);
             return;
         }
 
@@ -213,13 +211,15 @@ impl KeyPressState {
                 }
             }
             if let Some(keymap) = full_match_keymap {
-                LAPCE_STATE.run_command(
-                    ctx,
-                    ui_state,
-                    self.take_count(),
-                    &keymap.command,
-                    env,
-                );
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .run_command(
+                        ctx,
+                        ui_state,
+                        self.take_count(),
+                        &keymap.command,
+                        env,
+                    );
                 self.key_down(ctx, ui_state, key_event, env);
                 return;
             }
@@ -235,7 +235,9 @@ impl KeyPressState {
         if mods.is_empty() {
             match &key_event.key {
                 druid::keyboard_types::Key::Character(c) => {
-                    LAPCE_STATE.insert(ctx, ui_state, c, env);
+                    LAPCE_APP_STATE
+                        .get_tab_state(&self.window_id, &self.tab_id)
+                        .insert(ctx, ui_state, c, env);
                 }
                 _ => (),
             }
@@ -269,7 +271,10 @@ impl KeyPressState {
         }
 
         if let Some(condition) = &keymap.when {
-            if !LAPCE_STATE.check_condition(condition) {
+            if !LAPCE_APP_STATE
+                .get_tab_state(&self.window_id, &self.tab_id)
+                .check_condition(condition)
+            {
                 return None;
             }
         }

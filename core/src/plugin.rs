@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use druid::{WidgetId, WindowId};
 use serde::{de, ser, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value};
 use std::{
@@ -22,8 +23,9 @@ use crate::{
     buffer::BufferId,
     editor::Counter,
     ssh::{SshSession, SshStream},
+    state::LapceTabState,
     state::LapceWorkspaceType,
-    state::LAPCE_STATE,
+    state::LAPCE_APP_STATE,
 };
 
 pub type PluginName = String;
@@ -32,13 +34,17 @@ pub type PluginName = String;
 pub struct PluginId(pub usize);
 
 pub struct PluginCatalog {
+    window_id: WindowId,
+    tab_id: WidgetId,
     items: HashMap<PluginName, Arc<PluginDescription>>,
     locations: HashMap<PathBuf, Arc<PluginDescription>>,
     id_counter: Counter,
     running: Vec<Plugin>,
 }
 
-pub struct PluginHandler {}
+pub struct PluginHandler {
+    state: LapceTabState,
+}
 
 #[derive(Deserialize)]
 pub struct PluginDescription {
@@ -72,8 +78,10 @@ impl Plugin {
 }
 
 impl PluginCatalog {
-    pub fn new() -> PluginCatalog {
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> PluginCatalog {
         PluginCatalog {
+            window_id,
+            tab_id,
             items: HashMap::new(),
             locations: HashMap::new(),
             id_counter: Counter::default(),
@@ -93,8 +101,9 @@ impl PluginCatalog {
     }
 
     pub fn load_from_paths(&mut self, paths: &[PathBuf]) -> Result<()> {
-        println!("{:?}", &LAPCE_STATE.workspace.kind);
-        match &LAPCE_STATE.workspace.kind {
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let workspace_type = state.workspace.lock().kind.clone();
+        match workspace_type {
             LapceWorkspaceType::Local => {
                 let all_manifests = find_all_manifests(paths);
                 for manifest_path in &all_manifests {
@@ -111,11 +120,11 @@ impl PluginCatalog {
             }
             LapceWorkspaceType::RemoteSSH(host) => {
                 println!("load plugins for remote ssh");
-                if let Err(e) = LAPCE_STATE.get_ssh_session(host) {
+                if let Err(e) = state.get_ssh_session(&host) {
                     println!("get ssh session error {}", e);
                     return Err(e);
                 }
-                let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+                let mut ssh_session = state.ssh_session.lock();
                 let ssh_session = ssh_session.as_mut().unwrap();
                 let pwd = ssh_session.get_pwd();
                 println!("pwd {:?}", pwd);
@@ -145,18 +154,31 @@ impl PluginCatalog {
     }
 
     pub fn start_all(&mut self) -> Result<()> {
-        match &LAPCE_STATE.workspace.kind {
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let workspace_type = state.workspace.lock().kind.clone();
+        match workspace_type {
             LapceWorkspaceType::Local => {
                 for (_, manifest) in self.items.clone().iter() {
-                    start_plugin_process(manifest.clone(), self.next_plugin_id());
+                    let state =
+                        LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                    start_plugin_process(
+                        state,
+                        manifest.clone(),
+                        self.next_plugin_id(),
+                    );
                 }
             }
             LapceWorkspaceType::RemoteSSH(host) => {
                 for (_, manifest) in self.items.clone().iter() {
                     let manifest = manifest.clone();
                     let plugin_id = self.next_plugin_id();
+                    let host = host.clone();
+                    let state =
+                        LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
                     thread::spawn(move || {
-                        if let Err(e) = start_plugin_ssh(manifest, plugin_id, host) {
+                        if let Err(e) =
+                            start_plugin_ssh(state, manifest, plugin_id, &host)
+                        {
                             println!("start plugin ssh error {}", e);
                         }
                     });
@@ -254,6 +276,7 @@ fn load_manifest(path: &Path) -> Result<PluginDescription> {
 }
 
 fn start_plugin_ssh(
+    state: LapceTabState,
     plugin_desc: Arc<PluginDescription>,
     id: PluginId,
     host: &str,
@@ -278,10 +301,10 @@ fn start_plugin_ssh(
 
     plugin.initialize();
 
-    LAPCE_STATE.plugins.lock().running.push(plugin);
+    state.plugins.lock().running.push(plugin);
 
     //    let reader = ssh_session.get_async_stream(channel.stream(0))?;
-    let mut handler = PluginHandler {};
+    let mut handler = PluginHandler { state };
     if let Err(e) = looper.mainloop(
         || BufReader::new(ssh_session.get_stream(&channel)),
         &mut handler,
@@ -292,7 +315,11 @@ fn start_plugin_ssh(
     Ok(())
 }
 
-fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
+fn start_plugin_process(
+    state: LapceTabState,
+    plugin_desc: Arc<PluginDescription>,
+    id: PluginId,
+) {
     thread::spawn(move || {
         println!(
             "start plugin {:?} {:?}",
@@ -325,9 +352,9 @@ fn start_plugin_process(plugin_desc: Arc<PluginDescription>, id: PluginId) {
             };
 
             plugin.initialize();
-            LAPCE_STATE.plugins.lock().running.push(plugin);
+            state.plugins.lock().running.push(plugin);
 
-            let mut handler = PluginHandler {};
+            let mut handler = PluginHandler { state };
             if let Err(e) =
                 looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
             {
@@ -511,7 +538,7 @@ impl Handler for PluginHandler {
         } = rpc;
         match cmd {
             PluginNotification::ShowCompletion { request_id, result } => {
-                LAPCE_STATE
+                self.state
                     .editor_split
                     .lock()
                     .show_completion(request_id, result);
@@ -521,7 +548,7 @@ impl Handler for PluginHandler {
                 language_id,
                 options,
             } => {
-                LAPCE_STATE.lsp.lock().start_server(
+                self.state.lsp.lock().start_server(
                     &exec_path,
                     &language_id,
                     options,
@@ -547,7 +574,7 @@ impl Handler for PluginHandler {
                 max_size,
                 rev,
             } => {
-                let mut editor_split = LAPCE_STATE.editor_split.lock();
+                let mut editor_split = self.state.editor_split.lock();
                 let buffer = editor_split.get_buffer(&buffer_id).unwrap();
                 let text_cow = Cow::Borrowed(&buffer.rope);
                 let text = &text_cow;

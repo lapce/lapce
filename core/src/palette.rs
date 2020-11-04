@@ -7,6 +7,7 @@ use druid::{
     widget::Svg,
     widget::SvgData,
     Affine, Command, FontFamily, FontWeight, KeyEvent, Target, Vec2, WidgetId,
+    WindowId,
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -33,7 +34,8 @@ use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND, editor::EditorSplitState, explorer::ICONS_DIR,
     scroll::LapceScroll, ssh::SshSession, state::LapceFocus, state::LapceUIState,
-    state::LapceWorkspaceType, state::LAPCE_STATE, theme::LapceTheme,
+    state::LapceWorkspace, state::LapceWorkspaceType, state::LAPCE_APP_STATE,
+    theme::LapceTheme,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -41,6 +43,7 @@ pub enum PaletteType {
     File,
     Line,
     DocumentSymbol,
+    Workspace,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -52,19 +55,24 @@ pub enum PaletteIcon {
 
 #[derive(Clone, Debug)]
 pub struct PaletteItem {
+    window_id: WindowId,
+    tab_id: WidgetId,
     icon: PaletteIcon,
     kind: PaletteType,
     text: String,
     hint: Option<String>,
-    position: Option<Position>,
-    path: Option<PathBuf>,
     score: Score,
     index: usize,
     match_mask: BitVec,
+    position: Option<Position>,
+    path: Option<PathBuf>,
+    workspace: Option<LapceWorkspace>,
 }
 
 #[derive(Clone)]
 pub struct PaletteState {
+    window_id: WindowId,
+    tab_id: WidgetId,
     pub widget_id: WidgetId,
     pub scroll_widget_id: WidgetId,
     input: String,
@@ -75,8 +83,10 @@ pub struct PaletteState {
 }
 
 impl PaletteState {
-    pub fn new() -> PaletteState {
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> PaletteState {
         PaletteState {
+            window_id,
+            tab_id,
             widget_id: WidgetId::next(),
             scroll_widget_id: WidgetId::next(),
             items: Vec::new(),
@@ -96,13 +106,21 @@ impl PaletteState {
                 self.input = "/".to_string();
                 self.cursor = 1;
                 self.items = self.get_lines().unwrap_or(Vec::new());
-                LAPCE_STATE.editor_split.lock().save_selection();
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .editor_split
+                    .lock()
+                    .save_selection();
             }
             &PaletteType::DocumentSymbol => {
                 self.input = "@".to_string();
                 self.cursor = 1;
                 self.items = self.get_document_symbols().unwrap_or(Vec::new());
-                LAPCE_STATE.editor_split.lock().save_selection();
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .editor_split
+                    .lock()
+                    .save_selection();
             }
             _ => self.items = self.get_files(),
         }
@@ -111,13 +129,15 @@ impl PaletteState {
     pub fn cancel(&mut self, ctx: &mut EventCtx, ui_state: &mut LapceUIState) {
         match &self.palette_type {
             &PaletteType::Line => {
-                LAPCE_STATE
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
                     .editor_split
                     .lock()
                     .restore_selection(ctx, ui_state);
             }
             &PaletteType::DocumentSymbol => {
-                LAPCE_STATE
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
                     .editor_split
                     .lock()
                     .restore_selection(ctx, ui_state);
@@ -158,6 +178,7 @@ impl PaletteState {
         match self.input {
             _ if self.input.starts_with("/") => PaletteType::Line,
             _ if self.input.starts_with("@") => PaletteType::DocumentSymbol,
+            _ if self.input.starts_with(">") => PaletteType::Workspace,
             _ => PaletteType::File,
         }
     }
@@ -192,6 +213,7 @@ impl PaletteState {
                 &PaletteType::DocumentSymbol => {
                     self.items = self.get_document_symbols().unwrap_or(Vec::new())
                 }
+                &PaletteType::Workspace => self.items = self.get_workspaces(),
             }
             self.request_layout(ctx);
         } else {
@@ -241,6 +263,7 @@ impl PaletteState {
             &PaletteType::File => 0,
             &PaletteType::Line => 1,
             &PaletteType::DocumentSymbol => 1,
+            &PaletteType::Workspace => 1,
         };
 
         if self.cursor == start {
@@ -258,6 +281,7 @@ impl PaletteState {
             PaletteType::File => &self.input,
             PaletteType::Line => &self.input[1..],
             PaletteType::DocumentSymbol => &self.input[1..],
+            PaletteType::Workspace => &self.input[1..],
         }
     }
 
@@ -283,17 +307,68 @@ impl PaletteState {
         self.request_layout(ctx);
     }
 
+    fn get_workspaces(&self) -> Vec<PaletteItem> {
+        let workspaces = vec![
+            LapceWorkspace {
+                kind: LapceWorkspaceType::Local,
+                path: PathBuf::from("/Users/Lulu/lapce"),
+            },
+            LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+                path: PathBuf::from("/home/dz/go/src/galaxy"),
+            },
+            LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+                path: PathBuf::from("/home/dz/go/src/tardis"),
+            },
+            LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+                path: PathBuf::from("/home/dz/cosmos"),
+            },
+        ];
+        workspaces
+            .iter()
+            .enumerate()
+            .map(|(i, w)| {
+                let text = w.path.to_str().unwrap();
+                let text = match &w.kind {
+                    LapceWorkspaceType::Local => text.to_string(),
+                    LapceWorkspaceType::RemoteSSH(host) => {
+                        format!("[{}] {}", host, text)
+                    }
+                };
+                PaletteItem {
+                    window_id: self.window_id,
+                    tab_id: self.tab_id,
+                    icon: PaletteIcon::None,
+                    kind: PaletteType::Workspace,
+                    text,
+                    hint: None,
+                    score: 0.0,
+                    index: i,
+                    match_mask: BitVec::new(),
+                    workspace: Some(w.clone()),
+                    position: None,
+                    path: None,
+                }
+            })
+            .collect()
+    }
+
     fn get_document_symbols(&self) -> Option<Vec<PaletteItem>> {
-        let editor_split = LAPCE_STATE.editor_split.lock();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let editor_split = state.editor_split.lock();
         let editor = editor_split.editors.get(&editor_split.active)?;
         let buffer_id = editor.buffer_id?;
         let buffer = editor_split.buffers.get(&buffer_id)?;
-        let resp = LAPCE_STATE.lsp.lock().get_document_symbols(buffer)?;
+        let resp = state.lsp.lock().get_document_symbols(buffer)?;
         Some(match resp {
             DocumentSymbolResponse::Flat(symbols) => symbols
                 .iter()
                 .enumerate()
                 .map(|(i, s)| PaletteItem {
+                    window_id: self.window_id,
+                    tab_id: self.tab_id,
                     kind: PaletteType::DocumentSymbol,
                     text: s.name.clone(),
                     hint: s.container_name.clone(),
@@ -303,12 +378,15 @@ impl PaletteState {
                     index: i,
                     match_mask: BitVec::new(),
                     icon: PaletteIcon::Symbol(s.kind),
+                    workspace: None,
                 })
                 .collect(),
             DocumentSymbolResponse::Nested(symbols) => symbols
                 .iter()
                 .enumerate()
                 .map(|(i, s)| PaletteItem {
+                    window_id: self.window_id,
+                    tab_id: self.tab_id,
                     kind: PaletteType::DocumentSymbol,
                     text: s.name.clone(),
                     hint: None,
@@ -318,13 +396,15 @@ impl PaletteState {
                     index: i,
                     match_mask: BitVec::new(),
                     icon: PaletteIcon::Symbol(s.kind),
+                    workspace: None,
                 })
                 .collect(),
         })
     }
 
     fn get_lines(&self) -> Option<Vec<PaletteItem>> {
-        let editor_split = LAPCE_STATE.editor_split.lock();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let editor_split = state.editor_split.lock();
         let editor = editor_split.editors.get(&editor_split.active)?;
         let buffer_id = editor.buffer_id?;
         let buffer = editor_split.buffers.get(&buffer_id)?;
@@ -334,6 +414,8 @@ impl PaletteState {
                 .lines(0..buffer.len())
                 .enumerate()
                 .map(|(i, l)| PaletteItem {
+                    window_id: self.window_id,
+                    tab_id: self.tab_id,
                     kind: PaletteType::Line,
                     text: format!("{}: {}", i, l.to_string()),
                     hint: None,
@@ -343,20 +425,28 @@ impl PaletteState {
                     index: i,
                     match_mask: BitVec::new(),
                     icon: PaletteIcon::None,
+                    workspace: None,
                 })
                 .collect(),
         )
     }
 
     fn get_files(&self) -> Vec<PaletteItem> {
-        match &LAPCE_STATE.workspace.kind {
+        let workspace_type = LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .workspace
+            .lock()
+            .kind
+            .clone();
+        match workspace_type {
             LapceWorkspaceType::RemoteSSH(host) => self.get_ssh_files(&host),
             LapceWorkspaceType::Local => self.get_local_files(),
         }
     }
 
     fn get_ssh_files(&self, host: &str) -> Vec<PaletteItem> {
-        let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let mut ssh_session = state.ssh_session.lock();
         if ssh_session.is_none() {
             if let Ok(session) = SshSession::new(host) {
                 *ssh_session = Some(session);
@@ -365,8 +455,8 @@ impl PaletteState {
             }
         }
         let ssh_session = ssh_session.as_mut().unwrap();
-        let dir = LAPCE_STATE.workspace.path.to_str().unwrap();
-        let workspace_path = LAPCE_STATE.workspace.path.clone();
+        let workspace_path = state.workspace.lock().path.clone();
+        let dir = workspace_path.to_str().unwrap();
         if let Ok(paths) = ssh_session.read_dir(dir) {
             return paths
                 .iter()
@@ -395,6 +485,8 @@ impl PaletteState {
                     };
                     let hint = folder.to_str().unwrap().to_string();
                     PaletteItem {
+                        window_id: self.window_id,
+                        tab_id: self.tab_id,
                         icon,
                         hint: Some(hint),
                         index,
@@ -404,6 +496,7 @@ impl PaletteState {
                         path: Some(path),
                         score: 0.0,
                         match_mask: BitVec::new(),
+                        workspace: None,
                     }
                 })
                 .collect();
@@ -415,7 +508,12 @@ impl PaletteState {
         let mut items = Vec::new();
         let mut dirs = Vec::new();
         let mut index = 0;
-        let workspace_path = LAPCE_STATE.workspace.path.clone();
+        let workspace_path = LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .workspace
+            .lock()
+            .path
+            .clone();
         dirs.push(workspace_path.clone());
         while let Some(dir) = dirs.pop() {
             for entry in fs::read_dir(dir).unwrap() {
@@ -457,6 +555,8 @@ impl PaletteState {
                     // let file = path.as_path().to_str().unwrap().to_string();
                     let hint = folder.to_str().unwrap().to_string();
                     items.push(PaletteItem {
+                        window_id: self.window_id,
+                        tab_id: self.tab_id,
                         kind: PaletteType::File,
                         text,
                         hint: Some(hint),
@@ -466,6 +566,7 @@ impl PaletteState {
                         index,
                         match_mask: BitVec::new(),
                         icon,
+                        workspace: None,
                     });
                     index += 1;
                 }
@@ -565,26 +666,41 @@ impl PaletteState {
 }
 
 pub struct Palette {
+    window_id: WindowId,
+    tab_id: WidgetId,
     content: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     input: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     rect: Rect,
 }
 
-pub struct PaletteInput {}
+pub struct PaletteInput {
+    window_id: WindowId,
+    tab_id: WidgetId,
+}
 
-pub struct PaletteContent {}
+pub struct PaletteContent {
+    window_id: WindowId,
+    tab_id: WidgetId,
+}
 
 impl Palette {
-    pub fn new(scroll_id: WidgetId) -> Palette {
-        let palette_input = PaletteInput::new()
+    pub fn new(
+        window_id: WindowId,
+        tab_id: WidgetId,
+        scroll_id: WidgetId,
+    ) -> Palette {
+        let palette_input = PaletteInput::new(window_id, tab_id)
             .padding((5.0, 5.0, 5.0, 5.0))
             .background(LapceTheme::EDITOR_BACKGROUND)
             .padding((5.0, 5.0, 5.0, 5.0));
-        let palette_content = LapceScroll::new(PaletteContent::new())
-            .vertical()
-            .with_id(scroll_id)
-            .padding((5.0, 0.0, 5.0, 0.0));
+        let palette_content =
+            LapceScroll::new(PaletteContent::new(window_id, tab_id))
+                .vertical()
+                .with_id(scroll_id)
+                .padding((5.0, 0.0, 5.0, 0.0));
         let palette = Palette {
+            window_id,
+            tab_id,
             input: WidgetPod::new(palette_input).boxed(),
             content: WidgetPod::new(palette_content).boxed(),
             rect: Rect::ZERO
@@ -604,14 +720,14 @@ impl Palette {
 }
 
 impl PaletteInput {
-    pub fn new() -> PaletteInput {
-        PaletteInput {}
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> PaletteInput {
+        PaletteInput { window_id, tab_id }
     }
 }
 
 impl PaletteContent {
-    pub fn new() -> PaletteContent {
-        PaletteContent {}
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> PaletteContent {
+        PaletteContent { window_id, tab_id }
     }
 }
 
@@ -711,7 +827,12 @@ impl Widget<LapceUIState> for Palette {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
-        if *LAPCE_STATE.focus.lock() != LapceFocus::Palette {
+        if *LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .focus
+            .lock()
+            != LapceFocus::Palette
+        {
             return;
         }
         let rects = ctx.region().rects();
@@ -767,7 +888,8 @@ impl Widget<LapceUIState> for PaletteContent {
         env: &Env,
     ) -> Size {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let palette = LAPCE_STATE.palette.lock();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let palette = state.palette.lock();
         let items_len = palette.current_items().len();
         let height = { line_height * items_len as f64 };
         Size::new(bc.max().width, height)
@@ -776,7 +898,8 @@ impl Widget<LapceUIState> for PaletteContent {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rects = ctx.region().rects().to_vec();
-        let palette = LAPCE_STATE.palette.lock();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let palette = state.palette.lock();
         for rect in rects {
             let start = (rect.y0 / line_height).floor() as usize;
             let items = {
@@ -789,7 +912,8 @@ impl Widget<LapceUIState> for PaletteContent {
 
             for (i, item) in items.iter().enumerate() {
                 if palette.index == start + i {
-                    if let Some(background) = LAPCE_STATE.theme.get("background") {
+                    if let Some(background) = LAPCE_APP_STATE.theme.get("background")
+                    {
                         ctx.fill(
                             Rect::ZERO
                                 .with_origin(Point::new(
@@ -994,7 +1118,8 @@ impl Widget<LapceUIState> for PaletteInput {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
-        let palette = LAPCE_STATE.palette.lock();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let palette = state.palette.lock();
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let text = palette.input.clone();
         let cursor = palette.cursor;
@@ -1024,7 +1149,9 @@ impl PaletteItem {
     ) {
         match &self.kind {
             &PaletteType::File => {
-                let mut editor_split = LAPCE_STATE.editor_split.lock();
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut editor_split = state.editor_split.lock();
                 editor_split.save_jump_location();
                 editor_split.open_file(
                     ctx,
@@ -1040,18 +1167,31 @@ impl PaletteItem {
                     .unwrap()
                     .parse::<usize>()
                     .unwrap();
-                LAPCE_STATE
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
                     .editor_split
                     .lock()
                     .jump_to_line(ctx, ui_state, line, env);
             }
             &PaletteType::DocumentSymbol => {
-                LAPCE_STATE.editor_split.lock().jump_to_postion(
-                    ctx,
-                    ui_state,
-                    self.position.as_ref().unwrap(),
-                    env,
-                );
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .editor_split
+                    .lock()
+                    .jump_to_postion(
+                        ctx,
+                        ui_state,
+                        self.position.as_ref().unwrap(),
+                        env,
+                    );
+            }
+            &PaletteType::Workspace => {
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                *state.workspace.lock() = self.workspace.clone().unwrap();
+                *state.ssh_session.lock() = None;
+                state.start_plugin();
+                ctx.request_paint();
             }
         }
     }

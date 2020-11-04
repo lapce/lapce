@@ -1,18 +1,22 @@
 use druid::{
     FontDescriptor, FontFamily, Point, RenderContext, Size, TextLayout, Widget,
+    WidgetId, WindowId,
 };
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
-    state::{LapceUIState, LAPCE_STATE},
+    state::{LapceTabState, LapceUIState, LAPCE_APP_STATE},
     theme::LapceTheme,
 };
 
-pub struct LapceStatus {}
+pub struct LapceStatus {
+    window_id: WindowId,
+    tab_id: WidgetId,
+}
 
 impl LapceStatus {
-    pub fn new() -> LapceStatus {
-        LapceStatus {}
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> LapceStatus {
+        LapceStatus { window_id, tab_id }
     }
 }
 
@@ -64,7 +68,8 @@ impl Widget<LapceUIState> for LapceStatus {
         let rect = size.to_rect();
         ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
 
-        let editor_split = LAPCE_STATE.editor_split.lock();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let editor_split = state.editor_split.lock();
 
         let mut errors = 0;
         let mut warnings = 0;

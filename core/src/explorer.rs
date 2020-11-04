@@ -3,21 +3,23 @@ use std::{str::FromStr, sync::Arc};
 
 use druid::{
     piet::PietTextLayout, widget::SvgData, Affine, EventCtx, Point, Rect,
-    RenderContext, Size, TextLayout, Vec2, Widget,
+    RenderContext, Size, TextLayout, Vec2, Widget, WidgetId, WindowId,
 };
 use include_dir::{include_dir, Dir};
 use parking_lot::Mutex;
 
 use crate::{
     command::LapceCommand, editor::EditorSplitState, movement::LinePosition,
-    movement::Movement, state::LapceFocus, state::LapceUIState, state::LAPCE_STATE,
-    theme::LapceTheme,
+    movement::Movement, state::LapceFocus, state::LapceUIState,
+    state::LAPCE_APP_STATE, theme::LapceTheme,
 };
 
 pub const ICONS_DIR: Dir = include_dir!("../icons");
 
 #[derive(Clone)]
 pub struct FileExplorerState {
+    window_id: WindowId,
+    tab_id: WidgetId,
     cwd: PathBuf,
     items: Vec<FileNodeItem>,
     index: usize,
@@ -52,7 +54,7 @@ impl std::cmp::PartialOrd for FileNodeItem {
 }
 
 impl FileExplorerState {
-    pub fn new() -> FileExplorerState {
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> FileExplorerState {
         let mut items = Vec::new();
         let cwd = std::env::current_dir().unwrap();
         // items.push(FileNodeItem {
@@ -65,6 +67,8 @@ impl FileExplorerState {
         }
         items.sort();
         FileExplorerState {
+            window_id,
+            tab_id,
             cwd,
             items,
             index: 0,
@@ -144,11 +148,11 @@ impl FileExplorerState {
             LapceCommand::ListSelect => {
                 let path_buf = &self.items[self.index].path_buf;
                 if !path_buf.is_dir() {
-                    LAPCE_STATE.editor_split.lock().open_file(
-                        ctx,
-                        data,
-                        path_buf.to_str().unwrap(),
-                    );
+                    LAPCE_APP_STATE
+                        .get_tab_state(&self.window_id, &self.tab_id)
+                        .editor_split
+                        .lock()
+                        .open_file(ctx, data, path_buf.to_str().unwrap());
                     LapceFocus::Editor
                 } else {
                     LapceFocus::FileExplorer
@@ -159,11 +163,14 @@ impl FileExplorerState {
     }
 }
 
-pub struct FileExplorer {}
+pub struct FileExplorer {
+    window_id: WindowId,
+    tab_id: WidgetId,
+}
 
 impl FileExplorer {
-    pub fn new() -> FileExplorer {
-        FileExplorer {}
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> FileExplorer {
+        FileExplorer { window_id, tab_id }
     }
 }
 
@@ -218,13 +225,14 @@ impl Widget<LapceUIState> for FileExplorer {
     ) {
         let rects = ctx.region().rects().to_vec();
         let size = ctx.size();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         for rect in rects {
-            if let Some(background) = LAPCE_STATE.theme.get("background") {
+            if let Some(background) = LAPCE_APP_STATE.theme.get("background") {
                 ctx.fill(rect, background);
             }
         }
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let file_explorer = LAPCE_STATE.file_explorer.lock();
+        let file_explorer = state.file_explorer.lock();
         for (i, item) in file_explorer.items.iter().enumerate() {
             if i == file_explorer.index {
                 ctx.fill(

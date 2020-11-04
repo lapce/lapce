@@ -4,7 +4,7 @@ use lapce_core::palette::Palette;
 use lapce_core::split::LapceSplit;
 use lapce_core::theme::LapceTheme;
 use lapce_core::{container::LapceContainer, state::hex_to_color};
-use lapce_core::{editor::Editor, window::LapceWindow};
+use lapce_core::{editor::Editor, window::LapceTab, window::LapceWindow};
 
 use druid::{
     piet::Color, theme, FontDescriptor, FontFamily, FontWeight, Key, Size, Target,
@@ -13,30 +13,68 @@ use druid::{
 use druid::{
     widget::IdentityWrapper,
     widget::{Align, Container, Flex, Label, Padding, Scroll, Split},
-    Point,
+    AppDelegate, Command, DelegateCtx, Env, Point, WindowId,
 };
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
 use lapce_core::command::{LapceUICommand, LAPCE_UI_COMMAND};
 use lapce_core::explorer::FileExplorer;
 use lapce_core::ssh::SshSession;
-use lapce_core::state::{LapceState, LapceUIState, LAPCE_STATE};
+use lapce_core::state::{
+    LapceTabState, LapceUIState, LapceWindowState, LAPCE_APP_STATE,
+};
 use tree_sitter::{Language, Parser};
 
 extern "C" {
     fn tree_sitter_rust() -> Language;
 }
 
-fn build_app() -> impl Widget<LapceUIState> {
-    // let container_id = WidgetId::next();
-    // let container =
-    //     IdentityWrapper::wrap(LapceContainer::new(), container_id.clone());
-    // // LAPCE_STATE.set_container(container_id);
-    // let main_split = LapceSplit::new(true)
-    //     .with_child(FileExplorer::new(), 300.0)
-    //     .with_flex_child(container, 1.0);
-    let window = LapceWindow::new();
+struct Delegate {
+    windows: Vec<WindowId>,
+}
+
+impl Delegate {
+    pub fn new() -> Delegate {
+        Delegate {
+            windows: Vec::new(),
+        }
+    }
+}
+
+impl AppDelegate<LapceUIState> for Delegate {
+    fn command(
+        &mut self,
+        ctx: &mut DelegateCtx,
+        target: Target,
+        cmd: &Command,
+        data: &mut LapceUIState,
+        env: &Env,
+    ) -> bool {
+        true
+    }
+
+    fn window_added(
+        &mut self,
+        id: WindowId,
+        data: &mut LapceUIState,
+        env: &Env,
+        ctx: &mut DelegateCtx,
+    ) {
+    }
+
+    fn window_removed(
+        &mut self,
+        id: WindowId,
+        data: &mut LapceUIState,
+        env: &Env,
+        ctx: &mut DelegateCtx,
+    ) {
+    }
+}
+
+fn build_app(window_id: WindowId) -> impl Widget<LapceUIState> {
+    let window = LapceWindow::new(window_id);
     window.env_scope(|env: &mut druid::Env, data: &LapceUIState| {
-        let theme = &LAPCE_STATE.theme;
+        let theme = &LAPCE_APP_STATE.theme;
         if let Some(line_highlight) = theme.get("line_highlight") {
             env.set(
                 LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
@@ -108,15 +146,21 @@ pub fn main() {
         });
     }
     // WindowDesc::new(|| LapceContainer::new());
-    let window = WindowDesc::new(build_app)
+    let window_state = LapceWindowState::new();
+    let window_id = window_state.window_id.clone();
+    LAPCE_APP_STATE
+        .states
+        .lock()
+        .insert(window_id.clone(), window_state);
+    let mut window = WindowDesc::new(move || build_app(window_id.clone()))
         .title(
             LocalizedString::new("split-demo-window-title")
                 .with_placeholder("Split Demo"),
         )
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
+    window.id = window_id;
 
-    let launcher = AppLauncher::with_window(window);
     // thread::spawn(move || {
     //     ui_event_sink.submit_command(
     //         LAPCE_UI_COMMAND,
@@ -127,14 +171,17 @@ pub fn main() {
     //         Target::Global,
     //     );
     // });
-    LAPCE_STATE.set_ui_sink(launcher.get_external_handle());
-    let mut parser = Parser::new();
-    let language = unsafe { tree_sitter_rust() };
-    parser.set_language(language);
-    parser.parse("pub fn main() {}", None).unwrap();
+    //let mut parser = Parser::new();
+    //let language = unsafe { tree_sitter_rust() };
+    //parser.set_language(language);
+    //parser.parse("pub fn main() {}", None).unwrap();
+    let launcher = AppLauncher::with_window(window);
+    LAPCE_APP_STATE.set_ui_sink(launcher.get_external_handle());
     let ui_event_sink = launcher.get_external_handle();
     let ui_state = LapceUIState::new(ui_event_sink);
+    let delegate = Delegate::new();
     launcher
+        .delegate(delegate)
         .use_simple_logger()
         .launch(ui_state)
         .expect("launch failed");

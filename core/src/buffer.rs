@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
-    Color, Command, EventCtx, ExtEventSink, Target, UpdateCtx,
+    Color, Command, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId, WindowId,
 };
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
@@ -39,10 +39,10 @@ use crate::{
     language,
     movement::{ColPosition, Movement, SelRegion, Selection},
     plugin::PluginBufferInfo,
-    state::LapceState,
+    state::LapceTabState,
     state::LapceWorkspaceType,
     state::Mode,
-    state::LAPCE_STATE,
+    state::LAPCE_APP_STATE,
     theme::LapceTheme,
 };
 
@@ -58,6 +58,8 @@ pub struct BufferId(pub usize);
 
 #[derive(Clone)]
 pub struct BufferUIState {
+    window_id: WindowId,
+    tab_id: WidgetId,
     pub id: BufferId,
     pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
     pub max_len_line: usize,
@@ -67,6 +69,8 @@ pub struct BufferUIState {
 
 #[derive(Clone)]
 pub struct Buffer {
+    window_id: WindowId,
+    tab_id: WidgetId,
     pub id: BufferId,
     pub rope: Rope,
     highlight_config: Arc<HighlightConfiguration>,
@@ -81,17 +85,19 @@ pub struct Buffer {
     pub language_id: String,
     pub rev: u64,
     pub dirty: bool,
-    sender: Sender<(BufferId, u64)>,
+    sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
 }
 
 impl Buffer {
     pub fn new(
+        window_id: WindowId,
+        tab_id: WidgetId,
         buffer_id: BufferId,
         path: &str,
         event_sink: ExtEventSink,
-        sender: Sender<(BufferId, u64)>,
+        sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
     ) -> Buffer {
-        let rope = if let Ok(rope) = load_file(path) {
+        let rope = if let Ok(rope) = load_file(&window_id, &tab_id, path) {
             rope
         } else {
             Rope::from("")
@@ -106,6 +112,8 @@ impl Buffer {
         path_buf.extension().unwrap().to_str().unwrap().to_string();
 
         let mut buffer = Buffer {
+            window_id: window_id.clone(),
+            tab_id: tab_id.clone(),
             id: buffer_id.clone(),
             rope,
             highlight_config: Arc::new(highlight_config),
@@ -123,7 +131,8 @@ impl Buffer {
 
         let language_id = buffer.language_id.clone();
 
-        LAPCE_STATE.plugins.lock().new_buffer(&PluginBufferInfo {
+        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+        state.plugins.lock().new_buffer(&PluginBufferInfo {
             buffer_id: buffer_id.clone(),
             language_id: buffer.language_id.clone(),
             path: path.to_string(),
@@ -131,7 +140,7 @@ impl Buffer {
             buf_size: buffer.len(),
             rev: buffer.rev,
         });
-        LAPCE_STATE.lsp.lock().new_buffer(
+        state.lsp.lock().new_buffer(
             &buffer_id,
             path,
             &buffer.language_id,
@@ -146,10 +155,12 @@ impl Buffer {
             return Ok(());
         }
 
-        match &LAPCE_STATE.workspace.kind {
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let workspace_type = state.workspace.lock().kind.clone();
+        match workspace_type {
             LapceWorkspaceType::RemoteSSH(host) => {
-                LAPCE_STATE.get_ssh_session(host)?;
-                let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+                state.get_ssh_session(&host)?;
+                let mut ssh_session = state.ssh_session.lock();
                 let ssh_session = ssh_session.as_mut().unwrap();
                 let tmp_path = format!("{}.swp", self.path);
                 let mut remote_file =
@@ -159,15 +170,6 @@ impl Buffer {
                 }
                 println!("send remote_file {}", tmp_path);
                 ssh_session.exec(&format!("mv {} {}", tmp_path, self.path))?;
-                // let mut channel = ssh_session.session.channel_session()?;
-                // channel.exec(&format!("mv {} {}", tmp_path, self.path))?;
-                // let mut s = String::new();
-                // channel.read_to_string(&mut s)?;
-                // channel.wait_close()?;
-                // let status = channel.exit_status()?;
-                // if status != 0 {
-                //     return Err(anyhow!("rename file failed"));
-                // }
             }
             LapceWorkspaceType::Local => {
                 let path = PathBuf::from_str(&self.path)?;
@@ -214,44 +216,9 @@ impl Buffer {
     }
 
     pub fn update_highlights(&mut self) {
-        //        let version = uuid::Uuid::new_v4().to_string();
         self.line_highlights = HashMap::new();
-        //        self.highlight_version = version.clone();
-        self.sender.send((self.id, self.rev));
-
-        //  let highlight_config = self.highlight_config.clone();
-        //  let rope_str = self.slice_to_cow(..self.len()).to_string();
-        //  let buffer_id = self.id.clone();
-        //  let event_sink = self.event_sink.clone();
-        //  thread::spawn(move || {
-        //      let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
-        //      let mut highlighter = Highlighter::new();
-        //      let mut current_hl: Option<Highlight> = None;
-        //      for hightlight in highlighter
-        //          .highlight(&highlight_config, &rope_str.as_bytes(), None, |_| None)
-        //          .unwrap()
-        //      {
-        //          if let Ok(highlight) = hightlight {
-        //              match highlight {
-        //                  HighlightEvent::Source { start, end } => {
-        //                      if let Some(hl) = current_hl {
-        //                          highlights.push((start, end, hl.clone()));
-        //                      }
-        //                  }
-        //                  HighlightEvent::HighlightStart(hl) => {
-        //                      current_hl = Some(hl);
-        //                  }
-        //                  HighlightEvent::HighlightEnd => current_hl = None,
-        //              }
-        //          }
-        //      }
-
-        //      event_sink.submit_command(
-        //          LAPCE_UI_COMMAND,
-        //          LapceUICommand::UpdateHighlights(buffer_id, version, highlights),
-        //          Target::Global,
-        //      );
-        //  });
+        self.sender
+            .send((self.window_id, self.tab_id, self.id, self.rev));
     }
 
     pub fn get_line_highligh(
@@ -448,17 +415,15 @@ impl Buffer {
             },
         };
 
-        LAPCE_STATE.plugins.lock().update(
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        state.plugins.lock().update(
             &self.id,
             delta,
             self.len(),
             self.num_lines(),
             self.rev,
         );
-        LAPCE_STATE
-            .lsp
-            .lock()
-            .update(&self, &content_change, self.rev);
+        state.lsp.lock().update(&self, &content_change, self.rev);
 
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
@@ -792,8 +757,10 @@ impl Buffer {
     }
 }
 
-fn load_file(path: &str) -> Result<Rope> {
-    let bytes = match &LAPCE_STATE.workspace.kind {
+fn load_file(window_id: &WindowId, tab_id: &WidgetId, path: &str) -> Result<Rope> {
+    let state = LAPCE_APP_STATE.get_tab_state(window_id, tab_id);
+    let workspace_type = state.workspace.lock().kind.clone();
+    let bytes = match workspace_type {
         LapceWorkspaceType::Local => {
             let mut f = File::open(path)?;
             let mut bytes = Vec::new();
@@ -801,8 +768,8 @@ fn load_file(path: &str) -> Result<Rope> {
             bytes
         }
         LapceWorkspaceType::RemoteSSH(host) => {
-            LAPCE_STATE.get_ssh_session(host)?;
-            let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+            state.get_ssh_session(&host)?;
+            let mut ssh_session = state.ssh_session.lock();
             let ssh_session = ssh_session.as_mut().unwrap();
             ssh_session.read_file(path)?
         }
@@ -1068,12 +1035,16 @@ fn get_word_property(codepoint: char) -> WordProperty {
 
 impl BufferUIState {
     pub fn new(
+        window_id: WindowId,
+        tab_id: WidgetId,
         buffer_id: BufferId,
         lines: usize,
         max_len: usize,
         max_len_line: usize,
     ) -> BufferUIState {
         BufferUIState {
+            window_id,
+            tab_id,
             id: buffer_id,
             text_layouts: vec![Arc::new(None); lines],
             max_len,
@@ -1112,7 +1083,8 @@ impl BufferUIState {
             return false;
         }
 
-        let theme = &LAPCE_STATE.theme;
+        //let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let theme = &LAPCE_APP_STATE.theme;
 
         let line_hightlight = buffer.get_line_highligh(line).clone();
         if self.text_layouts[line].is_none()
@@ -1176,16 +1148,17 @@ impl BufferUIState {
 }
 
 pub fn start_buffer_highlights(
-    receiver: Receiver<(BufferId, u64)>,
+    receiver: Receiver<(WindowId, WidgetId, BufferId, u64)>,
     event_sink: ExtEventSink,
 ) -> Result<()> {
     let mut highlighter = Highlighter::new();
     let mut highlight_configs = HashMap::new();
 
     loop {
-        let (buffer_id, rev) = receiver.recv()?;
+        let (window_id, tab_id, buffer_id, rev) = receiver.recv()?;
         let (language, rope_str) = {
-            let editor_split = LAPCE_STATE.editor_split.lock();
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+            let editor_split = state.editor_split.lock();
             let buffer = editor_split.buffers.get(&buffer_id).unwrap();
             let language = match buffer.language_id.as_str() {
                 "rust" => LapceLanguage::Rust,
@@ -1226,7 +1199,8 @@ pub fn start_buffer_highlights(
             }
         }
 
-        let mut editor_split = LAPCE_STATE.editor_split.lock();
+        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+        let mut editor_split = state.editor_split.lock();
         let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
         if buffer.rev != rev {
             continue;
@@ -1246,71 +1220,73 @@ pub fn start_buffer_highlights(
     }
 }
 
-fn highlights_process(
-    language_id: String,
-    receiver: Receiver<u64>,
-    buffer_id: BufferId,
-    event_sink: ExtEventSink,
-) -> Result<()> {
-    let language = match language_id.as_ref() {
-        "rust" => LapceLanguage::Rust,
-        "go" => LapceLanguage::Go,
-        _ => return Ok(()),
-    };
-    let mut highlighter = Highlighter::new();
-    let (highlight_config, highlight_names) = new_highlight_config(language);
-    loop {
-        let rev = receiver.recv()?;
-        let rope_str = {
-            let editor_split = LAPCE_STATE.editor_split.lock();
-            let buffer = editor_split.buffers.get(&buffer_id).unwrap();
-            if buffer.rev != rev {
-                continue;
-            } else {
-                buffer.slice_to_cow(..buffer.len()).to_string()
-            }
-        };
-
-        let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
-        let mut current_hl: Option<Highlight> = None;
-        for hightlight in highlighter
-            .highlight(&highlight_config, &rope_str.as_bytes(), None, |_| None)
-            .unwrap()
-        {
-            if let Ok(highlight) = hightlight {
-                match highlight {
-                    HighlightEvent::Source { start, end } => {
-                        if let Some(hl) = current_hl {
-                            highlights.push((start, end, hl.clone()));
-                        }
-                    }
-                    HighlightEvent::HighlightStart(hl) => {
-                        current_hl = Some(hl);
-                    }
-                    HighlightEvent::HighlightEnd => current_hl = None,
-                }
-            }
-        }
-
-        let mut editor_split = LAPCE_STATE.editor_split.lock();
-        let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
-        if buffer.rev != rev {
-            continue;
-        }
-        buffer.highlights = highlights.to_owned();
-        buffer.line_highlights = HashMap::new();
-
-        for (view_id, editor) in editor_split.editors.iter() {
-            if editor.buffer_id.as_ref() == Some(&buffer_id) {
-                event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::FillTextLayouts,
-                    Target::Widget(view_id.clone()),
-                );
-            }
-        }
-    }
-}
+//fn highlights_process(
+//    language_id: String,
+//    receiver: Receiver<u64>,
+//    buffer_id: BufferId,
+//    event_sink: ExtEventSink,
+//) -> Result<()> {
+//    let language = match language_id.as_ref() {
+//        "rust" => LapceLanguage::Rust,
+//        "go" => LapceLanguage::Go,
+//        _ => return Ok(()),
+//    };
+//    let mut highlighter = Highlighter::new();
+//    let (highlight_config, highlight_names) = new_highlight_config(language);
+//    loop {
+//        let rev = receiver.recv()?;
+//        let rope_str = {
+//            let state = LAPCE_APP_STATE.get_active_state();
+//            let editor_split = state.editor_split.lock();
+//            let buffer = editor_split.buffers.get(&buffer_id).unwrap();
+//            if buffer.rev != rev {
+//                continue;
+//            } else {
+//                buffer.slice_to_cow(..buffer.len()).to_string()
+//            }
+//        };
+//
+//        let mut highlights: Vec<(usize, usize, Highlight)> = Vec::new();
+//        let mut current_hl: Option<Highlight> = None;
+//        for hightlight in highlighter
+//            .highlight(&highlight_config, &rope_str.as_bytes(), None, |_| None)
+//            .unwrap()
+//        {
+//            if let Ok(highlight) = hightlight {
+//                match highlight {
+//                    HighlightEvent::Source { start, end } => {
+//                        if let Some(hl) = current_hl {
+//                            highlights.push((start, end, hl.clone()));
+//                        }
+//                    }
+//                    HighlightEvent::HighlightStart(hl) => {
+//                        current_hl = Some(hl);
+//                    }
+//                    HighlightEvent::HighlightEnd => current_hl = None,
+//                }
+//            }
+//        }
+//
+//        let state = LAPCE_APP_STATE.get_active_state();
+//        let mut editor_split = state.editor_split.lock();
+//        let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+//        if buffer.rev != rev {
+//            continue;
+//        }
+//        buffer.highlights = highlights.to_owned();
+//        buffer.line_highlights = HashMap::new();
+//
+//        for (view_id, editor) in editor_split.editors.iter() {
+//            if editor.buffer_id.as_ref() == Some(&buffer_id) {
+//                event_sink.submit_command(
+//                    LAPCE_UI_COMMAND,
+//                    LapceUICommand::FillTextLayouts,
+//                    Target::Widget(view_id.clone()),
+//                );
+//            }
+//        }
+//    }
+//}
 
 #[cfg(test)]
 mod tests {

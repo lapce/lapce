@@ -21,7 +21,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use druid::{
     widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers,
-    Target, WidgetId,
+    Target, WidgetId, WindowId,
 };
 use lazy_static::lazy_static;
 use mio::{Events, Interest, Poll, Token};
@@ -34,7 +34,8 @@ use std::{
 use toml;
 
 lazy_static! {
-    pub static ref LAPCE_STATE: LapceState = LapceState::new();
+    //pub static ref LAPCE_STATE: LapceState = LapceState::new();
+    pub static ref LAPCE_APP_STATE: LapceAppState = LapceAppState::new();
 }
 
 #[derive(PartialEq)]
@@ -83,7 +84,7 @@ pub struct LapceUIState {
     pub focus: LapceFocus,
     pub buffers: Arc<HashMap<BufferId, Arc<BufferUIState>>>,
     pub editors: Arc<HashMap<WidgetId, EditorUIState>>,
-    pub highlight_sender: Sender<(BufferId, u64)>,
+    pub highlight_sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
 }
 
 impl Data for LapceUIState {
@@ -96,10 +97,16 @@ impl Data for LapceUIState {
 
 impl LapceUIState {
     pub fn new(event_sink: ExtEventSink) -> LapceUIState {
-        let active = LAPCE_STATE.editor_split.lock().active;
-        let editor_ui_state = EditorUIState::new();
         let mut editors = HashMap::new();
-        editors.insert(active, editor_ui_state);
+        for (_, state) in LAPCE_APP_STATE.states.lock().iter() {
+            for (_, state) in state.states.lock().iter() {
+                for (_, editor) in state.editor_split.lock().editors.iter() {
+                    let editor_ui_state = EditorUIState::new();
+                    editors.insert(editor.view_id, editor_ui_state);
+                }
+            }
+        }
+
         let (sender, receiver) = channel();
         let state = LapceUIState {
             buffers: Arc::new(HashMap::new()),
@@ -141,40 +148,130 @@ pub enum LapceWorkspaceType {
     RemoteSSH(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LapceWorkspace {
     pub kind: LapceWorkspaceType,
     pub path: PathBuf,
 }
 
 #[derive(Clone)]
-pub struct LapceState {
-    pub workspace: LapceWorkspace,
-    pub palette: Arc<Mutex<PaletteState>>,
-    pub keypress: Arc<Mutex<KeyPressState>>,
+pub struct LapceAppState {
+    pub states: Arc<Mutex<HashMap<WindowId, LapceWindowState>>>,
     pub theme: HashMap<String, Color>,
-    pub focus: Arc<Mutex<LapceFocus>>,
-    pub editor_split: Arc<Mutex<EditorSplitState>>,
-    pub container: Option<WidgetId>,
-    pub window_id: WidgetId,
-    pub file_explorer: Arc<Mutex<FileExplorerState>>,
-    pub plugins: Arc<Mutex<PluginCatalog>>,
-    pub lsp: Arc<Mutex<LspCatalog>>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
-    pub ssh_session: Arc<Mutex<Option<SshSession>>>,
-    //    pub icons: Arc<Mutex<HashMap<String, Option<SvgData>>>>,
 }
 
-impl Data for LapceState {
-    fn same(&self, other: &Self) -> bool {
-        self.editor_split.same(&other.editor_split)
-            && self.palette.same(&other.palette)
-            && self.file_explorer.same(&other.file_explorer)
+impl LapceAppState {
+    pub fn new() -> LapceAppState {
+        LapceAppState {
+            states: Arc::new(Mutex::new(HashMap::new())),
+            theme: Self::get_theme().unwrap_or(HashMap::new()),
+            ui_sink: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn get_theme() -> Result<HashMap<String, Color>> {
+        let mut f = File::open("/Users/Lulu/lapce/.lapce/theme.toml")?;
+        let mut content = vec![];
+        f.read_to_end(&mut content)?;
+        let toml_theme: HashMap<String, String> = toml::from_slice(&content)?;
+
+        let mut theme = HashMap::new();
+        for (name, hex) in toml_theme.iter() {
+            if let Ok(color) = hex_to_color(hex) {
+                theme.insert(name.to_string(), color);
+            }
+        }
+        Ok(theme)
+    }
+
+    pub fn set_ui_sink(&self, ui_event_sink: ExtEventSink) {
+        *self.ui_sink.lock() = Some(ui_event_sink);
+    }
+
+    pub fn get_window_state(&self, window_id: &WindowId) -> LapceWindowState {
+        self.states.lock().get(window_id).unwrap().clone()
+    }
+
+    pub fn get_active_tab_state(&self, window_id: &WindowId) -> LapceTabState {
+        let window_state = self.get_window_state(window_id);
+        let active = window_state.active.lock();
+        let tab_states = window_state.states.lock();
+        tab_states.get(&active).unwrap().clone()
+    }
+
+    pub fn get_tab_state(
+        &self,
+        window_id: &WindowId,
+        tab_id: &WidgetId,
+    ) -> LapceTabState {
+        self.states
+            .lock()
+            .get(window_id)
+            .unwrap()
+            .states
+            .lock()
+            .get(tab_id)
+            .unwrap()
+            .clone()
+    }
+
+    pub fn submit_ui_command(&self, comand: LapceUICommand, widget_id: WidgetId) {
+        self.ui_sink.lock().as_ref().unwrap().submit_command(
+            LAPCE_UI_COMMAND,
+            comand,
+            Target::Widget(widget_id),
+        );
     }
 }
 
-impl LapceState {
-    pub fn new() -> LapceState {
+#[derive(Clone)]
+pub struct LapceWindowState {
+    pub window_id: WindowId,
+    pub states: Arc<Mutex<HashMap<WidgetId, LapceTabState>>>,
+    pub active: Arc<Mutex<WidgetId>>,
+}
+
+impl LapceWindowState {
+    pub fn new() -> LapceWindowState {
+        let window_id = WindowId::next();
+        let state = LapceTabState::new(window_id.clone());
+        let active = state.tab_id;
+        let mut states = HashMap::new();
+        states.insert(active.clone(), state);
+        LapceWindowState {
+            window_id,
+            states: Arc::new(Mutex::new(states)),
+            active: Arc::new(Mutex::new(active)),
+        }
+    }
+
+    pub fn get_active_state(&self) -> LapceTabState {
+        self.states.lock().get(&self.active.lock()).unwrap().clone()
+    }
+
+    pub fn get_state(&self, tab_id: &WidgetId) -> LapceTabState {
+        self.states.lock().get(tab_id).unwrap().clone()
+    }
+}
+
+#[derive(Clone)]
+pub struct LapceTabState {
+    pub tab_id: WidgetId,
+    pub workspace: Arc<Mutex<LapceWorkspace>>,
+    pub palette: Arc<Mutex<PaletteState>>,
+    pub keypress: Arc<Mutex<KeyPressState>>,
+    pub focus: Arc<Mutex<LapceFocus>>,
+    pub editor_split: Arc<Mutex<EditorSplitState>>,
+    pub container: Option<WidgetId>,
+    pub file_explorer: Arc<Mutex<FileExplorerState>>,
+    pub plugins: Arc<Mutex<PluginCatalog>>,
+    pub lsp: Arc<Mutex<LspCatalog>>,
+    pub ssh_session: Arc<Mutex<Option<SshSession>>>,
+}
+
+impl LapceTabState {
+    pub fn new(window_id: WindowId) -> LapceTabState {
         let workspace = LapceWorkspace {
             kind: LapceWorkspaceType::Local,
             path: PathBuf::from("/Users/Lulu/lapce"),
@@ -183,21 +280,34 @@ impl LapceState {
         //    kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
         //    path: PathBuf::from("/home/dz/cosmos"),
         //};
-        let state = LapceState {
-            workspace,
-            theme: Self::get_theme().unwrap_or(HashMap::new()),
+        let tab_id = WidgetId::next();
+        let state = LapceTabState {
+            tab_id: tab_id.clone(),
+            workspace: Arc::new(Mutex::new(workspace)),
             focus: Arc::new(Mutex::new(LapceFocus::Editor)),
-            palette: Arc::new(Mutex::new(PaletteState::new())),
-            editor_split: Arc::new(Mutex::new(EditorSplitState::new())),
-            file_explorer: Arc::new(Mutex::new(FileExplorerState::new())),
+            palette: Arc::new(Mutex::new(PaletteState::new(
+                window_id.clone(),
+                tab_id.clone(),
+            ))),
+            editor_split: Arc::new(Mutex::new(EditorSplitState::new(
+                window_id.clone(),
+                tab_id.clone(),
+            ))),
+            file_explorer: Arc::new(Mutex::new(FileExplorerState::new(
+                window_id.clone(),
+                tab_id.clone(),
+            ))),
             container: None,
-            window_id: WidgetId::next(),
-            keypress: Arc::new(Mutex::new(KeyPressState::new())),
-            plugins: Arc::new(Mutex::new(PluginCatalog::new())),
-            lsp: Arc::new(Mutex::new(LspCatalog::new())),
-            ui_sink: Arc::new(Mutex::new(None)),
+            keypress: Arc::new(Mutex::new(KeyPressState::new(
+                window_id.clone(),
+                tab_id.clone(),
+            ))),
+            plugins: Arc::new(Mutex::new(PluginCatalog::new(window_id, tab_id))),
+            lsp: Arc::new(Mutex::new(LspCatalog::new(
+                window_id.clone(),
+                tab_id.clone(),
+            ))),
             ssh_session: Arc::new(Mutex::new(None)),
-            //            icons: Arc::new(Mutex::new(HashMap::new())),
         };
         let local_state = state.clone();
         thread::spawn(move || {
@@ -216,21 +326,6 @@ impl LapceState {
         None
     }
 
-    fn get_theme() -> Result<HashMap<String, Color>> {
-        let mut f = File::open("/Users/Lulu/lapce/.lapce/theme.toml")?;
-        let mut content = vec![];
-        f.read_to_end(&mut content)?;
-        let toml_theme: HashMap<String, String> = toml::from_slice(&content)?;
-
-        let mut theme = HashMap::new();
-        for (name, hex) in toml_theme.iter() {
-            if let Ok(color) = hex_to_color(hex) {
-                theme.insert(name.to_string(), color);
-            }
-        }
-        Ok(theme)
-    }
-
     pub fn get_mode(&self) -> Mode {
         match *self.focus.lock() {
             LapceFocus::Palette => Mode::Insert,
@@ -240,24 +335,12 @@ impl LapceState {
     }
 
     pub fn get_ssh_session(&self, host: &str) -> Result<()> {
-        let mut ssh_session = LAPCE_STATE.ssh_session.lock();
+        let mut ssh_session = self.ssh_session.lock();
         if ssh_session.is_none() {
             let session = SshSession::new(host)?;
             *ssh_session = Some(session);
         }
         Ok(())
-    }
-
-    pub fn set_ui_sink(&self, ui_event_sink: ExtEventSink) {
-        *self.ui_sink.lock() = Some(ui_event_sink);
-    }
-
-    pub fn submit_ui_command(&self, comand: LapceUICommand, widget_id: WidgetId) {
-        self.ui_sink.lock().as_ref().unwrap().submit_command(
-            LAPCE_UI_COMMAND,
-            comand,
-            Target::Widget(widget_id),
-        );
     }
 
     pub fn insert(
@@ -368,7 +451,7 @@ impl LapceState {
     }
 
     pub fn request_paint(&self) {
-        self.submit_ui_command(LapceUICommand::RequestPaint, self.window_id);
+        LAPCE_APP_STATE.submit_ui_command(LapceUICommand::RequestPaint, self.tab_id);
     }
 
     pub fn check_condition(&self, condition: &str) -> bool {

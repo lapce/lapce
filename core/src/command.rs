@@ -77,6 +77,12 @@ pub enum LapceCommand {
     SplitRight,
     #[strum(serialize = "split_left")]
     SplitLeft,
+    #[strum(serialize = "new_tab")]
+    NewTab,
+    #[strum(serialize = "next_tab")]
+    NextTab,
+    #[strum(serialize = "previous_tab")]
+    PreviousTab,
     #[strum(serialize = "insert_mode")]
     InsertMode,
     #[strum(serialize = "insert_first_non_blank")]
@@ -153,6 +159,9 @@ pub enum LapceUICommand {
     FillTextLayouts,
     RequestLayout,
     RequestPaint,
+    NewTab,
+    NextTab,
+    PreviousTab,
     RequestPaintRect(Rect),
     ApplyEdits(u64, Vec<TextEdit>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),

@@ -4,7 +4,7 @@ use bit_vec::BitVec;
 use druid::{
     scroll_component::ScrollComponent, theme, widget::SvgData, Affine, Color,
     Command, Env, Event, EventCtx, Insets, PaintCtx, Point, Rect, RenderContext,
-    Size, Target, TextLayout, Vec2, Widget, WidgetId,
+    Size, Target, TextLayout, Vec2, Widget, WidgetId, WindowId,
 };
 use fzyr::{has_match, locate};
 use lsp_types::{CompletionItem, CompletionItemKind};
@@ -13,7 +13,8 @@ use std::str::FromStr;
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     explorer::ICONS_DIR,
-    state::{LapceUIState, LAPCE_STATE},
+    state::LapceUIState,
+    state::LAPCE_APP_STATE,
     theme::LapceTheme,
 };
 
@@ -130,17 +131,24 @@ impl CompletionState {
 }
 
 pub struct Completion {
+    window_id: WindowId,
+    tab_id: WidgetId,
     id: WidgetId,
 }
 
 impl Completion {
-    pub fn new(id: WidgetId) -> Completion {
-        Completion { id }
+    pub fn new(window_id: WindowId, tab_id: WidgetId, id: WidgetId) -> Completion {
+        Completion {
+            window_id,
+            tab_id,
+            id,
+        }
     }
 
     fn paint_raw(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let mut completion = &mut LAPCE_STATE.editor_split.lock().completion;
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let mut completion = &mut state.editor_split.lock().completion;
         let items = completion.current_items();
         let rect = ctx.region().rects()[0];
         let size = rect.size();
@@ -171,7 +179,7 @@ impl Completion {
                 let rect = Size::new(size.width, line_height).to_rect().with_origin(
                     Point::new(0.0, line_height * line as f64 - scroll_offset),
                 );
-                if let Some(background) = LAPCE_STATE.theme.get("background") {
+                if let Some(background) = LAPCE_APP_STATE.theme.get("background") {
                     ctx.fill(rect, background);
                 }
             }
@@ -273,7 +281,8 @@ impl Widget<LapceUIState> for Completion {
         let shadow_width = 5.0;
         let shift = shadow_width * 2.0;
         let size = {
-            let completion = &mut LAPCE_STATE.editor_split.lock().completion;
+            let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+            let completion = &mut state.editor_split.lock().completion;
             let items = completion.current_items();
             let items_height = line_height * (items.len() as f64) + shift * 2.0;
             if items_height < ctx.size().height {

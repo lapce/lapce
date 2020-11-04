@@ -1,9 +1,11 @@
 use crate::{
     command::LapceUICommand,
     ssh::{SshSession, SshStream},
-    state::{LapceWorkspaceType, LAPCE_STATE},
+    state::LapceWorkspaceType,
+    state::LAPCE_APP_STATE,
 };
 use anyhow::{anyhow, Result};
+use druid::{WidgetId, WindowId};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use parking_lot::Mutex;
 use std::{
@@ -47,12 +49,16 @@ pub enum LspHeader {
 }
 
 pub struct LspCatalog {
+    window_id: WindowId,
+    tab_id: WidgetId,
     clients: HashMap<String, Arc<Mutex<LspClient>>>,
 }
 
 impl LspCatalog {
-    pub fn new() -> LspCatalog {
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> LspCatalog {
         LspCatalog {
+            window_id,
+            tab_id,
             clients: HashMap::new(),
         }
     }
@@ -63,13 +69,26 @@ impl LspCatalog {
         language_id: &str,
         options: Option<Value>,
     ) {
-        match &LAPCE_STATE.workspace.kind {
+        let workspace_type = LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .workspace
+            .lock()
+            .kind
+            .clone();
+        match workspace_type {
             LapceWorkspaceType::Local => {
-                let client = LspClient::new(exec_path, options);
+                let client =
+                    LspClient::new(self.window_id, self.tab_id, exec_path, options);
                 self.clients.insert(language_id.to_string(), client);
             }
             LapceWorkspaceType::RemoteSSH(host) => {
-                if let Ok(client) = LspClient::new_ssh(exec_path, options, host) {
+                if let Ok(client) = LspClient::new_ssh(
+                    self.window_id,
+                    self.tab_id,
+                    exec_path,
+                    options,
+                    &host,
+                ) {
                     self.clients.insert(language_id.to_string(), client);
                 }
             }
@@ -178,6 +197,8 @@ impl<F: Send + FnOnce(&mut LspClient, Result<Value>)> Callable for F {
 }
 
 pub struct LspClient {
+    window_id: WindowId,
+    tab_id: WidgetId,
     writer: Box<dyn Write + Send>,
     next_id: u64,
     pending: HashMap<u64, Callback>,
@@ -188,7 +209,12 @@ pub struct LspClient {
 }
 
 impl LspClient {
-    pub fn new(exec_path: &str, options: Option<Value>) -> Arc<Mutex<LspClient>> {
+    pub fn new(
+        window_id: WindowId,
+        tab_id: WidgetId,
+        exec_path: &str,
+        options: Option<Value>,
+    ) -> Arc<Mutex<LspClient>> {
         let mut process = Command::new(exec_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -198,6 +224,8 @@ impl LspClient {
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
 
         let lsp_client = Arc::new(Mutex::new(LspClient {
+            window_id,
+            tab_id,
             writer,
             next_id: 0,
             pending: HashMap::new(),
@@ -227,6 +255,8 @@ impl LspClient {
     }
 
     pub fn new_ssh(
+        window_id: WindowId,
+        tab_id: WidgetId,
         exec_path: &str,
         options: Option<Value>,
         host: &str,
@@ -237,6 +267,8 @@ impl LspClient {
         println!("lsp {}", exec_path);
         let writer = Box::new(ssh_session.get_stream(&channel));
         let lsp_client = Arc::new(Mutex::new(LspClient {
+            window_id,
+            tab_id,
             writer,
             next_id: 0,
             pending: HashMap::new(),
@@ -299,10 +331,13 @@ impl LspClient {
         position: Position,
     ) {
         let uri = self.get_uri(buffer);
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
         self.request_completion(uri, position, move |lsp_client, result| {
             if let Ok(res) = result {
                 thread::spawn(move || {
-                    LAPCE_STATE
+                    LAPCE_APP_STATE
+                        .get_tab_state(&window_id, &tab_id)
                         .editor_split
                         .lock()
                         .show_completion(request_id, res);
@@ -341,6 +376,8 @@ impl LspClient {
     pub fn handle_notification(&mut self, method: &str, params: Params) {
         match method {
             "textDocument/publishDiagnostics" => {
+                let window_id = self.window_id;
+                let tab_id = self.tab_id;
                 thread::spawn(move || {
                     let diagnostics: Result<
                         PublishDiagnosticsParams,
@@ -349,12 +386,14 @@ impl LspClient {
                         serde_json::to_value(params).unwrap(),
                     );
                     if let Ok(diagnostics) = diagnostics {
-                        let mut editor_split = LAPCE_STATE.editor_split.lock();
+                        let state =
+                            LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                        let mut editor_split = state.editor_split.lock();
                         editor_split.diagnostics.insert(
                             diagnostics.uri.path().to_string(),
                             diagnostics.diagnostics,
                         );
-                        LAPCE_STATE.request_paint();
+                        state.request_paint();
                     }
                 });
             }
@@ -488,6 +527,8 @@ impl LspClient {
     pub fn document_formatting(&mut self, buffer: &Buffer) {
         let uri = self.get_uri(buffer);
         let rev = buffer.rev;
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
         self.request_document_formatting(uri, move |lsp_client, result| {
             if let Ok(res) = result {
                 let edits: Result<Vec<TextEdit>, serde_json::Error> =
@@ -495,9 +536,11 @@ impl LspClient {
                 if let Ok(edits) = edits {
                     if edits.len() > 0 {
                         thread::spawn(move || {
-                            LAPCE_STATE.submit_ui_command(
+                            let state =
+                                LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                            LAPCE_APP_STATE.submit_ui_command(
                                 LapceUICommand::ApplyEdits(rev, edits),
-                                LAPCE_STATE.editor_split.lock().widget_id,
+                                state.editor_split.lock().widget_id,
                             );
                         });
                     }
@@ -530,10 +573,13 @@ impl LspClient {
         position: Position,
     ) {
         let uri = self.get_uri(buffer);
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
         self.request_definition(uri, position, move |lsp_client, result| {
             if let Ok(res) = result {
                 thread::spawn(move || {
-                    LAPCE_STATE
+                    LAPCE_APP_STATE
+                        .get_tab_state(&window_id, &tab_id)
                         .editor_split
                         .lock()
                         .go_to_definition(request_id, res);
@@ -613,8 +659,13 @@ impl LspClient {
         let params = Params::from(
             serde_json::to_value(text_document_did_open_params).unwrap(),
         );
-        let root_url =
-            Url::from_directory_path(LAPCE_STATE.workspace.path.clone()).unwrap();
+        let workspace_path = LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .workspace
+            .lock()
+            .path
+            .clone();
+        let root_url = Url::from_directory_path(workspace_path).unwrap();
         if !self.is_initialized {
             self.send_initialize(Some(root_url), move |lsp_client, result| {
                 if let Ok(result) = result {

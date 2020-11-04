@@ -9,12 +9,13 @@ use crate::{
     editor::EditorState,
     editor::EditorUIState,
     editor::EditorView,
-    state::LapceState,
+    state::LapceTabState,
     state::LapceUIState,
+    state::LAPCE_APP_STATE,
     theme::LapceTheme,
 };
 use crate::{palette::Palette, split::LapceSplit};
-use crate::{scroll::LapceScroll, state::LapceFocus, state::LAPCE_STATE};
+use crate::{scroll::LapceScroll, state::LapceFocus};
 use druid::{
     kurbo::{Line, Rect},
     widget::Container,
@@ -27,7 +28,7 @@ use druid::{
 use druid::{
     theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
-    WidgetExt, WidgetPod,
+    WidgetExt, WidgetPod, WindowId,
 };
 
 pub struct ChildState {
@@ -37,6 +38,8 @@ pub struct ChildState {
 }
 
 pub struct LapceContainer {
+    window_id: WindowId,
+    tab_id: WidgetId,
     palette_max_size: Size,
     palette_rect: Rect,
     palette: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
@@ -45,33 +48,41 @@ pub struct LapceContainer {
 }
 
 impl LapceContainer {
-    pub fn new() -> Self {
+    pub fn new(window_id: WindowId, tab_id: WidgetId) -> Self {
+        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
         let (widget_id, scroll_widget_id) = {
-            let palette = LAPCE_STATE.palette.lock();
+            let palette = state.palette.lock();
             (palette.widget_id.clone(), palette.scroll_widget_id.clone())
         };
-        let palette = Palette::new(scroll_widget_id)
+        let palette = Palette::new(window_id, tab_id, scroll_widget_id)
             .with_id(widget_id)
             .border(theme::BORDER_LIGHT, 1.0)
             .background(LapceTheme::EDITOR_SELECTION_COLOR);
         let palette = WidgetPod::new(palette).boxed();
 
-        let editor_split_state = LAPCE_STATE.editor_split.lock();
+        let editor_split_state = state.editor_split.lock();
         let editor_view = EditorView::new(
+            window_id,
+            tab_id.clone(),
             editor_split_state.widget_id,
             editor_split_state.active,
             WidgetId::next(),
         );
         let editor_split = WidgetPod::new(
-            LapceSplit::new(true)
+            LapceSplit::new(window_id, tab_id, true)
                 .with_id(editor_split_state.widget_id)
                 .with_flex_child(editor_view, 1.0),
         );
 
-        let completion =
-            WidgetPod::new(Completion::new(editor_split_state.completion.widget_id));
+        let completion = WidgetPod::new(Completion::new(
+            window_id.clone(),
+            tab_id.clone(),
+            editor_split_state.completion.widget_id,
+        ));
 
         LapceContainer {
+            window_id,
+            tab_id,
             palette_max_size: Size::new(600.0, 400.0),
             palette_rect: Rect::ZERO
                 .with_origin(Point::new(200.0, 100.0))
@@ -91,23 +102,19 @@ impl Widget<LapceUIState> for LapceContainer {
         data: &mut LapceUIState,
         env: &Env,
     ) {
-        ctx.request_focus();
         match event {
             Event::Internal(_) => {
                 self.palette.event(ctx, event, data, env);
                 self.editor_split.event(ctx, event, data, env);
                 self.completion.event(ctx, event, data, env);
             }
-            Event::KeyDown(key_event) => LAPCE_STATE
-                .keypress
-                .lock()
-                .key_down(ctx, data, key_event, env),
             Event::Command(cmd) => match cmd {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
                         LapceUICommand::OpenFile(path) => {
-                            LAPCE_STATE
+                            LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id)
                                 .editor_split
                                 .lock()
                                 .open_file(ctx, data, path);
@@ -118,7 +125,9 @@ impl Widget<LapceUIState> for LapceContainer {
                             rev,
                             highlights,
                         ) => {
-                            let mut editor_split = LAPCE_STATE.editor_split.lock();
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
                             let buffer =
                                 editor_split.buffers.get_mut(buffer_id).unwrap();
                             if *rev == buffer.rev {
@@ -145,7 +154,11 @@ impl Widget<LapceUIState> for LapceContainer {
             | Event::MouseUp(mouse)
             | Event::MouseMove(mouse)
             | Event::Wheel(mouse) => {
-                if *LAPCE_STATE.focus.lock() == LapceFocus::Palette
+                if *LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .focus
+                    .lock()
+                    == LapceFocus::Palette
                     && self.palette_rect.contains(mouse.pos)
                 {
                     self.palette.event(ctx, event, data, env);
@@ -206,7 +219,8 @@ impl Widget<LapceUIState> for LapceContainer {
 
         {
             self.completion.layout(ctx, bc, data, env);
-            let editor_split = LAPCE_STATE.editor_split.lock();
+            let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+            let editor_split = state.editor_split.lock();
             let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
             for child in &self.editor_split.widget().children {
                 if child.widget.id() == editor_split.active {
@@ -256,18 +270,30 @@ impl Widget<LapceUIState> for LapceContainer {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let rects = ctx.region().rects().to_vec();
         for rect in rects {
-            if let Some(background) = LAPCE_STATE.theme.get("background") {
+            if let Some(background) = LAPCE_APP_STATE.theme.get("background") {
                 ctx.fill(rect, background);
             }
         }
         self.editor_split.paint(ctx, data, env);
-        if *LAPCE_STATE.focus.lock() == LapceFocus::Palette {
+        if *LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .focus
+            .lock()
+            == LapceFocus::Palette
+        {
             let blur_color = Color::grey8(100);
             ctx.blurred_rect(self.palette.layout_rect(), 5.0, &blur_color);
             self.palette.paint(ctx, data, env);
         }
 
-        if LAPCE_STATE.editor_split.lock().completion.len() > 0 {
+        if LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .editor_split
+            .lock()
+            .completion
+            .len()
+            > 0
+        {
             self.completion.paint(ctx, data, env);
         }
     }
