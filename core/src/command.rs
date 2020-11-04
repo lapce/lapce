@@ -77,6 +77,8 @@ pub enum LapceCommand {
     SplitRight,
     #[strum(serialize = "split_left")]
     SplitLeft,
+    #[strum(serialize = "close_tab")]
+    CloseTab,
     #[strum(serialize = "new_tab")]
     NewTab,
     #[strum(serialize = "next_tab")]
@@ -159,6 +161,7 @@ pub enum LapceUICommand {
     FillTextLayouts,
     RequestLayout,
     RequestPaint,
+    CloseTab,
     NewTab,
     NextTab,
     PreviousTab,

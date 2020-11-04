@@ -21,8 +21,8 @@ use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
 use crate::{
     buffer::BufferId,
-    editor::Counter,
     ssh::{SshSession, SshStream},
+    state::Counter,
     state::LapceTabState,
     state::LapceWorkspaceType,
     state::LAPCE_APP_STATE,
@@ -43,7 +43,8 @@ pub struct PluginCatalog {
 }
 
 pub struct PluginHandler {
-    state: LapceTabState,
+    window_id: WindowId,
+    tab_id: WidgetId,
 }
 
 #[derive(Deserialize)]
@@ -59,6 +60,12 @@ pub struct Plugin {
     id: PluginId,
     name: String,
     // process: Child,
+}
+
+impl Drop for Plugin {
+    fn drop(&mut self) {
+        println!("now drop plugin");
+    }
 }
 
 impl Plugin {
@@ -159,10 +166,9 @@ impl PluginCatalog {
         match workspace_type {
             LapceWorkspaceType::Local => {
                 for (_, manifest) in self.items.clone().iter() {
-                    let state =
-                        LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
                     start_plugin_process(
-                        state,
+                        self.window_id,
+                        self.tab_id,
                         manifest.clone(),
                         self.next_plugin_id(),
                     );
@@ -173,12 +179,12 @@ impl PluginCatalog {
                     let manifest = manifest.clone();
                     let plugin_id = self.next_plugin_id();
                     let host = host.clone();
-                    let state =
-                        LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                    let window_id = self.window_id;
+                    let tab_id = self.tab_id;
                     thread::spawn(move || {
-                        if let Err(e) =
-                            start_plugin_ssh(state, manifest, plugin_id, &host)
-                        {
+                        if let Err(e) = start_plugin_ssh(
+                            window_id, tab_id, manifest, plugin_id, &host,
+                        ) {
                             println!("start plugin ssh error {}", e);
                         }
                     });
@@ -276,7 +282,8 @@ fn load_manifest(path: &Path) -> Result<PluginDescription> {
 }
 
 fn start_plugin_ssh(
-    state: LapceTabState,
+    window_id: WindowId,
+    tab_id: WidgetId,
     plugin_desc: Arc<PluginDescription>,
     id: PluginId,
     host: &str,
@@ -301,10 +308,11 @@ fn start_plugin_ssh(
 
     plugin.initialize();
 
+    let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
     state.plugins.lock().running.push(plugin);
 
     //    let reader = ssh_session.get_async_stream(channel.stream(0))?;
-    let mut handler = PluginHandler { state };
+    let mut handler = PluginHandler { window_id, tab_id };
     if let Err(e) = looper.mainloop(
         || BufReader::new(ssh_session.get_stream(&channel)),
         &mut handler,
@@ -316,7 +324,8 @@ fn start_plugin_ssh(
 }
 
 fn start_plugin_process(
-    state: LapceTabState,
+    window_id: WindowId,
+    tab_id: WidgetId,
     plugin_desc: Arc<PluginDescription>,
     id: PluginId,
 ) {
@@ -352,9 +361,10 @@ fn start_plugin_process(
             };
 
             plugin.initialize();
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
             state.plugins.lock().running.push(plugin);
 
-            let mut handler = PluginHandler { state };
+            let mut handler = PluginHandler { window_id, tab_id };
             if let Err(e) =
                 looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
             {
@@ -538,7 +548,8 @@ impl Handler for PluginHandler {
         } = rpc;
         match cmd {
             PluginNotification::ShowCompletion { request_id, result } => {
-                self.state
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
                     .editor_split
                     .lock()
                     .show_completion(request_id, result);
@@ -548,11 +559,11 @@ impl Handler for PluginHandler {
                 language_id,
                 options,
             } => {
-                self.state.lsp.lock().start_server(
-                    &exec_path,
-                    &language_id,
-                    options,
-                );
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .lsp
+                    .lock()
+                    .start_server(&exec_path, &language_id, options);
             }
         }
     }
@@ -574,7 +585,9 @@ impl Handler for PluginHandler {
                 max_size,
                 rev,
             } => {
-                let mut editor_split = self.state.editor_split.lock();
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut editor_split = state.editor_split.lock();
                 let buffer = editor_split.get_buffer(&buffer_id).unwrap();
                 let text_cow = Cow::Borrowed(&buffer.rope);
                 let text = &text_cow;

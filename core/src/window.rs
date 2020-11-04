@@ -209,6 +209,30 @@ impl Widget<LapceUIState> for LapceWindow {
                             *window_state.active.lock() = tab_id;
                             ctx.request_layout();
                         }
+                        LapceUICommand::CloseTab => {
+                            if self.tabs.len() <= 1 {
+                                return;
+                            }
+                            let window_state =
+                                LAPCE_APP_STATE.get_window_state(&self.window_id);
+                            let mut active = window_state.active.lock();
+                            let mut index = 0;
+                            for (i, window) in self.tabs.iter_mut().enumerate() {
+                                if window.id() == *active {
+                                    index = i;
+                                }
+                            }
+                            let new_index = if index >= self.tabs.len() - 1 {
+                                index - 1
+                            } else {
+                                index + 1
+                            };
+                            let new_active = self.tabs[new_index].widget().tab_id;
+                            self.tabs.remove(index);
+                            window_state.states.lock().remove(&active);
+                            *active = new_active;
+                            ctx.request_layout();
+                        }
                         LapceUICommand::NextTab => {
                             let window_state =
                                 LAPCE_APP_STATE.get_window_state(&self.window_id);
@@ -258,8 +282,8 @@ impl Widget<LapceUIState> for LapceWindow {
             },
             _ => (),
         }
-        for window in self.tabs.iter_mut() {
-            window.event(ctx, event, data, env);
+        for tab in self.tabs.iter_mut() {
+            tab.event(ctx, event, data, env);
         }
     }
 
@@ -270,8 +294,8 @@ impl Widget<LapceUIState> for LapceWindow {
         data: &LapceUIState,
         env: &Env,
     ) {
-        for window in self.tabs.iter_mut() {
-            window.lifecycle(ctx, event, data, env);
+        for tab in self.tabs.iter_mut() {
+            tab.lifecycle(ctx, event, data, env);
         }
     }
 
@@ -282,8 +306,8 @@ impl Widget<LapceUIState> for LapceWindow {
         data: &LapceUIState,
         env: &Env,
     ) {
-        for window in self.tabs.iter_mut() {
-            window.update(ctx, data, env);
+        for tab in self.tabs.iter_mut() {
+            tab.update(ctx, data, env);
         }
     }
 

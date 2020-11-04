@@ -50,17 +50,6 @@ pub struct LapceUI {
     container: LapceContainer,
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct Counter(usize);
-
-impl Counter {
-    pub fn next(&mut self) -> usize {
-        let n = self.0;
-        self.0 = n + 1;
-        n + 1
-    }
-}
-
 #[derive(Copy, Clone)]
 pub struct EditorCount(Option<usize>);
 
@@ -758,7 +747,6 @@ pub struct EditorSplitState {
     pub editors: HashMap<WidgetId, EditorState>,
     pub buffers: HashMap<BufferId, Buffer>,
     open_files: HashMap<String, BufferId>,
-    id_counter: Counter,
     mode: Mode,
     visual_mode: VisualMode,
     operator: Option<EditorOperator>,
@@ -781,7 +769,6 @@ impl EditorSplitState {
             widget_id: editor_split_id,
             active,
             editors,
-            id_counter: Counter::default(),
             buffers: HashMap::new(),
             open_files: HashMap::new(),
             mode: Mode::Normal,
@@ -903,7 +890,7 @@ impl EditorSplitState {
     }
 
     fn next_buffer_id(&mut self) -> BufferId {
-        BufferId(self.id_counter.next())
+        BufferId(LAPCE_APP_STATE.next_id())
     }
 
     pub fn get_buffer(&mut self, id: &BufferId) -> Option<&mut Buffer> {
@@ -1826,6 +1813,13 @@ impl EditorSplitState {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::NewTab,
+                    Target::Global,
+                ));
+            }
+            LapceCommand::CloseTab => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::CloseTab,
                     Target::Global,
                 ));
             }

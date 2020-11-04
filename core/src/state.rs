@@ -154,11 +154,23 @@ pub struct LapceWorkspace {
     pub path: PathBuf,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct Counter(usize);
+
+impl Counter {
+    pub fn next(&mut self) -> usize {
+        let n = self.0;
+        self.0 = n + 1;
+        n + 1
+    }
+}
+
 #[derive(Clone)]
 pub struct LapceAppState {
     pub states: Arc<Mutex<HashMap<WindowId, LapceWindowState>>>,
     pub theme: HashMap<String, Color>,
     pub ui_sink: Arc<Mutex<Option<ExtEventSink>>>,
+    id_counter: Arc<Mutex<Counter>>,
 }
 
 impl LapceAppState {
@@ -167,6 +179,7 @@ impl LapceAppState {
             states: Arc::new(Mutex::new(HashMap::new())),
             theme: Self::get_theme().unwrap_or(HashMap::new()),
             ui_sink: Arc::new(Mutex::new(None)),
+            id_counter: Arc::new(Mutex::new(Counter::default())),
         }
     }
 
@@ -183,6 +196,10 @@ impl LapceAppState {
             }
         }
         Ok(theme)
+    }
+
+    pub fn next_id(&self) -> usize {
+        self.id_counter.lock().next()
     }
 
     pub fn set_ui_sink(&self, ui_event_sink: ExtEventSink) {
