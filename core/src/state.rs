@@ -333,6 +333,11 @@ impl LapceTabState {
         state
     }
 
+    pub fn stop(&self) {
+        self.plugins.lock().stop();
+        self.lsp.lock().stop();
+    }
+
     pub fn start_plugin(&self) {
         let mut plugins = self.plugins.lock();
         plugins.reload_from_paths(&[PathBuf::from_str("./lsp").unwrap()]);

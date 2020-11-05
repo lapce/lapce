@@ -77,8 +77,6 @@ pub struct Buffer {
     highlight_names: Vec<String>,
     pub highlights: Vec<(usize, usize, Highlight)>,
     pub line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
-    // pub highlight_version: String,
-    // event_sink: ExtEventSink,
     undos: Vec<Vec<(RopeDelta, RopeDelta)>>,
     current_undo: usize,
     pub path: String,

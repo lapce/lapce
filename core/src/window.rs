@@ -45,6 +45,19 @@ impl LapceTab {
     }
 }
 
+impl Drop for LapceTab {
+    fn drop(&mut self) {
+        println!("now drop tab");
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        state.stop();
+        LAPCE_APP_STATE
+            .get_window_state(&self.window_id)
+            .states
+            .lock()
+            .remove(&self.tab_id);
+    }
+}
+
 impl Widget<LapceUIState> for LapceTab {
     fn event(
         &mut self,
@@ -184,6 +197,11 @@ impl Widget<LapceUIState> for LapceWindow {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {
+                        LapceUICommand::CloseBuffers(buffer_ids) => {
+                            for buffer_id in buffer_ids {
+                                Arc::make_mut(&mut data.buffers).remove(buffer_id);
+                            }
+                        }
                         LapceUICommand::NewTab => {
                             let state = LapceTabState::new(self.window_id.clone());
                             for (_, editor) in
@@ -229,7 +247,7 @@ impl Widget<LapceUIState> for LapceWindow {
                             };
                             let new_active = self.tabs[new_index].widget().tab_id;
                             self.tabs.remove(index);
-                            window_state.states.lock().remove(&active);
+                            //window_state.states.lock().remove(&active);
                             *active = new_active;
                             ctx.request_layout();
                         }

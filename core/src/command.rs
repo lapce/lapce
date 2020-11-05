@@ -165,6 +165,7 @@ pub enum LapceUICommand {
     NewTab,
     NextTab,
     PreviousTab,
+    CloseBuffers(Vec<BufferId>),
     RequestPaintRect(Rect),
     ApplyEdits(u64, Vec<TextEdit>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),

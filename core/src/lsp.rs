@@ -15,7 +15,7 @@ use std::{
     io::BufWriter,
     io::Write,
     process::Command,
-    process::{self, Stdio},
+    process::{self, Child, Stdio},
     sync::mpsc::{channel, Receiver},
     sync::Arc,
     thread,
@@ -48,10 +48,21 @@ pub enum LspHeader {
     ContentLength(usize),
 }
 
+pub enum LspProcess {
+    Child(Child),
+    SshSession(SshSession),
+}
+
 pub struct LspCatalog {
     window_id: WindowId,
     tab_id: WidgetId,
     clients: HashMap<String, Arc<Mutex<LspClient>>>,
+}
+
+impl Drop for LspCatalog {
+    fn drop(&mut self) {
+        println!("now drop lsp catalog");
+    }
 }
 
 impl LspCatalog {
@@ -60,6 +71,19 @@ impl LspCatalog {
             window_id,
             tab_id,
             clients: HashMap::new(),
+        }
+    }
+
+    pub fn stop(&self) {
+        for (_, client) in self.clients.iter() {
+            match &mut client.lock().process {
+                LspProcess::Child(child) => {
+                    child.kill();
+                }
+                LspProcess::SshSession(ssh_session) => {
+                    ssh_session.session.disconnect(None, "closing down", None);
+                }
+            }
         }
     }
 
@@ -203,6 +227,7 @@ pub struct LspClient {
     next_id: u64,
     pending: HashMap<u64, Callback>,
     options: Option<Value>,
+    process: LspProcess,
     pub server_capabilities: Option<ServerCapabilities>,
     pub opened_documents: HashMap<BufferId, Url>,
     pub is_initialized: bool,
@@ -222,12 +247,14 @@ impl LspClient {
             .expect("Error Occurred");
 
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
+        let stdout = process.stdout.take().unwrap();
 
         let lsp_client = Arc::new(Mutex::new(LspClient {
             window_id,
             tab_id,
             writer,
             next_id: 0,
+            process: LspProcess::Child(process),
             pending: HashMap::new(),
             server_capabilities: None,
             opened_documents: HashMap::new(),
@@ -236,16 +263,16 @@ impl LspClient {
         }));
 
         let local_lsp_client = lsp_client.clone();
-        let mut stdout = process.stdout;
         thread::spawn(move || {
-            let mut reader = Box::new(BufReader::new(stdout.take().unwrap()));
+            let mut reader = Box::new(BufReader::new(stdout));
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
                         local_lsp_client.lock().handle_message(message_str.as_ref());
                     }
                     Err(err) => {
-                        // eprintln!("Error occurred {:?}", err);
+                        eprintln!("lsp read Error occurred {:?}", err);
+                        return;
                     }
                 };
             }
@@ -266,6 +293,7 @@ impl LspClient {
         ssh_session.channel_exec(&mut channel, exec_path)?;
         println!("lsp {}", exec_path);
         let writer = Box::new(ssh_session.get_stream(&channel));
+        let reader = ssh_session.get_stream(&channel);
         let lsp_client = Arc::new(Mutex::new(LspClient {
             window_id,
             tab_id,
@@ -273,6 +301,7 @@ impl LspClient {
             next_id: 0,
             pending: HashMap::new(),
             server_capabilities: None,
+            process: LspProcess::SshSession(ssh_session),
             opened_documents: HashMap::new(),
             is_initialized: false,
             options,
@@ -281,8 +310,7 @@ impl LspClient {
         let local_lsp_client = lsp_client.clone();
         //  let reader = ssh_session.get_async_stream(channel.stream(0))?;
         thread::spawn(move || {
-            let mut reader =
-                Box::new(BufReader::new(ssh_session.get_stream(&channel)));
+            let mut reader = Box::new(BufReader::new(reader));
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {

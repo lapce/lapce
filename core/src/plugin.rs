@@ -33,6 +33,11 @@ pub type PluginName = String;
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct PluginId(pub usize);
 
+pub enum PluginProcess {
+    Child(Child),
+    SshSession(SshSession),
+}
+
 pub struct PluginCatalog {
     window_id: WindowId,
     tab_id: WidgetId,
@@ -40,6 +45,12 @@ pub struct PluginCatalog {
     locations: HashMap<PathBuf, Arc<PluginDescription>>,
     id_counter: Counter,
     running: Vec<Plugin>,
+}
+
+impl Drop for PluginCatalog {
+    fn drop(&mut self) {
+        println!("now drop plugin catalog");
+    }
 }
 
 pub struct PluginHandler {
@@ -59,7 +70,7 @@ pub struct Plugin {
     peer: RpcPeer,
     id: PluginId,
     name: String,
-    // process: Child,
+    process: PluginProcess,
 }
 
 impl Drop for Plugin {
@@ -158,6 +169,19 @@ impl PluginCatalog {
             }
         }
         Ok(())
+    }
+
+    pub fn stop(&mut self) {
+        for plugin in self.running.iter_mut() {
+            match &mut plugin.process {
+                PluginProcess::Child(child) => {
+                    child.kill();
+                }
+                PluginProcess::SshSession(ssh) => {
+                    ssh.session.disconnect(None, "closing down", None);
+                }
+            }
+        }
     }
 
     pub fn start_all(&mut self) -> Result<()> {
@@ -299,9 +323,10 @@ fn start_plugin_ssh(
     let mut looper = RpcLoop::new(ssh_session.get_stream(&channel));
     let peer: RpcPeer = Box::new(looper.get_raw_peer());
     let name = plugin_desc.name.clone();
+    let read_stream = ssh_session.get_stream(&channel);
     let plugin = Plugin {
         peer,
-        //process: child,
+        process: PluginProcess::SshSession(ssh_session),
         name,
         id,
     };
@@ -313,10 +338,7 @@ fn start_plugin_ssh(
 
     //    let reader = ssh_session.get_async_stream(channel.stream(0))?;
     let mut handler = PluginHandler { window_id, tab_id };
-    if let Err(e) = looper.mainloop(
-        || BufReader::new(ssh_session.get_stream(&channel)),
-        &mut handler,
-    ) {
+    if let Err(e) = looper.mainloop(|| BufReader::new(read_stream), &mut handler) {
         println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
     }
     println!("plugin main loop exit {:?}", plugin_desc.dir);
@@ -355,7 +377,7 @@ fn start_plugin_process(
             let name = plugin_desc.name.clone();
             let plugin = Plugin {
                 peer,
-                //process: child,
+                process: PluginProcess::Child(child),
                 name,
                 id,
             };

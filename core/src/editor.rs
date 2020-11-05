@@ -756,6 +756,22 @@ pub struct EditorSplitState {
     pub diagnostics: HashMap<String, Vec<Diagnostic>>,
 }
 
+impl Drop for EditorSplitState {
+    fn drop(&mut self) {
+        LAPCE_APP_STATE
+            .ui_sink
+            .lock()
+            .as_ref()
+            .unwrap()
+            .submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::CloseBuffers(self.buffers.keys().cloned().collect()),
+                Target::Window(self.window_id),
+            );
+        println!("now drop editor split state");
+    }
+}
+
 impl EditorSplitState {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> EditorSplitState {
         let editor_split_id = WidgetId::next();
@@ -2152,6 +2168,12 @@ pub struct EditorView {
         WidgetPod<LapceUIState, LapceScroll<LapceUIState, Padding<LapceUIState>>>,
     gutter: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     header: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
+}
+
+impl Drop for EditorView {
+    fn drop(&mut self) {
+        println!("now drop editor view");
+    }
 }
 
 impl EditorView {
