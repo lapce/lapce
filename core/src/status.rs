@@ -1,22 +1,30 @@
 use druid::{
-    FontDescriptor, FontFamily, Point, RenderContext, Size, TextLayout, Widget,
-    WidgetId, WindowId,
+    Event, FontDescriptor, FontFamily, Point, RenderContext, Size, TextLayout,
+    Widget, WidgetId, WindowId,
 };
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
-    state::{LapceTabState, LapceUIState, LAPCE_APP_STATE},
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    state::{LapceUIState, LAPCE_APP_STATE},
     theme::LapceTheme,
 };
 
 pub struct LapceStatus {
+    status_id: WidgetId,
     window_id: WindowId,
     tab_id: WidgetId,
 }
 
 impl LapceStatus {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> LapceStatus {
-        LapceStatus { window_id, tab_id }
+        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+        let status_id = state.status_id;
+        LapceStatus {
+            window_id,
+            tab_id,
+            status_id,
+        }
     }
 }
 
@@ -24,10 +32,31 @@ impl Widget<LapceUIState> for LapceStatus {
     fn event(
         &mut self,
         ctx: &mut druid::EventCtx,
-        event: &druid::Event,
+        event: &Event,
         data: &mut LapceUIState,
         env: &druid::Env,
     ) {
+        match event {
+            Event::Command(cmd) => match cmd {
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                    match command {
+                        LapceUICommand::RequestLayout => {
+                            ctx.request_layout();
+                        }
+                        LapceUICommand::RequestPaint => {
+                            ctx.request_paint();
+                        }
+                        LapceUICommand::RequestPaintRect(rect) => {
+                            ctx.request_paint_rect(*rect);
+                        }
+                        _ => println!("editor unprocessed ui command {:?}", command),
+                    }
+                }
+                _ => (),
+            },
+            _ => (),
+        }
     }
 
     fn lifecycle(
@@ -92,5 +121,9 @@ impl Widget<LapceUIState> for LapceStatus {
         text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
         text_layout.rebuild_if_needed(ctx.text(), env);
         text_layout.draw(ctx, Point::new(10.0, 5.0));
+    }
+
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.status_id)
     }
 }

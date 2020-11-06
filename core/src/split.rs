@@ -260,10 +260,10 @@ impl Widget<LapceUIState> for LapceSplit {
                                     new_view_id,
                                     new_editor_id,
                                 );
-                                new_editor_view
-                                    .editor
-                                    .widget_mut()
-                                    .scroll_to(scroll_offset.x, scroll_offset.y);
+                                new_editor_view.editor.widget_mut().force_scroll_to(
+                                    scroll_offset.x,
+                                    scroll_offset.y,
+                                );
 
                                 let new_child = ChildWidget {
                                     widget: WidgetPod::new(new_editor_view).boxed(),

@@ -275,6 +275,7 @@ impl LapceWindowState {
 #[derive(Clone)]
 pub struct LapceTabState {
     pub tab_id: WidgetId,
+    pub status_id: WidgetId,
     pub workspace: Arc<Mutex<LapceWorkspace>>,
     pub palette: Arc<Mutex<PaletteState>>,
     pub keypress: Arc<Mutex<KeyPressState>>,
@@ -298,8 +299,10 @@ impl LapceTabState {
         //    path: PathBuf::from("/home/dz/cosmos"),
         //};
         let tab_id = WidgetId::next();
+        let status_id = WidgetId::next();
         let state = LapceTabState {
             tab_id: tab_id.clone(),
+            status_id,
             workspace: Arc::new(Mutex::new(workspace)),
             focus: Arc::new(Mutex::new(LapceFocus::Editor)),
             palette: Arc::new(Mutex::new(PaletteState::new(

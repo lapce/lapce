@@ -417,11 +417,29 @@ impl LspClient {
                         let state =
                             LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
                         let mut editor_split = state.editor_split.lock();
-                        editor_split.diagnostics.insert(
-                            diagnostics.uri.path().to_string(),
-                            diagnostics.diagnostics,
+                        let path = diagnostics.uri.path().to_string();
+                        editor_split
+                            .diagnostics
+                            .insert(path.clone(), diagnostics.diagnostics);
+
+                        LAPCE_APP_STATE.submit_ui_command(
+                            LapceUICommand::RequestPaint,
+                            state.status_id,
                         );
-                        state.request_paint();
+                        for (_, editor) in editor_split.editors.iter() {
+                            if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                                if let Some(buffer) =
+                                    editor_split.buffers.get(buffer_id)
+                                {
+                                    if buffer.path == path {
+                                        LAPCE_APP_STATE.submit_ui_command(
+                                            LapceUICommand::RequestPaint,
+                                            editor.view_id,
+                                        );
+                                    }
+                                }
+                            }
+                        }
                     }
                 });
             }
