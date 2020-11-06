@@ -196,7 +196,8 @@ impl Completion {
                 );
             }
 
-            let mut layout = TextLayout::new(item.item.label.as_str());
+            let mut layout =
+                TextLayout::<String>::from_text(item.item.label.as_str());
             layout.set_font(LapceTheme::EDITOR_FONT);
             layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
             layout.rebuild_if_needed(&mut ctx.text(), env);

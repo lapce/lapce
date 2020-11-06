@@ -85,7 +85,8 @@ impl Widget<LapceUIState> for LapceStatus {
             }
         }
 
-        let mut text_layout = TextLayout::new(format!("{}  {}", errors, warnings));
+        let mut text_layout =
+            TextLayout::<String>::from_text(format!("{}  {}", errors, warnings));
         text_layout
             .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
         text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);

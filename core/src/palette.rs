@@ -1123,7 +1123,7 @@ impl Widget<LapceUIState> for PaletteInput {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let text = palette.input.clone();
         let cursor = palette.cursor;
-        let mut text_layout = TextLayout::new(text.as_ref());
+        let mut text_layout = TextLayout::<String>::from_text(&text);
         text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
         text_layout.rebuild_if_needed(ctx.text(), env);
         let line = text_layout.cursor_line_for_text_position(cursor);

@@ -2,8 +2,9 @@ use std::f64::INFINITY;
 
 use druid::kurbo::{Point, Rect, Size, Vec2};
 use druid::{
-    scroll_component::*, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, UpdateCtx, Widget, WidgetPod,
+    scroll_component::*, widget::ClipBox, widget::Scroll, BoxConstraints, Data, Env,
+    Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, UpdateCtx,
+    Widget, WidgetPod,
 };
 
 use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
@@ -28,9 +29,12 @@ enum ScrollDirection {
 /// [`vertical`]: struct.Scroll.html#method.vertical
 /// [`horizontal`]: struct.Scroll.html#method.horizontal
 pub struct LapceScroll<T, W> {
-    child: WidgetPod<T, W>,
+    clip: ClipBox<T, W>,
+    //child: WidgetPod<T, W>,
     scroll_component: ScrollComponent,
-    direction: ScrollDirection,
+    //direction: ScrollDirection,
+    //content_size: Size,
+    //scroll_offset: Vec2,
 }
 
 impl<T: Data, W: Widget<T>> LapceScroll<T, W> {
@@ -41,59 +45,62 @@ impl<T: Data, W: Widget<T>> LapceScroll<T, W> {
     /// [horizontal](#method.horizontal) methods to limit scrolling to a specific axis.
     pub fn new(child: W) -> LapceScroll<T, W> {
         LapceScroll {
-            child: WidgetPod::new(child),
+            clip: ClipBox::new(child),
             scroll_component: ScrollComponent::new(),
-            direction: ScrollDirection::Bidirectional,
+            //direction: ScrollDirection::Bidirectional,
+            //content_size: Size::ZERO,
+            //scroll_offset: Vec2::ZERO,
         }
     }
 
     /// Restrict scrolling to the vertical axis while locking child width.
     pub fn vertical(mut self) -> Self {
-        self.direction = ScrollDirection::Vertical;
+        self.clip.set_constrain_vertical(false);
+        self.clip.set_constrain_horizontal(true);
         self
     }
 
     /// Restrict scrolling to the horizontal axis while locking child height.
     pub fn horizontal(mut self) -> Self {
-        self.direction = ScrollDirection::Horizontal;
+        self.clip.set_constrain_vertical(true);
+        self.clip.set_constrain_horizontal(false);
         self
     }
 
     /// Returns a reference to the child widget.
     pub fn child(&self) -> &W {
-        self.child.widget()
+        self.clip.child()
     }
 
     /// Returns a mutable reference to the child widget.
     pub fn child_mut(&mut self) -> &mut W {
-        self.child.widget_mut()
+        self.clip.child_mut()
     }
 
     /// Returns the size of the child widget.
     pub fn child_size(&self) -> Size {
-        self.scroll_component.content_size
+        self.clip.content_size()
     }
 
     /// Returns the current scroll offset.
     pub fn offset(&self) -> Vec2 {
-        self.scroll_component.scroll_offset
+        self.clip.viewport_origin().to_vec2()
     }
 
     pub fn scroll(&mut self, x: f64, y: f64) {
-        let mut offset = self.offset();
-        offset.x = offset.x + x;
-        offset.y = offset.y + y;
-        if offset.y < 0.0 {
-            offset.y = 0.0;
-        }
-        self.scroll_component.scroll_offset = offset;
-        self.child.set_viewport_offset(offset);
+        self.clip.pan_by(Vec2::new(x, y));
+        //let mut offset = self.offset();
+        //offset.x = offset.x + x;
+        //offset.y = offset.y + y;
+        //if offset.y < 0.0 {
+        //    offset.y = 0.0;
+        //}
+        //self.scroll_offset = offset;
+        //self.child.set_viewport_offset(offset);
     }
 
     pub fn scroll_to(&mut self, x: f64, y: f64) {
-        let offset = Vec2::new(x, y);
-        self.scroll_component.scroll_offset = offset;
-        self.child.set_viewport_offset(offset);
+        self.clip.pan_to(Point::new(x, y));
     }
 
     pub fn ensure_visible(
@@ -103,12 +110,11 @@ impl<T: Data, W: Widget<T>> LapceScroll<T, W> {
         margin: &(f64, f64),
     ) -> bool {
         let mut new_offset = self.offset();
-        let content_size = self.scroll_component.content_size;
+        let content_size = self.child_size();
 
         let (x_margin, y_margin) = margin;
 
-        new_offset.x = if new_offset.x < rect.x1 + x_margin - scroll_size.width
-        {
+        new_offset.x = if new_offset.x < rect.x1 + x_margin - scroll_size.width {
             (rect.x1 + x_margin - scroll_size.width)
                 .min(content_size.width - scroll_size.width)
         } else if new_offset.x > rect.x0 - x_margin {
@@ -117,8 +123,7 @@ impl<T: Data, W: Widget<T>> LapceScroll<T, W> {
             new_offset.x
         };
 
-        new_offset.y = if new_offset.y < rect.y1 + y_margin - scroll_size.height
-        {
+        new_offset.y = if new_offset.y < rect.y1 + y_margin - scroll_size.height {
             (rect.y1 + y_margin - scroll_size.height)
                 .min(content_size.height - scroll_size.height)
         } else if new_offset.y > rect.y0 - y_margin {
@@ -131,23 +136,16 @@ impl<T: Data, W: Widget<T>> LapceScroll<T, W> {
             return false;
         }
 
-        self.scroll_component.scroll_offset = new_offset;
-        self.child.set_viewport_offset(new_offset);
+        self.clip.pan_to(Point::new(new_offset.x, new_offset.y));
         true
     }
 }
 
 impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
-    fn event(
-        &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut T,
-        env: &Env,
-    ) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         match event {
             Event::Internal(_) => {
-                self.child.event(ctx, event, data, env);
+                self.clip.event(ctx, event, data, env);
             }
             Event::Command(cmd) => match cmd {
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
@@ -161,11 +159,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
                             println!("scroll request paint");
                             ctx.request_paint();
                         }
-                        LapceUICommand::EnsureVisible((
-                            rect,
-                            margin,
-                            position,
-                        )) => {
+                        LapceUICommand::EnsureVisible((rect, margin, position)) => {
                             if self.ensure_visible(ctx.size(), rect, margin) {
                                 ctx.request_paint();
                             }
@@ -180,10 +174,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
                             ctx.request_paint();
                             return;
                         }
-                        _ => println!(
-                            "scroll unprocessed ui command {:?}",
-                            command
-                        ),
+                        _ => println!("scroll unprocessed ui command {:?}", command),
                     }
                 }
                 _ => (),
@@ -192,23 +183,17 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
         };
         // self.scroll_component.event(ctx, event, env);
         if !ctx.is_handled() {
-            let viewport = Rect::from_origin_size(Point::ORIGIN, ctx.size());
-
-            let force_event = self.child.is_hot() || self.child.is_active();
-            let child_event = event.transform_scroll(
-                self.scroll_component.scroll_offset,
-                viewport,
-                force_event,
-            );
-            if let Some(child_event) = child_event {
-                self.child.event(ctx, &child_event, data, env);
-            };
+            self.clip.event(ctx, event, data, env);
         }
 
-        self.scroll_component.handle_scroll(ctx, event, env);
+        // self.scroll_component.handle_scroll(
+        //     self.child.viewport_offset(),
+        //     ctx,
+        //     event,
+        //     env,
+        // );
         // In order to ensure that invalidation regions are correctly propagated up the tree,
         // we need to set the viewport offset on our child whenever we change our scroll offset.
-        self.child.set_viewport_offset(self.offset());
     }
 
     fn lifecycle(
@@ -218,18 +203,12 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
         data: &T,
         env: &Env,
     ) {
+        self.clip.lifecycle(ctx, event, data, env);
         self.scroll_component.lifecycle(ctx, event, env);
-        self.child.lifecycle(ctx, event, data, env);
     }
 
-    fn update(
-        &mut self,
-        ctx: &mut UpdateCtx,
-        _old_data: &T,
-        data: &T,
-        env: &Env,
-    ) {
-        self.child.update(ctx, data, env);
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
+        self.clip.update(ctx, old_data, data, env);
     }
 
     fn layout(
@@ -241,30 +220,16 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
     ) -> Size {
         bc.debug_check("Scroll");
 
-        let max_bc = match self.direction {
-            ScrollDirection::Bidirectional => Size::new(INFINITY, INFINITY),
-            ScrollDirection::Vertical => Size::new(bc.max().width, INFINITY),
-            ScrollDirection::Horizontal => Size::new(INFINITY, bc.max().height),
-        };
-
-        let child_bc = BoxConstraints::new(bc.max(), max_bc);
-        let child_size = self.child.layout(ctx, &child_bc, data, env);
-        self.scroll_component.content_size = child_size;
-        self.child
-            .set_layout_rect(ctx, data, env, child_size.to_rect());
+        let old_size = self.clip.viewport().rect.size();
+        let child_size = self.clip.layout(ctx, &bc, data, env);
 
         let self_size = bc.constrain(child_size);
-        let _ = self.scroll_component.scroll(Vec2::new(0.0, 0.0), self_size);
-        self.child.set_viewport_offset(self.offset());
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+        self.clip.paint(ctx, data, env);
         self.scroll_component
-            .paint_content(ctx, env, |visible, ctx| {
-                ctx.with_child_ctx(visible, |ctx| {
-                    self.child.paint_raw(ctx, data, env)
-                });
-            });
+            .draw_bars(ctx, &self.clip.viewport(), env);
     }
 }

@@ -41,17 +41,6 @@ impl Delegate {
 }
 
 impl AppDelegate<LapceUIState> for Delegate {
-    fn command(
-        &mut self,
-        ctx: &mut DelegateCtx,
-        target: Target,
-        cmd: &Command,
-        data: &mut LapceUIState,
-        env: &Env,
-    ) -> bool {
-        true
-    }
-
     fn window_added(
         &mut self,
         id: WindowId,

@@ -2131,7 +2131,7 @@ impl Widget<LapceUIState> for EditorHeader {
             );
             let mut x = 10.0;
 
-            let mut text_layout = TextLayout::new(file_name.clone());
+            let mut text_layout = TextLayout::<String>::from_text(file_name.clone());
             text_layout.set_font(
                 FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
             );
@@ -2147,7 +2147,7 @@ impl Widget<LapceUIState> for EditorHeader {
                 path.as_path()
             };
             let dir = dir.to_str().unwrap().to_string();
-            let mut text_layout = TextLayout::new(dir);
+            let mut text_layout = TextLayout::<String>::from_text(dir);
             text_layout.set_font(
                 FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
             );
@@ -2577,7 +2577,7 @@ impl Widget<LapceUIState> for EditorGutter {
             return;
         }
 
-        let mut layout = TextLayout::new("W");
+        let mut layout = TextLayout::<String>::from_text("W");
         layout.set_font(LapceTheme::EDITOR_FONT);
         layout.rebuild_if_needed(&mut ctx.text(), env);
         let width = layout.point_for_text_position(1).x;
@@ -2621,7 +2621,7 @@ impl Widget<LapceUIState> for EditorGutter {
                         .layout
                         .draw(ctx, Point::new(x, line_height * line as f64));
                 } else {
-                    let mut layout = TextLayout::new(content.clone());
+                    let mut layout = TextLayout::from_text(content.clone());
                     layout.set_font(LapceTheme::EDITOR_FONT);
                     layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
                     layout.rebuild_if_needed(&mut ctx.text(), env);
@@ -2638,7 +2638,7 @@ impl Widget<LapceUIState> for EditorGutter {
 }
 
 struct EditorTextLayout {
-    layout: TextLayout,
+    layout: TextLayout<String>,
     text: String,
 }
 
@@ -2891,7 +2891,7 @@ impl Widget<LapceUIState> for Editor {
         let buffer_id = buffer_id.unwrap();
         let size = ctx.size();
 
-        let mut layout = TextLayout::new("W");
+        let mut layout = TextLayout::<String>::from_text("W");
         layout.set_font(LapceTheme::EDITOR_FONT);
         layout.rebuild_if_needed(&mut ctx.text(), env);
         let width = layout.point_for_text_position(1).x;
@@ -3039,7 +3039,9 @@ impl Widget<LapceUIState> for Editor {
                                 == buffer.offset_of_position(&start)
                             {
                                 let mut text_layout =
-                                    TextLayout::new(diagnositic.message.clone());
+                                    TextLayout::<String>::from_text(
+                                        diagnositic.message.clone(),
+                                    );
                                 text_layout.set_font(
                                     FontDescriptor::new(FontFamily::SYSTEM_UI)
                                         .with_size(14.0),

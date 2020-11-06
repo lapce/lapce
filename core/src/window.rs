@@ -408,7 +408,7 @@ impl Widget<LapceUIState> for LapceWindow {
                         format!("{} [{}]", dir, host)
                     }
                 };
-                let mut text_layout = TextLayout::new(dir);
+                let mut text_layout = TextLayout::<String>::from_text(dir);
                 text_layout.set_font(
                     FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
                 );

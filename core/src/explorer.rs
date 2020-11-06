@@ -243,7 +243,7 @@ impl Widget<LapceUIState> for FileExplorer {
                 );
             }
             let y = i as f64 * line_height;
-            let mut text_layout = TextLayout::new(
+            let mut text_layout = TextLayout::<String>::from_text(
                 item.path_buf.file_name().unwrap().to_str().unwrap(),
             );
             if item.path_buf.is_dir() {
