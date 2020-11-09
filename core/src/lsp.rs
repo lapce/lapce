@@ -24,7 +24,9 @@ use std::{
 use xi_rope::RopeDelta;
 
 use lsp_types::{
-    ClientCapabilities, CompletionCapability, CompletionItemCapability,
+    ClientCapabilities, CodeActionCapability, CodeActionContext, CodeActionKind,
+    CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionParams,
+    CodeActionResponse, CompletionCapability, CompletionItemCapability,
     CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
     DocumentSymbolResponse, FormattingOptions, GotoDefinitionParams,
@@ -162,6 +164,18 @@ impl LspCatalog {
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             client.lock().get_completion(request_id, buffer, position);
+        }
+    }
+
+    pub fn get_code_actions(&self, line: usize, buffer: &Buffer) {
+        let start_offset = buffer.first_non_blank_character_on_line(line);
+        let end_offset = buffer.offset_of_line(line + 1) - 1;
+        let range = Range {
+            start: buffer.offset_to_position(start_offset),
+            end: buffer.offset_to_position(end_offset),
+        };
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.lock().get_code_actions(buffer, range.clone());
         }
     }
 
@@ -374,6 +388,30 @@ impl LspClient {
         })
     }
 
+    pub fn get_code_actions(&mut self, buffer: &Buffer, range: Range) {
+        let uri = self.get_uri(buffer);
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
+        let rev = buffer.rev;
+        let buffer_id = buffer.id;
+        self.request_code_actions(uri, range, move |lsp_client, result| {
+            if let Ok(res) = result {
+                thread::spawn(move || {
+                    LAPCE_APP_STATE
+                        .get_tab_state(&window_id, &tab_id)
+                        .editor_split
+                        .lock()
+                        .set_code_actions(
+                            buffer_id,
+                            range.start.line as usize,
+                            rev,
+                            res,
+                        );
+                });
+            }
+        })
+    }
+
     pub fn handle_message(&mut self, message: &str) {
         match JsonRpc::parse(message) {
             Ok(JsonRpc::Request(obj)) => {
@@ -510,6 +548,29 @@ impl LspClient {
                     completion_item: Some(CompletionItemCapability {
                         snippet_support: Some(false),
                         ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                code_action: Some(CodeActionCapability {
+                    code_action_literal_support: Some(CodeActionLiteralSupport {
+                        code_action_kind: CodeActionKindLiteralSupport {
+                            value_set: vec![
+                                CodeActionKind::EMPTY.as_str().to_string(),
+                                CodeActionKind::QUICKFIX.as_str().to_string(),
+                                CodeActionKind::REFACTOR.as_str().to_string(),
+                                CodeActionKind::REFACTOR_EXTRACT
+                                    .as_str()
+                                    .to_string(),
+                                CodeActionKind::REFACTOR_INLINE.as_str().to_string(),
+                                CodeActionKind::REFACTOR_REWRITE
+                                    .as_str()
+                                    .to_string(),
+                                CodeActionKind::SOURCE.as_str().to_string(),
+                                CodeActionKind::SOURCE_ORGANIZE_IMPORTS
+                                    .as_str()
+                                    .to_string(),
+                            ],
+                        },
                     }),
                     ..Default::default()
                 }),
@@ -656,6 +717,25 @@ impl LspClient {
             params,
             Box::new(on_definition),
         );
+    }
+
+    pub fn request_code_actions<CB>(
+        &mut self,
+        document_uri: Url,
+        range: Range,
+        cb: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+    {
+        let params = CodeActionParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            range,
+            context: CodeActionContext::default(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/codeAction", params, Box::new(cb));
     }
 
     pub fn request_completion<CB>(

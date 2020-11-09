@@ -147,6 +147,8 @@ pub enum LapceCommand {
     DocumentFormatting,
     #[strum(serialize = "save")]
     Save,
+    #[strum(serialize = "show_code_actions")]
+    ShowCodeActions,
     Insert(String),
 }
 
@@ -174,6 +176,7 @@ pub enum LapceUICommand {
     EditorViewSize(Size),
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
+    ForceScrollTo(f64, f64),
     Split(bool),
     SplitExchange,
     SplitClose,

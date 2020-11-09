@@ -5,7 +5,9 @@ use druid::{
 };
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
-use lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+use lsp_types::{
+    CodeActionResponse, Position, Range, TextDocumentContentChangeEvent,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
@@ -83,6 +85,7 @@ pub struct Buffer {
     pub language_id: String,
     pub rev: u64,
     pub dirty: bool,
+    pub code_actions: HashMap<usize, CodeActionResponse>,
     sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
 }
 
@@ -120,6 +123,7 @@ impl Buffer {
             line_highlights: HashMap::new(),
             undos: Vec::new(),
             current_undo: 0,
+            code_actions: HashMap::new(),
             rev: 0,
             dirty: false,
             language_id: language_id_from_path(path).unwrap_or("").to_string(),
@@ -433,6 +437,7 @@ impl Buffer {
             inval_count: old_hard_count,
             new_count: new_hard_count,
         };
+        self.code_actions = HashMap::new();
         self.highlights = self.highlights_apply_delta(delta);
         self.update_size(ui_state, &inval_lines);
         ui_state.update_text_layouts(&inval_lines);

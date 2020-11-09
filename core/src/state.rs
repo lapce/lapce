@@ -507,6 +507,7 @@ impl LapceTabState {
 
     fn check_one_condition(&self, condition: &str) -> bool {
         let focus = self.focus.lock();
+        let editor_split = self.editor_split.lock();
         match condition.trim() {
             "file_explorer_focus" => *focus == LapceFocus::FileExplorer,
             "palette_focus" => *focus == LapceFocus::Palette,
@@ -514,11 +515,11 @@ impl LapceTabState {
                 *focus == LapceFocus::Palette
                     || *focus == LapceFocus::FileExplorer
                     || (*focus == LapceFocus::Editor
-                        && self.editor_split.lock().completion.len() > 0)
+                        && (editor_split.completion.len() > 0
+                            || editor_split.code_actions_show))
             }
             "editor_operator" => {
-                *focus == LapceFocus::Editor
-                    && self.editor_split.lock().has_operator()
+                *focus == LapceFocus::Editor && editor_split.has_operator()
             }
             _ => false,
         }
