@@ -1399,7 +1399,7 @@ impl EditorSplitState {
     pub fn set_code_actions(
         &mut self,
         buffer_id: BufferId,
-        line: usize,
+        offset: usize,
         rev: u64,
         value: Value,
     ) -> Option<()> {
@@ -1417,11 +1417,12 @@ impl EditorSplitState {
         } else {
             Vec::new()
         };
-        buffer.code_actions.insert(line, resp);
+        buffer.code_actions.insert(offset, resp);
 
         let editor = self.editors.get(&self.active)?;
         if editor.buffer_id == Some(buffer_id)
-            && buffer.line_of_offset(editor.selection.get_cursor_offset()) == line
+            && buffer.line_of_offset(editor.selection.get_cursor_offset())
+                == buffer.line_of_offset(offset)
         {
             editor.request_paint();
         }
@@ -1505,11 +1506,11 @@ impl EditorSplitState {
         let editor = self.editors.get(&self.active)?;
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get(&buffer_id)?;
-        let current_line =
-            buffer.line_of_offset(editor.selection.get_cursor_offset());
-        if buffer.code_actions.get(&current_line).is_none() {
+        let offset = editor.selection.get_cursor_offset();
+        let prev_offset = buffer.prev_code_boundary(offset);
+        if buffer.code_actions.get(&prev_offset).is_none() {
             let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-            state.lsp.lock().get_code_actions(current_line, buffer);
+            state.lsp.lock().get_code_actions(prev_offset, buffer);
         }
         None
     }
@@ -1568,9 +1569,10 @@ impl EditorSplitState {
                     let editor = self.editors.get_mut(&self.active)?;
                     let buffer_id = editor.buffer_id.clone()?;
                     let buffer = self.buffers.get_mut(&buffer_id)?;
-                    let current_line =
-                        buffer.line_of_offset(editor.selection.get_cursor_offset());
-                    let code_actions = buffer.code_actions.get(&current_line)?;
+                    let code_action_offset = buffer
+                        .prev_code_boundary(editor.selection.get_cursor_offset());
+                    let code_actions =
+                        buffer.code_actions.get(&code_action_offset)?;
                     let code_action = &code_actions[self.current_code_actions];
                     let rev = buffer.rev;
                     match code_action {
@@ -1614,9 +1616,10 @@ impl EditorSplitState {
                     let editor = self.editors.get_mut(&self.active)?;
                     let buffer_id = editor.buffer_id.clone()?;
                     let buffer = self.buffers.get_mut(&buffer_id)?;
-                    let current_line =
-                        buffer.line_of_offset(editor.selection.get_cursor_offset());
-                    let code_actions = buffer.code_actions.get(&current_line)?;
+                    let code_action_offset = buffer
+                        .prev_code_boundary(editor.selection.get_cursor_offset());
+                    let code_actions =
+                        buffer.code_actions.get(&code_action_offset)?;
                     self.current_code_actions = Movement::Down.update_index(
                         self.current_code_actions,
                         code_actions.len(),
@@ -1640,9 +1643,10 @@ impl EditorSplitState {
                     let editor = self.editors.get_mut(&self.active)?;
                     let buffer_id = editor.buffer_id.clone()?;
                     let buffer = self.buffers.get_mut(&buffer_id)?;
-                    let current_line =
-                        buffer.line_of_offset(editor.selection.get_cursor_offset());
-                    let code_actions = buffer.code_actions.get(&current_line)?;
+                    let code_action_offset = buffer
+                        .prev_code_boundary(editor.selection.get_cursor_offset());
+                    let code_actions =
+                        buffer.code_actions.get(&code_action_offset)?;
                     self.current_code_actions = Movement::Up.update_index(
                         self.current_code_actions,
                         code_actions.len(),
@@ -2032,9 +2036,9 @@ impl EditorSplitState {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer_id = editor.buffer_id.clone()?;
                 let buffer = self.buffers.get_mut(&buffer_id)?;
-                let line =
-                    buffer.line_of_offset(editor.selection.get_cursor_offset());
-                let actions = buffer.code_actions.get(&line)?;
+                let code_action_offset =
+                    buffer.prev_code_boundary(editor.selection.get_cursor_offset());
+                let actions = buffer.code_actions.get(&code_action_offset)?;
                 if actions.len() == 0 {
                     return None;
                 }
@@ -2855,13 +2859,13 @@ impl Editor {
         &mut self,
         ctx: &mut PaintCtx,
         buffer: &Buffer,
-        line: usize,
+        offset: usize,
         current_code_actions: usize,
         width: f64,
         env: &Env,
     ) -> Option<()> {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let code_actions = buffer.code_actions.get(&line)?;
+        let code_actions = buffer.code_actions.get(&offset)?;
         if code_actions.len() == 0 {
             return None;
         }
@@ -2885,7 +2889,16 @@ impl Editor {
                             )
                             .to_string();
                         let left_col = match line {
-                            _ if line == start_line => start_col,
+                            _ if line == start_line => {
+                                let line_len = buffer.line_len(line);
+                                if line_len == 0 {
+                                    0
+                                } else if start_col > line_len - 1 {
+                                    line_len - 1
+                                } else {
+                                    start_col
+                                }
+                            }
                             _ => 0,
                         };
                         let x0 = (left_col
@@ -2893,7 +2906,16 @@ impl Editor {
                             as f64
                             * width;
                         let right_col = match line {
-                            _ if line == end_line => end_col,
+                            _ if line == end_line => {
+                                let line_len = buffer.line_len(line);
+                                if line_len == 0 {
+                                    0
+                                } else if end_col > line_len - 1 {
+                                    line_len - 1
+                                } else {
+                                    end_col
+                                }
+                            }
                             _ => {
                                 buffer.offset_of_line(line + 1)
                                     - buffer.offset_of_line(line)
@@ -3116,6 +3138,7 @@ impl Widget<LapceUIState> for Editor {
         let buffer = editor_split.buffers.get(&buffer_id).unwrap();
         let editor = editor_split.editors.get(&self.view_id).unwrap();
         let editor_offset = editor.selection.get_cursor_offset();
+        let code_action_offset = buffer.prev_code_boundary(editor_offset);
         let cursor = buffer.offset_to_line_col(editor_offset);
 
         let mode = editor_split.mode.clone();
@@ -3125,7 +3148,7 @@ impl Widget<LapceUIState> for Editor {
             self.paint_code_action_edits(
                 ctx,
                 buffer,
-                cursor.0,
+                code_action_offset,
                 editor_split.current_code_actions,
                 width,
                 env,
@@ -3234,7 +3257,9 @@ impl Widget<LapceUIState> for Editor {
                     }
                 }
                 if editor_split.active == self.view_id && line == cursor.0 {
-                    if let Some(code_actions) = buffer.code_actions.get(&line) {
+                    if let Some(code_actions) =
+                        buffer.code_actions.get(&code_action_offset)
+                    {
                         if code_actions.len() > 0 {
                             let svg = SvgData::from_str(
                                 ICONS_DIR
@@ -3279,9 +3304,11 @@ impl Widget<LapceUIState> for Editor {
                                 let x0 = if line == start.line as usize {
                                     start.character as f64 * width
                                 } else {
-                                    buffer.first_non_blank_character_on_line(line)
-                                        as f64
-                                        * width
+                                    let (_, col) = buffer.offset_to_line_col(
+                                        buffer
+                                            .first_non_blank_character_on_line(line),
+                                    );
+                                    col as f64 * width
                                 };
                                 let x1 = if line == end.line as usize {
                                     end.character as f64 * width
@@ -3348,7 +3375,8 @@ impl Widget<LapceUIState> for Editor {
                 * 3
                 + cursor.1) as f64
                 * width;
-            if let Some(code_actions) = buffer.code_actions.get(&line) {
+            if let Some(code_actions) = buffer.code_actions.get(&code_action_offset)
+            {
                 if code_actions.len() > 0 {
                     let action_text_layouts: Vec<TextLayout<String>> = code_actions
                         .iter()

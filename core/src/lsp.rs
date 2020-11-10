@@ -167,15 +167,17 @@ impl LspCatalog {
         }
     }
 
-    pub fn get_code_actions(&self, line: usize, buffer: &Buffer) {
-        let start_offset = buffer.first_non_blank_character_on_line(line);
-        let end_offset = buffer.offset_of_line(line + 1) - 1;
+    pub fn get_code_actions(&self, offset: usize, buffer: &Buffer) {
+        // let start_offset = buffer.first_non_blank_character_on_line(line);
+        // let end_offset = buffer.offset_of_line(line + 1) - 1;
         let range = Range {
-            start: buffer.offset_to_position(start_offset),
-            end: buffer.offset_to_position(end_offset),
+            start: buffer.offset_to_position(offset),
+            end: buffer.offset_to_position(offset),
         };
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            client.lock().get_code_actions(buffer, range.clone());
+            client
+                .lock()
+                .get_code_actions(buffer, offset, range.clone());
         }
     }
 
@@ -388,7 +390,12 @@ impl LspClient {
         })
     }
 
-    pub fn get_code_actions(&mut self, buffer: &Buffer, range: Range) {
+    pub fn get_code_actions(
+        &mut self,
+        buffer: &Buffer,
+        offset: usize,
+        range: Range,
+    ) {
         let uri = self.get_uri(buffer);
         let window_id = self.window_id;
         let tab_id = self.tab_id;
@@ -401,12 +408,7 @@ impl LspClient {
                         .get_tab_state(&window_id, &tab_id)
                         .editor_split
                         .lock()
-                        .set_code_actions(
-                            buffer_id,
-                            range.start.line as usize,
-                            rev,
-                            res,
-                        );
+                        .set_code_actions(buffer_id, offset, rev, res);
                 });
             }
         })
