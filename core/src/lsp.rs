@@ -7,6 +7,8 @@ use crate::{
 use anyhow::{anyhow, Result};
 use druid::{WidgetId, WindowId};
 use jsonrpc_lite::{Id, JsonRpc, Params};
+use lsp_types::SemanticHighlightingClientCapability;
+use lsp_types::SemanticTokensClientCapabilities;
 use parking_lot::Mutex;
 use std::{
     collections::HashMap,
@@ -31,7 +33,7 @@ use lsp_types::{
     DidSaveTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
     DocumentSymbolResponse, FormattingOptions, GotoDefinitionParams,
     InitializeParams, InitializeResult, PartialResultParams, Position,
-    PublishDiagnosticsParams, Range, ServerCapabilities,
+    PublishDiagnosticsParams, Range, SemanticTokensParams, ServerCapabilities,
     TextDocumentClientCapabilities, TextDocumentContentChangeEvent,
     TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TraceOption, Url,
@@ -58,7 +60,7 @@ pub enum LspProcess {
 pub struct LspCatalog {
     window_id: WindowId,
     tab_id: WidgetId,
-    clients: HashMap<String, Arc<Mutex<LspClient>>>,
+    clients: HashMap<String, Arc<LspClient>>,
 }
 
 impl Drop for LspCatalog {
@@ -78,7 +80,7 @@ impl LspCatalog {
 
     pub fn stop(&self) {
         for (_, client) in self.clients.iter() {
-            match &mut client.lock().process {
+            match &mut client.state.lock().process {
                 LspProcess::Child(child) => {
                     child.kill();
                 }
@@ -103,14 +105,20 @@ impl LspCatalog {
             .clone();
         match workspace_type {
             LapceWorkspaceType::Local => {
-                let client =
-                    LspClient::new(self.window_id, self.tab_id, exec_path, options);
+                let client = LspClient::new(
+                    self.window_id,
+                    self.tab_id,
+                    language_id.to_string(),
+                    exec_path,
+                    options,
+                );
                 self.clients.insert(language_id.to_string(), client);
             }
             LapceWorkspaceType::RemoteSSH(host) => {
                 if let Ok(client) = LspClient::new_ssh(
                     self.window_id,
                     self.tab_id,
+                    language_id.to_string(),
                     exec_path,
                     options,
                     &host,
@@ -123,7 +131,7 @@ impl LspCatalog {
 
     pub fn save_buffer(&self, buffer: &Buffer) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            client.lock().send_did_save(buffer);
+            client.send_did_save(buffer);
         }
     }
 
@@ -136,7 +144,7 @@ impl LspCatalog {
     ) {
         let document_uri = Url::from_file_path(path).unwrap();
         if let Some(client) = self.clients.get(language_id) {
-            client.lock().send_did_open(
+            client.send_did_open(
                 buffer_id,
                 document_uri.clone(),
                 language_id,
@@ -152,7 +160,7 @@ impl LspCatalog {
         rev: u64,
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            client.lock().update(buffer, content_change, rev);
+            client.update(buffer, content_change, rev);
         }
     }
 
@@ -163,7 +171,13 @@ impl LspCatalog {
         position: Position,
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            client.lock().get_completion(request_id, buffer, position);
+            client.get_completion(request_id, buffer, position);
+        }
+    }
+
+    pub fn get_semantic_tokens(&self, buffer: &Buffer) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.get_semantic_tokens(buffer);
         }
     }
 
@@ -175,9 +189,7 @@ impl LspCatalog {
             end: buffer.offset_to_position(offset),
         };
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            client
-                .lock()
-                .get_code_actions(buffer, offset, range.clone());
+            client.get_code_actions(buffer, offset, range.clone());
         }
     }
 
@@ -186,7 +198,7 @@ impl LspCatalog {
         buffer: &Buffer,
     ) -> Option<DocumentSymbolResponse> {
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            let receiver = { client.lock().get_document_symbols(buffer) };
+            let receiver = { client.get_document_symbols(buffer) };
             let result = receiver.recv_timeout(Duration::from_millis(100));
             let result = result.ok()?;
             let value = result.ok()?;
@@ -203,13 +215,13 @@ impl LspCatalog {
         position: Position,
     ) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            client.lock().go_to_definition(request_id, buffer, position);
+            client.go_to_definition(request_id, buffer, position);
         }
     }
 
     pub fn get_document_formatting(&self, buffer: &Buffer) -> Option<Vec<TextEdit>> {
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            let receiver = { client.lock().get_document_formatting(buffer) };
+            let receiver = { client.get_document_formatting(buffer) };
             let result = receiver.recv_timeout(Duration::from_millis(100));
             let result = result.ok()?;
             let value = result.ok()?;
@@ -221,41 +233,47 @@ impl LspCatalog {
 
     pub fn request_document_formatting(&self, buffer: &Buffer) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
-            client.lock().document_formatting(buffer);
+            client.document_formatting(buffer);
         }
     }
 }
 
 pub trait Callable: Send {
-    fn call(self: Box<Self>, client: &mut LspClient, result: Result<Value>);
+    fn call(self: Box<Self>, client: &LspClient, result: Result<Value>);
 }
 
-impl<F: Send + FnOnce(&mut LspClient, Result<Value>)> Callable for F {
-    fn call(self: Box<F>, client: &mut LspClient, result: Result<Value>) {
+impl<F: Send + FnOnce(&LspClient, Result<Value>)> Callable for F {
+    fn call(self: Box<F>, client: &LspClient, result: Result<Value>) {
         (*self)(client, result)
     }
+}
+
+pub struct LspState {
+    next_id: u64,
+    writer: Box<dyn Write + Send>,
+    process: LspProcess,
+    pending: HashMap<u64, Callback>,
+    pub server_capabilities: Option<ServerCapabilities>,
+    pub opened_documents: HashMap<BufferId, Url>,
+    pub is_initialized: bool,
 }
 
 pub struct LspClient {
     window_id: WindowId,
     tab_id: WidgetId,
-    writer: Box<dyn Write + Send>,
-    next_id: u64,
-    pending: HashMap<u64, Callback>,
+    language_id: String,
     options: Option<Value>,
-    process: LspProcess,
-    pub server_capabilities: Option<ServerCapabilities>,
-    pub opened_documents: HashMap<BufferId, Url>,
-    pub is_initialized: bool,
+    state: Arc<Mutex<LspState>>,
 }
 
 impl LspClient {
     pub fn new(
         window_id: WindowId,
         tab_id: WidgetId,
+        language_id: String,
         exec_path: &str,
         options: Option<Value>,
-    ) -> Arc<Mutex<LspClient>> {
+    ) -> Arc<LspClient> {
         let mut process = Command::new(exec_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -265,18 +283,21 @@ impl LspClient {
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
-        let lsp_client = Arc::new(Mutex::new(LspClient {
+        let lsp_client = Arc::new(LspClient {
             window_id,
             tab_id,
-            writer,
-            next_id: 0,
-            process: LspProcess::Child(process),
-            pending: HashMap::new(),
-            server_capabilities: None,
-            opened_documents: HashMap::new(),
-            is_initialized: false,
+            language_id,
             options,
-        }));
+            state: Arc::new(Mutex::new(LspState {
+                next_id: 0,
+                writer,
+                process: LspProcess::Child(process),
+                pending: HashMap::new(),
+                server_capabilities: None,
+                opened_documents: HashMap::new(),
+                is_initialized: false,
+            })),
+        });
 
         let local_lsp_client = lsp_client.clone();
         thread::spawn(move || {
@@ -284,7 +305,7 @@ impl LspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
-                        local_lsp_client.lock().handle_message(message_str.as_ref());
+                        local_lsp_client.handle_message(message_str.as_ref());
                     }
                     Err(err) => {
                         eprintln!("lsp read Error occurred {:?}", err);
@@ -300,28 +321,32 @@ impl LspClient {
     pub fn new_ssh(
         window_id: WindowId,
         tab_id: WidgetId,
+        language_id: String,
         exec_path: &str,
         options: Option<Value>,
         host: &str,
-    ) -> Result<Arc<Mutex<LspClient>>> {
+    ) -> Result<Arc<LspClient>> {
         let mut ssh_session = SshSession::new(host)?;
         let mut channel = ssh_session.get_channel()?;
         ssh_session.channel_exec(&mut channel, exec_path)?;
         println!("lsp {}", exec_path);
         let writer = Box::new(ssh_session.get_stream(&channel));
         let reader = ssh_session.get_stream(&channel);
-        let lsp_client = Arc::new(Mutex::new(LspClient {
+        let lsp_client = Arc::new(LspClient {
             window_id,
             tab_id,
-            writer,
-            next_id: 0,
-            pending: HashMap::new(),
-            server_capabilities: None,
-            process: LspProcess::SshSession(ssh_session),
-            opened_documents: HashMap::new(),
-            is_initialized: false,
+            language_id,
+            state: Arc::new(Mutex::new(LspState {
+                next_id: 0,
+                writer,
+                process: LspProcess::SshSession(ssh_session),
+                pending: HashMap::new(),
+                server_capabilities: None,
+                opened_documents: HashMap::new(),
+                is_initialized: false,
+            })),
             options,
-        }));
+        });
 
         let local_lsp_client = lsp_client.clone();
         //  let reader = ssh_session.get_async_stream(channel.stream(0))?;
@@ -330,7 +355,7 @@ impl LspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
-                        local_lsp_client.lock().handle_message(message_str.as_ref());
+                        local_lsp_client.handle_message(message_str.as_ref());
                     }
                     Err(err) => {
                         //println!("Error occurred {:?}", err);
@@ -343,7 +368,7 @@ impl LspClient {
     }
 
     pub fn update(
-        &mut self,
+        &self,
         buffer: &Buffer,
         content_change: &TextDocumentContentChangeEvent,
         rev: u64,
@@ -355,8 +380,12 @@ impl LspClient {
         }
     }
 
-    pub fn get_uri(&mut self, buffer: &Buffer) -> Url {
-        if !self.opened_documents.contains_key(&buffer.id) {
+    pub fn get_uri(&self, buffer: &Buffer) -> Url {
+        let exits = {
+            let state = self.state.lock();
+            state.opened_documents.contains_key(&buffer.id)
+        };
+        if !exits {
             let document_uri = Url::from_file_path(&buffer.path).unwrap();
             self.send_did_open(
                 &buffer.id,
@@ -365,11 +394,16 @@ impl LspClient {
                 buffer.get_document(),
             );
         }
-        self.opened_documents.get(&buffer.id).unwrap().clone()
+        self.state
+            .lock()
+            .opened_documents
+            .get(&buffer.id)
+            .unwrap()
+            .clone()
     }
 
     pub fn get_completion(
-        &mut self,
+        &self,
         request_id: usize,
         buffer: &Buffer,
         position: Position,
@@ -390,12 +424,33 @@ impl LspClient {
         })
     }
 
-    pub fn get_code_actions(
-        &mut self,
-        buffer: &Buffer,
-        offset: usize,
-        range: Range,
-    ) {
+    pub fn get_semantic_tokens(&self, buffer: &Buffer) {
+        let uri = self.get_uri(buffer);
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
+        let rev = buffer.rev;
+        let buffer_id = buffer.id;
+        self.request_semantic_tokens(uri, move |lsp_client, result| {
+            if let Ok(res) = result {
+                let semantic_tokens_provider = lsp_client
+                    .state
+                    .lock()
+                    .server_capabilities
+                    .as_ref()
+                    .unwrap()
+                    .semantic_tokens_provider
+                    .clone();
+                thread::spawn(move || {
+                    let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                    let mut editor_split = state.editor_split.lock();
+                    let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+                    buffer.set_semantic_tokens(semantic_tokens_provider, res);
+                });
+            }
+        })
+    }
+
+    pub fn get_code_actions(&self, buffer: &Buffer, offset: usize, range: Range) {
         let uri = self.get_uri(buffer);
         let window_id = self.window_id;
         let tab_id = self.tab_id;
@@ -414,7 +469,7 @@ impl LspClient {
         })
     }
 
-    pub fn handle_message(&mut self, message: &str) {
+    pub fn handle_message(&self, message: &str) {
         match JsonRpc::parse(message) {
             Ok(JsonRpc::Request(obj)) => {
                 // trace!("client received unexpected request: {:?}", obj)
@@ -441,7 +496,7 @@ impl LspClient {
         }
     }
 
-    pub fn handle_notification(&mut self, method: &str, params: Params) {
+    pub fn handle_notification(&self, method: &str, params: Params) {
         match method {
             "textDocument/publishDiagnostics" => {
                 let window_id = self.window_id;
@@ -483,45 +538,43 @@ impl LspClient {
                     }
                 });
             }
-            _ => (),
+            _ => println!("{} {:?}", method, params),
         }
     }
 
-    pub fn handle_response(&mut self, id: u64, result: Result<Value>) {
+    pub fn handle_response(&self, id: u64, result: Result<Value>) {
         let callback = self
+            .state
+            .lock()
             .pending
             .remove(&id)
             .unwrap_or_else(|| panic!("id {} missing from request table", id));
         callback.call(self, result);
     }
 
-    pub fn write(&mut self, msg: &str) {
-        self.writer
+    pub fn write(&self, msg: &str) {
+        let mut state = self.state.lock();
+        state
+            .writer
             .write_all(msg.as_bytes())
             .expect("error writing to stdin");
-
-        self.writer.flush().expect("error flushing child stdin");
+        state.writer.flush().expect("error flushing child stdin");
     }
 
-    pub fn send_request(
-        &mut self,
-        method: &str,
-        params: Params,
-        completion: Callback,
-    ) {
-        let request = JsonRpc::request_with_params(
-            Id::Num(self.next_id as i64),
-            method,
-            params,
-        );
+    pub fn send_request(&self, method: &str, params: Params, completion: Callback) {
+        let request = {
+            let mut state = self.state.lock();
+            let next_id = state.next_id;
+            state.pending.insert(next_id, completion);
+            state.next_id += 1;
 
-        self.pending.insert(self.next_id, completion);
-        self.next_id += 1;
+            JsonRpc::request_with_params(Id::Num(next_id as i64), method, params)
+        };
 
         self.send_rpc(&to_value(&request).unwrap());
     }
 
-    fn send_rpc(&mut self, value: &Value) {
+    fn send_rpc(&self, value: &Value) {
         let rpc = match prepare_lsp_json(value) {
             Ok(r) => r,
             Err(err) => panic!("Encoding Error {:?}", err),
@@ -530,19 +583,19 @@ impl LspClient {
         self.write(rpc.as_ref());
     }
 
-    pub fn send_notification(&mut self, method: &str, params: Params) {
+    pub fn send_notification(&self, method: &str, params: Params) {
         let notification = JsonRpc::notification_with_params(method, params);
         let res = to_value(&notification).unwrap();
         self.send_rpc(&res);
     }
 
-    pub fn send_initialized(&mut self) {
+    pub fn send_initialized(&self) {
         self.send_notification("initialized", Params::from(json!({})));
     }
 
-    pub fn send_initialize<CB>(&mut self, root_uri: Option<Url>, on_init: CB)
+    pub fn send_initialize<CB>(&self, root_uri: Option<Url>, on_init: CB)
     where
-        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
     {
         let client_capabilities = ClientCapabilities {
             text_document: Some(TextDocumentClientCapabilities {
@@ -576,6 +629,11 @@ impl LspClient {
                     }),
                     ..Default::default()
                 }),
+                semantic_highlighting_capabilities: Some(
+                    SemanticHighlightingClientCapability {
+                        semantic_highlighting: true,
+                    },
+                ),
                 ..Default::default()
             }),
             ..Default::default()
@@ -596,10 +654,7 @@ impl LspClient {
         self.send_request("initialize", params, Box::new(on_init));
     }
 
-    pub fn get_document_symbols(
-        &mut self,
-        buffer: &Buffer,
-    ) -> Receiver<Result<Value>> {
+    pub fn get_document_symbols(&self, buffer: &Buffer) -> Receiver<Result<Value>> {
         let uri = self.get_uri(buffer);
         let (sender, receiver) = channel();
         self.request_document_symbols(uri, move |lsp_client, result| {
@@ -608,9 +663,9 @@ impl LspClient {
         return receiver;
     }
 
-    pub fn request_document_symbols<CB>(&mut self, document_uri: Url, cb: CB)
+    pub fn request_document_symbols<CB>(&self, document_uri: Url, cb: CB)
     where
-        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
     {
         let params = DocumentSymbolParams {
             text_document: TextDocumentIdentifier { uri: document_uri },
@@ -622,7 +677,7 @@ impl LspClient {
     }
 
     pub fn get_document_formatting(
-        &mut self,
+        &self,
         buffer: &Buffer,
     ) -> Receiver<Result<Value>> {
         let uri = self.get_uri(buffer);
@@ -633,7 +688,7 @@ impl LspClient {
         return receiver;
     }
 
-    pub fn document_formatting(&mut self, buffer: &Buffer) {
+    pub fn document_formatting(&self, buffer: &Buffer) {
         let uri = self.get_uri(buffer);
         let rev = buffer.rev;
         let window_id = self.window_id;
@@ -658,9 +713,9 @@ impl LspClient {
         })
     }
 
-    pub fn request_document_formatting<CB>(&mut self, document_uri: Url, cb: CB)
+    pub fn request_document_formatting<CB>(&self, document_uri: Url, cb: CB)
     where
-        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
     {
         let params = DocumentFormattingParams {
             text_document: TextDocumentIdentifier { uri: document_uri },
@@ -676,7 +731,7 @@ impl LspClient {
     }
 
     pub fn go_to_definition(
-        &mut self,
+        &self,
         request_id: usize,
         buffer: &Buffer,
         position: Position,
@@ -698,12 +753,12 @@ impl LspClient {
     }
 
     pub fn request_definition<CB>(
-        &mut self,
+        &self,
         document_uri: Url,
         position: Position,
         on_definition: CB,
     ) where
-        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
     {
         let params = GotoDefinitionParams {
             text_document_position_params: TextDocumentPositionParams {
@@ -721,13 +776,9 @@ impl LspClient {
         );
     }
 
-    pub fn request_code_actions<CB>(
-        &mut self,
-        document_uri: Url,
-        range: Range,
-        cb: CB,
-    ) where
-        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+    pub fn request_code_actions<CB>(&self, document_uri: Url, range: Range, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
     {
         let params = CodeActionParams {
             text_document: TextDocumentIdentifier { uri: document_uri },
@@ -740,13 +791,26 @@ impl LspClient {
         self.send_request("textDocument/codeAction", params, Box::new(cb));
     }
 
+    pub fn request_semantic_tokens<CB>(&self, document_uri: Url, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = SemanticTokensParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/semanticTokens/full", params, Box::new(cb));
+    }
+
     pub fn request_completion<CB>(
-        &mut self,
+        &self,
         document_uri: Url,
         position: Position,
         on_completion: CB,
     ) where
-        CB: 'static + Send + FnOnce(&mut LspClient, Result<Value>),
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
     {
         let completion_params = CompletionParams {
             text_document_position: TextDocumentPositionParams {
@@ -766,14 +830,44 @@ impl LspClient {
     }
 
     pub fn send_did_open(
-        &mut self,
+        &self,
         buffer_id: &BufferId,
         document_uri: Url,
         language_id: &str,
         document_text: String,
     ) {
-        self.opened_documents
-            .insert(buffer_id.clone(), document_uri.clone());
+        let is_initialized = {
+            let mut state = self.state.lock();
+            state
+                .opened_documents
+                .insert(buffer_id.clone(), document_uri.clone());
+            state.is_initialized
+        };
+
+        if !is_initialized {
+            let workspace_path = LAPCE_APP_STATE
+                .get_tab_state(&self.window_id, &self.tab_id)
+                .workspace
+                .lock()
+                .path
+                .clone();
+            let root_url = Url::from_directory_path(workspace_path).unwrap();
+            let (sender, receiver) = channel();
+            self.send_initialize(Some(root_url), move |lsp_client, result| {
+                if let Ok(result) = result {
+                    {
+                        let init_result: InitializeResult =
+                            serde_json::from_value(result).unwrap();
+                        let mut state = lsp_client.state.lock();
+                        state.server_capabilities = Some(init_result.capabilities);
+                        state.is_initialized = true;
+                    }
+                    lsp_client.send_initialized();
+                }
+                sender.send(true);
+            });
+            receiver.recv_timeout(Duration::from_millis(1000));
+        }
 
         let text_document_did_open_params = DidOpenTextDocumentParams {
             text_document: TextDocumentItem {
@@ -783,35 +877,13 @@ impl LspClient {
                 text: document_text,
             },
         };
-
         let params = Params::from(
             serde_json::to_value(text_document_did_open_params).unwrap(),
         );
-        let workspace_path = LAPCE_APP_STATE
-            .get_tab_state(&self.window_id, &self.tab_id)
-            .workspace
-            .lock()
-            .path
-            .clone();
-        let root_url = Url::from_directory_path(workspace_path).unwrap();
-        if !self.is_initialized {
-            self.send_initialize(Some(root_url), move |lsp_client, result| {
-                if let Ok(result) = result {
-                    let init_result: InitializeResult =
-                        serde_json::from_value(result).unwrap();
-
-                    lsp_client.server_capabilities = Some(init_result.capabilities);
-                    lsp_client.is_initialized = true;
-                    lsp_client.send_initialized();
-                    lsp_client.send_notification("textDocument/didOpen", params);
-                }
-            });
-        } else {
-            self.send_notification("textDocument/didOpen", params);
-        }
+        self.send_notification("textDocument/didOpen", params);
     }
 
-    pub fn send_did_save(&mut self, buffer: &Buffer) {
+    pub fn send_did_save(&self, buffer: &Buffer) {
         let uri = self.get_uri(buffer);
         let params = DidSaveTextDocumentParams {
             text_document: TextDocumentIdentifier { uri },
@@ -822,7 +894,7 @@ impl LspClient {
     }
 
     pub fn send_did_change(
-        &mut self,
+        &self,
         buffer: &Buffer,
         changes: Vec<TextDocumentContentChangeEvent>,
         version: u64,
@@ -843,7 +915,8 @@ impl LspClient {
     }
 
     pub fn get_sync_kind(&self) -> Option<TextDocumentSyncKind> {
-        let text_document_sync = self
+        let state = self.state.lock();
+        let text_document_sync = state
             .server_capabilities
             .as_ref()
             .and_then(|c| c.text_document_sync.as_ref())?;

@@ -5,10 +5,14 @@ use druid::{
 };
 use druid::{Env, PaintCtx};
 use language::{new_highlight_config, new_parser, LapceLanguage};
+use lsp_types::SemanticTokens;
+use lsp_types::SemanticTokensLegend;
+use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{
     CodeActionResponse, Position, Range, TextDocumentContentChangeEvent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
     borrow::Cow,
@@ -77,6 +81,7 @@ pub struct Buffer {
     pub rope: Rope,
     highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
+    pub semantic_tokens: Option<Vec<(usize, usize, String)>>,
     pub highlights: Vec<(usize, usize, Highlight)>,
     pub line_highlights: HashMap<usize, Vec<(usize, usize, String)>>,
     undos: Vec<Vec<(RopeDelta, RopeDelta)>>,
@@ -118,6 +123,7 @@ impl Buffer {
             id: buffer_id.clone(),
             rope,
             highlight_config: Arc::new(highlight_config),
+            semantic_tokens: None,
             highlight_names,
             highlights: Vec::new(),
             line_highlights: HashMap::new(),
@@ -200,27 +206,97 @@ impl Buffer {
         self.rope.len()
     }
 
-    pub fn highlights_apply_delta(
-        &mut self,
-        delta: &RopeDelta,
-    ) -> Vec<(usize, usize, Highlight)> {
+    pub fn highlights_apply_delta(&mut self, delta: &RopeDelta) {
         let mut transformer = Transformer::new(delta);
-        self.highlights
-            .iter()
-            .map(|h| {
-                (
-                    transformer.transform(h.0, true),
-                    transformer.transform(h.1, true),
-                    h.2.clone(),
-                )
-            })
-            .collect()
+        if let Some(semantic_tokens) = self.semantic_tokens.as_mut() {
+            self.semantic_tokens = Some(
+                semantic_tokens
+                    .iter()
+                    .map(|h| {
+                        (
+                            transformer.transform(h.0, true),
+                            transformer.transform(h.1, true),
+                            h.2.clone(),
+                        )
+                    })
+                    .collect(),
+            )
+        } else {
+            self.highlights = self
+                .highlights
+                .iter()
+                .map(|h| {
+                    (
+                        transformer.transform(h.0, true),
+                        transformer.transform(h.1, true),
+                        h.2.clone(),
+                    )
+                })
+                .collect()
+        }
+    }
+
+    fn format_semantic_tokens(
+        &self,
+        semantic_tokens_provider: Option<SemanticTokensServerCapabilities>,
+        value: Value,
+    ) -> Option<Vec<(usize, usize, String)>> {
+        let semantic_tokens: SemanticTokens = serde_json::from_value(value).ok()?;
+        let semantic_tokens_provider = semantic_tokens_provider.as_ref()?;
+        let semantic_lengends = semantic_tokens_lengend(semantic_tokens_provider);
+
+        let mut highlights = Vec::new();
+        let mut line = 0;
+        let mut start = 0;
+        for semantic_token in &semantic_tokens.data {
+            if semantic_token.delta_line > 0 {
+                line += semantic_token.delta_line as usize;
+                start = self.offset_of_line(line);
+            }
+            start += semantic_token.delta_start as usize;
+            let end = start + semantic_token.length as usize;
+            let kind = semantic_lengends.token_types
+                [semantic_token.token_type as usize]
+                .as_str()
+                .to_string();
+            highlights.push((start, end, kind));
+        }
+
+        Some(highlights)
+    }
+
+    pub fn set_semantic_tokens(
+        &mut self,
+        semantic_tokens_provider: Option<SemanticTokensServerCapabilities>,
+        value: Value,
+    ) -> Option<()> {
+        let semantic_tokens =
+            self.format_semantic_tokens(semantic_tokens_provider, value)?;
+        self.semantic_tokens = Some(semantic_tokens);
+        self.line_highlights = HashMap::new();
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
+        let buffer_id = self.id;
+        thread::spawn(move || {
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+            for (view_id, editor) in state.editor_split.lock().editors.iter() {
+                if editor.buffer_id.as_ref() == Some(&buffer_id) {
+                    LAPCE_APP_STATE.submit_ui_command(
+                        LapceUICommand::FillTextLayouts,
+                        view_id.clone(),
+                    );
+                }
+            }
+        });
+        None
     }
 
     pub fn update_highlights(&mut self) {
         self.line_highlights = HashMap::new();
         self.sender
             .send((self.window_id, self.tab_id, self.id, self.rev));
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        state.lsp.lock().get_semantic_tokens(&self);
     }
 
     pub fn get_line_highligh(
@@ -229,23 +305,41 @@ impl Buffer {
     ) -> &Vec<(usize, usize, String)> {
         if self.line_highlights.get(&line).is_none() {
             let mut line_highlight = Vec::new();
-            let start_offset = self.offset_of_line(line);
-            let end_offset = self.offset_of_line(line + 1) - 1;
-            for (start, end, hl) in &self.highlights {
-                if *start > end_offset {
-                    break;
+            if let Some(semantic_tokens) = self.semantic_tokens.as_ref() {
+                let start_offset = self.offset_of_line(line);
+                let end_offset = self.offset_of_line(line + 1) - 1;
+                for (start, end, hl) in semantic_tokens {
+                    if *start > end_offset {
+                        break;
+                    }
+                    if *start >= start_offset && *start <= end_offset {
+                        let end = if *end > end_offset {
+                            end_offset - start_offset
+                        } else {
+                            end - start_offset
+                        };
+                        line_highlight.push((start - start_offset, end, hl.clone()));
+                    }
                 }
-                if *start >= start_offset && *start <= end_offset {
-                    let end = if *end > end_offset {
-                        end_offset - start_offset
-                    } else {
-                        end - start_offset
-                    };
-                    line_highlight.push((
-                        start - start_offset,
-                        end,
-                        self.highlight_names[hl.0].to_string(),
-                    ));
+            } else {
+                let start_offset = self.offset_of_line(line);
+                let end_offset = self.offset_of_line(line + 1) - 1;
+                for (start, end, hl) in &self.highlights {
+                    if *start > end_offset {
+                        break;
+                    }
+                    if *start >= start_offset && *start <= end_offset {
+                        let end = if *end > end_offset {
+                            end_offset - start_offset
+                        } else {
+                            end - start_offset
+                        };
+                        line_highlight.push((
+                            start - start_offset,
+                            end,
+                            self.highlight_names[hl.0].to_string(),
+                        ));
+                    }
                 }
             }
             self.line_highlights.insert(line, line_highlight);
@@ -438,7 +532,7 @@ impl Buffer {
             new_count: new_hard_count,
         };
         self.code_actions = HashMap::new();
-        self.highlights = self.highlights_apply_delta(delta);
+        self.highlights_apply_delta(delta);
         self.update_size(ui_state, &inval_lines);
         ui_state.update_text_layouts(&inval_lines);
     }
@@ -1139,6 +1233,8 @@ impl BufferUIState {
                     start..end,
                     TextAttribute::TextColor(color.clone()),
                 );
+            } else {
+                println!("no color for {} {}", hl, start);
             }
         }
         let layout = layout_builder.build().unwrap();
@@ -1383,4 +1479,17 @@ pub fn get_document_content_changes(
     }
 
     None
+}
+
+fn semantic_tokens_lengend(
+    semantic_tokens_provider: &SemanticTokensServerCapabilities,
+) -> SemanticTokensLegend {
+    match semantic_tokens_provider {
+        SemanticTokensServerCapabilities::SemanticTokensOptions(options) => {
+            options.legend.clone()
+        }
+        SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
+            options,
+        ) => options.semantic_tokens_options.legend.clone(),
+    }
 }

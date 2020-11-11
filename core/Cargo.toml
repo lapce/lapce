@@ -26,7 +26,7 @@ xi-rope = { path = "../../xi-editor/rust/rope/" }
 xi-rpc = { path = "../../xi-editor/rust/rpc/" }
 fzyr = "0.1.2"
 uuid = { version = "0.7.4", features = ["v4"] }
-lsp-types = "0.82.0"
+lsp-types = { version = "0.82.0", features = ["proposed"] }
 druid = { path = "../../druid/druid", features = ["svg"] }
 
 [build-dependencies]

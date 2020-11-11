@@ -111,7 +111,7 @@ impl EditorState {
             editor_id: WidgetId::next(),
             view_id: WidgetId::next(),
             split_id,
-            tab_id: tab_id,
+            tab_id,
             buffer_id,
             char_width: 7.6171875,
             width: 0.0,
@@ -142,6 +142,7 @@ impl EditorState {
         let editor = data.get_editor(&self.view_id);
         let old_editor = old_data.get_editor(&self.view_id);
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+
 
         if buffer.max_len != old_buffer.max_len
             || buffer.text_layouts.len() != old_buffer.text_layouts.len()
@@ -1447,11 +1448,12 @@ impl EditorSplitState {
             let buffer = self.buffers.get(&buffer_id)?;
             let offset = editor.selection.get_cursor_offset();
             let prev_offset = buffer.prev_code_boundary(offset);
+            let next_offset = buffer.next_code_boundary(offset);
             if request_id != prev_offset {
                 return None;
             }
 
-            let input = buffer.slice_to_cow(prev_offset..offset).to_string();
+            let input = buffer.slice_to_cow(prev_offset..next_offset).to_string();
             self.completion.update(input, items);
             LAPCE_APP_STATE.submit_ui_command(
                 LapceUICommand::RequestLayout,
