@@ -29,7 +29,7 @@ pub struct SshPathEntry {
 }
 
 impl SshSession {
-    pub fn new(host: &str) -> Result<SshSession> {
+    pub fn new(user: &str, host: &str) -> Result<SshSession> {
         let mut session = Session::new()?;
         let addr: SocketAddr = host.parse()?;
         let mut tcp = MioTcpStream::connect(addr)?;
@@ -48,7 +48,7 @@ impl SshSession {
             events,
         };
         ssh_session.handshake()?;
-        ssh_session.auth()?;
+        ssh_session.auth(user)?;
         Ok(ssh_session)
     }
 
@@ -78,13 +78,13 @@ impl SshSession {
         }
     }
 
-    pub fn auth(&mut self) -> Result<()> {
+    pub fn auth(&mut self, user: &str) -> Result<()> {
         println!("start auth");
         let path = PathBuf::from_str("/Users/Lulu/.ssh/id_rsa")?;
         loop {
             if let Err(e) =
                 self.session
-                    .userauth_pubkey_file("dz", None, path.as_path(), None)
+                    .userauth_pubkey_file(user, None, path.as_path(), None)
             {
                 let e = io::Error::from(e);
                 if e.kind() == io::ErrorKind::WouldBlock {

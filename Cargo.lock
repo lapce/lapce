@@ -1591,7 +1591,6 @@ dependencies = [
  "anyhow",
  "jsonrpc-lite",
  "languageserver-types",
- "lapce-core",
  "memchr",
  "parking_lot 0.11.0",
  "serde",

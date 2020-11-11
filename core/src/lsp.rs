@@ -114,13 +114,14 @@ impl LspCatalog {
                 );
                 self.clients.insert(language_id.to_string(), client);
             }
-            LapceWorkspaceType::RemoteSSH(host) => {
+            LapceWorkspaceType::RemoteSSH(user, host) => {
                 if let Ok(client) = LspClient::new_ssh(
                     self.window_id,
                     self.tab_id,
                     language_id.to_string(),
                     exec_path,
                     options,
+                    &user,
                     &host,
                 ) {
                     self.clients.insert(language_id.to_string(), client);
@@ -324,9 +325,10 @@ impl LspClient {
         language_id: String,
         exec_path: &str,
         options: Option<Value>,
+        user: &str,
         host: &str,
     ) -> Result<Arc<LspClient>> {
-        let mut ssh_session = SshSession::new(host)?;
+        let mut ssh_session = SshSession::new(user, host)?;
         let mut channel = ssh_session.get_channel()?;
         ssh_session.channel_exec(&mut channel, exec_path)?;
         println!("lsp {}", exec_path);

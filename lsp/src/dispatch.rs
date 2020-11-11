@@ -1,21 +1,29 @@
 use std::collections::HashMap;
 
-use crate::{
-    buffer::Buffer,
-    plugin::{CoreProxy, Plugin},
-};
-use lapce_core::{
-    buffer::BufferId,
-    plugin::{HostNotification, HostRequest, PluginId},
-};
+use crate::plugin::PluginId;
+use crate::plugin::{CoreProxy, Plugin};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use xi_rpc::{Handler, RpcCtx};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+/// RPC Notifications sent from the host
+pub enum HostNotification {
+    Initialize { plugin_id: PluginId },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+/// RPC Request sent from the host
+pub enum HostRequest {}
+
 pub struct Dispatcher<'a, P: 'a + Plugin> {
     plugin: &'a mut P,
     plugin_id: Option<PluginId>,
-    buffers: HashMap<BufferId, Buffer>,
+    //  buffers: HashMap<BufferId, Buffer>,
 }
 
 impl<'a, P: 'a + Plugin> Dispatcher<'a, P> {
@@ -23,7 +31,6 @@ impl<'a, P: 'a + Plugin> Dispatcher<'a, P> {
         Dispatcher {
             plugin,
             plugin_id: None,
-            buffers: HashMap::new(),
         }
     }
 }
@@ -42,38 +49,37 @@ impl<'a, P: Plugin> Handler for Dispatcher<'a, P> {
                 self.plugin_id = Some(plugin_id.clone());
                 let core_proxy = CoreProxy::new(plugin_id, ctx);
                 self.plugin.initialize(core_proxy);
-            }
-            HostNotification::NewBuffer { buffer_info } => {
-                let buffer_id = buffer_info.buffer_id.clone();
-                let buffer = Buffer::new(
-                    ctx.get_peer().clone(),
-                    self.plugin_id.as_ref().unwrap().clone(),
-                    buffer_info,
-                );
-                self.buffers.insert(buffer_id.clone(), buffer);
+            } //        HostNotification::NewBuffer { buffer_info } => {
+              //            let buffer_id = buffer_info.buffer_id.clone();
+              //            let buffer = Buffer::new(
+              //                ctx.get_peer().clone(),
+              //                self.plugin_id.as_ref().unwrap().clone(),
+              //                buffer_info,
+              //            );
+              //            self.buffers.insert(buffer_id.clone(), buffer);
 
-                let buffer = self.buffers.get_mut(&buffer_id).unwrap();
-                self.plugin.new_buffer(buffer);
-            }
-            HostNotification::Update {
-                buffer_id,
-                delta,
-                new_len,
-                new_line_count,
-                rev,
-            } => {
-                let buffer = self.buffers.get_mut(&buffer_id).unwrap();
-                buffer.update(&delta, new_len, new_line_count, rev);
-                self.plugin.update(buffer, &delta, rev);
-            }
-            HostNotification::GetCompletion {
-                buffer_id,
-                request_id,
-                offset,
-            } => {
-                let buffer = self.buffers.get_mut(&buffer_id).unwrap();
-                self.plugin.get_completion(buffer, request_id, offset);
-            }
+              //            let buffer = self.buffers.get_mut(&buffer_id).unwrap();
+              //            self.plugin.new_buffer(buffer);
+              //        }
+              //        HostNotification::Update {
+              //            buffer_id,
+              //            delta,
+              //            new_len,
+              //            new_line_count,
+              //            rev,
+              //        } => {
+              //            let buffer = self.buffers.get_mut(&buffer_id).unwrap();
+              //            buffer.update(&delta, new_len, new_line_count, rev);
+              //            self.plugin.update(buffer, &delta, rev);
+              //        }
+              //         HostNotification::GetCompletion {
+              //             buffer_id,
+              //             request_id,
+              //             offset,
+              //         } => {
+              //             let buffer = self.buffers.get_mut(&buffer_id).unwrap();
+              //             self.plugin.get_completion(buffer, request_id, offset);
+              //         }
         }
     }
 
@@ -86,8 +92,8 @@ impl<'a, P: Plugin> Handler for Dispatcher<'a, P> {
     }
 
     fn idle(&mut self, ctx: &RpcCtx, token: usize) {
-        let buffer_id: BufferId = BufferId(token);
-        let buffer = self.buffers.get_mut(&buffer_id).unwrap();
-        self.plugin.idle(buffer);
+        //        let buffer_id: BufferId = BufferId(token);
+        //        let buffer = self.buffers.get_mut(&buffer_id).unwrap();
+        //        self.plugin.idle(buffer);
     }
 }

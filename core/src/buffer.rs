@@ -166,8 +166,8 @@ impl Buffer {
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let workspace_type = state.workspace.lock().kind.clone();
         match workspace_type {
-            LapceWorkspaceType::RemoteSSH(host) => {
-                state.get_ssh_session(&host)?;
+            LapceWorkspaceType::RemoteSSH(user, host) => {
+                state.get_ssh_session(&user, &host)?;
                 let mut ssh_session = state.ssh_session.lock();
                 let ssh_session = ssh_session.as_mut().unwrap();
                 let tmp_path = format!("{}.swp", self.path);
@@ -864,8 +864,8 @@ fn load_file(window_id: &WindowId, tab_id: &WidgetId, path: &str) -> Result<Rope
             f.read_to_end(&mut bytes)?;
             bytes
         }
-        LapceWorkspaceType::RemoteSSH(host) => {
-            state.get_ssh_session(&host)?;
+        LapceWorkspaceType::RemoteSSH(user, host) => {
+            state.get_ssh_session(&user, &host)?;
             let mut ssh_session = state.ssh_session.lock();
             let ssh_session = ssh_session.as_mut().unwrap();
             ssh_session.read_file(path)?

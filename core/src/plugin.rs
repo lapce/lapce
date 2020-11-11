@@ -136,9 +136,9 @@ impl PluginCatalog {
                     }
                 }
             }
-            LapceWorkspaceType::RemoteSSH(host) => {
+            LapceWorkspaceType::RemoteSSH(user, host) => {
                 println!("load plugins for remote ssh");
-                if let Err(e) = state.get_ssh_session(&host) {
+                if let Err(e) = state.get_ssh_session(&user, &host) {
                     println!("get ssh session error {}", e);
                     return Err(e);
                 }
@@ -198,16 +198,17 @@ impl PluginCatalog {
                     );
                 }
             }
-            LapceWorkspaceType::RemoteSSH(host) => {
+            LapceWorkspaceType::RemoteSSH(user, host) => {
                 for (_, manifest) in self.items.clone().iter() {
                     let manifest = manifest.clone();
                     let plugin_id = self.next_plugin_id();
+                    let user = user.clone();
                     let host = host.clone();
                     let window_id = self.window_id;
                     let tab_id = self.tab_id;
                     thread::spawn(move || {
                         if let Err(e) = start_plugin_ssh(
-                            window_id, tab_id, manifest, plugin_id, &host,
+                            window_id, tab_id, manifest, plugin_id, &user, &host,
                         ) {
                             println!("start plugin ssh error {}", e);
                         }
@@ -310,13 +311,14 @@ fn start_plugin_ssh(
     tab_id: WidgetId,
     plugin_desc: Arc<PluginDescription>,
     id: PluginId,
+    user: &str,
     host: &str,
 ) -> Result<()> {
     println!(
         "start plugin {:?} {:?}",
         plugin_desc.exec_path, plugin_desc.dir
     );
-    let mut ssh_session = SshSession::new(host)?;
+    let mut ssh_session = SshSession::new(user, host)?;
     let mut channel = ssh_session.get_channel()?;
     ssh_session
         .channel_exec(&mut channel, plugin_desc.exec_path.to_str().unwrap())?;

@@ -404,8 +404,8 @@ impl Widget<LapceUIState> for LapceWindow {
                 let dir = workspace.path.file_name().unwrap().to_str().unwrap();
                 let dir = match &workspace.kind {
                     LapceWorkspaceType::Local => dir.to_string(),
-                    LapceWorkspaceType::RemoteSSH(host) => {
-                        format!("{} [{}]", dir, host)
+                    LapceWorkspaceType::RemoteSSH(user, host) => {
+                        format!("{} [{}@{}]", dir, user, host)
                     }
                 };
                 let mut text_layout = TextLayout::<String>::from_text(dir);

@@ -1,13 +1,15 @@
 use anyhow::Result;
-use lapce_core::{
-    buffer::BufferId,
-    plugin::{PluginBufferInfo, PluginId},
-};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::{json, Value};
 use xi_rope::RopeDelta;
 use xi_rpc::{RpcCtx, RpcPeer};
 
-use crate::buffer::Buffer;
+#[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
+pub struct PluginId(pub usize);
+
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
+pub struct BufferId(pub usize);
 
 #[derive(Clone)]
 pub struct CoreProxy {
@@ -65,16 +67,9 @@ impl CoreProxy {
 pub trait Plugin {
     fn initialize(&mut self, core: CoreProxy);
 
-    fn new_buffer(&mut self, buffer: &mut Buffer);
-
-    fn update(&mut self, buffer: &mut Buffer, delta: &RopeDelta, rev: u64);
-
-    fn get_completion(
-        &mut self,
-        buffer: &mut Buffer,
-        request_id: usize,
-        offset: usize,
-    );
-
-    fn idle(&mut self, buffer: &mut Buffer);
+    //    fn new_buffer(&mut self, buffer: &mut Buffer);
+    //
+    //    fn update(&mut self, buffer: &mut Buffer, delta: &RopeDelta, rev: u64);
+    //
+    //    fn idle(&mut self, buffer: &mut Buffer);
 }

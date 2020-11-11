@@ -314,15 +314,24 @@ impl PaletteState {
                 path: PathBuf::from("/Users/Lulu/lapce"),
             },
             LapceWorkspace {
-                kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+                kind: LapceWorkspaceType::RemoteSSH(
+                    "dz".to_string(),
+                    "10.132.0.2:22".to_string(),
+                ),
                 path: PathBuf::from("/home/dz/go/src/galaxy"),
             },
             LapceWorkspace {
-                kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+                kind: LapceWorkspaceType::RemoteSSH(
+                    "dz".to_string(),
+                    "10.132.0.2:22".to_string(),
+                ),
                 path: PathBuf::from("/home/dz/go/src/tardis"),
             },
             LapceWorkspace {
-                kind: LapceWorkspaceType::RemoteSSH("10.132.0.2:22".to_string()),
+                kind: LapceWorkspaceType::RemoteSSH(
+                    "dz".to_string(),
+                    "10.132.0.2:22".to_string(),
+                ),
                 path: PathBuf::from("/home/dz/cosmos"),
             },
         ];
@@ -333,8 +342,8 @@ impl PaletteState {
                 let text = w.path.to_str().unwrap();
                 let text = match &w.kind {
                     LapceWorkspaceType::Local => text.to_string(),
-                    LapceWorkspaceType::RemoteSSH(host) => {
-                        format!("[{}] {}", host, text)
+                    LapceWorkspaceType::RemoteSSH(user, host) => {
+                        format!("[{}@{}] {}", user, host, text)
                     }
                 };
                 PaletteItem {
@@ -439,16 +448,18 @@ impl PaletteState {
             .kind
             .clone();
         match workspace_type {
-            LapceWorkspaceType::RemoteSSH(host) => self.get_ssh_files(&host),
+            LapceWorkspaceType::RemoteSSH(user, host) => {
+                self.get_ssh_files(&user, &host)
+            }
             LapceWorkspaceType::Local => self.get_local_files(),
         }
     }
 
-    fn get_ssh_files(&self, host: &str) -> Vec<PaletteItem> {
+    fn get_ssh_files(&self, user: &str, host: &str) -> Vec<PaletteItem> {
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let mut ssh_session = state.ssh_session.lock();
         if ssh_session.is_none() {
-            if let Ok(session) = SshSession::new(host) {
+            if let Ok(session) = SshSession::new(user, host) {
                 *ssh_session = Some(session);
             } else {
                 return Vec::new();

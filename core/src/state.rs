@@ -145,7 +145,7 @@ impl LapceUIState {
 #[derive(Clone, Debug)]
 pub enum LapceWorkspaceType {
     Local,
-    RemoteSSH(String),
+    RemoteSSH(String, String),
 }
 
 #[derive(Clone, Debug)]
@@ -359,10 +359,10 @@ impl LapceTabState {
         }
     }
 
-    pub fn get_ssh_session(&self, host: &str) -> Result<()> {
+    pub fn get_ssh_session(&self, user: &str, host: &str) -> Result<()> {
         let mut ssh_session = self.ssh_session.lock();
         if ssh_session.is_none() {
-            let session = SshSession::new(host)?;
+            let session = SshSession::new(user, host)?;
             *ssh_session = Some(session);
         }
         Ok(())
