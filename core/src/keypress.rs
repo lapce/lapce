@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::{fs::File, sync::Arc};
 
 use anyhow::{anyhow, Result};
+use druid::KbKey;
 use druid::{
     Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId,
     WindowId,
@@ -152,6 +153,9 @@ impl KeyPressState {
         key_event: &KeyEvent,
         env: &Env,
     ) {
+        if key_event.key == KbKey::Shift {
+            return;
+        }
         let mut mods = key_event.mods.clone();
         mods.set(Modifiers::SHIFT, false);
         let keypress = KeyPress {

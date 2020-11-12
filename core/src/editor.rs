@@ -298,14 +298,17 @@ impl EditorState {
             LapceCommand::WordBackward => Some(Movement::WordBackward),
             LapceCommand::WordFoward => Some(Movement::WordForward),
             LapceCommand::WordEndForward => Some(Movement::WordEndForward),
-            LapceCommand::NextUnmatchedRightBracket => 
-                Some(Movement::NextUnmatched(')')),
-            LapceCommand::PreviousUnmatchedLeftBracket => 
-                Some(Movement::PreviousUnmatched('(')),
-            LapceCommand::NextUnmatchedRightCurlyBracket => 
-                Some(Movement::NextUnmatched('}')),
-            LapceCommand::PreviousUnmatchedLeftCurlyBracket => 
-                Some(Movement::PreviousUnmatched('{')),
+            LapceCommand::NextUnmatchedRightBracket => {
+                Some(Movement::NextUnmatched(')'))
+            }
+            LapceCommand::PreviousUnmatchedLeftBracket => {
+                Some(Movement::PreviousUnmatched('('))
+            }
+            LapceCommand::NextUnmatchedRightCurlyBracket => {
+                Some(Movement::NextUnmatched('}'))
+            }
+            LapceCommand::PreviousUnmatchedLeftCurlyBracket => {
+                Some(Movement::PreviousUnmatched('{'))
             }
             _ => None,
         }

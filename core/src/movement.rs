@@ -478,8 +478,8 @@ impl Movement {
             Movement::NextUnmatched(c) => {
                 let mut end = region.end;
                 for i in 0..count {
-                    if let Some(new) = buffer.next_unmmatched(end, *c) {
-                        end = new;
+                    if let Some(new) = buffer.next_unmmatched(end + 1, *c) {
+                        end = new - 1;
                     } else {
                         break;
                     }

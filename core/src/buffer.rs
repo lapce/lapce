@@ -995,15 +995,14 @@ impl<'a> WordCursor<'a> {
     pub fn next_unmatched(&mut self, c: char) -> Option<usize> {
         let other = self.matching_char(c)?;
         let mut n = 0;
-        let mut candidate = self.inner.pos();
         while let Some(current) = self.inner.next_codepoint() {
-            if current == c {
-                if n == 0 {
-                    return Some(self.inner.pos());
-                }
+            if current == c && n == 0 {
+                return Some(self.inner.pos());
             }
             if current == other {
                 n += 1;
+            } else if current == c {
+                n -= 1;
             }
         }
         None
@@ -1020,6 +1019,8 @@ impl<'a> WordCursor<'a> {
             }
             if current == other {
                 n += 1;
+            } else if current == c {
+                n -= 1;
             }
         }
         None
