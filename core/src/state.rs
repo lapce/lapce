@@ -24,7 +24,6 @@ use druid::{
     Target, WidgetId, WindowId,
 };
 use lazy_static::lazy_static;
-use mio::{Events, Interest, Poll, Token};
 use parking_lot::Mutex;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{

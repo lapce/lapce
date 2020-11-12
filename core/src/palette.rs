@@ -315,22 +315,29 @@ impl PaletteState {
             },
             LapceWorkspace {
                 kind: LapceWorkspaceType::RemoteSSH(
+                    "root".to_string(),
+                    "10.154.0.5".to_string(),
+                ),
+                path: PathBuf::from("/root/nebula"),
+            },
+            LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH(
                     "dz".to_string(),
-                    "10.132.0.2:22".to_string(),
+                    "10.132.0.2".to_string(),
                 ),
                 path: PathBuf::from("/home/dz/go/src/galaxy"),
             },
             LapceWorkspace {
                 kind: LapceWorkspaceType::RemoteSSH(
                     "dz".to_string(),
-                    "10.132.0.2:22".to_string(),
+                    "10.132.0.2".to_string(),
                 ),
                 path: PathBuf::from("/home/dz/go/src/tardis"),
             },
             LapceWorkspace {
                 kind: LapceWorkspaceType::RemoteSSH(
                     "dz".to_string(),
-                    "10.132.0.2:22".to_string(),
+                    "10.132.0.2".to_string(),
                 ),
                 path: PathBuf::from("/home/dz/cosmos"),
             },

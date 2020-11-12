@@ -171,13 +171,9 @@ impl Buffer {
                 let mut ssh_session = state.ssh_session.lock();
                 let ssh_session = ssh_session.as_mut().unwrap();
                 let tmp_path = format!("{}.swp", self.path);
-                let mut remote_file =
-                    ssh_session.send(&tmp_path, 0o644, self.len() as u64)?;
-                for chunk in self.rope.iter_chunks(..self.rope.len()) {
-                    ssh_session.channel_write(&mut remote_file, chunk.as_bytes())?;
-                }
-                println!("send remote_file {}", tmp_path);
-                ssh_session.exec(&format!("mv {} {}", tmp_path, self.path))?;
+                ssh_session
+                    .write_file(&tmp_path, self.rope.to_string().as_bytes())?;
+                ssh_session.command(&format!("mv {} {}", tmp_path, self.path))?;
             }
             LapceWorkspaceType::Local => {
                 let path = PathBuf::from_str(&self.path)?;
@@ -770,6 +766,14 @@ impl Buffer {
         WordCursor::new(&self.rope, offset).prev_boundary().unwrap()
     }
 
+    pub fn previous_unmmatched(&self, offset: usize, c: char) -> Option<usize> {
+        WordCursor::new(&self.rope, offset).previous_unmatched(c)
+    }
+
+    pub fn next_unmmatched(&self, offset: usize, c: char) -> Option<usize> {
+        WordCursor::new(&self.rope, offset).next_unmatched(c)
+    }
+
     pub fn prev_code_boundary(&self, offset: usize) -> usize {
         WordCursor::new(&self.rope, offset).prev_code_boundary()
     }
@@ -976,6 +980,49 @@ impl<'a> WordCursor<'a> {
             candidate = self.inner.pos();
         }
         return candidate;
+    }
+
+    fn matching_char(&self, c: char) -> Option<char> {
+        Some(match c {
+            '{' => '}',
+            '}' => '{',
+            '(' => ')',
+            ')' => '(',
+            _ => return None,
+        })
+    }
+
+    pub fn next_unmatched(&mut self, c: char) -> Option<usize> {
+        let other = self.matching_char(c)?;
+        let mut n = 0;
+        let mut candidate = self.inner.pos();
+        while let Some(current) = self.inner.next_codepoint() {
+            if current == c {
+                if n == 0 {
+                    return Some(self.inner.pos());
+                }
+            }
+            if current == other {
+                n += 1;
+            }
+        }
+        None
+    }
+
+    pub fn previous_unmatched(&mut self, c: char) -> Option<usize> {
+        let other = self.matching_char(c)?;
+        let mut n = 0;
+        while let Some(current) = self.inner.prev_codepoint() {
+            if current == c {
+                if n == 0 {
+                    return Some(self.inner.pos());
+                }
+            }
+            if current == other {
+                n += 1;
+            }
+        }
+        None
     }
 
     /// Return the selection for the word containing the current cursor. The

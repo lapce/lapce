@@ -1,7 +1,5 @@
 use crate::{
-    command::LapceUICommand,
-    ssh::{SshSession, SshStream},
-    state::LapceWorkspaceType,
+    command::LapceUICommand, ssh::SshSession, state::LapceWorkspaceType,
     state::LAPCE_APP_STATE,
 };
 use anyhow::{anyhow, Result};
@@ -52,11 +50,6 @@ pub enum LspHeader {
     ContentLength(usize),
 }
 
-pub enum LspProcess {
-    Child(Child),
-    SshSession(SshSession),
-}
-
 pub struct LspCatalog {
     window_id: WindowId,
     tab_id: WidgetId,
@@ -80,14 +73,7 @@ impl LspCatalog {
 
     pub fn stop(&self) {
         for (_, client) in self.clients.iter() {
-            match &mut client.state.lock().process {
-                LspProcess::Child(child) => {
-                    child.kill();
-                }
-                LspProcess::SshSession(ssh_session) => {
-                    ssh_session.session.disconnect(None, "closing down", None);
-                }
-            }
+            client.state.lock().process.kill();
         }
     }
 
@@ -97,37 +83,14 @@ impl LspCatalog {
         language_id: &str,
         options: Option<Value>,
     ) {
-        let workspace_type = LAPCE_APP_STATE
-            .get_tab_state(&self.window_id, &self.tab_id)
-            .workspace
-            .lock()
-            .kind
-            .clone();
-        match workspace_type {
-            LapceWorkspaceType::Local => {
-                let client = LspClient::new(
-                    self.window_id,
-                    self.tab_id,
-                    language_id.to_string(),
-                    exec_path,
-                    options,
-                );
-                self.clients.insert(language_id.to_string(), client);
-            }
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                if let Ok(client) = LspClient::new_ssh(
-                    self.window_id,
-                    self.tab_id,
-                    language_id.to_string(),
-                    exec_path,
-                    options,
-                    &user,
-                    &host,
-                ) {
-                    self.clients.insert(language_id.to_string(), client);
-                }
-            }
-        };
+        let client = LspClient::new(
+            self.window_id,
+            self.tab_id,
+            language_id.to_string(),
+            exec_path,
+            options,
+        );
+        self.clients.insert(language_id.to_string(), client);
     }
 
     pub fn save_buffer(&self, buffer: &Buffer) {
@@ -252,7 +215,7 @@ impl<F: Send + FnOnce(&LspClient, Result<Value>)> Callable for F {
 pub struct LspState {
     next_id: u64,
     writer: Box<dyn Write + Send>,
-    process: LspProcess,
+    process: Child,
     pending: HashMap<u64, Callback>,
     pub server_capabilities: Option<ServerCapabilities>,
     pub opened_documents: HashMap<BufferId, Url>,
@@ -275,11 +238,26 @@ impl LspClient {
         exec_path: &str,
         options: Option<Value>,
     ) -> Arc<LspClient> {
-        let mut process = Command::new(exec_path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Error Occurred");
+        let workspace_type = LAPCE_APP_STATE
+            .get_tab_state(&window_id, &tab_id)
+            .workspace
+            .lock()
+            .kind
+            .clone();
+        let mut process = match workspace_type {
+            LapceWorkspaceType::Local => Command::new(exec_path)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .expect("Error Occurred"),
+            LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
+                .arg(format!("{}@{}", user, host))
+                .arg(exec_path)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .expect("Error Occurred"),
+        };
 
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
@@ -292,7 +270,7 @@ impl LspClient {
             state: Arc::new(Mutex::new(LspState {
                 next_id: 0,
                 writer,
-                process: LspProcess::Child(process),
+                process,
                 pending: HashMap::new(),
                 server_capabilities: None,
                 opened_documents: HashMap::new(),
@@ -319,55 +297,54 @@ impl LspClient {
         lsp_client
     }
 
-    pub fn new_ssh(
-        window_id: WindowId,
-        tab_id: WidgetId,
-        language_id: String,
-        exec_path: &str,
-        options: Option<Value>,
-        user: &str,
-        host: &str,
-    ) -> Result<Arc<LspClient>> {
-        let mut ssh_session = SshSession::new(user, host)?;
-        let mut channel = ssh_session.get_channel()?;
-        ssh_session.channel_exec(&mut channel, exec_path)?;
-        println!("lsp {}", exec_path);
-        let writer = Box::new(ssh_session.get_stream(&channel));
-        let reader = ssh_session.get_stream(&channel);
-        let lsp_client = Arc::new(LspClient {
-            window_id,
-            tab_id,
-            language_id,
-            state: Arc::new(Mutex::new(LspState {
-                next_id: 0,
-                writer,
-                process: LspProcess::SshSession(ssh_session),
-                pending: HashMap::new(),
-                server_capabilities: None,
-                opened_documents: HashMap::new(),
-                is_initialized: false,
-            })),
-            options,
-        });
+    //pub fn new_ssh(
+    //    window_id: WindowId,
+    //    tab_id: WidgetId,
+    //    language_id: String,
+    //    exec_path: &str,
+    //    options: Option<Value>,
+    //    user: &str,
+    //    host: &str,
+    //) -> Result<Arc<LspClient>> {
+    //    let ssh_session = Arc::new(SshSession::new(user, host)?);
+    //    let child = ssh_session.run(exec_path)?;
+    //    println!("lsp {}", exec_path);
+    //    let writer = Box::new(child.stdin());
+    //    let reader = child.stdout();
+    //    let lsp_client = Arc::new(LspClient {
+    //        window_id,
+    //        tab_id,
+    //        language_id,
+    //        state: Arc::new(Mutex::new(LspState {
+    //            next_id: 0,
+    //            writer,
+    //            process: LspProcess::SshSession(ssh_session.clone()),
+    //            pending: HashMap::new(),
+    //            server_capabilities: None,
+    //            opened_documents: HashMap::new(),
+    //            is_initialized: false,
+    //        })),
+    //        options,
+    //    });
 
-        let local_lsp_client = lsp_client.clone();
-        //  let reader = ssh_session.get_async_stream(channel.stream(0))?;
-        thread::spawn(move || {
-            let mut reader = Box::new(BufReader::new(reader));
-            loop {
-                match read_message(&mut reader) {
-                    Ok(message_str) => {
-                        local_lsp_client.handle_message(message_str.as_ref());
-                    }
-                    Err(err) => {
-                        //println!("Error occurred {:?}", err);
-                    }
-                };
-            }
-        });
+    //    let local_lsp_client = lsp_client.clone();
+    //    //  let reader = ssh_session.get_async_stream(channel.stream(0))?;
+    //    thread::spawn(move || {
+    //        let mut reader = Box::new(BufReader::new(reader));
+    //        loop {
+    //            match read_message(&mut reader) {
+    //                Ok(message_str) => {
+    //                    local_lsp_client.handle_message(message_str.as_ref());
+    //                }
+    //                Err(err) => {
+    //                    //println!("Error occurred {:?}", err);
+    //                }
+    //            };
+    //        }
+    //    });
 
-        Ok(lsp_client)
-    }
+    //    Ok(lsp_client)
+    //}
 
     pub fn update(
         &self,

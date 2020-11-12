@@ -5,8 +5,8 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-mio = { version = "0.7.4", features = ["os-poll", "tcp"] }
-ssh2 = "0.8.2"
+openssh = "0.7.0"
+tokio = { version = "0.3.3", features = ["full"] }
 jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }

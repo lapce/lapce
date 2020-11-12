@@ -287,6 +287,8 @@ pub enum Movement {
     WordEndForward,
     WordForward,
     WordBackward,
+    NextUnmatched(char),
+    PreviousUnmatched(char),
 }
 
 impl Movement {
@@ -472,6 +474,30 @@ impl Movement {
                 }
                 let (_, col) = buffer.offset_to_line_col(new_end);
                 (new_end, ColPosition::Col(col))
+            }
+            Movement::NextUnmatched(c) => {
+                let mut end = region.end;
+                for i in 0..count {
+                    if let Some(new) = buffer.next_unmmatched(end, *c) {
+                        end = new;
+                    } else {
+                        break;
+                    }
+                }
+                let (_, col) = buffer.offset_to_line_col(end);
+                (end, ColPosition::Col(col))
+            }
+            Movement::PreviousUnmatched(c) => {
+                let mut end = region.end;
+                for i in 0..count {
+                    if let Some(new) = buffer.previous_unmmatched(end, *c) {
+                        end = new;
+                    } else {
+                        break;
+                    }
+                }
+                let (_, col) = buffer.offset_to_line_col(end);
+                (end, ColPosition::Col(col))
             }
         };
 

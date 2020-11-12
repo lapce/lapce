@@ -143,7 +143,6 @@ impl EditorState {
         let old_editor = old_data.get_editor(&self.view_id);
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
 
-
         if buffer.max_len != old_buffer.max_len
             || buffer.text_layouts.len() != old_buffer.text_layouts.len()
         {
@@ -299,6 +298,15 @@ impl EditorState {
             LapceCommand::WordBackward => Some(Movement::WordBackward),
             LapceCommand::WordFoward => Some(Movement::WordForward),
             LapceCommand::WordEndForward => Some(Movement::WordEndForward),
+            LapceCommand::NextUnmatchedRightBracket => 
+                Some(Movement::NextUnmatched(')')),
+            LapceCommand::PreviousUnmatchedLeftBracket => 
+                Some(Movement::PreviousUnmatched('(')),
+            LapceCommand::NextUnmatchedRightCurlyBracket => 
+                Some(Movement::NextUnmatched('}')),
+            LapceCommand::PreviousUnmatchedLeftCurlyBracket => 
+                Some(Movement::PreviousUnmatched('{')),
+            }
             _ => None,
         }
     }
@@ -1224,18 +1232,15 @@ impl EditorSplitState {
         let mut file_diagnostics = diagnostics
             .iter()
             .filter_map(|(path, diagnositics)| {
-                let buffer = self.get_buffer_from_path(ctx, ui_state, path);
-                let mut errors: Vec<usize> = diagnositics
+                //let buffer = self.get_buffer_from_path(ctx, ui_state, path);
+                let mut errors: Vec<Position> = diagnositics
                     .iter()
                     .filter_map(|d| {
                         let severity = d.severity?;
                         if severity != DiagnosticSeverity::Error {
                             return None;
                         }
-                        Some(
-                            buffer.offset_of_line(d.range.start.line as usize)
-                                + d.range.start.character as usize,
-                        )
+                        Some(d.range.start)
                     })
                     .collect();
                 if errors.len() == 0 {
@@ -1245,7 +1250,7 @@ impl EditorSplitState {
                     Some((path, errors))
                 }
             })
-            .collect::<Vec<(&String, Vec<usize>)>>();
+            .collect::<Vec<(&String, Vec<Position>)>>();
         if file_diagnostics.len() == 0 {
             return None;
         }
@@ -1254,14 +1259,15 @@ impl EditorSplitState {
         let editor = self.editors.get(&self.active)?;
         let buffer_id = editor.buffer_id.as_ref()?;
         let buffer = self.buffers.get(buffer_id)?;
-        let (path, offset) = next_in_file_errors_offset(
-            editor.selection.get_cursor_offset(),
+        let (path, position) = next_in_file_errors_offset(
+            buffer.offset_to_position(editor.selection.get_cursor_offset()),
             &buffer.path,
             &file_diagnostics,
         );
+        let jump_buffer = self.get_buffer_from_path(ctx, ui_state, &path);
         let location = EditorLocation {
             path,
-            offset,
+            offset: jump_buffer.offset_of_position(&position)?,
             scroll_offset: None,
         };
         self.save_jump_location();
@@ -3282,6 +3288,7 @@ impl Widget<LapceUIState> for Editor {
                     }
                 }
             }
+            let mut current_diagnostics = None;
             if let Some(diagnostics) = editor_split.diagnostics.get(&buffer.path) {
                 for diagnositic in diagnostics {
                     if let Some(severity) = diagnositic.severity {
@@ -3299,6 +3306,11 @@ impl Widget<LapceUIState> for Editor {
                         if (start.line as usize) < start_line + num_lines
                             || (end.line as usize) > start_line
                         {
+                            if Some(editor.selection.get_cursor_offset())
+                                == buffer.offset_of_position(&start)
+                            {
+                                current_diagnostics = Some(diagnositic);
+                            }
                             for line in start.line as usize..end.line as usize + 1 {
                                 if line > last_line {
                                     break;
@@ -3321,45 +3333,45 @@ impl Widget<LapceUIState> for Editor {
                                 let y0 = (line + 1) as f64 * line_height - 2.0;
                                 ctx.fill(Rect::new(x0, y0, x1, y1), &color);
                             }
-                            if Some(editor.selection.get_cursor_offset())
-                                == buffer.offset_of_position(&start)
-                            {
-                                let mut text_layout =
-                                    TextLayout::<String>::from_text(
-                                        diagnositic.message.clone(),
-                                    );
-                                text_layout.set_font(
-                                    FontDescriptor::new(FontFamily::SYSTEM_UI)
-                                        .with_size(14.0),
-                                );
-                                text_layout
-                                    .set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                                text_layout.rebuild_if_needed(ctx.text(), env);
-                                let text_size = text_layout.size();
-                                let rect = Rect::ZERO
-                                    .with_origin(Point::new(
-                                        0.0,
-                                        (start.line + 1) as f64 * line_height,
-                                    ))
-                                    .with_size(Size::new(
-                                        size.width,
-                                        text_size.height + 20.0,
-                                    ));
-                                ctx.fill(
-                                    rect,
-                                    &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
-                                );
-                                ctx.stroke(rect, &color, 1.0);
-                                text_layout.draw(
-                                    ctx,
-                                    Point::new(
-                                        10.0,
-                                        (start.line + 1) as f64 * line_height + 10.0,
-                                    ),
-                                );
-                            }
                         }
                     }
+                }
+            }
+            if let Some(diagnositic) = current_diagnostics {
+                if let Some(severity) = diagnositic.severity {
+                    let color = match severity {
+                        DiagnosticSeverity::Error => {
+                            env.get(LapceTheme::EDITOR_ERROR)
+                        }
+                        DiagnosticSeverity::Warning => {
+                            env.get(LapceTheme::EDITOR_WARN)
+                        }
+                        _ => env.get(LapceTheme::EDITOR_WARN),
+                    };
+                    let start = diagnositic.range.start;
+                    let mut text_layout =
+                        TextLayout::<String>::from_text(diagnositic.message.clone());
+                    text_layout.set_font(
+                        FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
+                    );
+                    text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                    text_layout.rebuild_if_needed(ctx.text(), env);
+                    let text_size = text_layout.size();
+                    let rect = Rect::ZERO
+                        .with_origin(Point::new(
+                            0.0,
+                            (start.line + 1) as f64 * line_height,
+                        ))
+                        .with_size(Size::new(size.width, text_size.height + 20.0));
+                    ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+                    ctx.stroke(rect, &color, 1.0);
+                    text_layout.draw(
+                        ctx,
+                        Point::new(
+                            10.0,
+                            (start.line + 1) as f64 * line_height + 10.0,
+                        ),
+                    );
                 }
             }
         }
@@ -3485,20 +3497,23 @@ fn get_workspace_edit_document_changes_edits<'a>(
 }
 
 fn next_in_file_errors_offset(
-    offset: usize,
+    position: Position,
     path: &String,
-    file_diagnostics: &Vec<(&String, Vec<usize>)>,
-) -> (String, usize) {
-    for (current_path, offsets) in file_diagnostics {
+    file_diagnostics: &Vec<(&String, Vec<Position>)>,
+) -> (String, Position) {
+    for (current_path, positions) in file_diagnostics {
         if &path == current_path {
-            for error_offset in offsets {
-                if *error_offset > offset {
-                    return ((*current_path).clone(), *error_offset);
+            for error_position in positions {
+                if error_position.line > position.line
+                    || (error_position.line == position.line
+                        && error_position.character > position.character)
+                {
+                    return ((*current_path).clone(), *error_position);
                 }
             }
         }
         if current_path > &path {
-            return ((*current_path).clone(), offsets[0]);
+            return ((*current_path).clone(), positions[0]);
         }
     }
     ((*file_diagnostics[0].0).clone(), file_diagnostics[0].1[0])

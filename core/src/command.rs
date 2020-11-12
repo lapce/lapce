@@ -149,6 +149,14 @@ pub enum LapceCommand {
     Save,
     #[strum(serialize = "show_code_actions")]
     ShowCodeActions,
+    #[strum(serialize = "next_unmatched_right_bracket")]
+    NextUnmatchedRightBracket,
+    #[strum(serialize = "previous_unmatched_left_bracket")]
+    PreviousUnmatchedLeftBracket,
+    #[strum(serialize = "next_unmatched_right_curly_bracket")]
+    NextUnmatchedRightCurlyBracket,
+    #[strum(serialize = "previous_unmatched_left_curly_bracket")]
+    PreviousUnmatchedLeftCurlyBracket,
     Insert(String),
 }
 

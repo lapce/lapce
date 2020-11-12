@@ -20,12 +20,8 @@ use xi_rope::{LinesMetric, Rope, RopeDelta};
 use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
 use crate::{
-    buffer::BufferId,
-    ssh::{SshSession, SshStream},
-    state::Counter,
-    state::LapceTabState,
-    state::LapceWorkspaceType,
-    state::LAPCE_APP_STATE,
+    buffer::BufferId, ssh::SshSession, state::Counter, state::LapceTabState,
+    state::LapceWorkspaceType, state::LAPCE_APP_STATE,
 };
 
 pub type PluginName = String;
@@ -70,7 +66,7 @@ pub struct Plugin {
     peer: RpcPeer,
     id: PluginId,
     name: String,
-    process: PluginProcess,
+    process: Child,
 }
 
 impl Drop for Plugin {
@@ -173,49 +169,20 @@ impl PluginCatalog {
 
     pub fn stop(&mut self) {
         for plugin in self.running.iter_mut() {
-            match &mut plugin.process {
-                PluginProcess::Child(child) => {
-                    child.kill();
-                }
-                PluginProcess::SshSession(ssh) => {
-                    ssh.session.disconnect(None, "closing down", None);
-                }
-            }
+            plugin.process.kill();
         }
     }
 
     pub fn start_all(&mut self) -> Result<()> {
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let workspace_type = state.workspace.lock().kind.clone();
-        match workspace_type {
-            LapceWorkspaceType::Local => {
-                for (_, manifest) in self.items.clone().iter() {
-                    start_plugin_process(
-                        self.window_id,
-                        self.tab_id,
-                        manifest.clone(),
-                        self.next_plugin_id(),
-                    );
-                }
-            }
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                for (_, manifest) in self.items.clone().iter() {
-                    let manifest = manifest.clone();
-                    let plugin_id = self.next_plugin_id();
-                    let user = user.clone();
-                    let host = host.clone();
-                    let window_id = self.window_id;
-                    let tab_id = self.tab_id;
-                    thread::spawn(move || {
-                        if let Err(e) = start_plugin_ssh(
-                            window_id, tab_id, manifest, plugin_id, &user, &host,
-                        ) {
-                            println!("start plugin ssh error {}", e);
-                        }
-                    });
-                }
-            }
-        };
+        for (_, manifest) in self.items.clone().iter() {
+            start_plugin_process(
+                self.window_id,
+                self.tab_id,
+                manifest.clone(),
+                self.next_plugin_id(),
+            );
+        }
         Ok(())
     }
 
@@ -306,46 +273,44 @@ fn load_manifest(path: &Path) -> Result<PluginDescription> {
     Ok(manifest)
 }
 
-fn start_plugin_ssh(
-    window_id: WindowId,
-    tab_id: WidgetId,
-    plugin_desc: Arc<PluginDescription>,
-    id: PluginId,
-    user: &str,
-    host: &str,
-) -> Result<()> {
-    println!(
-        "start plugin {:?} {:?}",
-        plugin_desc.exec_path, plugin_desc.dir
-    );
-    let mut ssh_session = SshSession::new(user, host)?;
-    let mut channel = ssh_session.get_channel()?;
-    ssh_session
-        .channel_exec(&mut channel, plugin_desc.exec_path.to_str().unwrap())?;
-    let mut looper = RpcLoop::new(ssh_session.get_stream(&channel));
-    let peer: RpcPeer = Box::new(looper.get_raw_peer());
-    let name = plugin_desc.name.clone();
-    let read_stream = ssh_session.get_stream(&channel);
-    let plugin = Plugin {
-        peer,
-        process: PluginProcess::SshSession(ssh_session),
-        name,
-        id,
-    };
-
-    plugin.initialize();
-
-    let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-    state.plugins.lock().running.push(plugin);
-
-    //    let reader = ssh_session.get_async_stream(channel.stream(0))?;
-    let mut handler = PluginHandler { window_id, tab_id };
-    if let Err(e) = looper.mainloop(|| BufReader::new(read_stream), &mut handler) {
-        println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
-    }
-    println!("plugin main loop exit {:?}", plugin_desc.dir);
-    Ok(())
-}
+//fn start_plugin_ssh(
+//    window_id: WindowId,
+//    tab_id: WidgetId,
+//    plugin_desc: Arc<PluginDescription>,
+//    id: PluginId,
+//    user: &str,
+//    host: &str,
+//) -> Result<()> {
+//    println!(
+//        "start plugin {:?} {:?}",
+//        plugin_desc.exec_path, plugin_desc.dir
+//    );
+//    let mut ssh_session = SshSession::new(user, host)?;
+//    let child = ssh_session.run(plugin_desc.exec_path.to_str().unwrap())?;
+//    let mut looper = RpcLoop::new(child.stdin());
+//    let peer: RpcPeer = Box::new(looper.get_raw_peer());
+//    let name = plugin_desc.name.clone();
+//    let read_stream = child.stdout();
+//    let plugin = Plugin {
+//        peer,
+//        process: PluginProcess::SshSession(ssh_session),
+//        name,
+//        id,
+//    };
+//
+//    plugin.initialize();
+//
+//    let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+//    state.plugins.lock().running.push(plugin);
+//
+//    //    let reader = ssh_session.get_async_stream(channel.stream(0))?;
+//    let mut handler = PluginHandler { window_id, tab_id };
+//    if let Err(e) = looper.mainloop(|| BufReader::new(read_stream), &mut handler) {
+//        println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
+//    }
+//    println!("plugin main loop exit {:?}", plugin_desc.dir);
+//    Ok(())
+//}
 
 fn start_plugin_process(
     window_id: WindowId,
@@ -358,19 +323,36 @@ fn start_plugin_process(
             "start plugin {:?} {:?}",
             plugin_desc.exec_path, plugin_desc.dir
         );
-        let parts: Vec<&str> = plugin_desc
-            .exec_path
-            .to_str()
-            .unwrap()
-            .split(" ")
-            .into_iter()
-            .collect();
-        let mut child = Command::new(parts[0]);
-        for part in &parts[1..] {
-            child.arg(part);
-        }
-        child.current_dir(plugin_desc.dir.as_ref().unwrap());
-        let child = child.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn();
+        let workspace_type = LAPCE_APP_STATE
+            .get_tab_state(&window_id, &tab_id)
+            .workspace
+            .lock()
+            .kind
+            .clone();
+        let mut child = match workspace_type {
+            LapceWorkspaceType::Local => {
+                let parts: Vec<&str> = plugin_desc
+                    .exec_path
+                    .to_str()
+                    .unwrap()
+                    .split(" ")
+                    .into_iter()
+                    .collect();
+                let mut child = Command::new(parts[0]);
+                for part in &parts[1..] {
+                    child.arg(part);
+                }
+                child.current_dir(plugin_desc.dir.as_ref().unwrap());
+                child.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()
+            }
+            LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
+                .arg(format!("{}@{}", user, host))
+                .arg(plugin_desc.exec_path.to_str().unwrap())
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn(),
+        };
+
         if let Err(e) = child.map(|mut child| {
             let child_stdin = child.stdin.take().unwrap();
             let child_stdout = child.stdout.take().unwrap();
@@ -379,7 +361,7 @@ fn start_plugin_process(
             let name = plugin_desc.name.clone();
             let plugin = Plugin {
                 peer,
-                process: PluginProcess::Child(child),
+                process: child,
                 name,
                 id,
             };
