@@ -24,6 +24,14 @@ impl SelRegion {
         SelRegion { start, end, horiz }
     }
 
+    pub fn caret(offset: usize) -> SelRegion {
+        SelRegion {
+            start: offset,
+            end: offset,
+            horiz: None,
+        }
+    }
+
     pub fn min(self) -> usize {
         min(self.start, self.end)
     }
@@ -289,6 +297,7 @@ pub enum Movement {
     WordBackward,
     NextUnmatched(char),
     PreviousUnmatched(char),
+    MatchPairs,
 }
 
 impl Movement {
@@ -495,6 +504,14 @@ impl Movement {
                     } else {
                         break;
                     }
+                }
+                let (_, col) = buffer.offset_to_line_col(end);
+                (end, ColPosition::Col(col))
+            }
+            Movement::MatchPairs => {
+                let mut end = region.end;
+                if let Some(new) = buffer.match_pairs(end) {
+                    end = new;
                 }
                 let (_, col) = buffer.offset_to_line_col(end);
                 (end, ColPosition::Col(col))

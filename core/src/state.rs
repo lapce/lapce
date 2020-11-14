@@ -23,8 +23,11 @@ use druid::{
     widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers,
     Target, WidgetId, WindowId,
 };
+use git2::Oid;
+use git2::Repository;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
+use std::path::Path;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
     collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
@@ -81,6 +84,7 @@ pub struct KeyMap {
 #[derive(Clone)]
 pub struct LapceUIState {
     pub focus: LapceFocus,
+    pub mode: Mode,
     pub buffers: Arc<HashMap<BufferId, Arc<BufferUIState>>>,
     pub editors: Arc<HashMap<WidgetId, EditorUIState>>,
     pub highlight_sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
@@ -108,6 +112,7 @@ impl LapceUIState {
 
         let (sender, receiver) = channel();
         let state = LapceUIState {
+            mode: Mode::Normal,
             buffers: Arc::new(HashMap::new()),
             focus: LapceFocus::Editor,
             editors: Arc::new(editors),
@@ -289,6 +294,26 @@ pub struct LapceTabState {
 
 impl LapceTabState {
     pub fn new(window_id: WindowId) -> LapceTabState {
+        let repo = Repository::open("/Users/Lulu/lapce").unwrap();
+        let head = repo.head().unwrap();
+        let tree = head.peel_to_tree().unwrap();
+        // let tree = repo.find_tree(oid).unwrap();
+        let tree_entry = tree.get_path(&PathBuf::from("Cargo.toml")).unwrap();
+        let blob = repo.find_blob(tree_entry.id()).unwrap();
+        let mut patch = git2::Patch::from_blob_and_buffer(
+            &blob,
+            None,
+            "lsjdf".as_bytes(),
+            None,
+            None,
+        )
+        .unwrap();
+        for i in 0..patch.num_hunks() {
+            let hunk = patch.hunk(i).unwrap();
+            println!("hunk {:?}", hunk);
+        }
+        println!("diff {}", patch.to_buf().unwrap().as_str().unwrap());
+
         let workspace = LapceWorkspace {
             kind: LapceWorkspaceType::Local,
             path: PathBuf::from("/Users/Lulu/lapce"),
@@ -344,6 +369,30 @@ impl LapceTabState {
         let mut plugins = self.plugins.lock();
         plugins.reload_from_paths(&[PathBuf::from_str("./lsp").unwrap()]);
         plugins.start_all();
+    }
+
+    pub fn open(
+        &self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        path: &Path,
+    ) {
+        if path.is_dir() {
+            *self.workspace.lock() = LapceWorkspace {
+                kind: LapceWorkspaceType::Local,
+                path: path.to_path_buf(),
+            };
+            *self.ssh_session.lock() = None;
+            self.stop();
+            self.start_plugin();
+            ctx.request_paint();
+        } else {
+            self.editor_split.lock().open_file(
+                ctx,
+                ui_state,
+                path.to_str().unwrap(),
+            );
+        }
     }
 
     pub fn get_icon(&self, name: &str) -> Option<&SvgData> {

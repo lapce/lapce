@@ -1,9 +1,12 @@
+use druid::Color;
+use druid::Vec2;
 use druid::{
     Event, FontDescriptor, FontFamily, Point, RenderContext, Size, TextLayout,
     Widget, WidgetId, WindowId,
 };
 use lsp_types::DiagnosticSeverity;
 
+use crate::state::Mode;
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     state::{LapceUIState, LAPCE_APP_STATE},
@@ -75,6 +78,10 @@ impl Widget<LapceUIState> for LapceStatus {
         data: &LapceUIState,
         env: &druid::Env,
     ) {
+        if old_data.mode != data.mode {
+            ctx.request_paint();
+            return;
+        }
     }
 
     fn layout(
@@ -100,6 +107,23 @@ impl Widget<LapceUIState> for LapceStatus {
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let editor_split = state.editor_split.lock();
 
+        let mut left = 0.0;
+        let (mode, color) = match editor_split.get_mode() {
+            Mode::Normal => ("Normal", Color::rgb8(64, 120, 242)),
+            Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
+            Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
+        };
+        let mut text_layout = TextLayout::<String>::from_text(mode);
+        text_layout
+            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
+        text_layout.set_text_color(LapceTheme::EDITOR_BACKGROUND);
+        text_layout.rebuild_if_needed(ctx.text(), env);
+        let text_size = text_layout.size();
+        let fill_size = Size::new(text_size.width + 10.0, size.height);
+        ctx.fill(fill_size.to_rect(), &color);
+        text_layout.draw(ctx, Point::new(5.0, 4.0));
+        left += text_size.width + 10.0;
+
         let mut errors = 0;
         let mut warnings = 0;
         for (_, diagnositics) in editor_split.diagnostics.iter() {
@@ -120,7 +144,8 @@ impl Widget<LapceUIState> for LapceStatus {
             .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
         text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
         text_layout.rebuild_if_needed(ctx.text(), env);
-        text_layout.draw(ctx, Point::new(10.0, 5.0));
+        text_layout.draw(ctx, Point::new(left + 10.0, 4.0));
+        left += 10.0 + text_layout.size().width;
     }
 
     fn id(&self) -> Option<WidgetId> {

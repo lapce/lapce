@@ -62,52 +62,51 @@ impl AppDelegate<LapceUIState> for Delegate {
 
 fn build_app(window_id: WindowId) -> impl Widget<LapceUIState> {
     let window = LapceWindow::new(window_id);
-    window
-        .env_scope(|env: &mut druid::Env, data: &LapceUIState| {
-            let theme = &LAPCE_APP_STATE.theme;
-            if let Some(line_highlight) = theme.get("line_highlight") {
-                env.set(
-                    LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-                    line_highlight.clone(),
-                );
-            };
-            if let Some(caret) = theme.get("caret") {
-                env.set(LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
-            };
-            if let Some(foreground) = theme.get("foreground") {
-                env.set(LapceTheme::EDITOR_FOREGROUND, foreground.clone());
-            };
-            if let Some(background) = theme.get("background") {
-                env.set(LapceTheme::EDITOR_BACKGROUND, background.clone());
-            };
-            if let Some(selection) = theme.get("selection") {
-                env.set(LapceTheme::EDITOR_SELECTION_COLOR, selection.clone());
-            };
-            if let Some(color) = theme.get("comment") {
-                env.set(LapceTheme::EDITOR_COMMENT, color.clone());
-            };
-            if let Some(color) = theme.get("error") {
-                env.set(LapceTheme::EDITOR_ERROR, color.clone());
-            };
-            if let Some(color) = theme.get("warn") {
-                env.set(LapceTheme::EDITOR_WARN, color.clone());
-            };
-            env.set(LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
-            env.set(LapceTheme::PALETTE_BACKGROUND, Color::rgb8(125, 125, 125));
-            env.set(LapceTheme::PALETTE_INPUT_FOREROUND, Color::rgb8(0, 0, 0));
+    window.env_scope(|env: &mut druid::Env, data: &LapceUIState| {
+        let theme = &LAPCE_APP_STATE.theme;
+        if let Some(line_highlight) = theme.get("line_highlight") {
             env.set(
-                LapceTheme::PALETTE_INPUT_BACKGROUND,
-                Color::rgb8(255, 255, 255),
+                LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
+                line_highlight.clone(),
             );
-            env.set(LapceTheme::PALETTE_INPUT_BORDER, Color::rgb8(0, 0, 0));
-            env.set(
-                LapceTheme::EDITOR_FONT,
-                FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
-                    .with_size(13.0),
-            );
-            env.set(theme::SCROLLBAR_COLOR, hex_to_color("#c4c4c4").unwrap());
-        })
-        //.debug_invalidation()
+        };
+        if let Some(caret) = theme.get("caret") {
+            env.set(LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
+        };
+        if let Some(foreground) = theme.get("foreground") {
+            env.set(LapceTheme::EDITOR_FOREGROUND, foreground.clone());
+        };
+        if let Some(background) = theme.get("background") {
+            env.set(LapceTheme::EDITOR_BACKGROUND, background.clone());
+        };
+        if let Some(selection) = theme.get("selection") {
+            env.set(LapceTheme::EDITOR_SELECTION_COLOR, selection.clone());
+        };
+        if let Some(color) = theme.get("comment") {
+            env.set(LapceTheme::EDITOR_COMMENT, color.clone());
+        };
+        if let Some(color) = theme.get("error") {
+            env.set(LapceTheme::EDITOR_ERROR, color.clone());
+        };
+        if let Some(color) = theme.get("warn") {
+            env.set(LapceTheme::EDITOR_WARN, color.clone());
+        };
+        env.set(LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
+        env.set(LapceTheme::PALETTE_BACKGROUND, Color::rgb8(125, 125, 125));
+        env.set(LapceTheme::PALETTE_INPUT_FOREROUND, Color::rgb8(0, 0, 0));
+        env.set(
+            LapceTheme::PALETTE_INPUT_BACKGROUND,
+            Color::rgb8(255, 255, 255),
+        );
+        env.set(LapceTheme::PALETTE_INPUT_BORDER, Color::rgb8(0, 0, 0));
+        env.set(
+            LapceTheme::EDITOR_FONT,
+            FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
+                .with_size(13.0),
+        );
+        env.set(theme::SCROLLBAR_COLOR, hex_to_color("#c4c4c4").unwrap());
+    })
+    //.debug_invalidation()
 }
 
 pub fn main() {
@@ -143,10 +142,7 @@ pub fn main() {
         .lock()
         .insert(window_id.clone(), window_state);
     let mut window = WindowDesc::new(move || build_app(window_id.clone()))
-        .title(
-            LocalizedString::new("split-demo-window-title")
-                .with_placeholder("Split Demo"),
-        )
+        .title(LocalizedString::new("lapce").with_placeholder("Lapce"))
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
     window.id = window_id;

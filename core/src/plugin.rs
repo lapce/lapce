@@ -171,6 +171,9 @@ impl PluginCatalog {
         for plugin in self.running.iter_mut() {
             plugin.process.kill();
         }
+        self.items.clear();
+        self.locations.clear();
+        self.running.clear();
     }
 
     pub fn start_all(&mut self) -> Result<()> {

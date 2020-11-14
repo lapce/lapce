@@ -62,12 +62,16 @@ impl CompletionState {
             .collect()
     }
 
-    pub fn cancel(&mut self, ctx: &mut EventCtx) {
+    pub fn clear(&mut self) {
         self.input = "".to_string();
         self.items = Vec::new();
         self.offset = 0;
         self.index = 0;
         self.scroll_offset = 0.0;
+    }
+
+    pub fn cancel(&mut self, ctx: &mut EventCtx) {
+        self.clear();
         self.request_paint(ctx);
     }
 

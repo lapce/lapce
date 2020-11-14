@@ -68,6 +68,13 @@ impl Widget<LapceUIState> for LapceTab {
     ) {
         match event {
             Event::Command(cmd) => match cmd {
+                _ if cmd.is(druid::commands::OPEN_FILE) => {
+                    let command = cmd.get_unchecked(druid::commands::OPEN_FILE);
+                    let state =
+                        LAPCE_APP_STATE.get_active_tab_state(&self.window_id);
+                    state.open(ctx, data, command.path());
+                    println!("got open file command {:?}", command);
+                }
                 _ if cmd.is(LAPCE_UI_COMMAND) => {
                     let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                     match command {

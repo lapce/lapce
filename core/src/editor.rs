@@ -1,3 +1,9 @@
+use crate::buffer::get_word_property;
+use crate::buffer::matching_char;
+use crate::buffer::matching_pair_direction;
+use crate::buffer::next_has_unmatched_pair;
+use crate::buffer::previous_has_unmatched_pair;
+use crate::buffer::WordProperty;
 use crate::completion::CompletionState;
 use crate::{
     buffer::{Buffer, BufferId, BufferUIState, InvalLines},
@@ -24,6 +30,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
+use druid::FileDialogOptions;
 use druid::{
     kurbo::Line, piet::PietText, theme, widget::IdentityWrapper, widget::Padding,
     widget::SvgData, Affine, BoxConstraints, Color, Command, Data, Env, Event,
@@ -298,6 +305,7 @@ impl EditorState {
             LapceCommand::WordBackward => Some(Movement::WordBackward),
             LapceCommand::WordFoward => Some(Movement::WordForward),
             LapceCommand::WordEndForward => Some(Movement::WordEndForward),
+            LapceCommand::MatchPairs => Some(Movement::MatchPairs),
             LapceCommand::NextUnmatchedRightBracket => {
                 Some(Movement::NextUnmatched(')'))
             }
@@ -1082,6 +1090,50 @@ impl EditorSplitState {
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get_mut(&buffer_id)?;
         let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
+        let cursor_char = buffer
+            .char_at_offset(editor.selection.get_cursor_offset())
+            .unwrap();
+
+        if content.chars().count() == 1 {
+            let c = content.chars().next().unwrap();
+            if let Some(left) = matching_pair_direction(c) {
+                if !left {
+                    if cursor_char == c {
+                        let (line, col) = buffer.offset_to_line_col(
+                            editor.selection.get_cursor_offset(),
+                        );
+                        let line_content = buffer
+                            .slice_to_cow(
+                                buffer.offset_of_line(line)
+                                    ..buffer.offset_of_line(line + 1),
+                            )
+                            .to_string();
+                        let other = matching_char(c).unwrap();
+                        let mut count = 0i32;
+                        for current in line_content.chars() {
+                            if current == other {
+                                count += 1;
+                            }
+                            if current == c {
+                                count -= 1;
+                            }
+                        }
+
+                        if count == 0 {
+                            self.run_command(
+                                ctx,
+                                ui_state,
+                                None,
+                                LapceCommand::Right,
+                                env,
+                            );
+                            return None;
+                        }
+                    }
+                }
+            }
+        }
+
         let delta = buffer.edit(
             ctx,
             buffer_ui_state,
@@ -1090,11 +1142,46 @@ impl EditorSplitState {
             !self.inserting,
         );
         editor.selection_apply_delta(&delta);
-        editor.ensure_cursor_visible(ctx, buffer, env, None);
         self.update_completion(ctx);
         self.inactive_editor_apply_delta(&delta);
-        self.notify_fill_text_layouts(ctx, &buffer_id);
         self.inserting = true;
+
+        let cursor_char_type = get_word_property(cursor_char);
+        if content.chars().count() == 1
+            && (cursor_char == ','
+                || cursor_char == '.'
+                || cursor_char == ':'
+                || cursor_char == ';'
+                || cursor_char == '>'
+                || cursor_char == '='
+                || cursor_char_type == WordProperty::Lf
+                || cursor_char_type == WordProperty::Space
+                || !matching_pair_direction(cursor_char).unwrap_or(true))
+        {
+            let c = content.chars().next().unwrap();
+            if let Some(left) = matching_pair_direction(c) {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer_id = editor.buffer_id.clone()?;
+                let buffer = self.buffers.get_mut(&buffer_id)?;
+                let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
+                let other = matching_char(c).unwrap();
+                if left {
+                    let delta = buffer.edit(
+                        ctx,
+                        buffer_ui_state,
+                        &other.to_string(),
+                        &editor.selection,
+                        false,
+                    );
+                    self.inactive_editor_apply_delta(&delta);
+                }
+            }
+        }
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id.clone()?;
+        let buffer = self.buffers.get_mut(&buffer_id)?;
+        editor.ensure_cursor_visible(ctx, buffer, env, None);
+        self.notify_fill_text_layouts(ctx, &buffer_id);
         None
     }
 
@@ -1174,27 +1261,48 @@ impl EditorSplitState {
         let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
 
         let (line, col) = buffer.offset_to_line_col(offset);
-        let indent = buffer.indent_on_line(line);
+        let line_content = buffer
+            .slice_to_cow(
+                buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
+            )
+            .to_string();
 
-        let indent = if indent.len() >= col {
-            indent[..col].to_string()
+        let line_indent = buffer.indent_on_line(line);
+
+        let indent = if previous_has_unmatched_pair(&line_content, col) {
+            format!("{}    ", line_indent)
+        } else if line_indent.len() >= col {
+            line_indent[..col].to_string()
         } else {
             let next_line_indent = buffer.indent_on_line(line + 1);
-            if next_line_indent.len() > indent.len() {
+            if next_line_indent.len() > line_indent.len() {
                 next_line_indent
             } else {
-                indent
+                line_indent.clone()
             }
         };
 
-        let content = format!("{}{}", "\n", indent);
         let selection = Selection::caret(offset);
+        let content = format!("{}{}", "\n", indent);
         let delta =
             buffer.edit(ctx, buffer_ui_state, &content, &selection, new_undo_group);
         editor.selection = selection.apply_delta(&delta, true, InsertDrift::Default);
         editor.ensure_cursor_visible(ctx, buffer, env, None);
-
         self.inactive_editor_apply_delta(&delta);
+        if next_has_unmatched_pair(&line_content, col) {
+            let editor = self.editors.get_mut(&self.active)?;
+            let buffer_id = editor.buffer_id.as_ref()?;
+            let buffer = self.buffers.get_mut(&buffer_id)?;
+            let content = format!("{}{}", "\n", line_indent);
+            let delta = buffer.edit(
+                ctx,
+                buffer_ui_state,
+                &content,
+                &editor.selection,
+                false,
+            );
+            self.inactive_editor_apply_delta(&delta);
+        }
         None
     }
 
@@ -1447,29 +1555,31 @@ impl EditorSplitState {
     ) -> Option<()> {
         let resp: Result<CompletionResponse, serde_json::Error> =
             serde_json::from_value(value);
-        if let Ok(resp) = resp {
-            let items = match resp {
-                CompletionResponse::Array(items) => items,
-                CompletionResponse::List(list) => list.items,
-            };
-            let editor = self.editors.get(&self.active)?;
-            let buffer_id = editor.buffer_id?;
-            let buffer = self.buffers.get(&buffer_id)?;
-            let offset = editor.selection.get_cursor_offset();
-            let prev_offset = buffer.prev_code_boundary(offset);
-            let next_offset = buffer.next_code_boundary(offset);
-            if request_id != prev_offset {
-                return None;
-            }
-
-            let input = buffer.slice_to_cow(prev_offset..next_offset).to_string();
-            self.completion.update(input, items);
-            LAPCE_APP_STATE.submit_ui_command(
-                LapceUICommand::RequestLayout,
-                self.completion.widget_id,
-            );
+        if resp.is_err() {
+            println!("completion is error {:?}", resp);
         }
-        None
+        let resp = resp.ok()?;
+        let items = match resp {
+            CompletionResponse::Array(items) => items,
+            CompletionResponse::List(list) => list.items,
+        };
+        let editor = self.editors.get(&self.active)?;
+        let buffer_id = editor.buffer_id?;
+        let buffer = self.buffers.get(&buffer_id)?;
+        let offset = editor.selection.get_cursor_offset();
+        let prev_offset = buffer.prev_code_boundary(offset);
+        let next_offset = buffer.next_code_boundary(offset);
+        if request_id != prev_offset {
+            return None;
+        }
+
+        let input = buffer.slice_to_cow(prev_offset..next_offset).to_string();
+        self.completion.update(input, items);
+        LAPCE_APP_STATE.submit_ui_command(
+            LapceUICommand::RequestLayout,
+            self.completion.widget_id,
+        );
+        Some(())
     }
 
     pub fn request_layout(&self) {
@@ -1732,11 +1842,14 @@ impl EditorSplitState {
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let line =
                     buffer.line_of_offset(editor.selection.get_cursor_offset());
-                let offset = buffer.first_non_blank_character_on_line(line);
+                let offset = if line > 0 {
+                    buffer.line_end(line - 1, true)
+                } else {
+                    buffer.first_non_blank_character_on_line(line)
+                };
                 self.insert_new_line(ctx, ui_state, offset, true, env);
-
-                let editor = self.editors.get_mut(&self.active)?;
-                editor.selection = Selection::caret(offset);
+                //let editor = self.editors.get_mut(&self.active)?;
+                //editor.selection = Selection::caret(offset);
                 self.mode = Mode::Insert;
                 self.inserting = true;
             }
@@ -2067,6 +2180,105 @@ impl EditorSplitState {
                     .lock()
                     .request_document_formatting(buffer);
             }
+            LapceCommand::ToggleComment => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer_id = editor.buffer_id.clone()?;
+                let buffer = self.buffers.get_mut(&buffer_id)?;
+                let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
+                let comment_str = match buffer.language_id.as_ref() {
+                    "rust" => "//",
+                    "go" => "//",
+                    _ => return None,
+                };
+                let start_line =
+                    buffer.line_of_offset(editor.selection.min_offset());
+                let end_line = buffer.line_of_offset(editor.selection.max_offset());
+                let mut has_code = false;
+                for line in start_line..end_line + 1 {
+                    let line_content = buffer
+                        .slice_to_cow(
+                            buffer.offset_of_line(line)
+                                ..buffer.offset_of_line(line + 1),
+                        )
+                        .to_string();
+                    let line_content = line_content.trim();
+                    if !line_content.starts_with(comment_str) {
+                        has_code = true;
+                        break;
+                    }
+                }
+                if has_code {
+                    let mut selection = Selection::new();
+                    let mut min_col = None;
+                    for line in start_line..end_line + 1 {
+                        let offset = buffer.first_non_blank_character_on_line(line);
+                        let (_, col) = buffer.offset_to_line_col(offset);
+                        match min_col {
+                            Some(c) => {
+                                if col < c {
+                                    min_col = Some(col)
+                                }
+                            }
+                            None => min_col = Some(col),
+                        }
+                    }
+                    let min_col = min_col.unwrap();
+                    for line in start_line..end_line + 1 {
+                        let offset = buffer.offset_of_line(line) + min_col;
+                        selection.add_region(SelRegion::caret(offset));
+                    }
+                    let delta = buffer.edit(
+                        ctx,
+                        buffer_ui_state,
+                        &format!("{} ", comment_str),
+                        &selection,
+                        true,
+                    );
+                    editor.selection = editor.selection.apply_delta(
+                        &delta,
+                        true,
+                        InsertDrift::Default,
+                    );
+                    editor.ensure_cursor_visible(ctx, buffer, env, None);
+                    self.inactive_editor_apply_delta(&delta);
+                } else {
+                    let mut selection = Selection::new();
+                    for line in start_line..end_line + 1 {
+                        let start = buffer.first_non_blank_character_on_line(line);
+                        let line_content = buffer
+                            .slice_to_cow(
+                                buffer.offset_of_line(line)
+                                    ..buffer.offset_of_line(line + 1),
+                            )
+                            .to_string();
+                        let line_content = line_content.trim();
+                        let end = if line_content
+                            .starts_with(&format!("{} ", comment_str))
+                        {
+                            start + 3
+                        } else {
+                            start + comment_str.len()
+                        };
+                        selection.add_region(SelRegion::new(start, end, None));
+                    }
+                    let delta =
+                        buffer.edit(ctx, buffer_ui_state, "", &selection, true);
+                    editor.selection = editor.selection.apply_delta(
+                        &delta,
+                        true,
+                        InsertDrift::Default,
+                    );
+                    editor.ensure_cursor_visible(ctx, buffer, env, None);
+                    self.inactive_editor_apply_delta(&delta);
+                }
+            }
+            LapceCommand::OpenFolder => {
+                ctx.submit_command(Command::new(
+                    druid::commands::SHOW_OPEN_PANEL,
+                    FileDialogOptions::new().select_directories(),
+                    Target::Window(self.window_id),
+                ));
+            }
             LapceCommand::Save => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer_id = editor.buffer_id.clone()?;
@@ -2126,6 +2338,7 @@ impl EditorSplitState {
         let editor_ui_state = ui_state.get_editor_mut(&self.active);
         editor_ui_state.visual_mode = self.visual_mode.clone();
         editor_ui_state.mode = self.mode.clone();
+        ui_state.mode = self.mode.clone();
         self.notify_fill_text_layouts(ctx, &buffer_id);
         self.check_diagnositics(ctx);
         self.get_code_actions();
@@ -3342,39 +3555,46 @@ impl Widget<LapceUIState> for Editor {
             }
             if let Some(diagnositic) = current_diagnostics {
                 if let Some(severity) = diagnositic.severity {
-                    let color = match severity {
-                        DiagnosticSeverity::Error => {
-                            env.get(LapceTheme::EDITOR_ERROR)
-                        }
-                        DiagnosticSeverity::Warning => {
-                            env.get(LapceTheme::EDITOR_WARN)
-                        }
-                        _ => env.get(LapceTheme::EDITOR_WARN),
-                    };
-                    let start = diagnositic.range.start;
-                    let mut text_layout =
-                        TextLayout::<String>::from_text(diagnositic.message.clone());
-                    text_layout.set_font(
-                        FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
-                    );
-                    text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                    text_layout.rebuild_if_needed(ctx.text(), env);
-                    let text_size = text_layout.size();
-                    let rect = Rect::ZERO
-                        .with_origin(Point::new(
-                            0.0,
-                            (start.line + 1) as f64 * line_height,
-                        ))
-                        .with_size(Size::new(size.width, text_size.height + 20.0));
-                    ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
-                    ctx.stroke(rect, &color, 1.0);
-                    text_layout.draw(
-                        ctx,
-                        Point::new(
-                            10.0,
-                            (start.line + 1) as f64 * line_height + 10.0,
-                        ),
-                    );
+                    if mode == Mode::Normal {
+                        let color = match severity {
+                            DiagnosticSeverity::Error => {
+                                env.get(LapceTheme::EDITOR_ERROR)
+                            }
+                            DiagnosticSeverity::Warning => {
+                                env.get(LapceTheme::EDITOR_WARN)
+                            }
+                            _ => env.get(LapceTheme::EDITOR_WARN),
+                        };
+                        let start = diagnositic.range.start;
+                        let mut text_layout = TextLayout::<String>::from_text(
+                            diagnositic.message.clone(),
+                        );
+                        text_layout.set_font(
+                            FontDescriptor::new(FontFamily::SYSTEM_UI)
+                                .with_size(14.0),
+                        );
+                        text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                        text_layout.rebuild_if_needed(ctx.text(), env);
+                        let text_size = text_layout.size();
+                        let rect = Rect::ZERO
+                            .with_origin(Point::new(
+                                0.0,
+                                (start.line + 1) as f64 * line_height,
+                            ))
+                            .with_size(Size::new(
+                                size.width,
+                                text_size.height + 20.0,
+                            ));
+                        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+                        ctx.stroke(rect, &color, 1.0);
+                        text_layout.draw(
+                            ctx,
+                            Point::new(
+                                10.0,
+                                (start.line + 1) as f64 * line_height + 10.0,
+                            ),
+                        );
+                    }
                 }
             }
         }

@@ -44,6 +44,7 @@ pub enum PaletteType {
     Line,
     DocumentSymbol,
     Workspace,
+    Command,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -67,6 +68,7 @@ pub struct PaletteItem {
     position: Option<Position>,
     path: Option<PathBuf>,
     workspace: Option<LapceWorkspace>,
+    command: Option<LapceCommand>,
 }
 
 #[derive(Clone)]
@@ -179,6 +181,7 @@ impl PaletteState {
             _ if self.input.starts_with("/") => PaletteType::Line,
             _ if self.input.starts_with("@") => PaletteType::DocumentSymbol,
             _ if self.input.starts_with(">") => PaletteType::Workspace,
+            _ if self.input.starts_with(":") => PaletteType::Command,
             _ => PaletteType::File,
         }
     }
@@ -214,6 +217,7 @@ impl PaletteState {
                     self.items = self.get_document_symbols().unwrap_or(Vec::new())
                 }
                 &PaletteType::Workspace => self.items = self.get_workspaces(),
+                &PaletteType::Command => self.items = self.get_commands(),
             }
             self.request_layout(ctx);
         } else {
@@ -264,6 +268,7 @@ impl PaletteState {
             &PaletteType::Line => 1,
             &PaletteType::DocumentSymbol => 1,
             &PaletteType::Workspace => 1,
+            &PaletteType::Command => 1,
         };
 
         if self.cursor == start {
@@ -282,6 +287,7 @@ impl PaletteState {
             PaletteType::Line => &self.input[1..],
             PaletteType::DocumentSymbol => &self.input[1..],
             PaletteType::Workspace => &self.input[1..],
+            PaletteType::Command => &self.input[1..],
         }
     }
 
@@ -305,6 +311,29 @@ impl PaletteState {
         self.items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
         self.request_layout(ctx);
+    }
+
+    fn get_commands(&self) -> Vec<PaletteItem> {
+        let commands = vec![("Open Folder", LapceCommand::OpenFolder)];
+        commands
+            .iter()
+            .enumerate()
+            .map(|(i, c)| PaletteItem {
+                window_id: self.window_id,
+                tab_id: self.tab_id,
+                icon: PaletteIcon::None,
+                kind: PaletteType::Command,
+                text: c.0.to_string(),
+                hint: None,
+                score: 0.0,
+                index: i,
+                match_mask: BitVec::new(),
+                workspace: None,
+                position: None,
+                path: None,
+                command: Some(c.1.clone()),
+            })
+            .collect()
     }
 
     fn get_workspaces(&self) -> Vec<PaletteItem> {
@@ -366,6 +395,7 @@ impl PaletteState {
                     workspace: Some(w.clone()),
                     position: None,
                     path: None,
+                    command: None,
                 }
             })
             .collect()
@@ -395,6 +425,7 @@ impl PaletteState {
                     match_mask: BitVec::new(),
                     icon: PaletteIcon::Symbol(s.kind),
                     workspace: None,
+                    command: None,
                 })
                 .collect(),
             DocumentSymbolResponse::Nested(symbols) => symbols
@@ -413,6 +444,7 @@ impl PaletteState {
                     match_mask: BitVec::new(),
                     icon: PaletteIcon::Symbol(s.kind),
                     workspace: None,
+                    command: None,
                 })
                 .collect(),
         })
@@ -442,6 +474,7 @@ impl PaletteState {
                     match_mask: BitVec::new(),
                     icon: PaletteIcon::None,
                     workspace: None,
+                    command: None,
                 })
                 .collect(),
         )
@@ -515,6 +548,7 @@ impl PaletteState {
                         score: 0.0,
                         match_mask: BitVec::new(),
                         workspace: None,
+                        command: None,
                     }
                 })
                 .collect();
@@ -585,6 +619,7 @@ impl PaletteState {
                         match_mask: BitVec::new(),
                         icon,
                         workspace: None,
+                        command: None,
                     });
                     index += 1;
                 }
@@ -1208,8 +1243,20 @@ impl PaletteItem {
                     LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
                 *state.workspace.lock() = self.workspace.clone().unwrap();
                 *state.ssh_session.lock() = None;
+                state.stop();
                 state.start_plugin();
                 ctx.request_paint();
+            }
+            &PaletteType::Command => {
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                state.editor_split.lock().run_command(
+                    ctx,
+                    ui_state,
+                    None,
+                    self.command.clone().unwrap(),
+                    env,
+                );
             }
         }
     }

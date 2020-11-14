@@ -733,8 +733,7 @@ impl Buffer {
         }
     }
 
-    pub fn line_end_offset(&self, offset: usize, include_newline: bool) -> usize {
-        let line = self.line_of_offset(offset);
+    pub fn line_end(&self, line: usize, include_newline: bool) -> usize {
         let line_start_offset = self.offset_of_line(line);
         let line_end_offset = self.offset_of_line(line + 1);
         let line_end_offset = if line_end_offset - line_start_offset <= 1 {
@@ -747,6 +746,17 @@ impl Buffer {
             }
         };
         line_end_offset
+    }
+
+    pub fn line_end_offset(&self, offset: usize, include_newline: bool) -> usize {
+        let line = self.line_of_offset(offset);
+        self.line_end(line, include_newline)
+    }
+
+    pub fn char_at_offset(&self, offset: usize) -> Option<char> {
+        WordCursor::new(&self.rope, offset)
+            .inner
+            .peek_next_codepoint()
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
@@ -764,6 +774,10 @@ impl Buffer {
 
     pub fn word_backword(&self, offset: usize) -> usize {
         WordCursor::new(&self.rope, offset).prev_boundary().unwrap()
+    }
+
+    pub fn match_pairs(&self, offset: usize) -> Option<usize> {
+        WordCursor::new(&self.rope, offset).match_pairs()
     }
 
     pub fn previous_unmmatched(&self, offset: usize, c: char) -> Option<usize> {
@@ -982,18 +996,21 @@ impl<'a> WordCursor<'a> {
         return candidate;
     }
 
-    fn matching_char(&self, c: char) -> Option<char> {
-        Some(match c {
-            '{' => '}',
-            '}' => '{',
-            '(' => ')',
-            ')' => '(',
-            _ => return None,
-        })
+    pub fn match_pairs(&mut self) -> Option<usize> {
+        let c = self.inner.peek_next_codepoint()?;
+        let other = matching_char(c)?;
+        let left = matching_pair_direction(other)?;
+        if left {
+            self.previous_unmatched(other)
+        } else {
+            self.inner.next_codepoint();
+            let offset = self.next_unmatched(other)?;
+            Some(offset - 1)
+        }
     }
 
     pub fn next_unmatched(&mut self, c: char) -> Option<usize> {
-        let other = self.matching_char(c)?;
+        let other = matching_char(c)?;
         let mut n = 0;
         while let Some(current) = self.inner.next_codepoint() {
             if current == c && n == 0 {
@@ -1009,7 +1026,7 @@ impl<'a> WordCursor<'a> {
     }
 
     pub fn previous_unmatched(&mut self, c: char) -> Option<usize> {
-        let other = self.matching_char(c)?;
+        let other = matching_char(c)?;
         let mut n = 0;
         while let Some(current) = self.inner.prev_codepoint() {
             if current == c {
@@ -1152,14 +1169,14 @@ fn classify_boundary_initial(
 }
 
 #[derive(Copy, Clone, PartialEq)]
-enum WordProperty {
+pub enum WordProperty {
     Lf,
     Space,
     Punctuation,
     Other, // includes letters and all of non-ascii unicode
 }
 
-fn get_word_property(codepoint: char) -> WordProperty {
+pub fn get_word_property(codepoint: char) -> WordProperty {
     if codepoint <= ' ' {
         if codepoint == '\n' {
             return WordProperty::Lf;
@@ -1282,7 +1299,7 @@ impl BufferUIState {
                     TextAttribute::TextColor(color.clone()),
                 );
             } else {
-                println!("no color for {} {}", hl, start);
+                // println!("no color for {} {}", hl, start);
             }
         }
         let layout = layout_builder.build().unwrap();
@@ -1292,6 +1309,83 @@ impl BufferUIState {
             highlights: highlights.clone(),
         }
     }
+}
+
+pub fn previous_has_unmatched_pair(line: &str, col: usize) -> bool {
+    let mut count = HashMap::new();
+    let mut pair_first = HashMap::new();
+    for c in line[..col].chars().rev() {
+        if let Some(left) = matching_pair_direction(c) {
+            let key = if left { c } else { matching_char(c).unwrap() };
+            let pair_count = *count.get(&key).unwrap_or(&0i32);
+            if !pair_first.contains_key(&key) {
+                pair_first.insert(key, left);
+            }
+            if left {
+                count.insert(key, pair_count - 1);
+            } else {
+                count.insert(key, pair_count + 1);
+            }
+        }
+    }
+    for (_, pair_count) in count.iter() {
+        if *pair_count < 0 {
+            return true;
+        }
+    }
+    for (_, left) in pair_first.iter() {
+        if *left {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn next_has_unmatched_pair(line: &str, col: usize) -> bool {
+    let mut count = HashMap::new();
+    for c in line[col..].chars() {
+        if let Some(left) = matching_pair_direction(c) {
+            let key = if left { c } else { matching_char(c).unwrap() };
+            if !count.contains_key(&key) {
+                count.insert(key, 0i32);
+            }
+            if left {
+                count.insert(key, count.get(&key).unwrap_or(&0i32) - 1);
+            } else {
+                count.insert(key, count.get(&key).unwrap_or(&0i32) + 1);
+            }
+        }
+    }
+    for (_, pair_count) in count.iter() {
+        if *pair_count > 0 {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn matching_pair_direction(c: char) -> Option<bool> {
+    Some(match c {
+        '{' => true,
+        '}' => false,
+        '(' => true,
+        ')' => false,
+        '[' => true,
+        ']' => false,
+        _ => return None,
+    })
+}
+
+pub fn matching_char(c: char) -> Option<char> {
+    Some(match c {
+        '{' => '}',
+        '}' => '{',
+        '(' => ')',
+        ')' => '(',
+        '[' => ']',
+        ']' => '[',
+        _ => return None,
+    })
 }
 
 pub fn start_buffer_highlights(

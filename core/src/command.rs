@@ -15,7 +15,7 @@ pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.command")
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
 
-#[derive(Display, EnumString, Clone, PartialEq)]
+#[derive(Display, EnumString, Clone, PartialEq, Debug)]
 pub enum LapceCommand {
     #[strum(serialize = "file_explorer")]
     FileExplorer,
@@ -89,6 +89,8 @@ pub enum LapceCommand {
     InsertMode,
     #[strum(serialize = "insert_first_non_blank")]
     InsertFirstNonBlank,
+    #[strum(serialize = "toggle_comment")]
+    ToggleComment,
     #[strum(serialize = "normal_mode")]
     NormalMode,
     #[strum(serialize = "toggle_visual_mode")]
@@ -149,6 +151,8 @@ pub enum LapceCommand {
     Save,
     #[strum(serialize = "show_code_actions")]
     ShowCodeActions,
+    #[strum(serialize = "match_pairs")]
+    MatchPairs,
     #[strum(serialize = "next_unmatched_right_bracket")]
     NextUnmatchedRightBracket,
     #[strum(serialize = "previous_unmatched_left_bracket")]
@@ -157,6 +161,8 @@ pub enum LapceCommand {
     NextUnmatchedRightCurlyBracket,
     #[strum(serialize = "previous_unmatched_left_curly_bracket")]
     PreviousUnmatchedLeftCurlyBracket,
+    #[strum(serialize = "open_folder")]
+    OpenFolder,
     Insert(String),
 }
 

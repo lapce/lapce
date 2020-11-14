@@ -71,10 +71,11 @@ impl LspCatalog {
         }
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         for (_, client) in self.clients.iter() {
             client.state.lock().process.kill();
         }
+        self.clients.clear();
     }
 
     pub fn start_server(
@@ -399,6 +400,13 @@ impl LspClient {
                         .lock()
                         .show_completion(request_id, res);
                 });
+            } else {
+                let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                let mut editor_split = state.editor_split.lock();
+                if editor_split.completion.offset == request_id {
+                    editor_split.completion.clear();
+                }
+                println!("request completion error {:?}", result);
             }
         })
     }
