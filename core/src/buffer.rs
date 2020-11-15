@@ -4,6 +4,7 @@ use druid::{
     Color, Command, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId, WindowId,
 };
 use druid::{Env, PaintCtx};
+use git2::Repository;
 use language::{new_highlight_config, new_parser, LapceLanguage};
 use lsp_types::SemanticTokens;
 use lsp_types::SemanticTokensLegend;
@@ -92,6 +93,7 @@ pub struct Buffer {
     pub dirty: bool,
     pub code_actions: HashMap<usize, CodeActionResponse>,
     sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
+    pub diff: Vec<DiffHunk>,
 }
 
 impl Buffer {
@@ -134,6 +136,7 @@ impl Buffer {
             dirty: false,
             language_id: language_id_from_path(path).unwrap_or("").to_string(),
             path: path.to_string(),
+            diff: Vec::new(),
             sender,
         };
 
@@ -1397,7 +1400,7 @@ pub fn start_buffer_highlights(
 
     loop {
         let (window_id, tab_id, buffer_id, rev) = receiver.recv()?;
-        let (language, rope_str) = {
+        let (workspace_path, language, path, rope_str) = {
             let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
             let editor_split = state.editor_split.lock();
             let buffer = editor_split.buffers.get(&buffer_id).unwrap();
@@ -1409,9 +1412,26 @@ pub fn start_buffer_highlights(
             if buffer.rev != rev {
                 continue;
             } else {
-                (language, buffer.slice_to_cow(..buffer.len()).to_string())
+                (
+                    state.workspace.lock().path.clone(),
+                    language,
+                    buffer.path.clone(),
+                    buffer.slice_to_cow(..buffer.len()).to_string(),
+                )
             }
         };
+
+        if let Some(diff) =
+            get_git_diff(&workspace_path, &PathBuf::from(path), &rope_str)
+        {
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+            let mut editor_split = state.editor_split.lock();
+            let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+            if buffer.rev != rev {
+                continue;
+            }
+            buffer.diff = diff;
+        }
 
         if !highlight_configs.contains_key(&language) {
             let (highlight_config, highlight_names) = new_highlight_config(language);
@@ -1459,6 +1479,52 @@ pub fn start_buffer_highlights(
             }
         }
     }
+}
+
+#[derive(Clone)]
+pub struct DiffHunk {
+    pub old_start: u32,
+    pub old_lines: u32,
+    pub new_start: u32,
+    pub new_lines: u32,
+    pub header: String,
+}
+
+fn get_git_diff(
+    workspace_path: &PathBuf,
+    path: &PathBuf,
+    content: &str,
+) -> Option<Vec<DiffHunk>> {
+    let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    let head = repo.head().ok()?;
+    let tree = head.peel_to_tree().ok()?;
+    let tree_entry = tree
+        .get_path(path.strip_prefix(workspace_path).ok()?)
+        .ok()?;
+    let blob = repo.find_blob(tree_entry.id()).ok()?;
+    let mut patch = git2::Patch::from_blob_and_buffer(
+        &blob,
+        None,
+        content.as_bytes(),
+        None,
+        None,
+    )
+    .ok()?;
+    Some(
+        (0..patch.num_hunks())
+            .into_iter()
+            .filter_map(|i| {
+                let hunk = patch.hunk(i).ok()?;
+                Some(DiffHunk {
+                    old_start: hunk.0.old_start(),
+                    old_lines: hunk.0.old_lines(),
+                    new_start: hunk.0.new_start(),
+                    new_lines: hunk.0.new_lines(),
+                    header: String::from_utf8(hunk.0.header().to_vec()).ok()?,
+                })
+            })
+            .collect(),
+    )
 }
 
 //fn highlights_process(
