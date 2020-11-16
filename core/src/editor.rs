@@ -3050,7 +3050,8 @@ impl Widget<LapceUIState> for EditorGutter {
                 };
                 let x = (last_line.to_string().len() - content.to_string().len())
                     as f64
-                    * width;
+                    * width
+                    + 10.0;
                 let content = content.to_string();
                 if let Some(text_layout) = self.text_layouts.get_mut(&content) {
                     if text_layout.text != content {
@@ -3294,8 +3295,11 @@ impl Editor {
             &Mode::Visual => (),
             _ => return,
         }
-        let start = buffer.offset_of_line(start_line);
         let last_line = buffer.last_line();
+        if start_line > last_line {
+            return;
+        }
+        let start = buffer.offset_of_line(start_line);
         let mut end_line = start_line + number_lines;
         if end_line > last_line {
             end_line = last_line;

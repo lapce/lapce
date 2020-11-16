@@ -25,15 +25,26 @@ use druid::{
 };
 use git2::Oid;
 use git2::Repository;
+use lapce_proxy::dispatch::NewBufferResponse;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::json;
+use std::io::BufReader;
 use std::path::Path;
+use std::process::Child;
+use std::process::Command;
+use std::process::Stdio;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
     collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
     sync::Arc, thread,
 };
 use toml;
+use xi_rpc::Handler;
+use xi_rpc::RpcLoop;
+use xi_rpc::RpcPeer;
+use xi_trace::enable_tracing;
 
 lazy_static! {
     //pub static ref LAPCE_STATE: LapceState = LapceState::new();
@@ -290,30 +301,11 @@ pub struct LapceTabState {
     pub plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
     pub ssh_session: Arc<Mutex<Option<SshSession>>>,
+    pub proxy: Arc<Mutex<Option<LapceProxy>>>,
 }
 
 impl LapceTabState {
     pub fn new(window_id: WindowId) -> LapceTabState {
-        let repo = Repository::open("/Users/Lulu/lapce").unwrap();
-        let head = repo.head().unwrap();
-        let tree = head.peel_to_tree().unwrap();
-        // let tree = repo.find_tree(oid).unwrap();
-        let tree_entry = tree.get_path(&PathBuf::from("Cargo.toml")).unwrap();
-        let blob = repo.find_blob(tree_entry.id()).unwrap();
-        let mut patch = git2::Patch::from_blob_and_buffer(
-            &blob,
-            None,
-            "lsjdf".as_bytes(),
-            None,
-            None,
-        )
-        .unwrap();
-        for i in 0..patch.num_hunks() {
-            let hunk = patch.hunk(i).unwrap();
-            println!("hunk {:?}", hunk);
-        }
-        println!("diff {}", patch.to_buf().unwrap().as_str().unwrap());
-
         let workspace = LapceWorkspace {
             kind: LapceWorkspaceType::Local,
             path: PathBuf::from("/Users/Lulu/lapce"),
@@ -352,7 +344,9 @@ impl LapceTabState {
                 tab_id.clone(),
             ))),
             ssh_session: Arc::new(Mutex::new(None)),
+            proxy: Arc::new(Mutex::new(None)),
         };
+        start_proxy_process(window_id, tab_id);
         let local_state = state.clone();
         thread::spawn(move || {
             local_state.start_plugin();
@@ -579,6 +573,89 @@ impl LapceTabState {
 
     pub fn set_container(&mut self, container: WidgetId) {
         self.container = Some(container);
+    }
+}
+
+pub struct LapceProxy {
+    peer: RpcPeer,
+    process: Child,
+}
+
+impl LapceProxy {
+    pub fn new_buffer(&self, buffer_id: BufferId, path: PathBuf) -> Result<String> {
+        enable_tracing();
+        let result = self
+            .peer
+            .send_rpc_request(
+                "new_buffer",
+                &json!({ "buffer_id": buffer_id, "path": path }),
+            )
+            .map_err(|e| anyhow!("{:?}", e))?;
+
+        let resp: NewBufferResponse = serde_json::from_value(result)?;
+        return Ok(resp.content);
+    }
+}
+
+fn start_proxy_process(window_id: WindowId, tab_id: WidgetId) {
+    thread::spawn(move || {
+        let child = Command::new("/Users/Lulu/lapce/target/debug/lapce-proxy")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn();
+        if child.is_err() {
+            println!("can't start proxy {:?}", child);
+            return;
+        }
+        let mut child = child.unwrap();
+        let child_stdin = child.stdin.take().unwrap();
+        let child_stdout = child.stdout.take().unwrap();
+        let mut looper = RpcLoop::new(child_stdin);
+        let peer: RpcPeer = Box::new(looper.get_raw_peer());
+        let proxy = LapceProxy {
+            peer,
+            process: child,
+        };
+        {
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+            *state.proxy.lock() = Some(proxy);
+        }
+
+        let mut handler = ProxyHandler {};
+        if let Err(e) =
+            looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
+        {
+            println!("proxy main loop failed {:?}", e);
+        }
+        println!("proxy main loop exit");
+    });
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Notification {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Request {}
+
+pub struct ProxyHandler {}
+
+impl Handler for ProxyHandler {
+    type Notification = Notification;
+    type Request = Request;
+
+    fn handle_notification(
+        &mut self,
+        ctx: &xi_rpc::RpcCtx,
+        rpc: Self::Notification,
+    ) {
+    }
+
+    fn handle_request(
+        &mut self,
+        ctx: &xi_rpc::RpcCtx,
+        rpc: Self::Request,
+    ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
+        Err(xi_rpc::RemoteError::InvalidRequest(None))
     }
 }
 

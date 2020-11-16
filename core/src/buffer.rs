@@ -110,11 +110,21 @@ impl Buffer {
         event_sink: ExtEventSink,
         sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
     ) -> Buffer {
-        let rope = if let Ok(rope) = load_file(&window_id, &tab_id, path) {
-            rope
-        } else {
-            Rope::from("")
-        };
+        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+        let content = state
+            .proxy
+            .lock()
+            .as_ref()
+            .unwrap()
+            .new_buffer(buffer_id, PathBuf::from(path.to_string()))
+            .unwrap();
+        let rope = Rope::from_str(&content).unwrap();
+
+        // let rope = if let Ok(rope) = load_file(&window_id, &tab_id, path) {
+        //     rope
+        // } else {
+        //     Rope::from("")
+        // };
         let mut parser = new_parser(LapceLanguage::Rust);
         let tree = parser.parse(&rope.to_string(), None).unwrap();
 
@@ -150,7 +160,6 @@ impl Buffer {
 
         let language_id = buffer.language_id.clone();
 
-        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
         state.plugins.lock().new_buffer(&PluginBufferInfo {
             buffer_id: buffer_id.clone(),
             language_id: buffer.language_id.clone(),

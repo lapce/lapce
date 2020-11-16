@@ -5,6 +5,8 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+lapce-proxy = { path = "../proxy" }
+xi-trace = { path = "../../xi-editor/rust/trace/" }
 git2 = "0.13"
 openssh = "0.7.0"
 tokio = { version = "0.3.3", features = ["full"] }
