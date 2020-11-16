@@ -42,7 +42,7 @@ pub struct PluginDescription {
     pub name: String,
     pub version: String,
     pub exec_path: PathBuf,
-    dir: PathBuf,
+    dir: Option<PathBuf>,
 }
 
 pub struct Plugin {
@@ -76,7 +76,7 @@ impl PluginCatalog {
         let all_manifests = find_all_manifests();
         for manifest_path in &all_manifests {
             match load_manifest(manifest_path) {
-                Err(e) => (),
+                Err(e) => eprintln!("load manifest err {}", e),
                 Ok(manifest) => {
                     self.items.insert(manifest.name.clone(), manifest);
                 }
@@ -116,7 +116,7 @@ fn start_plugin_process(
         for part in &parts[1..] {
             child.arg(part);
         }
-        child.current_dir(&plugin_desc.dir);
+        child.current_dir(plugin_desc.dir.as_ref().unwrap());
         let child = child.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn();
         if child.is_err() {
             eprintln!("can't start proxy {:?}", child);
@@ -180,10 +180,11 @@ impl Handler for PluginHandler {
                 language_id,
                 options,
             } => {
-                self.core.peer.send_rpc_notification(
-                    "start_lsp_server",
-                    &serde_json::to_value(&rpc).unwrap(),
-                );
+                let params = serde_json::to_value(&rpc).unwrap();
+                eprintln!("params {:?}", params);
+                self.core
+                    .peer
+                    .send_rpc_notification("start_lsp_server", &params);
             }
         }
     }
@@ -230,7 +231,7 @@ fn load_manifest(path: &PathBuf) -> Result<PluginDescription> {
     // normalize relative paths
     //manifest.dir = Some(path.parent().unwrap().canonicalize()?);
     //    if manifest.exec_path.starts_with("./") {
-    manifest.dir = path.parent().unwrap().canonicalize()?;
+    manifest.dir = Some(path.parent().unwrap().canonicalize()?);
     manifest.exec_path = path
         .parent()
         .unwrap()

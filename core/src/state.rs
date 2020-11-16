@@ -30,6 +30,7 @@ use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
+use serde_json::Value;
 use std::io::BufReader;
 use std::path::Path;
 use std::process::Child;
@@ -360,9 +361,9 @@ impl LapceTabState {
     }
 
     pub fn start_plugin(&self) {
-        let mut plugins = self.plugins.lock();
-        plugins.reload_from_paths(&[PathBuf::from_str("./lsp").unwrap()]);
-        plugins.start_all();
+        // let mut plugins = self.plugins.lock();
+        // plugins.reload_from_paths(&[PathBuf::from_str("./lsp").unwrap()]);
+        // plugins.start_all();
     }
 
     pub fn open(
@@ -621,7 +622,7 @@ fn start_proxy_process(window_id: WindowId, tab_id: WidgetId) {
             *state.proxy.lock() = Some(proxy);
         }
 
-        let mut handler = ProxyHandler {};
+        let mut handler = ProxyHandler { window_id, tab_id };
         if let Err(e) =
             looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
         {
@@ -632,12 +633,23 @@ fn start_proxy_process(window_id: WindowId, tab_id: WidgetId) {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Notification {}
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum Notification {
+    StartLspServer {
+        exec_path: String,
+        language_id: String,
+        options: Option<Value>,
+    },
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Request {}
 
-pub struct ProxyHandler {}
+pub struct ProxyHandler {
+    window_id: WindowId,
+    tab_id: WidgetId,
+}
 
 impl Handler for ProxyHandler {
     type Notification = Notification;
@@ -648,6 +660,19 @@ impl Handler for ProxyHandler {
         ctx: &xi_rpc::RpcCtx,
         rpc: Self::Notification,
     ) {
+        match rpc {
+            Notification::StartLspServer {
+                exec_path,
+                language_id,
+                options,
+            } => {
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .lsp
+                    .lock()
+                    .start_server(&exec_path, &language_id, options);
+            }
+        }
     }
 
     fn handle_request(
