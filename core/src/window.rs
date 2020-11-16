@@ -84,6 +84,17 @@ impl Widget<LapceUIState> for LapceTab {
                         LapceUICommand::RequestPaint => {
                             ctx.request_paint();
                         }
+                        LapceUICommand::UpdateLineChanges(buffer_id) => {
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
+                            let buffer =
+                                editor_split.buffers.get_mut(buffer_id).unwrap();
+                            let buffer_ui_state = data.get_buffer_mut(buffer_id);
+                            buffer_ui_state.line_changes =
+                                buffer.line_changes.clone();
+                            ctx.set_handled();
+                        }
                         _ => (),
                     }
                 }

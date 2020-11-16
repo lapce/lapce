@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use druid::{Rect, Selector, Size, WidgetId};
 use lsp_types::{Location, TextEdit};
 use strum;
@@ -186,6 +188,7 @@ pub enum LapceUICommand {
     ApplyEdits(u64, Vec<TextEdit>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
     CenterOfWindow,
+    UpdateLineChanges(BufferId),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EditorViewSize(Size),
     Scroll((f64, f64)),

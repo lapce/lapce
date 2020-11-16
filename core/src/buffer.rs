@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use druid::Vec2;
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Color, Command, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId, WindowId,
@@ -69,6 +70,7 @@ pub struct BufferUIState {
     tab_id: WidgetId,
     pub id: BufferId,
     pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
+    pub line_changes: HashMap<usize, char>,
     pub max_len_line: usize,
     pub max_len: usize,
     pub dirty: bool,
@@ -94,6 +96,9 @@ pub struct Buffer {
     pub code_actions: HashMap<usize, CodeActionResponse>,
     sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
     pub diff: Vec<DiffHunk>,
+    pub line_changes: HashMap<usize, char>,
+    pub view_offset: Vec2,
+    pub offset: usize,
 }
 
 impl Buffer {
@@ -137,6 +142,9 @@ impl Buffer {
             language_id: language_id_from_path(path).unwrap_or("").to_string(),
             path: path.to_string(),
             diff: Vec::new(),
+            line_changes: HashMap::new(),
+            view_offset: Vec2::ZERO,
+            offset: 0,
             sender,
         };
 
@@ -1212,6 +1220,7 @@ impl BufferUIState {
             tab_id,
             id: buffer_id,
             text_layouts: vec![Arc::new(None); lines],
+            line_changes: HashMap::new(),
             max_len,
             max_len_line,
             dirty: false,
@@ -1421,7 +1430,7 @@ pub fn start_buffer_highlights(
             }
         };
 
-        if let Some(diff) =
+        if let Some((diff, line_changes)) =
             get_git_diff(&workspace_path, &PathBuf::from(path), &rope_str)
         {
             let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
@@ -1430,7 +1439,18 @@ pub fn start_buffer_highlights(
             if buffer.rev != rev {
                 continue;
             }
+            let buffer_id = buffer.id;
             buffer.diff = diff;
+            buffer.line_changes = line_changes;
+            // for (view_id, editor) in editor_split.editors.iter() {
+            //     if editor.buffer_id.as_ref() == Some(&buffer_id) {
+            event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateLineChanges(buffer_id),
+                Target::Widget(tab_id),
+            );
+            //     }
+            // }
         }
 
         if !highlight_configs.contains_key(&language) {
@@ -1481,7 +1501,7 @@ pub fn start_buffer_highlights(
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DiffHunk {
     pub old_start: u32,
     pub old_lines: u32,
@@ -1494,7 +1514,7 @@ fn get_git_diff(
     workspace_path: &PathBuf,
     path: &PathBuf,
     content: &str,
-) -> Option<Vec<DiffHunk>> {
+) -> Option<(Vec<DiffHunk>, HashMap<usize, char>)> {
     let repo = Repository::open(workspace_path.to_str()?).ok()?;
     let head = repo.head().ok()?;
     let tree = head.peel_to_tree().ok()?;
@@ -1510,21 +1530,57 @@ fn get_git_diff(
         None,
     )
     .ok()?;
-    Some(
+    let mut line_changes = HashMap::new();
+    Some((
         (0..patch.num_hunks())
             .into_iter()
             .filter_map(|i| {
                 let hunk = patch.hunk(i).ok()?;
-                Some(DiffHunk {
+                let hunk = DiffHunk {
                     old_start: hunk.0.old_start(),
                     old_lines: hunk.0.old_lines(),
                     new_start: hunk.0.new_start(),
                     new_lines: hunk.0.new_lines(),
                     header: String::from_utf8(hunk.0.header().to_vec()).ok()?,
-                })
+                };
+                let mut line_diff = 0;
+                for line in 0..hunk.old_lines + hunk.new_lines {
+                    if let Ok(diff_line) = patch.line_in_hunk(i, line as usize) {
+                        match diff_line.origin() {
+                            ' ' => {
+                                let new_line = diff_line.new_lineno().unwrap();
+                                let old_line = diff_line.old_lineno().unwrap();
+                                line_diff = new_line as i32 - old_line as i32;
+                            }
+                            '-' => {
+                                let old_line = diff_line.old_lineno().unwrap() - 1;
+                                let new_line =
+                                    (old_line as i32 + line_diff) as usize;
+                                line_changes.insert(new_line, '-');
+                                line_diff -= 1;
+                            }
+                            '+' => {
+                                let new_line =
+                                    diff_line.new_lineno().unwrap() as usize - 1;
+                                if let Some(c) = line_changes.get(&new_line) {
+                                    if c == &'-' {
+                                        line_changes.insert(new_line, 'm');
+                                    }
+                                } else {
+                                    line_changes.insert(new_line, '+');
+                                }
+                                line_diff += 1;
+                            }
+                            _ => continue,
+                        }
+                        diff_line.origin();
+                    }
+                }
+                Some(hunk)
             })
             .collect(),
-    )
+        line_changes,
+    ))
 }
 
 //fn highlights_process(

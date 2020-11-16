@@ -911,6 +911,8 @@ impl EditorSplitState {
     ) {
         let buffer = self.get_buffer_from_path(ctx, ui_state, path);
         let buffer_id = buffer.id.clone();
+        let view_offset = buffer.view_offset.clone();
+        let offset = buffer.offset;
         let editor = self.editors.get(&self.active).unwrap();
         if editor.buffer_id.as_ref() == Some(&buffer_id) {
             return;
@@ -918,10 +920,10 @@ impl EditorSplitState {
         let old_buffer_id = editor.buffer_id.clone();
         let editor = self.editors.get_mut(&self.active).unwrap();
         editor.buffer_id = Some(buffer_id.clone());
-        editor.selection = Selection::new_simple();
+        editor.selection = Selection::caret(offset);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::ScrollTo((0.0, 0.0)),
+            LapceUICommand::ForceScrollTo(view_offset.x, view_offset.y),
             Target::Widget(editor.view_id),
         ));
         if let Some(old_buffer_id) = old_buffer_id {
@@ -1180,6 +1182,7 @@ impl EditorSplitState {
         let editor = self.editors.get_mut(&self.active)?;
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get_mut(&buffer_id)?;
+        buffer.offset = editor.selection.get_cursor_offset();
         editor.ensure_cursor_visible(ctx, buffer, env, None);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         None
@@ -2333,7 +2336,8 @@ impl EditorSplitState {
             .as_ref()?
             .clone();
         let editor = self.editors.get_mut(&self.active)?;
-        let buffer = self.buffers.get(editor.buffer_id.as_ref()?)?;
+        let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+        buffer.offset = editor.selection.get_cursor_offset();
         editor.update_ui_state(ui_state, buffer);
         let editor_ui_state = ui_state.get_editor_mut(&self.active);
         editor_ui_state.visual_mode = self.visual_mode.clone();
@@ -2554,11 +2558,8 @@ impl EditorView {
             view_id,
             editor_id,
             editor: WidgetPod::new(scroll),
-            gutter: WidgetPod::new(
-                EditorGutter::new(window_id, tab_id, view_id)
-                    .padding((10.0, 0.0, 10.0, 0.0)),
-            )
-            .boxed(),
+            gutter: WidgetPod::new(EditorGutter::new(window_id, tab_id, view_id))
+                .boxed(),
             header: WidgetPod::new(EditorHeader::new(window_id, tab_id, view_id))
                 .boxed(),
         }
@@ -2582,6 +2583,8 @@ impl EditorView {
         scroll.force_scroll_to(0.0, y);
         let editor_state = editor_split.editors.get_mut(&self.view_id).unwrap();
         editor_state.scroll_offset = scroll.offset();
+        let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+        buffer.view_offset = scroll.offset();
         ctx.request_paint();
     }
 }
@@ -2664,11 +2667,18 @@ impl Widget<LapceUIState> for EditorView {
                                         let mut editor_split =
                                             state.editor_split.lock();
                                         let offset = editor.offset();
-                                        editor_split
+                                        let editor = editor_split
                                             .editors
                                             .get_mut(&self.view_id)
+                                            .unwrap();
+                                        editor.scroll_offset = offset;
+                                        let buffer_id =
+                                            editor.buffer_id.clone().unwrap();
+                                        editor_split
+                                            .buffers
+                                            .get_mut(&buffer_id)
                                             .unwrap()
-                                            .scroll_offset = offset;
+                                            .view_offset = offset;
                                         self.gutter.set_viewport_offset(Vec2::new(
                                             0.0, offset.y,
                                         ));
@@ -2680,40 +2690,52 @@ impl Widget<LapceUIState> for EditorView {
                         LapceUICommand::ForceScrollTo(x, y) => {
                             let scroll = self.editor.widget_mut();
                             scroll.force_scroll_to(*x, *y);
-                            LAPCE_APP_STATE
-                                .get_tab_state(&self.window_id, &self.tab_id)
-                                .editor_split
-                                .lock()
-                                .editors
-                                .get_mut(&self.view_id)
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
+                            let editor =
+                                editor_split.editors.get_mut(&self.view_id).unwrap();
+                            editor.scroll_offset = scroll.offset();
+                            let buffer_id = editor.buffer_id.clone().unwrap();
+                            editor_split
+                                .buffers
+                                .get_mut(&buffer_id)
                                 .unwrap()
-                                .scroll_offset = scroll.offset();
+                                .view_offset = scroll.offset();
                             ctx.request_paint();
                         }
                         LapceUICommand::ScrollTo((x, y)) => {
                             let scroll = self.editor.widget_mut();
                             scroll.scroll_to(*x, *y);
-                            LAPCE_APP_STATE
-                                .get_tab_state(&self.window_id, &self.tab_id)
-                                .editor_split
-                                .lock()
-                                .editors
-                                .get_mut(&self.view_id)
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
+                            let editor =
+                                editor_split.editors.get_mut(&self.view_id).unwrap();
+                            editor.scroll_offset = scroll.offset();
+                            let buffer_id = editor.buffer_id.clone().unwrap();
+                            editor_split
+                                .buffers
+                                .get_mut(&buffer_id)
                                 .unwrap()
-                                .scroll_offset = scroll.offset();
+                                .view_offset = scroll.offset();
                             ctx.request_paint();
                         }
                         LapceUICommand::Scroll((x, y)) => {
                             let scroll = self.editor.widget_mut();
                             scroll.scroll(*x, *y);
-                            LAPCE_APP_STATE
-                                .get_tab_state(&self.window_id, &self.tab_id)
-                                .editor_split
-                                .lock()
-                                .editors
-                                .get_mut(&self.view_id)
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
+                            let editor =
+                                editor_split.editors.get_mut(&self.view_id).unwrap();
+                            editor.scroll_offset = scroll.offset();
+                            let buffer_id = editor.buffer_id.clone().unwrap();
+                            editor_split
+                                .buffers
+                                .get_mut(&buffer_id)
                                 .unwrap()
-                                .scroll_offset = scroll.offset();
+                                .view_offset = scroll.offset();
                             ctx.request_paint();
                         }
                         _ => (),
@@ -2903,6 +2925,54 @@ impl Widget<LapceUIState> for EditorGutter {
 
         if cursor.0 != old_cursor.0 {
             ctx.request_paint();
+            return;
+        }
+
+        let (buffer_id, scroll_offset) = {
+            let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+            let editor_split = state.editor_split.lock();
+            let editor = editor_split.editors.get(&self.view_id).unwrap();
+            if editor.buffer_id.is_none() {
+                return;
+            }
+            (editor.buffer_id.clone().unwrap(), editor.scroll_offset)
+        };
+        let buffer = data.get_buffer(&buffer_id);
+        let old_buffer = old_data.buffers.get(&buffer_id);
+        if old_buffer.is_none() {
+            ctx.request_paint();
+            return;
+        }
+        let old_buffer = old_buffer.unwrap();
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let gutter_size = ctx.size();
+        let start_line = (scroll_offset.y / line_height) as usize;
+        let num_lines = (gutter_size.height / line_height) as usize;
+        let mut updated_start_line = None;
+        let mut updated_end_line = None;
+        for line in start_line..start_line + num_lines + 1 {
+            if line >= buffer.text_layouts.len() {
+                break;
+            }
+            if buffer.line_changes.get(&line) != old_buffer.line_changes.get(&line) {
+                if updated_start_line.is_none() {
+                    updated_start_line = Some(line);
+                }
+                updated_end_line = Some(line);
+            }
+        }
+        if let Some(updated_start_line) = updated_start_line {
+            let updated_end_line = updated_end_line.unwrap();
+            let rect = Rect::ZERO
+                .with_origin(Point::new(
+                    0.0,
+                    updated_start_line as f64 * line_height - scroll_offset.y,
+                ))
+                .with_size(Size::new(
+                    gutter_size.width,
+                    (updated_end_line + 1 - updated_start_line) as f64 * line_height,
+                ));
+            ctx.request_paint_rect(rect);
         }
     }
 
@@ -2927,7 +2997,7 @@ impl Widget<LapceUIState> for EditorGutter {
             let width = 7.6171875;
             let gutter_width = width * buffer.last_line().to_string().len() as f64;
             let gutter_height = 25.0 * buffer.num_lines() as f64;
-            Size::new(gutter_width, gutter_height)
+            Size::new(gutter_width + 10.0 * 2.0, gutter_height)
         } else {
             Size::new(50.0, 50.0)
         }
@@ -2990,18 +3060,54 @@ impl Widget<LapceUIState> for EditorGutter {
                     }
                     text_layout
                         .layout
-                        .draw(ctx, Point::new(x, line_height * line as f64));
+                        .draw(ctx, Point::new(x, line_height * line as f64 + 5.0));
                 } else {
                     let mut layout = TextLayout::from_text(content.clone());
                     layout.set_font(LapceTheme::EDITOR_FONT);
                     layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
                     layout.rebuild_if_needed(&mut ctx.text(), env);
-                    layout.draw(ctx, Point::new(x, line_height * line as f64));
+                    layout.draw(ctx, Point::new(x, line_height * line as f64 + 5.0));
                     let text_layout = EditorTextLayout {
                         layout,
                         text: content.clone(),
                     };
                     self.text_layouts.insert(content, text_layout);
+                }
+
+                let x = ctx.size().width - 5.0;
+                let y = line as f64 * line_height;
+                let origin = Point::new(x, y);
+                let size = Size::new(3.0, line_height);
+                let rect = Rect::ZERO.with_origin(origin).with_size(size);
+                if let Some(line_change) = buffer.line_changes.get(&line) {
+                    match line_change {
+                        'm' => {
+                            ctx.fill(rect, &Color::rgba8(1, 132, 188, 180));
+                        }
+                        '+' => {
+                            ctx.fill(rect, &Color::rgba8(80, 161, 79, 180));
+                        }
+                        '-' => {
+                            let size = Size::new(3.0, 10.0);
+                            let x = ctx.size().width - 5.0;
+                            let y = line as f64 * line_height - size.height / 2.0;
+                            let origin = Point::new(x, y);
+                            let rect =
+                                Rect::ZERO.with_origin(origin).with_size(size);
+                            ctx.fill(rect, &Color::rgba8(228, 86, 73, 180));
+                            // let svg_data = SvgData::from_str(
+                            //     ICONS_DIR
+                            //         .get_file("triangle-right.svg")
+                            //         .unwrap()
+                            //         .contents_utf8()
+                            //         .unwrap(),
+                            // )
+                            // .unwrap();
+                            // let affine = Affine::new([0.0, 0.0, 0.0, 0.0, x, y]);
+                            // svg_data.to_piet(affine, ctx);
+                        }
+                        _ => {}
+                    }
                 }
             }
         }

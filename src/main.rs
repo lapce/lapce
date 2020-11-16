@@ -106,7 +106,7 @@ fn build_app(window_id: WindowId) -> impl Widget<LapceUIState> {
         );
         env.set(theme::SCROLLBAR_COLOR, hex_to_color("#c4c4c4").unwrap());
     })
-    //.debug_invalidation()
+    // .debug_invalidation()
 }
 
 pub fn main() {

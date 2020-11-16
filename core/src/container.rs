@@ -120,6 +120,7 @@ impl Widget<LapceUIState> for LapceContainer {
                                 .open_file(ctx, data, path);
                             ctx.request_layout();
                         }
+                        LapceUICommand::UpdateLineChanges(buffer_id) => {}
                         LapceUICommand::UpdateHighlights(
                             buffer_id,
                             rev,
