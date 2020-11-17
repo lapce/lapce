@@ -1,3 +1,4 @@
+use crate::proxy::start_proxy_process;
 use crate::{
     buffer::start_buffer_highlights,
     buffer::Buffer,
@@ -16,6 +17,7 @@ use crate::{
     palette::PaletteState,
     palette::PaletteType,
     plugin::PluginCatalog,
+    proxy::LapceProxy,
     ssh::SshSession,
 };
 use anyhow::{anyhow, Result};
@@ -27,6 +29,7 @@ use git2::Oid;
 use git2::Repository;
 use lapce_proxy::dispatch::NewBufferResponse;
 use lazy_static::lazy_static;
+use lsp_types::Position;
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -320,7 +323,7 @@ impl LapceTabState {
         let state = LapceTabState {
             tab_id: tab_id.clone(),
             status_id,
-            workspace: Arc::new(Mutex::new(workspace)),
+            workspace: Arc::new(Mutex::new(workspace.clone())),
             focus: Arc::new(Mutex::new(LapceFocus::Editor)),
             palette: Arc::new(Mutex::new(PaletteState::new(
                 window_id.clone(),
@@ -347,7 +350,7 @@ impl LapceTabState {
             ssh_session: Arc::new(Mutex::new(None)),
             proxy: Arc::new(Mutex::new(None)),
         };
-        start_proxy_process(window_id, tab_id);
+        start_proxy_process(window_id, tab_id, workspace.path.clone());
         let local_state = state.clone();
         thread::spawn(move || {
             local_state.start_plugin();
@@ -574,113 +577,6 @@ impl LapceTabState {
 
     pub fn set_container(&mut self, container: WidgetId) {
         self.container = Some(container);
-    }
-}
-
-pub struct LapceProxy {
-    peer: RpcPeer,
-    process: Child,
-}
-
-impl LapceProxy {
-    pub fn new_buffer(&self, buffer_id: BufferId, path: PathBuf) -> Result<String> {
-        enable_tracing();
-        let result = self
-            .peer
-            .send_rpc_request(
-                "new_buffer",
-                &json!({ "buffer_id": buffer_id, "path": path }),
-            )
-            .map_err(|e| anyhow!("{:?}", e))?;
-
-        let resp: NewBufferResponse = serde_json::from_value(result)?;
-        return Ok(resp.content);
-    }
-}
-
-fn start_proxy_process(window_id: WindowId, tab_id: WidgetId) {
-    thread::spawn(move || {
-        let child = Command::new("/Users/Lulu/lapce/target/debug/lapce-proxy")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn();
-        if child.is_err() {
-            println!("can't start proxy {:?}", child);
-            return;
-        }
-        let mut child = child.unwrap();
-        let child_stdin = child.stdin.take().unwrap();
-        let child_stdout = child.stdout.take().unwrap();
-        let mut looper = RpcLoop::new(child_stdin);
-        let peer: RpcPeer = Box::new(looper.get_raw_peer());
-        let proxy = LapceProxy {
-            peer,
-            process: child,
-        };
-        {
-            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-            *state.proxy.lock() = Some(proxy);
-        }
-
-        let mut handler = ProxyHandler { window_id, tab_id };
-        if let Err(e) =
-            looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
-        {
-            println!("proxy main loop failed {:?}", e);
-        }
-        println!("proxy main loop exit");
-    });
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum Notification {
-    StartLspServer {
-        exec_path: String,
-        language_id: String,
-        options: Option<Value>,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Request {}
-
-pub struct ProxyHandler {
-    window_id: WindowId,
-    tab_id: WidgetId,
-}
-
-impl Handler for ProxyHandler {
-    type Notification = Notification;
-    type Request = Request;
-
-    fn handle_notification(
-        &mut self,
-        ctx: &xi_rpc::RpcCtx,
-        rpc: Self::Notification,
-    ) {
-        match rpc {
-            Notification::StartLspServer {
-                exec_path,
-                language_id,
-                options,
-            } => {
-                LAPCE_APP_STATE
-                    .get_tab_state(&self.window_id, &self.tab_id)
-                    .lsp
-                    .lock()
-                    .start_server(&exec_path, &language_id, options);
-            }
-        }
-    }
-
-    fn handle_request(
-        &mut self,
-        ctx: &xi_rpc::RpcCtx,
-        rpc: Self::Request,
-    ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
-        Err(xi_rpc::RemoteError::InvalidRequest(None))
     }
 }
 

@@ -13,6 +13,7 @@ use xi_rope::{
 pub struct BufferId(pub usize);
 
 pub struct Buffer {
+    pub language_id: String,
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
@@ -25,7 +26,17 @@ impl Buffer {
         } else {
             Rope::from("")
         };
-        Buffer { id, rope, path }
+        let language_id = language_id_from_path(&path).unwrap_or("").to_string();
+        Buffer {
+            id,
+            rope,
+            path,
+            language_id,
+        }
+    }
+
+    pub fn get_document(&self) -> String {
+        self.rope.to_string()
     }
 }
 
@@ -34,4 +45,12 @@ fn load_file(path: &PathBuf) -> Result<Rope> {
     let mut bytes = Vec::new();
     f.read_to_end(&mut bytes)?;
     Ok(Rope::from(std::str::from_utf8(&bytes)?))
+}
+
+fn language_id_from_path(path: &PathBuf) -> Option<&str> {
+    Some(match path.extension()?.to_str()? {
+        "rs" => "rust",
+        "go" => "go",
+        _ => return None,
+    })
 }

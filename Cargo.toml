@@ -30,4 +30,4 @@ druid = { path = "../druid/druid", features = ["svg"] }
 cc = "*"
 
 [workspace]
-members = ["lsp", "core", "proxy"]
+members = ["lsp", "core", "proxy", "rpc"]

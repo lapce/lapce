@@ -1,0 +1,12 @@
+[package]
+name = "lapce-rpc"
+version = "0.0.1"
+authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.34"
+serde_json = "1.0.59"
+serde = "1.0"
+jsonrpc-lite = "0.5.0"
+crossbeam-channel = "0.5.0"

@@ -20,6 +20,7 @@ use xi_rpc::RpcPeer;
 
 use crate::buffer::BufferId;
 use crate::core_proxy::CoreProxy;
+use crate::dispatch::Dispatcher;
 
 pub type PluginName = String;
 
@@ -47,7 +48,7 @@ pub struct PluginDescription {
 
 pub struct Plugin {
     id: PluginId,
-    core: CoreProxy,
+    dispatcher: Dispatcher,
     peer: RpcPeer,
     name: String,
     process: Child,
@@ -84,11 +85,11 @@ impl PluginCatalog {
         }
     }
 
-    pub fn start_all(&mut self, core: CoreProxy) {
+    pub fn start_all(&mut self, dispatcher: Dispatcher) {
         for (_, manifest) in self.items.clone().iter() {
             start_plugin_process(
                 self.next_plugin_id(),
-                core.clone(),
+                dispatcher.clone(),
                 manifest.clone(),
             );
         }
@@ -101,7 +102,7 @@ impl PluginCatalog {
 
 fn start_plugin_process(
     id: PluginId,
-    core: CoreProxy,
+    dispatcher: Dispatcher,
     plugin_desc: PluginDescription,
 ) {
     thread::spawn(move || {
@@ -130,14 +131,14 @@ fn start_plugin_process(
         let name = plugin_desc.name.clone();
         let plugin = Plugin {
             id,
-            core: core.clone(),
+            dispatcher: dispatcher.clone(),
             peer,
             process: child,
             name,
         };
         eprintln!("plugin main loop starting {:?}", &plugin_desc.exec_path);
         plugin.initialize();
-        let mut handler = PluginHandler { core };
+        let mut handler = PluginHandler { dispatcher };
         if let Err(e) =
             looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
         {
@@ -162,7 +163,7 @@ pub enum PluginNotification {
 pub enum PluginRequest {}
 
 pub struct PluginHandler {
-    core: CoreProxy,
+    dispatcher: Dispatcher,
 }
 
 impl Handler for PluginHandler {
@@ -180,11 +181,11 @@ impl Handler for PluginHandler {
                 language_id,
                 options,
             } => {
-                let params = serde_json::to_value(&rpc).unwrap();
-                eprintln!("params {:?}", params);
-                self.core
-                    .peer
-                    .send_rpc_notification("start_lsp_server", &params);
+                self.dispatcher.lsp.lock().start_server(
+                    exec_path,
+                    language_id,
+                    options.clone(),
+                );
             }
         }
     }

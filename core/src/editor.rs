@@ -1205,20 +1205,39 @@ impl EditorSplitState {
         }
         if prev_offset != self.completion.offset {
             self.completion.offset = prev_offset;
-            LAPCE_APP_STATE
-                .get_tab_state(&self.window_id, &self.tab_id)
-                .plugins
-                .lock()
-                .get_completion(&buffer_id, prev_offset, prev_offset);
-            LAPCE_APP_STATE
-                .get_tab_state(&self.window_id, &self.tab_id)
-                .lsp
-                .lock()
-                .get_completion(
-                    prev_offset,
-                    buffer,
-                    buffer.offset_to_position(prev_offset),
-                );
+            // LAPCE_APP_STATE
+            //     .get_tab_state(&self.window_id, &self.tab_id)
+            //     .plugins
+            //     .lock()
+            //     .get_completion(&buffer_id, prev_offset, prev_offset);
+            // LAPCE_APP_STATE
+            //     .get_tab_state(&self.window_id, &self.tab_id)
+            //     .lsp
+            //     .lock()
+            //     .get_completion(
+            //         prev_offset,
+            //         buffer,
+            //         buffer.offset_to_position(prev_offset),
+            //     );
+            let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+            state.clone().proxy.lock().as_ref().unwrap().get_completion(
+                prev_offset,
+                buffer.id,
+                buffer.offset_to_position(prev_offset),
+                Box::new(move |result| {
+                    // let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                    if let Ok(res) = result {
+                        let mut editor_split = state.editor_split.lock();
+                        editor_split.show_completion(prev_offset, res);
+                    } else {
+                        let mut editor_split = state.editor_split.lock();
+                        if editor_split.completion.offset == prev_offset {
+                            editor_split.completion.clear();
+                        }
+                        println!("request completion error {:?}", result);
+                    }
+                }),
+            );
         } else {
             self.completion.update_input(ctx, input);
         }

@@ -35,9 +35,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.33"
+version = "1.0.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1fd36ffbb1fb7c834eac128ea8d0e310c5aeb635548f9d58861e1308d46e71c"
+checksum = "bf8dcb5b4bbaa28653b647d8c77bd4ed40183b48882e130c1f1ffb73de069fd7"
 
 [[package]]
 name = "anymap"
@@ -585,6 +585,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dca26ee1f8d361640700bde38b2c37d8c22b3ce2d360e1fc1c74ea4b0aa7d775"
+dependencies = [
+ "cfg-if 1.0.0",
+ "crossbeam-utils 0.8.0",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -646,6 +656,18 @@ checksum = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
 dependencies = [
  "autocfg 1.0.1",
  "cfg-if 0.1.10",
+ "lazy_static 1.4.0",
+]
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec91540d98355f690a86367e566ecad2e9e579f230230eb7c21398372be73ea5"
+dependencies = [
+ "autocfg 1.0.1",
+ "cfg-if 1.0.0",
+ "const_fn",
  "lazy_static 1.4.0",
 ]
 
@@ -1660,12 +1682,28 @@ name = "lapce-proxy"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "crossbeam-channel 0.5.0",
  "home",
+ "jsonrpc-lite",
+ "lapce-rpc",
+ "lsp-types 0.82.0",
+ "parking_lot 0.11.0",
  "serde",
  "serde_json",
  "toml",
  "xi-rope",
  "xi-rpc",
+]
+
+[[package]]
+name = "lapce-rpc"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel 0.5.0",
+ "jsonrpc-lite",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

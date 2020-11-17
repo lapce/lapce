@@ -10,6 +10,7 @@ pub mod lsp;
 pub mod movement;
 pub mod palette;
 pub mod plugin;
+pub mod proxy;
 pub mod scroll;
 pub mod split;
 pub mod ssh;
