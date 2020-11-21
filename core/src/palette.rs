@@ -1241,10 +1241,11 @@ impl PaletteItem {
             &PaletteType::Workspace => {
                 let state =
                     LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                state.stop();
+
                 *state.workspace.lock() = self.workspace.clone().unwrap();
                 *state.ssh_session.lock() = None;
-                state.stop();
-                state.start_plugin();
+                state.start_proxy();
                 ctx.request_paint();
             }
             &PaletteType::Command => {

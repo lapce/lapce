@@ -22,6 +22,8 @@ use xi_rpc::RpcPeer;
 
 use crate::buffer::BufferId;
 use crate::command::LapceUICommand;
+use crate::state::LapceWorkspace;
+use crate::state::LapceWorkspaceType;
 use crate::state::LAPCE_APP_STATE;
 
 #[derive(Clone)]
@@ -80,6 +82,10 @@ impl LapceProxy {
             }),
             f,
         );
+    }
+
+    pub fn stop(&self) {
+        self.process.lock().kill();
     }
 }
 
@@ -161,13 +167,29 @@ impl Handler for ProxyHandler {
 pub fn start_proxy_process(
     window_id: WindowId,
     tab_id: WidgetId,
-    workspace: PathBuf,
+    workspace: LapceWorkspace,
 ) {
     thread::spawn(move || {
-        let child = Command::new("/Users/Lulu/lapce/target/debug/lapce-proxy")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn();
+        let workspace_type = LAPCE_APP_STATE
+            .get_tab_state(&window_id, &tab_id)
+            .workspace
+            .lock()
+            .kind
+            .clone();
+        let mut child = match workspace_type {
+            LapceWorkspaceType::Local => {
+                Command::new("/Users/Lulu/lapce/target/debug/lapce-proxy")
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .spawn()
+            }
+            LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
+                .arg(format!("{}@{}", user, host))
+                .arg("./lapce/lapce-proxy")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn(),
+        };
         if child.is_err() {
             println!("can't start proxy {:?}", child);
             return;
@@ -181,7 +203,7 @@ pub fn start_proxy_process(
             peer,
             process: Arc::new(Mutex::new(child)),
         };
-        proxy.initialize(workspace);
+        proxy.initialize(workspace.path.clone());
         {
             let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
             *state.proxy.lock() = Some(proxy);

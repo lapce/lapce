@@ -293,6 +293,7 @@ impl LapceWindowState {
 
 #[derive(Clone)]
 pub struct LapceTabState {
+    pub window_id: WindowId,
     pub tab_id: WidgetId,
     pub status_id: WidgetId,
     pub workspace: Arc<Mutex<LapceWorkspace>>,
@@ -321,6 +322,7 @@ impl LapceTabState {
         let tab_id = WidgetId::next();
         let status_id = WidgetId::next();
         let state = LapceTabState {
+            window_id,
             tab_id: tab_id.clone(),
             status_id,
             workspace: Arc::new(Mutex::new(workspace.clone())),
@@ -350,7 +352,7 @@ impl LapceTabState {
             ssh_session: Arc::new(Mutex::new(None)),
             proxy: Arc::new(Mutex::new(None)),
         };
-        start_proxy_process(window_id, tab_id, workspace.path.clone());
+        start_proxy_process(window_id, tab_id, workspace.clone());
         let local_state = state.clone();
         thread::spawn(move || {
             local_state.start_plugin();
@@ -358,9 +360,16 @@ impl LapceTabState {
         state
     }
 
+    pub fn start_proxy(&self) {
+        start_proxy_process(
+            self.window_id,
+            self.tab_id,
+            self.workspace.lock().clone(),
+        );
+    }
+
     pub fn stop(&self) {
-        self.plugins.lock().stop();
-        self.lsp.lock().stop();
+        self.proxy.lock().as_ref().unwrap().stop();
     }
 
     pub fn start_plugin(&self) {
