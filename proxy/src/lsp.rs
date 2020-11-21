@@ -121,6 +121,17 @@ impl LspCatalog {
             });
         }
     }
+
+    pub fn update(
+        &self,
+        buffer: &Buffer,
+        content_change: &TextDocumentContentChangeEvent,
+        rev: u64,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.update(buffer, content_change, rev);
+        }
+    }
 }
 
 impl LspClient {
@@ -481,6 +492,52 @@ impl LspClient {
             // }
         })
     }
+
+    pub fn send_did_change(
+        &self,
+        buffer: &Buffer,
+        changes: Vec<TextDocumentContentChangeEvent>,
+        version: u64,
+    ) {
+        let uri = self.get_uri(buffer);
+        let text_document_did_change_params = DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier {
+                uri,
+                version: Some(version as i64),
+            },
+            content_changes: changes,
+        };
+
+        let params = Params::from(
+            serde_json::to_value(text_document_did_change_params).unwrap(),
+        );
+        self.send_notification("textDocument/didChange", params);
+    }
+
+    pub fn get_sync_kind(&self) -> Option<TextDocumentSyncKind> {
+        let state = self.state.lock();
+        let text_document_sync = state
+            .server_capabilities
+            .as_ref()
+            .and_then(|c| c.text_document_sync.as_ref())?;
+        match &text_document_sync {
+            &TextDocumentSyncCapability::Kind(kind) => Some(kind.clone()),
+            &TextDocumentSyncCapability::Options(options) => options.clone().change,
+        }
+    }
+
+    pub fn update(
+        &self,
+        buffer: &Buffer,
+        content_change: &TextDocumentContentChangeEvent,
+        rev: u64,
+    ) {
+        let sync_kind = self.get_sync_kind().unwrap_or(TextDocumentSyncKind::Full);
+        let changes = get_change_for_sync_kind(sync_kind, buffer, content_change);
+        if let Some(changes) = changes {
+            self.send_did_change(buffer, changes, rev);
+        }
+    }
 }
 
 pub enum LspHeader {
@@ -549,4 +606,24 @@ pub fn read_message<T: BufRead>(reader: &mut T) -> Result<String> {
 
     let body = String::from_utf8(body_buffer)?;
     Ok(body)
+}
+
+pub fn get_change_for_sync_kind(
+    sync_kind: TextDocumentSyncKind,
+    buffer: &Buffer,
+    content_change: &TextDocumentContentChangeEvent,
+) -> Option<Vec<TextDocumentContentChangeEvent>> {
+    match sync_kind {
+        TextDocumentSyncKind::None => None,
+        TextDocumentSyncKind::Full => {
+            let text_document_content_change_event =
+                TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: buffer.get_document(),
+                };
+            Some(vec![text_document_content_change_event])
+        }
+        TextDocumentSyncKind::Incremental => Some(vec![content_change.clone()]),
+    }
 }

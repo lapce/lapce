@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 lapce-rpc = { path = "../rpc" }
 xi-rpc = { path = "../../xi-editor/rust/rpc/" }
-xi-rope = { path = "../../xi-editor/rust/rope/" }
+xi-rope = { path = "../../xi-editor/rust/rope/", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 lsp-types = { version = "0.82.0", features = ["proposed"] }
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }

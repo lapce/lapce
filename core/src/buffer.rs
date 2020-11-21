@@ -536,6 +536,12 @@ impl Buffer {
             self.rev,
         );
         state.lsp.lock().update(&self, &content_change, self.rev);
+        state
+            .proxy
+            .lock()
+            .as_ref()
+            .unwrap()
+            .update(self.id, delta, self.rev);
 
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;

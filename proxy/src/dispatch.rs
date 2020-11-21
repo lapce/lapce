@@ -16,6 +16,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::{collections::HashMap, io};
+use xi_rope::{RopeDelta, RopeInfo};
 use xi_rpc::RpcPeer;
 use xi_rpc::{Handler, RpcCtx};
 
@@ -32,7 +33,14 @@ pub struct Dispatcher {
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum Notification {
-    Initialize { workspace: PathBuf },
+    Initialize {
+        workspace: PathBuf,
+    },
+    Update {
+        buffer_id: BufferId,
+        delta: RopeDelta,
+        rev: u64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,7 +81,6 @@ impl Dispatcher {
 
     pub fn mainloop(&self, receiver: Receiver<Value>) -> Result<()> {
         for msg in receiver {
-            eprintln!("receive msg {}", msg);
             let rpc: RpcObject = msg.into();
             if rpc.is_response() {
             } else {
@@ -119,6 +126,17 @@ impl Dispatcher {
             Notification::Initialize { workspace } => {
                 *self.workspace.lock() = workspace;
             }
+            Notification::Update {
+                buffer_id,
+                delta,
+                rev,
+            } => {
+                let mut buffers = self.buffers.lock();
+                let buffer = buffers.get_mut(&buffer_id).unwrap();
+                if let Some(content_change) = buffer.update(&delta, rev) {
+                    self.lsp.lock().update(buffer, &content_change, buffer.rev);
+                }
+            }
         }
     }
 
@@ -129,9 +147,7 @@ impl Dispatcher {
                 let content = buffer.rope.to_string();
                 self.buffers.lock().insert(buffer_id, buffer);
                 let resp = NewBufferResponse { content };
-                eprintln!("proxy receive new buffer");
                 self.sender.send(json!({
-                    "jsonrpc": "2.0",
                     "id": id,
                     "result": resp,
                 }));

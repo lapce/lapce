@@ -23,20 +23,7 @@ use std::{
 };
 use xi_rope::RopeDelta;
 
-use lsp_types::{
-    ClientCapabilities, CodeActionCapability, CodeActionContext, CodeActionKind,
-    CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionParams,
-    CodeActionResponse, CompletionCapability, CompletionItemCapability,
-    CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    DidSaveTextDocumentParams, DocumentFormattingParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FormattingOptions, GotoDefinitionParams,
-    InitializeParams, InitializeResult, PartialResultParams, Position,
-    PublishDiagnosticsParams, Range, SemanticTokensParams, ServerCapabilities,
-    TextDocumentClientCapabilities, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, TraceOption, Url,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
-};
+use lsp_types::*;
 use serde_json::{json, to_value, Value};
 
 use crate::buffer::{Buffer, BufferId};

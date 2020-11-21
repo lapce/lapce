@@ -13,6 +13,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
+use xi_rope::RopeDelta;
 use xi_rpc::Callback;
 use xi_rpc::Handler;
 use xi_rpc::RpcLoop;
@@ -48,6 +49,17 @@ impl LapceProxy {
 
         let resp: NewBufferResponse = serde_json::from_value(result)?;
         return Ok(resp.content);
+    }
+
+    pub fn update(&self, buffer_id: BufferId, delta: &RopeDelta, rev: u64) {
+        self.peer.send_rpc_notification(
+            "update",
+            &json!({
+                "buffer_id": buffer_id,
+                "delta": delta,
+                "rev": rev,
+            }),
+        )
     }
 
     pub fn get_completion(
