@@ -125,6 +125,7 @@ impl Dispatcher {
                     "params": {
                         "buffer_id": buffer_id,
                         "line_changes": line_changes,
+                        "rev": rev,
                     },
                 }));
             }

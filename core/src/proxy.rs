@@ -95,6 +95,7 @@ pub enum Notification {
     UpdateGit {
         buffer_id: BufferId,
         line_changes: HashMap<usize, char>,
+        rev: u64,
     },
 }
 
@@ -130,15 +131,16 @@ impl Handler for ProxyHandler {
             Notification::UpdateGit {
                 buffer_id,
                 line_changes,
+                rev,
             } => {
-                LAPCE_APP_STATE
-                    .get_tab_state(&self.window_id, &self.tab_id)
-                    .editor_split
-                    .lock()
-                    .buffers
-                    .get_mut(&buffer_id)
-                    .unwrap()
-                    .line_changes = line_changes;
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut editor_split = state.editor_split.lock();
+                let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+                if buffer.rev != rev {
+                    return;
+                }
+                buffer.line_changes = line_changes;
                 LAPCE_APP_STATE.submit_ui_command(
                     LapceUICommand::UpdateLineChanges(buffer_id),
                     self.tab_id,
