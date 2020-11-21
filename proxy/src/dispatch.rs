@@ -4,6 +4,7 @@ use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
+use git2::Repository;
 use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::Position;
@@ -98,6 +99,38 @@ impl Dispatcher {
         Ok(())
     }
 
+    pub fn start_git_process(
+        &self,
+        receiver: Receiver<(BufferId, u64)>,
+    ) -> Result<()> {
+        let workspace = self.workspace.lock().clone();
+        loop {
+            let (buffer_id, rev) = receiver.recv()?;
+            let buffers = self.buffers.lock();
+            let buffer = buffers.get(&buffer_id).unwrap();
+            let (path, content) = if buffer.rev != rev {
+                continue;
+            } else {
+                (
+                    buffer.path.clone(),
+                    buffer.slice_to_cow(..buffer.len()).to_string(),
+                )
+            };
+
+            if let Some((diff, line_changes)) =
+                get_git_diff(&workspace, &PathBuf::from(path), &content)
+            {
+                self.sender.send(json!({
+                    "method": "update_git",
+                    "params": {
+                        "buffer_id": buffer_id,
+                        "line_changes": line_changes,
+                    },
+                }));
+            }
+        }
+    }
+
     pub fn next<R: BufRead>(
         &self,
         reader: &mut R,
@@ -165,4 +198,86 @@ impl Dispatcher {
             }
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct DiffHunk {
+    pub old_start: u32,
+    pub old_lines: u32,
+    pub new_start: u32,
+    pub new_lines: u32,
+    pub header: String,
+}
+
+fn get_git_diff(
+    workspace_path: &PathBuf,
+    path: &PathBuf,
+    content: &str,
+) -> Option<(Vec<DiffHunk>, HashMap<usize, char>)> {
+    let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    let head = repo.head().ok()?;
+    let tree = head.peel_to_tree().ok()?;
+    let tree_entry = tree
+        .get_path(path.strip_prefix(workspace_path).ok()?)
+        .ok()?;
+    let blob = repo.find_blob(tree_entry.id()).ok()?;
+    let mut patch = git2::Patch::from_blob_and_buffer(
+        &blob,
+        None,
+        content.as_bytes(),
+        None,
+        None,
+    )
+    .ok()?;
+    let mut line_changes = HashMap::new();
+    Some((
+        (0..patch.num_hunks())
+            .into_iter()
+            .filter_map(|i| {
+                let hunk = patch.hunk(i).ok()?;
+                let hunk = DiffHunk {
+                    old_start: hunk.0.old_start(),
+                    old_lines: hunk.0.old_lines(),
+                    new_start: hunk.0.new_start(),
+                    new_lines: hunk.0.new_lines(),
+                    header: String::from_utf8(hunk.0.header().to_vec()).ok()?,
+                };
+                let mut line_diff = 0;
+                for line in 0..hunk.old_lines + hunk.new_lines {
+                    if let Ok(diff_line) = patch.line_in_hunk(i, line as usize) {
+                        match diff_line.origin() {
+                            ' ' => {
+                                let new_line = diff_line.new_lineno().unwrap();
+                                let old_line = diff_line.old_lineno().unwrap();
+                                line_diff = new_line as i32 - old_line as i32;
+                            }
+                            '-' => {
+                                let old_line = diff_line.old_lineno().unwrap() - 1;
+                                let new_line =
+                                    (old_line as i32 + line_diff) as usize;
+                                line_changes.insert(new_line, '-');
+                                line_diff -= 1;
+                            }
+                            '+' => {
+                                let new_line =
+                                    diff_line.new_lineno().unwrap() as usize - 1;
+                                if let Some(c) = line_changes.get(&new_line) {
+                                    if c == &'-' {
+                                        line_changes.insert(new_line, 'm');
+                                    }
+                                } else {
+                                    line_changes.insert(new_line, '+');
+                                }
+                                line_diff += 1;
+                            }
+                            _ => continue,
+                        }
+                        diff_line.origin();
+                    }
+                }
+                Some(hunk)
+            })
+            .collect(),
+        line_changes,
+    ))
 }

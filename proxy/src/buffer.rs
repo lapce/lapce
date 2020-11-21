@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
@@ -83,6 +84,14 @@ impl Buffer {
             line: line as u64,
             character: col as u64,
         }
+    }
+
+    pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
+        self.rope.slice_to_cow(range)
+    }
+
+    pub fn len(&self) -> usize {
+        self.rope.len()
     }
 }
 

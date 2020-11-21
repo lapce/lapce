@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::BufReader;
 use std::process::Command;
 use std::process::Stdio;
@@ -20,6 +21,7 @@ use xi_rpc::RpcLoop;
 use xi_rpc::RpcPeer;
 
 use crate::buffer::BufferId;
+use crate::command::LapceUICommand;
 use crate::state::LAPCE_APP_STATE;
 
 #[derive(Clone)]
@@ -90,6 +92,10 @@ pub enum Notification {
         language_id: String,
         options: Option<Value>,
     },
+    UpdateGit {
+        buffer_id: BufferId,
+        line_changes: HashMap<usize, char>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -120,6 +126,23 @@ impl Handler for ProxyHandler {
                     .lsp
                     .lock()
                     .start_server(&exec_path, &language_id, options);
+            }
+            Notification::UpdateGit {
+                buffer_id,
+                line_changes,
+            } => {
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .editor_split
+                    .lock()
+                    .buffers
+                    .get_mut(&buffer_id)
+                    .unwrap()
+                    .line_changes = line_changes;
+                LAPCE_APP_STATE.submit_ui_command(
+                    LapceUICommand::UpdateLineChanges(buffer_id),
+                    self.tab_id,
+                );
             }
         }
     }

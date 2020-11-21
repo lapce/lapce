@@ -1683,6 +1683,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "crossbeam-channel 0.5.0",
+ "git2",
  "home",
  "jsonrpc-lite",
  "lapce-rpc",
