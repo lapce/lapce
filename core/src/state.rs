@@ -352,10 +352,9 @@ impl LapceTabState {
             ssh_session: Arc::new(Mutex::new(None)),
             proxy: Arc::new(Mutex::new(None)),
         };
-        start_proxy_process(window_id, tab_id, workspace.clone());
         let local_state = state.clone();
         thread::spawn(move || {
-            local_state.start_plugin();
+            local_state.start_proxy();
         });
         state
     }

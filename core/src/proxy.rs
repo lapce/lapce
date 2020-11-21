@@ -139,6 +139,7 @@ impl Handler for ProxyHandler {
                 line_changes,
                 rev,
             } => {
+                println!("receive update git");
                 let state =
                     LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
                 let mut editor_split = state.editor_split.lock();
@@ -170,13 +171,7 @@ pub fn start_proxy_process(
     workspace: LapceWorkspace,
 ) {
     thread::spawn(move || {
-        let workspace_type = LAPCE_APP_STATE
-            .get_tab_state(&window_id, &tab_id)
-            .workspace
-            .lock()
-            .kind
-            .clone();
-        let mut child = match workspace_type {
+        let mut child = match workspace.kind {
             LapceWorkspaceType::Local => {
                 Command::new("/Users/Lulu/lapce/target/debug/lapce-proxy")
                     .stdin(Stdio::piped())
@@ -185,7 +180,7 @@ pub fn start_proxy_process(
             }
             LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
                 .arg(format!("{}@{}", user, host))
-                .arg("./lapce/lapce-proxy")
+                .arg("./.lapce/lapce-proxy")
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .spawn(),
@@ -206,7 +201,12 @@ pub fn start_proxy_process(
         proxy.initialize(workspace.path.clone());
         {
             let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-            *state.proxy.lock() = Some(proxy);
+            let mut proxy_state = state.proxy.lock();
+            let old_proxy = proxy_state.take();
+            *proxy_state = Some(proxy);
+            if let Some(old_proxy) = old_proxy {
+                old_proxy.process.lock().kill();
+            }
         }
 
         let mut handler = ProxyHandler { window_id, tab_id };

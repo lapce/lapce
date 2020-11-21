@@ -1,4 +1,5 @@
 use anyhow::Result;
+use crossbeam_channel::Sender;
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::Read;
@@ -20,10 +21,16 @@ pub struct Buffer {
     pub rope: Rope,
     pub path: PathBuf,
     pub rev: u64,
+    sender: Sender<(BufferId, u64)>,
 }
 
 impl Buffer {
-    pub fn new(id: BufferId, path: PathBuf) -> Buffer {
+    pub fn new(
+        id: BufferId,
+        path: PathBuf,
+
+        sender: Sender<(BufferId, u64)>,
+    ) -> Buffer {
         let rope = if let Ok(rope) = load_file(&path) {
             rope
         } else {
@@ -36,6 +43,7 @@ impl Buffer {
             path,
             language_id,
             rev: 0,
+            sender,
         }
     }
 
@@ -58,6 +66,7 @@ impl Buffer {
                 text: self.get_document(),
             },
         };
+        self.sender.send((self.id, self.rev));
         Some(content_change)
     }
 

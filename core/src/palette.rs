@@ -1241,8 +1241,6 @@ impl PaletteItem {
             &PaletteType::Workspace => {
                 let state =
                     LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                state.stop();
-
                 *state.workspace.lock() = self.workspace.clone().unwrap();
                 *state.ssh_session.lock() = None;
                 state.start_proxy();

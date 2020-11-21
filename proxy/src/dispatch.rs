@@ -3,7 +3,7 @@ use crate::core_proxy::CoreProxy;
 use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::Repository;
 use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
@@ -24,6 +24,7 @@ use xi_rpc::{Handler, RpcCtx};
 #[derive(Clone)]
 pub struct Dispatcher {
     pub sender: Arc<Sender<Value>>,
+    pub git_sender: Sender<(BufferId, u64)>,
     pub workspace: Arc<Mutex<PathBuf>>,
     buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
@@ -67,8 +68,10 @@ pub struct NewBufferResponse {
 impl Dispatcher {
     pub fn new(sender: Sender<Value>) -> Dispatcher {
         let plugins = PluginCatalog::new();
+        let (git_sender, git_receiver) = unbounded();
         let dispatcher = Dispatcher {
             sender: Arc::new(sender),
+            git_sender,
             workspace: Arc::new(Mutex::new(PathBuf::new())),
             buffers: Arc::new(Mutex::new(HashMap::new())),
             plugins: Arc::new(Mutex::new(plugins)),
@@ -77,6 +80,10 @@ impl Dispatcher {
         dispatcher.lsp.lock().dispatcher = Some(dispatcher.clone());
         dispatcher.plugins.lock().reload();
         dispatcher.plugins.lock().start_all(dispatcher.clone());
+        let local_dispatcher = dispatcher.clone();
+        thread::spawn(move || {
+            local_dispatcher.start_git_process(git_receiver);
+        });
         dispatcher
     }
 
@@ -103,8 +110,8 @@ impl Dispatcher {
         &self,
         receiver: Receiver<(BufferId, u64)>,
     ) -> Result<()> {
-        let workspace = self.workspace.lock().clone();
         loop {
+            let workspace = self.workspace.lock().clone();
             let (buffer_id, rev) = receiver.recv()?;
             let buffers = self.buffers.lock();
             let buffer = buffers.get(&buffer_id).unwrap();
@@ -117,6 +124,7 @@ impl Dispatcher {
                 )
             };
 
+            eprintln!("start to get git diff");
             if let Some((diff, line_changes)) =
                 get_git_diff(&workspace, &PathBuf::from(path), &content)
             {
@@ -177,7 +185,7 @@ impl Dispatcher {
     fn handle_request(&self, id: RequestId, rpc: Request) {
         match rpc {
             Request::NewBuffer { buffer_id, path } => {
-                let buffer = Buffer::new(buffer_id, path);
+                let buffer = Buffer::new(buffer_id, path, self.git_sender.clone());
                 let content = buffer.rope.to_string();
                 self.buffers.lock().insert(buffer_id, buffer);
                 let resp = NewBufferResponse { content };
