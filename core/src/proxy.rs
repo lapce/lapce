@@ -84,6 +84,20 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_document_formatting(
+        &self,
+        buffer_id: BufferId,
+        f: Box<dyn Callback>,
+    ) {
+        self.peer.send_rpc_request_async(
+            "get_document_formatting",
+            &json!({
+                "buffer_id": buffer_id,
+            }),
+            f,
+        );
+    }
+
     pub fn stop(&self) {
         self.process.lock().kill();
     }
@@ -123,17 +137,6 @@ impl Handler for ProxyHandler {
         rpc: Self::Notification,
     ) {
         match rpc {
-            // Notification::StartLspServer {
-            //     exec_path,
-            //     language_id,
-            //     options,
-            // } => {
-            //     LAPCE_APP_STATE
-            //         .get_tab_state(&self.window_id, &self.tab_id)
-            //         .lsp
-            //         .lock()
-            //         .start_server(&exec_path, &language_id, options);
-            // }
             Notification::SemanticTokens {
                 rev,
                 buffer_id,
@@ -162,7 +165,6 @@ impl Handler for ProxyHandler {
                 line_changes,
                 rev,
             } => {
-                println!("receive update git");
                 let state =
                     LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
                 let mut editor_split = state.editor_split.lock();

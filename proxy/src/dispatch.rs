@@ -58,6 +58,9 @@ pub enum Request {
         buffer_id: BufferId,
         position: Position,
     },
+    GetDocumentFormatting {
+        buffer_id: BufferId,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,6 +167,20 @@ impl Dispatcher {
         }
     }
 
+    pub fn respond(&self, id: RequestId, result: Result<Value>) {
+        let mut resp = json!({ "id": id });
+        match result {
+            Ok(v) => resp["result"] = v,
+            Err(e) => {
+                resp["error"] = json!({
+                    "code": 0,
+                    "message": format!("{}",e),
+                })
+            }
+        }
+        self.sender.send(resp);
+    }
+
     pub fn send_notification(&self, method: &str, params: Value) {
         self.sender.send(json!({
             "method": method,
@@ -212,6 +229,11 @@ impl Dispatcher {
                 self.lsp
                     .lock()
                     .get_completion(id, request_id, buffer, position);
+            }
+            Request::GetDocumentFormatting { buffer_id } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_document_formatting(id, buffer);
             }
         }
     }

@@ -50,6 +50,7 @@ use lsp_types::{
 };
 use serde_json::Value;
 use std::str::FromStr;
+use std::thread;
 use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
 use xi_core_lib::selection::InsertDrift;
@@ -2178,6 +2179,41 @@ impl EditorSplitState {
             LapceCommand::DocumentFormatting => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
+                let window_id = self.window_id;
+                let tab_id = self.tab_id;
+                let rev = buffer.rev;
+                let offset = editor.selection.get_cursor_offset();
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                state
+                    .clone()
+                    .proxy
+                    .lock()
+                    .as_ref()
+                    .unwrap()
+                    .get_document_formatting(
+                        buffer.id,
+                        Box::new(move |result| {
+                            if let Ok(res) = result {
+                                let edits: Result<Vec<TextEdit>, serde_json::Error> =
+                                    serde_json::from_value(res);
+                                if let Ok(edits) = edits {
+                                    if edits.len() > 0 {
+                                        thread::spawn(move || {
+                                            let state = LAPCE_APP_STATE
+                                                .get_tab_state(&window_id, &tab_id);
+                                            LAPCE_APP_STATE.submit_ui_command(
+                                                LapceUICommand::ApplyEdits(
+                                                    offset, rev, edits,
+                                                ),
+                                                state.editor_split.lock().widget_id,
+                                            );
+                                        });
+                                    }
+                                }
+                            }
+                        }),
+                    );
                 // LAPCE_APP_STATE
                 //     .get_tab_state(&self.window_id, &self.tab_id)
                 //     .lsp

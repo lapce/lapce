@@ -665,6 +665,7 @@ impl LspClient {
     pub fn document_formatting(&self, buffer: &Buffer) {
         let uri = self.get_uri(buffer);
         let rev = buffer.rev;
+        let offset = buffer.offset;
         let window_id = self.window_id;
         let tab_id = self.tab_id;
         self.request_document_formatting(uri, move |lsp_client, result| {
@@ -677,7 +678,7 @@ impl LspClient {
                             let state =
                                 LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
                             LAPCE_APP_STATE.submit_ui_command(
-                                LapceUICommand::ApplyEdits(rev, edits),
+                                LapceUICommand::ApplyEdits(offset, rev, edits),
                                 state.editor_split.lock().widget_id,
                             );
                         });

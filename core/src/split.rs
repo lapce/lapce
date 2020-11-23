@@ -189,12 +189,21 @@ impl Widget<LapceUIState> for LapceSplit {
                         LapceUICommand::RequestLayout => {
                             ctx.request_layout();
                         }
-                        LapceUICommand::ApplyEdits(rev, edits) => {
-                            LAPCE_APP_STATE
-                                .get_tab_state(&self.window_id, &self.tab_id)
-                                .editor_split
-                                .lock()
-                                .apply_edits(ctx, data, *rev, edits);
+                        LapceUICommand::ApplyEdits(offset, rev, edits) => {
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
+                            if *offset
+                                != editor_split
+                                    .editors
+                                    .get(&editor_split.active)
+                                    .unwrap()
+                                    .selection
+                                    .get_cursor_offset()
+                            {
+                                return;
+                            }
+                            editor_split.apply_edits(ctx, data, *rev, edits);
                         }
                         LapceUICommand::GotoLocation(location) => {
                             let state = LAPCE_APP_STATE

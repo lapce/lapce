@@ -133,6 +133,15 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_document_formatting(&self, id: RequestId, buffer: &Buffer) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            client.request_document_formatting(uri, move |lsp_client, result| {
+                lsp_client.dispatcher.respond(id, result);
+            });
+        }
+    }
+
     pub fn get_completion(
         &self,
         id: RequestId,
@@ -477,6 +486,23 @@ impl LspClient {
         self.send_request("initialize", params, Box::new(on_init));
     }
 
+    pub fn request_document_formatting<CB>(&self, document_uri: Url, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = DocumentFormattingParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            options: FormattingOptions {
+                tab_size: 4,
+                insert_spaces: true,
+                ..Default::default()
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/formatting", params, Box::new(cb));
+    }
+
     pub fn request_semantic_tokens<CB>(&self, document_uri: Url, cb: CB)
     where
         CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
@@ -513,33 +539,6 @@ impl LspClient {
             params,
             Box::new(on_completion),
         );
-    }
-
-    pub fn get_completion(
-        &self,
-        request_id: usize,
-        buffer: &Buffer,
-        position: Position,
-    ) {
-        let uri = self.get_uri(buffer);
-        self.request_completion(uri, position, move |lsp_client, result| {
-            // if let Ok(res) = result {
-            //     thread::spawn(move || {
-            //         LAPCE_APP_STATE
-            //             .get_tab_state(&window_id, &tab_id)
-            //             .editor_split
-            //             .lock()
-            //             .show_completion(request_id, res);
-            //     });
-            // } else {
-            //     let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-            //     let mut editor_split = state.editor_split.lock();
-            //     if editor_split.completion.offset == request_id {
-            //         editor_split.completion.clear();
-            //     }
-            //     println!("request completion error {:?}", result);
-            // }
-        })
     }
 
     pub fn send_did_change(
