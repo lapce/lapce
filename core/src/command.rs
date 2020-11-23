@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use anyhow::Result;
 use druid::{Rect, Selector, Size, WidgetId};
 use lsp_types::{Location, TextEdit};
+use serde_json::Value;
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
 use tree_sitter_highlight::Highlight;
@@ -186,6 +188,7 @@ pub enum LapceUICommand {
     CloseBuffers(Vec<BufferId>),
     RequestPaintRect(Rect),
     ApplyEdits(usize, u64, Vec<TextEdit>),
+    ApplyEditsAndSave(usize, u64, Result<Value>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
     CenterOfWindow,
     UpdateLineChanges(BufferId),

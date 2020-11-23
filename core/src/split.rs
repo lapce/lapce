@@ -205,6 +205,15 @@ impl Widget<LapceUIState> for LapceSplit {
                             }
                             editor_split.apply_edits(ctx, data, *rev, edits);
                         }
+                        LapceUICommand::ApplyEditsAndSave(offset, rev, result) => {
+                            LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id)
+                                .editor_split
+                                .lock()
+                                .apply_edits_and_save(
+                                    ctx, data, *offset, *rev, result,
+                                );
+                        }
                         LapceUICommand::GotoLocation(location) => {
                             let state = LAPCE_APP_STATE
                                 .get_tab_state(&self.window_id, &self.tab_id);

@@ -61,6 +61,10 @@ pub enum Request {
     GetDocumentFormatting {
         buffer_id: BufferId,
     },
+    Save {
+        rev: u64,
+        buffer_id: BufferId,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -234,6 +238,11 @@ impl Dispatcher {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_document_formatting(id, buffer);
+            }
+            Request::Save { rev, buffer_id } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.respond(id, buffer.save(rev).map(|r| json!({})));
             }
         }
     }

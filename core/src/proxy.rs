@@ -66,6 +66,16 @@ impl LapceProxy {
         )
     }
 
+    pub fn save(&self, rev: u64, buffer_id: BufferId, f: Box<dyn Callback>) {
+        self.peer.send_rpc_request_async(
+            "save",
+            &json!({
+                "buffer_id": buffer_id,
+            }),
+            f,
+        );
+    }
+
     pub fn get_completion(
         &self,
         request_id: usize,

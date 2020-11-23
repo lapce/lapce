@@ -1,9 +1,12 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use std::borrow::Cow;
+use std::ffi::OsString;
 use std::fs::File;
 use std::io::Read;
+use std::io::Write;
 use std::path::PathBuf;
+use std::{fs, str::FromStr};
 
 use lsp_types::*;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -44,6 +47,28 @@ impl Buffer {
             rev: 0,
             sender,
         }
+    }
+
+    pub fn save(&self, rev: u64) -> Result<()> {
+        if self.rev != rev {
+            return Err(anyhow!("not the right rev"));
+        }
+        let tmp_extension = self.path.extension().map_or_else(
+            || OsString::from("swp"),
+            |ext| {
+                let mut ext = ext.to_os_string();
+                ext.push(".swp");
+                ext
+            },
+        );
+        let tmp_path = &self.path.with_extension(tmp_extension);
+
+        let mut f = File::create(tmp_path)?;
+        for chunk in self.rope.iter_chunks(..self.rope.len()) {
+            f.write_all(chunk.as_bytes())?;
+        }
+        fs::rename(tmp_path, &self.path)?;
+        Ok(())
     }
 
     pub fn update(

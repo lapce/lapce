@@ -50,6 +50,7 @@ use lsp_types::{
 };
 use serde_json::Value;
 use std::str::FromStr;
+use std::sync::mpsc::channel;
 use std::thread;
 use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
@@ -1598,6 +1599,26 @@ impl EditorSplitState {
         );
     }
 
+    pub fn apply_edits_and_save(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        offset: usize,
+        rev: u64,
+        result: &Result<Value>,
+    ) -> Option<()> {
+        if let Ok(res) = result {
+            let edits: Result<Vec<TextEdit>, serde_json::Error> =
+                serde_json::from_value(res.clone());
+            if let Ok(edits) = edits {
+                if edits.len() > 0 {
+                    self.apply_edits(ctx, ui_state, rev, &edits);
+                }
+            }
+        }
+        None
+    }
+
     pub fn apply_edits(
         &mut self,
         ctx: &mut EventCtx,
@@ -2323,7 +2344,33 @@ impl EditorSplitState {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer_id = editor.buffer_id.clone()?;
                 let buffer = self.buffers.get_mut(&buffer_id)?;
+                let window_id = self.window_id;
+                let tab_id = self.tab_id;
                 let rev = buffer.rev;
+                let offset = editor.selection.get_cursor_offset();
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                state
+                    .clone()
+                    .proxy
+                    .lock()
+                    .as_ref()
+                    .unwrap()
+                    .get_document_formatting(
+                        buffer.id,
+                        Box::new(move |result| {
+                            let result = match result {
+                                Ok(r) => Ok(r),
+                                Err(e) => Err(anyhow!("{:?}", e)),
+                            };
+                            LAPCE_APP_STATE.submit_ui_command(
+                                LapceUICommand::ApplyEditsAndSave(
+                                    offset, rev, result,
+                                ),
+                                state.editor_split.lock().widget_id,
+                            );
+                        }),
+                    );
 
                 // if let Some(edits) = {
                 //     let state =
