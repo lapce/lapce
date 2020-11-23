@@ -26,7 +26,7 @@ pub struct Dispatcher {
     pub sender: Arc<Sender<Value>>,
     pub git_sender: Sender<(BufferId, u64)>,
     pub workspace: Arc<Mutex<PathBuf>>,
-    buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
+    pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
 }
@@ -82,7 +82,7 @@ impl Dispatcher {
         dispatcher.plugins.lock().start_all(dispatcher.clone());
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
-            local_dispatcher.start_git_process(git_receiver);
+            local_dispatcher.start_update_process(git_receiver);
         });
         dispatcher
     }
@@ -106,7 +106,7 @@ impl Dispatcher {
         Ok(())
     }
 
-    pub fn start_git_process(
+    pub fn start_update_process(
         &self,
         receiver: Receiver<(BufferId, u64)>,
     ) -> Result<()> {
@@ -124,7 +124,8 @@ impl Dispatcher {
                 )
             };
 
-            eprintln!("start to get git diff");
+            self.lsp.lock().get_semantic_tokens(buffer);
+
             if let Some((diff, line_changes)) =
                 get_git_diff(&workspace, &PathBuf::from(path), &content)
             {
@@ -161,6 +162,13 @@ impl Dispatcher {
         } else {
             Ok(val.into())
         }
+    }
+
+    pub fn send_notification(&self, method: &str, params: Value) {
+        self.sender.send(json!({
+            "method": method,
+            "params": params,
+        }));
     }
 
     fn handle_notification(&self, rpc: Notification) {

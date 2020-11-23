@@ -402,52 +402,53 @@ impl PaletteState {
     }
 
     fn get_document_symbols(&self) -> Option<Vec<PaletteItem>> {
+        return None;
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let editor_split = state.editor_split.lock();
         let editor = editor_split.editors.get(&editor_split.active)?;
         let buffer_id = editor.buffer_id?;
         let buffer = editor_split.buffers.get(&buffer_id)?;
-        let resp = state.lsp.lock().get_document_symbols(buffer)?;
-        Some(match resp {
-            DocumentSymbolResponse::Flat(symbols) => symbols
-                .iter()
-                .enumerate()
-                .map(|(i, s)| PaletteItem {
-                    window_id: self.window_id,
-                    tab_id: self.tab_id,
-                    kind: PaletteType::DocumentSymbol,
-                    text: s.name.clone(),
-                    hint: s.container_name.clone(),
-                    position: Some(s.location.range.start),
-                    path: None,
-                    score: 0.0,
-                    index: i,
-                    match_mask: BitVec::new(),
-                    icon: PaletteIcon::Symbol(s.kind),
-                    workspace: None,
-                    command: None,
-                })
-                .collect(),
-            DocumentSymbolResponse::Nested(symbols) => symbols
-                .iter()
-                .enumerate()
-                .map(|(i, s)| PaletteItem {
-                    window_id: self.window_id,
-                    tab_id: self.tab_id,
-                    kind: PaletteType::DocumentSymbol,
-                    text: s.name.clone(),
-                    hint: None,
-                    path: None,
-                    position: Some(s.range.start),
-                    score: 0.0,
-                    index: i,
-                    match_mask: BitVec::new(),
-                    icon: PaletteIcon::Symbol(s.kind),
-                    workspace: None,
-                    command: None,
-                })
-                .collect(),
-        })
+        // let resp = state.lsp.lock().get_document_symbols(buffer)?;
+        // Some(match resp {
+        //     DocumentSymbolResponse::Flat(symbols) => symbols
+        //         .iter()
+        //         .enumerate()
+        //         .map(|(i, s)| PaletteItem {
+        //             window_id: self.window_id,
+        //             tab_id: self.tab_id,
+        //             kind: PaletteType::DocumentSymbol,
+        //             text: s.name.clone(),
+        //             hint: s.container_name.clone(),
+        //             position: Some(s.location.range.start),
+        //             path: None,
+        //             score: 0.0,
+        //             index: i,
+        //             match_mask: BitVec::new(),
+        //             icon: PaletteIcon::Symbol(s.kind),
+        //             workspace: None,
+        //             command: None,
+        //         })
+        //         .collect(),
+        //     DocumentSymbolResponse::Nested(symbols) => symbols
+        //         .iter()
+        //         .enumerate()
+        //         .map(|(i, s)| PaletteItem {
+        //             window_id: self.window_id,
+        //             tab_id: self.tab_id,
+        //             kind: PaletteType::DocumentSymbol,
+        //             text: s.name.clone(),
+        //             hint: None,
+        //             path: None,
+        //             position: Some(s.range.start),
+        //             score: 0.0,
+        //             index: i,
+        //             match_mask: BitVec::new(),
+        //             icon: PaletteIcon::Symbol(s.kind),
+        //             workspace: None,
+        //             command: None,
+        //         })
+        //         .collect(),
+        // })
     }
 
     fn get_lines(&self) -> Option<Vec<PaletteItem>> {

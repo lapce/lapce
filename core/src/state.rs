@@ -303,8 +303,8 @@ pub struct LapceTabState {
     pub editor_split: Arc<Mutex<EditorSplitState>>,
     pub container: Option<WidgetId>,
     pub file_explorer: Arc<Mutex<FileExplorerState>>,
-    pub plugins: Arc<Mutex<PluginCatalog>>,
-    pub lsp: Arc<Mutex<LspCatalog>>,
+    // pub plugins: Arc<Mutex<PluginCatalog>>,
+    // pub lsp: Arc<Mutex<LspCatalog>>,
     pub ssh_session: Arc<Mutex<Option<SshSession>>>,
     pub proxy: Arc<Mutex<Option<LapceProxy>>>,
 }
@@ -344,11 +344,11 @@ impl LapceTabState {
                 window_id.clone(),
                 tab_id.clone(),
             ))),
-            plugins: Arc::new(Mutex::new(PluginCatalog::new(window_id, tab_id))),
-            lsp: Arc::new(Mutex::new(LspCatalog::new(
-                window_id.clone(),
-                tab_id.clone(),
-            ))),
+            // plugins: Arc::new(Mutex::new(PluginCatalog::new(window_id, tab_id))),
+            // lsp: Arc::new(Mutex::new(LspCatalog::new(
+            //     window_id.clone(),
+            //     tab_id.clone(),
+            // ))),
             ssh_session: Arc::new(Mutex::new(None)),
             proxy: Arc::new(Mutex::new(None)),
         };

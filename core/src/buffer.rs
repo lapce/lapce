@@ -160,20 +160,20 @@ impl Buffer {
 
         let language_id = buffer.language_id.clone();
 
-        state.plugins.lock().new_buffer(&PluginBufferInfo {
-            buffer_id: buffer_id.clone(),
-            language_id: buffer.language_id.clone(),
-            path: path.to_string(),
-            nb_lines: buffer.num_lines(),
-            buf_size: buffer.len(),
-            rev: buffer.rev,
-        });
-        state.lsp.lock().new_buffer(
-            &buffer_id,
-            path,
-            &buffer.language_id,
-            buffer.rope.to_string(),
-        );
+        // state.plugins.lock().new_buffer(&PluginBufferInfo {
+        //     buffer_id: buffer_id.clone(),
+        //     language_id: buffer.language_id.clone(),
+        //     path: path.to_string(),
+        //     nb_lines: buffer.num_lines(),
+        //     buf_size: buffer.len(),
+        //     rev: buffer.rev,
+        // });
+        // state.lsp.lock().new_buffer(
+        //     &buffer_id,
+        //     path,
+        //     &buffer.language_id,
+        //     buffer.rope.to_string(),
+        // );
         buffer.update_highlights();
         buffer
     }
@@ -312,7 +312,7 @@ impl Buffer {
         self.sender
             .send((self.window_id, self.tab_id, self.id, self.rev));
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        state.lsp.lock().get_semantic_tokens(&self);
+        // state.lsp.lock().get_semantic_tokens(&self);
     }
 
     pub fn get_line_highligh(
@@ -528,14 +528,14 @@ impl Buffer {
         };
 
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        state.plugins.lock().update(
-            &self.id,
-            delta,
-            self.len(),
-            self.num_lines(),
-            self.rev,
-        );
-        state.lsp.lock().update(&self, &content_change, self.rev);
+        // state.plugins.lock().update(
+        //     &self.id,
+        //     delta,
+        //     self.len(),
+        //     self.num_lines(),
+        //     self.rev,
+        // );
+        // state.lsp.lock().update(&self, &content_change, self.rev);
         state
             .proxy
             .lock()

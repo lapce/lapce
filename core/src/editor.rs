@@ -1205,20 +1205,6 @@ impl EditorSplitState {
         }
         if prev_offset != self.completion.offset {
             self.completion.offset = prev_offset;
-            // LAPCE_APP_STATE
-            //     .get_tab_state(&self.window_id, &self.tab_id)
-            //     .plugins
-            //     .lock()
-            //     .get_completion(&buffer_id, prev_offset, prev_offset);
-            // LAPCE_APP_STATE
-            //     .get_tab_state(&self.window_id, &self.tab_id)
-            //     .lsp
-            //     .lock()
-            //     .get_completion(
-            //         prev_offset,
-            //         buffer,
-            //         buffer.offset_to_position(prev_offset),
-            //     );
             let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
             state.clone().proxy.lock().as_ref().unwrap().get_completion(
                 prev_offset,
@@ -1653,7 +1639,7 @@ impl EditorSplitState {
         let prev_offset = buffer.prev_code_boundary(offset);
         if buffer.code_actions.get(&prev_offset).is_none() {
             let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-            state.lsp.lock().get_code_actions(prev_offset, buffer);
+            // state.lsp.lock().get_code_actions(prev_offset, buffer);
         }
         None
     }
@@ -2148,25 +2134,21 @@ impl EditorSplitState {
                 let buffer = self.buffers.get_mut(buffer_id)?;
                 let buffer_ui_state = ui_state.get_buffer_mut(buffer_id);
                 let offset = editor.selection.get_cursor_offset();
-                LAPCE_APP_STATE
-                    .get_tab_state(&self.window_id, &self.tab_id)
-                    .plugins
-                    .lock()
-                    .get_completion(&buffer_id, 0, offset);
+                self.update_completion(ctx);
             }
             LapceCommand::GotoDefinition => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let offset = editor.selection.get_cursor_offset();
-                LAPCE_APP_STATE
-                    .get_tab_state(&self.window_id, &self.tab_id)
-                    .lsp
-                    .lock()
-                    .go_to_definition(
-                        offset,
-                        buffer,
-                        buffer.offset_to_position(offset),
-                    );
+                // LAPCE_APP_STATE
+                //     .get_tab_state(&self.window_id, &self.tab_id)
+                //     .lsp
+                //     .lock()
+                //     .go_to_definition(
+                //         offset,
+                //         buffer,
+                //         buffer.offset_to_position(offset),
+                //     );
             }
             LapceCommand::JumpLocationBackward => {
                 self.jump_location_backward(ctx, ui_state, env);
@@ -2196,11 +2178,11 @@ impl EditorSplitState {
             LapceCommand::DocumentFormatting => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
-                LAPCE_APP_STATE
-                    .get_tab_state(&self.window_id, &self.tab_id)
-                    .lsp
-                    .lock()
-                    .request_document_formatting(buffer);
+                // LAPCE_APP_STATE
+                //     .get_tab_state(&self.window_id, &self.tab_id)
+                //     .lsp
+                //     .lock()
+                //     .request_document_formatting(buffer);
             }
             LapceCommand::ToggleComment => {
                 let editor = self.editors.get_mut(&self.active)?;
@@ -2307,17 +2289,17 @@ impl EditorSplitState {
                 let buffer = self.buffers.get_mut(&buffer_id)?;
                 let rev = buffer.rev;
 
-                if let Some(edits) = {
-                    let state =
-                        LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                    let lsp = state.lsp.lock();
-                    let edits = lsp.get_document_formatting(buffer);
-                    edits
-                } {
-                    if edits.len() > 0 {
-                        self.apply_edits(ctx, ui_state, rev, &edits);
-                    }
-                }
+                // if let Some(edits) = {
+                //     let state =
+                //         LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                //     let lsp = state.lsp.lock();
+                //     let edits = lsp.get_document_formatting(buffer);
+                //     edits
+                // } {
+                //     if edits.len() > 0 {
+                //         self.apply_edits(ctx, ui_state, rev, &edits);
+                //     }
+                // }
 
                 let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
                 let buffer = self.buffers.get_mut(&buffer_id)?;
@@ -2325,11 +2307,11 @@ impl EditorSplitState {
                     println!("buffer save error {}", e);
                 }
                 buffer_ui_state.dirty = buffer.dirty;
-                LAPCE_APP_STATE
-                    .get_tab_state(&self.window_id, &self.tab_id)
-                    .lsp
-                    .lock()
-                    .save_buffer(buffer);
+                // LAPCE_APP_STATE
+                //     .get_tab_state(&self.window_id, &self.tab_id)
+                //     .lsp
+                //     .lock()
+                //     .save_buffer(buffer);
             }
             _ => {
                 let editor = self.editors.get_mut(&self.active)?;

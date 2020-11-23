@@ -97,6 +97,42 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_semantic_tokens(&self, buffer: &Buffer) {
+        let buffer_id = buffer.id;
+        let rev = buffer.rev;
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            let local_dispatcher = self.dispatcher.clone().unwrap();
+            client.request_semantic_tokens(uri, move |lsp_client, result| {
+                if let Ok(res) = result {
+                    let buffers = local_dispatcher.buffers.lock();
+                    let buffer = buffers.get(&buffer_id).unwrap();
+                    if buffer.rev != rev {
+                        return;
+                    }
+                    let lsp_state = lsp_client.state.lock();
+                    let semantic_tokens_provider = &lsp_state
+                        .server_capabilities
+                        .as_ref()
+                        .unwrap()
+                        .semantic_tokens_provider;
+                    if let Some(tokens) =
+                        format_semantic_tokens(buffer, semantic_tokens_provider, res)
+                    {
+                        local_dispatcher.send_notification(
+                            "semantic_tokens",
+                            json!({
+                                "rev": rev,
+                                "buffer_id": buffer_id,
+                                "tokens": tokens,
+                            }),
+                        )
+                    }
+                }
+            });
+        }
+    }
+
     pub fn get_completion(
         &self,
         id: RequestId,
@@ -441,6 +477,19 @@ impl LspClient {
         self.send_request("initialize", params, Box::new(on_init));
     }
 
+    pub fn request_semantic_tokens<CB>(&self, document_uri: Url, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = SemanticTokensParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/semanticTokens/full", params, Box::new(cb));
+    }
+
     pub fn request_completion<CB>(
         &self,
         document_uri: Url,
@@ -625,5 +674,46 @@ pub fn get_change_for_sync_kind(
             Some(vec![text_document_content_change_event])
         }
         TextDocumentSyncKind::Incremental => Some(vec![content_change.clone()]),
+    }
+}
+
+fn format_semantic_tokens(
+    buffer: &Buffer,
+    semantic_tokens_provider: &Option<SemanticTokensServerCapabilities>,
+    value: Value,
+) -> Option<Vec<(usize, usize, String)>> {
+    let semantic_tokens: SemanticTokens = serde_json::from_value(value).ok()?;
+    let semantic_tokens_provider = semantic_tokens_provider.as_ref()?;
+    let semantic_lengends = semantic_tokens_lengend(semantic_tokens_provider);
+
+    let mut highlights = Vec::new();
+    let mut line = 0;
+    let mut start = 0;
+    for semantic_token in &semantic_tokens.data {
+        if semantic_token.delta_line > 0 {
+            line += semantic_token.delta_line as usize;
+            start = buffer.offset_of_line(line);
+        }
+        start += semantic_token.delta_start as usize;
+        let end = start + semantic_token.length as usize;
+        let kind = semantic_lengends.token_types[semantic_token.token_type as usize]
+            .as_str()
+            .to_string();
+        highlights.push((start, end, kind));
+    }
+
+    Some(highlights)
+}
+
+fn semantic_tokens_lengend(
+    semantic_tokens_provider: &SemanticTokensServerCapabilities,
+) -> SemanticTokensLegend {
+    match semantic_tokens_provider {
+        SemanticTokensServerCapabilities::SemanticTokensOptions(options) => {
+            options.legend.clone()
+        }
+        SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
+            options,
+        ) => options.semantic_tokens_options.legend.clone(),
     }
 }

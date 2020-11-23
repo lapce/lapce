@@ -28,7 +28,6 @@ impl Buffer {
     pub fn new(
         id: BufferId,
         path: PathBuf,
-
         sender: Sender<(BufferId, u64)>,
     ) -> Buffer {
         let rope = if let Ok(rope) = load_file(&path) {

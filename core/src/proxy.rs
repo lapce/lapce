@@ -93,10 +93,10 @@ impl LapceProxy {
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum Notification {
-    StartLspServer {
-        exec_path: String,
-        language_id: String,
-        options: Option<Value>,
+    SemanticTokens {
+        rev: u64,
+        buffer_id: BufferId,
+        tokens: Vec<(usize, usize, String)>,
     },
     UpdateGit {
         buffer_id: BufferId,
@@ -123,16 +123,39 @@ impl Handler for ProxyHandler {
         rpc: Self::Notification,
     ) {
         match rpc {
-            Notification::StartLspServer {
-                exec_path,
-                language_id,
-                options,
+            // Notification::StartLspServer {
+            //     exec_path,
+            //     language_id,
+            //     options,
+            // } => {
+            //     LAPCE_APP_STATE
+            //         .get_tab_state(&self.window_id, &self.tab_id)
+            //         .lsp
+            //         .lock()
+            //         .start_server(&exec_path, &language_id, options);
+            // }
+            Notification::SemanticTokens {
+                rev,
+                buffer_id,
+                tokens,
             } => {
-                LAPCE_APP_STATE
-                    .get_tab_state(&self.window_id, &self.tab_id)
-                    .lsp
-                    .lock()
-                    .start_server(&exec_path, &language_id, options);
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut editor_split = state.editor_split.lock();
+                let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+                if buffer.rev != rev {
+                    return;
+                }
+                buffer.semantic_tokens = Some(tokens);
+                buffer.line_highlights = HashMap::new();
+                for (view_id, editor) in editor_split.editors.iter() {
+                    if editor.buffer_id.as_ref() == Some(&buffer_id) {
+                        LAPCE_APP_STATE.submit_ui_command(
+                            LapceUICommand::FillTextLayouts,
+                            view_id.clone(),
+                        );
+                    }
+                }
             }
             Notification::UpdateGit {
                 buffer_id,

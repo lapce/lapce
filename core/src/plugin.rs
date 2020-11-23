@@ -179,12 +179,12 @@ impl PluginCatalog {
     pub fn start_all(&mut self) -> Result<()> {
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         for (_, manifest) in self.items.clone().iter() {
-            start_plugin_process(
-                self.window_id,
-                self.tab_id,
-                manifest.clone(),
-                self.next_plugin_id(),
-            );
+            // start_plugin_process(
+            //     self.window_id,
+            //     self.tab_id,
+            //     manifest.clone(),
+            //     self.next_plugin_id(),
+            // );
         }
         Ok(())
     }
@@ -315,79 +315,79 @@ fn load_manifest(path: &Path) -> Result<PluginDescription> {
 //    Ok(())
 //}
 
-fn start_plugin_process(
-    window_id: WindowId,
-    tab_id: WidgetId,
-    plugin_desc: Arc<PluginDescription>,
-    id: PluginId,
-) {
-    thread::spawn(move || {
-        println!(
-            "start plugin {:?} {:?}",
-            plugin_desc.exec_path, plugin_desc.dir
-        );
-        let workspace_type = LAPCE_APP_STATE
-            .get_tab_state(&window_id, &tab_id)
-            .workspace
-            .lock()
-            .kind
-            .clone();
-        let mut child = match workspace_type {
-            LapceWorkspaceType::Local => {
-                let parts: Vec<&str> = plugin_desc
-                    .exec_path
-                    .to_str()
-                    .unwrap()
-                    .split(" ")
-                    .into_iter()
-                    .collect();
-                let mut child = Command::new(parts[0]);
-                for part in &parts[1..] {
-                    child.arg(part);
-                }
-                child.current_dir(plugin_desc.dir.as_ref().unwrap());
-                child.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()
-            }
-            LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
-                .arg(format!("{}@{}", user, host))
-                .arg(plugin_desc.exec_path.to_str().unwrap())
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn(),
-        };
-
-        if let Err(e) = child.map(|mut child| {
-            let child_stdin = child.stdin.take().unwrap();
-            let child_stdout = child.stdout.take().unwrap();
-            let mut looper = RpcLoop::new(child_stdin);
-            let peer: RpcPeer = Box::new(looper.get_raw_peer());
-            let name = plugin_desc.name.clone();
-            let plugin = Plugin {
-                peer,
-                process: child,
-                name,
-                id,
-            };
-
-            plugin.initialize();
-            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-            state.plugins.lock().running.push(plugin);
-
-            let mut handler = PluginHandler { window_id, tab_id };
-            if let Err(e) =
-                looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
-            {
-                println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
-            }
-            println!("plugin main loop exit {:?}", plugin_desc.dir);
-        }) {
-            println!(
-                "can't start plugin sub process {} {:?}",
-                e, plugin_desc.exec_path
-            );
-        }
-    });
-}
+// fn start_plugin_process(
+//     window_id: WindowId,
+//     tab_id: WidgetId,
+//     plugin_desc: Arc<PluginDescription>,
+//     id: PluginId,
+// ) {
+//     thread::spawn(move || {
+//         println!(
+//             "start plugin {:?} {:?}",
+//             plugin_desc.exec_path, plugin_desc.dir
+//         );
+//         let workspace_type = LAPCE_APP_STATE
+//             .get_tab_state(&window_id, &tab_id)
+//             .workspace
+//             .lock()
+//             .kind
+//             .clone();
+//         let mut child = match workspace_type {
+//             LapceWorkspaceType::Local => {
+//                 let parts: Vec<&str> = plugin_desc
+//                     .exec_path
+//                     .to_str()
+//                     .unwrap()
+//                     .split(" ")
+//                     .into_iter()
+//                     .collect();
+//                 let mut child = Command::new(parts[0]);
+//                 for part in &parts[1..] {
+//                     child.arg(part);
+//                 }
+//                 child.current_dir(plugin_desc.dir.as_ref().unwrap());
+//                 child.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()
+//             }
+//             LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
+//                 .arg(format!("{}@{}", user, host))
+//                 .arg(plugin_desc.exec_path.to_str().unwrap())
+//                 .stdin(Stdio::piped())
+//                 .stdout(Stdio::piped())
+//                 .spawn(),
+//         };
+//
+//         if let Err(e) = child.map(|mut child| {
+//             let child_stdin = child.stdin.take().unwrap();
+//             let child_stdout = child.stdout.take().unwrap();
+//             let mut looper = RpcLoop::new(child_stdin);
+//             let peer: RpcPeer = Box::new(looper.get_raw_peer());
+//             let name = plugin_desc.name.clone();
+//             let plugin = Plugin {
+//                 peer,
+//                 process: child,
+//                 name,
+//                 id,
+//             };
+//
+//             plugin.initialize();
+//             let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+//             state.plugins.lock().running.push(plugin);
+//
+//             let mut handler = PluginHandler { window_id, tab_id };
+//             if let Err(e) =
+//                 looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
+//             {
+//                 println!("plugin main loop failed {} {:?}", e, plugin_desc.dir);
+//             }
+//             println!("plugin main loop exit {:?}", plugin_desc.dir);
+//         }) {
+//             println!(
+//                 "can't start plugin sub process {} {:?}",
+//                 e, plugin_desc.exec_path
+//             );
+//         }
+//     });
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginBufferInfo {
@@ -568,11 +568,11 @@ impl Handler for PluginHandler {
                 language_id,
                 options,
             } => {
-                LAPCE_APP_STATE
-                    .get_tab_state(&self.window_id, &self.tab_id)
-                    .lsp
-                    .lock()
-                    .start_server(&exec_path, &language_id, options);
+                // LAPCE_APP_STATE
+                //     .get_tab_state(&self.window_id, &self.tab_id)
+                //     .lsp
+                //     .lock()
+                //     .start_server(&exec_path, &language_id, options);
             }
         }
     }
