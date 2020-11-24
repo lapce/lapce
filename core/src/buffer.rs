@@ -511,6 +511,7 @@ impl Buffer {
     ) {
         self.rev += 1;
         self.dirty = true;
+        ui_state.dirty = true;
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
         let old_logical_end_offset = self.rope.offset_of_line(old_logical_end_line);

@@ -923,6 +923,7 @@ impl EditorSplitState {
         let editor = self.editors.get_mut(&self.active).unwrap();
         editor.buffer_id = Some(buffer_id.clone());
         editor.selection = Selection::caret(offset);
+        ui_state.get_editor_mut(&self.active).buffer_id = buffer_id.clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ForceScrollTo(view_offset.x, view_offset.y),
@@ -1246,6 +1247,7 @@ impl EditorSplitState {
         let buffer_ui =
             Arc::make_mut(Arc::make_mut(&mut data.buffers).get_mut(buffer_id)?);
         let buffer = self.buffers.get_mut(buffer_id)?;
+        buffer_ui.dirty = buffer.dirty;
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let start_line = (offset.y / line_height) as usize;
         let size = ctx.size();
@@ -1616,6 +1618,34 @@ impl EditorSplitState {
                 }
             }
         }
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id.clone()?;
+        let buffer = self.buffers.get_mut(&buffer_id)?;
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
+        println!("send save");
+        state.proxy.lock().as_ref().unwrap().save(
+            buffer.rev,
+            buffer.id,
+            Box::new(move |result| {
+                println!("got save result {:?}", result);
+                if let Ok(r) = result {
+                    let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                    let mut editor_split = state.editor_split.lock();
+                    let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+                    buffer.dirty = false;
+                    for (view_id, editor) in editor_split.editors.iter() {
+                        if editor.buffer_id.as_ref() == Some(&buffer_id) {
+                            LAPCE_APP_STATE.submit_ui_command(
+                                LapceUICommand::FillTextLayouts,
+                                view_id.clone(),
+                            );
+                        }
+                    }
+                }
+            }),
+        );
         None
     }
 
@@ -1629,7 +1659,6 @@ impl EditorSplitState {
         let editor = self.editors.get_mut(&self.active)?;
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get_mut(&buffer_id)?;
-        let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
         if buffer.rev != rev {
             return None;
         }
@@ -1643,6 +1672,8 @@ impl EditorSplitState {
                 (selection, edit.new_text.clone())
             })
             .collect();
+
+        let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
         buffer.edit_multiple(
             ctx,
             buffer_ui_state,
@@ -2344,6 +2375,9 @@ impl EditorSplitState {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer_id = editor.buffer_id.clone()?;
                 let buffer = self.buffers.get_mut(&buffer_id)?;
+                if !buffer.dirty {
+                    return None;
+                }
                 let window_id = self.window_id;
                 let tab_id = self.tab_id;
                 let rev = buffer.rev;
@@ -2359,6 +2393,7 @@ impl EditorSplitState {
                     .get_document_formatting(
                         buffer.id,
                         Box::new(move |result| {
+                            println!("get document formating");
                             let result = match result {
                                 Ok(r) => Ok(r),
                                 Err(e) => Err(anyhow!("{:?}", e)),
@@ -2384,12 +2419,12 @@ impl EditorSplitState {
                 //     }
                 // }
 
-                let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
-                let buffer = self.buffers.get_mut(&buffer_id)?;
-                if let Err(e) = buffer.save() {
-                    println!("buffer save error {}", e);
-                }
-                buffer_ui_state.dirty = buffer.dirty;
+                // let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
+                // let buffer = self.buffers.get_mut(&buffer_id)?;
+                // if let Err(e) = buffer.save() {
+                //     println!("buffer save error {}", e);
+                // }
+                // buffer_ui_state.dirty = buffer.dirty;
                 // LAPCE_APP_STATE
                 //     .get_tab_state(&self.window_id, &self.tab_id)
                 //     .lsp
@@ -2514,13 +2549,6 @@ impl Widget<LapceUIState> for EditorHeader {
     ) {
         let editor = data.get_editor(&self.view_id);
         let old_editor = old_data.get_editor(&self.view_id);
-        let cursor = editor.cursor;
-        let old_cursor = old_editor.cursor;
-
-        if cursor.0 != old_cursor.0 {
-            ctx.request_paint();
-            return;
-        }
 
         if editor.buffer_id != old_editor.buffer_id {
             ctx.request_paint();
@@ -2870,6 +2898,7 @@ impl Widget<LapceUIState> for EditorView {
     ) {
         self.editor.update(ctx, data, env);
         self.gutter.update(ctx, data, env);
+        self.header.update(ctx, data, env);
         // self.update(ctx, old_data, data, env);
     }
 

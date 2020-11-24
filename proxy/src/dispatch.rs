@@ -240,6 +240,7 @@ impl Dispatcher {
                 self.lsp.lock().get_document_formatting(id, buffer);
             }
             Request::Save { rev, buffer_id } => {
+                eprintln!("receive save");
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.respond(id, buffer.save(rev).map(|r| json!({})));

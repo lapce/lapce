@@ -70,6 +70,7 @@ impl LapceProxy {
         self.peer.send_rpc_request_async(
             "save",
             &json!({
+                "rev": rev,
                 "buffer_id": buffer_id,
             }),
             f,
