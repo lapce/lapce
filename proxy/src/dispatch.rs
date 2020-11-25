@@ -58,6 +58,11 @@ pub enum Request {
         buffer_id: BufferId,
         position: Position,
     },
+    GetDefinition {
+        request_id: usize,
+        buffer_id: BufferId,
+        position: Position,
+    },
     GetDocumentFormatting {
         buffer_id: BufferId,
     },
@@ -233,6 +238,17 @@ impl Dispatcher {
                 self.lsp
                     .lock()
                     .get_completion(id, request_id, buffer, position);
+            }
+            Request::GetDefinition {
+                buffer_id,
+                position,
+                request_id,
+            } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp
+                    .lock()
+                    .get_definition(id, request_id, buffer, position);
             }
             Request::GetDocumentFormatting { buffer_id } => {
                 let buffers = self.buffers.lock();

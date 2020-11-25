@@ -95,6 +95,24 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_definition(
+        &self,
+        request_id: usize,
+        buffer_id: BufferId,
+        position: Position,
+        f: Box<dyn Callback>,
+    ) {
+        self.peer.send_rpc_request_async(
+            "get_definition",
+            &json!({
+                "request_id": request_id,
+                "buffer_id": buffer_id,
+                "position": position,
+            }),
+            f,
+        );
+    }
+
     pub fn get_document_formatting(
         &self,
         buffer_id: BufferId,

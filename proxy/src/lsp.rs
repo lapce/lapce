@@ -167,6 +167,31 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_definition(
+        &self,
+        id: RequestId,
+        request_id: usize,
+        buffer: &Buffer,
+        position: Position,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            client.request_definition(uri, position, move |lsp_client, result| {
+                let mut resp = json!({ "id": id });
+                match result {
+                    Ok(v) => resp["result"] = v,
+                    Err(e) => {
+                        resp["error"] = json!({
+                            "code": 0,
+                            "message": format!("{}",e),
+                        })
+                    }
+                }
+                lsp_client.dispatcher.sender.send(resp);
+            });
+        }
+    }
+
     pub fn update(
         &self,
         buffer: &Buffer,
@@ -514,6 +539,26 @@ impl LspClient {
         };
         let params = Params::from(serde_json::to_value(params).unwrap());
         self.send_request("textDocument/semanticTokens/full", params, Box::new(cb));
+    }
+
+    pub fn request_definition<CB>(
+        &self,
+        document_uri: Url,
+        position: Position,
+        cb: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = GotoDefinitionParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: document_uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/definition", params, Box::new(cb));
     }
 
     pub fn request_completion<CB>(

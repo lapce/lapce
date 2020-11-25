@@ -2193,6 +2193,56 @@ impl EditorSplitState {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
                 let offset = editor.selection.get_cursor_offset();
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let window_id = self.window_id;
+                let tab_id = self.tab_id;
+                state.proxy.lock().as_ref().unwrap().get_definition(
+                    offset,
+                    buffer.id,
+                    buffer.offset_to_position(offset),
+                    Box::new(move |result| {
+                        println!("got definition result {:?}", result);
+                        let state =
+                            LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                        let editor_split = state.editor_split.lock();
+                        let editor =
+                            editor_split.editors.get(&editor_split.active).unwrap();
+                        if offset != editor.selection.get_cursor_offset() {
+                            println!("not the previous offset ,quit");
+                            return;
+                        }
+                        if let Ok(value) = result {
+                            let resp: Result<
+                                GotoDefinitionResponse,
+                                serde_json::Error,
+                            > = serde_json::from_value(value);
+                            if let Ok(resp) = resp {
+                                if let Some(location) = match resp {
+                                    GotoDefinitionResponse::Scalar(location) => {
+                                        Some(location)
+                                    }
+                                    GotoDefinitionResponse::Array(locations) => {
+                                        if locations.len() > 0 {
+                                            Some(locations[0].clone())
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    GotoDefinitionResponse::Link(location_links) => {
+                                        None
+                                    }
+                                } {
+                                    println!("send go to location");
+                                    LAPCE_APP_STATE.submit_ui_command(
+                                        LapceUICommand::GotoLocation(location),
+                                        editor_split.widget_id,
+                                    );
+                                }
+                            }
+                        }
+                    }),
+                );
                 // LAPCE_APP_STATE
                 //     .get_tab_state(&self.window_id, &self.tab_id)
                 //     .lsp

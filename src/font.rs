@@ -9,7 +9,6 @@ impl LapceFont {
         let font = FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
             .with_size(size);
         let mut text_layout = TextLayout::new("W");
-
         text_layout.set_font(font.clone());
     }
 }
