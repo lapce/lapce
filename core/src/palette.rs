@@ -29,6 +29,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use uuid::Uuid;
 
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
@@ -82,6 +83,7 @@ pub struct PaletteState {
     items: Vec<PaletteItem>,
     index: usize,
     palette_type: PaletteType,
+    run_id: String,
 }
 
 impl PaletteState {
@@ -96,6 +98,7 @@ impl PaletteState {
             cursor: 0,
             index: 0,
             palette_type: PaletteType::File,
+            run_id: Uuid::new_v4().to_string(),
         }
     }
 }
@@ -103,6 +106,7 @@ impl PaletteState {
 impl PaletteState {
     pub fn run(&mut self, palette_type: Option<PaletteType>) {
         self.palette_type = palette_type.unwrap_or(PaletteType::File);
+        self.run_id = Uuid::new_v4().to_string();
         match &self.palette_type {
             &PaletteType::Line => {
                 self.input = "/".to_string();
@@ -117,7 +121,7 @@ impl PaletteState {
             &PaletteType::DocumentSymbol => {
                 self.input = "@".to_string();
                 self.cursor = 1;
-                self.items = self.get_document_symbols().unwrap_or(Vec::new());
+                self.get_document_symbols();
                 LAPCE_APP_STATE
                     .get_tab_state(&self.window_id, &self.tab_id)
                     .editor_split
@@ -208,20 +212,22 @@ impl PaletteState {
         let palette_type = self.get_palette_type();
         if self.palette_type != palette_type {
             self.palette_type = palette_type;
+            self.run_id = Uuid::new_v4().to_string();
             match &self.palette_type {
                 &PaletteType::File => self.items = self.get_files(),
                 &PaletteType::Line => {
                     self.items = self.get_lines().unwrap_or(Vec::new())
                 }
                 &PaletteType::DocumentSymbol => {
-                    self.items = self.get_document_symbols().unwrap_or(Vec::new())
+                    self.get_document_symbols();
                 }
                 &PaletteType::Workspace => self.items = self.get_workspaces(),
                 &PaletteType::Command => self.items = self.get_commands(),
             }
             self.request_layout(ctx);
         } else {
-            self.filter_items(ctx);
+            self.filter_items();
+            self.request_layout(ctx);
             self.preview(ctx, ui_state, env);
         }
         self.ensure_visible(ctx, env);
@@ -291,7 +297,7 @@ impl PaletteState {
         }
     }
 
-    pub fn filter_items(&mut self, ctx: &mut EventCtx) {
+    pub fn filter_items(&mut self) {
         let input = self.get_input().to_string();
         for item in self.items.iter_mut() {
             if input == "" {
@@ -310,7 +316,6 @@ impl PaletteState {
         }
         self.items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        self.request_layout(ctx);
     }
 
     fn get_commands(&self) -> Vec<PaletteItem> {
@@ -401,13 +406,84 @@ impl PaletteState {
             .collect()
     }
 
-    fn get_document_symbols(&self) -> Option<Vec<PaletteItem>> {
-        return None;
+    fn get_document_symbols(&self) -> Option<()> {
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let editor_split = state.editor_split.lock();
         let editor = editor_split.editors.get(&editor_split.active)?;
         let buffer_id = editor.buffer_id?;
         let buffer = editor_split.buffers.get(&buffer_id)?;
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
+        let run_id = self.run_id.clone();
+        let widget_id = self.widget_id;
+        state.proxy.lock().as_ref().unwrap().get_document_symbols(
+            buffer_id,
+            Box::new(move |result| {
+                if let Ok(res) = result {
+                    let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                    if *state.focus.lock() != LapceFocus::Palette {
+                        return;
+                    }
+                    let mut palette = state.palette.lock();
+                    if palette.run_id != run_id {
+                        return;
+                    }
+                    let resp: Result<DocumentSymbolResponse, serde_json::Error> =
+                        serde_json::from_value(res);
+                    if let Ok(resp) = resp {
+                        let items: Vec<PaletteItem> = match resp {
+                            DocumentSymbolResponse::Flat(symbols) => symbols
+                                .iter()
+                                .enumerate()
+                                .map(|(i, s)| PaletteItem {
+                                    window_id,
+                                    tab_id,
+                                    kind: PaletteType::DocumentSymbol,
+                                    text: s.name.clone(),
+                                    hint: s.container_name.clone(),
+                                    position: Some(s.location.range.start),
+                                    path: None,
+                                    score: 0.0,
+                                    index: i,
+                                    match_mask: BitVec::new(),
+                                    icon: PaletteIcon::Symbol(s.kind),
+                                    workspace: None,
+                                    command: None,
+                                })
+                                .collect(),
+                            DocumentSymbolResponse::Nested(symbols) => symbols
+                                .iter()
+                                .enumerate()
+                                .map(|(i, s)| PaletteItem {
+                                    window_id,
+                                    tab_id,
+                                    kind: PaletteType::DocumentSymbol,
+                                    text: s.name.clone(),
+                                    hint: None,
+                                    path: None,
+                                    position: Some(s.range.start),
+                                    score: 0.0,
+                                    index: i,
+                                    match_mask: BitVec::new(),
+                                    icon: PaletteIcon::Symbol(s.kind),
+                                    workspace: None,
+                                    command: None,
+                                })
+                                .collect(),
+                        };
+                        palette.items = items;
+                        if palette.get_input() != "" {
+                            palette.filter_items();
+                        }
+                        LAPCE_APP_STATE.submit_ui_command(
+                            LapceUICommand::RequestLayout,
+                            widget_id,
+                        );
+                    }
+                }
+            }),
+        );
+        None
         // let resp = state.lsp.lock().get_document_symbols(buffer)?;
         // Some(match resp {
         //     DocumentSymbolResponse::Flat(symbols) => symbols

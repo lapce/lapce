@@ -133,6 +133,15 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_document_symbols(&self, id: RequestId, buffer: &Buffer) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            client.request_document_symbols(uri, move |lsp_client, result| {
+                lsp_client.dispatcher.respond(id, result);
+            });
+        }
+    }
+
     pub fn get_document_formatting(&self, id: RequestId, buffer: &Buffer) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let uri = client.get_uri(buffer);
@@ -152,6 +161,34 @@ impl LspCatalog {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let uri = client.get_uri(buffer);
             client.request_completion(uri, position, move |lsp_client, result| {
+                let mut resp = json!({ "id": id });
+                match result {
+                    Ok(v) => resp["result"] = v,
+                    Err(e) => {
+                        resp["error"] = json!({
+                            "code": 0,
+                            "message": format!("{}",e),
+                        })
+                    }
+                }
+                lsp_client.dispatcher.sender.send(resp);
+            });
+        }
+    }
+
+    pub fn get_code_actions(
+        &self,
+        id: RequestId,
+        buffer: &Buffer,
+        position: Position,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            let range = Range {
+                start: position,
+                end: position,
+            };
+            client.request_code_actions(uri, range, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
                 match result {
                     Ok(v) => resp["result"] = v,
@@ -511,6 +548,19 @@ impl LspClient {
         self.send_request("initialize", params, Box::new(on_init));
     }
 
+    pub fn request_document_symbols<CB>(&self, document_uri: Url, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = DocumentSymbolParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/documentSymbol", params, Box::new(cb));
+    }
+
     pub fn request_document_formatting<CB>(&self, document_uri: Url, cb: CB)
     where
         CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
@@ -539,6 +589,21 @@ impl LspClient {
         };
         let params = Params::from(serde_json::to_value(params).unwrap());
         self.send_request("textDocument/semanticTokens/full", params, Box::new(cb));
+    }
+
+    pub fn request_code_actions<CB>(&self, document_uri: Url, range: Range, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = CodeActionParams {
+            text_document: TextDocumentIdentifier { uri: document_uri },
+            range,
+            context: CodeActionContext::default(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/codeAction", params, Box::new(cb));
     }
 
     pub fn request_definition<CB>(

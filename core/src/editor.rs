@@ -1691,8 +1691,30 @@ impl EditorSplitState {
         let offset = editor.selection.get_cursor_offset();
         let prev_offset = buffer.prev_code_boundary(offset);
         if buffer.code_actions.get(&prev_offset).is_none() {
+            let position = buffer.offset_to_position(prev_offset);
+            let rev = buffer.rev;
             let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-            // state.lsp.lock().get_code_actions(prev_offset, buffer);
+            state
+                .clone()
+                .proxy
+                .lock()
+                .as_ref()
+                .unwrap()
+                .get_code_actions(
+                    buffer.id,
+                    position,
+                    Box::new(move |result| {
+                        if let Ok(res) = result {
+                            let mut editor_split = state.editor_split.lock();
+                            editor_split.set_code_actions(
+                                buffer_id,
+                                prev_offset,
+                                rev,
+                                res,
+                            );
+                        }
+                    }),
+                );
         }
         None
     }
@@ -2202,7 +2224,6 @@ impl EditorSplitState {
                     buffer.id,
                     buffer.offset_to_position(offset),
                     Box::new(move |result| {
-                        println!("got definition result {:?}", result);
                         let state =
                             LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
                         let editor_split = state.editor_split.lock();
@@ -2233,7 +2254,6 @@ impl EditorSplitState {
                                         None
                                     }
                                 } {
-                                    println!("send go to location");
                                     LAPCE_APP_STATE.submit_ui_command(
                                         LapceUICommand::GotoLocation(location),
                                         editor_split.widget_id,

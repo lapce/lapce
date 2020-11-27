@@ -63,6 +63,13 @@ pub enum Request {
         buffer_id: BufferId,
         position: Position,
     },
+    GetCodeActions {
+        buffer_id: BufferId,
+        position: Position,
+    },
+    GetDocumentSymbols {
+        buffer_id: BufferId,
+    },
     GetDocumentFormatting {
         buffer_id: BufferId,
     },
@@ -249,6 +256,19 @@ impl Dispatcher {
                 self.lsp
                     .lock()
                     .get_definition(id, request_id, buffer, position);
+            }
+            Request::GetCodeActions {
+                buffer_id,
+                position,
+            } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_code_actions(id, buffer, position);
+            }
+            Request::GetDocumentSymbols { buffer_id } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_document_symbols(id, buffer);
             }
             Request::GetDocumentFormatting { buffer_id } => {
                 let buffers = self.buffers.lock();

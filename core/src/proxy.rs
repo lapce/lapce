@@ -113,6 +113,32 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_document_symbols(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
+        self.peer.send_rpc_request_async(
+            "get_document_symbols",
+            &json!({
+                "buffer_id": buffer_id,
+            }),
+            f,
+        );
+    }
+
+    pub fn get_code_actions(
+        &self,
+        buffer_id: BufferId,
+        position: Position,
+        f: Box<dyn Callback>,
+    ) {
+        self.peer.send_rpc_request_async(
+            "get_code_actions",
+            &json!({
+                "buffer_id": buffer_id,
+                "position": position,
+            }),
+            f,
+        );
+    }
+
     pub fn get_document_formatting(
         &self,
         buffer_id: BufferId,
