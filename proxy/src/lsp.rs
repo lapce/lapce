@@ -387,12 +387,12 @@ impl LspClient {
     }
 
     pub fn handle_response(&self, id: u64, result: Result<Value>) {
-        let callback = self
-            .state
-            .lock()
-            .pending
-            .remove(&id)
-            .unwrap_or_else(|| panic!("id {} missing from request table", id));
+        let callback =
+            {
+                self.state.lock().pending.remove(&id).unwrap_or_else(|| {
+                    panic!("id {} missing from request table", id)
+                })
+            };
         callback.call(self, result);
     }
 

@@ -95,6 +95,16 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_files(&self, f: Box<dyn Callback>) {
+        self.peer.send_rpc_request_async(
+            "get_files",
+            &json!({
+                "path": "path",
+            }),
+            f,
+        );
+    }
+
     pub fn get_definition(
         &self,
         request_id: usize,
@@ -260,7 +270,7 @@ pub fn start_proxy_process(
             }
             LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
                 .arg(format!("{}@{}", user, host))
-                .arg("./.lapce/lapce-proxy")
+                .arg("/tmp/proxy/target/release/lapce-proxy")
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .spawn(),

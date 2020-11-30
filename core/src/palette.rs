@@ -128,7 +128,7 @@ impl PaletteState {
                     .lock()
                     .save_selection();
             }
-            _ => self.items = self.get_files(),
+            _ => self.get_files(),
         }
     }
 
@@ -214,7 +214,7 @@ impl PaletteState {
             self.palette_type = palette_type;
             self.run_id = Uuid::new_v4().to_string();
             match &self.palette_type {
-                &PaletteType::File => self.items = self.get_files(),
+                &PaletteType::File => self.get_files(),
                 &PaletteType::Line => {
                     self.items = self.get_lines().unwrap_or(Vec::new())
                 }
@@ -557,19 +557,112 @@ impl PaletteState {
         )
     }
 
-    fn get_files(&self) -> Vec<PaletteItem> {
-        let workspace_type = LAPCE_APP_STATE
+    fn get_files(&self) {
+        let workspace_path = LAPCE_APP_STATE
             .get_tab_state(&self.window_id, &self.tab_id)
             .workspace
             .lock()
-            .kind
+            .path
             .clone();
-        match workspace_type {
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                self.get_ssh_files(&user, &host)
-            }
-            LapceWorkspaceType::Local => self.get_local_files(),
-        }
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
+        let run_id = self.run_id.clone();
+        let widget_id = self.widget_id;
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        state
+            .proxy
+            .lock()
+            .as_ref()
+            .unwrap()
+            .get_files(Box::new(move |result| {
+                if let Ok(res) = result {
+                    let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                    if *state.focus.lock() != LapceFocus::Palette {
+                        return;
+                    }
+                    let mut palette = state.palette.lock();
+                    if palette.run_id != run_id {
+                        return;
+                    }
+
+                    let resp: Result<Vec<PathBuf>, serde_json::Error> =
+                        serde_json::from_value(res);
+                    if let Ok(resp) = resp {
+                        let items: Vec<PaletteItem> = resp
+                            .iter()
+                            .enumerate()
+                            .map(|(index, path)| {
+                                let text = path
+                                    .file_name()
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .to_string();
+                                let folder = path.parent().unwrap();
+                                let folder = if let Ok(folder) =
+                                    folder.strip_prefix(&workspace_path)
+                                {
+                                    folder
+                                } else {
+                                    folder
+                                };
+                                let icon = if let Some(exten) = path.extension() {
+                                    match exten.to_str().unwrap() {
+                                        "rs" => {
+                                            PaletteIcon::File("rust".to_string())
+                                        }
+                                        "md" => {
+                                            PaletteIcon::File("markdown".to_string())
+                                        }
+                                        "cc" => PaletteIcon::File("cpp".to_string()),
+                                        s => PaletteIcon::File(s.to_string()),
+                                    }
+                                } else {
+                                    PaletteIcon::None
+                                };
+                                let hint = folder.to_str().unwrap().to_string();
+                                PaletteItem {
+                                    window_id,
+                                    tab_id,
+                                    kind: PaletteType::File,
+                                    text,
+                                    hint: Some(hint),
+                                    position: None,
+                                    path: Some(path.clone()),
+                                    score: 0.0,
+                                    index,
+                                    match_mask: BitVec::new(),
+                                    icon,
+                                    workspace: None,
+                                    command: None,
+                                }
+                            })
+                            .collect();
+
+                        palette.items = items;
+                        if palette.get_input() != "" {
+                            palette.filter_items();
+                        }
+                        LAPCE_APP_STATE.submit_ui_command(
+                            LapceUICommand::RequestLayout,
+                            widget_id,
+                        );
+                    }
+                }
+                println!("get files result");
+            }));
+        // let workspace_type = LAPCE_APP_STATE
+        //     .get_tab_state(&self.window_id, &self.tab_id)
+        //     .workspace
+        //     .lock()
+        //     .kind
+        //     .clone();
+        // match workspace_type {
+        //     LapceWorkspaceType::RemoteSSH(user, host) => {
+        //         self.get_ssh_files(&user, &host)
+        //     }
+        //     LapceWorkspaceType::Local => self.get_local_files(),
+        // }
     }
 
     fn get_ssh_files(&self, user: &str, host: &str) -> Vec<PaletteItem> {

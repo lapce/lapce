@@ -12,6 +12,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
+use std::fs;
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -72,6 +73,9 @@ pub enum Request {
     },
     GetDocumentFormatting {
         buffer_id: BufferId,
+    },
+    GetFiles {
+        path: String,
     },
     Save {
         rev: u64,
@@ -274,6 +278,40 @@ impl Dispatcher {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_document_formatting(id, buffer);
+            }
+            Request::GetFiles { path } => {
+                eprintln!("get files");
+                let workspace = self.workspace.lock().clone();
+                let local_dispatcher = self.clone();
+                thread::spawn(move || {
+                    let mut items = Vec::new();
+                    let mut dirs = Vec::new();
+                    dirs.push(workspace.clone());
+                    while let Some(dir) = dirs.pop() {
+                        for entry in fs::read_dir(dir).unwrap() {
+                            let entry = entry.unwrap();
+                            let path = entry.path();
+                            if entry.file_name().to_str().unwrap().starts_with(".") {
+                                continue;
+                            }
+                            if path.is_dir() {
+                                if !path
+                                    .as_path()
+                                    .to_str()
+                                    .unwrap()
+                                    .to_string()
+                                    .ends_with("target")
+                                {
+                                    dirs.push(path);
+                                }
+                            } else {
+                                items.push(path.to_str().unwrap().to_string());
+                            }
+                        }
+                    }
+                    local_dispatcher
+                        .respond(id, Ok(serde_json::to_value(items).unwrap()));
+                });
             }
             Request::Save { rev, buffer_id } => {
                 eprintln!("receive save");
