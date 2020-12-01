@@ -10,6 +10,7 @@ use druid::WidgetId;
 use druid::WindowId;
 use lapce_proxy::dispatch::NewBufferResponse;
 use lsp_types::Position;
+use lsp_types::PublishDiagnosticsParams;
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -182,6 +183,9 @@ pub enum Notification {
         line_changes: HashMap<usize, char>,
         rev: u64,
     },
+    PublishDiagnostics {
+        diagnostics: PublishDiagnosticsParams,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -242,6 +246,32 @@ impl Handler for ProxyHandler {
                     LapceUICommand::UpdateLineChanges(buffer_id),
                     self.tab_id,
                 );
+            }
+            Notification::PublishDiagnostics { diagnostics } => {
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut editor_split = state.editor_split.lock();
+                let path = diagnostics.uri.path().to_string();
+                editor_split
+                    .diagnostics
+                    .insert(path.clone(), diagnostics.diagnostics);
+
+                LAPCE_APP_STATE.submit_ui_command(
+                    LapceUICommand::RequestPaint,
+                    state.status_id,
+                );
+                for (_, editor) in editor_split.editors.iter() {
+                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
+                        if let Some(buffer) = editor_split.buffers.get(buffer_id) {
+                            if buffer.path == path {
+                                LAPCE_APP_STATE.submit_ui_command(
+                                    LapceUICommand::RequestPaint,
+                                    editor.view_id,
+                                );
+                            }
+                        }
+                    }
+                }
             }
         }
     }

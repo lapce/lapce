@@ -97,6 +97,13 @@ impl LspCatalog {
         }
     }
 
+    pub fn save_buffer(&self, buffer: &Buffer) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            client.send_did_save(uri);
+        }
+    }
+
     pub fn get_semantic_tokens(&self, buffer: &Buffer) {
         let buffer_id = buffer.id;
         let rev = buffer.rev;
@@ -343,44 +350,12 @@ impl LspClient {
     pub fn handle_notification(&self, method: &str, params: Params) {
         match method {
             "textDocument/publishDiagnostics" => {
-                //                 let window_id = self.window_id;
-                //                 let tab_id = self.tab_id;
-                //                 thread::spawn(move || {
-                //                     let diagnostics: Result<
-                //                         PublishDiagnosticsParams,
-                //                         serde_json::Error,
-                //                     > = serde_json::from_value(
-                //                         serde_json::to_value(params).unwrap(),
-                //                     );
-                //                     if let Ok(diagnostics) = diagnostics {
-                //                         let state =
-                //                             LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-                //                         let mut editor_split = state.editor_split.lock();
-                //                         let path = diagnostics.uri.path().to_string();
-                //                         editor_split
-                //                             .diagnostics
-                //                             .insert(path.clone(), diagnostics.diagnostics);
-                //
-                //                         LAPCE_APP_STATE.submit_ui_command(
-                //                             LapceUICommand::RequestPaint,
-                //                             state.status_id,
-                //                         );
-                //                         for (_, editor) in editor_split.editors.iter() {
-                //                             if let Some(buffer_id) = editor.buffer_id.as_ref() {
-                //                                 if let Some(buffer) =
-                //                                     editor_split.buffers.get(buffer_id)
-                //                                 {
-                //                                     if buffer.path == path {
-                //                                         LAPCE_APP_STATE.submit_ui_command(
-                //                                             LapceUICommand::RequestPaint,
-                //                                             editor.view_id,
-                //                                         );
-                //                                     }
-                //                                 }
-                //                             }
-                //                         }
-                //                     }
-                //                 });
+                self.dispatcher.send_notification(
+                    "publish_diagnostics",
+                    json!({
+                        "diagnostics": params,
+                    }),
+                );
             }
             _ => eprintln!("{} {:?}", method, params),
         }
@@ -481,6 +456,15 @@ impl LspClient {
             serde_json::to_value(text_document_did_open_params).unwrap(),
         );
         self.send_notification("textDocument/didOpen", params);
+    }
+
+    pub fn send_did_save(&self, uri: Url) {
+        let params = DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier { uri },
+            text: None,
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_notification("textDocument/didSave", params);
     }
 
     pub fn send_initialized(&self) {

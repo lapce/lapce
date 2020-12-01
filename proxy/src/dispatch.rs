@@ -317,7 +317,9 @@ impl Dispatcher {
                 eprintln!("receive save");
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
-                self.respond(id, buffer.save(rev).map(|r| json!({})));
+                let resp = buffer.save(rev).map(|r| json!({}));
+                self.lsp.lock().save_buffer(buffer);
+                self.respond(id, resp);
             }
         }
     }
