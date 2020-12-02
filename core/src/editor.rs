@@ -5,6 +5,7 @@ use crate::buffer::next_has_unmatched_pair;
 use crate::buffer::previous_has_unmatched_pair;
 use crate::buffer::WordProperty;
 use crate::completion::CompletionState;
+use crate::signature::SignatureState;
 use crate::{
     buffer::{Buffer, BufferId, BufferUIState, InvalLines},
     command::EnsureVisiblePosition,
@@ -46,7 +47,7 @@ use fzyr::{has_match, locate};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     Diagnostic, DiagnosticSeverity, DocumentChanges, GotoDefinitionResponse,
-    Location, Position, TextEdit, Url, WorkspaceEdit,
+    Location, Position, SignatureHelp, TextEdit, Url, WorkspaceEdit,
 };
 use serde_json::Value;
 use std::str::FromStr;
@@ -777,6 +778,7 @@ pub struct EditorSplitState {
     register: HashMap<String, RegisterContent>,
     inserting: bool,
     pub completion: CompletionState,
+    pub signature: SignatureState,
     pub diagnostics: HashMap<String, Vec<Diagnostic>>,
     pub code_actions_show: bool,
     current_code_actions: usize,
@@ -819,6 +821,7 @@ impl EditorSplitState {
             register: HashMap::new(),
             inserting: false,
             completion: CompletionState::new(),
+            signature: SignatureState::new(),
             diagnostics: HashMap::new(),
             code_actions_show: false,
             current_code_actions: 0,
@@ -1188,6 +1191,82 @@ impl EditorSplitState {
         buffer.offset = editor.selection.get_cursor_offset();
         editor.ensure_cursor_visible(ctx, buffer, env, None);
         self.notify_fill_text_layouts(ctx, &buffer_id);
+        None
+    }
+
+    pub fn signature_offset(&self) -> Option<(usize, Vec<usize>)> {
+        let editor = self.editors.get(&self.active)?;
+        let buffer_id = editor.buffer_id.clone()?;
+        let buffer = self.buffers.get(&buffer_id)?;
+        let offset = editor.selection.get_cursor_offset();
+        let tree = buffer.tree.as_ref()?;
+        let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
+        while node.kind() != "arguments" {
+            node = node.parent()?;
+        }
+        let offset = node.start_byte() + 1;
+        let child_count = node.child_count();
+
+        let mut comma_offsets = Vec::new();
+        for i in 0..child_count {
+            let child = node.child(i)?;
+            if child.kind() == "," {
+                comma_offsets.push(child.start_byte());
+            }
+        }
+        Some((offset, comma_offsets))
+    }
+
+    pub fn update_signature(&mut self) -> Option<()> {
+        let (offset, commas) = self.signature_offset()?;
+        if offset == self.signature.offset {
+            let editor = self.editors.get(&self.active)?;
+            self.signature
+                .update(editor.selection.get_cursor_offset(), commas);
+        } else {
+            let editor = self.editors.get(&self.active)?;
+            let buffer_id = editor.buffer_id.clone()?;
+            let buffer = self.buffers.get(&buffer_id)?;
+            self.signature.offset = offset;
+            let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+            state.clone().proxy.lock().as_ref().unwrap().get_signature(
+                buffer.id,
+                buffer.offset_to_position(offset),
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        let resp: Result<SignatureHelp, serde_json::Error> =
+                            serde_json::from_value(res);
+                        if let Ok(resp) = resp {
+                            let mut editor_split = state.editor_split.lock();
+                            if let Some((current_offset, commas)) =
+                                editor_split.signature_offset()
+                            {
+                                if current_offset == offset {
+                                    editor_split.signature.signature = Some(resp);
+                                    let editor = editor_split
+                                        .editors
+                                        .get(&editor_split.active)
+                                        .unwrap();
+                                    let cursor =
+                                        editor.selection.get_cursor_offset();
+                                    editor_split.signature.update(cursor, commas);
+                                    LAPCE_APP_STATE.submit_ui_command(
+                                        LapceUICommand::RequestPaint,
+                                        state.tab_id,
+                                    );
+                                }
+                            }
+                        }
+                    } else {
+                        let mut editor_split = state.editor_split.lock();
+                        if editor_split.signature.offset == offset {
+                            editor_split.signature.clear();
+                        }
+                        println!("request signature error {:?}", result);
+                    }
+                }),
+            );
+        }
         None
     }
 
@@ -1871,6 +1950,8 @@ impl EditorSplitState {
             }
             LapceCommand::NormalMode => {
                 self.completion.cancel(ctx);
+                self.signature.signature = None;
+                self.signature.offset = 0;
                 self.inserting = false;
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;

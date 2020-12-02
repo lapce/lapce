@@ -1,4 +1,3 @@
-use crate::proxy::start_proxy_process;
 use crate::{
     buffer::start_buffer_highlights,
     buffer::Buffer,
@@ -17,6 +16,7 @@ use crate::{
     palette::PaletteState,
     palette::PaletteType,
     plugin::PluginCatalog,
+    proxy::start_proxy_process,
     proxy::LapceProxy,
     ssh::SshSession,
 };

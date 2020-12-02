@@ -96,6 +96,22 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_signature(
+        &self,
+        buffer_id: BufferId,
+        position: Position,
+        f: Box<dyn Callback>,
+    ) {
+        self.peer.send_rpc_request_async(
+            "get_signature",
+            &json!({
+                "buffer_id": buffer_id,
+                "position": position,
+            }),
+            f,
+        );
+    }
+
     pub fn get_files(&self, f: Box<dyn Callback>) {
         self.peer.send_rpc_request_async(
             "get_files",
@@ -293,7 +309,7 @@ pub fn start_proxy_process(
     thread::spawn(move || {
         let mut child = match workspace.kind {
             LapceWorkspaceType::Local => {
-                Command::new("/Users/Lulu/lapce/target/debug/lapce-proxy")
+                Command::new("/Users/Lulu/lapce/target/release/lapce-proxy")
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
                     .spawn()

@@ -59,6 +59,10 @@ pub enum Request {
         buffer_id: BufferId,
         position: Position,
     },
+    GetSignature {
+        buffer_id: BufferId,
+        position: Position,
+    },
     GetDefinition {
         request_id: usize,
         buffer_id: BufferId,
@@ -249,6 +253,14 @@ impl Dispatcher {
                 self.lsp
                     .lock()
                     .get_completion(id, request_id, buffer, position);
+            }
+            Request::GetSignature {
+                buffer_id,
+                position,
+            } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_signature(id, buffer, position);
             }
             Request::GetDefinition {
                 buffer_id,

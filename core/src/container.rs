@@ -16,8 +16,14 @@ use crate::{
 };
 use crate::{palette::Palette, split::LapceSplit};
 use crate::{scroll::LapceScroll, state::LapceFocus};
+use druid::piet::TextAttribute;
+use druid::FontDescriptor;
+use druid::FontFamily;
+use druid::TextLayout;
 use druid::{
     kurbo::{Line, Rect},
+    piet::Text,
+    piet::TextLayoutBuilder,
     widget::Container,
     widget::Flex,
     widget::IdentityWrapper,
@@ -296,6 +302,59 @@ impl Widget<LapceUIState> for LapceContainer {
             > 0
         {
             self.completion.paint(ctx, data, env);
+        }
+
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let editor_split = state.editor_split.lock();
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        if let Some(signature) = editor_split.signature.signature.as_ref() {
+            for child in &self.editor_split.widget().children {
+                if child.widget.id() == editor_split.active {
+                    let editor =
+                        editor_split.editors.get(&editor_split.active).unwrap();
+                    if editor.buffer_id.is_none() {
+                        continue;
+                    }
+                    let buffer_id = editor.buffer_id.as_ref().unwrap();
+                    let buffer = editor_split.buffers.get(buffer_id).unwrap();
+                    let (line, col) =
+                        buffer.offset_to_line_col(editor_split.signature.offset);
+                    let line_content = buffer
+                        .slice_to_cow(
+                            buffer.offset_of_line(line)
+                                ..buffer.offset_of_line(line + 1),
+                        )
+                        .to_string();
+                    let col = col + &line_content[..col].matches('\t').count() * 3;
+                    let char_width = 7.6171875;
+                    let label = signature.signatures[0].label.clone();
+                    let origin = child.widget.layout_rect().origin()
+                        + Vec2::new(
+                            editor.gutter_width + col as f64 * char_width
+                                - (label.find("(").unwrap() + 1) as f64 * char_width,
+                            editor.header_height + (line - 1) as f64 * line_height,
+                        )
+                        - editor.scroll_offset;
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(label.clone())
+                        .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+                        .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+                        .range_attribute(
+                            editor_split.signature.active.0
+                                ..editor_split.signature.active.1,
+                            TextAttribute::TextColor(Color::rgb8(0, 0, 0)),
+                        );
+                    let text_layout = text_layout.build().unwrap();
+                    let rect = Rect::ZERO.with_origin(origin).with_size(Size::new(
+                        label.len() as f64 * char_width + 20.0,
+                        line_height,
+                    ));
+                    ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+                    ctx.stroke(rect, &env.get(theme::BORDER_LIGHT), 1.0);
+                    ctx.draw_text(&text_layout, origin + Vec2::new(10.0, 5.0));
+                }
+            }
         }
     }
 }

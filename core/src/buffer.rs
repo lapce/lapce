@@ -99,6 +99,7 @@ pub struct Buffer {
     pub line_changes: HashMap<usize, char>,
     pub view_offset: Vec2,
     pub offset: usize,
+    pub tree: Option<Tree>,
 }
 
 impl Buffer {
@@ -155,6 +156,7 @@ impl Buffer {
             line_changes: HashMap::new(),
             view_offset: Vec2::ZERO,
             offset: 0,
+            tree: None,
             sender,
         };
 
@@ -511,6 +513,7 @@ impl Buffer {
     ) {
         self.rev += 1;
         self.dirty = true;
+        self.tree = None;
         ui_state.dirty = true;
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
@@ -1422,6 +1425,7 @@ pub fn start_buffer_highlights(
 ) -> Result<()> {
     let mut highlighter = Highlighter::new();
     let mut highlight_configs = HashMap::new();
+    let mut parser = new_parser(LapceLanguage::Rust);
 
     loop {
         let (window_id, tab_id, buffer_id, rev) = receiver.recv()?;
@@ -1496,22 +1500,42 @@ pub fn start_buffer_highlights(
             }
         }
 
-        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-        let mut editor_split = state.editor_split.lock();
-        let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
-        if buffer.rev != rev {
-            continue;
-        }
-        buffer.highlights = highlights.to_owned();
-        buffer.line_highlights = HashMap::new();
+        {
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+            let mut editor_split = state.editor_split.lock();
+            let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+            if buffer.rev != rev {
+                continue;
+            }
+            buffer.highlights = highlights.to_owned();
+            buffer.line_highlights = HashMap::new();
 
-        for (view_id, editor) in editor_split.editors.iter() {
-            if editor.buffer_id.as_ref() == Some(&buffer_id) {
-                event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::FillTextLayouts,
-                    Target::Widget(view_id.clone()),
-                );
+            for (view_id, editor) in editor_split.editors.iter() {
+                if editor.buffer_id.as_ref() == Some(&buffer_id) {
+                    event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::FillTextLayouts,
+                        Target::Widget(view_id.clone()),
+                    );
+                }
+            }
+        }
+
+        println!("now parser parse");
+        if let Some(tree) = parser.parse(&rope_str, None) {
+            println!(" parser got something");
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+            let mut editor_split = state.editor_split.lock();
+            let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+            if buffer.rev != rev {
+                continue;
+            }
+            println!("put parser tree to buffer");
+            buffer.tree = Some(tree);
+
+            let editor = editor_split.editors.get(&editor_split.active).unwrap();
+            if editor.buffer_id == Some(buffer_id) {
+                editor_split.update_signature();
             }
         }
     }

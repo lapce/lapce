@@ -183,6 +183,25 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_signature(&self, id: RequestId, buffer: &Buffer, position: Position) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            client.request_signature(uri, position, move |lsp_client, result| {
+                let mut resp = json!({ "id": id });
+                match result {
+                    Ok(v) => resp["result"] = v,
+                    Err(e) => {
+                        resp["error"] = json!({
+                            "code": 0,
+                            "message": format!("{}",e),
+                        })
+                    }
+                }
+                lsp_client.dispatcher.sender.send(resp);
+            });
+        }
+    }
+
     pub fn get_code_actions(
         &self,
         id: RequestId,
@@ -484,6 +503,19 @@ impl LspClient {
                     }),
                     ..Default::default()
                 }),
+                // signature_help: Some(SignatureHelpCapability {
+                //     signature_information: Some(SignatureInformationSettings {
+                //         parameter_information: Some(ParameterInformationSettings {
+                //             label_offset_support: Some(true),
+                //         }),
+                //         active_parameter_support: Some(true),
+                //         documentation_format: Some(vec![
+                //             MarkupKind::Markdown,
+                //             MarkupKind::PlainText,
+                //         ]),
+                //     }),
+                //     ..Default::default()
+                // }),
                 code_action: Some(CodeActionCapability {
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {
@@ -633,6 +665,26 @@ impl LspClient {
             params,
             Box::new(on_completion),
         );
+    }
+
+    pub fn request_signature<CB>(
+        &self,
+        document_uri: Url,
+        position: Position,
+        cb: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = SignatureHelpParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: document_uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            context: None,
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/signatureHelp", params, Box::new(cb));
     }
 
     pub fn send_did_change(
