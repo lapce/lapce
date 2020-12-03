@@ -342,8 +342,15 @@ impl Widget<LapceUIState> for LapceWindow {
         data: &LapceUIState,
         env: &Env,
     ) {
+        let active = LAPCE_APP_STATE
+            .get_window_state(&self.window_id)
+            .active
+            .lock()
+            .clone();
         for tab in self.tabs.iter_mut() {
-            tab.update(ctx, data, env);
+            if tab.widget().tab_id == active {
+                tab.update(ctx, data, env);
+            }
         }
     }
 
@@ -366,14 +373,21 @@ impl Widget<LapceUIState> for LapceWindow {
         } else {
             (self_size.clone(), self_size.to_rect())
         };
+        let active = LAPCE_APP_STATE
+            .get_window_state(&self.window_id)
+            .active
+            .lock()
+            .clone();
         for window in self.tabs.iter_mut() {
-            window.layout(
-                ctx,
-                &BoxConstraints::new(Size::ZERO, window_size),
-                data,
-                env,
-            );
-            window.set_layout_rect(ctx, data, env, window_rect);
+            if window.widget().tab_id == active {
+                window.layout(
+                    ctx,
+                    &BoxConstraints::new(Size::ZERO, window_size),
+                    data,
+                    env,
+                );
+                window.set_layout_rect(ctx, data, env, window_rect);
+            }
         }
         self_size
     }

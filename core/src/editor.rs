@@ -1201,7 +1201,13 @@ impl EditorSplitState {
         let offset = editor.selection.get_cursor_offset();
         let tree = buffer.tree.as_ref()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
-        while node.kind() != "arguments" {
+        let node_kind = match buffer.language_id.as_str() {
+            "rust" => "arguments",
+            "go" => "argument_list",
+            _ => return None,
+        };
+        while node.kind() != node_kind {
+            println!("node kind {}", node.kind());
             node = node.parent()?;
         }
         let offset = node.start_byte() + 1;
@@ -1218,51 +1224,59 @@ impl EditorSplitState {
     }
 
     pub fn update_signature(&mut self) -> Option<()> {
-        let (offset, commas) = self.signature_offset()?;
-        if offset == self.signature.offset {
+        let signature_offset = self.signature_offset();
+        println!("signature offset {:?}", signature_offset);
+        if signature_offset.is_none() {
+            self.signature.clear();
+            return None;
+        }
+        let (offset, commas) = signature_offset.unwrap();
+        if Some(offset) == self.signature.offset {
             let editor = self.editors.get(&self.active)?;
-            self.signature
-                .update(editor.selection.get_cursor_offset(), commas);
+            if self
+                .signature
+                .update(editor.selection.get_cursor_offset(), commas)
+                .unwrap_or(false)
+            {
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                LAPCE_APP_STATE
+                    .submit_ui_command(LapceUICommand::RequestPaint, state.tab_id);
+            }
         } else {
             let editor = self.editors.get(&self.active)?;
             let buffer_id = editor.buffer_id.clone()?;
             let buffer = self.buffers.get(&buffer_id)?;
-            self.signature.offset = offset;
+            self.signature.offset = Some(offset);
             let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+            println!("start getting signature at {}", offset);
             state.clone().proxy.lock().as_ref().unwrap().get_signature(
                 buffer.id,
                 buffer.offset_to_position(offset),
                 Box::new(move |result| {
+                    println!("getting signature result {:?}", result);
+                    let mut editor_split = state.editor_split.lock();
+                    if editor_split.signature.offset != Some(offset) {
+                        return;
+                    }
                     if let Ok(res) = result {
                         let resp: Result<SignatureHelp, serde_json::Error> =
                             serde_json::from_value(res);
                         if let Ok(resp) = resp {
-                            let mut editor_split = state.editor_split.lock();
-                            if let Some((current_offset, commas)) =
-                                editor_split.signature_offset()
-                            {
-                                if current_offset == offset {
-                                    editor_split.signature.signature = Some(resp);
-                                    let editor = editor_split
-                                        .editors
-                                        .get(&editor_split.active)
-                                        .unwrap();
-                                    let cursor =
-                                        editor.selection.get_cursor_offset();
-                                    editor_split.signature.update(cursor, commas);
-                                    LAPCE_APP_STATE.submit_ui_command(
-                                        LapceUICommand::RequestPaint,
-                                        state.tab_id,
-                                    );
-                                }
-                            }
+                            editor_split.signature.signature = Some(resp);
+                            let editor = editor_split
+                                .editors
+                                .get(&editor_split.active)
+                                .unwrap();
+                            let cursor = editor.selection.get_cursor_offset();
+                            editor_split.signature.update(cursor, commas);
+                            LAPCE_APP_STATE.submit_ui_command(
+                                LapceUICommand::RequestPaint,
+                                state.tab_id,
+                            );
                         }
                     } else {
-                        let mut editor_split = state.editor_split.lock();
-                        if editor_split.signature.offset == offset {
-                            editor_split.signature.clear();
-                        }
-                        println!("request signature error {:?}", result);
+                        editor_split.signature.clear();
                     }
                 }),
             );
@@ -1950,8 +1964,7 @@ impl EditorSplitState {
             }
             LapceCommand::NormalMode => {
                 self.completion.cancel(ctx);
-                self.signature.signature = None;
-                self.signature.offset = 0;
+                self.signature.clear();
                 self.inserting = false;
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
@@ -2141,6 +2154,30 @@ impl EditorSplitState {
                 self.mode = Mode::Insert;
                 editor.ensure_cursor_visible(ctx, buffer, env, None);
                 self.inserting = true;
+            }
+            LapceCommand::JoinLines => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer_id = editor.buffer_id.as_ref()?;
+                let buffer = self.buffers.get_mut(buffer_id)?;
+                let buffer_ui_state = ui_state.get_buffer_mut(buffer_id);
+
+                let offset = editor.selection.get_cursor_offset();
+                let (line, col) = buffer.offset_to_line_col(offset);
+                if line >= buffer.last_line() {
+                    return None;
+                }
+                let start = buffer.line_end(line, true);
+                let end = buffer.first_non_blank_character_on_line(line + 1);
+                let delta = buffer.edit(
+                    ctx,
+                    buffer_ui_state,
+                    " ",
+                    &Selection::region(start, end),
+                    true,
+                );
+                editor.selection = Selection::caret(start);
+                editor.ensure_cursor_visible(ctx, buffer, env, None);
+                self.inactive_editor_apply_delta(&delta);
             }
             LapceCommand::DeleteOperator => {
                 self.operator = Some(EditorOperator::Delete(EditorCount(count)));

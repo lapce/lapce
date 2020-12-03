@@ -1425,7 +1425,7 @@ pub fn start_buffer_highlights(
 ) -> Result<()> {
     let mut highlighter = Highlighter::new();
     let mut highlight_configs = HashMap::new();
-    let mut parser = new_parser(LapceLanguage::Rust);
+    let mut parsers = HashMap::new();
 
     loop {
         let (window_id, tab_id, buffer_id, rev) = receiver.recv()?;
@@ -1521,16 +1521,18 @@ pub fn start_buffer_highlights(
             }
         }
 
-        println!("now parser parse");
+        if !parsers.contains_key(&language) {
+            let parser = new_parser(language);
+            parsers.insert(language, parser);
+        }
+        let parser = parsers.get_mut(&language).unwrap();
         if let Some(tree) = parser.parse(&rope_str, None) {
-            println!(" parser got something");
             let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
             let mut editor_split = state.editor_split.lock();
             let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
             if buffer.rev != rev {
                 continue;
             }
-            println!("put parser tree to buffer");
             buffer.tree = Some(tree);
 
             let editor = editor_split.editors.get(&editor_split.active).unwrap();

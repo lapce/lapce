@@ -122,7 +122,10 @@ pub fn new_highlight_config(
 }
 
 pub fn new_parser(language: LapceLanguage) -> Parser {
-    let language = unsafe { tree_sitter_rust() };
+    let language = match language {
+        LapceLanguage::Rust => unsafe { tree_sitter_rust() },
+        LapceLanguage::Go => unsafe { tree_sitter_go() },
+    };
     let mut parser = Parser::new();
     parser.set_language(language).unwrap();
     parser

@@ -167,6 +167,8 @@ pub enum LapceCommand {
     PreviousUnmatchedLeftCurlyBracket,
     #[strum(serialize = "open_folder")]
     OpenFolder,
+    #[strum(serialize = "join_lines")]
+    JoinLines,
     Insert(String),
 }
 
