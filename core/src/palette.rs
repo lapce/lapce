@@ -1,3 +1,4 @@
+use anyhow::Result;
 use bit_vec::BitVec;
 use druid::{
     kurbo::{Line, Rect},
@@ -6,8 +7,8 @@ use druid::{
     widget::IdentityWrapper,
     widget::Svg,
     widget::SvgData,
-    Affine, Command, FontFamily, FontWeight, KeyEvent, Target, Vec2, WidgetId,
-    WindowId,
+    Affine, Command, ExtEventSink, FontFamily, FontWeight, KeyEvent, Target, Vec2,
+    WidgetId, WindowId,
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -22,13 +23,16 @@ use druid::{
 use fzyr::{has_match, locate, Score};
 use lsp_types::{DocumentSymbolResponse, Location, Position, SymbolKind};
 use serde_json::{self, json, Value};
-use std::cmp::Ordering;
-use std::fs::{self, DirEntry};
-use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::{cmp::Ordering, sync::mpsc::Receiver};
+use std::{
+    fs::{self, DirEntry},
+    sync::mpsc::channel,
+};
+use std::{marker::PhantomData, sync::mpsc::Sender};
 use uuid::Uuid;
 
 use crate::{
@@ -84,29 +88,38 @@ pub struct PaletteState {
     index: usize,
     palette_type: PaletteType,
     run_id: String,
+    rev: u64,
+    sender: Sender<u64>,
 }
 
 impl PaletteState {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> PaletteState {
-        PaletteState {
+        let widget_id = WidgetId::next();
+        let (sender, receiver) = channel();
+        let state = PaletteState {
             window_id,
             tab_id,
-            widget_id: WidgetId::next(),
+            widget_id,
             scroll_widget_id: WidgetId::next(),
             items: Vec::new(),
             input: "".to_string(),
             cursor: 0,
             index: 0,
+            rev: 0,
+            sender,
             palette_type: PaletteType::File,
             run_id: Uuid::new_v4().to_string(),
-        }
+        };
+        thread::spawn(move || {
+            start_filter_process(window_id, tab_id, widget_id, receiver);
+        });
+        state
     }
-}
 
-impl PaletteState {
     pub fn run(&mut self, palette_type: Option<PaletteType>) {
         self.palette_type = palette_type.unwrap_or(PaletteType::File);
         self.run_id = Uuid::new_v4().to_string();
+        self.rev += 1;
         match &self.palette_type {
             &PaletteType::Line => {
                 self.input = "/".to_string();
@@ -199,16 +212,12 @@ impl PaletteState {
     ) {
         self.input.insert_str(self.cursor, content);
         self.cursor += content.len();
-        self.update_palette(ctx, ui_state, env);
+        self.update_palette();
     }
 
-    fn update_palette(
-        &mut self,
-        ctx: &mut EventCtx,
-        ui_state: &mut LapceUIState,
-        env: &Env,
-    ) {
+    fn update_palette(&mut self) {
         self.index = 0;
+        self.rev += 1;
         let palette_type = self.get_palette_type();
         if self.palette_type != palette_type {
             self.palette_type = palette_type;
@@ -224,13 +233,19 @@ impl PaletteState {
                 &PaletteType::Workspace => self.items = self.get_workspaces(),
                 &PaletteType::Command => self.items = self.get_commands(),
             }
-            self.request_layout(ctx);
+            LAPCE_APP_STATE
+                .submit_ui_command(LapceUICommand::RequestLayout, self.widget_id);
+            return;
+        // self.request_layout(ctx);
         } else {
-            self.filter_items();
-            self.request_layout(ctx);
-            self.preview(ctx, ui_state, env);
+            self.sender.send(self.rev);
+            // self.filter_items();
+            // self.request_layout(ctx);
+            // self.preview(ctx, ui_state, env);
         }
-        self.ensure_visible(ctx, env);
+        LAPCE_APP_STATE
+            .submit_ui_command(LapceUICommand::RequestLayout, self.widget_id);
+        // self.ensure_visible(ctx, env);
     }
 
     pub fn move_cursor(&mut self, ctx: &mut EventCtx, n: i64) {
@@ -256,7 +271,7 @@ impl PaletteState {
 
         self.input.remove(self.cursor - 1);
         self.cursor = self.cursor - 1;
-        self.update_palette(ctx, ui_state, env);
+        self.update_palette();
     }
 
     pub fn delete_to_beginning_of_line(
@@ -284,7 +299,7 @@ impl PaletteState {
             self.input.replace_range(start..self.cursor, "");
             self.cursor = start;
         }
-        self.update_palette(ctx, ui_state, env);
+        self.update_palette();
     }
 
     pub fn get_input(&self) -> &str {
@@ -473,7 +488,7 @@ impl PaletteState {
                         };
                         palette.items = items;
                         if palette.get_input() != "" {
-                            palette.filter_items();
+                            palette.update_palette();
                         }
                         LAPCE_APP_STATE.submit_ui_command(
                             LapceUICommand::RequestLayout,
@@ -641,12 +656,13 @@ impl PaletteState {
 
                         palette.items = items;
                         if palette.get_input() != "" {
-                            palette.filter_items();
+                            palette.update_palette();
+                        } else {
+                            LAPCE_APP_STATE.submit_ui_command(
+                                LapceUICommand::RequestLayout,
+                                widget_id,
+                            );
                         }
-                        LAPCE_APP_STATE.submit_ui_command(
-                            LapceUICommand::RequestLayout,
-                            widget_id,
-                        );
                     }
                 }
                 println!("get files result");
@@ -888,6 +904,51 @@ impl PaletteState {
     }
 }
 
+pub fn start_filter_process(
+    window_id: WindowId,
+    tab_id: WidgetId,
+    widget_id: WidgetId,
+    receiver: Receiver<u64>,
+) -> Result<()> {
+    loop {
+        let rev = receiver.recv()?;
+        let (input, mut items) = {
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+            let palette = state.palette.lock();
+            if palette.rev != rev {
+                continue;
+            }
+            (palette.get_input().to_string(), palette.items.clone())
+        };
+
+        for item in items.iter_mut() {
+            if input == "" {
+                item.score = -1.0 - item.index as f64;
+                item.match_mask = BitVec::new();
+            } else {
+                let text = item.get_text();
+                if has_match(&input, &text) {
+                    let result = locate(&input, &text);
+                    item.score = result.score;
+                    item.match_mask = result.match_mask;
+                } else {
+                    item.score = f64::NEG_INFINITY;
+                }
+            }
+        }
+        items
+            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
+
+        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+        let mut palette = state.palette.lock();
+        if palette.rev != rev {
+            continue;
+        }
+        palette.items = items;
+        LAPCE_APP_STATE.submit_ui_command(LapceUICommand::FilterItems, widget_id);
+    }
+}
+
 pub struct Palette {
     window_id: WindowId,
     tab_id: WidgetId,
@@ -973,6 +1034,13 @@ impl Widget<LapceUIState> for Palette {
                         }
                         LapceUICommand::RequestPaint => {
                             ctx.request_paint();
+                        }
+                        LapceUICommand::FilterItems => {
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut palette = state.palette.lock();
+                            palette.preview(ctx, data, env);
+                            ctx.request_layout();
                         }
                         _ => (),
                     }

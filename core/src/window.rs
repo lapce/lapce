@@ -285,7 +285,7 @@ impl Widget<LapceUIState> for LapceWindow {
                                 index + 1
                             };
                             *active = self.tabs[new_index].id();
-                            ctx.request_paint();
+                            ctx.request_layout();
                         }
                         LapceUICommand::PreviousTab => {
                             let window_state =

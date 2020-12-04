@@ -3501,6 +3501,9 @@ impl Editor {
         if code_actions.len() == 0 {
             return None;
         }
+        if current_code_actions >= code_actions.len() {
+            return None;
+        }
         let code_action = &code_actions[current_code_actions];
         match code_action {
             CodeActionOrCommand::Command(cmd) => {}
