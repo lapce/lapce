@@ -1152,7 +1152,7 @@ impl Widget<LapceUIState> for PaletteContent {
         let rects = ctx.region().rects().to_vec();
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let mut palette = state.palette.lock();
-        let height = line_height * 15.0;
+        let height = line_height * 16.0;
         for rect in rects {
             let items = palette.current_items();
             let items_height = items.len() as f64 * line_height;
@@ -1283,6 +1283,20 @@ impl Widget<LapceUIState> for PaletteContent {
                         ),
                     );
                 }
+            }
+            if height < items_height {
+                let scroll_bar_height = height * (height / items_height);
+                let scroll_y = height * (scroll_offset / items_height);
+                let scroll_bar_width = 10.0;
+                ctx.render_ctx.fill(
+                    Rect::ZERO
+                        .with_origin(Point::new(
+                            ctx.size().width - scroll_bar_width,
+                            scroll_y,
+                        ))
+                        .with_size(Size::new(scroll_bar_width, scroll_bar_height)),
+                    &env.get(theme::SCROLLBAR_COLOR),
+                );
             }
             palette.scroll_offset = scroll_offset;
         }
