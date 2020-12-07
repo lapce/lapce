@@ -62,10 +62,10 @@ impl LapceContainer {
             let palette = state.palette.lock();
             (palette.widget_id.clone(), palette.scroll_widget_id.clone())
         };
-        let palette = Palette::new(window_id, tab_id, scroll_widget_id)
-            .with_id(widget_id)
-            .border(theme::BORDER_LIGHT, 1.0)
-            .background(LapceTheme::EDITOR_SELECTION_COLOR);
+        let palette =
+            Palette::new(window_id, tab_id, scroll_widget_id).with_id(widget_id);
+        // .border(theme::BORDER_LIGHT, 1.0)
+        // .background(LapceTheme::EDITOR_SELECTION_COLOR)
         let palette = WidgetPod::new(palette).boxed();
 
         let editor_split_state = state.editor_split.lock();
@@ -290,8 +290,8 @@ impl Widget<LapceUIState> for LapceContainer {
             .lock()
             == LapceFocus::Palette
         {
-            let blur_color = Color::grey8(100);
-            ctx.blurred_rect(self.palette.layout_rect(), 5.0, &blur_color);
+            // let blur_color = Color::grey8(100);
+            // ctx.blurred_rect(self.palette.layout_rect(), 5.0, &blur_color);
             self.palette.paint(ctx, data, env);
         }
 

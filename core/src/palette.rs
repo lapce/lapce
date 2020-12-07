@@ -4,11 +4,12 @@ use druid::{
     kurbo::{Line, Rect},
     piet::TextAttribute,
     widget::Container,
+    widget::FillStrat,
     widget::IdentityWrapper,
     widget::Svg,
     widget::SvgData,
-    Affine, Command, ExtEventSink, FontFamily, FontWeight, KeyEvent, Target, Vec2,
-    WidgetId, WindowId,
+    Affine, Command, ExtEventSink, FontFamily, FontWeight, Insets, KeyEvent, Target,
+    Vec2, WidgetId, WindowId,
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -33,6 +34,7 @@ use std::{
     sync::mpsc::channel,
 };
 use std::{marker::PhantomData, sync::mpsc::Sender};
+use usvg;
 use uuid::Uuid;
 
 use crate::{
@@ -82,9 +84,11 @@ pub struct PaletteState {
     tab_id: WidgetId,
     pub widget_id: WidgetId,
     pub scroll_widget_id: WidgetId,
+    scroll_offset: f64,
     input: String,
     cursor: usize,
     items: Vec<PaletteItem>,
+    filtered_items: Vec<PaletteItem>,
     index: usize,
     palette_type: PaletteType,
     run_id: String,
@@ -102,7 +106,9 @@ impl PaletteState {
             widget_id,
             scroll_widget_id: WidgetId::next(),
             items: Vec::new(),
+            filtered_items: Vec::new(),
             input: "".to_string(),
+            scroll_offset: 0.0,
             cursor: 0,
             index: 0,
             rev: 0,
@@ -234,18 +240,13 @@ impl PaletteState {
                 &PaletteType::Command => self.items = self.get_commands(),
             }
             LAPCE_APP_STATE
-                .submit_ui_command(LapceUICommand::RequestLayout, self.widget_id);
+                .submit_ui_command(LapceUICommand::RequestPaint, self.widget_id);
             return;
-        // self.request_layout(ctx);
         } else {
             self.sender.send(self.rev);
-            // self.filter_items();
-            // self.request_layout(ctx);
-            // self.preview(ctx, ui_state, env);
         }
         LAPCE_APP_STATE
-            .submit_ui_command(LapceUICommand::RequestLayout, self.widget_id);
-        // self.ensure_visible(ctx, env);
+            .submit_ui_command(LapceUICommand::RequestPaint, self.widget_id);
     }
 
     pub fn move_cursor(&mut self, ctx: &mut EventCtx, n: i64) {
@@ -310,27 +311,6 @@ impl PaletteState {
             PaletteType::Workspace => &self.input[1..],
             PaletteType::Command => &self.input[1..],
         }
-    }
-
-    pub fn filter_items(&mut self) {
-        let input = self.get_input().to_string();
-        for item in self.items.iter_mut() {
-            if input == "" {
-                item.score = -1.0 - item.index as f64;
-                item.match_mask = BitVec::new();
-            } else {
-                let text = item.get_text();
-                if has_match(&input, &text) {
-                    let result = locate(&input, &text);
-                    item.score = result.score;
-                    item.match_mask = result.match_mask;
-                } else {
-                    item.score = f64::NEG_INFINITY;
-                }
-            }
-        }
-        self.items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
     }
 
     fn get_commands(&self) -> Vec<PaletteItem> {
@@ -491,7 +471,7 @@ impl PaletteState {
                             palette.update_palette();
                         }
                         LAPCE_APP_STATE.submit_ui_command(
-                            LapceUICommand::RequestLayout,
+                            LapceUICommand::RequestPaint,
                             widget_id,
                         );
                     }
@@ -659,7 +639,7 @@ impl PaletteState {
                             palette.update_palette();
                         } else {
                             LAPCE_APP_STATE.submit_ui_command(
-                                LapceUICommand::RequestLayout,
+                                LapceUICommand::RequestPaint,
                                 widget_id,
                             );
                         }
@@ -814,11 +794,12 @@ impl PaletteState {
         items
     }
 
-    pub fn current_items(&self) -> Vec<&PaletteItem> {
-        self.items
-            .iter()
-            .filter(|i| i.score != f64::NEG_INFINITY)
-            .collect()
+    pub fn current_items(&self) -> &Vec<PaletteItem> {
+        if self.get_input() == "" {
+            &self.items
+        } else {
+            &self.filtered_items
+        }
     }
 
     pub fn get_item(&self) -> Option<&PaletteItem> {
@@ -921,30 +902,14 @@ pub fn start_filter_process(
             (palette.get_input().to_string(), palette.items.clone())
         };
 
-        for item in items.iter_mut() {
-            if input == "" {
-                item.score = -1.0 - item.index as f64;
-                item.match_mask = BitVec::new();
-            } else {
-                let text = item.get_text();
-                if has_match(&input, &text) {
-                    let result = locate(&input, &text);
-                    item.score = result.score;
-                    item.match_mask = result.match_mask;
-                } else {
-                    item.score = f64::NEG_INFINITY;
-                }
-            }
-        }
-        items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
+        let items = filter_items(&input, items);
 
         let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
         let mut palette = state.palette.lock();
         if palette.rev != rev {
             continue;
         }
-        palette.items = items;
+        palette.filtered_items = items;
         LAPCE_APP_STATE.submit_ui_command(LapceUICommand::FilterItems, widget_id);
     }
 }
@@ -973,15 +938,14 @@ impl Palette {
         tab_id: WidgetId,
         scroll_id: WidgetId,
     ) -> Palette {
+        let padding = 6.0;
         let palette_input = PaletteInput::new(window_id, tab_id)
-            .padding((5.0, 5.0, 5.0, 5.0))
+            .padding((padding, padding, padding, padding * 2.0))
             .background(LapceTheme::EDITOR_BACKGROUND)
-            .padding((5.0, 5.0, 5.0, 5.0));
-        let palette_content =
-            LapceScroll::new(PaletteContent::new(window_id, tab_id))
-                .vertical()
-                .with_id(scroll_id)
-                .padding((5.0, 0.0, 5.0, 0.0));
+            .padding((10.0 + padding, 10.0 + padding, 10.0 + padding, padding));
+        let palette_content = PaletteContent::new(window_id, tab_id)
+            .with_id(scroll_id)
+            .padding((10.0 + padding, 0.0, 10.0 + padding, 10.0 + padding));
         let palette = Palette {
             window_id,
             tab_id,
@@ -1040,7 +1004,7 @@ impl Widget<LapceUIState> for Palette {
                                 .get_tab_state(&self.window_id, &self.tab_id);
                             let mut palette = state.palette.lock();
                             palette.preview(ctx, data, env);
-                            ctx.request_layout();
+                            ctx.request_paint();
                         }
                         _ => (),
                     }
@@ -1069,22 +1033,6 @@ impl Widget<LapceUIState> for Palette {
         data: &LapceUIState,
         env: &Env,
     ) {
-        // if data.palette.same(&old_data.palette) {
-        //     return;
-        // }
-
-        // if data.focus == LapceFocus::Palette {
-        //     if old_data.focus == LapceFocus::Palette {
-        //         self.input.update(ctx, data, env);
-        //         self.content.update(ctx, data, env);
-        //     } else {
-        //         ctx.request_layout();
-        //     }
-        // } else {
-        //     if old_data.focus == LapceFocus::Palette {
-        //         ctx.request_paint();
-        //     }
-        // }
     }
 
     fn layout(
@@ -1112,21 +1060,47 @@ impl Widget<LapceUIState> for Palette {
                 .with_size(content_size),
         );
         // flex_size
-        let size =
-            Size::new(bc.max().width, content_size.height + input_size.height);
+        let size = Size::new(
+            bc.max().width,
+            content_size.height + 10.0 + 6.0 * 2.0 + input_size.height,
+        );
         size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
-        if *LAPCE_APP_STATE
-            .get_tab_state(&self.window_id, &self.tab_id)
-            .focus
-            .lock()
-            != LapceFocus::Palette
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         {
-            return;
+            if *state.focus.lock() != LapceFocus::Palette {
+                return;
+            }
         }
-        let rects = ctx.region().rects();
+
+        let shadow_width = 5.0;
+        let shift = shadow_width * 2.0;
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let items_len = {
+            let palette = state.palette.lock();
+            palette.current_items().len()
+        };
+        let max_items = 16;
+        let height = if items_len > max_items {
+            max_items
+        } else {
+            items_len
+        };
+        let height = if height > 0 {
+            line_height * height as f64 + 6.0
+        } else {
+            0.0
+        };
+        let height = height + 13.0 + 6.0 * 5.0;
+
+        let size = Size::new(ctx.size().width, height + shift * 2.0);
+        let content_rect = size.to_rect() - Insets::new(shift, shift, shift, shift);
+        let blur_color = Color::grey8(100);
+        ctx.blurred_rect(content_rect, shadow_width, &blur_color);
+        ctx.fill(content_rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+
         self.input.paint(ctx, data, env);
         self.content.paint(ctx, data, env);
     }
@@ -1158,17 +1132,6 @@ impl Widget<LapceUIState> for PaletteContent {
         data: &LapceUIState,
         env: &Env,
     ) {
-        // if data.palette.index != old_data.palette.index {
-        //     ctx.request_paint()
-        // }
-        // if data.palette.filtered_items.len()
-        //     != old_data.palette.filtered_items.len()
-        // {
-        //     ctx.request_layout()
-        // }
-        // if data.palette.items.len() != old_data.palette.items.len() {
-        //     ctx.request_layout()
-        // }
     }
 
     fn layout(
@@ -1179,10 +1142,8 @@ impl Widget<LapceUIState> for PaletteContent {
         env: &Env,
     ) -> Size {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let palette = state.palette.lock();
-        let items_len = palette.current_items().len();
-        let height = { line_height * items_len as f64 };
+        let max_items = 15;
+        let height = line_height * max_items as f64;
         Size::new(bc.max().width, height)
     }
 
@@ -1190,53 +1151,61 @@ impl Widget<LapceUIState> for PaletteContent {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rects = ctx.region().rects().to_vec();
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let palette = state.palette.lock();
+        let mut palette = state.palette.lock();
+        let height = line_height * 15.0;
         for rect in rects {
-            let start = (rect.y0 / line_height).floor() as usize;
-            let items = {
-                let items = palette.current_items();
-                let items_len = items.len();
-                &items[start
-                    ..((rect.y1 / line_height).floor() as usize + 1).min(items_len)]
-                    .to_vec()
+            let items = palette.current_items();
+            let items_height = items.len() as f64 * line_height;
+            let current_line_offset = palette.index as f64 * line_height;
+            let scroll_offset = if palette.scroll_offset
+                < current_line_offset + line_height - height
+            {
+                (current_line_offset + line_height - height)
+                    .min(items_height - height)
+            } else if palette.scroll_offset > current_line_offset {
+                current_line_offset
+            } else {
+                palette.scroll_offset
             };
 
-            for (i, item) in items.iter().enumerate() {
-                if palette.index == start + i {
+            let start = (scroll_offset / line_height).floor() as usize;
+            let num_lines = 15;
+
+            for line in start..start + num_lines + 1 {
+                if line >= items.len() {
+                    break;
+                }
+                let item = &items[line];
+                if palette.index == line {
                     if let Some(background) = LAPCE_APP_STATE.theme.get("background")
                     {
                         ctx.fill(
                             Rect::ZERO
                                 .with_origin(Point::new(
                                     rect.x0,
-                                    (start + i) as f64 * line_height,
+                                    line as f64 * line_height - scroll_offset,
                                 ))
                                 .with_size(Size::new(rect.width(), line_height)),
                             background,
                         )
                     }
                 }
-                match &item.icon {
-                    PaletteIcon::File(exten) => {
-                        if let Some(svg_data) = file_svg(&exten) {
-                            let x = 1.0;
-                            let y = (start + i) as f64 * line_height + 2.0;
-                            let affine = Affine::new([0.5, 0.0, 0.0, 0.5, x, y]);
-                            svg_data.to_piet(affine, ctx);
-                        }
-                    }
-                    PaletteIcon::Symbol(symbol) => {
-                        if let Some(svg) = symbol_svg(&symbol) {
-                            svg.to_piet(
-                                Affine::translate(Vec2::new(
-                                    1.0,
-                                    (start + i) as f64 * line_height + 2.0,
-                                )),
-                                ctx,
-                            );
-                        }
-                    }
-                    _ => (),
+                if let Some((svg_data, svg_tree)) = match &item.icon {
+                    PaletteIcon::File(exten) => file_svg(&exten),
+                    PaletteIcon::Symbol(symbol) => symbol_svg(&symbol),
+                    _ => None,
+                } {
+                    let svg_size = svg_tree_size(&svg_tree);
+                    let scale = 13.0 / svg_size.height;
+                    let affine = Affine::new([
+                        scale,
+                        0.0,
+                        0.0,
+                        scale,
+                        1.0,
+                        line as f64 * line_height + 5.0 - scroll_offset,
+                    ]);
+                    svg_data.to_piet(affine, ctx);
                 }
                 let mut text_layout = ctx
                     .text()
@@ -1276,7 +1245,10 @@ impl Widget<LapceUIState> for PaletteContent {
                 let text_layout = text_layout.build().unwrap();
                 ctx.draw_text(
                     &text_layout,
-                    Point::new(20.0, (start + i) as f64 * line_height),
+                    Point::new(
+                        20.0,
+                        line as f64 * line_height + 5.0 - scroll_offset,
+                    ),
                 );
 
                 let text_x =
@@ -1307,27 +1279,33 @@ impl Widget<LapceUIState> for PaletteContent {
                         &text_layout,
                         Point::new(
                             20.0 + text_x + 5.0,
-                            (start + i) as f64 * line_height + 1.0,
+                            line as f64 * line_height + 6.0 - scroll_offset,
                         ),
                     );
                 }
             }
+            palette.scroll_offset = scroll_offset;
         }
     }
 }
 
-fn file_svg(exten: &str) -> Option<SvgData> {
-    Some(
-        SvgData::from_str(
-            ICONS_DIR
-                .get_file(format!("file_type_{}.svg", exten))?
-                .contents_utf8()?,
-        )
-        .ok()?,
-    )
+fn get_svg(name: &str) -> Option<(SvgData, usvg::Tree)> {
+    let content = ICONS_DIR.get_file(name)?.contents_utf8()?;
+
+    let opt = usvg::Options {
+        keep_named_groups: false,
+        ..usvg::Options::default()
+    };
+    let usvg_tree = usvg::Tree::from_str(&content, &opt).ok()?;
+
+    Some((SvgData::from_str(&content).ok()?, usvg_tree))
 }
 
-fn symbol_svg(kind: &SymbolKind) -> Option<SvgData> {
+fn file_svg(exten: &str) -> Option<(SvgData, usvg::Tree)> {
+    get_svg(&format!("file_type_{}.svg", exten))
+}
+
+fn symbol_svg(kind: &SymbolKind) -> Option<(SvgData, usvg::Tree)> {
     let kind_str = match kind {
         SymbolKind::Array => "array",
         SymbolKind::Boolean => "boolean",
@@ -1354,15 +1332,7 @@ fn symbol_svg(kind: &SymbolKind) -> Option<SvgData> {
         _ => return None,
     };
 
-    Some(
-        SvgData::from_str(
-            ICONS_DIR
-                .get_file(format!("symbol-{}.svg", kind_str))
-                .unwrap()
-                .contents_utf8()?,
-        )
-        .ok()?,
-    )
+    get_svg(&format!("symbol-{}.svg", kind_str))
 }
 
 impl Widget<LapceUIState> for PaletteInput {
@@ -1405,7 +1375,7 @@ impl Widget<LapceUIState> for PaletteInput {
         data: &LapceUIState,
         env: &Env,
     ) -> Size {
-        Size::new(bc.max().width, env.get(LapceTheme::EDITOR_LINE_HEIGHT))
+        Size::new(bc.max().width, 13.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
@@ -1496,5 +1466,32 @@ impl PaletteItem {
                 );
             }
         }
+    }
+}
+
+fn filter_items(input: &str, items: Vec<PaletteItem>) -> Vec<PaletteItem> {
+    let mut items: Vec<PaletteItem> = items
+        .iter()
+        .filter_map(|i| {
+            let text = i.get_text();
+            if has_match(&input, &text) {
+                let result = locate(&input, &text);
+                let mut item = i.clone();
+                item.score = result.score;
+                item.match_mask = result.match_mask;
+                Some(item)
+            } else {
+                None
+            }
+        })
+        .collect();
+    items.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
+    items
+}
+
+fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {
+    match *svg_tree.root().borrow() {
+        usvg::NodeKind::Svg(svg) => Size::new(svg.size.width(), svg.size.height()),
+        _ => Size::ZERO,
     }
 }
