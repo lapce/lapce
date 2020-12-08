@@ -218,18 +218,7 @@ impl Widget<LapceUIState> for LapceSplit {
                             let state = LAPCE_APP_STATE
                                 .get_tab_state(&self.window_id, &self.tab_id);
                             let mut editor_split = state.editor_split.lock();
-                            editor_split.save_jump_location();
-                            let path = location.uri.path().to_string();
-                            let buffer =
-                                editor_split.get_buffer_from_path(ctx, data, &path);
-                            let location = EditorLocation {
-                                path,
-                                offset: buffer.offset_of_line(
-                                    location.range.start.line as usize,
-                                ) + location.range.start.character as usize,
-                                scroll_offset: None,
-                            };
-                            editor_split.jump_to_location(ctx, data, &location, env);
+                            editor_split.go_to_location(ctx, data, location, env);
                         }
                         LapceUICommand::Split(vertical) => {
                             if self.children.len() <= 1 {

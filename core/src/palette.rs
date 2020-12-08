@@ -52,6 +52,7 @@ pub enum PaletteType {
     DocumentSymbol,
     Workspace,
     Command,
+    Reference,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,6 +74,7 @@ pub struct PaletteItem {
     index: usize,
     match_mask: BitVec,
     position: Option<Position>,
+    location: Option<Location>,
     path: Option<PathBuf>,
     workspace: Option<LapceWorkspace>,
     command: Option<LapceCommand>,
@@ -151,6 +153,41 @@ impl PaletteState {
         }
     }
 
+    pub fn run_references(&mut self, locations: Vec<Location>) {
+        self.palette_type = PaletteType::Reference;
+        self.run_id = Uuid::new_v4().to_string();
+        self.rev += 1;
+        let window_id = self.window_id;
+        let tab_id = self.tab_id;
+        let items = locations
+            .iter()
+            .map(|location| PaletteItem {
+                window_id,
+                tab_id,
+                kind: PaletteType::Reference,
+                text: location.uri.as_str().to_string(),
+                hint: None,
+                position: None,
+                location: Some(location.clone()),
+                path: None,
+                score: 0.0,
+                index: 0,
+                match_mask: BitVec::new(),
+                icon: PaletteIcon::None,
+                workspace: None,
+                command: None,
+            })
+            .collect::<Vec<PaletteItem>>();
+        self.items = items;
+        LAPCE_APP_STATE
+            .get_tab_state(&self.window_id, &self.tab_id)
+            .editor_split
+            .lock()
+            .save_selection();
+        LAPCE_APP_STATE
+            .submit_ui_command(LapceUICommand::FilterItems, self.widget_id);
+    }
+
     pub fn cancel(&mut self, ctx: &mut EventCtx, ui_state: &mut LapceUIState) {
         match &self.palette_type {
             &PaletteType::Line => {
@@ -161,6 +198,13 @@ impl PaletteState {
                     .restore_selection(ctx, ui_state);
             }
             &PaletteType::DocumentSymbol => {
+                LAPCE_APP_STATE
+                    .get_tab_state(&self.window_id, &self.tab_id)
+                    .editor_split
+                    .lock()
+                    .restore_selection(ctx, ui_state);
+            }
+            &PaletteType::Reference => {
                 LAPCE_APP_STATE
                     .get_tab_state(&self.window_id, &self.tab_id)
                     .editor_split
@@ -197,6 +241,9 @@ impl PaletteState {
     pub fn key_event(&mut self, key: &KeyEvent) {}
 
     fn get_palette_type(&self) -> PaletteType {
+        if self.palette_type == PaletteType::Reference {
+            return PaletteType::Reference;
+        }
         if self.input == "" {
             return PaletteType::File;
         }
@@ -238,6 +285,7 @@ impl PaletteState {
                 }
                 &PaletteType::Workspace => self.items = self.get_workspaces(),
                 &PaletteType::Command => self.items = self.get_commands(),
+                _ => (),
             }
             LAPCE_APP_STATE
                 .submit_ui_command(LapceUICommand::RequestPaint, self.widget_id);
@@ -287,6 +335,7 @@ impl PaletteState {
 
         let start = match &self.palette_type {
             &PaletteType::File => 0,
+            &PaletteType::Reference => 0,
             &PaletteType::Line => 1,
             &PaletteType::DocumentSymbol => 1,
             &PaletteType::Workspace => 1,
@@ -306,6 +355,7 @@ impl PaletteState {
     pub fn get_input(&self) -> &str {
         match &self.palette_type {
             PaletteType::File => &self.input,
+            PaletteType::Reference => &self.input,
             PaletteType::Line => &self.input[1..],
             PaletteType::DocumentSymbol => &self.input[1..],
             PaletteType::Workspace => &self.input[1..],
@@ -330,6 +380,7 @@ impl PaletteState {
                 match_mask: BitVec::new(),
                 workspace: None,
                 position: None,
+                location: None,
                 path: None,
                 command: Some(c.1.clone()),
             })
@@ -389,6 +440,7 @@ impl PaletteState {
                     kind: PaletteType::Workspace,
                     text,
                     hint: None,
+                    location: None,
                     score: 0.0,
                     index: i,
                     match_mask: BitVec::new(),
@@ -438,6 +490,7 @@ impl PaletteState {
                                     hint: s.container_name.clone(),
                                     position: Some(s.location.range.start),
                                     path: None,
+                                    location: None,
                                     score: 0.0,
                                     index: i,
                                     match_mask: BitVec::new(),
@@ -456,6 +509,7 @@ impl PaletteState {
                                     text: s.name.clone(),
                                     hint: None,
                                     path: None,
+                                    location: None,
                                     position: Some(s.range.start),
                                     score: 0.0,
                                     index: i,
@@ -541,6 +595,7 @@ impl PaletteState {
                     hint: None,
                     position: None,
                     path: None,
+                    location: None,
                     score: 0.0,
                     index: i,
                     match_mask: BitVec::new(),
@@ -624,6 +679,7 @@ impl PaletteState {
                                     hint: Some(hint),
                                     position: None,
                                     path: Some(path.clone()),
+                                    location: None,
                                     score: 0.0,
                                     index,
                                     match_mask: BitVec::new(),
@@ -710,6 +766,7 @@ impl PaletteState {
                         kind: PaletteType::File,
                         text,
                         position: None,
+                        location: None,
                         path: Some(path),
                         score: 0.0,
                         match_mask: BitVec::new(),
@@ -780,6 +837,7 @@ impl PaletteState {
                         hint: Some(hint),
                         position: None,
                         path: Some(path),
+                        location: None,
                         score: 0.0,
                         index,
                         match_mask: BitVec::new(),
@@ -823,6 +881,9 @@ impl PaletteState {
         let item = item.unwrap();
         match &item.kind {
             &PaletteType::Line => {
+                item.select(ctx, ui_state, env);
+            }
+            &PaletteType::Reference => {
                 item.select(ctx, ui_state, env);
             }
             &PaletteType::DocumentSymbol => {
@@ -1478,6 +1539,18 @@ impl PaletteItem {
                     self.command.clone().unwrap(),
                     env,
                 );
+            }
+            &PaletteType::Reference => {
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut editor_split = state.editor_split.lock();
+                editor_split.go_to_location(
+                    ctx,
+                    ui_state,
+                    self.location.as_ref().unwrap(),
+                    env,
+                );
+                editor_split.window_portion(ctx, 0.75, env);
             }
         }
     }

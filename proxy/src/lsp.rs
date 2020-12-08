@@ -662,7 +662,7 @@ impl LspClient {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
             context: ReferenceContext {
-                include_declaration: true,
+                include_declaration: false,
             },
         };
         let params = Params::from(serde_json::to_value(params).unwrap());

@@ -252,14 +252,6 @@ impl LapceAppState {
             .clone()
     }
 
-    pub fn submit_command(&self, comand: LapceCommand, widget_id: WidgetId) {
-        self.ui_sink.lock().as_ref().unwrap().submit_command(
-            LAPCE_COMMAND,
-            comand,
-            Target::Widget(widget_id),
-        );
-    }
-
     pub fn submit_ui_command(&self, comand: LapceUICommand, widget_id: WidgetId) {
         self.ui_sink.lock().as_ref().unwrap().submit_command(
             LAPCE_UI_COMMAND,

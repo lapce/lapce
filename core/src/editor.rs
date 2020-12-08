@@ -100,6 +100,7 @@ pub struct EditorState {
     pub header_height: f64,
     pub locations: Vec<EditorLocation>,
     pub current_location: usize,
+    pub saved_buffer_id: BufferId,
     pub saved_selection: Selection,
     pub saved_scroll_offset: Vec2,
 }
@@ -134,6 +135,7 @@ impl EditorState {
             header_height: 0.0,
             locations: Vec::new(),
             current_location: 0,
+            saved_buffer_id: BufferId(0),
             saved_selection: Selection::new_simple(),
             saved_scroll_offset: Vec2::ZERO,
         }
@@ -253,6 +255,27 @@ impl EditorState {
                 EditorOperator::Yank(count) => count.0,
             })
             .flatten())
+    }
+
+    fn window_portion(
+        &mut self,
+        ctx: &mut EventCtx,
+        portion: f64,
+        buffer: &mut Buffer,
+        env: &Env,
+    ) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line = buffer.line_of_offset(self.selection.get_cursor_offset());
+        let y = if line as f64 * line_height > self.view_size.height * portion {
+            line as f64 * line_height - self.view_size.height * portion
+        } else {
+            0.0
+        };
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::ScrollTo((0.0, y)),
+            Target::Widget(self.view_id),
+        ));
     }
 
     fn center_of_window(
@@ -1004,6 +1027,7 @@ impl EditorSplitState {
 
     pub fn save_selection(&mut self) -> Option<()> {
         let editor = self.editors.get_mut(&self.active)?;
+        editor.saved_buffer_id = editor.buffer_id.clone().unwrap();
         editor.saved_selection = editor.selection.clone();
         editor.saved_scroll_offset = editor.scroll_offset.clone();
         None
@@ -1015,17 +1039,21 @@ impl EditorSplitState {
         ui_state: &mut LapceUIState,
     ) -> Option<()> {
         let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.saved_buffer_id;
+        editor.buffer_id = Some(buffer_id);
+        ui_state.get_editor_mut(&self.active).buffer_id = editor.saved_buffer_id;
         let buffer = self.buffers.get(editor.buffer_id.as_ref()?)?;
         editor.selection = editor.saved_selection.clone();
         editor.update_ui_state(ui_state, buffer);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::ScrollTo((
+            LapceUICommand::ForceScrollTo(
                 editor.saved_scroll_offset.x,
                 editor.saved_scroll_offset.y,
-            )),
+            ),
             Target::Widget(editor.view_id),
         ));
+        self.notify_fill_text_layouts(ctx, &buffer_id);
         None
     }
 
@@ -1042,12 +1070,13 @@ impl EditorSplitState {
         let offset = buffer.offset_of_line(position.line as usize)
             + position.character as usize;
         editor.selection = Selection::caret(offset);
-        editor.ensure_cursor_visible(
-            ctx,
-            buffer,
-            env,
-            Some(EnsureVisiblePosition::CenterOfWindow),
-        );
+        // editor.ensure_cursor_visible(
+        //     ctx,
+        //     buffer,
+        //     env,
+        //     Some(EnsureVisiblePosition::CenterOfWindow),
+        // );
+        editor.window_portion(ctx, 0.75, buffer, env);
         editor.update_ui_state(ui_state, buffer);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         None
@@ -1073,12 +1102,13 @@ impl EditorSplitState {
             None,
             None,
         );
-        editor.ensure_cursor_visible(
-            ctx,
-            buffer,
-            env,
-            Some(EnsureVisiblePosition::CenterOfWindow),
-        );
+        editor.window_portion(ctx, 0.75, buffer, env);
+        // editor.ensure_cursor_visible(
+        //     ctx,
+        //     buffer,
+        //     env,
+        //     Some(EnsureVisiblePosition::CenterOfWindow),
+        // );
         editor.update_ui_state(ui_state, buffer);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         None
@@ -1290,19 +1320,35 @@ impl EditorSplitState {
         let buffer = self.buffers.get(buffer_id)?;
         let offset = editor.selection.get_cursor_offset();
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let widget_id = self.widget_id;
+        let tab_id = self.tab_id;
         state.clone().proxy.lock().as_ref().unwrap().get_references(
             buffer.id,
             buffer.offset_to_position(offset),
             Box::new(move |result| {
                 // println!("getting references result {:?}", result);
                 if let Ok(res) = result {
-                    println!(
-                        "get references {}",
-                        serde_json::to_string(&res).unwrap()
-                    );
-                } else {
-                    println!("get references {:?}", result);
-                };
+                    let resp: Result<Vec<Location>, serde_json::Error> =
+                        serde_json::from_value(res);
+                    if let Ok(locations) = resp {
+                        if locations.len() == 0 {
+                            return;
+                        }
+                        if locations.len() == 1 {
+                            LAPCE_APP_STATE.submit_ui_command(
+                                LapceUICommand::GotoLocation(
+                                    locations[0].to_owned(),
+                                ),
+                                widget_id,
+                            );
+                            return;
+                        }
+                        *state.focus.lock() = LapceFocus::Palette;
+                        state.palette.lock().run_references(locations);
+                        LAPCE_APP_STATE
+                            .submit_ui_command(LapceUICommand::RequestPaint, tab_id);
+                    }
+                }
             }),
         );
         None
@@ -1607,6 +1653,26 @@ impl EditorSplitState {
         editor.update_ui_state(ui_state, buffer);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         None
+    }
+
+    pub fn go_to_location(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut LapceUIState,
+        location: &Location,
+        env: &Env,
+    ) {
+        self.save_jump_location();
+        let path = location.uri.path().to_string();
+        let buffer = self.get_buffer_from_path(ctx, ui_state, &path);
+        let offset = buffer.offset_of_line(location.range.start.line as usize)
+            + location.range.start.character as usize;
+        let location = EditorLocation {
+            path,
+            offset,
+            scroll_offset: None,
+        };
+        self.jump_to_location(ctx, ui_state, &location, env);
     }
 
     pub fn go_to_definition(
@@ -2691,6 +2757,22 @@ impl EditorSplitState {
             let editor = self.editors.get(&self.active)?;
             editor.request_paint();
         }
+        None
+    }
+
+    pub fn window_portion(
+        &mut self,
+        ctx: &mut EventCtx,
+        portion: f64,
+        env: &Env,
+    ) -> Option<()> {
+        let editor = self.editors.get_mut(&self.active)?;
+        let buffer_id = editor.buffer_id.as_ref()?;
+        let buffer = self.buffers.get_mut(buffer_id)?;
+        editor.window_portion(ctx, portion, buffer, env);
+        let editor = self.editors.get(&self.active)?;
+        let buffer_id = editor.buffer_id.as_ref()?;
+        self.notify_fill_text_layouts(ctx, buffer_id);
         None
     }
 
@@ -3881,7 +3963,8 @@ impl Widget<LapceUIState> for Editor {
                                 ..buffer.offset_of_line(line + 1),
                         )
                         .to_string();
-                    if *focus == LapceFocus::Editor
+                    if (*focus == LapceFocus::Editor
+                        || *focus == LapceFocus::Palette)
                         && editor_split.active == self.view_id
                     {
                         let cursor_x =
