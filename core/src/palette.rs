@@ -1247,7 +1247,7 @@ impl Widget<LapceUIState> for PaletteContent {
                     &text_layout,
                     Point::new(
                         20.0,
-                        line as f64 * line_height + 5.0 - scroll_offset,
+                        line as f64 * line_height + 4.0 - scroll_offset,
                     ),
                 );
 
@@ -1278,8 +1278,8 @@ impl Widget<LapceUIState> for PaletteContent {
                     ctx.draw_text(
                         &text_layout,
                         Point::new(
-                            20.0 + text_x + 5.0,
-                            line as f64 * line_height + 6.0 - scroll_offset,
+                            20.0 + text_x + 4.0,
+                            line as f64 * line_height + 5.0 - scroll_offset,
                         ),
                     );
                 }
@@ -1315,7 +1315,7 @@ fn get_svg(name: &str) -> Option<(SvgData, usvg::Tree)> {
     Some((SvgData::from_str(&content).ok()?, usvg_tree))
 }
 
-fn file_svg(exten: &str) -> Option<(SvgData, usvg::Tree)> {
+pub fn file_svg(exten: &str) -> Option<(SvgData, usvg::Tree)> {
     get_svg(&format!("file_type_{}.svg", exten))
 }
 
@@ -1503,7 +1503,7 @@ fn filter_items(input: &str, items: Vec<PaletteItem>) -> Vec<PaletteItem> {
     items
 }
 
-fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {
+pub fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {
     match *svg_tree.root().borrow() {
         usvg::NodeKind::Svg(svg) => Size::new(svg.size.width(), svg.size.height()),
         _ => Size::ZERO,

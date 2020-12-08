@@ -8,7 +8,7 @@ use std::{path::PathBuf, process::Child, sync::Arc};
 use anyhow::{anyhow, Result};
 use druid::WidgetId;
 use druid::WindowId;
-use lapce_proxy::dispatch::NewBufferResponse;
+use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lsp_types::Position;
 use lsp_types::PublishDiagnosticsParams;
 use parking_lot::Mutex;
@@ -112,11 +112,37 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_references(
+        &self,
+        buffer_id: BufferId,
+        position: Position,
+        f: Box<dyn Callback>,
+    ) {
+        self.peer.send_rpc_request_async(
+            "get_references",
+            &json!({
+                "buffer_id": buffer_id,
+                "position": position,
+            }),
+            f,
+        );
+    }
+
     pub fn get_files(&self, f: Box<dyn Callback>) {
         self.peer.send_rpc_request_async(
             "get_files",
             &json!({
                 "path": "path",
+            }),
+            f,
+        );
+    }
+
+    pub fn read_dir(&self, path: &PathBuf, f: Box<dyn Callback>) {
+        self.peer.send_rpc_request_async(
+            "read_dir",
+            &json!({
+                "path": path,
             }),
             f,
         );
@@ -202,6 +228,9 @@ pub enum Notification {
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
     },
+    ListDir {
+        items: Vec<FileNodeItem>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -261,6 +290,18 @@ impl Handler for ProxyHandler {
                 LAPCE_APP_STATE.submit_ui_command(
                     LapceUICommand::UpdateLineChanges(buffer_id),
                     self.tab_id,
+                );
+            }
+            Notification::ListDir { mut items } => {
+                items.sort();
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut file_explorer = state.file_explorer.lock();
+                file_explorer.items = items;
+                file_explorer.update_count();
+                LAPCE_APP_STATE.submit_ui_command(
+                    LapceUICommand::RequestPaint,
+                    file_explorer.widget_id,
                 );
             }
             Notification::PublishDiagnostics { diagnostics } => {

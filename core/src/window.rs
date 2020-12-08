@@ -29,11 +29,20 @@ pub struct LapceTab {
 
 impl LapceTab {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> LapceTab {
+        let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+        let file_explorer_widget_id = {
+            let file_explorer = state.file_explorer.lock();
+            file_explorer.widget_id
+        };
         let container_id = WidgetId::next();
         let container = LapceContainer::new(window_id.clone(), tab_id.clone())
             .with_id(container_id.clone());
         let main_split = LapceSplit::new(window_id, tab_id, true)
-            .with_child(FileExplorer::new(window_id.clone(), tab_id.clone()), 300.0)
+            .with_child(
+                FileExplorer::new(window_id.clone(), tab_id.clone())
+                    .with_id(file_explorer_widget_id),
+                300.0,
+            )
             .with_flex_child(container, 1.0);
         let status = LapceStatus::new(window_id.clone(), tab_id.clone());
         LapceTab {
@@ -303,7 +312,7 @@ impl Widget<LapceUIState> for LapceWindow {
                                 index - 1
                             };
                             *active = self.tabs[new_index].id();
-                            ctx.request_paint();
+                            ctx.request_layout();
                         }
                         LapceUICommand::RequestLayout => {
                             ctx.request_layout();

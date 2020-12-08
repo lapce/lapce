@@ -109,6 +109,8 @@ pub enum LapceCommand {
     NewLineBelow,
     #[strum(serialize = "get_completion")]
     GetCompletion,
+    #[strum(serialize = "get_references")]
+    GetReferences,
     #[strum(serialize = "insert_new_line")]
     InsertNewLine,
     #[strum(serialize = "word_backward")]

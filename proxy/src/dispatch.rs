@@ -12,11 +12,11 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
-use std::fs;
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
+use std::{cmp, fs};
 use std::{collections::HashMap, io};
 use xi_rope::{RopeDelta, RopeInfo};
 use xi_rpc::RpcPeer;
@@ -63,6 +63,10 @@ pub enum Request {
         buffer_id: BufferId,
         position: Position,
     },
+    GetReferences {
+        buffer_id: BufferId,
+        position: Position,
+    },
     GetDefinition {
         request_id: usize,
         buffer_id: BufferId,
@@ -81,6 +85,9 @@ pub enum Request {
     GetFiles {
         path: String,
     },
+    ReadDir {
+        path: PathBuf,
+    },
     Save {
         rev: u64,
         buffer_id: BufferId,
@@ -90,6 +97,38 @@ pub enum Request {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewBufferResponse {
     pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Ord, Eq)]
+pub struct FileNodeItem {
+    pub path_buf: PathBuf,
+    pub is_dir: bool,
+    pub read: bool,
+    pub open: bool,
+    pub children: Vec<FileNodeItem>,
+}
+
+impl std::cmp::PartialOrd for FileNodeItem {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        let self_dir = self.is_dir;
+        let other_dir = other.is_dir;
+        if self_dir && !other_dir {
+            return Some(cmp::Ordering::Less);
+        }
+        if !self_dir && other_dir {
+            return Some(cmp::Ordering::Greater);
+        }
+
+        let self_file_name = self.path_buf.file_name()?.to_str()?.to_lowercase();
+        let other_file_name = other.path_buf.file_name()?.to_str()?.to_lowercase();
+        if self_file_name.starts_with(".") && !other_file_name.starts_with(".") {
+            return Some(cmp::Ordering::Less);
+        }
+        if !self_file_name.starts_with(".") && other_file_name.starts_with(".") {
+            return Some(cmp::Ordering::Greater);
+        }
+        self_file_name.partial_cmp(&other_file_name)
+    }
 }
 
 impl Dispatcher {
@@ -215,7 +254,28 @@ impl Dispatcher {
     fn handle_notification(&self, rpc: Notification) {
         match rpc {
             Notification::Initialize { workspace } => {
-                *self.workspace.lock() = workspace;
+                *self.workspace.lock() = workspace.clone();
+                let mut items = Vec::new();
+                if let Ok(entries) = fs::read_dir(&workspace) {
+                    for entry in entries {
+                        if let Ok(entry) = entry {
+                            let item = FileNodeItem {
+                                path_buf: entry.path(),
+                                is_dir: entry.path().is_dir(),
+                                open: false,
+                                read: false,
+                                children: Vec::new(),
+                            };
+                            items.push(item);
+                        }
+                    }
+                }
+                self.send_notification(
+                    "list_dir",
+                    json!({
+                        "items": items,
+                    }),
+                );
             }
             Notification::Update {
                 buffer_id,
@@ -262,6 +322,14 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_signature(id, buffer, position);
             }
+            Request::GetReferences {
+                buffer_id,
+                position,
+            } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_references(id, buffer, position);
+            }
             Request::GetDefinition {
                 buffer_id,
                 position,
@@ -290,6 +358,32 @@ impl Dispatcher {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_document_formatting(id, buffer);
+            }
+            Request::ReadDir { path } => {
+                let local_dispatcher = self.clone();
+                thread::spawn(move || {
+                    let result = fs::read_dir(path)
+                        .map(|entries| {
+                            let mut items = entries
+                                .into_iter()
+                                .filter_map(|entry| {
+                                    entry
+                                        .map(|e| FileNodeItem {
+                                            path_buf: e.path(),
+                                            is_dir: e.path().is_dir(),
+                                            open: false,
+                                            read: false,
+                                            children: Vec::new(),
+                                        })
+                                        .ok()
+                                })
+                                .collect::<Vec<FileNodeItem>>();
+                            items.sort();
+                            serde_json::to_value(items).unwrap()
+                        })
+                        .map_err(|e| anyhow!(e));
+                    local_dispatcher.respond(id, result);
+                });
             }
             Request::GetFiles { path } => {
                 eprintln!("get files");

@@ -202,6 +202,30 @@ impl LspCatalog {
         }
     }
 
+    pub fn get_references(
+        &self,
+        id: RequestId,
+        buffer: &Buffer,
+        position: Position,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            client.request_references(uri, position, move |lsp_client, result| {
+                let mut resp = json!({ "id": id });
+                match result {
+                    Ok(v) => resp["result"] = v,
+                    Err(e) => {
+                        resp["error"] = json!({
+                            "code": 0,
+                            "message": format!("{}",e),
+                        })
+                    }
+                }
+                lsp_client.dispatcher.sender.send(resp);
+            });
+        }
+    }
+
     pub fn get_code_actions(
         &self,
         id: RequestId,
@@ -620,6 +644,29 @@ impl LspClient {
         };
         let params = Params::from(serde_json::to_value(params).unwrap());
         self.send_request("textDocument/codeAction", params, Box::new(cb));
+    }
+
+    pub fn request_references<CB>(
+        &self,
+        document_uri: Url,
+        position: Position,
+        cb: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = ReferenceParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: document_uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+        };
+        let params = Params::from(serde_json::to_value(params).unwrap());
+        self.send_request("textDocument/references", params, Box::new(cb));
     }
 
     pub fn request_definition<CB>(

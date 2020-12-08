@@ -1,4 +1,3 @@
-use crate::buffer::get_word_property;
 use crate::buffer::matching_char;
 use crate::buffer::matching_pair_direction;
 use crate::buffer::next_has_unmatched_pair;
@@ -6,6 +5,7 @@ use crate::buffer::previous_has_unmatched_pair;
 use crate::buffer::WordProperty;
 use crate::completion::CompletionState;
 use crate::signature::SignatureState;
+use crate::{buffer::get_word_property, state::LapceFocus};
 use crate::{
     buffer::{Buffer, BufferId, BufferUIState, InvalLines},
     command::EnsureVisiblePosition,
@@ -1284,6 +1284,30 @@ impl EditorSplitState {
         None
     }
 
+    pub fn get_references(&self) -> Option<()> {
+        let editor = self.editors.get(&self.active)?;
+        let buffer_id = editor.buffer_id.as_ref()?;
+        let buffer = self.buffers.get(buffer_id)?;
+        let offset = editor.selection.get_cursor_offset();
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        state.clone().proxy.lock().as_ref().unwrap().get_references(
+            buffer.id,
+            buffer.offset_to_position(offset),
+            Box::new(move |result| {
+                // println!("getting references result {:?}", result);
+                if let Ok(res) = result {
+                    println!(
+                        "get references {}",
+                        serde_json::to_string(&res).unwrap()
+                    );
+                } else {
+                    println!("get references {:?}", result);
+                };
+            }),
+        );
+        None
+    }
+
     pub fn update_completion(&mut self, ctx: &mut EventCtx) -> Option<()> {
         let editor = self.editors.get(&self.active)?;
         let buffer_id = editor.buffer_id.clone()?;
@@ -2329,6 +2353,9 @@ impl EditorSplitState {
                 let offset = editor.selection.get_cursor_offset();
                 self.update_completion(ctx);
             }
+            LapceCommand::GetReferences => {
+                self.get_references();
+            }
             LapceCommand::GotoDefinition => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer = self.buffers.get_mut(editor.buffer_id.as_ref()?)?;
@@ -2337,6 +2364,8 @@ impl EditorSplitState {
                     LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
                 let window_id = self.window_id;
                 let tab_id = self.tab_id;
+                let prev_offset = buffer.prev_code_boundary(offset);
+                let prev_position = buffer.offset_to_position(prev_offset);
                 state.proxy.lock().as_ref().unwrap().get_definition(
                     offset,
                     buffer.id,
@@ -2372,10 +2401,14 @@ impl EditorSplitState {
                                         None
                                     }
                                 } {
-                                    LAPCE_APP_STATE.submit_ui_command(
-                                        LapceUICommand::GotoLocation(location),
-                                        editor_split.widget_id,
-                                    );
+                                    if location.range.start == prev_position {
+                                        editor_split.get_references();
+                                    } else {
+                                        LAPCE_APP_STATE.submit_ui_command(
+                                            LapceUICommand::GotoLocation(location),
+                                            editor_split.widget_id,
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -3760,6 +3793,7 @@ impl Widget<LapceUIState> for Editor {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let focus = state.focus.lock();
         let editor_split = state.editor_split.lock();
         let buffer_id = editor_split.get_buffer_id(&self.view_id);
         if buffer_id.is_none() {
@@ -3847,7 +3881,9 @@ impl Widget<LapceUIState> for Editor {
                                 ..buffer.offset_of_line(line + 1),
                         )
                         .to_string();
-                    if editor_split.active == self.view_id {
+                    if *focus == LapceFocus::Editor
+                        && editor_split.active == self.view_id
+                    {
                         let cursor_x =
                             (line_content[..cursor.1]
                                 .chars()
