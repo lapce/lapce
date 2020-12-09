@@ -118,6 +118,17 @@ impl Selection {
         }
     }
 
+    pub fn last(&self) -> Option<&SelRegion> {
+        if self.len() == 0 {
+            return None;
+        }
+        Some(&self.regions[self.len() - 1])
+    }
+
+    pub fn len(&self) -> usize {
+        self.regions.len()
+    }
+
     pub fn min_offset(&self) -> usize {
         let mut offset = self.regions()[0].min();
         for region in &self.regions {
@@ -245,6 +256,28 @@ impl Selection {
         &self.regions[first..last]
     }
 
+    pub fn search_min(&self, offset: usize) -> usize {
+        if self.regions.is_empty() || offset > self.regions.last().unwrap().max() {
+            return self.regions.len();
+        }
+        match self
+            .regions
+            .binary_search_by(|r| r.min().cmp(&(offset + 1)))
+        {
+            Ok(ix) => ix,
+            Err(ix) => ix,
+        }
+    }
+
+    pub fn full_regions_in_range(&self, start: usize, end: usize) -> &[SelRegion] {
+        let first = self.search_min(start);
+        let mut last = self.search_min(end);
+        if last < self.regions.len() && self.regions[last].min() <= end {
+            last += 1;
+        }
+        &self.regions[first..last]
+    }
+
     pub fn apply_delta(
         &self,
         delta: &RopeDelta,
@@ -292,6 +325,7 @@ pub enum Movement {
     StartOfLine,
     EndOfLine,
     Line(LinePosition),
+    Offset(usize),
     WordEndForward,
     WordForward,
     WordBackward,
@@ -318,6 +352,7 @@ impl Movement {
     pub fn is_jump(&self) -> bool {
         match self {
             Movement::Line(_) => true,
+            Movement::Offset(_) => true,
             _ => false,
         }
     }
@@ -454,6 +489,11 @@ impl Movement {
                 let col = buffer.line_horiz_col(line, &horiz, include_newline);
                 let new_end = buffer.offset_of_line(line) + col;
                 (new_end, horiz)
+            }
+            Movement::Offset(offset) => {
+                let new_end = *offset;
+                let (_, col) = buffer.offset_to_line_col(new_end);
+                (new_end, ColPosition::Col(col))
             }
             Movement::WordForward => {
                 let mut new_end = region.end;

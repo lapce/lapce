@@ -155,6 +155,11 @@ impl LspCatalog {
             client.request_document_formatting(uri, move |lsp_client, result| {
                 lsp_client.dispatcher.respond(id, result);
             });
+        } else {
+            self.dispatcher
+                .as_ref()
+                .unwrap()
+                .respond(id, Err(anyhow!("no document formatting")));
         }
     }
 

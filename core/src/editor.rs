@@ -4,6 +4,7 @@ use crate::buffer::next_has_unmatched_pair;
 use crate::buffer::previous_has_unmatched_pair;
 use crate::buffer::WordProperty;
 use crate::completion::CompletionState;
+use crate::find::Find;
 use crate::signature::SignatureState;
 use crate::{buffer::get_word_property, state::LapceFocus};
 use crate::{
@@ -273,7 +274,7 @@ impl EditorState {
         };
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::ScrollTo((0.0, y)),
+            LapceUICommand::ForceScrollTo(0.0, y),
             Target::Widget(self.view_id),
         ));
     }
@@ -306,6 +307,44 @@ impl EditorState {
             scroll_offset: Some(self.scroll_offset),
         });
         self.current_location = self.locations.len();
+    }
+
+    pub fn do_move(
+        &mut self,
+        ctx: &mut EventCtx,
+        ui_state: &mut BufferUIState,
+        mode: Mode,
+        buffer: &mut Buffer,
+        movement: &Movement,
+        operator: Option<EditorOperator>,
+        env: &Env,
+        count: Option<usize>,
+    ) {
+        if movement.is_jump() {
+            self.save_jump_location(buffer);
+        }
+        self.selection = buffer.do_move(
+            ctx,
+            ui_state,
+            &mode,
+            &movement,
+            &self.selection,
+            operator,
+            count,
+        );
+        if mode != Mode::Insert {
+            self.selection = buffer.correct_offset(&self.selection);
+        }
+        if movement.is_jump() {
+            self.ensure_cursor_visible(
+                ctx,
+                buffer,
+                env,
+                Some(EnsureVisiblePosition::CenterOfWindow),
+            );
+        } else {
+            self.ensure_cursor_visible(ctx, buffer, env, None);
+        }
     }
 
     fn move_command(
@@ -361,31 +400,9 @@ impl EditorState {
     ) {
         let count = self.get_count(count, operator);
         if let Some(movement) = self.move_command(count, &cmd) {
-            if movement.is_jump() {
-                self.save_jump_location(buffer);
-            }
-            self.selection = buffer.do_move(
-                ctx,
-                ui_state,
-                &mode,
-                &movement,
-                &self.selection,
-                operator,
-                count,
+            self.do_move(
+                ctx, ui_state, mode, buffer, &movement, operator, env, count,
             );
-            if mode != Mode::Insert {
-                self.selection = buffer.correct_offset(&self.selection);
-            }
-            if movement.is_jump() {
-                self.ensure_cursor_visible(
-                    ctx,
-                    buffer,
-                    env,
-                    Some(EnsureVisiblePosition::CenterOfWindow),
-                );
-            } else {
-                self.ensure_cursor_visible(ctx, buffer, env, None);
-            }
             return;
         }
 
@@ -786,7 +803,6 @@ pub struct RegisterContent {
     content: Vec<String>,
 }
 
-#[derive(Clone)]
 pub struct EditorSplitState {
     window_id: WindowId,
     tab_id: WidgetId,
@@ -800,6 +816,7 @@ pub struct EditorSplitState {
     operator: Option<EditorOperator>,
     register: HashMap<String, RegisterContent>,
     inserting: bool,
+    find: Find,
     pub completion: CompletionState,
     pub signature: SignatureState,
     pub diagnostics: HashMap<String, Vec<Diagnostic>>,
@@ -843,6 +860,7 @@ impl EditorSplitState {
             operator: None,
             register: HashMap::new(),
             inserting: false,
+            find: Find::new(0),
             completion: CompletionState::new(),
             signature: SignatureState::new(),
             diagnostics: HashMap::new(),
@@ -1062,6 +1080,7 @@ impl EditorSplitState {
         ctx: &mut EventCtx,
         ui_state: &mut LapceUIState,
         position: &Position,
+        portion: f64,
         env: &Env,
     ) -> Option<()> {
         let editor = self.editors.get_mut(&self.active)?;
@@ -1076,7 +1095,7 @@ impl EditorSplitState {
         //     env,
         //     Some(EnsureVisiblePosition::CenterOfWindow),
         // );
-        editor.window_portion(ctx, 0.75, buffer, env);
+        editor.window_portion(ctx, portion, buffer, env);
         editor.update_ui_state(ui_state, buffer);
         self.notify_fill_text_layouts(ctx, &buffer_id);
         None
@@ -2225,6 +2244,76 @@ impl EditorSplitState {
                 editor.ensure_cursor_visible(ctx, buffer, env, None);
                 if self.mode == Mode::Insert {
                     self.inserting = true;
+                }
+            }
+            LapceCommand::SearchWholeWordForward => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer_id = editor.buffer_id.as_ref()?;
+                let buffer = self.buffers.get_mut(buffer_id)?;
+                let buffer_ui_state = ui_state.get_buffer_mut(buffer_id);
+                let offset = editor.selection.get_cursor_offset();
+                let (start, end) = buffer.select_word(offset);
+                let word = buffer.slice_to_cow(start..end).to_string();
+                println!("current word is {}", word);
+                self.find.set_find(&word, false, false, true);
+                let next = self.find.next(&buffer.rope, offset, false, true);
+                if let Some((start, end)) = next {
+                    editor.do_move(
+                        ctx,
+                        buffer_ui_state,
+                        self.mode.clone(),
+                        buffer,
+                        &Movement::Offset(start),
+                        None,
+                        env,
+                        None,
+                    );
+                }
+            }
+            LapceCommand::SearchForward => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer_id = editor.buffer_id.as_ref()?;
+                let buffer = self.buffers.get_mut(buffer_id)?;
+                let buffer_ui_state = ui_state.get_buffer_mut(buffer_id);
+                if let Some((start, end)) = self.find.next(
+                    &buffer.rope,
+                    editor.selection.get_cursor_offset(),
+                    false,
+                    true,
+                ) {
+                    editor.do_move(
+                        ctx,
+                        buffer_ui_state,
+                        self.mode.clone(),
+                        buffer,
+                        &Movement::Offset(start),
+                        None,
+                        env,
+                        None,
+                    );
+                }
+            }
+            LapceCommand::SearchBackward => {
+                let editor = self.editors.get_mut(&self.active)?;
+                let buffer_id = editor.buffer_id.as_ref()?;
+                let buffer = self.buffers.get_mut(buffer_id)?;
+                let buffer_ui_state = ui_state.get_buffer_mut(buffer_id);
+                if let Some((start, end)) = self.find.next(
+                    &buffer.rope,
+                    editor.selection.get_cursor_offset(),
+                    true,
+                    true,
+                ) {
+                    editor.do_move(
+                        ctx,
+                        buffer_ui_state,
+                        self.mode.clone(),
+                        buffer,
+                        &Movement::Offset(start),
+                        None,
+                        env,
+                        None,
+                    );
                 }
             }
             LapceCommand::DeleteForewardAndInsert => {

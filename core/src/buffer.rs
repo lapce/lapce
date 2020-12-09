@@ -44,6 +44,7 @@ use crate::{
     command::LAPCE_UI_COMMAND,
     editor::EditorOperator,
     editor::HighlightTextLayout,
+    find::Find,
     language,
     movement::{ColPosition, Movement, SelRegion, Selection},
     plugin::PluginBufferInfo,
@@ -76,7 +77,6 @@ pub struct BufferUIState {
     pub dirty: bool,
 }
 
-#[derive(Clone)]
 pub struct Buffer {
     window_id: WindowId,
     tab_id: WidgetId,
@@ -826,6 +826,10 @@ impl Buffer {
         WordCursor::new(&self.rope, offset).next_code_boundary()
     }
 
+    pub fn select_word(&self, offset: usize) -> (usize, usize) {
+        WordCursor::new(&self.rope, offset).select_word()
+    }
+
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
     }
@@ -1073,9 +1077,17 @@ impl<'a> WordCursor<'a> {
         None
     }
 
+    pub fn select_word(&mut self) -> (usize, usize) {
+        let initial = self.inner.pos();
+        let end = self.next_code_boundary();
+        self.inner.set(initial);
+        let start = self.prev_code_boundary();
+        (start, end)
+    }
+
     /// Return the selection for the word containing the current cursor. The
     /// cursor is moved to the end of that selection.
-    pub fn select_word(&mut self) -> (usize, usize) {
+    pub fn select_word_old(&mut self) -> (usize, usize) {
         let initial = self.inner.pos();
         let init_prop_after = self.inner.next_codepoint().map(get_word_property);
         self.inner.set(initial);
@@ -1186,14 +1198,14 @@ fn classify_boundary_initial(
     use self::WordBoundary::*;
     use self::WordProperty::*;
     match (prev, next) {
-        (Lf, Other) => Start,
-        (Other, Lf) => End,
-        (Lf, Space) => Interior,
-        (Lf, Punctuation) => Interior,
-        (Space, Lf) => Interior,
-        (Punctuation, Lf) => Interior,
-        (Space, Punctuation) => Interior,
-        (Punctuation, Space) => Interior,
+        // (Lf, Other) => Start,
+        // (Other, Lf) => End,
+        // (Lf, Space) => Interior,
+        // (Lf, Punctuation) => Interior,
+        // (Space, Lf) => Interior,
+        // (Punctuation, Lf) => Interior,
+        // (Space, Punctuation) => Interior,
+        // (Punctuation, Space) => Interior,
         _ => classify_boundary(prev, next),
     }
 }

@@ -1518,6 +1518,7 @@ impl PaletteItem {
                         ctx,
                         ui_state,
                         self.position.as_ref().unwrap(),
+                        0.75,
                         env,
                     );
             }

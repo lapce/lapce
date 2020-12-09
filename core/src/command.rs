@@ -171,6 +171,12 @@ pub enum LapceCommand {
     OpenFolder,
     #[strum(serialize = "join_lines")]
     JoinLines,
+    #[strum(serialize = "search_whole_word_forward")]
+    SearchWholeWordForward,
+    #[strum(serialize = "search_forward")]
+    SearchForward,
+    #[strum(serialize = "search_backward")]
+    SearchBackward,
     Insert(String),
 }
 
