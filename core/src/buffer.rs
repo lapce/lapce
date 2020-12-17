@@ -676,6 +676,8 @@ impl Buffer {
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
         self.rope.line_of_offset(offset)
     }
 
@@ -684,10 +686,14 @@ impl Buffer {
     }
 
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
         LogicalLines.offset_to_line_col(&self.rope, offset)
     }
 
     pub fn offset_to_position(&self, offset: usize) -> Position {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
         let (line, col) = LogicalLines.offset_to_line_col(&self.rope, offset);
         Position {
             line: line as u64,

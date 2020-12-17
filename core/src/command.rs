@@ -135,6 +135,8 @@ pub enum LapceCommand {
     Yank,
     #[strum(serialize = "paste")]
     Paste,
+    #[strum(serialize = "clipboard_paste")]
+    ClipboardPaste,
     #[strum(serialize = "undo")]
     Undo,
     #[strum(serialize = "redo")]

@@ -32,7 +32,6 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
-use druid::FileDialogOptions;
 use druid::{
     kurbo::Line, piet::PietText, theme, widget::IdentityWrapper, widget::Padding,
     widget::SvgData, Affine, BoxConstraints, Color, Command, Data, Env, Event,
@@ -44,6 +43,7 @@ use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
     FontWeight,
 };
+use druid::{Application, FileDialogOptions};
 use fzyr::{has_match, locate};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
@@ -104,6 +104,7 @@ pub struct EditorState {
     pub saved_buffer_id: BufferId,
     pub saved_selection: Selection,
     pub saved_scroll_offset: Vec2,
+    last_movement: Movement,
 }
 
 #[derive(Clone, Debug)]
@@ -138,6 +139,7 @@ impl EditorState {
             current_location: 0,
             saved_buffer_id: BufferId(0),
             saved_selection: Selection::new_simple(),
+            last_movement: Movement::Left,
             saved_scroll_offset: Vec2::ZERO,
         }
     }
@@ -320,9 +322,10 @@ impl EditorState {
         env: &Env,
         count: Option<usize>,
     ) {
-        if movement.is_jump() {
+        if movement.is_jump() && movement != &self.last_movement {
             self.save_jump_location(buffer);
         }
+        self.last_movement = movement.clone();
         self.selection = buffer.do_move(
             ctx,
             ui_state,
@@ -2361,6 +2364,33 @@ impl EditorSplitState {
             LapceCommand::DeleteOperator => {
                 self.operator = Some(EditorOperator::Delete(EditorCount(count)));
             }
+            LapceCommand::ClipboardPaste => {
+                if let Some(s) = Application::global().clipboard().get_string() {
+                    let editor = self.editors.get_mut(&self.active)?;
+                    let buffer_id = editor.buffer_id.as_ref()?;
+                    let buffer = self.buffers.get_mut(buffer_id)?;
+                    let buffer_ui_state = ui_state.get_buffer_mut(buffer_id);
+                    let mut selection = match &self.mode {
+                        Mode::Visual => editor.get_selection(
+                            buffer,
+                            &self.mode,
+                            &self.visual_mode,
+                            false,
+                        ),
+                        Mode::Normal => Selection::caret(
+                            editor.selection.get_cursor_offset() + 1,
+                        ),
+                        Mode::Insert => editor.selection.clone(),
+                    };
+                    let delta =
+                        buffer.edit(ctx, buffer_ui_state, &s, &selection, true);
+                    selection =
+                        selection.apply_delta(&delta, true, InsertDrift::Default);
+                    editor.selection =
+                        Selection::caret(selection.get_cursor_offset() - 1);
+                    self.mode = Mode::Normal;
+                }
+            }
             LapceCommand::Paste => {
                 let editor = self.editors.get_mut(&self.active)?;
                 let buffer_id = editor.buffer_id.as_ref()?;
@@ -2526,47 +2556,53 @@ impl EditorSplitState {
                     buffer.id,
                     buffer.offset_to_position(offset),
                     Box::new(move |result| {
-                        let state =
-                            LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-                        let editor_split = state.editor_split.lock();
-                        let editor =
-                            editor_split.editors.get(&editor_split.active).unwrap();
-                        if offset != editor.selection.get_cursor_offset() {
-                            println!("not the previous offset ,quit");
-                            return;
-                        }
-                        if let Ok(value) = result {
-                            let resp: Result<
-                                GotoDefinitionResponse,
-                                serde_json::Error,
-                            > = serde_json::from_value(value);
-                            if let Ok(resp) = resp {
-                                if let Some(location) = match resp {
-                                    GotoDefinitionResponse::Scalar(location) => {
-                                        Some(location)
-                                    }
-                                    GotoDefinitionResponse::Array(locations) => {
-                                        if locations.len() > 0 {
-                                            Some(locations[0].clone())
-                                        } else {
-                                            None
+                        thread::spawn(move || {
+                            let state =
+                                LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+                            let editor_split = state.editor_split.lock();
+                            let editor = editor_split
+                                .editors
+                                .get(&editor_split.active)
+                                .unwrap();
+                            if offset != editor.selection.get_cursor_offset() {
+                                println!("not the previous offset ,quit");
+                                return;
+                            }
+                            if let Ok(value) = result {
+                                let resp: Result<
+                                    GotoDefinitionResponse,
+                                    serde_json::Error,
+                                > = serde_json::from_value(value);
+                                if let Ok(resp) = resp {
+                                    if let Some(location) = match resp {
+                                        GotoDefinitionResponse::Scalar(location) => {
+                                            Some(location)
                                         }
-                                    }
-                                    GotoDefinitionResponse::Link(location_links) => {
-                                        None
-                                    }
-                                } {
-                                    if location.range.start == prev_position {
-                                        editor_split.get_references();
-                                    } else {
-                                        LAPCE_APP_STATE.submit_ui_command(
-                                            LapceUICommand::GotoLocation(location),
-                                            editor_split.widget_id,
-                                        );
+                                        GotoDefinitionResponse::Array(locations) => {
+                                            if locations.len() > 0 {
+                                                Some(locations[0].clone())
+                                            } else {
+                                                None
+                                            }
+                                        }
+                                        GotoDefinitionResponse::Link(
+                                            location_links,
+                                        ) => None,
+                                    } {
+                                        if location.range.start == prev_position {
+                                            editor_split.get_references();
+                                        } else {
+                                            LAPCE_APP_STATE.submit_ui_command(
+                                                LapceUICommand::GotoLocation(
+                                                    location,
+                                                ),
+                                                editor_split.widget_id,
+                                            );
+                                        }
                                     }
                                 }
                             }
-                        }
+                        });
                     }),
                 );
                 // LAPCE_APP_STATE
@@ -3530,11 +3566,17 @@ impl Widget<LapceUIState> for EditorGutter {
 
         let buffer = editor_split.buffers.get(buffer_id.unwrap()).unwrap();
         let last_line = buffer.last_line();
+        let max_offset = buffer.len() - 1;
         let rects = ctx.region().rects().to_vec();
         let active = editor_split.active;
         let editor = editor_split.editors.get(&self.view_id).unwrap();
-        let (current_line, _) =
-            buffer.offset_to_line_col(editor.selection.get_cursor_offset());
+        let offset = editor.selection.get_cursor_offset();
+        let offset = if offset > max_offset {
+            max_offset
+        } else {
+            offset
+        };
+        let (current_line, _) = buffer.offset_to_line_col(offset);
         for rect in rects {
             let start_line = (rect.y0 / line_height).floor() as usize;
             let num_lines = (rect.height() / line_height).floor() as usize;

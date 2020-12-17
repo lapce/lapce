@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 lapce-rpc = { path = "../rpc" }
+xi-core-lib = { path = "../../xi-editor/rust/core-lib/" }
 xi-rpc = { path = "../../xi-editor/rust/rpc/" }
 xi-rope = { path = "../../xi-editor/rust/rope/", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }

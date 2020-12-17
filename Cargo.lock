@@ -406,7 +406,7 @@ dependencies = [
  "block",
  "cocoa-foundation",
  "core-foundation 0.9.1",
- "core-graphics 0.22.1",
+ "core-graphics 0.22.2",
  "foreign-types",
  "libc",
  "objc",
@@ -506,9 +506,9 @@ dependencies = [
 
 [[package]]
 name = "core-graphics"
-version = "0.22.1"
+version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc239bba52bab96649441699533a68de294a101533b0270b2d65aa402b29a7f9"
+checksum = "269f35f69b542b80e736a20a89a05215c0ce80c2c03c514abb2e318b78379d86"
 dependencies = [
  "bitflags",
  "core-foundation 0.9.1",
@@ -548,7 +548,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2c7f46e8b820fd5f4b28528104b28b0a91cbe9e9c5bde8017087fb44bc93a60"
 dependencies = [
  "core-foundation 0.9.1",
- "core-graphics 0.22.1",
+ "core-graphics 0.22.2",
  "foreign-types",
  "libc",
 ]
@@ -747,7 +747,7 @@ dependencies = [
  "cairo-rs",
  "cfg-if 0.1.10",
  "cocoa",
- "core-graphics 0.22.1",
+ "core-graphics 0.22.2",
  "foreign-types",
  "gdk",
  "gdk-pixbuf",
@@ -1630,27 +1630,10 @@ dependencies = [
 name = "lapce"
 version = "0.0.1"
 dependencies = [
- "anyhow",
  "cc",
  "druid",
- "fzyr",
- "include_dir",
  "lapce-core",
- "lazy_static 1.4.0",
- "lsp-types 0.61.0",
  "parking_lot 0.11.0",
- "serde",
- "serde_json",
- "strum 0.19.2",
- "strum_macros 0.19.2",
- "syntect",
- "toml",
- "tree-sitter",
- "tree-sitter-highlight",
- "uuid 0.7.4",
- "xi-core-lib",
- "xi-rope",
- "xi-rpc",
 ]
 
 [[package]]
@@ -1667,7 +1650,7 @@ dependencies = [
  "jsonrpc-lite",
  "lapce-proxy",
  "lazy_static 1.4.0",
- "lsp-types 0.82.0",
+ "lsp-types",
  "openssh",
  "parking_lot 0.11.0",
  "regex",
@@ -1713,11 +1696,12 @@ dependencies = [
  "home",
  "jsonrpc-lite",
  "lapce-rpc",
- "lsp-types 0.82.0",
+ "lsp-types",
  "parking_lot 0.11.0",
  "serde",
  "serde_json",
  "toml",
+ "xi-core-lib",
  "xi-rope",
  "xi-rpc",
 ]
@@ -1848,19 +1832,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fabed175da42fed1fa0746b0ea71f412aa9d35e76e95e59b192c64b9dc2bf8b"
 dependencies = [
  "cfg-if 0.1.10",
-]
-
-[[package]]
-name = "lsp-types"
-version = "0.61.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa3268fbe8beb2795c2fb327bf44f4f3d24f5fe9ebc18d7e2980afd444d72bcf"
-dependencies = [
- "bitflags",
- "serde",
- "serde_json",
- "serde_repr",
- "url 2.1.1",
 ]
 
 [[package]]
@@ -2380,7 +2351,7 @@ dependencies = [
  "cairo-rs",
  "cairo-sys-rs",
  "cfg-if 1.0.0",
- "core-graphics 0.22.1",
+ "core-graphics 0.22.2",
  "piet",
  "piet-cairo",
  "piet-coregraphics",
@@ -2396,7 +2367,7 @@ version = "0.2.0-pre6"
 dependencies = [
  "core-foundation 0.9.1",
  "core-foundation-sys 0.8.1",
- "core-graphics 0.22.1",
+ "core-graphics 0.22.2",
  "core-text 19.1.0",
  "foreign-types",
  "piet",

@@ -311,12 +311,14 @@ impl Selection {
     }
 }
 
+#[derive(Clone)]
 pub enum LinePosition {
     First,
     Last,
     Line(usize),
 }
 
+#[derive(Clone)]
 pub enum Movement {
     Left,
     Right,
@@ -332,6 +334,12 @@ pub enum Movement {
     NextUnmatched(char),
     PreviousUnmatched(char),
     MatchPairs,
+}
+
+impl PartialEq for Movement {
+    fn eq(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
 }
 
 impl Movement {

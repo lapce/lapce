@@ -18,7 +18,7 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, TextLayout, UpdateCtx,
     Widget, WidgetId, WidgetPod, WindowId,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 pub struct LapceTab {
     window_id: WindowId,
@@ -146,6 +146,7 @@ impl Widget<LapceUIState> for LapceTab {
     ) -> druid::Size {
         let self_size = bc.max();
         let status_size = self.status.layout(ctx, bc, data, env);
+
         let main_split_size =
             Size::new(self_size.width, self_size.height - status_size.height);
         let main_split_bc = BoxConstraints::new(Size::ZERO, main_split_size);

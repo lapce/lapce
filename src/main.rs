@@ -7,8 +7,8 @@ use lapce_core::{container::LapceContainer, state::hex_to_color};
 use lapce_core::{editor::Editor, window::LapceTab, window::LapceWindow};
 
 use druid::{
-    piet::Color, theme, FontDescriptor, FontFamily, FontWeight, Key, Size, Target,
-    WidgetId,
+    piet::Color, theme, FontDescriptor, FontFamily, FontWeight, Key, MenuDesc, Size,
+    Target, WidgetId,
 };
 use druid::{
     widget::IdentityWrapper,
@@ -22,11 +22,11 @@ use lapce_core::ssh::SshSession;
 use lapce_core::state::{
     LapceTabState, LapceUIState, LapceWindowState, LAPCE_APP_STATE,
 };
-use tree_sitter::{Language, Parser};
+// use tree_sitter::{Language, Parser};
 
-extern "C" {
-    fn tree_sitter_rust() -> Language;
-}
+// extern "C" {
+//     fn tree_sitter_rust() -> Language;
+// }
 
 struct Delegate {
     windows: Vec<WindowId>,
@@ -143,6 +143,7 @@ pub fn main() {
         .insert(window_id.clone(), window_state);
     let mut window = WindowDesc::new(move || build_app(window_id.clone()))
         .title(LocalizedString::new("lapce").with_placeholder("Lapce"))
+        .menu(MenuDesc::empty())
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
     window.id = window_id;

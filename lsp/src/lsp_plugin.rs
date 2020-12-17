@@ -61,8 +61,10 @@ impl Plugin for LspPlugin {
             "rust-analyzer-mac",
             "rust",
             Some(json!({
-                "diagnostics.enable": false,
-                "diagnostics.enableExperimental": false,
+                "diagnostics": {
+                   "enable": false,
+                   "enableExperimental": false,
+                },
             })),
         );
     }

@@ -18,9 +18,12 @@ use std::sync::Arc;
 use std::thread;
 use std::{cmp, fs};
 use std::{collections::HashMap, io};
+use xi_core_lib::watcher::{FileWatcher, Notify, WatchToken};
 use xi_rope::{RopeDelta, RopeInfo};
 use xi_rpc::RpcPeer;
 use xi_rpc::{Handler, RpcCtx};
+
+pub const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(2);
 
 #[derive(Clone)]
 pub struct Dispatcher {
@@ -30,6 +33,24 @@ pub struct Dispatcher {
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
+    pub watcher: Arc<Mutex<Option<FileWatcher>>>,
+}
+
+impl Notify for Dispatcher {
+    fn notify(&self) {
+        let dispatcher = self.clone();
+        thread::spawn(move || {
+            for (token, event) in
+                { dispatcher.watcher.lock().as_mut().unwrap().take_events() }
+                    .drain(..)
+            {
+                match token {
+                    OPEN_FILE_EVENT_TOKEN => {}
+                    _ => (),
+                }
+            }
+        });
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,7 +163,9 @@ impl Dispatcher {
             buffers: Arc::new(Mutex::new(HashMap::new())),
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
+            watcher: Arc::new(Mutex::new(None)),
         };
+        *dispatcher.watcher.lock() = Some(FileWatcher::new(dispatcher.clone()));
         dispatcher.lsp.lock().dispatcher = Some(dispatcher.clone());
         dispatcher.plugins.lock().reload();
         dispatcher.plugins.lock().start_all(dispatcher.clone());
@@ -270,6 +293,11 @@ impl Dispatcher {
                         }
                     }
                 }
+                self.watcher.lock().as_mut().unwrap().watch(
+                    workspace.as_path(),
+                    true,
+                    OPEN_FILE_EVENT_TOKEN,
+                );
                 self.send_notification(
                     "list_dir",
                     json!({
@@ -429,6 +457,11 @@ impl Dispatcher {
             }
         }
     }
+}
+
+fn get_git_changes(workspace_path: &PathBuf) -> Option<()> {
+    let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    None
 }
 
 #[derive(Clone, Debug)]

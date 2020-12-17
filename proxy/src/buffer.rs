@@ -1,11 +1,11 @@
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use std::borrow::Cow;
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
+use std::{borrow::Cow, path::Path, time::SystemTime};
 use std::{fs, str::FromStr};
 
 use lsp_types::*;
@@ -25,6 +25,7 @@ pub struct Buffer {
     pub path: PathBuf,
     pub rev: u64,
     sender: Sender<(BufferId, u64)>,
+    pub mod_time: Option<SystemTime>,
 }
 
 impl Buffer {
@@ -39,6 +40,7 @@ impl Buffer {
             Rope::from("")
         };
         let language_id = language_id_from_path(&path).unwrap_or("").to_string();
+        let mod_time = get_mod_time(&path);
         Buffer {
             id,
             rope,
@@ -46,6 +48,7 @@ impl Buffer {
             language_id,
             rev: 0,
             sender,
+            mod_time,
         }
     }
 
@@ -183,4 +186,13 @@ fn get_document_content_changes(
     }
 
     None
+}
+
+/// Returns the modification timestamp for the file at a given path,
+/// if present.
+fn get_mod_time<P: AsRef<Path>>(path: P) -> Option<SystemTime> {
+    File::open(path)
+        .and_then(|f| f.metadata())
+        .and_then(|meta| meta.modified())
+        .ok()
 }
