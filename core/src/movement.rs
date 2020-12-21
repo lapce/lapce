@@ -485,8 +485,9 @@ impl Movement {
             Movement::Line(position) => {
                 let line = match position {
                     LinePosition::Line(line) => {
+                        let line = line - 1;
                         let last_line = buffer.last_line();
-                        match *line {
+                        match line {
                             n if n > last_line => last_line,
                             n => n,
                         }

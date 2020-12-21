@@ -3566,16 +3566,10 @@ impl Widget<LapceUIState> for EditorGutter {
 
         let buffer = editor_split.buffers.get(buffer_id.unwrap()).unwrap();
         let last_line = buffer.last_line();
-        let max_offset = buffer.len() - 1;
         let rects = ctx.region().rects().to_vec();
         let active = editor_split.active;
         let editor = editor_split.editors.get(&self.view_id).unwrap();
         let offset = editor.selection.get_cursor_offset();
-        let offset = if offset > max_offset {
-            max_offset
-        } else {
-            offset
-        };
         let (current_line, _) = buffer.offset_to_line_col(offset);
         for rect in rects {
             let start_line = (rect.y0 / line_height).floor() as usize;
@@ -3585,18 +3579,18 @@ impl Widget<LapceUIState> for EditorGutter {
                     break;
                 }
                 let content = if active != self.view_id {
-                    line
+                    line + 1
                 } else {
                     if line == current_line {
-                        line
+                        line + 1
                     } else if line > current_line {
                         line - current_line
                     } else {
                         current_line - line
                     }
                 };
-                let x = (last_line.to_string().len() - content.to_string().len())
-                    as f64
+                let x = ((last_line + 1).to_string().len()
+                    - content.to_string().len()) as f64
                     * width
                     + 10.0;
                 let content = content.to_string();
