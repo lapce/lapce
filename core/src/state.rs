@@ -15,6 +15,7 @@ use crate::{
     lsp::LspCatalog,
     palette::PaletteState,
     palette::PaletteType,
+    panel::PanelState,
     plugin::PluginCatalog,
     proxy::start_proxy_process,
     proxy::LapceProxy,
@@ -303,6 +304,7 @@ pub struct LapceTabState {
     pub editor_split: Arc<Mutex<EditorSplitState>>,
     pub container: Option<WidgetId>,
     pub file_explorer: Arc<Mutex<FileExplorerState>>,
+    pub panel: Arc<Mutex<PanelState>>,
     // pub plugins: Arc<Mutex<PluginCatalog>>,
     // pub lsp: Arc<Mutex<LspCatalog>>,
     pub ssh_session: Arc<Mutex<Option<SshSession>>>,
@@ -349,6 +351,7 @@ impl LapceTabState {
             //     window_id.clone(),
             //     tab_id.clone(),
             // ))),
+            panel: Arc::new(Mutex::new(PanelState::new(window_id, tab_id))),
             ssh_session: Arc::new(Mutex::new(None)),
             proxy: Arc::new(Mutex::new(None)),
         };

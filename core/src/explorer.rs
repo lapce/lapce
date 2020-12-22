@@ -12,8 +12,9 @@ use parking_lot::Mutex;
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_UI_COMMAND,
     editor::EditorSplitState, movement::LinePosition, movement::Movement,
-    palette::file_svg, palette::svg_tree_size, state::LapceFocus,
-    state::LapceUIState, state::LAPCE_APP_STATE, theme::LapceTheme,
+    palette::file_svg, palette::svg_tree_size, panel::PanelPosition,
+    panel::PanelProperty, state::LapceFocus, state::LapceUIState,
+    state::LAPCE_APP_STATE, theme::LapceTheme,
 };
 
 pub const ICONS_DIR: Dir = include_dir!("../icons");
@@ -27,6 +28,20 @@ pub struct FileExplorerState {
     pub items: Vec<FileNodeItem>,
     index: usize,
     count: usize,
+}
+
+impl PanelProperty for FileExplorerState {
+    fn position(&self) -> &PanelPosition {
+        &PanelPosition::LeftTop
+    }
+
+    fn active(&self) -> usize {
+        0
+    }
+
+    fn size(&self) -> (f64, f64) {
+        (300.0, 0.5)
+    }
 }
 
 impl FileExplorerState {

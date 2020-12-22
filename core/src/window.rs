@@ -4,6 +4,7 @@ use crate::{
     container::LapceContainer,
     editor::EditorUIState,
     explorer::FileExplorer,
+    panel::{LapcePanel, PanelPosition, PanelProperty},
     split::LapceSplit,
     state::{
         LapceTabState, LapceUIState, LapceWindowState, LapceWorkspaceType,
@@ -25,6 +26,7 @@ pub struct LapceTab {
     tab_id: WidgetId,
     main_split: WidgetPod<LapceUIState, LapceSplit>,
     status: WidgetPod<LapceUIState, LapceStatus>,
+    panels: HashMap<PanelPosition, WidgetPod<LapceUIState, LapcePanel>>,
 }
 
 impl LapceTab {
@@ -45,11 +47,61 @@ impl LapceTab {
             )
             .with_flex_child(container, 1.0);
         let status = LapceStatus::new(window_id.clone(), tab_id.clone());
+        let mut panels = HashMap::new();
+        panels.insert(
+            PanelPosition::LeftTop,
+            WidgetPod::new(LapcePanel::new(
+                window_id,
+                tab_id,
+                PanelPosition::LeftTop,
+            )),
+        );
+        panels.insert(
+            PanelPosition::LeftBottom,
+            WidgetPod::new(LapcePanel::new(
+                window_id,
+                tab_id,
+                PanelPosition::LeftBottom,
+            )),
+        );
+        panels.insert(
+            PanelPosition::BottomLeft,
+            WidgetPod::new(LapcePanel::new(
+                window_id,
+                tab_id,
+                PanelPosition::BottomLeft,
+            )),
+        );
+        panels.insert(
+            PanelPosition::BottomRight,
+            WidgetPod::new(LapcePanel::new(
+                window_id,
+                tab_id,
+                PanelPosition::BottomRight,
+            )),
+        );
+        panels.insert(
+            PanelPosition::RightTop,
+            WidgetPod::new(LapcePanel::new(
+                window_id,
+                tab_id,
+                PanelPosition::RightTop,
+            )),
+        );
+        panels.insert(
+            PanelPosition::RightBottom,
+            WidgetPod::new(LapcePanel::new(
+                window_id,
+                tab_id,
+                PanelPosition::RightBottom,
+            )),
+        );
         LapceTab {
             window_id,
             tab_id,
             main_split: WidgetPod::new(main_split),
             status: WidgetPod::new(status),
+            panels,
         }
     }
 }
@@ -147,18 +199,142 @@ impl Widget<LapceUIState> for LapceTab {
         let self_size = bc.max();
         let status_size = self.status.layout(ctx, bc, data, env);
 
-        let main_split_size =
-            Size::new(self_size.width, self_size.height - status_size.height);
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let panel_state = state.panel.lock();
+        let shown_panels = panel_state.shown_panels();
+        let mut left = None;
+        let mut right = None;
+        let mut bottom = None;
+        for (p, panel) in shown_panels.iter() {
+            match p {
+                PanelPosition::LeftTop => {
+                    let (size, ratio) = panel.lock().size();
+                    if left.is_none() {
+                        left = Some(size);
+                    } else {
+                        if size > left.unwrap() {
+                            left = Some(size);
+                        }
+                    }
+                }
+                PanelPosition::LeftBottom => {
+                    let (size, ratio) = panel.lock().size();
+                    if left.is_none() {
+                        left = Some(size);
+                    } else {
+                        if size > left.unwrap() {
+                            left = Some(size);
+                        }
+                    }
+                }
+                PanelPosition::RightTop => {
+                    let (size, ratio) = panel.lock().size();
+                    if right.is_none() {
+                        right = Some(size);
+                    } else {
+                        if size > right.unwrap() {
+                            right = Some(size);
+                        }
+                    }
+                }
+                PanelPosition::RightBottom => {
+                    let (size, ratio) = panel.lock().size();
+                    if right.is_none() {
+                        right = Some(size);
+                    } else {
+                        if size > right.unwrap() {
+                            right = Some(size);
+                        }
+                    }
+                }
+                PanelPosition::BottomLeft => {
+                    let (size, ratio) = panel.lock().size();
+                    if bottom.is_none() {
+                        right = Some(size);
+                    } else {
+                        if size > bottom.unwrap() {
+                            bottom = Some(size);
+                        }
+                    }
+                }
+                PanelPosition::BottomRight => {
+                    let (size, ratio) = panel.lock().size();
+                    if bottom.is_none() {
+                        right = Some(size);
+                    } else {
+                        if size > bottom.unwrap() {
+                            bottom = Some(size);
+                        }
+                    }
+                }
+            }
+        }
+        // for panel in
+
+        let mut main_split_width = self_size.width;
+        if let Some(left) = left {
+            main_split_width -= left;
+            self.panels
+                .get_mut(&PanelPosition::LeftTop)
+                .unwrap()
+                .set_layout_rect(
+                    ctx,
+                    data,
+                    env,
+                    Size::new(left, self_size.height - status_size.height).to_rect(),
+                );
+        }
+        if let Some(right) = right {
+            main_split_width -= right;
+            self.panels
+                .get_mut(&PanelPosition::RightTop)
+                .unwrap()
+                .set_layout_rect(
+                    ctx,
+                    data,
+                    env,
+                    Size::new(right, self_size.height - status_size.height)
+                        .to_rect()
+                        .with_origin(Point::new(self_size.width - right, 0.0)),
+                );
+        }
+
+        let mut main_split_origin = Point::ZERO;
+        if let Some(left) = left {
+            main_split_origin = Point::new(left, 0.0);
+        }
+
+        let mut main_split_height = self_size.height - status_size.height;
+        if let Some(bottom) = bottom {
+            main_split_height -= bottom;
+            self.panels
+                .get_mut(&PanelPosition::RightTop)
+                .unwrap()
+                .set_layout_rect(
+                    ctx,
+                    data,
+                    env,
+                    Size::new(main_split_width, bottom)
+                        .to_rect()
+                        .with_origin(main_split_origin + (0.0, main_split_height)),
+                );
+        }
+
+        let main_split_size = Size::new(main_split_width, main_split_height);
         let main_split_bc = BoxConstraints::new(Size::ZERO, main_split_size);
         self.main_split.layout(ctx, &main_split_bc, data, env);
-        self.main_split
-            .set_layout_rect(ctx, data, env, main_split_size.to_rect());
+        self.main_split.set_layout_rect(
+            ctx,
+            data,
+            env,
+            main_split_size.to_rect().with_origin(main_split_origin),
+        );
         self.status.set_layout_rect(
             ctx,
             data,
             env,
             Rect::from_origin_size(
-                Point::new(0.0, main_split_size.height),
+                Point::new(0.0, self_size.height - status_size.height),
                 status_size,
             ),
         );
