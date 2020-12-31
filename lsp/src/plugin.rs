@@ -65,7 +65,7 @@ impl CoreProxy {
 }
 
 pub trait Plugin {
-    fn initialize(&mut self, core: CoreProxy);
+    fn initialize(&mut self, core: CoreProxy, configuration: Option<Value>);
 
     //    fn new_buffer(&mut self, buffer: &mut Buffer);
     //

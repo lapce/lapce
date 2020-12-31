@@ -17,7 +17,6 @@ use druid::{
 };
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
 use lapce_core::command::{LapceUICommand, LAPCE_UI_COMMAND};
-use lapce_core::explorer::FileExplorer;
 use lapce_core::ssh::SshSession;
 use lapce_core::state::{
     LapceTabState, LapceUIState, LapceWindowState, LAPCE_APP_STATE,

@@ -4,7 +4,7 @@ use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use git2::Repository;
+use git2::{DiffOptions, Repository};
 use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::Position;
@@ -12,12 +12,12 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
-use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::{cmp, fs};
 use std::{collections::HashMap, io};
+use std::{collections::HashSet, io::BufRead};
 use xi_core_lib::watcher::{FileWatcher, Notify, WatchToken};
 use xi_rope::{RopeDelta, RopeInfo};
 use xi_rpc::RpcPeer;
@@ -216,7 +216,7 @@ impl Dispatcher {
             self.lsp.lock().get_semantic_tokens(buffer);
 
             if let Some((diff, line_changes)) =
-                get_git_diff(&workspace, &PathBuf::from(path), &content)
+                file_git_diff(&workspace, &PathBuf::from(path), &content)
             {
                 self.sender.send(json!({
                     "method": "update_git",
@@ -304,6 +304,14 @@ impl Dispatcher {
                         "items": items,
                     }),
                 );
+                if let Some(diff_files) = git_diff(&workspace) {
+                    self.send_notification(
+                        "diff_files",
+                        json!({
+                            "files": diff_files,
+                        }),
+                    );
+                }
             }
             Notification::Update {
                 buffer_id,
@@ -459,11 +467,6 @@ impl Dispatcher {
     }
 }
 
-fn get_git_changes(workspace_path: &PathBuf) -> Option<()> {
-    let repo = Repository::open(workspace_path.to_str()?).ok()?;
-    None
-}
-
 #[derive(Clone, Debug)]
 pub struct DiffHunk {
     pub old_start: u32,
@@ -473,7 +476,28 @@ pub struct DiffHunk {
     pub header: String,
 }
 
-fn get_git_diff(
+fn git_diff(workspace_path: &PathBuf) -> Option<Vec<String>> {
+    let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    let diff = repo
+        .diff_index_to_workdir(
+            None,
+            Some(DiffOptions::new().include_untracked(true)),
+        )
+        .ok()?;
+    let mut diff_files = HashSet::new();
+    for delta in diff.deltas() {
+        if let Some(path) = delta.new_file().path() {
+            if let Some(s) = path.to_str() {
+                diff_files.insert(workspace_path.join(s).to_str()?.to_string());
+            }
+        }
+    }
+    let mut diff_files: Vec<String> = diff_files.into_iter().collect();
+    diff_files.sort();
+    Some(diff_files)
+}
+
+fn file_git_diff(
     workspace_path: &PathBuf,
     path: &PathBuf,
     content: &str,

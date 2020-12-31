@@ -231,6 +231,9 @@ pub enum Notification {
     ListDir {
         items: Vec<FileNodeItem>,
     },
+    DiffFiles {
+        files: Vec<PathBuf>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -301,7 +304,18 @@ impl Handler for ProxyHandler {
                 file_explorer.update_count();
                 LAPCE_APP_STATE.submit_ui_command(
                     LapceUICommand::RequestPaint,
-                    file_explorer.widget_id,
+                    file_explorer.widget_id(),
+                );
+            }
+            Notification::DiffFiles { files } => {
+                println!("get diff files {:?}", files);
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut source_control = state.source_control.lock();
+                source_control.diff_files = files;
+                LAPCE_APP_STATE.submit_ui_command(
+                    LapceUICommand::RequestPaint,
+                    source_control.widget_id(),
                 );
             }
             Notification::PublishDiagnostics { diagnostics } => {

@@ -6,7 +6,14 @@ use druid::{
 };
 use parking_lot::Mutex;
 
-use crate::{explorer::FileExplorerState, state::LapceUIState};
+use crate::{
+    command::LapceUICommand,
+    command::LAPCE_UI_COMMAND,
+    explorer::FileExplorerState,
+    outline::OutlineState,
+    source_control::SourceControlState,
+    state::{LapceUIState, LAPCE_APP_STATE},
+};
 
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub enum PanelPosition {
@@ -22,34 +29,60 @@ pub trait PanelProperty: Send {
     fn position(&self) -> &PanelPosition;
     fn active(&self) -> usize;
     fn size(&self) -> (f64, f64);
+    fn paint(&self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env);
 }
 
 pub struct PanelState {
     window_id: WindowId,
     tab_id: WidgetId,
-    pub panels: Vec<Arc<Mutex<Box<dyn PanelProperty>>>>,
+    pub panels: Vec<Arc<Mutex<dyn PanelProperty>>>,
     pub shown: HashMap<PanelPosition, bool>,
+    widgets: HashMap<PanelPosition, WidgetId>,
 }
 
 impl PanelState {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> Self {
-        let file_exploer = Arc::new(Mutex::new(Box::new(FileExplorerState::new(
-            window_id, tab_id,
-        ))
-            as Box<dyn PanelProperty>));
         let mut panels = Vec::new();
-        panels.push(file_exploer);
+        // panels.push(Arc::new(Mutex::new(Box::new(FileExplorerState::new(
+        //     window_id, tab_id,
+        // )) as Box<dyn PanelProperty>)));
+        // panels.push(Arc::new(Mutex::new(
+        //     Box::new(SourceControlState::new()) as Box<dyn PanelProperty>
+        // )));
+        // panels.push(Arc::new(Mutex::new(
+        //     Box::new(OutlineState::new()) as Box<dyn PanelProperty>
+        // )));
         let mut shown = HashMap::new();
         shown.insert(PanelPosition::LeftTop, true);
+        shown.insert(PanelPosition::BottomLeft, true);
+        shown.insert(PanelPosition::RightTop, true);
+
+        let mut widgets = HashMap::new();
+        widgets.insert(PanelPosition::LeftTop, WidgetId::next());
+        widgets.insert(PanelPosition::LeftBottom, WidgetId::next());
+        widgets.insert(PanelPosition::BottomLeft, WidgetId::next());
+        widgets.insert(PanelPosition::BottomRight, WidgetId::next());
+        widgets.insert(PanelPosition::RightTop, WidgetId::next());
+        widgets.insert(PanelPosition::RightBottom, WidgetId::next());
         Self {
             window_id,
             tab_id,
             panels,
             shown,
+            widgets,
         }
     }
+
     pub fn is_shown(&self, position: &PanelPosition) -> bool {
         *self.shown.get(position).unwrap_or(&false)
+    }
+
+    pub fn add(&mut self, panel: Arc<Mutex<dyn PanelProperty>>) {
+        self.panels.push(panel);
+    }
+
+    pub fn widget_id(&self, position: &PanelPosition) -> WidgetId {
+        self.widgets.get(position).unwrap().clone()
     }
 
     pub fn size(&self, position: &PanelPosition) -> Option<(f64, f64)> {
@@ -69,9 +102,35 @@ impl PanelState {
         active_panel.map(|p| p.lock().size())
     }
 
+    pub fn get(
+        &self,
+        position: &PanelPosition,
+    ) -> Option<Arc<Mutex<dyn PanelProperty>>> {
+        let mut active_panel = None;
+        for panel in self.panels.iter() {
+            let local_panel = panel.clone();
+            let (current_position, active) = {
+                let panel = panel.lock();
+                let position = panel.position().clone();
+                let active = panel.active();
+                (position, active)
+            };
+            if &current_position == position {
+                if active_panel.is_none() {
+                    active_panel = Some(local_panel);
+                } else {
+                    if active > active_panel.as_ref().unwrap().lock().active() {
+                        active_panel = Some(local_panel)
+                    }
+                }
+            }
+        }
+        active_panel
+    }
+
     pub fn shown_panels(
         &self,
-    ) -> HashMap<PanelPosition, Arc<Mutex<Box<dyn PanelProperty>>>> {
+    ) -> HashMap<PanelPosition, Arc<Mutex<dyn PanelProperty>>> {
         let mut shown_panels = HashMap::new();
         for (postion, shown) in self.shown.iter() {
             if *shown {
@@ -105,6 +164,7 @@ impl PanelState {
 }
 
 pub struct LapcePanel {
+    widget_id: WidgetId,
     window_id: WindowId,
     tab_id: WidgetId,
     position: PanelPosition,
@@ -112,11 +172,13 @@ pub struct LapcePanel {
 
 impl LapcePanel {
     pub fn new(
+        widget_id: WidgetId,
         window_id: WindowId,
         tab_id: WidgetId,
         position: PanelPosition,
     ) -> Self {
         Self {
+            widget_id,
             window_id,
             tab_id,
             position,
@@ -132,6 +194,21 @@ impl Widget<LapceUIState> for LapcePanel {
         data: &mut LapceUIState,
         env: &Env,
     ) {
+        match event {
+            Event::Command(cmd) => match cmd {
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                    match command {
+                        LapceUICommand::RequestPaint => {
+                            ctx.request_paint();
+                        }
+                        _ => (),
+                    }
+                }
+                _ => (),
+            },
+            _ => (),
+        }
     }
 
     fn lifecycle(
@@ -162,5 +239,15 @@ impl Widget<LapceUIState> for LapcePanel {
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {}
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let panel = state.panel.lock();
+        if let Some(panel_state) = panel.get(&self.position) {
+            panel_state.lock().paint(ctx, data, env);
+        }
+    }
+
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
 }

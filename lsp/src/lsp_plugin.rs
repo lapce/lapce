@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashMap, collections::VecDeque, sync::Arc};
 
@@ -10,6 +11,13 @@ use parking_lot::Mutex;
 use xi_rope::RopeDelta;
 
 use crate::{plugin::CoreProxy, plugin::Plugin};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Configuration {
+    language_id: String,
+    lsp_server: String,
+    options: Option<Value>,
+}
 
 #[derive(Debug)]
 pub enum LspResponse {
@@ -51,22 +59,17 @@ impl LspPlugin {
 }
 
 impl Plugin for LspPlugin {
-    fn initialize(&mut self, core: CoreProxy) {
+    fn initialize(&mut self, core: CoreProxy, configuration: Option<Value>) {
         self.core = Some(core);
-        self.core
-            .as_mut()
-            .unwrap()
-            .start_lsp_server("gopls", "go", None);
-        self.core.as_mut().unwrap().start_lsp_server(
-            "rust-analyzer-mac",
-            "rust",
-            Some(json!({
-                "diagnostics": {
-                   "enable": false,
-                   "enableExperimental": false,
-                },
-            })),
-        );
+        if let Some(config) = configuration {
+            if let Ok(config) = serde_json::from_value::<Configuration>(config) {
+                self.core.as_mut().unwrap().start_lsp_server(
+                    &config.lsp_server,
+                    &config.language_id,
+                    config.options,
+                );
+            }
+        }
     }
 
     //    fn new_buffer(&mut self, buffer: &mut Buffer) {}

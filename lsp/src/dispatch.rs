@@ -11,7 +11,10 @@ use xi_rpc::{Handler, RpcCtx};
 #[serde(tag = "method", content = "params")]
 /// RPC Notifications sent from the host
 pub enum HostNotification {
-    Initialize { plugin_id: PluginId },
+    Initialize {
+        plugin_id: PluginId,
+        configuration: Option<Value>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,10 +48,13 @@ impl<'a, P: Plugin> Handler for Dispatcher<'a, P> {
         rpc: Self::Notification,
     ) {
         match rpc {
-            HostNotification::Initialize { plugin_id } => {
+            HostNotification::Initialize {
+                plugin_id,
+                configuration,
+            } => {
                 self.plugin_id = Some(plugin_id.clone());
                 let core_proxy = CoreProxy::new(plugin_id, ctx);
-                self.plugin.initialize(core_proxy);
+                self.plugin.initialize(core_proxy, configuration);
             } //        HostNotification::NewBuffer { buffer_info } => {
               //            let buffer_id = buffer_info.buffer_id.clone();
               //            let buffer = Buffer::new(

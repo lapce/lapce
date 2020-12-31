@@ -15,10 +15,12 @@ use crate::{
     lsp::LspCatalog,
     palette::PaletteState,
     palette::PaletteType,
+    panel::PanelProperty,
     panel::PanelState,
     plugin::PluginCatalog,
     proxy::start_proxy_process,
     proxy::LapceProxy,
+    source_control::SourceControlState,
     ssh::SshSession,
 };
 use anyhow::{anyhow, Result};
@@ -304,6 +306,7 @@ pub struct LapceTabState {
     pub editor_split: Arc<Mutex<EditorSplitState>>,
     pub container: Option<WidgetId>,
     pub file_explorer: Arc<Mutex<FileExplorerState>>,
+    pub source_control: Arc<Mutex<SourceControlState>>,
     pub panel: Arc<Mutex<PanelState>>,
     // pub plugins: Arc<Mutex<PluginCatalog>>,
     // pub lsp: Arc<Mutex<LspCatalog>>,
@@ -341,20 +344,20 @@ impl LapceTabState {
                 window_id.clone(),
                 tab_id.clone(),
             ))),
+            source_control: Arc::new(Mutex::new(SourceControlState::new(
+                window_id, tab_id,
+            ))),
             container: None,
             keypress: Arc::new(Mutex::new(KeyPressState::new(
                 window_id.clone(),
                 tab_id.clone(),
             ))),
-            // plugins: Arc::new(Mutex::new(PluginCatalog::new(window_id, tab_id))),
-            // lsp: Arc::new(Mutex::new(LspCatalog::new(
-            //     window_id.clone(),
-            //     tab_id.clone(),
-            // ))),
             panel: Arc::new(Mutex::new(PanelState::new(window_id, tab_id))),
             ssh_session: Arc::new(Mutex::new(None)),
             proxy: Arc::new(Mutex::new(None)),
         };
+        state.panel.lock().add(state.file_explorer.clone());
+        state.panel.lock().add(state.source_control.clone());
         let local_state = state.clone();
         thread::spawn(move || {
             local_state.start_proxy();

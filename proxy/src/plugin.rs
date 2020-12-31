@@ -44,11 +44,13 @@ pub struct PluginDescription {
     pub version: String,
     pub exec_path: PathBuf,
     dir: Option<PathBuf>,
+    configuration: Option<Value>,
 }
 
 pub struct Plugin {
     id: PluginId,
     dispatcher: Dispatcher,
+    configuration: Option<Value>,
     peer: RpcPeer,
     name: String,
     process: Child,
@@ -132,6 +134,7 @@ fn start_plugin_process(
         let plugin = Plugin {
             id,
             dispatcher: dispatcher.clone(),
+            configuration: plugin_desc.configuration.clone(),
             peer,
             process: child,
             name,
@@ -205,6 +208,7 @@ impl Plugin {
             "initialize",
             &json!({
                 "plugin_id": self.id,
+                "configuration": self.configuration,
             }),
         )
     }
