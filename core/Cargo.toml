@@ -10,8 +10,6 @@ usvg = "0.12.0"
 lapce-proxy = { path = "../proxy" }
 xi-trace = { path = "../../xi-editor/rust/trace/" }
 git2 = "0.13"
-openssh = "0.7.0"
-tokio = { version = "0.3.3", features = ["full"] }
 jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
@@ -25,7 +23,6 @@ strum_macros = "0.19"
 lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
-syntect = "3.2"
 xi-core-lib = { path = "../../xi-editor/rust/core-lib/" }
 xi-rope = { path = "../../xi-editor/rust/rope/" }
 xi-rpc = { path = "../../xi-editor/rust/rpc/" }

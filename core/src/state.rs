@@ -17,7 +17,6 @@ use crate::{
     palette::PaletteType,
     panel::PanelProperty,
     panel::PanelState,
-    plugin::PluginCatalog,
     proxy::start_proxy_process,
     proxy::LapceProxy,
     source_control::SourceControlState,

@@ -47,7 +47,6 @@ use crate::{
     find::Find,
     language,
     movement::{ColPosition, Movement, SelRegion, Selection},
-    plugin::PluginBufferInfo,
     state::LapceTabState,
     state::LapceWorkspaceType,
     state::Mode,
