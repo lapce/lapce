@@ -16,7 +16,7 @@ pub mod proxy;
 pub mod scroll;
 pub mod signature;
 pub mod split;
-pub mod ssh;
+// pub mod ssh;
 pub mod source_control;
 pub mod outline;
 pub mod state;

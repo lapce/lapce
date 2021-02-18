@@ -180,46 +180,6 @@ impl Buffer {
         buffer
     }
 
-    pub fn save(&mut self) -> Result<()> {
-        if !self.dirty {
-            return Ok(());
-        }
-
-        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let workspace_type = state.workspace.lock().kind.clone();
-        match workspace_type {
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                state.get_ssh_session(&user, &host)?;
-                let mut ssh_session = state.ssh_session.lock();
-                let ssh_session = ssh_session.as_mut().unwrap();
-                let tmp_path = format!("{}.swp", self.path);
-                ssh_session
-                    .write_file(&tmp_path, self.rope.to_string().as_bytes())?;
-                ssh_session.command(&format!("mv {} {}", tmp_path, self.path))?;
-            }
-            LapceWorkspaceType::Local => {
-                let path = PathBuf::from_str(&self.path)?;
-                let tmp_extension = path.extension().map_or_else(
-                    || OsString::from("swp"),
-                    |ext| {
-                        let mut ext = ext.to_os_string();
-                        ext.push(".swp");
-                        ext
-                    },
-                );
-                let tmp_path = &path.with_extension(tmp_extension);
-
-                let mut f = File::create(tmp_path)?;
-                for chunk in self.rope.iter_chunks(..self.rope.len()) {
-                    f.write_all(chunk.as_bytes())?;
-                }
-                fs::rename(tmp_path, path)?;
-            }
-        };
-        self.dirty = false;
-        Ok(())
-    }
-
     pub fn len(&self) -> usize {
         self.rope.len()
     }
@@ -910,26 +870,6 @@ impl Buffer {
     pub fn get_document(&self) -> String {
         self.rope.to_string()
     }
-}
-
-fn load_file(window_id: &WindowId, tab_id: &WidgetId, path: &str) -> Result<Rope> {
-    let state = LAPCE_APP_STATE.get_tab_state(window_id, tab_id);
-    let workspace_type = state.workspace.lock().kind.clone();
-    let bytes = match workspace_type {
-        LapceWorkspaceType::Local => {
-            let mut f = File::open(path)?;
-            let mut bytes = Vec::new();
-            f.read_to_end(&mut bytes)?;
-            bytes
-        }
-        LapceWorkspaceType::RemoteSSH(user, host) => {
-            state.get_ssh_session(&user, &host)?;
-            let mut ssh_session = state.ssh_session.lock();
-            let ssh_session = ssh_session.as_mut().unwrap();
-            ssh_session.read_file(path)?
-        }
-    };
-    Ok(Rope::from(std::str::from_utf8(&bytes)?))
 }
 
 pub struct WordCursor<'a> {

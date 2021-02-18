@@ -20,7 +20,7 @@ use xi_rope::{LinesMetric, Rope, RopeDelta};
 use xi_rpc::{self, Handler, RpcLoop, RpcPeer};
 
 use crate::{
-    buffer::BufferId, ssh::SshSession, state::Counter, state::LapceTabState,
+    buffer::BufferId, state::Counter, state::LapceTabState,
     state::LapceWorkspaceType, state::LAPCE_APP_STATE,
 };
 
@@ -31,7 +31,6 @@ pub struct PluginId(pub usize);
 
 pub enum PluginProcess {
     Child(Child),
-    SshSession(SshSession),
 }
 
 pub struct PluginCatalog {
@@ -115,55 +114,6 @@ impl PluginCatalog {
     }
 
     pub fn load_from_paths(&mut self, paths: &[PathBuf]) -> Result<()> {
-        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let workspace_type = state.workspace.lock().kind.clone();
-        match workspace_type {
-            LapceWorkspaceType::Local => {
-                let all_manifests = find_all_manifests(paths);
-                for manifest_path in &all_manifests {
-                    match load_manifest(manifest_path) {
-                        Err(e) => (),
-                        Ok(manifest) => {
-                            let manifest = Arc::new(manifest);
-                            self.items
-                                .insert(manifest.name.clone(), manifest.clone());
-                            self.locations.insert(manifest_path.clone(), manifest);
-                        }
-                    }
-                }
-            }
-            LapceWorkspaceType::RemoteSSH(user, host) => {
-                println!("load plugins for remote ssh");
-                if let Err(e) = state.get_ssh_session(&user, &host) {
-                    println!("get ssh session error {}", e);
-                    return Err(e);
-                }
-                let mut ssh_session = state.ssh_session.lock();
-                let ssh_session = ssh_session.as_mut().unwrap();
-                let pwd = ssh_session.get_pwd();
-                println!("pwd {:?}", pwd);
-                let pwd = pwd?;
-                let dirs = ssh_session.read_dirs(&pwd.join(".lapce/plugins/"))?;
-                println!("dirs {:?}", dirs);
-                for dir in dirs {
-                    let file = dir.join("manifest.toml");
-                    println!("manifest path {:?}", file);
-                    let contents = ssh_session.read_file(file.to_str().unwrap());
-                    println!("manifest contents {:?}", contents);
-                    let contents = contents?;
-                    let mut manifest: PluginDescription =
-                        toml::from_slice(&contents)?;
-                    manifest.dir = Some(dir.clone());
-                    if manifest.exec_path.starts_with("./") {
-                        manifest.exec_path =
-                            dir.join(manifest.exec_path).canonicalize()?;
-                    }
-                    let manifest = Arc::new(manifest);
-                    self.items.insert(manifest.name.clone(), manifest.clone());
-                    self.locations.insert(dir.clone(), manifest);
-                }
-            }
-        }
         Ok(())
     }
 

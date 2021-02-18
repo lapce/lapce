@@ -7,23 +7,6 @@ edition = "2018"
 [dependencies]
 lapce-core = { path = "./core" }
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
-# include_dir = "0.6.0"
-# tree-sitter-highlight = "0.3.0"
-# tree-sitter = "0.17.0"
-# toml = "0.5.6"
-# anyhow = "1.0.32"
-# strum = "0.19"
-# strum_macros = "0.19"
-# lazy_static = "1.4.0"
-# serde = "1.0"
-# serde_json = "1.0"
-# syntect = "3.2"
-# xi-core-lib = { path = "../xi-editor/rust/core-lib/" }
-# xi-rope = { path = "../xi-editor/rust/rope/" }
-# xi-rpc = { path = "../xi-editor/rust/rpc/" }
-# fzyr = "0.1.2"
-# uuid = { version = "0.7.4", features = ["v4"] }
-# lsp-types = "0.61.0"
 druid = { path = "../druid/druid", features = ["svg"] }
 
 [build-dependencies]

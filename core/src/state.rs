@@ -21,7 +21,6 @@ use crate::{
     proxy::start_proxy_process,
     proxy::LapceProxy,
     source_control::SourceControlState,
-    ssh::SshSession,
 };
 use anyhow::{anyhow, Result};
 use druid::{
@@ -310,7 +309,7 @@ pub struct LapceTabState {
     pub panel: Arc<Mutex<PanelState>>,
     // pub plugins: Arc<Mutex<PluginCatalog>>,
     // pub lsp: Arc<Mutex<LspCatalog>>,
-    pub ssh_session: Arc<Mutex<Option<SshSession>>>,
+    // pub ssh_session: Arc<Mutex<Option<SshSession>>>,
     pub proxy: Arc<Mutex<Option<LapceProxy>>>,
 }
 
@@ -353,7 +352,6 @@ impl LapceTabState {
                 tab_id.clone(),
             ))),
             panel: Arc::new(Mutex::new(PanelState::new(window_id, tab_id))),
-            ssh_session: Arc::new(Mutex::new(None)),
             proxy: Arc::new(Mutex::new(None)),
         };
         state.panel.lock().add(state.file_explorer.clone());
@@ -394,7 +392,6 @@ impl LapceTabState {
                 kind: LapceWorkspaceType::Local,
                 path: path.to_path_buf(),
             };
-            *self.ssh_session.lock() = None;
             self.stop();
             self.start_plugin();
             ctx.request_paint();
@@ -420,11 +417,6 @@ impl LapceTabState {
     }
 
     pub fn get_ssh_session(&self, user: &str, host: &str) -> Result<()> {
-        let mut ssh_session = self.ssh_session.lock();
-        if ssh_session.is_none() {
-            let session = SshSession::new(user, host)?;
-            *ssh_session = Some(session);
-        }
         Ok(())
     }
 

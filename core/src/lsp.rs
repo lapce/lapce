@@ -1,5 +1,5 @@
 use crate::{
-    command::LapceUICommand, ssh::SshSession, state::LapceWorkspaceType,
+    command::LapceUICommand,  state::LapceWorkspaceType,
     state::LAPCE_APP_STATE,
 };
 use anyhow::{anyhow, Result};

@@ -40,7 +40,7 @@ use uuid::Uuid;
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND, editor::EditorSplitState, explorer::ICONS_DIR,
-    scroll::LapceScroll, ssh::SshSession, state::LapceFocus, state::LapceUIState,
+    scroll::LapceScroll, state::LapceFocus, state::LapceUIState,
     state::LapceWorkspace, state::LapceWorkspaceType, state::LAPCE_APP_STATE,
     theme::LapceTheme,
 };
@@ -703,80 +703,6 @@ impl PaletteState {
                 }
                 println!("get files result");
             }));
-        // let workspace_type = LAPCE_APP_STATE
-        //     .get_tab_state(&self.window_id, &self.tab_id)
-        //     .workspace
-        //     .lock()
-        //     .kind
-        //     .clone();
-        // match workspace_type {
-        //     LapceWorkspaceType::RemoteSSH(user, host) => {
-        //         self.get_ssh_files(&user, &host)
-        //     }
-        //     LapceWorkspaceType::Local => self.get_local_files(),
-        // }
-    }
-
-    fn get_ssh_files(&self, user: &str, host: &str) -> Vec<PaletteItem> {
-        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let mut ssh_session = state.ssh_session.lock();
-        if ssh_session.is_none() {
-            if let Ok(session) = SshSession::new(user, host) {
-                *ssh_session = Some(session);
-            } else {
-                return Vec::new();
-            }
-        }
-        let ssh_session = ssh_session.as_mut().unwrap();
-        let workspace_path = state.workspace.lock().path.clone();
-        let dir = workspace_path.to_str().unwrap();
-        if let Ok(paths) = ssh_session.read_dir(dir) {
-            return paths
-                .iter()
-                .enumerate()
-                .map(|(index, p)| {
-                    let path = PathBuf::from(p);
-                    let text =
-                        path.file_name().unwrap().to_str().unwrap().to_string();
-                    let folder = path.parent().unwrap();
-                    let folder =
-                        if let Ok(folder) = folder.strip_prefix(&workspace_path) {
-                            folder
-                        } else {
-                            folder
-                        };
-                    let icon = if let Some(exten) = path.extension() {
-                        match exten.to_str().unwrap() {
-                            "rs" => PaletteIcon::File("rust".to_string()),
-                            "md" => PaletteIcon::File("markdown".to_string()),
-                            "go" => PaletteIcon::File("go_small".to_string()),
-                            "cc" => PaletteIcon::File("cpp".to_string()),
-                            s => PaletteIcon::File(s.to_string()),
-                        }
-                    } else {
-                        PaletteIcon::None
-                    };
-                    let hint = folder.to_str().unwrap().to_string();
-                    PaletteItem {
-                        window_id: self.window_id,
-                        tab_id: self.tab_id,
-                        icon,
-                        hint: Some(hint),
-                        index,
-                        kind: PaletteType::File,
-                        text,
-                        position: None,
-                        location: None,
-                        path: Some(path),
-                        score: 0.0,
-                        match_mask: BitVec::new(),
-                        workspace: None,
-                        command: None,
-                    }
-                })
-                .collect();
-        }
-        Vec::new()
     }
 
     fn get_local_files(&self) -> Vec<PaletteItem> {
@@ -1526,7 +1452,6 @@ impl PaletteItem {
                 let state =
                     LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
                 *state.workspace.lock() = self.workspace.clone().unwrap();
-                *state.ssh_session.lock() = None;
                 state.start_proxy();
                 ctx.request_paint();
             }

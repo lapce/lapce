@@ -17,7 +17,6 @@ use druid::{
 };
 use druid::{AppLauncher, LocalizedString, Widget, WidgetExt, WindowDesc};
 use lapce_core::command::{LapceUICommand, LAPCE_UI_COMMAND};
-use lapce_core::ssh::SshSession;
 use lapce_core::state::{
     LapceTabState, LapceUIState, LapceWindowState, LAPCE_APP_STATE,
 };
@@ -140,7 +139,8 @@ pub fn main() {
         .states
         .lock()
         .insert(window_id.clone(), window_state);
-    let mut window = WindowDesc::new(move || build_app(window_id.clone()))
+    let app = build_app(window_id);
+    let mut window = WindowDesc::new(app)
         .title(LocalizedString::new("lapce").with_placeholder("Lapce"))
         .menu(MenuDesc::empty())
         .window_size(Size::new(800.0, 600.0))
