@@ -31,7 +31,6 @@ use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
 use xi_core_lib::{
-    line_offset::{LineOffset, LogicalLines},
     selection::InsertDrift,
 };
 use xi_rope::{
@@ -647,13 +646,14 @@ impl Buffer {
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
         let max = self.len();
         let offset = if offset > max { max } else { offset };
-        LogicalLines.offset_to_line_col(&self.rope, offset)
+        let line = self.line_of_offset( offset);
+        (line, offset - self.offset_of_line( line))
     }
 
     pub fn offset_to_position(&self, offset: usize) -> Position {
         let max = self.len();
         let offset = if offset > max { max } else { offset };
-        let (line, col) = LogicalLines.offset_to_line_col(&self.rope, offset);
+        let (line, col) = self.offset_to_line_col(offset);
         Position {
             line: line as u64,
             character: col as u64,

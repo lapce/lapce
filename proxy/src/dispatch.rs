@@ -20,8 +20,6 @@ use std::{collections::HashMap, io};
 use std::{collections::HashSet, io::BufRead};
 use xi_core_lib::watcher::{FileWatcher, Notify, WatchToken};
 use xi_rope::{RopeDelta, RopeInfo};
-use xi_rpc::RpcPeer;
-use xi_rpc::{Handler, RpcCtx};
 
 pub const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(2);
 

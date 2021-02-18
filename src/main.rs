@@ -139,8 +139,7 @@ pub fn main() {
         .states
         .lock()
         .insert(window_id.clone(), window_state);
-    let app = build_app(window_id);
-    let mut window = WindowDesc::new(app)
+    let mut window = WindowDesc::new(move || build_app(window_id))
         .title(LocalizedString::new("lapce").with_placeholder("Lapce"))
         .menu(MenuDesc::empty())
         .window_size(Size::new(800.0, 600.0))
