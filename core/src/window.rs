@@ -223,7 +223,12 @@ impl Widget<LapceUIState> for LapceTab {
         let status_size = self.status.layout(ctx, bc, data, env);
 
         for (p, panel) in self.panels.iter_mut() {
-            panel.layout(ctx, bc, data, env);
+            panel.layout(
+                ctx,
+                &BoxConstraints::new(Size::ZERO, Size::ZERO),
+                data,
+                env,
+            );
         }
 
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
@@ -303,29 +308,36 @@ impl Widget<LapceUIState> for LapceTab {
         let mut main_split_width = self_size.width;
         if let Some(left) = left {
             main_split_width -= left;
-            self.panels
-                .get_mut(&PanelPosition::LeftTop)
-                .unwrap()
-                .set_layout_rect(
-                    ctx,
-                    data,
-                    env,
-                    Size::new(left, self_size.height - status_size.height).to_rect(),
-                );
+            let panel = self.panels.get_mut(&PanelPosition::LeftTop).unwrap();
+            panel.layout(
+                ctx,
+                &BoxConstraints::tight(Size::new(
+                    left,
+                    self_size.height - status_size.height,
+                )),
+                data,
+                env,
+            );
+            panel.set_origin(ctx, data, env, Point::ZERO);
         }
         if let Some(right) = right {
             main_split_width -= right;
-            self.panels
-                .get_mut(&PanelPosition::RightTop)
-                .unwrap()
-                .set_layout_rect(
-                    ctx,
-                    data,
-                    env,
-                    Size::new(right, self_size.height - status_size.height)
-                        .to_rect()
-                        .with_origin(Point::new(self_size.width - right, 0.0)),
-                );
+            let panel = self.panels.get_mut(&PanelPosition::RightTop).unwrap();
+            panel.layout(
+                ctx,
+                &BoxConstraints::tight(Size::new(
+                    right,
+                    self_size.height - status_size.height,
+                )),
+                data,
+                env,
+            );
+            panel.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new(self_size.width - right, 0.0),
+            );
         }
 
         let mut main_split_origin = Point::ZERO;
@@ -336,17 +348,22 @@ impl Widget<LapceUIState> for LapceTab {
         let mut main_split_height = self_size.height - status_size.height;
         if let Some(bottom) = bottom {
             main_split_height -= bottom;
-            self.panels
-                .get_mut(&PanelPosition::BottomLeft)
-                .unwrap()
-                .set_layout_rect(
-                    ctx,
-                    data,
-                    env,
-                    Size::new(main_split_width, bottom)
-                        .to_rect()
-                        .with_origin(main_split_origin + (0.0, main_split_height)),
-                );
+            let panel = self.panels.get_mut(&PanelPosition::BottomLeft).unwrap();
+            panel.layout(
+                ctx,
+                &BoxConstraints::new(
+                    Size::ZERO,
+                    Size::new(main_split_width, bottom),
+                ),
+                data,
+                env,
+            );
+            panel.set_origin(
+                ctx,
+                data,
+                env,
+                main_split_origin + (0.0, main_split_height),
+            );
         }
 
         let main_split_size = Size::new(main_split_width, main_split_height);
