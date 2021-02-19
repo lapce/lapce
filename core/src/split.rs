@@ -389,7 +389,9 @@ impl Widget<LapceUIState> for LapceSplit {
         }
         for child in self.children.as_mut_slice() {
             if child.widget.is_active() {
-                child.widget.event(ctx, event, data, env);
+                if child.widget.is_initialized() {
+                    child.widget.event(ctx, event, data, env);
+                }
                 if ctx.is_handled() {
                     return;
                 }
@@ -435,7 +437,9 @@ impl Widget<LapceUIState> for LapceSplit {
 
         for child in self.children.as_mut_slice() {
             if !child.widget.is_active() {
-                child.widget.event(ctx, event, data, env);
+                if child.widget.is_initialized() {
+                    child.widget.event(ctx, event, data, env);
+                }
             }
         }
     }

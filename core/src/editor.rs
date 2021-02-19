@@ -32,6 +32,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
+use crossbeam_channel::{self, bounded};
 use druid::{
     kurbo::Line, piet::PietText, theme, widget::IdentityWrapper, widget::Padding,
     widget::SvgData, Affine, BoxConstraints, Color, Command, Data, Env, Event,
@@ -51,11 +52,10 @@ use lsp_types::{
     Location, Position, SignatureHelp, TextEdit, Url, WorkspaceEdit,
 };
 use serde_json::Value;
-use std::str::FromStr;
-use std::sync::mpsc::channel;
 use std::thread;
 use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
+use std::{str::FromStr, time::Duration};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{Interval, RopeDelta};
 
@@ -1814,18 +1814,24 @@ impl EditorSplitState {
         rev: u64,
         result: &Result<Value>,
     ) -> Option<()> {
+        let mut rev = rev;
         if let Ok(res) = result {
             let edits: Result<Vec<TextEdit>, serde_json::Error> =
                 serde_json::from_value(res.clone());
             if let Ok(edits) = edits {
                 if edits.len() > 0 {
-                    self.apply_edits(ctx, ui_state, rev, &edits);
+                    if let Some(r) = self.apply_edits(ctx, ui_state, rev, &edits) {
+                        rev = r;
+                    }
                 }
             }
         }
         let editor = self.editors.get_mut(&self.active)?;
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get_mut(&buffer_id)?;
+        if buffer.rev != rev {
+            return None;
+        }
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let window_id = self.window_id;
         let tab_id = self.tab_id;
@@ -1839,6 +1845,9 @@ impl EditorSplitState {
                     let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
                     let mut editor_split = state.editor_split.lock();
                     let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+                    if buffer.rev != rev {
+                        return;
+                    }
                     buffer.dirty = false;
                     for (view_id, editor) in editor_split.editors.iter() {
                         if editor.buffer_id.as_ref() == Some(&buffer_id) {
@@ -1860,7 +1869,7 @@ impl EditorSplitState {
         ui_state: &mut LapceUIState,
         rev: u64,
         edits: &Vec<TextEdit>,
-    ) -> Option<()> {
+    ) -> Option<u64> {
         let editor = self.editors.get_mut(&self.active)?;
         let buffer_id = editor.buffer_id.clone()?;
         let buffer = self.buffers.get_mut(&buffer_id)?;
@@ -1885,8 +1894,9 @@ impl EditorSplitState {
             edits.iter().map(|(s, c)| (s, c.as_ref())).collect(),
             true,
         );
+        let new_rev = buffer.rev;
         self.notify_fill_text_layouts(ctx, &buffer_id);
-        None
+        Some(new_rev)
     }
 
     pub fn get_code_actions(&self) -> Option<()> {
@@ -2796,52 +2806,32 @@ impl EditorSplitState {
                 let offset = editor.selection.get_cursor_offset();
                 let state =
                     LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                state
-                    .clone()
-                    .proxy
-                    .lock()
-                    .as_ref()
-                    .unwrap()
-                    .get_document_formatting(
-                        buffer.id,
-                        Box::new(move |result| {
-                            println!("get document formating");
-                            let result = match result {
-                                Ok(r) => Ok(r),
-                                Err(e) => Err(anyhow!("{:?}", e)),
-                            };
-                            LAPCE_APP_STATE.submit_ui_command(
-                                LapceUICommand::ApplyEditsAndSave(
-                                    offset, rev, result,
-                                ),
-                                state.editor_split.lock().widget_id,
-                            );
-                        }),
+                let (sender, receiver) = bounded(1);
+                let local_state = state.clone();
+                let buffer_id = buffer.id;
+                thread::spawn(move || {
+                    local_state
+                        .clone()
+                        .proxy
+                        .lock()
+                        .as_ref()
+                        .unwrap()
+                        .get_document_formatting(
+                            buffer_id,
+                            Box::new(move |result| {
+                                sender.send(result);
+                            }),
+                        );
+                    let result =
+                        receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
+                            |e| Err(anyhow!("{}", e)),
+                            |v| v.map_err(|e| anyhow!("{:?}", e)),
+                        );
+                    LAPCE_APP_STATE.submit_ui_command(
+                        LapceUICommand::ApplyEditsAndSave(offset, rev, result),
+                        local_state.editor_split.lock().widget_id,
                     );
-
-                // if let Some(edits) = {
-                //     let state =
-                //         LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                //     let lsp = state.lsp.lock();
-                //     let edits = lsp.get_document_formatting(buffer);
-                //     edits
-                // } {
-                //     if edits.len() > 0 {
-                //         self.apply_edits(ctx, ui_state, rev, &edits);
-                //     }
-                // }
-
-                // let buffer_ui_state = ui_state.get_buffer_mut(&buffer_id);
-                // let buffer = self.buffers.get_mut(&buffer_id)?;
-                // if let Err(e) = buffer.save() {
-                //     println!("buffer save error {}", e);
-                // }
-                // buffer_ui_state.dirty = buffer.dirty;
-                // LAPCE_APP_STATE
-                //     .get_tab_state(&self.window_id, &self.tab_id)
-                //     .lsp
-                //     .lock()
-                //     .save_buffer(buffer);
+                });
             }
             _ => {
                 let editor = self.editors.get_mut(&self.active)?;

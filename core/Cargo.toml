@@ -5,9 +5,9 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+crossbeam-channel = "0.5.0"
 regex = "1.4.2"
 usvg = "0.12.0"
-lapce-proxy = { path = "../proxy" }
 git2 = "0.13"
 jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
@@ -30,6 +30,7 @@ fzyr = "0.1.2"
 uuid = { version = "0.7.4", features = ["v4"] }
 lsp-types = { version = "0.82.0", features = ["proposed"] }
 druid = { version = "0.7.0", features = ["svg"] }
+lapce-proxy = { path = "../proxy" }
 
 [build-dependencies]
 cc = "*"

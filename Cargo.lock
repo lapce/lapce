@@ -1603,6 +1603,7 @@ dependencies = [
  "anyhow",
  "bit-vec",
  "cc",
+ "crossbeam-channel 0.5.0",
  "druid",
  "fzyr",
  "git2",
