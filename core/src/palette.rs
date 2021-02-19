@@ -224,19 +224,18 @@ impl PaletteState {
         self.palette_type = PaletteType::File;
     }
 
-    fn ensure_visible(&self, ctx: &mut EventCtx, env: &Env) {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let rect = Rect::ZERO
-            .with_origin(Point::new(0.0, self.index as f64 * line_height))
-            .with_size(Size::new(10.0, line_height));
-        let margin = (0.0, 0.0);
-
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::EnsureVisible((rect, margin, None)),
-            Target::Widget(self.scroll_widget_id),
-        ));
-    }
+    // fn ensure_visible(&self, ctx: &mut EventCtx, env: &Env) {
+    //     let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+    //     let rect = Rect::ZERO
+    //         .with_origin(Point::new(0.0, self.index as f64 * line_height))
+    //         .with_size(Size::new(10.0, line_height));
+    //     let margin = (0.0, 0.0);
+    //     ctx.submit_command(Command::new(
+    //         LAPCE_UI_COMMAND,
+    //         LapceUICommand::EnsureVisible((rect, margin, None)),
+    //         Target::Widget(self.scroll_widget_id),
+    //     ));
+    // }
 
     pub fn key_event(&mut self, key: &KeyEvent) {}
 
@@ -833,14 +832,6 @@ impl PaletteState {
         self.reset(ctx);
     }
 
-    pub fn request_layout(&self, ctx: &mut EventCtx) {
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::RequestLayout,
-            Target::Widget(self.widget_id),
-        ))
-    }
-
     pub fn request_paint(&self, ctx: &mut EventCtx) {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
@@ -866,7 +857,7 @@ impl PaletteState {
             self.index as i64 + n
         } as usize;
 
-        self.ensure_visible(ctx, env);
+        // self.ensure_visible(ctx, env);
         self.request_paint(ctx);
         self.preview(ctx, ui_state, env);
     }
@@ -907,6 +898,7 @@ pub struct Palette {
     content: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     input: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     input_height: f64,
+    max_items: usize,
     rect: Rect,
 }
 
@@ -918,6 +910,7 @@ pub struct PaletteInput {
 pub struct PaletteContent {
     window_id: WindowId,
     tab_id: WidgetId,
+    max_items: usize,
 }
 
 impl Palette {
@@ -927,11 +920,12 @@ impl Palette {
         scroll_id: WidgetId,
     ) -> Palette {
         let padding = 6.0;
+        let max_items = 15;
         let palette_input = PaletteInput::new(window_id, tab_id)
             .padding((padding, padding, padding, padding * 2.0))
             .background(LapceTheme::EDITOR_BACKGROUND)
             .padding((padding, padding, padding, padding));
-        let palette_content = PaletteContent::new(window_id, tab_id)
+        let palette_content = PaletteContent::new(window_id, tab_id, max_items)
             .with_id(scroll_id)
             .padding((padding, 0.0, padding, padding));
         let palette = Palette {
@@ -943,6 +937,7 @@ impl Palette {
                 .with_origin(Point::new(50.0, 50.0))
                 .with_size(Size::new(100.0, 50.0)),
             input_height: 0.0,
+            max_items,
         };
         palette
     }
@@ -963,8 +958,16 @@ impl PaletteInput {
 }
 
 impl PaletteContent {
-    pub fn new(window_id: WindowId, tab_id: WidgetId) -> PaletteContent {
-        PaletteContent { window_id, tab_id }
+    pub fn new(
+        window_id: WindowId,
+        tab_id: WidgetId,
+        max_items: usize,
+    ) -> PaletteContent {
+        PaletteContent {
+            window_id,
+            tab_id,
+            max_items,
+        }
     }
 }
 
@@ -1031,7 +1034,6 @@ impl Widget<LapceUIState> for Palette {
         data: &LapceUIState,
         env: &Env,
     ) -> Size {
-        // let flex_size = self.flex.layout(ctx, bc, data, env);
         let input_size = self.input.layout(ctx, bc, data, env);
         self.input_height = input_size.height;
         self.input
@@ -1041,20 +1043,10 @@ impl Widget<LapceUIState> for Palette {
             Size::new(bc.max().width, bc.max().height - input_size.height),
         );
         let content_size = self.content.layout(ctx, &content_bc, data, env);
-        self.content.set_layout_rect(
-            ctx,
-            data,
-            env,
-            Rect::ZERO
-                .with_origin(Point::new(0.0, input_size.height))
-                .with_size(content_size),
-        );
-        // flex_size
-        let size = Size::new(
-            bc.max().width,
-            content_size.height + 10.0 + 6.0 * 2.0 + input_size.height,
-        );
-        size
+        self.content
+            .set_origin(ctx, data, env, Point::new(0.0, input_size.height));
+        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
+        Size::new(bc.max().width, self.input_height + content_size.height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
@@ -1066,28 +1058,22 @@ impl Widget<LapceUIState> for Palette {
         }
 
         let shadow_width = 5.0;
-        let shift = shadow_width * 2.0;
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let items_len = {
             let palette = state.palette.lock();
             palette.current_items().len()
         };
-        let max_items = 16;
-        let height = if items_len > max_items {
-            max_items
+        let items_len = if items_len > self.max_items {
+            self.max_items
         } else {
             items_len
         };
-        let height = if height > 0 {
-            line_height * height as f64 + 6.0
-        } else {
-            0.0
-        };
-        let height = height + 13.0 + 6.0 * 5.0;
+        let height = line_height * items_len as f64
+            + if items_len > 0 { 6.0 } else { 0.0 }
+            + self.input_height;
 
-        let size = Size::new(ctx.size().width, height + shift * 2.0);
+        let size = Size::new(ctx.size().width, height);
         let rect = size.to_rect();
-        // let content_rect = size.to_rect() - Insets::new(shift, shift, shift, shift);
         let blur_color = Color::grey8(100);
         ctx.blurred_rect(rect, shadow_width, &blur_color);
         ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
@@ -1133,8 +1119,7 @@ impl Widget<LapceUIState> for PaletteContent {
         env: &Env,
     ) -> Size {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let max_items = 15;
-        let height = line_height * max_items as f64;
+        let height = line_height * self.max_items as f64;
         Size::new(bc.max().width, height)
     }
 
@@ -1143,7 +1128,7 @@ impl Widget<LapceUIState> for PaletteContent {
         let rects = ctx.region().rects().to_vec();
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let mut palette = state.palette.lock();
-        let height = line_height * 16.0;
+        let height = line_height * self.max_items as f64;
         for rect in rects {
             let items = palette.current_items();
             let items_height = items.len() as f64 * line_height;
@@ -1160,9 +1145,8 @@ impl Widget<LapceUIState> for PaletteContent {
             };
 
             let start = (scroll_offset / line_height).floor() as usize;
-            let num_lines = 15;
 
-            for line in start..start + num_lines + 1 {
+            for line in start..start + self.max_items {
                 if line >= items.len() {
                     break;
                 }
@@ -1203,24 +1187,6 @@ impl Widget<LapceUIState> for PaletteContent {
                     .new_text_layout(item.text.clone())
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-                // if item.hint.is_some() {
-                //     // text_layout = text_layout.range_attribute(
-                //     //     item.text.len()
-                //     //         ..item.text.len()
-                //     //             + item.hint.as_ref().unwrap().len()
-                //     //             + 1,
-                //     //     TextAttribute::FontSize(13.0),
-                //     // );
-                //     text_layout = text_layout.range_attribute(
-                //         item.text.len()
-                //             ..item.text.len()
-                //                 + item.hint.as_ref().unwrap().len()
-                //                 + 1,
-                //         TextAttribute::TextColor(
-                //             env.get(LapceTheme::EDITOR_FOREGROUND).with_alpha(0.8),
-                //         ),
-                //     );
-                // }
                 for (i, _) in item.text.chars().enumerate() {
                     if item.match_mask.get(i).unwrap_or(false) {
                         text_layout = text_layout.range_attribute(

@@ -203,19 +203,25 @@ impl Widget<LapceUIState> for LapceContainer {
 
         let palette_bc = BoxConstraints::new(Size::ZERO, self.palette_max_size);
         let palette_size = self.palette.layout(ctx, &palette_bc, data, env);
+        let palette_origin = Point::new(
+            (size.width - palette_size.width) / 2.0,
+            ((size.height - palette_size.height) / 4.0).max(0.0),
+        );
         self.palette_rect = Rect::ZERO
-            .with_origin(Point::new(
-                (size.width - self.palette_max_size.width) / 2.0,
-                ((size.height - self.palette_max_size.height) / 4.0).max(0.0),
-            ))
+            .with_origin(palette_origin)
             .with_size(palette_size);
-        self.palette
-            .set_layout_rect(ctx, data, env, self.palette_rect);
+        self.palette.set_origin(ctx, data, env, palette_origin);
 
         {
+            let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+            self.completion.layout(
+                ctx,
+                &BoxConstraints::tight(Size::new(300.0, 12.0 * line_height + 20.0)),
+                data,
+                env,
+            );
             let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
             let editor_split = state.editor_split.lock();
-            let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
             for child in &self.editor_split.widget().children {
                 if child.widget.id() == editor_split.active {
                     let editor =
@@ -242,13 +248,6 @@ impl Widget<LapceUIState> for LapceContainer {
                                 - 10.0,
                         )
                         - editor.scroll_offset;
-                    let size = Size::new(300.0, 12.0 * line_height + 20.0);
-                    self.completion.layout(
-                        ctx,
-                        &BoxConstraints::tight(size),
-                        data,
-                        env,
-                    );
                     self.completion.set_origin(ctx, data, env, origin);
                 }
             }
