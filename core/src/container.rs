@@ -213,7 +213,6 @@ impl Widget<LapceUIState> for LapceContainer {
             .set_layout_rect(ctx, data, env, self.palette_rect);
 
         {
-            self.completion.layout(ctx, bc, data, env);
             let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
             let editor_split = state.editor_split.lock();
             let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
@@ -243,11 +242,14 @@ impl Widget<LapceUIState> for LapceContainer {
                                 - 10.0,
                         )
                         - editor.scroll_offset;
-                    let layout_rect = Rect::from_origin_size(
-                        origin,
-                        Size::new(300.0, 12.0 * line_height + 20.0),
+                    let size = Size::new(300.0, 12.0 * line_height + 20.0);
+                    self.completion.layout(
+                        ctx,
+                        &BoxConstraints::tight(size),
+                        data,
+                        env,
                     );
-                    self.completion.set_layout_rect(ctx, data, env, layout_rect);
+                    self.completion.set_origin(ctx, data, env, origin);
                 }
             }
         }

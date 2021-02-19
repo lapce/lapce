@@ -906,6 +906,7 @@ pub struct Palette {
     tab_id: WidgetId,
     content: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     input: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
+    input_height: f64,
     rect: Rect,
 }
 
@@ -929,10 +930,10 @@ impl Palette {
         let palette_input = PaletteInput::new(window_id, tab_id)
             .padding((padding, padding, padding, padding * 2.0))
             .background(LapceTheme::EDITOR_BACKGROUND)
-            .padding((10.0 + padding, 10.0 + padding, 10.0 + padding, padding));
+            .padding((padding, padding, padding, padding));
         let palette_content = PaletteContent::new(window_id, tab_id)
             .with_id(scroll_id)
-            .padding((10.0 + padding, 0.0, 10.0 + padding, 10.0 + padding));
+            .padding((padding, 0.0, padding, padding));
         let palette = Palette {
             window_id,
             tab_id,
@@ -941,6 +942,7 @@ impl Palette {
             rect: Rect::ZERO
                 .with_origin(Point::new(50.0, 50.0))
                 .with_size(Size::new(100.0, 50.0)),
+            input_height: 0.0,
         };
         palette
     }
@@ -1031,6 +1033,7 @@ impl Widget<LapceUIState> for Palette {
     ) -> Size {
         // let flex_size = self.flex.layout(ctx, bc, data, env);
         let input_size = self.input.layout(ctx, bc, data, env);
+        self.input_height = input_size.height;
         self.input
             .set_layout_rect(ctx, data, env, Rect::ZERO.with_size(input_size));
         let content_bc = BoxConstraints::new(
@@ -1083,10 +1086,11 @@ impl Widget<LapceUIState> for Palette {
         let height = height + 13.0 + 6.0 * 5.0;
 
         let size = Size::new(ctx.size().width, height + shift * 2.0);
-        let content_rect = size.to_rect() - Insets::new(shift, shift, shift, shift);
+        let rect = size.to_rect();
+        // let content_rect = size.to_rect() - Insets::new(shift, shift, shift, shift);
         let blur_color = Color::grey8(100);
-        ctx.blurred_rect(content_rect, shadow_width, &blur_color);
-        ctx.fill(content_rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+        ctx.blurred_rect(rect, shadow_width, &blur_color);
+        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
 
         self.input.paint(ctx, data, env);
         self.content.paint(ctx, data, env);

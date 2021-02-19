@@ -524,7 +524,6 @@ impl LapceTabState {
             }
         };
         ui_state.focus = self.focus.lock().clone();
-        // ctx.request_layout();
         Ok(())
     }
 
