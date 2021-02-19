@@ -2,15 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::state::Mode;
 use crate::{
-    buffer::BufferId,
-    buffer::BufferUIState,
     command::{LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
-    completion::Completion,
-    editor::Editor,
-    editor::EditorState,
-    editor::EditorUIState,
+    completion::CompletionWidget,
     editor::EditorView,
-    state::LapceTabState,
     state::LapceUIState,
     state::LAPCE_APP_STATE,
     theme::LapceTheme,
@@ -18,20 +12,12 @@ use crate::{
 use crate::{palette::Palette, split::LapceSplit};
 use crate::{scroll::LapceScroll, state::LapceFocus};
 use druid::piet::TextAttribute;
-use druid::FontDescriptor;
-use druid::FontFamily;
 use druid::FontWeight;
-use druid::TextLayout;
 use druid::{
     kurbo::{Line, Rect},
     piet::Text,
     piet::TextLayoutBuilder,
-    widget::Container,
-    widget::Flex,
-    widget::IdentityWrapper,
-    widget::Label,
-    widget::SizedBox,
-    Color, Command, MouseEvent, Selector, Target, Vec2, WidgetId,
+    Color, Vec2, WidgetId,
 };
 use druid::{
     theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
@@ -52,7 +38,7 @@ pub struct LapceContainer {
     palette_rect: Rect,
     palette: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     editor_split: WidgetPod<LapceUIState, LapceSplit>,
-    completion: WidgetPod<LapceUIState, Completion>,
+    completion: WidgetPod<LapceUIState, CompletionWidget>,
 }
 
 impl LapceContainer {
@@ -82,7 +68,7 @@ impl LapceContainer {
                 .with_flex_child(editor_view, 1.0),
         );
 
-        let completion = WidgetPod::new(Completion::new(
+        let completion = WidgetPod::new(CompletionWidget::new(
             window_id.clone(),
             tab_id.clone(),
             editor_split_state.completion.widget_id,

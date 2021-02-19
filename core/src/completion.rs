@@ -134,15 +134,19 @@ impl CompletionState {
     }
 }
 
-pub struct Completion {
+pub struct CompletionWidget {
     window_id: WindowId,
     tab_id: WidgetId,
     id: WidgetId,
 }
 
-impl Completion {
-    pub fn new(window_id: WindowId, tab_id: WidgetId, id: WidgetId) -> Completion {
-        Completion {
+impl CompletionWidget {
+    pub fn new(
+        window_id: WindowId,
+        tab_id: WidgetId,
+        id: WidgetId,
+    ) -> CompletionWidget {
+        CompletionWidget {
             window_id,
             tab_id,
             id,
@@ -225,7 +229,7 @@ impl Completion {
     }
 }
 
-impl Widget<LapceUIState> for Completion {
+impl Widget<LapceUIState> for CompletionWidget {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
