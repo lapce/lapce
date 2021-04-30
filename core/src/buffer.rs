@@ -30,9 +30,7 @@ use tree_sitter::{Parser, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
-use xi_core_lib::{
-    selection::InsertDrift,
-};
+use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
     interval::IntervalBounds, rope::Rope, Cursor, Delta, DeltaBuilder, Interval,
     LinesMetric, RopeDelta, RopeInfo, Transformer,
@@ -646,8 +644,8 @@ impl Buffer {
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
         let max = self.len();
         let offset = if offset > max { max } else { offset };
-        let line = self.line_of_offset( offset);
-        (line, offset - self.offset_of_line( line))
+        let line = self.line_of_offset(offset);
+        (line, offset - self.offset_of_line(line))
     }
 
     pub fn offset_to_position(&self, offset: usize) -> Position {
@@ -1392,7 +1390,7 @@ pub fn start_buffer_highlights(
             let buffer = editor_split.buffers.get(&buffer_id).unwrap();
             let language = match buffer.language_id.as_str() {
                 "rust" => LapceLanguage::Rust,
-                "go" => LapceLanguage::Go,
+                // "go" => LapceLanguage::Go,
                 _ => continue,
             };
             if buffer.rev != rev {

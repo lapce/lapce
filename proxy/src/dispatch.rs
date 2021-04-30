@@ -43,7 +43,9 @@ impl Notify for Dispatcher {
                     .drain(..)
             {
                 match token {
-                    OPEN_FILE_EVENT_TOKEN => {}
+                    OPEN_FILE_EVENT_TOKEN => {
+                        eprintln!("file watcher received event {:?}", event);
+                    }
                     _ => (),
                 }
             }
