@@ -24,6 +24,7 @@ pub struct Buffer {
     pub rope: Rope,
     pub path: PathBuf,
     pub rev: u64,
+    pub dirty: bool,
     sender: Sender<(BufferId, u64)>,
     pub mod_time: Option<SystemTime>,
 }
@@ -48,14 +49,16 @@ impl Buffer {
             language_id,
             rev: 0,
             sender,
+            dirty: false,
             mod_time,
         }
     }
 
-    pub fn save(&self, rev: u64) -> Result<()> {
+    pub fn save(&mut self, rev: u64) -> Result<()> {
         if self.rev != rev {
             return Err(anyhow!("not the right rev"));
         }
+        self.dirty = false;
         let tmp_extension = self.path.extension().map_or_else(
             || OsString::from("swp"),
             |ext| {
@@ -71,7 +74,20 @@ impl Buffer {
             f.write_all(chunk.as_bytes())?;
         }
         fs::rename(tmp_path, &self.path)?;
+        self.mod_time = get_mod_time(&self.path);
         Ok(())
+    }
+
+    pub fn reload(&mut self) {
+        let rope = if let Ok(rope) = load_file(&self.path) {
+            rope
+        } else {
+            Rope::from("")
+        };
+
+        self.rope = rope;
+        self.rev += 1;
+        self.sender.send((self.id, self.rev));
     }
 
     pub fn update(
@@ -83,6 +99,7 @@ impl Buffer {
             return None;
         }
         self.rev += 1;
+        self.dirty = true;
         let content_change = get_document_content_changes(delta, self);
         self.rope = delta.apply(&self.rope);
         let content_change = match content_change {
@@ -190,7 +207,7 @@ fn get_document_content_changes(
 
 /// Returns the modification timestamp for the file at a given path,
 /// if present.
-fn get_mod_time<P: AsRef<Path>>(path: P) -> Option<SystemTime> {
+pub fn get_mod_time<P: AsRef<Path>>(path: P) -> Option<SystemTime> {
     File::open(path)
         .and_then(|f| f.metadata())
         .and_then(|meta| meta.modified())

@@ -205,6 +205,7 @@ pub enum LapceUICommand {
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
     CenterOfWindow,
     UpdateLineChanges(BufferId),
+    ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EditorViewSize(Size),
     Scroll((f64, f64)),

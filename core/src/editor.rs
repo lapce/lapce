@@ -908,7 +908,6 @@ impl EditorSplitState {
                 self.tab_id.clone(),
                 buffer_id.clone(),
                 path,
-                ctx.get_external_handle(),
                 ui_state.highlight_sender.clone(),
             );
             let num_lines = buffer.num_lines();

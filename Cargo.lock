@@ -1645,6 +1645,7 @@ dependencies = [
  "jsonrpc-lite",
  "lapce-rpc",
  "lsp-types",
+ "notify",
  "parking_lot 0.11.1",
  "serde",
  "serde_json",

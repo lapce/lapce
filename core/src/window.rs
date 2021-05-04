@@ -150,6 +150,19 @@ impl Widget<LapceUIState> for LapceTab {
                         LapceUICommand::RequestPaint => {
                             ctx.request_paint();
                         }
+                        LapceUICommand::ReloadBuffer(
+                            buffer_id,
+                            rev,
+                            new_content,
+                        ) => {
+                            let state = LAPCE_APP_STATE
+                                .get_tab_state(&self.window_id, &self.tab_id);
+                            let mut editor_split = state.editor_split.lock();
+                            let buffer =
+                                editor_split.buffers.get_mut(buffer_id).unwrap();
+                            buffer.reload(*rev, new_content);
+                            editor_split.notify_fill_text_layouts(ctx, buffer_id);
+                        }
                         LapceUICommand::UpdateLineChanges(buffer_id) => {
                             let state = LAPCE_APP_STATE
                                 .get_tab_state(&self.window_id, &self.tab_id);
@@ -501,7 +514,8 @@ impl Widget<LapceUIState> for LapceWindow {
                             let tab = LapceTab::new(self.window_id.clone(), tab_id);
                             self.tabs.insert(index + 1, WidgetPod::new(tab));
                             *window_state.active.lock() = tab_id;
-                            ctx.request_layout();
+                            ctx.children_changed();
+                            return;
                         }
                         LapceUICommand::CloseTab => {
                             if self.tabs.len() <= 1 {
@@ -525,7 +539,8 @@ impl Widget<LapceUIState> for LapceWindow {
                             self.tabs.remove(index);
                             //window_state.states.lock().remove(&active);
                             *active = new_active;
-                            ctx.request_layout();
+                            ctx.children_changed();
+                            return;
                         }
                         LapceUICommand::NextTab => {
                             let window_state =

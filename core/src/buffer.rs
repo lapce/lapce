@@ -78,7 +78,6 @@ pub struct Buffer {
     tab_id: WidgetId,
     pub id: BufferId,
     pub rope: Rope,
-    highlight_config: Arc<HighlightConfiguration>,
     highlight_names: Vec<String>,
     pub semantic_tokens: Option<Vec<(usize, usize, String)>>,
     pub highlights: Vec<(usize, usize, Highlight)>,
@@ -104,7 +103,6 @@ impl Buffer {
         tab_id: WidgetId,
         buffer_id: BufferId,
         path: &str,
-        event_sink: ExtEventSink,
         sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
     ) -> Buffer {
         let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
@@ -117,26 +115,14 @@ impl Buffer {
             .unwrap();
         let rope = Rope::from_str(&content).unwrap();
 
-        // let rope = if let Ok(rope) = load_file(&window_id, &tab_id, path) {
-        //     rope
-        // } else {
-        //     Rope::from("")
-        // };
-        let mut parser = new_parser(LapceLanguage::Rust);
-        let tree = parser.parse(&rope.to_string(), None).unwrap();
-
         let (highlight_config, highlight_names) =
             new_highlight_config(LapceLanguage::Rust);
-
-        let path_buf = PathBuf::from_str(path).unwrap();
-        path_buf.extension().unwrap().to_str().unwrap().to_string();
 
         let mut buffer = Buffer {
             window_id: window_id.clone(),
             tab_id: tab_id.clone(),
             id: buffer_id.clone(),
             rope,
-            highlight_config: Arc::new(highlight_config),
             semantic_tokens: None,
             highlight_names,
             highlights: Vec::new(),
@@ -155,25 +141,27 @@ impl Buffer {
             tree: None,
             sender,
         };
-
-        let language_id = buffer.language_id.clone();
-
-        // state.plugins.lock().new_buffer(&PluginBufferInfo {
-        //     buffer_id: buffer_id.clone(),
-        //     language_id: buffer.language_id.clone(),
-        //     path: path.to_string(),
-        //     nb_lines: buffer.num_lines(),
-        //     buf_size: buffer.len(),
-        //     rev: buffer.rev,
-        // });
-        // state.lsp.lock().new_buffer(
-        //     &buffer_id,
-        //     path,
-        //     &buffer.language_id,
-        //     buffer.rope.to_string(),
-        // );
         buffer.update_highlights();
         buffer
+    }
+
+    pub fn reload(&mut self, rev: u64, new_content: &str) {
+        if self.rev + 1 != rev {
+            return;
+        }
+        self.rope = Rope::from_str(new_content).unwrap();
+        self.semantic_tokens = None;
+        self.highlights = Vec::new();
+        self.line_highlights = HashMap::new();
+        self.undos = Vec::new();
+        self.current_undo = 0;
+        self.code_actions = HashMap::new();
+        self.rev += 1;
+        self.dirty = false;
+        self.diff = Vec::new();
+        self.line_changes = HashMap::new();
+        self.tree = None;
+        self.update_highlights();
     }
 
     pub fn len(&self) -> usize {
@@ -836,33 +824,33 @@ impl Buffer {
         false
     }
 
-    pub fn get_text_layout(
-        &mut self,
-        text: &mut PietText,
-        theme: &HashMap<String, Color>,
-        line: usize,
-        line_content: String,
-        env: &Env,
-    ) -> HighlightTextLayout {
-        let mut layout_builder = text
-            .new_text_layout(line_content.clone())
-            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-        for (start, end, hl) in self.get_line_highligh(line) {
-            if let Some(color) = theme.get(hl) {
-                layout_builder = layout_builder.range_attribute(
-                    start..end,
-                    TextAttribute::TextColor(color.clone()),
-                );
-            }
-        }
-        let layout = layout_builder.build().unwrap();
-        HighlightTextLayout {
-            layout,
-            text: line_content,
-            highlights: self.get_line_highligh(line).clone(),
-        }
-    }
+    // pub fn get_text_layout(
+    //     &mut self,
+    //     text: &mut PietText,
+    //     theme: &HashMap<String, Color>,
+    //     line: usize,
+    //     line_content: String,
+    //     env: &Env,
+    // ) -> HighlightTextLayout {
+    //     let mut layout_builder = text
+    //         .new_text_layout(line_content.clone())
+    //         .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+    //         .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+    //     for (start, end, hl) in self.get_line_highligh(line) {
+    //         if let Some(color) = theme.get(hl) {
+    //             layout_builder = layout_builder.range_attribute(
+    //                 start..end,
+    //                 TextAttribute::TextColor(color.clone()),
+    //             );
+    //         }
+    //     }
+    //     let layout = layout_builder.build().unwrap();
+    //     HighlightTextLayout {
+    //         layout,
+    //         text: line_content,
+    //         highlights: self.get_line_highligh(line).clone(),
+    //     }
+    // }
 
     pub fn get_document(&self) -> String {
         self.rope.to_string()

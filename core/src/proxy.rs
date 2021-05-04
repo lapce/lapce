@@ -225,6 +225,11 @@ pub enum Notification {
         line_changes: HashMap<usize, char>,
         rev: u64,
     },
+    ReloadBuffer {
+        buffer_id: BufferId,
+        new_content: String,
+        rev: u64,
+    },
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
     },
@@ -292,6 +297,23 @@ impl Handler for ProxyHandler {
                 buffer.line_changes = line_changes;
                 LAPCE_APP_STATE.submit_ui_command(
                     LapceUICommand::UpdateLineChanges(buffer_id),
+                    self.tab_id,
+                );
+            }
+            Notification::ReloadBuffer {
+                buffer_id,
+                new_content,
+                rev,
+            } => {
+                let state =
+                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+                let mut editor_split = state.editor_split.lock();
+                let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
+                if buffer.rev + 1 != rev {
+                    return;
+                }
+                LAPCE_APP_STATE.submit_ui_command(
+                    LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
                     self.tab_id,
                 );
             }

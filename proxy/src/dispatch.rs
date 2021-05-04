@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, BufferId};
+use crate::buffer::{get_mod_time, Buffer, BufferId};
 use crate::core_proxy::CoreProxy;
 use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
@@ -7,7 +7,8 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Repository};
 use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
-use lsp_types::Position;
+use lsp_types::{Position, TextDocumentContentChangeEvent};
+use notify::DebouncedEvent;
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -18,7 +19,7 @@ use std::thread;
 use std::{cmp, fs};
 use std::{collections::HashMap, io};
 use std::{collections::HashSet, io::BufRead};
-use xi_core_lib::watcher::{FileWatcher, Notify, WatchToken};
+use xi_core_lib::watcher::{EventQueue, FileWatcher, Notify, WatchToken};
 use xi_rope::{RopeDelta, RopeInfo};
 
 pub const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(2);
@@ -29,6 +30,7 @@ pub struct Dispatcher {
     pub git_sender: Sender<(BufferId, u64)>,
     pub workspace: Arc<Mutex<PathBuf>>,
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
+    open_files: Arc<Mutex<HashMap<String, BufferId>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
     pub watcher: Arc<Mutex<Option<FileWatcher>>>,
@@ -42,9 +44,42 @@ impl Notify for Dispatcher {
                 { dispatcher.watcher.lock().as_mut().unwrap().take_events() }
                     .drain(..)
             {
-                match token {
-                    OPEN_FILE_EVENT_TOKEN => {
-                        eprintln!("file watcher received event {:?}", event);
+                match event {
+                    DebouncedEvent::Write(path) | DebouncedEvent::Create(path) => {
+                        if let Some(buffer_id) = {
+                            dispatcher
+                                .open_files
+                                .lock()
+                                .get(&path.to_str().unwrap().to_string())
+                        } {
+                            if let Some(buffer) =
+                                dispatcher.buffers.lock().get_mut(buffer_id)
+                            {
+                                if get_mod_time(&buffer.path) == buffer.mod_time {
+                                    return;
+                                }
+                                if !buffer.dirty {
+                                    buffer.reload();
+                                    dispatcher.lsp.lock().update(
+                                        buffer,
+                                        &TextDocumentContentChangeEvent {
+                                            range: None,
+                                            range_length: None,
+                                            text: buffer.get_document(),
+                                        },
+                                        buffer.rev,
+                                    );
+                                    dispatcher.sender.send(json!({
+                                        "method": "reload_buffer",
+                                        "params": {
+                                            "buffer_id": buffer_id,
+                                            "rev": buffer.rev,
+                                            "new_content": buffer.get_document(),
+                                        },
+                                    }));
+                                }
+                            }
+                        }
                     }
                     _ => (),
                 }
@@ -161,6 +196,7 @@ impl Dispatcher {
             git_sender,
             workspace: Arc::new(Mutex::new(PathBuf::new())),
             buffers: Arc::new(Mutex::new(HashMap::new())),
+            open_files: Arc::new(Mutex::new(HashMap::new())),
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
             watcher: Arc::new(Mutex::new(None)),
@@ -330,6 +366,9 @@ impl Dispatcher {
     fn handle_request(&self, id: RequestId, rpc: Request) {
         match rpc {
             Request::NewBuffer { buffer_id, path } => {
+                self.open_files
+                    .lock()
+                    .insert(path.to_str().unwrap().to_string(), buffer_id);
                 let buffer = Buffer::new(buffer_id, path, self.git_sender.clone());
                 let content = buffer.rope.to_string();
                 self.buffers.lock().insert(buffer_id, buffer);
@@ -457,8 +496,8 @@ impl Dispatcher {
             }
             Request::Save { rev, buffer_id } => {
                 eprintln!("receive save");
-                let buffers = self.buffers.lock();
-                let buffer = buffers.get(&buffer_id).unwrap();
+                let mut buffers = self.buffers.lock();
+                let buffer = buffers.get_mut(&buffer_id).unwrap();
                 let resp = buffer.save(rev).map(|r| json!({}));
                 self.lsp.lock().save_buffer(buffer);
                 self.respond(id, resp);
