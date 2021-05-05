@@ -44,15 +44,6 @@ pub struct PanelState {
 impl PanelState {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> Self {
         let panels = HashMap::new();
-        // panels.push(Arc::new(Mutex::new(Box::new(FileExplorerState::new(
-        //     window_id, tab_id,
-        // )) as Box<dyn PanelProperty>)));
-        // panels.push(Arc::new(Mutex::new(
-        //     Box::new(SourceControlState::new()) as Box<dyn PanelProperty>
-        // )));
-        // panels.push(Arc::new(Mutex::new(
-        //     Box::new(OutlineState::new()) as Box<dyn PanelProperty>
-        // )));
         let mut shown = HashMap::new();
         shown.insert(PanelPosition::LeftTop, true);
         shown.insert(PanelPosition::LeftBottom, true);

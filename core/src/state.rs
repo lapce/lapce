@@ -67,6 +67,7 @@ pub enum LapceFocus {
     Palette,
     Editor,
     FileExplorer,
+    SourceControl,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -410,6 +411,7 @@ impl LapceTabState {
             LapceFocus::Palette => Mode::Insert,
             LapceFocus::Editor => self.editor_split.lock().get_mode(),
             LapceFocus::FileExplorer => Mode::Normal,
+            LapceFocus::SourceControl => Mode::Normal,
         }
     }
 
@@ -474,6 +476,14 @@ impl LapceTabState {
                 *self.focus.lock() = LapceFocus::Editor;
                 ctx.request_paint();
             }
+            LapceCommand::SourceControl => {
+                *self.focus.lock() = LapceFocus::SourceControl;
+                ctx.request_paint();
+            }
+            LapceCommand::SourceControlCancel => {
+                *self.focus.lock() = LapceFocus::Editor;
+                ctx.request_paint();
+            }
             _ => {
                 let mut focus = self.focus.lock();
                 match *focus {
@@ -483,6 +493,7 @@ impl LapceTabState {
                             .lock()
                             .run_command(ctx, ui_state, count, cmd);
                     }
+                    LapceFocus::SourceControl => {}
                     LapceFocus::Editor => {
                         self.editor_split
                             .lock()
@@ -560,6 +571,7 @@ impl LapceTabState {
         let editor_split = self.editor_split.lock();
         match condition.trim() {
             "file_explorer_focus" => *focus == LapceFocus::FileExplorer,
+            "source_control_focus" => *focus == LapceFocus::SourceControl,
             "palette_focus" => *focus == LapceFocus::Palette,
             "list_focus" => {
                 *focus == LapceFocus::Palette

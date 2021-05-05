@@ -146,6 +146,18 @@ impl PanelProperty for SourceControlState {
         let text_layout = text_layout.build().unwrap();
         ctx.draw_text(&text_layout, Point::new(20.0, 5.0));
 
+        let padding = 10.0;
+        let commit_height = line_height * 5.0 + padding * 2.0;
+        let commit_rect = Rect::ZERO
+            .with_size(Size::new(
+                size.width - padding * 2.0,
+                commit_height - padding * 2.0,
+            ))
+            .with_origin(Point::new(padding, header_height + padding));
+        if let Some(background) = LAPCE_APP_STATE.theme.get("background") {
+            ctx.fill(commit_rect, background);
+        }
+
         let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
         let workspace_path = state.workspace.lock().path.clone();
 
@@ -183,7 +195,10 @@ impl PanelProperty for SourceControlState {
                         0.0,
                         scale,
                         1.0,
-                        line as f64 * line_height + 5.0 + header_height,
+                        line as f64 * line_height
+                            + 5.0
+                            + header_height
+                            + commit_height,
                     ]);
                     svg_data.to_piet(affine, ctx);
                 }
@@ -197,7 +212,10 @@ impl PanelProperty for SourceControlState {
                     &text_layout,
                     Point::new(
                         20.0,
-                        line as f64 * line_height + 4.0 + header_height,
+                        line as f64 * line_height
+                            + 4.0
+                            + header_height
+                            + commit_height,
                     ),
                 );
                 let text_x =
@@ -215,7 +233,10 @@ impl PanelProperty for SourceControlState {
                     &text_layout,
                     Point::new(
                         20.0 + text_x + 4.0,
-                        line as f64 * line_height + 5.0 + header_height,
+                        line as f64 * line_height
+                            + 5.0
+                            + header_height
+                            + commit_height,
                     ),
                 );
             }
@@ -232,11 +253,5 @@ impl SourceControlState {
             diff_files: Vec::new(),
             position: PanelPosition::LeftBottom,
         }
-    }
-
-    pub fn widget_id(&self) -> WidgetId {
-        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let panel = state.panel.lock();
-        panel.widget_id(self.position())
     }
 }

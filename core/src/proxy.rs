@@ -339,7 +339,7 @@ impl Handler for ProxyHandler {
                     source_control.diff_files = files;
                     LAPCE_APP_STATE.submit_ui_command(
                         LapceUICommand::RequestPaint,
-                        source_control.widget_id(),
+                        source_control.widget_id,
                     );
                 });
             }

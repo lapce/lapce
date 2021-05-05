@@ -25,6 +25,10 @@ pub enum LapceCommand {
     FileExplorer,
     #[strum(serialize = "file_explorer.cancel")]
     FileExplorerCancel,
+    #[strum(serialize = "source_control")]
+    SourceControl,
+    #[strum(serialize = "source_control.cancel")]
+    SourceControlCancel,
     #[strum(serialize = "palette.line")]
     PaletteLine,
     #[strum(serialize = "palette")]
