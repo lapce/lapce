@@ -13,13 +13,11 @@ use druid::{
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    theme, BoxConstraints, Color, Cursor, Data, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx,
-    Widget, WidgetExt, WidgetPod,
-};
-use druid::{
+    theme,
     widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll},
-    TextLayout,
+    BoxConstraints, Color, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, TextLayout, UpdateCtx,
+    Widget, WidgetExt, WidgetPod,
 };
 use fzyr::{has_match, locate, Score};
 use lsp_types::{DocumentSymbolResponse, Location, Position, SymbolKind};

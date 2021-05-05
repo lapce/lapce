@@ -353,8 +353,6 @@ impl LapceTabState {
             panel: Arc::new(Mutex::new(PanelState::new(window_id, tab_id))),
             proxy: Arc::new(Mutex::new(None)),
         };
-        state.panel.lock().add(state.file_explorer.clone());
-        state.panel.lock().add(state.source_control.clone());
         let local_state = state.clone();
         thread::spawn(move || {
             local_state.start_proxy();

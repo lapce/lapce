@@ -4,7 +4,7 @@ use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use git2::{DiffOptions, Repository};
+use git2::{DiffOptions, Oid, Repository};
 use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::{Position, TextDocumentContentChangeEvent};
@@ -13,16 +13,17 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::thread;
 use std::{cmp, fs};
 use std::{collections::HashMap, io};
 use std::{collections::HashSet, io::BufRead};
+use std::{path::PathBuf, sync::atomic::AtomicBool};
+use std::{sync::atomic, thread};
+use std::{sync::Arc, time::Duration};
 use xi_core_lib::watcher::{EventQueue, FileWatcher, Notify, WatchToken};
 use xi_rope::{RopeDelta, RopeInfo};
 
-pub const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(2);
+pub const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
+pub const GIT_EVENT_TOKEN: WatchToken = WatchToken(2);
 
 #[derive(Clone)]
 pub struct Dispatcher {
@@ -34,6 +35,7 @@ pub struct Dispatcher {
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
     pub watcher: Arc<Mutex<Option<FileWatcher>>>,
+    pub workspace_updated: Arc<AtomicBool>,
 }
 
 impl Notify for Dispatcher {
@@ -44,44 +46,54 @@ impl Notify for Dispatcher {
                 { dispatcher.watcher.lock().as_mut().unwrap().take_events() }
                     .drain(..)
             {
-                match event {
-                    DebouncedEvent::Write(path) | DebouncedEvent::Create(path) => {
-                        if let Some(buffer_id) = {
-                            dispatcher
-                                .open_files
-                                .lock()
-                                .get(&path.to_str().unwrap().to_string())
-                        } {
-                            if let Some(buffer) =
-                                dispatcher.buffers.lock().get_mut(buffer_id)
-                            {
-                                if get_mod_time(&buffer.path) == buffer.mod_time {
-                                    return;
-                                }
-                                if !buffer.dirty {
-                                    buffer.reload();
-                                    dispatcher.lsp.lock().update(
-                                        buffer,
-                                        &TextDocumentContentChangeEvent {
-                                            range: None,
-                                            range_length: None,
-                                            text: buffer.get_document(),
-                                        },
-                                        buffer.rev,
-                                    );
-                                    dispatcher.sender.send(json!({
-                                        "method": "reload_buffer",
-                                        "params": {
-                                            "buffer_id": buffer_id,
-                                            "rev": buffer.rev,
-                                            "new_content": buffer.get_document(),
-                                        },
-                                    }));
+                match token {
+                    OPEN_FILE_EVENT_TOKEN => match event {
+                        DebouncedEvent::Write(path)
+                        | DebouncedEvent::Create(path) => {
+                            if let Some(buffer_id) = {
+                                dispatcher
+                                    .open_files
+                                    .lock()
+                                    .get(&path.to_str().unwrap().to_string())
+                            } {
+                                if let Some(buffer) =
+                                    dispatcher.buffers.lock().get_mut(buffer_id)
+                                {
+                                    if get_mod_time(&buffer.path) == buffer.mod_time
+                                    {
+                                        return;
+                                    }
+                                    if !buffer.dirty {
+                                        buffer.reload();
+                                        dispatcher.lsp.lock().update(
+                                            buffer,
+                                            &TextDocumentContentChangeEvent {
+                                                range: None,
+                                                range_length: None,
+                                                text: buffer.get_document(),
+                                            },
+                                            buffer.rev,
+                                        );
+                                        dispatcher.sender.send(json!({
+                                            "method": "reload_buffer",
+                                            "params": {
+                                                "buffer_id": buffer_id,
+                                                "rev": buffer.rev,
+                                                "new_content": buffer.get_document(),
+                                            },
+                                        }));
+                                    }
                                 }
                             }
                         }
+                        _ => (),
+                    },
+                    GIT_EVENT_TOKEN => {
+                        dispatcher
+                            .workspace_updated
+                            .store(true, atomic::Ordering::Relaxed);
                     }
-                    _ => (),
+                    WatchToken(_) => {}
                 }
             }
         });
@@ -200,6 +212,7 @@ impl Dispatcher {
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
             watcher: Arc::new(Mutex::new(None)),
+            workspace_updated: Arc::new(AtomicBool::new(false)),
         };
         *dispatcher.watcher.lock() = Some(FileWatcher::new(dispatcher.clone()));
         dispatcher.lsp.lock().dispatcher = Some(dispatcher.clone());
@@ -208,6 +221,11 @@ impl Dispatcher {
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
             local_dispatcher.start_update_process(git_receiver);
+        });
+
+        let local_dispatcher = dispatcher.clone();
+        thread::spawn(move || {
+            local_dispatcher.monitor_workspace_update();
         });
         dispatcher
     }
@@ -229,6 +247,24 @@ impl Dispatcher {
             }
         }
         Ok(())
+    }
+
+    pub fn monitor_workspace_update(&self) -> Result<()> {
+        loop {
+            thread::sleep(Duration::from_secs(1));
+            if self.workspace_updated.load(atomic::Ordering::Relaxed) {
+                self.workspace_updated
+                    .store(false, atomic::Ordering::Relaxed);
+                if let Some(diff_files) = git_diff(&self.workspace.lock()) {
+                    self.send_notification(
+                        "diff_files",
+                        json!({
+                            "files": diff_files,
+                        }),
+                    );
+                }
+            }
+        }
     }
 
     pub fn start_update_process(
@@ -329,16 +365,16 @@ impl Dispatcher {
                         }
                     }
                 }
-                self.watcher.lock().as_mut().unwrap().watch(
-                    workspace.as_path(),
-                    true,
-                    OPEN_FILE_EVENT_TOKEN,
-                );
                 self.send_notification(
                     "list_dir",
                     json!({
                         "items": items,
                     }),
+                );
+                self.watcher.lock().as_mut().unwrap().watch(
+                    &workspace,
+                    true,
+                    GIT_EVENT_TOKEN,
                 );
                 if let Some(diff_files) = git_diff(&workspace) {
                     self.send_notification(
@@ -366,6 +402,11 @@ impl Dispatcher {
     fn handle_request(&self, id: RequestId, rpc: Request) {
         match rpc {
             Request::NewBuffer { buffer_id, path } => {
+                self.watcher.lock().as_mut().unwrap().watch(
+                    &path,
+                    true,
+                    OPEN_FILE_EVENT_TOKEN,
+                );
                 self.open_files
                     .lock()
                     .insert(path.to_str().unwrap().to_string(), buffer_id);
@@ -517,14 +558,25 @@ pub struct DiffHunk {
 
 fn git_diff(workspace_path: &PathBuf) -> Option<Vec<String>> {
     let repo = Repository::open(workspace_path.to_str()?).ok()?;
-    let diff = repo
-        .diff_index_to_workdir(
+    let mut diff_files = HashSet::new();
+    let diff = repo.diff_index_to_workdir(None, None).ok()?;
+    for delta in diff.deltas() {
+        if let Some(path) = delta.new_file().path() {
+            if let Some(s) = path.to_str() {
+                diff_files.insert(workspace_path.join(s).to_str()?.to_string());
+            }
+        }
+    }
+    let cached_diff = repo
+        .diff_tree_to_index(
+            repo.find_tree(repo.revparse_single("HEAD^{tree}").ok()?.id())
+                .ok()
+                .as_ref(),
             None,
-            Some(DiffOptions::new().include_untracked(true)),
+            None,
         )
         .ok()?;
-    let mut diff_files = HashSet::new();
-    for delta in diff.deltas() {
+    for delta in cached_diff.deltas() {
         if let Some(path) = delta.new_file().path() {
             if let Some(s) = path.to_str() {
                 diff_files.insert(workspace_path.join(s).to_str()?.to_string());

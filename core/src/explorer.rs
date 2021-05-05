@@ -2,10 +2,15 @@ use std::{cmp, path::PathBuf};
 use std::{str::FromStr, sync::Arc};
 
 use druid::{
-    piet::PietTextLayout, widget::SvgData, Affine, Command, Env, Event, EventCtx,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, Vec2, Widget,
-    WidgetId, WindowId,
+    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
+    theme,
+    widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll, SvgData},
+    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
+    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt,
+    WidgetId, WidgetPod, WindowId,
 };
+
 use include_dir::{include_dir, Dir};
 use lapce_proxy::dispatch::FileNodeItem;
 use parking_lot::Mutex;
@@ -25,6 +30,7 @@ pub struct FileExplorerState {
     // pub widget_id: WidgetId,
     window_id: WindowId,
     tab_id: WidgetId,
+    pub widget_id: WidgetId,
     // cwd: PathBuf,
     pub items: Vec<FileNodeItem>,
     index: usize,
@@ -32,7 +38,91 @@ pub struct FileExplorerState {
     position: PanelPosition,
 }
 
+pub struct FileExplorer {
+    window_id: WindowId,
+    tab_id: WidgetId,
+    widget_id: WidgetId,
+}
+
+impl FileExplorer {
+    pub fn new(window_id: WindowId, tab_id: WidgetId, widget_id: WidgetId) -> Self {
+        Self {
+            window_id,
+            tab_id,
+            widget_id,
+        }
+    }
+}
+
+impl Widget<LapceUIState> for FileExplorer {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceUIState,
+        env: &Env,
+    ) {
+        match event {
+            Event::Command(cmd) => match cmd {
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                    match command {
+                        LapceUICommand::RequestPaint => {
+                            ctx.request_paint();
+                        }
+                        _ => (),
+                    }
+                }
+                _ => (),
+            },
+            _ => (),
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceUIState,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceUIState,
+        data: &LapceUIState,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceUIState,
+        env: &Env,
+    ) -> Size {
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
+        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
+        let explorer = state.file_explorer.lock();
+        explorer.paint(ctx, data, env);
+    }
+}
+
 impl PanelProperty for FileExplorerState {
+    fn widget_id(&self) -> WidgetId {
+        self.widget_id
+    }
+
     fn position(&self) -> &PanelPosition {
         &self.position
     }
@@ -46,17 +136,35 @@ impl PanelProperty for FileExplorerState {
     }
 
     fn paint(&self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+
+        let size = ctx.size();
+        let header_height = line_height;
+        let header_rect = Rect::ZERO.with_size(Size::new(size.width, header_height));
+        if let Some(background) = LAPCE_APP_STATE.theme.get("background") {
+            ctx.fill(header_rect, background);
+        }
+        ctx.fill(
+            Size::new(size.width, size.height - header_height)
+                .to_rect()
+                .with_origin(Point::new(0.0, header_height)),
+            &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND),
+        );
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout("Explorer")
+            .font(FontFamily::SYSTEM_UI, 14.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        let text_layout = text_layout.build().unwrap();
+        ctx.draw_text(&text_layout, Point::new(20.0, 5.0));
+
         let rects = ctx.region().rects().to_vec();
         let size = ctx.size();
-        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let width = size.width;
         let index = self.index;
 
         for rect in rects {
-            if let Some(background) = LAPCE_APP_STATE.theme.get("background") {
-                ctx.fill(rect, background);
-            }
             let min = (rect.y0 / line_height).floor() as usize;
             let max = (rect.y1 / line_height) as usize + 1;
             let mut i = 0;
@@ -89,6 +197,7 @@ impl FileExplorerState {
         FileExplorerState {
             window_id,
             tab_id,
+            widget_id: WidgetId::next(),
             items,
             index: 0,
             count: 0,
@@ -201,28 +310,31 @@ impl FileExplorerState {
                         state.clone().proxy.lock().as_ref().unwrap().read_dir(
                             &path_buf,
                             Box::new(move |result| {
-                                let mut file_explorer = state.file_explorer.lock();
-                                let current_item = file_explorer.get_item(index);
-                                if current_item != Some(&mut item) {
-                                    return;
-                                }
-                                let current_item = current_item.unwrap();
-                                current_item.open = true;
-                                current_item.read = true;
-                                if let Ok(res) = result {
-                                    let resp: Result<
-                                        Vec<FileNodeItem>,
-                                        serde_json::Error,
-                                    > = serde_json::from_value(res);
-                                    if let Ok(items) = resp {
-                                        current_item.children = items;
+                                std::thread::spawn(move || {
+                                    let mut file_explorer =
+                                        state.file_explorer.lock();
+                                    let current_item = file_explorer.get_item(index);
+                                    if current_item != Some(&mut item) {
+                                        return;
                                     }
-                                }
-                                file_explorer.update_count();
-                                LAPCE_APP_STATE.submit_ui_command(
-                                    LapceUICommand::RequestPaint,
-                                    file_explorer.widget_id(),
-                                );
+                                    let current_item = current_item.unwrap();
+                                    current_item.open = true;
+                                    current_item.read = true;
+                                    if let Ok(res) = result {
+                                        let resp: Result<
+                                            Vec<FileNodeItem>,
+                                            serde_json::Error,
+                                        > = serde_json::from_value(res);
+                                        if let Ok(items) = resp {
+                                            current_item.children = items;
+                                        }
+                                    }
+                                    file_explorer.update_count();
+                                    LAPCE_APP_STATE.submit_ui_command(
+                                        LapceUICommand::RequestPaint,
+                                        file_explorer.widget_id(),
+                                    );
+                                });
                             }),
                         );
                     }
@@ -237,7 +349,7 @@ impl FileExplorerState {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::RequestPaint,
-            Target::Widget(self.widget_id()),
+            Target::Widget(self.widget_id),
         ));
     }
 
@@ -259,14 +371,19 @@ impl FileExplorerState {
         }
         if i >= min && i <= max {
             if i == index {
-                ctx.fill(
-                    Rect::ZERO
-                        .with_origin(Point::new(0.0, i as f64 * line_height))
-                        .with_size(Size::new(width, line_height)),
-                    &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND),
-                );
+                if let Some(color) = LAPCE_APP_STATE.theme.get("selection") {
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(
+                                0.0,
+                                i as f64 * line_height + line_height,
+                            ))
+                            .with_size(Size::new(width, line_height)),
+                        color,
+                    );
+                }
             }
-            let y = i as f64 * line_height;
+            let y = i as f64 * line_height + line_height;
             let svg_y = y + 4.0;
             let mut text_layout = TextLayout::<String>::from_text(
                 item.path_buf.file_name().unwrap().to_str().unwrap(),
@@ -361,12 +478,6 @@ impl FileExplorerState {
             }
         }
         i
-    }
-
-    pub fn widget_id(&self) -> WidgetId {
-        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let panel = state.panel.lock();
-        panel.widget_id(&self.position)
     }
 }
 

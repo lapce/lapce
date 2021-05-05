@@ -26,6 +26,7 @@ pub enum PanelPosition {
 }
 
 pub trait PanelProperty: Send {
+    fn widget_id(&self) -> WidgetId;
     fn position(&self) -> &PanelPosition;
     fn active(&self) -> usize;
     fn size(&self) -> (f64, f64);
@@ -35,14 +36,14 @@ pub trait PanelProperty: Send {
 pub struct PanelState {
     window_id: WindowId,
     tab_id: WidgetId,
-    pub panels: Vec<Arc<Mutex<dyn PanelProperty>>>,
+    pub panels: HashMap<WidgetId, Arc<Mutex<dyn PanelProperty>>>,
     pub shown: HashMap<PanelPosition, bool>,
-    widgets: HashMap<PanelPosition, WidgetId>,
+    pub widgets: HashMap<PanelPosition, WidgetId>,
 }
 
 impl PanelState {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> Self {
-        let mut panels = Vec::new();
+        let panels = HashMap::new();
         // panels.push(Arc::new(Mutex::new(Box::new(FileExplorerState::new(
         //     window_id, tab_id,
         // )) as Box<dyn PanelProperty>)));
@@ -54,6 +55,7 @@ impl PanelState {
         // )));
         let mut shown = HashMap::new();
         shown.insert(PanelPosition::LeftTop, true);
+        shown.insert(PanelPosition::LeftBottom, true);
         shown.insert(PanelPosition::BottomLeft, true);
         shown.insert(PanelPosition::RightTop, true);
 
@@ -77,8 +79,12 @@ impl PanelState {
         *self.shown.get(position).unwrap_or(&false)
     }
 
-    pub fn add(&mut self, panel: Arc<Mutex<dyn PanelProperty>>) {
-        self.panels.push(panel);
+    pub fn add(
+        &mut self,
+        widget_id: WidgetId,
+        panel: Arc<Mutex<dyn PanelProperty>>,
+    ) {
+        self.panels.insert(widget_id, panel);
     }
 
     pub fn widget_id(&self, position: &PanelPosition) -> WidgetId {
@@ -88,7 +94,7 @@ impl PanelState {
     pub fn size(&self, position: &PanelPosition) -> Option<(f64, f64)> {
         let mut active_panel = None;
         let mut active = 0;
-        for panel in self.panels.iter() {
+        for (_, panel) in self.panels.iter() {
             let local_panel = panel.clone();
             let panel = panel.lock();
             if panel.position() == position {
@@ -107,7 +113,7 @@ impl PanelState {
         position: &PanelPosition,
     ) -> Option<Arc<Mutex<dyn PanelProperty>>> {
         let mut active_panel = None;
-        for panel in self.panels.iter() {
+        for (_, panel) in self.panels.iter() {
             let local_panel = panel.clone();
             let (current_position, active) = {
                 let panel = panel.lock();
@@ -138,7 +144,7 @@ impl PanelState {
             }
         }
 
-        for panel in self.panels.iter() {
+        for (_, panel) in self.panels.iter() {
             let local_panel = panel.clone();
             let (position, active) = {
                 let panel = panel.lock();

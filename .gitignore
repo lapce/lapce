@@ -1,4 +1,5 @@
 .vscode
 .lapce
+.idea
 lib/
 target/

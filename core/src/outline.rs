@@ -1,13 +1,19 @@
-use druid::{Env, PaintCtx};
+use druid::{Env, PaintCtx, WidgetId};
 
 use crate::{
     panel::{PanelPosition, PanelProperty},
     state::LapceUIState,
 };
 
-pub struct OutlineState {}
+pub struct OutlineState {
+    widget_id: WidgetId,
+}
 
 impl PanelProperty for OutlineState {
+    fn widget_id(&self) -> WidgetId {
+        self.widget_id
+    }
+
     fn position(&self) -> &PanelPosition {
         &PanelPosition::RightTop
     }
@@ -25,6 +31,8 @@ impl PanelProperty for OutlineState {
 
 impl OutlineState {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            widget_id: WidgetId::next(),
+        }
     }
 }
