@@ -23,11 +23,12 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use druid::{
-    widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers,
-    Target, WidgetId, WindowId,
+    widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Lens,
+    Modifiers, Target, WidgetId, WindowId,
 };
 use git2::Oid;
 use git2::Repository;
+use im;
 use lapce_proxy::dispatch::NewBufferResponse;
 use lazy_static::lazy_static;
 use lsp_types::Position;
@@ -98,6 +99,14 @@ pub struct KeyMap {
     pub command: String,
 }
 
+#[derive(Clone, Data)]
+pub struct LapceTabUIState {}
+
+#[derive(Clone, Data)]
+pub struct LapceWindowUIState {
+    pub tabs: im::HashMap<WidgetId, LapceTabUIState>,
+}
+
 #[derive(Clone)]
 pub struct LapceUIState {
     pub focus: LapceFocus,
@@ -105,6 +114,7 @@ pub struct LapceUIState {
     pub buffers: Arc<HashMap<BufferId, Arc<BufferUIState>>>,
     pub editors: Arc<HashMap<WidgetId, EditorUIState>>,
     pub highlight_sender: Sender<(WindowId, WidgetId, BufferId, u64)>,
+    pub windows: im::HashMap<WindowId, LapceWindowUIState>,
 }
 
 impl Data for LapceUIState {
@@ -134,6 +144,7 @@ impl LapceUIState {
             focus: LapceFocus::Editor,
             editors: Arc::new(editors),
             highlight_sender: sender,
+            windows: im::HashMap::new(),
         };
         thread::spawn(move || {
             start_buffer_highlights(receiver, event_sink);

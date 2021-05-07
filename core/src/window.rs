@@ -2,6 +2,7 @@ use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
     container::LapceContainer,
+    data::{LapceTabLens, LapceWindowData},
     editor::EditorUIState,
     explorer::{FileExplorer, FileExplorerState},
     panel::{LapcePanel, PanelPosition, PanelProperty},
@@ -12,11 +13,12 @@ use crate::{
         LAPCE_APP_STATE,
     },
     status::LapceStatus,
+    tab::LapceTabNew,
     theme::LapceTheme,
 };
 use druid::{
     kurbo::Line, theme, widget::IdentityWrapper, widget::WidgetExt, BoxConstraints,
-    Env, Event, EventCtx, FontDescriptor, FontFamily, LayoutCtx, LifeCycle,
+    Env, Event, EventCtx, FontDescriptor, FontFamily, LayoutCtx, Lens, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, TextLayout, UpdateCtx,
     Widget, WidgetId, WidgetPod, WindowId,
 };
@@ -745,4 +747,64 @@ impl Widget<LapceUIState> for LapceWindow {
             }
         }
     }
+}
+
+pub struct LapceWindowNew {
+    pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
+}
+
+impl LapceWindowNew {
+    pub fn new(data: &LapceWindowData) -> Self {
+        let tabs = data
+            .tabs
+            .iter()
+            .map(|(tab_id, data)| {
+                let tab = LapceTabNew::new(data);
+                let tab = tab.lens(LapceTabLens(*tab_id));
+                WidgetPod::new(tab.boxed())
+            })
+            .collect();
+        Self { tabs }
+    }
+}
+
+impl Widget<LapceWindowData> for LapceWindowNew {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceWindowData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceWindowData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &LapceWindowData,
+        data: &LapceWindowData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceWindowData,
+        env: &Env,
+    ) -> Size {
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {}
 }

@@ -1,5 +1,6 @@
 use std::{sync::Arc, thread, time::Duration};
 
+use lapce_core::app;
 use lapce_core::palette::Palette;
 use lapce_core::split::LapceSplit;
 use lapce_core::theme::LapceTheme;
@@ -108,6 +109,10 @@ fn build_app(window_id: WindowId) -> impl Widget<LapceUIState> {
 }
 
 pub fn main() {
+    app::lanuch();
+}
+
+pub fn old_main() {
     {
         // only for #[cfg]
         use parking_lot::deadlock;

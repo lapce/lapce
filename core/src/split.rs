@@ -29,6 +29,111 @@ pub enum SplitMoveDirection {
     Left,
 }
 
+pub struct LapceSplitNew<T> {
+    children: Vec<ChildWidgetNew<T>>,
+}
+
+pub struct ChildWidgetNew<T> {
+    pub widget: WidgetPod<T, Box<dyn Widget<T>>>,
+    flex: bool,
+    params: f64,
+}
+
+impl<T> LapceSplitNew<T> {
+    pub fn new() -> Self {
+        Self {
+            children: Vec::new(),
+        }
+    }
+
+    pub fn with_flex_child(
+        mut self,
+        child: Box<dyn Widget<T>>,
+        params: f64,
+    ) -> Self {
+        let child = ChildWidgetNew {
+            widget: WidgetPod::new(child),
+            flex: true,
+            params,
+        };
+        self.children.push(child);
+        self
+    }
+}
+
+impl<T: Data> Widget<T> for LapceSplitNew<T> {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &T,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &T,
+        data: &T,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &T,
+        env: &Env,
+    ) -> Size {
+        let my_size = bc.max();
+
+        let children_len = self.children.len();
+        if children_len == 0 {
+            return my_size;
+        }
+
+        let mut non_flex_total = 0.0;
+        for child in self.children.iter() {
+            if !child.flex {
+                non_flex_total += child.params;
+            }
+        }
+
+        let mut flex_sum = 0.0;
+        for child in &self.children {
+            if child.flex {
+                flex_sum += child.params;
+            }
+        }
+
+        let flex_total = my_size.width - non_flex_total;
+        let mut x = 0.0;
+        let mut y = 0.0;
+        for child in self.children.iter_mut() {
+            let width = if child.flex {
+                flex_total / flex_sum * child.params
+            } else {
+                child.params
+            };
+            let size = Size::new(width, my_size.height);
+            child
+                .widget
+                .layout(ctx, &BoxConstraints::new(size, size), data, env);
+            child.widget.set_origin(ctx, data, env, Point::new(x, 0.0));
+            x += width;
+        }
+
+        my_size
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {}
+}
+
 pub struct LapceSplit {
     window_id: WindowId,
     tab_id: WidgetId,
