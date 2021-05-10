@@ -36,8 +36,6 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
-use std::io::BufReader;
-use std::path::Path;
 use std::process::Child;
 use std::process::Command;
 use std::process::Stdio;
@@ -46,6 +44,8 @@ use std::{
     collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
     sync::Arc, thread,
 };
+use std::{io::BufReader, sync::atomic::AtomicU64};
+use std::{path::Path, sync::atomic};
 use toml;
 use xi_rpc::Handler;
 use xi_rpc::RpcLoop;
@@ -186,14 +186,15 @@ pub struct LapceWorkspace {
     pub path: PathBuf,
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct Counter(usize);
+pub struct Counter(AtomicU64);
 
 impl Counter {
-    pub fn next(&mut self) -> usize {
-        let n = self.0;
-        self.0 = n + 1;
-        n + 1
+    pub const fn new() -> Counter {
+        Counter(AtomicU64::new(1))
+    }
+
+    pub fn next(&self) -> u64 {
+        self.0.fetch_add(1, atomic::Ordering::Relaxed)
     }
 }
 
@@ -211,7 +212,7 @@ impl LapceAppState {
             states: Arc::new(Mutex::new(HashMap::new())),
             theme: Self::get_theme().unwrap_or(HashMap::new()),
             ui_sink: Arc::new(Mutex::new(None)),
-            id_counter: Arc::new(Mutex::new(Counter::default())),
+            id_counter: Arc::new(Mutex::new(Counter::new())),
         }
     }
 
@@ -230,7 +231,7 @@ impl LapceAppState {
         Ok(theme)
     }
 
-    pub fn next_id(&self) -> usize {
+    pub fn next_id(&self) -> u64 {
         self.id_counter.lock().next()
     }
 

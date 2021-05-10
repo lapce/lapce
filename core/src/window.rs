@@ -750,7 +750,10 @@ impl Widget<LapceUIState> for LapceWindow {
 }
 
 pub struct LapceWindowNew {
-    pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
+    pub tabs: HashMap<
+        WidgetId,
+        WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
+    >,
 }
 
 impl LapceWindowNew {
@@ -761,7 +764,7 @@ impl LapceWindowNew {
             .map(|(tab_id, data)| {
                 let tab = LapceTabNew::new(data);
                 let tab = tab.lens(LapceTabLens(*tab_id));
-                WidgetPod::new(tab.boxed())
+                (*tab_id, WidgetPod::new(tab.boxed()))
             })
             .collect();
         Self { tabs }
@@ -776,6 +779,10 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &mut LapceWindowData,
         env: &Env,
     ) {
+        self.tabs
+            .get_mut(&data.active)
+            .unwrap()
+            .event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -785,6 +792,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) {
+        for (_, tab) in self.tabs.iter_mut() {
+            tab.lifecycle(ctx, event, data, env);
+        }
     }
 
     fn update(
@@ -794,6 +804,14 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) {
+        if old_data.active != data.active {
+            ctx.request_layout();
+            return;
+        }
+        self.tabs
+            .get_mut(&data.active)
+            .unwrap()
+            .update(ctx, data, env);
     }
 
     fn layout(
@@ -803,8 +821,17 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) -> Size {
+        let tab = self.tabs.get_mut(&data.active).unwrap();
+        tab.layout(ctx, bc, data, env);
+        tab.set_origin(ctx, data, env, Point::ZERO);
+
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {}
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
+        self.tabs
+            .get_mut(&data.active)
+            .unwrap()
+            .paint(ctx, data, env);
+    }
 }

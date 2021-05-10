@@ -3,6 +3,7 @@ use druid::{Color, FontDescriptor, Key};
 pub struct LapceTheme {}
 
 impl LapceTheme {
+    pub const CHANGED: Key<bool> = Key::new("lapce.theme_changed");
     pub const EDITOR_LINE_HEIGHT: Key<f64> = Key::new("lapce.editor_line_height");
     pub const PALETTE_BACKGROUND: Key<Color> = Key::new("lapce.palette_background");
     pub const PALETTE_INPUT_BACKGROUND: Key<Color> =

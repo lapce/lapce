@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Result;
 use druid::{Rect, Selector, Size, WidgetId};
@@ -193,6 +193,11 @@ pub enum EnsureVisiblePosition {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
+    LoadFile {
+        id: BufferId,
+        path: PathBuf,
+        content: String,
+    },
     OpenFile(String),
     FillTextLayouts,
     RequestLayout,

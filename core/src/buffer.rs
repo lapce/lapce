@@ -1,8 +1,10 @@
 use anyhow::{anyhow, Result};
+use crossbeam_utils::sync::WaitGroup;
 use druid::Vec2;
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
-    Color, Command, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId, WindowId,
+    Color, Command, Data, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId,
+    WindowId,
 };
 use druid::{Env, PaintCtx};
 use git2::Repository;
@@ -13,6 +15,7 @@ use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{
     CodeActionResponse, Position, Range, TextDocumentContentChangeEvent,
 };
+use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -44,10 +47,11 @@ use crate::{
     find::Find,
     language,
     movement::{ColPosition, Movement, SelRegion, Selection},
+    proxy::LapceProxy,
     state::LapceTabState,
     state::LapceWorkspaceType,
-    state::Mode,
     state::LAPCE_APP_STATE,
+    state::{Counter, Mode},
     theme::LapceTheme,
 };
 
@@ -58,8 +62,15 @@ pub struct InvalLines {
     pub new_count: usize,
 }
 
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct BufferId(pub usize);
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize, Data)]
+pub struct BufferId(pub u64);
+
+impl BufferId {
+    pub fn next() -> Self {
+        static BUFFER_ID_COUNTER: Counter = Counter::new();
+        Self(BUFFER_ID_COUNTER.next())
+    }
+}
 
 #[derive(Clone)]
 pub struct BufferUIState {
@@ -71,6 +82,44 @@ pub struct BufferUIState {
     pub max_len_line: usize,
     pub max_len: usize,
     pub dirty: bool,
+}
+
+#[derive(Data, Clone, Debug)]
+pub enum BufferState {
+    Loading,
+    Open(Arc<BufferNew>),
+}
+
+#[derive(Debug)]
+pub struct BufferNew {
+    pub id: BufferId,
+    pub rope: Rope,
+    pub path: PathBuf,
+}
+
+impl BufferNew {
+    pub fn new(id: BufferId, path: PathBuf, content: String) -> Self {
+        let rope = Rope::from_str(&content).unwrap();
+        Self { id, rope, path }
+    }
+
+    pub fn load_file(
+        id: BufferId,
+        path: PathBuf,
+        proxy: Arc<LapceProxy>,
+        tab_id: WidgetId,
+        event_sink: ExtEventSink,
+    ) {
+        thread::spawn(move || {
+            let content = { proxy.new_buffer(id, path.clone()).unwrap() };
+            println!("load file got content");
+            event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::LoadFile { id, path, content },
+                Target::Widget(tab_id),
+            );
+        });
+    }
 }
 
 pub struct Buffer {

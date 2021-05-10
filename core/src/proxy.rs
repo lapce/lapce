@@ -6,12 +6,13 @@ use std::thread;
 use std::{path::PathBuf, process::Child, sync::Arc};
 
 use anyhow::{anyhow, Result};
+use crossbeam_utils::sync::WaitGroup;
 use druid::WidgetId;
 use druid::WindowId;
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lsp_types::Position;
 use lsp_types::PublishDiagnosticsParams;
-use parking_lot::Mutex;
+use parking_lot::{Condvar, Mutex};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -29,13 +30,85 @@ use crate::state::LAPCE_APP_STATE;
 
 #[derive(Clone)]
 pub struct LapceProxy {
-    peer: RpcPeer,
-    process: Arc<Mutex<Child>>,
+    peer: Arc<Mutex<Option<RpcPeer>>>,
+    process: Arc<Mutex<Option<Child>>>,
+    initiated: Arc<Mutex<bool>>,
+    cond: Arc<Condvar>,
+    pub tab_id: WidgetId,
 }
 
 impl LapceProxy {
+    pub fn new(tab_id: WidgetId) -> Self {
+        let proxy = Self {
+            peer: Arc::new(Mutex::new(None)),
+            process: Arc::new(Mutex::new(None)),
+            initiated: Arc::new(Mutex::new(false)),
+            cond: Arc::new(Condvar::new()),
+            tab_id,
+        };
+        proxy
+    }
+
+    pub fn start(&self, workspace: LapceWorkspace) {
+        let proxy = self.clone();
+        thread::spawn(move || {
+            let mut child = match workspace.kind {
+                LapceWorkspaceType::Local => {
+                    Command::new("/Users/Lulu/lapce/target/release/lapce-proxy")
+                        .stdin(Stdio::piped())
+                        .stdout(Stdio::piped())
+                        .spawn()
+                }
+                LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
+                    .arg(format!("{}@{}", user, host))
+                    .arg("/tmp/proxy/target/release/lapce-proxy")
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .spawn(),
+            };
+            if child.is_err() {
+                println!("can't start proxy {:?}", child);
+                return;
+            }
+            let mut child = child.unwrap();
+            let child_stdin = child.stdin.take().unwrap();
+            let child_stdout = child.stdout.take().unwrap();
+            let mut looper = RpcLoop::new(child_stdin);
+            let peer: RpcPeer = Box::new(looper.get_raw_peer());
+            {
+                *proxy.peer.lock() = Some(peer);
+                let mut process = proxy.process.lock();
+                let mut old_process = process.take();
+                *process = Some(child);
+                if let Some(mut old) = old_process {
+                    old.kill();
+                }
+            }
+            proxy.initialize(workspace.path.clone());
+            {
+                *proxy.initiated.lock() = true;
+                proxy.cond.notify_one();
+            }
+
+            let mut handler = ProxyHandlerNew {};
+            if let Err(e) =
+                looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
+            {
+                println!("proxy main loop failed {:?}", e);
+            }
+            println!("proxy main loop exit");
+        });
+    }
+
+    fn wait(&self) {
+        let mut initiated = self.initiated.lock();
+        if !*initiated {
+            self.cond.wait(&mut initiated);
+        }
+    }
+
     pub fn initialize(&self, workspace: PathBuf) {
-        self.peer.send_rpc_notification(
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
             "initialize",
             &json!({
                 "workspace": workspace,
@@ -44,8 +117,12 @@ impl LapceProxy {
     }
 
     pub fn new_buffer(&self, buffer_id: BufferId, path: PathBuf) -> Result<String> {
+        self.wait();
         let result = self
             .peer
+            .lock()
+            .as_ref()
+            .unwrap()
             .send_rpc_request(
                 "new_buffer",
                 &json!({ "buffer_id": buffer_id, "path": path }),
@@ -57,7 +134,7 @@ impl LapceProxy {
     }
 
     pub fn update(&self, buffer_id: BufferId, delta: &RopeDelta, rev: u64) {
-        self.peer.send_rpc_notification(
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
             "update",
             &json!({
                 "buffer_id": buffer_id,
@@ -68,7 +145,7 @@ impl LapceProxy {
     }
 
     pub fn save(&self, rev: u64, buffer_id: BufferId, f: Box<dyn Callback>) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "save",
             &json!({
                 "rev": rev,
@@ -85,7 +162,7 @@ impl LapceProxy {
         position: Position,
         f: Box<dyn Callback>,
     ) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "get_completion",
             &json!({
                 "request_id": request_id,
@@ -102,7 +179,7 @@ impl LapceProxy {
         position: Position,
         f: Box<dyn Callback>,
     ) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "get_signature",
             &json!({
                 "buffer_id": buffer_id,
@@ -118,7 +195,7 @@ impl LapceProxy {
         position: Position,
         f: Box<dyn Callback>,
     ) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "get_references",
             &json!({
                 "buffer_id": buffer_id,
@@ -129,7 +206,7 @@ impl LapceProxy {
     }
 
     pub fn get_files(&self, f: Box<dyn Callback>) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "get_files",
             &json!({
                 "path": "path",
@@ -139,7 +216,7 @@ impl LapceProxy {
     }
 
     pub fn read_dir(&self, path: &PathBuf, f: Box<dyn Callback>) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "read_dir",
             &json!({
                 "path": path,
@@ -155,7 +232,7 @@ impl LapceProxy {
         position: Position,
         f: Box<dyn Callback>,
     ) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "get_definition",
             &json!({
                 "request_id": request_id,
@@ -167,7 +244,7 @@ impl LapceProxy {
     }
 
     pub fn get_document_symbols(&self, buffer_id: BufferId, f: Box<dyn Callback>) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "get_document_symbols",
             &json!({
                 "buffer_id": buffer_id,
@@ -182,7 +259,7 @@ impl LapceProxy {
         position: Position,
         f: Box<dyn Callback>,
     ) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "get_code_actions",
             &json!({
                 "buffer_id": buffer_id,
@@ -197,7 +274,7 @@ impl LapceProxy {
         buffer_id: BufferId,
         f: Box<dyn Callback>,
     ) {
-        self.peer.send_rpc_request_async(
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "get_document_formatting",
             &json!({
                 "buffer_id": buffer_id,
@@ -207,7 +284,7 @@ impl LapceProxy {
     }
 
     pub fn stop(&self) {
-        self.process.lock().kill();
+        self.process.lock().as_mut().unwrap().kill();
     }
 }
 
@@ -410,27 +487,50 @@ pub fn start_proxy_process(
         let child_stdout = child.stdout.take().unwrap();
         let mut looper = RpcLoop::new(child_stdin);
         let peer: RpcPeer = Box::new(looper.get_raw_peer());
-        let proxy = LapceProxy {
-            peer,
-            process: Arc::new(Mutex::new(child)),
-        };
-        proxy.initialize(workspace.path.clone());
-        {
-            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-            let mut proxy_state = state.proxy.lock();
-            let old_proxy = proxy_state.take();
-            *proxy_state = Some(proxy);
-            if let Some(old_proxy) = old_proxy {
-                old_proxy.process.lock().kill();
-            }
-        }
-
-        let mut handler = ProxyHandler { window_id, tab_id };
-        if let Err(e) =
-            looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
-        {
-            println!("proxy main loop failed {:?}", e);
-        }
-        println!("proxy main loop exit");
+        //         let proxy = LapceProxy {
+        //             peer,
+        //             process: Arc::new(Mutex::new(child)),
+        //             wg: WaitGroup::new(),
+        //         };
+        //         proxy.initialize(workspace.path.clone());
+        //         {
+        //             let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+        //             let mut proxy_state = state.proxy.lock();
+        //             let old_proxy = proxy_state.take();
+        //             *proxy_state = Some(proxy);
+        //             if let Some(old_proxy) = old_proxy {
+        //                 old_proxy.process.lock().kill();
+        //             }
+        //         }
+        //
+        //         let mut handler = ProxyHandler { window_id, tab_id };
+        //         if let Err(e) =
+        //             looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
+        //         {
+        //             println!("proxy main loop failed {:?}", e);
+        //         }
+        //         println!("proxy main loop exit");
     });
+}
+
+pub struct ProxyHandlerNew {}
+
+impl Handler for ProxyHandlerNew {
+    type Notification = Notification;
+    type Request = Request;
+
+    fn handle_notification(
+        &mut self,
+        ctx: &xi_rpc::RpcCtx,
+        rpc: Self::Notification,
+    ) {
+    }
+
+    fn handle_request(
+        &mut self,
+        ctx: &xi_rpc::RpcCtx,
+        rpc: Self::Request,
+    ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
+        Err(xi_rpc::RemoteError::InvalidRequest(None))
+    }
 }

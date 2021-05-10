@@ -1,12 +1,12 @@
-use crate::buffer::matching_char;
-use crate::buffer::matching_pair_direction;
-use crate::buffer::next_has_unmatched_pair;
 use crate::buffer::previous_has_unmatched_pair;
 use crate::buffer::WordProperty;
+use crate::buffer::{matching_pair_direction, BufferNew};
+use crate::buffer::{next_has_unmatched_pair, BufferState};
 use crate::completion::CompletionState;
 use crate::find::Find;
 use crate::signature::SignatureState;
 use crate::{buffer::get_word_property, state::LapceFocus};
+use crate::{buffer::matching_char, data::LapceEditorViewData};
 use crate::{
     buffer::{Buffer, BufferId, BufferUIState, InvalLines},
     command::EnsureVisiblePosition,
@@ -112,6 +112,70 @@ pub struct EditorLocation {
     pub path: String,
     pub offset: usize,
     pub scroll_offset: Option<Vec2>,
+}
+
+pub struct LapceEditorView {}
+
+impl LapceEditorView {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<LapceEditorViewData> for LapceEditorView {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceEditorViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &LapceEditorViewData,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        match (old_data.buffer.as_ref(), data.buffer.as_ref()) {
+            (None, Some(_))
+            | (Some(_), None)
+            | (Some(BufferState::Loading), Some(BufferState::Open(_)))
+            | (Some(BufferState::Open(_)), Some(BufferState::Loading)) => {
+                ctx.request_paint();
+                return;
+            }
+            _ => (),
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) -> Size {
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        let rects = ctx.region().rects().to_vec();
+        for rect in rects {
+            ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+        }
+    }
 }
 
 impl EditorState {

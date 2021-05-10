@@ -63,6 +63,9 @@ impl<T> LapceSplitNew<T> {
 
 impl<T: Data> Widget<T> for LapceSplitNew<T> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+        for child in self.children.iter_mut() {
+            child.widget.event(ctx, event, data, env);
+        }
     }
 
     fn lifecycle(
@@ -72,6 +75,9 @@ impl<T: Data> Widget<T> for LapceSplitNew<T> {
         data: &T,
         env: &Env,
     ) {
+        for child in self.children.iter_mut() {
+            child.widget.lifecycle(ctx, event, data, env);
+        }
     }
 
     fn update(
@@ -81,6 +87,9 @@ impl<T: Data> Widget<T> for LapceSplitNew<T> {
         data: &T,
         env: &Env,
     ) {
+        for child in self.children.iter_mut() {
+            child.widget.update(ctx, data, env);
+        }
     }
 
     fn layout(
@@ -131,7 +140,11 @@ impl<T: Data> Widget<T> for LapceSplitNew<T> {
         my_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {}
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+        for child in self.children.iter_mut() {
+            child.widget.paint(ctx, data, env);
+        }
+    }
 }
 
 pub struct LapceSplit {
