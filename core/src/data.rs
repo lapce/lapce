@@ -18,6 +18,7 @@ use xi_rpc::{RpcLoop, RpcPeer};
 
 use crate::{
     buffer::{Buffer, BufferId, BufferNew, BufferState},
+    keypress::KeyPressData,
     proxy::{LapceProxy, ProxyHandlerNew},
     state::{LapceWorkspace, LapceWorkspaceType},
     theme::LapceTheme,
@@ -28,17 +29,20 @@ pub struct LapceData {
     pub windows: im::HashMap<WindowId, LapceWindowData>,
     pub theme: im::HashMap<String, Color>,
     pub theme_changed: bool,
+    pub keypress: Arc<KeyPressData>,
 }
 
 impl LapceData {
     pub fn load() -> Self {
         let mut windows = im::HashMap::new();
-        let window = LapceWindowData::new();
+        let keypress = Arc::new(KeyPressData::new());
+        let window = LapceWindowData::new(keypress.clone());
         windows.insert(WindowId::next(), window);
         Self {
             windows,
             theme: Self::get_theme().unwrap_or(im::HashMap::new()),
             theme_changed: true,
+            keypress,
         }
     }
 
@@ -116,6 +120,7 @@ impl LapceData {
 pub struct LapceWindowData {
     pub tabs: im::HashMap<WidgetId, LapceTabData>,
     pub active: WidgetId,
+    pub keypress: Arc<KeyPressData>,
 }
 
 impl Data for LapceWindowData {
@@ -125,14 +130,15 @@ impl Data for LapceWindowData {
 }
 
 impl LapceWindowData {
-    pub fn new() -> Self {
+    pub fn new(keypress: Arc<KeyPressData>) -> Self {
         let mut tabs = im::HashMap::new();
         let tab_id = WidgetId::next();
-        let tab = LapceTabData::new(tab_id);
+        let tab = LapceTabData::new(tab_id, keypress.clone());
         tabs.insert(tab_id, tab);
         Self {
             tabs,
             active: tab_id,
+            keypress,
         }
     }
 }
@@ -142,6 +148,7 @@ pub struct LapceTabData {
     pub id: WidgetId,
     pub main_split: LapceMainSplitData,
     pub proxy: Arc<LapceProxy>,
+    pub keypress: Arc<KeyPressData>,
 }
 
 impl Data for LapceTabData {
@@ -151,9 +158,9 @@ impl Data for LapceTabData {
 }
 
 impl LapceTabData {
-    pub fn new(tab_id: WidgetId) -> Self {
+    pub fn new(tab_id: WidgetId, keypress: Arc<KeyPressData>) -> Self {
         let proxy = Arc::new(LapceProxy::new(tab_id));
-        let main_split = LapceMainSplitData::new(proxy.clone());
+        let main_split = LapceMainSplitData::new();
         let workspace = LapceWorkspace {
             kind: LapceWorkspaceType::Local,
             path: PathBuf::from("/Users/Lulu/lapce"),
@@ -163,6 +170,7 @@ impl LapceTabData {
             id: tab_id,
             main_split,
             proxy,
+            keypress,
         }
     }
 }
@@ -206,8 +214,8 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
         data: &mut LapceData,
         f: F,
     ) -> V {
-        let mut tab = data.windows.get_mut(&self.0).unwrap();
-        f(&mut tab)
+        let mut win = data.windows.get_mut(&self.0).unwrap();
+        f(&mut win)
     }
 }
 
@@ -216,11 +224,10 @@ pub struct LapceMainSplitData {
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub buffers: im::HashMap<BufferId, BufferState>,
     pub open_files: im::HashMap<PathBuf, BufferId>,
-    pub proxy: Arc<LapceProxy>,
 }
 
 impl LapceMainSplitData {
-    pub fn new(proxy: Arc<LapceProxy>) -> Self {
+    pub fn new() -> Self {
         let mut editors = im::HashMap::new();
         let editor = LapceEditorData {
             buffer: Some(PathBuf::from("/Users/Lulu/lapce/Cargo.toml")),
@@ -231,7 +238,6 @@ impl LapceMainSplitData {
         Self {
             editors,
             buffers,
-            proxy,
             open_files,
         }
     }
@@ -246,51 +252,58 @@ pub struct LapceEditorData {
 pub struct LapceEditorViewData {
     pub editor: Arc<LapceEditorData>,
     pub buffer: Option<BufferState>,
+    pub keypress: Arc<KeyPressData>,
 }
 
 pub struct LapceEditorLens(pub WidgetId);
 
-impl Lens<LapceMainSplitData, LapceEditorViewData> for LapceEditorLens {
+impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
     fn with<V, F: FnOnce(&LapceEditorViewData) -> V>(
         &self,
-        data: &LapceMainSplitData,
+        data: &LapceTabData,
         f: F,
     ) -> V {
-        let editor = data.editors.get(&self.0).unwrap();
+        let main_split = &data.main_split;
+        let editor = main_split.editors.get(&self.0).unwrap();
         let editor_view = LapceEditorViewData {
             buffer: editor
                 .buffer
                 .as_ref()
                 .map(|b| {
-                    data.open_files
+                    main_split
+                        .open_files
                         .get(b)
-                        .map(|id| data.buffers.get(id).map(|b| b.clone()))
+                        .map(|id| main_split.buffers.get(id).map(|b| b.clone()))
                 })
                 .flatten()
                 .flatten(),
             editor: editor.clone(),
+            keypress: data.keypress.clone(),
         };
         f(&editor_view)
     }
 
     fn with_mut<V, F: FnOnce(&mut LapceEditorViewData) -> V>(
         &self,
-        data: &mut LapceMainSplitData,
+        data: &mut LapceTabData,
         f: F,
     ) -> V {
-        let editor = data.editors.get(&self.0).unwrap();
+        let main_split = &data.main_split;
+        let editor = main_split.editors.get(&self.0).unwrap();
         let mut editor_view = LapceEditorViewData {
             buffer: editor
                 .buffer
                 .as_ref()
                 .map(|b| {
-                    data.open_files
+                    main_split
+                        .open_files
                         .get(b)
-                        .map(|id| data.buffers.get(id).map(|b| b.clone()))
+                        .map(|id| main_split.buffers.get(id).map(|b| b.clone()))
                 })
                 .flatten()
                 .flatten(),
             editor: editor.clone(),
+            keypress: data.keypress.clone(),
         };
         f(&mut editor_view)
     }

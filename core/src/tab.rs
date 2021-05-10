@@ -29,9 +29,7 @@ impl LapceTabNew {
         );
         Self {
             id: data.id,
-            main_split: WidgetPod::new(
-                main_split.lens(LapceTabData::main_split).boxed(),
-            ),
+            main_split: WidgetPod::new(main_split.boxed()),
         }
     }
 }

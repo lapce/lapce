@@ -78,7 +78,7 @@ pub enum VisualMode {
     Blockwise,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Mode {
     Insert,
     Visual,

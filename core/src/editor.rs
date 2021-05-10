@@ -130,6 +130,15 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         data: &mut LapceEditorViewData,
         env: &Env,
     ) {
+        match event {
+            Event::WindowConnected => {
+                ctx.request_focus();
+            }
+            Event::KeyDown(key_event) => {
+                ctx.set_handled();
+            }
+            _ => (),
+        }
     }
 
     fn lifecycle(
