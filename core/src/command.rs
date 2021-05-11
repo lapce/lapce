@@ -193,15 +193,17 @@ pub enum EnsureVisiblePosition {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
-    LoadFile {
+    LoadBuffer {
         id: BufferId,
         path: PathBuf,
         content: String,
     },
     OpenFile(String),
     FillTextLayouts,
+    UpdateSize,
     RequestLayout,
     RequestPaint,
+    ResetFade,
     CloseTab,
     NewTab,
     NextTab,

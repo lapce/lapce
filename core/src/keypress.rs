@@ -46,7 +46,7 @@ pub struct KeyPressState {
 pub trait KeyPressFocus {
     fn get_mode(&self) -> Mode;
     fn check_condition(&self, condition: &str) -> bool;
-    fn run_command(&self, command: &str);
+    fn run_command(&mut self, command: &LapceCommand);
     fn insert(&self, c: &str);
 }
 
@@ -64,7 +64,21 @@ impl KeyPressData {
         }
     }
 
-    pub fn key_down<T: KeyPressFocus>(&mut self, key_event: &KeyEvent, focus: &T) {
+    fn run_command<T: KeyPressFocus>(
+        &self,
+        command: &str,
+        focus: &mut T,
+    ) -> Result<()> {
+        let cmd = LapceCommand::from_str(command)?;
+        focus.run_command(&cmd);
+        Ok(())
+    }
+
+    pub fn key_down<T: KeyPressFocus>(
+        &mut self,
+        key_event: &KeyEvent,
+        focus: &mut T,
+    ) {
         if key_event.key == KbKey::Shift {
             return;
         }
@@ -79,17 +93,13 @@ impl KeyPressData {
         keypresses.push(keypress.clone());
 
         let matches = self.match_keymap(&keypresses, focus);
-        match matches {
-            Some(keymaps) => {
-                if keymaps.len() > 1 {
-                    self.pending_keypress.push(keypress);
-                    return;
-                }
-                focus.run_command(&keymaps[0].command);
-                self.pending_keypress = Vec::new();
-                return;
-            }
-            None => (),
+        if matches.len() > 1 {
+            self.pending_keypress.push(keypress);
+            return;
+        } else if matches.len() == 1 {
+            self.run_command(&matches[0].command, focus);
+            self.pending_keypress = Vec::new();
+            return;
         }
         self.pending_keypress = Vec::new();
 
@@ -107,26 +117,28 @@ impl KeyPressData {
         &self,
         keypresses: &Vec<KeyPress>,
         check: &T,
-    ) -> Option<Vec<&KeyMap>> {
-        Some(
-            self.keymaps
-                .get(keypresses)?
-                .iter()
-                .filter(|keymap| {
-                    if keymap.modes.len() > 0
-                        && !keymap.modes.contains(&check.get_mode())
-                    {
-                        return false;
-                    }
-                    if let Some(condition) = &keymap.when {
-                        if !self.check_condition(condition, check) {
+    ) -> Vec<&KeyMap> {
+        self.keymaps
+            .get(keypresses)
+            .map(|keymaps| {
+                keymaps
+                    .iter()
+                    .filter(|keymap| {
+                        if keymap.modes.len() > 0
+                            && !keymap.modes.contains(&check.get_mode())
+                        {
                             return false;
                         }
-                    }
-                    true
-                })
-                .collect(),
-        )
+                        if let Some(condition) = &keymap.when {
+                            if !self.check_condition(condition, check) {
+                                return false;
+                            }
+                        }
+                        true
+                    })
+                    .collect()
+            })
+            .unwrap_or(Vec::new())
     }
 
     fn check_condition<T: KeyPressFocus>(&self, condition: &str, check: &T) -> bool {

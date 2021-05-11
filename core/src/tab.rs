@@ -22,7 +22,7 @@ impl LapceTabNew {
     pub fn new(data: &LapceTabData) -> Self {
         let editor_widget_id = data.main_split.editors.iter().next().unwrap().0;
         let main_split = LapceSplitNew::new().with_flex_child(
-            LapceEditorView::new()
+            LapceEditorView::new(*editor_widget_id)
                 .lens(LapceEditorLens(*editor_widget_id))
                 .boxed(),
             1.0,
@@ -72,12 +72,13 @@ impl Widget<LapceTabData> for LapceTabNew {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
-                    LapceUICommand::LoadFile { id, path, content } => {
+                    LapceUICommand::LoadBuffer { id, path, content } => {
                         let buffer =
                             BufferNew::new(*id, path.to_owned(), content.to_owned());
                         data.main_split
                             .buffers
                             .insert(*id, BufferState::Open(Arc::new(buffer)));
+                        data.main_split.notify_update_text_layouts(ctx, id);
                         ctx.set_handled();
                     }
                     _ => (),

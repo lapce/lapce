@@ -1,12 +1,17 @@
-use crate::buffer::previous_has_unmatched_pair;
-use crate::buffer::WordProperty;
-use crate::buffer::{matching_pair_direction, BufferNew};
-use crate::buffer::{next_has_unmatched_pair, BufferState};
-use crate::completion::CompletionState;
 use crate::find::Find;
 use crate::signature::SignatureState;
 use crate::{buffer::get_word_property, state::LapceFocus};
 use crate::{buffer::matching_char, data::LapceEditorViewData};
+use crate::{buffer::previous_has_unmatched_pair, movement::Cursor};
+use crate::{buffer::WordProperty, movement::CursorMode};
+use crate::{
+    buffer::{matching_pair_direction, BufferNew},
+    scroll::LapceScrollNew,
+};
+use crate::{
+    buffer::{next_has_unmatched_pair, BufferState},
+    scroll::LapcePadding,
+};
 use crate::{
     buffer::{Buffer, BufferId, BufferUIState, InvalLines},
     command::EnsureVisiblePosition,
@@ -30,15 +35,16 @@ use crate::{
     state::LAPCE_APP_STATE,
     theme::LapceTheme,
 };
+use crate::{completion::CompletionState, scroll::LapceIdentityWrapper};
 use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
 use crossbeam_channel::{self, bounded};
 use druid::{
     kurbo::Line, piet::PietText, theme, widget::IdentityWrapper, widget::Padding,
-    widget::SvgData, Affine, BoxConstraints, Color, Command, Data, Env, Event,
-    EventCtx, FontDescriptor, FontFamily, Insets, KeyEvent, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout,
-    UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    widget::Scroll, widget::SvgData, Affine, BoxConstraints, Color, Command, Data,
+    Env, Event, EventCtx, FontDescriptor, FontFamily, Insets, KeyEvent, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
@@ -114,15 +120,40 @@ pub struct EditorLocation {
     pub scroll_offset: Option<Vec2>,
 }
 
-pub struct LapceEditorView {}
+pub struct LapceEditorView {
+    pub editor_id: WidgetId,
+    pub scroll_id: WidgetId,
+    pub editor: WidgetPod<
+        LapceEditorViewData,
+        LapcePadding<
+            LapceEditorViewData,
+            LapceIdentityWrapper<LapceScrollNew<LapceEditorViewData, LapceEditor>>,
+        >,
+    >,
+}
 
 impl LapceEditorView {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(editor_id: WidgetId) -> Self {
+        let scroll_id = WidgetId::next();
+        let editor = LapceEditor::new();
+        let editor = LapceIdentityWrapper::wrap(
+            LapceScrollNew::new(editor).vertical().horizontal(),
+            scroll_id,
+        );
+        let editor = LapcePadding::new((10.0, 0.0, 0.0, 0.0), editor);
+        Self {
+            editor_id,
+            scroll_id,
+            editor: WidgetPod::new(editor),
+        }
     }
 }
 
 impl Widget<LapceEditorViewData> for LapceEditorView {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.editor_id)
+    }
+
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -135,8 +166,196 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
                 ctx.request_focus();
             }
             Event::KeyDown(key_event) => {
+                data.key_down(key_event);
+                match data.buffer.as_ref() {
+                    Some(BufferState::Open(buffer)) => {
+                        let rect = data.editor.cursor.region(buffer, env);
+                        if self
+                            .editor
+                            .widget_mut()
+                            .child_mut()
+                            .inner_mut()
+                            .scroll_to(rect)
+                        {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ResetFade,
+                                Target::Widget(self.scroll_id),
+                            ));
+                        }
+                    }
+                    _ => (),
+                }
                 ctx.set_handled();
             }
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::FillTextLayouts => {
+                        data.fill_text_layouts(ctx, env);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::UpdateSize => {
+                        Arc::make_mut(&mut data.editor).size =
+                            self.editor.widget().child_size();
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
+        self.editor.event(ctx, event, data, env);
+        let offset = self.editor.widget().child().inner().offset();
+        if data.editor.scroll_offset != offset {
+            Arc::make_mut(&mut data.editor).scroll_offset = offset;
+            data.fill_text_layouts(ctx, env);
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        match event {
+            LifeCycle::Size(size) => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::FillTextLayouts,
+                    Target::Widget(self.editor_id),
+                ));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSize,
+                    Target::Widget(self.editor_id),
+                ));
+            }
+            _ => (),
+        }
+        self.editor.lifecycle(ctx, event, data, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &LapceEditorViewData,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        if old_data.editor.scroll_offset != data.editor.scroll_offset {
+            ctx.request_paint();
+        }
+
+        match (old_data.buffer.as_ref(), data.buffer.as_ref()) {
+            (None, Some(_))
+            | (Some(_), None)
+            | (Some(BufferState::Loading), Some(BufferState::Open(_)))
+            | (Some(BufferState::Open(_)), Some(BufferState::Loading)) => {
+                ctx.request_layout();
+            }
+            (
+                Some(BufferState::Open(old_buffer)),
+                Some(BufferState::Open(buffer)),
+            ) => {
+                if old_buffer.id != buffer.id {
+                    ctx.request_paint();
+                }
+            }
+            _ => (),
+        }
+
+        self.editor.update(ctx, data, env);
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) -> Size {
+        self.editor.layout(ctx, bc, data, env);
+        self.editor.set_origin(ctx, data, env, Point::ZERO);
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        let rects = ctx.region().rects().to_vec();
+        for rect in rects {
+            ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+        }
+        self.editor.paint(ctx, data, env);
+    }
+}
+
+pub struct LapceEditor {}
+
+impl LapceEditor {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    fn paint_cursor_line(&mut self, ctx: &mut PaintCtx, line: usize, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let size = ctx.size();
+        ctx.fill(
+            Rect::ZERO
+                .with_origin(Point::new(0.0, line as f64 * line_height))
+                .with_size(Size::new(size.width, line_height)),
+            &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND),
+        );
+    }
+
+    fn paint_cursor(
+        &mut self,
+        ctx: &mut PaintCtx,
+        cursor: &Cursor,
+        buffer: &BufferNew,
+        env: &Env,
+    ) {
+        match &cursor.mode {
+            CursorMode::Normal(offset) => {
+                let (line, col) = buffer.offset_to_line_col(*offset);
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+                self.paint_cursor_line(ctx, line, env);
+
+                let line_content = buffer
+                    .slice_to_cow(
+                        buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
+                    )
+                    .to_string();
+                let width = 7.6171875;
+                let cursor_x = (line_content[..col]
+                    .chars()
+                    .filter_map(|c| if c == '\t' { Some('\t') } else { None })
+                    .count()
+                    * 3
+                    + col) as f64
+                    * width;
+                ctx.fill(
+                    Rect::ZERO
+                        .with_origin(Point::new(cursor_x, line as f64 * line_height))
+                        .with_size(Size::new(width, line_height)),
+                    &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
+                );
+            }
+            CursorMode::Visual { start, end, mode } => {}
+            CursorMode::Insert(_) => {}
+        }
+    }
+}
+
+impl Widget<LapceEditorViewData> for LapceEditor {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceEditorViewData,
+        env: &Env,
+    ) {
+        match event {
             _ => (),
         }
     }
@@ -152,18 +371,71 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
 
     fn update(
         &mut self,
-        ctx: &mut druid::UpdateCtx,
+        ctx: &mut UpdateCtx,
         old_data: &LapceEditorViewData,
         data: &LapceEditorViewData,
         env: &Env,
     ) {
         match (old_data.buffer.as_ref(), data.buffer.as_ref()) {
-            (None, Some(_))
-            | (Some(_), None)
-            | (Some(BufferState::Loading), Some(BufferState::Open(_)))
-            | (Some(BufferState::Open(_)), Some(BufferState::Loading)) => {
-                ctx.request_paint();
-                return;
+            (
+                Some(BufferState::Open(old_buffer)),
+                Some(BufferState::Open(buffer)),
+            ) => {
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+
+                let offset = data.editor.scroll_offset;
+                let start_line = (offset.y / line_height) as usize;
+                let num_lines = (ctx.size().height / line_height) as usize;
+                let mut updated_start_line = None;
+                let mut updated_end_line = None;
+                for line in start_line..start_line + num_lines + 1 {
+                    if line >= buffer.text_layouts.len() {
+                        break;
+                    }
+                    if !old_buffer.text_layouts[line]
+                        .same(&buffer.text_layouts[line])
+                    {
+                        if updated_start_line.is_none() {
+                            updated_start_line = Some(line);
+                        }
+                        updated_end_line = Some(line);
+                    }
+                }
+
+                if let Some(updated_start_line) = updated_start_line {
+                    let updated_end_line = updated_end_line.unwrap();
+                    let rect = Rect::ZERO
+                        .with_origin(Point::new(
+                            0.0,
+                            updated_start_line as f64 * line_height,
+                        ))
+                        .with_size(Size::new(
+                            ctx.size().width,
+                            (updated_end_line + 1 - updated_start_line) as f64
+                                * line_height,
+                        ));
+                    ctx.request_paint_rect(rect);
+                }
+
+                if old_data.editor.cursor != data.editor.cursor {
+                    let (start, end) = old_data.editor.cursor.lines(old_buffer);
+                    let rect = Rect::ZERO
+                        .with_origin(Point::new(0.0, start as f64 * line_height))
+                        .with_size(Size::new(
+                            ctx.size().width,
+                            (end + 1 - start) as f64 * line_height,
+                        ));
+                    ctx.request_paint_rect(rect);
+
+                    let (start, end) = data.editor.cursor.lines(buffer);
+                    let rect = Rect::ZERO
+                        .with_origin(Point::new(0.0, start as f64 * line_height))
+                        .with_size(Size::new(
+                            ctx.size().width,
+                            (end + 1 - start) as f64 * line_height,
+                        ));
+                    ctx.request_paint_rect(rect);
+                }
             }
             _ => (),
         }
@@ -176,13 +448,45 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         data: &LapceEditorViewData,
         env: &Env,
     ) -> Size {
-        bc.max()
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let width = 7.6171875;
+        match data.buffer.as_ref() {
+            Some(BufferState::Open(buffer)) => Size::new(
+                (width * buffer.max_len as f64).max(bc.max().width),
+                line_height * buffer.text_layouts.len() as f64 + bc.max().height
+                    - line_height,
+            ),
+            _ => Size::ZERO,
+        }
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rects = ctx.region().rects().to_vec();
-        for rect in rects {
-            ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+        match data.buffer.as_ref() {
+            Some(BufferState::Open(buffer)) => {
+                self.paint_cursor(ctx, &data.editor.cursor, buffer, env);
+                for rect in rects {
+                    let start_line = (rect.y0 / line_height).floor() as usize;
+                    let num_lines = (rect.height() / line_height).floor() as usize;
+                    let last_line = buffer.last_line();
+                    for line in start_line..start_line + num_lines + 1 {
+                        if line > last_line {
+                            break;
+                        }
+                        if buffer.text_layouts.len() > line {
+                            if let Some(layout) = buffer.text_layouts[line].as_ref()
+                            {
+                                ctx.draw_text(
+                                    &layout.layout,
+                                    Point::new(0.0, line_height * line as f64 + 5.0),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            _ => (),
         }
     }
 }
@@ -3723,7 +4027,7 @@ struct EditorTextLayout {
     text: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,

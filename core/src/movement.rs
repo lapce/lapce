@@ -1,8 +1,89 @@
+use druid::{Env, Point, Rect, Size};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{RopeDelta, Transformer};
 
-use crate::{buffer::Buffer, state::Mode};
+use crate::{
+    buffer::{Buffer, BufferNew},
+    state::{Mode, VisualMode},
+    theme::LapceTheme,
+};
 use std::cmp::{max, min};
+
+#[derive(Clone, Debug, Default)]
+pub struct Cursor {
+    pub mode: CursorMode,
+    pub horiz: Option<ColPosition>,
+}
+
+impl PartialEq for Cursor {
+    fn eq(&self, other: &Self) -> bool {
+        self.mode.eq(&other.mode)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum CursorMode {
+    Normal(usize),
+    Visual {
+        start: usize,
+        end: usize,
+        mode: VisualMode,
+    },
+    Insert(Selection),
+}
+
+impl Cursor {
+    pub fn lines(&self, buffer: &BufferNew) -> (usize, usize) {
+        match &self.mode {
+            CursorMode::Normal(offset) => {
+                let line = buffer.line_of_offset(*offset);
+                (line, line)
+            }
+            CursorMode::Visual { start, end, mode } => {
+                let start_line = buffer.line_of_offset(*start.min(end));
+                let end_line = buffer.line_of_offset(*start.max(end));
+                (start_line, end_line)
+            }
+            CursorMode::Insert(_) => (0, 0),
+        }
+    }
+
+    pub fn region(&self, buffer: &BufferNew, env: &Env) -> Rect {
+        let (line, col) = match &self.mode {
+            CursorMode::Normal(offset) => buffer.offset_to_line_col(*offset),
+            CursorMode::Visual { start, end, mode } => {
+                buffer.offset_to_line_col(*end)
+            }
+            CursorMode::Insert(_) => (0, 0),
+        };
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_content = buffer
+            .slice_to_cow(
+                buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
+            )
+            .to_string();
+        let width = 7.6171875;
+        let cursor_x = (line_content[..col]
+            .chars()
+            .filter_map(|c| if c == '\t' { Some('\t') } else { None })
+            .count()
+            * 3
+            + col) as f64
+            * width
+            - width;
+        let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
+        let line = if line > 1 { line - 1 } else { 0 };
+        Rect::ZERO
+            .with_origin(Point::new(cursor_x, line as f64 * line_height))
+            .with_size(Size::new(width * 3.0, line_height * 3.0))
+    }
+}
+
+impl Default for CursorMode {
+    fn default() -> Self {
+        CursorMode::Normal(0)
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ColPosition {
@@ -76,7 +157,7 @@ impl SelRegion {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Selection {
     regions: Vec<SelRegion>,
 }

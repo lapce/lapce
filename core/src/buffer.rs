@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use crossbeam_utils::sync::WaitGroup;
-use druid::Vec2;
+use druid::{piet::PietTextLayout, Vec2};
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Color, Command, Data, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId,
@@ -43,10 +43,9 @@ use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
     editor::EditorOperator,
-    editor::HighlightTextLayout,
     find::Find,
     language,
-    movement::{ColPosition, Movement, SelRegion, Selection},
+    movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     proxy::LapceProxy,
     state::LapceTabState,
     state::LapceWorkspaceType,
@@ -77,7 +76,7 @@ pub struct BufferUIState {
     window_id: WindowId,
     tab_id: WidgetId,
     pub id: BufferId,
-    pub text_layouts: Vec<Arc<Option<HighlightTextLayout>>>,
+    pub text_layouts: Vec<Arc<Option<Arc<HighlightTextLayout>>>>,
     pub line_changes: HashMap<usize, char>,
     pub max_len_line: usize,
     pub max_len: usize,
@@ -91,16 +90,39 @@ pub enum BufferState {
 }
 
 #[derive(Debug)]
+pub struct HighlightTextLayout {
+    pub layout: PietTextLayout,
+    pub text: String,
+    pub highlights: Vec<(usize, usize, String)>,
+}
+
+#[derive(Debug, Clone)]
 pub struct BufferNew {
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
+    pub text_layouts: im::Vector<Arc<Option<Arc<HighlightTextLayout>>>>,
+    pub max_len: usize,
+    pub max_len_line: usize,
 }
 
 impl BufferNew {
     pub fn new(id: BufferId, path: PathBuf, content: String) -> Self {
         let rope = Rope::from_str(&content).unwrap();
-        Self { id, rope, path }
+        let mut buffer = Self {
+            id,
+            rope,
+            path,
+            text_layouts: im::Vector::new(),
+            max_len: 0,
+            max_len_line: 0,
+        };
+        let (max_len, max_len_line) = buffer.get_max_line_len();
+        buffer.text_layouts =
+            im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
+        buffer.max_len = max_len;
+        buffer.max_len_line = max_len_line;
+        buffer
     }
 
     pub fn load_file(
@@ -115,10 +137,247 @@ impl BufferNew {
             println!("load file got content");
             event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::LoadFile { id, path, content },
+                LapceUICommand::LoadBuffer { id, path, content },
                 Target::Widget(tab_id),
             );
         });
+    }
+
+    pub fn num_lines(&self) -> usize {
+        self.line_of_offset(self.rope.len()) + 1
+    }
+
+    pub fn last_line(&self) -> usize {
+        self.line_of_offset(self.rope.len())
+    }
+
+    pub fn line_of_offset(&self, offset: usize) -> usize {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
+        self.rope.line_of_offset(offset)
+    }
+
+    pub fn offset_of_line(&self, line: usize) -> usize {
+        let last_line = self.last_line();
+        let line = if line > last_line { last_line } else { line };
+        self.rope.offset_of_line(line)
+    }
+
+    pub fn get_max_line_len(&self) -> (usize, usize) {
+        let mut pre_offset = 0;
+        let mut max_len = 0;
+        let mut max_len_line = 0;
+        for line in 0..self.num_lines() {
+            let offset = self.rope.offset_of_line(line);
+            let line_len = offset - pre_offset;
+            pre_offset = offset;
+            if line_len > max_len {
+                max_len = line_len;
+                max_len_line = line;
+            }
+        }
+        (max_len, max_len_line)
+    }
+
+    pub fn len(&self) -> usize {
+        self.rope.len()
+    }
+
+    pub fn update_line_layouts(
+        &mut self,
+        text: &mut PietText,
+        line: usize,
+        env: &Env,
+    ) {
+        if line >= self.text_layouts.len() {
+            return;
+        }
+        if self.text_layouts[line].is_none() {
+            let line_content = self
+                .slice_to_cow(
+                    self.offset_of_line(line)..self.offset_of_line(line + 1),
+                )
+                .to_string();
+            self.text_layouts[line] = Arc::new(Some(Arc::new(
+                self.get_text_layout(text, line, line_content, env),
+            )));
+            return;
+        }
+    }
+
+    pub fn get_text_layout(
+        &mut self,
+        text: &mut PietText,
+        line: usize,
+        line_content: String,
+        env: &Env,
+    ) -> HighlightTextLayout {
+        let mut layout_builder = text
+            .new_text_layout(line_content.replace('\t', "    "))
+            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        let layout = layout_builder.build().unwrap();
+        HighlightTextLayout {
+            layout,
+            text: line_content,
+            highlights: Vec::new(),
+        }
+    }
+
+    pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
+        self.rope.slice_to_cow(range)
+    }
+
+    pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
+        let line = self.line_of_offset(offset);
+        (line, offset - self.offset_of_line(line))
+    }
+
+    pub fn line_end(&self, line: usize, caret: bool) -> usize {
+        let line_start_offset = self.offset_of_line(line);
+        let line_end_offset = self.offset_of_line(line + 1);
+        let line_end_offset = if line_end_offset - line_start_offset <= 1 {
+            line_start_offset
+        } else {
+            if caret {
+                line_end_offset - 1
+            } else {
+                line_end_offset - 2
+            }
+        };
+        line_end_offset
+    }
+
+    pub fn line_end_offset(&self, offset: usize, caret: bool) -> usize {
+        let line = self.line_of_offset(offset);
+        self.line_end(line, caret)
+    }
+
+    pub fn line_max_col(&self, line: usize, caret: bool) -> usize {
+        match self.offset_of_line(line + 1) - self.offset_of_line(line) {
+            n if n == 0 => 0,
+            n if n == 1 => 0,
+            n => match caret {
+                true => n - 1,
+                false => n - 2,
+            },
+        }
+    }
+
+    pub fn line_horiz_col(
+        &self,
+        line: usize,
+        horiz: &ColPosition,
+        caret: bool,
+    ) -> usize {
+        let max_col = self.line_max_col(line, caret);
+        match horiz {
+            &ColPosition::Col(n) => match max_col > n {
+                true => n,
+                false => max_col,
+            },
+            &ColPosition::End => max_col,
+            _ => 0,
+        }
+    }
+
+    pub fn move_offset(
+        &self,
+        offset: usize,
+        horiz: Option<&ColPosition>,
+        count: usize,
+        movement: &Movement,
+        caret: bool,
+    ) -> (usize, ColPosition) {
+        let horiz = if let Some(horiz) = horiz {
+            horiz.clone()
+        } else {
+            let (_, col) = self.offset_to_line_col(offset);
+            ColPosition::Col(col)
+        };
+        match movement {
+            Movement::Left => {
+                let line = self.line_of_offset(offset);
+                let line_start_offset = self.offset_of_line(line);
+                let new_offset = if offset < count {
+                    0
+                } else if offset - count > line_start_offset {
+                    offset - count
+                } else {
+                    line_start_offset
+                };
+                let (_, col) = self.offset_to_line_col(new_offset);
+                (new_offset, ColPosition::Col(col))
+            }
+            Movement::Right => {
+                let line_end = self.line_end_offset(offset, caret);
+
+                let mut new_end = offset + count;
+                if new_end > self.len() {
+                    new_end = self.len()
+                }
+                if new_end > line_end {
+                    new_end = line_end;
+                }
+
+                let (_, col) = self.offset_to_line_col(new_end);
+                (new_end, ColPosition::Col(col))
+            }
+            Movement::Up => {
+                let line = self.line_of_offset(offset);
+                let line = if line > count { line - count } else { 0 };
+                let col = self.line_horiz_col(line, &horiz, caret);
+                let new_offset = self.offset_of_line(line) + col;
+                (new_offset, horiz)
+            }
+            Movement::Down => {
+                let last_line = self.last_line();
+                let line = self.line_of_offset(offset) + count;
+                let line = if line > last_line { last_line } else { line };
+                let col = self.line_horiz_col(line, &horiz, caret);
+                let new_offset = self.offset_of_line(line) + col;
+                (new_offset, horiz)
+            }
+            Movement::StartOfLine => {
+                let line = self.line_of_offset(offset);
+                let new_offset = self.offset_of_line(line);
+                (new_offset, ColPosition::Start)
+            }
+            Movement::EndOfLine => {
+                let new_offset = self.line_end_offset(offset, caret);
+                (new_offset, ColPosition::End)
+            }
+            Movement::Line(position) => {
+                let line = match position {
+                    LinePosition::Line(line) => {
+                        let line = line - 1;
+                        let last_line = self.last_line();
+                        match line {
+                            n if n > last_line => last_line,
+                            n => n,
+                        }
+                    }
+                    LinePosition::First => 0,
+                    LinePosition::Last => self.last_line(),
+                };
+                let col = self.line_horiz_col(line, &horiz, caret);
+                let new_offset = self.offset_of_line(line) + col;
+                (new_offset, horiz)
+            }
+            Movement::Offset(offset) => {
+                let new_offset = *offset;
+                let (_, col) = self.offset_to_line_col(new_offset);
+                (new_offset, ColPosition::Col(col))
+            }
+            Movement::WordEndForward => (offset, horiz),
+            Movement::WordForward => (offset, horiz),
+            Movement::WordBackward => (offset, horiz),
+            Movement::NextUnmatched(_) => (offset, horiz),
+            Movement::PreviousUnmatched(_) => (offset, horiz),
+            Movement::MatchPairs => (offset, horiz),
+        }
     }
 }
 
@@ -1285,13 +1544,8 @@ impl BufferUIState {
                     buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
                 )
                 .to_string();
-            self.text_layouts[line] = Arc::new(Some(self.get_text_layout(
-                text,
-                buffer,
-                theme,
-                line,
-                line_content,
-                env,
+            self.text_layouts[line] = Arc::new(Some(Arc::new(
+                self.get_text_layout(text, buffer, theme, line, line_content, env),
             )));
             return true;
         }
