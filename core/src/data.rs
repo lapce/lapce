@@ -236,6 +236,8 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
 
 #[derive(Clone, Data, Lens, Debug)]
 pub struct LapceMainSplitData {
+    pub split_id: Arc<WidgetId>,
+    pub focus: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub buffers: im::HashMap<BufferId, BufferState>,
     pub open_files: im::HashMap<PathBuf, BufferId>,
@@ -266,35 +268,48 @@ impl LapceMainSplitData {
 
 impl LapceMainSplitData {
     pub fn new() -> Self {
+        let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
-        let editor_id = WidgetId::next();
-        let editor = LapceEditorData {
-            editor_id,
-            buffer: Some(PathBuf::from("/Users/Lulu/lapce/src/editor_old.rs")),
-            mode: Mode::Normal,
-            scroll_offset: Vec2::ZERO,
-            cursor: Cursor::default(),
-            size: Size::ZERO,
-        };
-        editors.insert(editor_id, Arc::new(editor));
+        let editor = LapceEditorData::new(
+            *split_id,
+            Some(PathBuf::from("/Users/Lulu/lapce/src/editor_old.rs")),
+        );
+        editors.insert(editor.view_id, Arc::new(editor));
         let buffers = im::HashMap::new();
         let open_files = im::HashMap::new();
         Self {
+            split_id,
             editors,
             buffers,
             open_files,
+            focus: Arc::new(WidgetId::next()),
         }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct LapceEditorData {
+    pub split_id: WidgetId,
+    pub view_id: WidgetId,
     pub editor_id: WidgetId,
     pub buffer: Option<PathBuf>,
-    pub mode: Mode,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
     pub size: Size,
+}
+
+impl LapceEditorData {
+    pub fn new(split_id: WidgetId, buffer: Option<PathBuf>) -> Self {
+        Self {
+            split_id,
+            view_id: WidgetId::next(),
+            editor_id: WidgetId::next(),
+            buffer,
+            scroll_offset: Vec2::ZERO,
+            cursor: Cursor::default(),
+            size: Size::ZERO,
+        }
+    }
 }
 
 #[derive(Clone, Data, Lens, Debug)]
@@ -306,10 +321,10 @@ pub struct LapceEditorViewData {
 }
 
 impl LapceEditorViewData {
-    pub fn key_down(&mut self, key_event: &KeyEvent) {
+    pub fn key_down(&mut self, ctx: &mut EventCtx, key_event: &KeyEvent) {
         let mut keypress = self.keypress.clone();
         let k = Arc::make_mut(&mut keypress);
-        k.key_down(key_event, self);
+        k.key_down(ctx, key_event, self);
         self.keypress = keypress;
     }
 
@@ -373,14 +388,14 @@ impl LapceEditorViewData {
         }
     }
 
-    pub fn do_move(&mut self, movement: &Movement) {
+    pub fn do_move(&mut self, movement: &Movement, count: usize) {
         match self.buffer.as_ref() {
             Some(BufferState::Open(buffer)) => match &self.editor.cursor.mode {
                 &CursorMode::Normal(offset) => {
                     let (new_offset, horiz) = buffer.move_offset(
                         offset,
                         self.editor.cursor.horiz.as_ref(),
-                        1,
+                        count,
                         movement,
                         false,
                     );
@@ -452,6 +467,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
                 .insert(self.0, editor_view.editor.clone());
         }
         data.keypress = editor_view.keypress.clone();
+        data.main_split.focus = editor_view.main_split.focus.clone();
         if let Some(buffer_id) = buffer_id {
             let changed = match (
                 data.main_split.buffers.get(&buffer_id),
@@ -479,7 +495,11 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
 
 impl KeyPressFocus for LapceEditorViewData {
     fn get_mode(&self) -> Mode {
-        self.editor.mode.clone()
+        match self.editor.cursor.mode {
+            CursorMode::Normal(_) => Mode::Normal,
+            CursorMode::Visual { .. } => Mode::Visual,
+            CursorMode::Insert(_) => Mode::Insert,
+        }
     }
 
     fn check_condition(&self, condition: &str) -> bool {
@@ -488,10 +508,25 @@ impl KeyPressFocus for LapceEditorViewData {
         }
     }
 
-    fn run_command(&mut self, cmd: &LapceCommand) {
-        if let Some(movement) = self.move_command(None, &cmd) {
-            self.do_move(&movement);
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        cmd: &LapceCommand,
+        count: Option<usize>,
+    ) {
+        if let Some(movement) = self.move_command(count, cmd) {
+            self.do_move(&movement, count.unwrap_or(1));
             return;
+        }
+        match cmd {
+            LapceCommand::SplitVertical => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitEditor(true, self.editor.view_id),
+                    Target::Widget(self.editor.split_id),
+                ));
+            }
+            _ => (),
         }
     }
 

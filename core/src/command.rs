@@ -222,6 +222,7 @@ pub enum LapceUICommand {
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
+    SplitEditor(bool, WidgetId),
     Split(bool),
     SplitExchange,
     SplitClose,

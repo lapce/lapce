@@ -20,13 +20,14 @@ pub struct LapceTabNew {
 
 impl LapceTabNew {
     pub fn new(data: &LapceTabData) -> Self {
-        let editor_widget_id = data.main_split.editors.iter().next().unwrap().0;
-        let main_split = LapceSplitNew::new().with_flex_child(
-            LapceEditorView::new(*editor_widget_id)
-                .lens(LapceEditorLens(*editor_widget_id))
-                .boxed(),
-            1.0,
-        );
+        let editor = data.main_split.editors.iter().next().unwrap().1;
+        let main_split = LapceSplitNew::new(*data.main_split.split_id)
+            .with_flex_child(
+                LapceEditorView::new(editor.view_id, editor.editor_id)
+                    .lens(LapceEditorLens(editor.view_id))
+                    .boxed(),
+                1.0,
+            );
         Self {
             id: data.id,
             main_split: WidgetPod::new(main_split.boxed()),

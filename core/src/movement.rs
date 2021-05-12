@@ -33,6 +33,14 @@ pub enum CursorMode {
 }
 
 impl Cursor {
+    pub fn current_line(&self, buffer: &BufferNew) -> usize {
+        match &self.mode {
+            CursorMode::Normal(offset) => buffer.line_of_offset(*offset),
+            CursorMode::Visual { start, end, mode } => buffer.line_of_offset(*end),
+            CursorMode::Insert(_) => 0,
+        }
+    }
+
     pub fn lines(&self, buffer: &BufferNew) -> (usize, usize) {
         match &self.mode {
             CursorMode::Normal(offset) => {

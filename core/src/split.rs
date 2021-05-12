@@ -1,8 +1,9 @@
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    data::{LapceEditorData, LapceEditorLens, LapceTabData},
     editor::Editor,
     editor::EditorState,
-    editor::{EditorLocation, EditorView},
+    editor::{EditorLocation, EditorView, LapceEditorView},
     scroll::LapceScroll,
     state::LapceTabState,
     state::LapceUIState,
@@ -29,26 +30,28 @@ pub enum SplitMoveDirection {
     Left,
 }
 
-pub struct LapceSplitNew<T> {
-    children: Vec<ChildWidgetNew<T>>,
+pub struct LapceSplitNew {
+    split_id: WidgetId,
+    children: Vec<ChildWidgetNew>,
 }
 
-pub struct ChildWidgetNew<T> {
-    pub widget: WidgetPod<T, Box<dyn Widget<T>>>,
+pub struct ChildWidgetNew {
+    pub widget: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     flex: bool,
     params: f64,
 }
 
-impl<T> LapceSplitNew<T> {
-    pub fn new() -> Self {
+impl LapceSplitNew {
+    pub fn new(split_id: WidgetId) -> Self {
         Self {
+            split_id,
             children: Vec::new(),
         }
     }
 
     pub fn with_flex_child(
         mut self,
-        child: Box<dyn Widget<T>>,
+        child: Box<dyn Widget<LapceTabData>>,
         params: f64,
     ) -> Self {
         let child = ChildWidgetNew {
@@ -59,12 +62,99 @@ impl<T> LapceSplitNew<T> {
         self.children.push(child);
         self
     }
+
+    pub fn insert_flex_child(
+        &mut self,
+        index: usize,
+        child: Box<dyn Widget<LapceTabData>>,
+        params: f64,
+    ) {
+        let child = ChildWidgetNew {
+            widget: WidgetPod::new(child),
+            flex: true,
+            params,
+        };
+        self.children.insert(index, child);
+    }
+
+    pub fn even_flex_children(&mut self) {
+        for child in self.children.iter_mut() {
+            if child.flex {
+                child.params = 1.0;
+            }
+        }
+    }
+
+    pub fn split_editor(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        vertical: bool,
+        view_id: WidgetId,
+    ) {
+        let mut index = 0;
+        for (i, child) in self.children.iter().enumerate() {
+            if child.widget.id() == view_id {
+                index = i;
+                break;
+            }
+        }
+
+        let from_editor = data.main_split.editors.get(&view_id).unwrap();
+        let mut editor_data =
+            LapceEditorData::new(self.split_id, from_editor.buffer.clone());
+        editor_data.cursor = from_editor.cursor.clone();
+        // editor_data.scroll_offset = from_editor.scroll_offset.clone();
+        ctx.get_external_handle().submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::ScrollTo((
+                from_editor.scroll_offset.x,
+                from_editor.scroll_offset.y,
+            )),
+            Target::Widget(editor_data.editor_id),
+        );
+
+        let editor =
+            LapceEditorView::new(editor_data.view_id, editor_data.editor_id);
+        self.insert_flex_child(
+            index + 1,
+            editor.lens(LapceEditorLens(editor_data.view_id)).boxed(),
+            1.0,
+        );
+        self.even_flex_children();
+        ctx.children_changed();
+        data.main_split
+            .editors
+            .insert(editor_data.view_id, Arc::new(editor_data));
+    }
 }
 
-impl<T: Data> Widget<T> for LapceSplitNew<T> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl Widget<LapceTabData> for LapceSplitNew {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.split_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
         for child in self.children.iter_mut() {
             child.widget.event(ctx, event, data, env);
+        }
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::SplitEditor(vertical, view_id) => {
+                        self.split_editor(ctx, data, *vertical, *view_id);
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
         }
     }
 
@@ -72,7 +162,7 @@ impl<T: Data> Widget<T> for LapceSplitNew<T> {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &T,
+        data: &LapceTabData,
         env: &Env,
     ) {
         for child in self.children.iter_mut() {
@@ -83,8 +173,8 @@ impl<T: Data> Widget<T> for LapceSplitNew<T> {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        old_data: &T,
-        data: &T,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         env: &Env,
     ) {
         for child in self.children.iter_mut() {
@@ -96,7 +186,7 @@ impl<T: Data> Widget<T> for LapceSplitNew<T> {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &T,
+        data: &LapceTabData,
         env: &Env,
     ) -> Size {
         let my_size = bc.max();
@@ -140,7 +230,7 @@ impl<T: Data> Widget<T> for LapceSplitNew<T> {
         my_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         for child in self.children.iter_mut() {
             child.widget.paint(ctx, data, env);
         }

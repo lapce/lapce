@@ -1260,6 +1260,7 @@ pub struct ScrollComponentNew {
     pub opacity: f64,
     /// ID for the timer which schedules scrollbar fade out
     pub timer_id: TimerToken,
+    pub fade_interval_id: TimerToken,
     /// Which if any scrollbar is currently hovered by the mouse
     pub hovered: BarHoveredState,
     /// Which if any scrollbar is currently being dragged by the mouse
@@ -1271,6 +1272,7 @@ impl Default for ScrollComponentNew {
         Self {
             opacity: 0.0,
             timer_id: TimerToken::INVALID,
+            fade_interval_id: TimerToken::INVALID,
             hovered: BarHoveredState::None,
             held: BarHeldState::None,
         }
@@ -1294,7 +1296,7 @@ impl ScrollComponentNew {
         F: FnOnce(Duration) -> TimerToken,
     {
         self.opacity = env.get(theme::SCROLLBAR_MAX_OPACITY);
-        let fade_delay = env.get(theme::SCROLLBAR_FADE_DELAY);
+        let fade_delay = 100;
         let deadline = Duration::from_millis(fade_delay);
         self.timer_id = request_timer(deadline);
     }
@@ -1587,21 +1589,19 @@ impl ScrollComponentNew {
                 }
                 Event::Timer(id) if *id == self.timer_id => {
                     // Schedule scroll bars animation
-                    ctx.request_anim_frame();
                     self.timer_id = TimerToken::INVALID;
+                    self.fade_interval_id =
+                        ctx.request_timer(Duration::from_millis(20));
                     ctx.set_handled();
                 }
-                Event::AnimFrame(interval) => {
-                    // Guard by the timer id being invalid, otherwise the scroll bars would fade
-                    // immediately if some other widget started animating.
+                Event::Timer(id) if *id == self.fade_interval_id => {
                     if self.timer_id == TimerToken::INVALID {
-                        // Animate scroll bars opacity
-                        let diff = 2.0 * (*interval as f64) * 1e-9;
+                        let diff = 0.025;
                         self.opacity -= diff;
                         if self.opacity > 0.0 {
-                            ctx.request_anim_frame();
+                            self.fade_interval_id =
+                                ctx.request_timer(Duration::from_millis(20));
                         }
-
                         if let Some(bounds) =
                             self.calc_horizontal_bar_bounds(port, env)
                         {
@@ -1614,7 +1614,6 @@ impl ScrollComponentNew {
                         }
                     }
                 }
-
                 _ => (),
             }
         }
@@ -1714,11 +1713,15 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
         self.clip.pan_by(delta)
     }
 
+    pub fn scroll_to(&mut self, point: Point) -> bool {
+        self.clip.pan_to(point)
+    }
+
     /// Scroll the minimal distance to show the target rect.
     ///
     /// If the target region is larger than the viewport, we will display the
     /// portion that fits, prioritizing the portion closest to the origin.
-    pub fn scroll_to(&mut self, region: Rect) -> bool {
+    pub fn scroll_to_visible(&mut self, region: Rect) -> bool {
         self.clip.pan_to_visible(region)
     }
 }

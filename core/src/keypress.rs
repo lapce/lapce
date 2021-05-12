@@ -17,8 +17,9 @@ use crate::{
 
 #[derive(PartialEq)]
 enum KeymapMatch {
-    Full,
+    Full(String),
     Prefix,
+    None,
 }
 
 #[derive(PartialEq, Eq, Hash, Default, Clone, Debug)]
@@ -46,7 +47,12 @@ pub struct KeyPressState {
 pub trait KeyPressFocus {
     fn get_mode(&self) -> Mode;
     fn check_condition(&self, condition: &str) -> bool;
-    fn run_command(&mut self, command: &LapceCommand);
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommand,
+        count: Option<usize>,
+    );
     fn insert(&self, c: &str);
 }
 
@@ -54,6 +60,7 @@ pub trait KeyPressFocus {
 pub struct KeyPressData {
     pending_keypress: Vec<KeyPress>,
     keymaps: im::HashMap<Vec<KeyPress>, Vec<KeyMap>>,
+    count: Option<usize>,
 }
 
 impl KeyPressData {
@@ -61,21 +68,45 @@ impl KeyPressData {
         Self {
             pending_keypress: Vec::new(),
             keymaps: Self::get_keymaps().unwrap_or(im::HashMap::new()),
+            count: None,
         }
     }
 
     fn run_command<T: KeyPressFocus>(
         &self,
+        ctx: &mut EventCtx,
         command: &str,
+        count: Option<usize>,
         focus: &mut T,
     ) -> Result<()> {
         let cmd = LapceCommand::from_str(command)?;
-        focus.run_command(&cmd);
+        focus.run_command(ctx, &cmd, count);
         Ok(())
+    }
+
+    fn handle_count(&mut self, mode: &Mode, keypress: &KeyPress) -> bool {
+        if mode == &Mode::Insert {
+            return false;
+        }
+
+        match &keypress.key {
+            druid::keyboard_types::Key::Character(c) => {
+                if let Ok(n) = c.parse::<usize>() {
+                    if self.count.is_some() || n > 0 {
+                        self.count = Some(self.count.unwrap_or(0) * 10 + n);
+                        return true;
+                    }
+                }
+            }
+            _ => (),
+        }
+
+        false
     }
 
     pub fn key_down<T: KeyPressFocus>(
         &mut self,
+        ctx: &mut EventCtx,
         key_event: &KeyEvent,
         focus: &mut T,
     ) {
@@ -89,19 +120,38 @@ impl KeyPressData {
             mods,
         };
 
+        let mode = focus.get_mode();
+        if self.handle_count(&mode, &keypress) {
+            return;
+        }
+
         let mut keypresses = self.pending_keypress.clone();
         keypresses.push(keypress.clone());
 
         let matches = self.match_keymap(&keypresses, focus);
-        if matches.len() > 1 {
-            self.pending_keypress.push(keypress);
-            return;
-        } else if matches.len() == 1 {
-            self.run_command(&matches[0].command, focus);
-            self.pending_keypress = Vec::new();
-            return;
+        let keymatch = if matches.len() == 0 {
+            KeymapMatch::None
+        } else if matches.len() == 1 && matches[0].key == keypresses {
+            KeymapMatch::Full(matches[0].command.clone())
+        } else {
+            KeymapMatch::Prefix
+        };
+        match keymatch {
+            KeymapMatch::Full(command) => {
+                let count = self.count.take();
+                self.run_command(ctx, &command, count, focus);
+                self.pending_keypress = Vec::new();
+                return;
+            }
+            KeymapMatch::Prefix => {
+                self.pending_keypress.push(keypress);
+                return;
+            }
+            KeymapMatch::None => {}
         }
+
         self.pending_keypress = Vec::new();
+        self.count = None;
 
         if mods.is_empty() {
             match &key_event.key {
@@ -425,7 +475,7 @@ impl KeyPressState {
                 self.match_keymap_new(&mode, &keypresses, keymap)
             {
                 match match_result {
-                    KeymapMatch::Full => {
+                    KeymapMatch::Full(_) => {
                         if full_match_keymap.is_none() {
                             full_match_keymap = Some(keymap.clone());
                         }
@@ -434,6 +484,7 @@ impl KeyPressState {
                         self.pending_keypress.push(keypress.clone());
                         return;
                     }
+                    KeymapMatch::None => {}
                 }
             }
         }
@@ -454,7 +505,7 @@ impl KeyPressState {
                 if let Some(match_result) =
                     self.match_keymap_new(&mode, &pending_keypresses, keymap)
                 {
-                    if match_result == KeymapMatch::Full {
+                    if match_result == KeymapMatch::Full("".to_string()) {
                         if full_match_keymap.is_none() {
                             full_match_keymap = Some(keymap.clone());
                         }
@@ -512,7 +563,7 @@ impl KeyPressState {
                 None
             }
         } else if &keymap.key == keypresses {
-            Some(KeymapMatch::Full)
+            Some(KeymapMatch::Full(keymap.command.clone()))
         } else {
             None
         };

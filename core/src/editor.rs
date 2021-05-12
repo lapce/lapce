@@ -40,11 +40,12 @@ use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
 use crossbeam_channel::{self, bounded};
 use druid::{
-    kurbo::Line, piet::PietText, theme, widget::IdentityWrapper, widget::Padding,
-    widget::Scroll, widget::SvgData, Affine, BoxConstraints, Color, Command, Data,
-    Env, Event, EventCtx, FontDescriptor, FontFamily, Insets, KeyEvent, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    kurbo::Line, piet::PietText, theme, widget::Flex, widget::IdentityWrapper,
+    widget::Padding, widget::Scroll, widget::SvgData, Affine, BoxConstraints, Color,
+    Command, Data, Env, Event, EventCtx, FontDescriptor, FontFamily, Insets,
+    KeyEvent, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt,
+    WidgetId, WidgetPod, WindowId,
 };
 use druid::{
     piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
@@ -121,8 +122,97 @@ pub struct EditorLocation {
 }
 
 pub struct LapceEditorView {
+    pub view_id: WidgetId,
+    pub header: WidgetPod<LapceEditorViewData, LapceEditorHeader>,
+    pub editor: WidgetPod<LapceEditorViewData, LapceEditorContainer>,
+}
+
+impl LapceEditorView {
+    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> LapceEditorView {
+        let header = LapceEditorHeader::new();
+        let editor = LapceEditorContainer::new(editor_id);
+        Self {
+            view_id,
+            header: WidgetPod::new(header),
+            editor: WidgetPod::new(editor),
+        }
+    }
+}
+
+impl Widget<LapceEditorViewData> for LapceEditorView {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.view_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceEditorViewData,
+        env: &Env,
+    ) {
+        self.header.event(ctx, event, data, env);
+        self.editor.event(ctx, event, data, env);
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        self.header.lifecycle(ctx, event, data, env);
+        self.editor.lifecycle(ctx, event, data, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &LapceEditorViewData,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        self.header.update(ctx, data, env);
+        self.editor.update(ctx, data, env);
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) -> Size {
+        let self_size = bc.max();
+        let header_size = self.header.layout(ctx, bc, data, env);
+        self.header.set_origin(ctx, data, env, Point::ZERO);
+        let editor_size =
+            Size::new(self_size.width, self_size.height - header_size.height);
+        let editor_bc = BoxConstraints::new(Size::ZERO, editor_size);
+        self.editor.layout(ctx, &editor_bc, data, env);
+        self.editor
+            .set_origin(ctx, data, env, Point::new(0.0, header_size.height));
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        let rects = ctx.region().rects().to_vec();
+        for rect in &rects {
+            ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+        }
+        self.header.paint(ctx, data, env);
+        self.editor.paint(ctx, data, env);
+    }
+}
+
+pub struct LapceEditorContainer {
     pub editor_id: WidgetId,
     pub scroll_id: WidgetId,
+    pub gutter: WidgetPod<
+        LapceEditorViewData,
+        LapcePadding<LapceEditorViewData, LapceEditorGutter>,
+    >,
     pub editor: WidgetPod<
         LapceEditorViewData,
         LapcePadding<
@@ -132,9 +222,11 @@ pub struct LapceEditorView {
     >,
 }
 
-impl LapceEditorView {
+impl LapceEditorContainer {
     pub fn new(editor_id: WidgetId) -> Self {
         let scroll_id = WidgetId::next();
+        let gutter = LapceEditorGutter::new(editor_id);
+        let gutter = LapcePadding::new((10.0, 0.0, 10.0, 0.0), gutter);
         let editor = LapceEditor::new();
         let editor = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(editor).vertical().horizontal(),
@@ -144,12 +236,13 @@ impl LapceEditorView {
         Self {
             editor_id,
             scroll_id,
+            gutter: WidgetPod::new(gutter),
             editor: WidgetPod::new(editor),
         }
     }
 }
 
-impl Widget<LapceEditorViewData> for LapceEditorView {
+impl Widget<LapceEditorViewData> for LapceEditorContainer {
     fn id(&self) -> Option<WidgetId> {
         Some(self.editor_id)
     }
@@ -166,7 +259,10 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
                 ctx.request_focus();
             }
             Event::KeyDown(key_event) => {
-                data.key_down(key_event);
+                if *data.main_split.focus != self.editor_id {
+                    data.main_split.focus = Arc::new(self.editor_id);
+                }
+                data.key_down(ctx, key_event);
                 match data.buffer.as_ref() {
                     Some(BufferState::Open(buffer)) => {
                         let rect = data.editor.cursor.region(buffer, env);
@@ -175,7 +271,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
                             .widget_mut()
                             .child_mut()
                             .inner_mut()
-                            .scroll_to(rect)
+                            .scroll_to_visible(rect)
                         {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
@@ -199,11 +295,28 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
                         Arc::make_mut(&mut data.editor).size =
                             self.editor.widget().child_size();
                     }
+                    LapceUICommand::ScrollTo((x, y)) => {
+                        println!("recevie scroll to");
+                        if self
+                            .editor
+                            .widget_mut()
+                            .child_mut()
+                            .inner_mut()
+                            .scroll_to(Point::new(*x, *y))
+                        {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ResetFade,
+                                Target::Widget(self.scroll_id),
+                            ));
+                        }
+                    }
                     _ => (),
                 }
             }
             _ => (),
         }
+        self.gutter.event(ctx, event, data, env);
         self.editor.event(ctx, event, data, env);
         let offset = self.editor.widget().child().inner().offset();
         if data.editor.scroll_offset != offset {
@@ -232,14 +345,26 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
                     Target::Widget(self.editor_id),
                 ));
             }
+            LifeCycle::WidgetAdded => {
+                // let scroll_offset = data.editor.scroll_offset;
+                // if scroll_offset != Vec2::ZERO {
+                //     ctx.get_external_handle().submit_command(
+                //         LAPCE_UI_COMMAND,
+                //         LapceUICommand::ScrollTo((scroll_offset.x, scroll_offset.y)),
+                //         Target::Widget(self.editor_id),
+                //     );
+                // }
+                println!("widget added");
+            }
             _ => (),
         }
+        self.gutter.lifecycle(ctx, event, data, env);
         self.editor.lifecycle(ctx, event, data, env);
     }
 
     fn update(
         &mut self,
-        ctx: &mut druid::UpdateCtx,
+        ctx: &mut UpdateCtx,
         old_data: &LapceEditorViewData,
         data: &LapceEditorViewData,
         env: &Env,
@@ -266,6 +391,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
             _ => (),
         }
 
+        self.gutter.update(ctx, data, env);
         self.editor.update(ctx, data, env);
     }
 
@@ -276,17 +402,198 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         data: &LapceEditorViewData,
         env: &Env,
     ) -> Size {
-        self.editor.layout(ctx, bc, data, env);
-        self.editor.set_origin(ctx, data, env, Point::ZERO);
-        bc.max()
+        println!("set layout");
+        let self_size = bc.max();
+        let gutter_size = self.gutter.layout(ctx, bc, data, env);
+        self.gutter.set_origin(ctx, data, env, Point::ZERO);
+        let editor_size =
+            Size::new(self_size.width - gutter_size.width, self_size.height);
+        let editor_bc = BoxConstraints::new(Size::ZERO, editor_size);
+        self.editor.layout(ctx, &editor_bc, data, env);
+        self.editor
+            .set_origin(ctx, data, env, Point::new(gutter_size.width, 0.0));
+        self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
-        let rects = ctx.region().rects().to_vec();
-        for rect in rects {
-            ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
-        }
+        self.gutter.paint(ctx, data, env);
         self.editor.paint(ctx, data, env);
+    }
+}
+
+pub struct LapceEditorHeader {}
+
+impl LapceEditorHeader {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<LapceEditorViewData> for LapceEditorHeader {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceEditorViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceEditorViewData,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) -> Size {
+        Size::new(bc.max().width, 25.0)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {}
+}
+
+pub struct LapceEditorGutter {
+    editor_id: WidgetId,
+    text_layouts: HashMap<String, EditorTextLayout>,
+}
+
+impl LapceEditorGutter {
+    pub fn new(editor_id: WidgetId) -> Self {
+        Self {
+            editor_id,
+            text_layouts: HashMap::new(),
+        }
+    }
+}
+
+impl Widget<LapceEditorViewData> for LapceEditorGutter {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceEditorViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceEditorViewData,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        match (old_data.buffer.as_ref(), data.buffer.as_ref()) {
+            (
+                Some(BufferState::Open(old_buffer)),
+                Some(BufferState::Open(buffer)),
+            ) => {
+                if old_data.editor.cursor.current_line(old_buffer)
+                    != data.editor.cursor.current_line(buffer)
+                {
+                    ctx.request_paint();
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) -> Size {
+        let last_line = match data.buffer.as_ref() {
+            Some(BufferState::Open(buffer)) => buffer.last_line() + 1,
+            _ => 1,
+        };
+        let width = 7.6171875;
+        let width = width * last_line.to_string().len() as f64;
+        Size::new(width, bc.max().height)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let scroll_offset = data.editor.scroll_offset;
+        let start_line = (scroll_offset.y / line_height).floor() as usize;
+        let num_lines = (ctx.size().height / line_height).floor() as usize;
+        let (last_line, current_line) = match data.buffer.as_ref() {
+            Some(BufferState::Open(buffer)) => {
+                (buffer.last_line(), data.editor.cursor.current_line(buffer))
+            }
+            _ => (0, 0),
+        };
+        for line in start_line..start_line + num_lines + 1 {
+            if line > last_line {
+                break;
+            }
+            let content = if *data.main_split.focus != self.editor_id {
+                line + 1
+            } else {
+                if line == current_line {
+                    line + 1
+                } else if line > current_line {
+                    line - current_line
+                } else {
+                    current_line - line
+                }
+            };
+            let width = 7.6171875;
+            let x = ((last_line + 1).to_string().len() - content.to_string().len())
+                as f64
+                * width;
+            let y = line_height * line as f64 + 5.0 - scroll_offset.y;
+            let pos = Point::new(x, y);
+            let content = content.to_string();
+            if let Some(text_layout) = self.text_layouts.get_mut(&content) {
+                if text_layout.text != content {
+                    text_layout.layout.set_text(content.clone());
+                    text_layout.text = content;
+                    text_layout.layout.rebuild_if_needed(&mut ctx.text(), env);
+                }
+                text_layout.layout.draw(ctx, pos);
+            } else {
+                let mut layout = TextLayout::from_text(content.clone());
+                layout.set_font(LapceTheme::EDITOR_FONT);
+                layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                layout.rebuild_if_needed(&mut ctx.text(), env);
+                layout.draw(ctx, pos);
+                let text_layout = EditorTextLayout {
+                    layout,
+                    text: content.clone(),
+                };
+                self.text_layouts.insert(content, text_layout);
+            }
+        }
     }
 }
 
@@ -466,7 +773,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         match data.buffer.as_ref() {
             Some(BufferState::Open(buffer)) => {
                 self.paint_cursor(ctx, &data.editor.cursor, buffer, env);
-                for rect in rects {
+                for rect in &rects {
                     let start_line = (rect.y0 / line_height).floor() as usize;
                     let num_lines = (rect.height() / line_height).floor() as usize;
                     let last_line = buffer.last_line();
