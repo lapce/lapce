@@ -93,6 +93,31 @@ impl Cursor {
             .with_origin(Point::new(cursor_x, line as f64 * line_height))
             .with_size(Size::new(width * 3.0, line_height * 3.0))
     }
+
+    pub fn apply_delta(&mut self, delta: &RopeDelta) {
+        match &self.mode {
+            CursorMode::Normal(offset) => {
+                let mut transformer = Transformer::new(delta);
+                let new_offset = transformer.transform(*offset, true);
+                self.mode = CursorMode::Normal(new_offset);
+            }
+            CursorMode::Visual { start, end, mode } => {
+                let mut transformer = Transformer::new(delta);
+                let start = transformer.transform(*start, true);
+                let end = transformer.transform(*end, true);
+                self.mode = CursorMode::Visual {
+                    start,
+                    end,
+                    mode: mode.clone(),
+                };
+            }
+            CursorMode::Insert(selection) => {
+                let selection =
+                    selection.apply_delta(delta, true, InsertDrift::Default);
+                self.mode = CursorMode::Insert(selection);
+            }
+        }
+    }
 }
 
 impl Default for CursorMode {

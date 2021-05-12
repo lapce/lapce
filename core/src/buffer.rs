@@ -42,6 +42,7 @@ use xi_rope::{
 use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
+    data::LapceEditorViewData,
     editor::EditorOperator,
     find::Find,
     language,
@@ -104,6 +105,8 @@ pub struct BufferNew {
     pub text_layouts: im::Vector<Arc<Option<Arc<HighlightTextLayout>>>>,
     pub max_len: usize,
     pub max_len_line: usize,
+    pub rev: u64,
+    pub dirty: bool,
 }
 
 impl BufferNew {
@@ -116,6 +119,8 @@ impl BufferNew {
             text_layouts: im::Vector::new(),
             max_len: 0,
             max_len_line: 0,
+            rev: 0,
+            dirty: false,
         };
         let (max_len, max_len_line) = buffer.get_max_line_len();
         buffer.text_layouts =
@@ -392,6 +397,63 @@ impl BufferNew {
             Movement::PreviousUnmatched(_) => (offset, horiz),
             Movement::MatchPairs => (offset, horiz),
         }
+    }
+
+    fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
+        let right = self.text_layouts.split_off(inval_lines.start_line);
+        let right = right.skip(inval_lines.inval_count);
+        let new = im::Vector::from(vec![Arc::new(None); inval_lines.new_count]);
+        self.text_layouts.append(new);
+        self.text_layouts.append(right);
+    }
+
+    fn apply_delta(&mut self, delta: &RopeDelta) {
+        self.rev += 1;
+        self.dirty = true;
+        let (iv, newlen) = delta.summary();
+        let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
+
+        self.rope = delta.apply(&self.rope);
+        let logical_start_line = self.rope.line_of_offset(iv.start);
+        let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
+        let old_hard_count = old_logical_end_line - logical_start_line;
+        let new_hard_count = new_logical_end_line - logical_start_line;
+
+        let inval_lines = InvalLines {
+            start_line: logical_start_line,
+            inval_count: old_hard_count,
+            new_count: new_hard_count,
+        };
+        self.update_text_layouts(&inval_lines);
+    }
+
+    pub fn edit_multiple(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorViewData,
+        edits: Vec<(&Selection, &str)>,
+    ) -> RopeDelta {
+        let mut builder = DeltaBuilder::new(self.len());
+        for (selection, content) in edits {
+            let rope = Rope::from(content);
+            for region in selection.regions() {
+                builder.replace(region.min()..region.max(), rope.clone());
+            }
+        }
+        let delta = builder.build();
+        self.apply_delta(&delta);
+        data.main_split.notify_update_text_layouts(ctx, &self.id);
+        delta
+    }
+
+    pub fn edit(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorViewData,
+        selection: &Selection,
+        content: &str,
+    ) -> RopeDelta {
+        self.edit_multiple(ctx, data, vec![(selection, content)])
     }
 }
 

@@ -15,6 +15,8 @@ use druid::{
 };
 use im;
 use parking_lot::Mutex;
+use xi_core_lib::selection::InsertDrift;
+use xi_rope::{DeltaBuilder, RopeDelta};
 use xi_rpc::{RpcLoop, RpcPeer};
 
 use crate::{
@@ -24,7 +26,7 @@ use crate::{
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
     proxy::{LapceProxy, ProxyHandlerNew},
     split::SplitMoveDirection,
-    state::{LapceWorkspace, LapceWorkspaceType, Mode},
+    state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     theme::LapceTheme,
 };
 
@@ -341,8 +343,9 @@ impl LapceEditorViewData {
                     let size = ctx.size();
                     let num_lines = (size.height / line_height) as usize;
                     let text = ctx.text();
+                    let buffer = Arc::make_mut(buffer);
                     for line in start_line..start_line + num_lines + 1 {
-                        Arc::make_mut(buffer).update_line_layouts(text, line, env);
+                        buffer.update_line_layouts(text, line, env);
                     }
                 }
             },
@@ -390,6 +393,32 @@ impl LapceEditorViewData {
         }
     }
 
+    fn toggle_visual(&mut self, visual_mode: VisualMode) {
+        let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
+
+        match &cursor.mode {
+            CursorMode::Visual { start, end, mode } => {
+                if mode != &visual_mode {
+                    cursor.mode = CursorMode::Visual {
+                        start: *start,
+                        end: *end,
+                        mode: visual_mode,
+                    };
+                } else {
+                    cursor.mode = CursorMode::Normal(*end);
+                };
+            }
+            _ => {
+                let offset = cursor.offset();
+                cursor.mode = CursorMode::Visual {
+                    start: offset,
+                    end: offset,
+                    mode: visual_mode,
+                };
+            }
+        }
+    }
+
     pub fn do_move(&mut self, movement: &Movement, count: usize) {
         match self.buffer.as_ref() {
             Some(BufferState::Open(buffer)) => match &self.editor.cursor.mode {
@@ -405,7 +434,24 @@ impl LapceEditorViewData {
                     editor.cursor.mode = CursorMode::Normal(new_offset);
                     editor.cursor.horiz = Some(horiz);
                 }
-                CursorMode::Visual { start, end, mode } => {}
+                CursorMode::Visual { start, end, mode } => {
+                    let (new_offset, horiz) = buffer.move_offset(
+                        *end,
+                        self.editor.cursor.horiz.as_ref(),
+                        count,
+                        movement,
+                        false,
+                    );
+                    let start = *start;
+                    let mode = mode.clone();
+                    let editor = Arc::make_mut(&mut self.editor);
+                    editor.cursor.mode = CursorMode::Visual {
+                        start,
+                        end: new_offset,
+                        mode,
+                    };
+                    editor.cursor.horiz = Some(horiz);
+                }
                 CursorMode::Insert(selection) => {
                     let mut new_selection = Selection::new();
                     for region in selection.regions() {
@@ -425,6 +471,45 @@ impl LapceEditorViewData {
                     editor.cursor.horiz = None;
                 }
             },
+            _ => (),
+        }
+    }
+
+    fn edit(&mut self, ctx: &mut EventCtx, c: &str) {
+        let data = self.clone();
+        let delta = match &self.editor.cursor.mode {
+            CursorMode::Insert(selection) => match self.buffer.as_mut() {
+                Some(state) => match state {
+                    BufferState::Loading => DeltaBuilder::new(0).build(),
+                    BufferState::Open(buffer) => {
+                        Arc::make_mut(buffer).edit(ctx, &data, selection, c)
+                    }
+                },
+                _ => DeltaBuilder::new(0).build(),
+            },
+            _ => DeltaBuilder::new(0).build(),
+        };
+        Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
+        self.inactive_apply_delta(&delta);
+    }
+
+    fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
+        match self.buffer.as_ref() {
+            Some(BufferState::Open(buffer)) => {
+                let open_files = self.main_split.open_files.clone();
+                for (view_id, editor) in self.main_split.editors.iter_mut() {
+                    if view_id != &self.editor.view_id {
+                        let editor_buffer_id = editor
+                            .buffer
+                            .as_ref()
+                            .map(|b| open_files.get(b))
+                            .flatten();
+                        if editor_buffer_id == Some(&buffer.id) {
+                            Arc::make_mut(editor).cursor.apply_delta(delta);
+                        }
+                    }
+                }
+            }
             _ => (),
         }
     }
@@ -480,13 +565,13 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         };
         let result = f(&mut editor_view);
 
+        data.keypress = editor_view.keypress.clone();
+        data.main_split = editor_view.main_split.clone();
         if !editor.same(&editor_view.editor) {
             data.main_split
                 .editors
                 .insert(self.0, editor_view.editor.clone());
         }
-        data.keypress = editor_view.keypress.clone();
-        data.main_split.focus = editor_view.main_split.focus.clone();
         if let Some(buffer_id) = buffer_id {
             let changed = match (
                 data.main_split.buffers.get(&buffer_id),
@@ -584,6 +669,18 @@ impl KeyPressFocus for LapceEditorViewData {
                     Selection::caret(self.editor.cursor.offset()),
                 );
             }
+            LapceCommand::InsertNewLine => {
+                self.insert(ctx, "\n");
+            }
+            LapceCommand::ToggleVisualMode => {
+                self.toggle_visual(VisualMode::Normal);
+            }
+            LapceCommand::ToggleLinewiseVisualMode => {
+                self.toggle_visual(VisualMode::Linewise);
+            }
+            LapceCommand::ToggleBlockwiseVisualMode => {
+                self.toggle_visual(VisualMode::Blockwise);
+            }
             LapceCommand::NormalMode => match self.buffer.as_ref() {
                 Some(BufferState::Open(buffer)) => {
                     let offset = match &self.editor.cursor.mode {
@@ -611,7 +708,9 @@ impl KeyPressFocus for LapceEditorViewData {
         }
     }
 
-    fn insert(&self, c: &str) {}
+    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
+        self.edit(ctx, c);
+    }
 }
 
 pub fn hex_to_color(hex: &str) -> Result<Color> {

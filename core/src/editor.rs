@@ -642,7 +642,89 @@ impl LapceEditor {
                     );
                 }
             }
-            CursorMode::Visual { start, end, mode } => {}
+            CursorMode::Visual { start, end, mode } => {
+                let paint_start_line = start_line;
+                let (start_line, start_col) =
+                    buffer.offset_to_line_col(*start.min(end));
+                let (end_line, end_col) = buffer.offset_to_line_col(*start.max(end));
+                for line in paint_start_line..paint_start_line + number_lines + 1 {
+                    if line < start_line || line > end_line {
+                        continue;
+                    }
+                    let line_content = buffer
+                        .slice_to_cow(
+                            buffer.offset_of_line(line)
+                                ..buffer.offset_of_line(line + 1),
+                        )
+                        .to_string();
+                    let left_col = match mode {
+                        &VisualMode::Normal => match line {
+                            _ if line == start_line => start_col,
+                            _ => 0,
+                        },
+                        &VisualMode::Linewise => 0,
+                        &VisualMode::Blockwise => {
+                            let max_col = buffer.line_max_col(line, false);
+                            let left = start_col.min(end_col);
+                            if left > max_col {
+                                continue;
+                            }
+                            left
+                        }
+                    };
+                    let x0 = (left_col
+                        + &line_content[..left_col].matches('\t').count() * 3)
+                        as f64
+                        * width;
+
+                    let right_col = match mode {
+                        &VisualMode::Normal => match line {
+                            _ if line == end_line => end_col + 1,
+                            _ => {
+                                buffer.offset_of_line(line + 1)
+                                    - buffer.offset_of_line(line)
+                            }
+                        },
+                        &VisualMode::Linewise => {
+                            buffer.offset_of_line(line + 1)
+                                - buffer.offset_of_line(line)
+                        }
+                        &VisualMode::Blockwise => {
+                            let max_col = buffer.line_max_col(line, false) + 1;
+                            let right = match cursor.horiz.as_ref() {
+                                Some(&ColPosition::End) => max_col,
+                                _ => (end_col.max(start_col) + 1).min(max_col),
+                            };
+                            right
+                        }
+                    };
+                    if line_content.len() > 0 {
+                        let x1 = (right_col
+                            + &line_content[..right_col].matches('\t').count() * 3)
+                            as f64
+                            * width;
+
+                        let y0 = line as f64 * line_height;
+                        let y1 = y0 + line_height;
+                        ctx.fill(
+                            Rect::new(x0, y0, x1, y1),
+                            &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
+                        );
+                    }
+
+                    let (line, col) = buffer.offset_to_line_col(*end);
+                    let cursor_x = buffer.col_x(line, col, width);
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(
+                                cursor_x,
+                                line as f64 * line_height,
+                            ))
+                            .with_size(Size::new(width, line_height)),
+                        &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
+                    );
+                }
+            }
             CursorMode::Insert(selection) => {
                 let offset = selection.get_cursor_offset();
                 let line = buffer.line_of_offset(offset);
@@ -722,7 +804,10 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                     if line >= buffer.text_layouts.len() {
                         break;
                     }
-                    if !old_buffer.text_layouts[line]
+                    if !old_buffer
+                        .text_layouts
+                        .get(line)
+                        .unwrap_or(&Arc::new(None))
                         .same(&buffer.text_layouts[line])
                     {
                         if updated_start_line.is_none() {

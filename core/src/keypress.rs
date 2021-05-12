@@ -53,7 +53,7 @@ pub trait KeyPressFocus {
         command: &LapceCommand,
         count: Option<usize>,
     );
-    fn insert(&self, c: &str);
+    fn insert(&mut self, ctx: &mut EventCtx, c: &str);
 }
 
 #[derive(Clone, Debug)]
@@ -156,7 +156,7 @@ impl KeyPressData {
         if mods.is_empty() {
             match &key_event.key {
                 druid::keyboard_types::Key::Character(c) => {
-                    focus.insert(c);
+                    focus.insert(ctx, c);
                 }
                 _ => (),
             }
