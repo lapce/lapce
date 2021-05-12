@@ -42,13 +42,7 @@ impl Cursor {
     }
 
     pub fn current_line(&self, buffer: &BufferNew) -> usize {
-        match &self.mode {
-            CursorMode::Normal(offset) => buffer.line_of_offset(*offset),
-            CursorMode::Visual { start, end, mode } => buffer.line_of_offset(*end),
-            CursorMode::Insert(selection) => {
-                buffer.line_of_offset(selection.get_cursor_offset())
-            }
-        }
+        buffer.line_of_offset(self.offset())
     }
 
     pub fn lines(&self, buffer: &BufferNew) -> (usize, usize) {
@@ -117,6 +111,7 @@ impl Cursor {
                 self.mode = CursorMode::Insert(selection);
             }
         }
+        self.horiz = None;
     }
 }
 

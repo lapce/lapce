@@ -20,7 +20,9 @@ use xi_rope::{DeltaBuilder, RopeDelta};
 use xi_rpc::{RpcLoop, RpcPeer};
 
 use crate::{
-    buffer::{Buffer, BufferId, BufferNew, BufferState},
+    buffer::{
+        previous_has_unmatched_pair, Buffer, BufferId, BufferNew, BufferState,
+    },
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     keypress::{KeyPressData, KeyPressFocus},
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
@@ -475,6 +477,70 @@ impl LapceEditorViewData {
         }
     }
 
+    pub fn get_buffer(&self) -> Option<&Arc<BufferNew>> {
+        match self.buffer.as_ref() {
+            Some(state) => match state {
+                BufferState::Loading => {}
+                BufferState::Open(buffer) => {
+                    return Some(buffer);
+                }
+            },
+            _ => (),
+        }
+        None
+    }
+
+    pub fn get_buffer_mut(&mut self) -> Option<&mut BufferNew> {
+        match self.buffer.as_mut() {
+            Some(state) => match state {
+                BufferState::Loading => {}
+                BufferState::Open(buffer) => {
+                    return Some(Arc::make_mut(buffer));
+                }
+            },
+            _ => (),
+        }
+        None
+    }
+
+    pub fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
+        println!("insert new line at {}", offset);
+        let data = self.clone();
+        if let Some(buffer) = self.get_buffer_mut() {
+            let (line, col) = buffer.offset_to_line_col(offset);
+            let line_content = buffer
+                .slice_to_cow(
+                    buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
+                )
+                .to_string();
+            let line_indent = buffer.indent_on_line(line);
+
+            let indent = if previous_has_unmatched_pair(&line_content, col) {
+                format!("{}    ", line_indent)
+            } else if line_indent.len() >= col {
+                line_indent[..col].to_string()
+            } else {
+                let next_line_indent = buffer.indent_on_line(line + 1);
+                if next_line_indent.len() > line_indent.len() {
+                    next_line_indent
+                } else {
+                    line_indent.clone()
+                }
+            };
+
+            let selection = Selection::caret(offset);
+            let content = format!("{}{}", "\n", indent);
+
+            let delta = buffer.edit(ctx, &data, &selection, &content);
+            let selection =
+                selection.apply_delta(&delta, true, InsertDrift::Default);
+            let editor = Arc::make_mut(&mut self.editor);
+            editor.cursor.mode = CursorMode::Insert(selection);
+            editor.cursor.horiz = None;
+            self.inactive_apply_delta(&delta);
+        }
+    }
+
     fn edit(&mut self, ctx: &mut EventCtx, c: &str) {
         let data = self.clone();
         let delta = match &self.editor.cursor.mode {
@@ -669,8 +735,26 @@ impl KeyPressFocus for LapceEditorViewData {
                     Selection::caret(self.editor.cursor.offset()),
                 );
             }
+            LapceCommand::NewLineAbove => {
+                if let Some(buffer) = self.get_buffer() {
+                    let line = self.editor.cursor.current_line(buffer);
+                    let offset = if line > 0 {
+                        buffer.line_end(line - 1, true)
+                    } else {
+                        buffer.first_non_blank_character_on_line(line)
+                    };
+                    self.insert_new_line(ctx, offset);
+                }
+            }
+            LapceCommand::NewLineBelow => {
+                if let Some(buffer) = self.get_buffer() {
+                    let offset = self.editor.cursor.offset();
+                    let offset = buffer.line_end_offset(offset, true);
+                    self.insert_new_line(ctx, offset);
+                }
+            }
             LapceCommand::InsertNewLine => {
-                self.insert(ctx, "\n");
+                self.insert_new_line(ctx, self.editor.cursor.offset());
             }
             LapceCommand::ToggleVisualMode => {
                 self.toggle_visual(VisualMode::Normal);

@@ -168,6 +168,11 @@ impl BufferNew {
         self.rope.offset_of_line(line)
     }
 
+    pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
+        let line_start_offset = self.rope.offset_of_line(line);
+        WordCursor::new(&self.rope, line_start_offset).next_non_blank_char()
+    }
+
     pub fn get_max_line_len(&self) -> (usize, usize) {
         let mut pre_offset = 0;
         let mut max_len = 0;
@@ -241,6 +246,14 @@ impl BufferNew {
             + col) as f64
             * width;
         x
+    }
+
+    pub fn indent_on_line(&self, line: usize) -> String {
+        let line_start_offset = self.rope.offset_of_line(line);
+        let word_boundary =
+            WordCursor::new(&self.rope, line_start_offset).next_non_blank_char();
+        let indent = self.rope.slice_to_cow(line_start_offset..word_boundary);
+        indent.to_string()
     }
 
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
