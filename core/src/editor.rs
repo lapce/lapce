@@ -227,7 +227,7 @@ impl LapceEditorContainer {
         let scroll_id = WidgetId::next();
         let gutter = LapceEditorGutter::new(editor_id);
         let gutter = LapcePadding::new((10.0, 0.0, 10.0, 0.0), gutter);
-        let editor = LapceEditor::new();
+        let editor = LapceEditor::new(editor_id);
         let editor = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(editor).vertical().horizontal(),
             scroll_id,
@@ -256,12 +256,11 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
     ) {
         match event {
             Event::WindowConnected => {
-                ctx.request_focus();
+                if *data.main_split.focus == self.editor_id {
+                    ctx.request_focus();
+                }
             }
             Event::KeyDown(key_event) => {
-                if *data.main_split.focus != self.editor_id {
-                    data.main_split.focus = Arc::new(self.editor_id);
-                }
                 data.key_down(ctx, key_event);
                 match data.buffer.as_ref() {
                     Some(BufferState::Open(buffer)) => {
@@ -295,21 +294,17 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                         Arc::make_mut(&mut data.editor).size =
                             self.editor.widget().child_size();
                     }
-                    LapceUICommand::ScrollTo((x, y)) => {
-                        println!("recevie scroll to");
-                        if self
-                            .editor
+                    LapceUICommand::ForceScrollTo(x, y) => {
+                        self.editor
                             .widget_mut()
                             .child_mut()
                             .inner_mut()
-                            .scroll_to(Point::new(*x, *y))
-                        {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ResetFade,
-                                Target::Widget(self.scroll_id),
-                            ));
-                        }
+                            .force_scroll_to(Point::new(*x, *y));
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ResetFade,
+                            Target::Widget(self.scroll_id),
+                        ));
                     }
                     _ => (),
                 }
@@ -344,17 +339,6 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                     LapceUICommand::UpdateSize,
                     Target::Widget(self.editor_id),
                 ));
-            }
-            LifeCycle::WidgetAdded => {
-                // let scroll_offset = data.editor.scroll_offset;
-                // if scroll_offset != Vec2::ZERO {
-                //     ctx.get_external_handle().submit_command(
-                //         LAPCE_UI_COMMAND,
-                //         LapceUICommand::ScrollTo((scroll_offset.x, scroll_offset.y)),
-                //         Target::Widget(self.editor_id),
-                //     );
-                // }
-                println!("widget added");
             }
             _ => (),
         }
@@ -402,7 +386,6 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         data: &LapceEditorViewData,
         env: &Env,
     ) -> Size {
-        println!("set layout");
         let self_size = bc.max();
         let gutter_size = self.gutter.layout(ctx, bc, data, env);
         self.gutter.set_origin(ctx, data, env, Point::ZERO);
@@ -597,11 +580,13 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
     }
 }
 
-pub struct LapceEditor {}
+pub struct LapceEditor {
+    editor_id: WidgetId,
+}
 
 impl LapceEditor {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(editor_id: WidgetId) -> Self {
+        Self { editor_id }
     }
 
     fn paint_cursor_line(&mut self, ctx: &mut PaintCtx, line: usize, env: &Env) {
@@ -620,36 +605,74 @@ impl LapceEditor {
         ctx: &mut PaintCtx,
         cursor: &Cursor,
         buffer: &BufferNew,
+        active: bool,
+        start_line: usize,
+        number_lines: usize,
         env: &Env,
     ) {
+        let width = 7.6171875;
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         match &cursor.mode {
             CursorMode::Normal(offset) => {
                 let (line, col) = buffer.offset_to_line_col(*offset);
-                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
                 self.paint_cursor_line(ctx, line, env);
 
-                let line_content = buffer
-                    .slice_to_cow(
-                        buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
-                    )
-                    .to_string();
-                let width = 7.6171875;
-                let cursor_x = (line_content[..col]
-                    .chars()
-                    .filter_map(|c| if c == '\t' { Some('\t') } else { None })
-                    .count()
-                    * 3
-                    + col) as f64
-                    * width;
-                ctx.fill(
-                    Rect::ZERO
-                        .with_origin(Point::new(cursor_x, line as f64 * line_height))
-                        .with_size(Size::new(width, line_height)),
-                    &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
-                );
+                if active {
+                    let line_content = buffer
+                        .slice_to_cow(
+                            buffer.offset_of_line(line)
+                                ..buffer.offset_of_line(line + 1),
+                        )
+                        .to_string();
+                    let cursor_x = (line_content[..col]
+                        .chars()
+                        .filter_map(|c| if c == '\t' { Some('\t') } else { None })
+                        .count()
+                        * 3
+                        + col) as f64
+                        * width;
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(
+                                cursor_x,
+                                line as f64 * line_height,
+                            ))
+                            .with_size(Size::new(width, line_height)),
+                        &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
+                    );
+                }
             }
             CursorMode::Visual { start, end, mode } => {}
-            CursorMode::Insert(_) => {}
+            CursorMode::Insert(selection) => {
+                let offset = selection.get_cursor_offset();
+                let line = buffer.line_of_offset(offset);
+                self.paint_cursor_line(ctx, line, env);
+                if active {
+                    let last_line = buffer.last_line();
+                    let end_line = start_line + number_lines;
+                    let end_line = if end_line > last_line {
+                        last_line
+                    } else {
+                        end_line
+                    };
+                    let start = buffer.offset_of_line(start_line);
+                    let end = buffer.offset_of_line(end_line + 1);
+                    let regions = selection.regions_in_range(start, end);
+                    for region in regions {
+                        let (line, col) = buffer.offset_to_line_col(region.min());
+                        let x = buffer.col_x(line, col, width);
+                        let y = line as f64 * line_height;
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(x, y),
+                                Point::new(x, y + line_height),
+                            ),
+                            &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
+                            2.0,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -743,6 +766,21 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                         ));
                     ctx.request_paint_rect(rect);
                 }
+
+                if (*old_data.main_split.focus == self.editor_id
+                    && *data.main_split.focus != self.editor_id)
+                    || (*old_data.main_split.focus != self.editor_id
+                        && *data.main_split.focus == self.editor_id)
+                {
+                    let (start, end) = data.editor.cursor.lines(buffer);
+                    let rect = Rect::ZERO
+                        .with_origin(Point::new(0.0, start as f64 * line_height))
+                        .with_size(Size::new(
+                            ctx.size().width,
+                            (end + 1 - start) as f64 * line_height,
+                        ));
+                    ctx.request_paint_rect(rect);
+                }
             }
             _ => (),
         }
@@ -772,10 +810,18 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         let rects = ctx.region().rects().to_vec();
         match data.buffer.as_ref() {
             Some(BufferState::Open(buffer)) => {
-                self.paint_cursor(ctx, &data.editor.cursor, buffer, env);
                 for rect in &rects {
                     let start_line = (rect.y0 / line_height).floor() as usize;
                     let num_lines = (rect.height() / line_height).floor() as usize;
+                    self.paint_cursor(
+                        ctx,
+                        &data.editor.cursor,
+                        buffer,
+                        *data.main_split.focus == self.editor_id,
+                        start_line,
+                        num_lines,
+                        env,
+                    );
                     let last_line = buffer.last_line();
                     for line in start_line..start_line + num_lines + 1 {
                         if line > last_line {

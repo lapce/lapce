@@ -21,8 +21,9 @@ use crate::{
     buffer::{Buffer, BufferId, BufferNew, BufferState},
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     keypress::{KeyPressData, KeyPressFocus},
-    movement::{Cursor, CursorMode, LinePosition, Movement, Selection},
+    movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
     proxy::{LapceProxy, ProxyHandlerNew},
+    split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode},
     theme::LapceTheme,
 };
@@ -274,6 +275,7 @@ impl LapceMainSplitData {
             *split_id,
             Some(PathBuf::from("/Users/Lulu/lapce/src/editor_old.rs")),
         );
+        let editor_id = editor.editor_id;
         editors.insert(editor.view_id, Arc::new(editor));
         let buffers = im::HashMap::new();
         let open_files = im::HashMap::new();
@@ -282,7 +284,7 @@ impl LapceMainSplitData {
             editors,
             buffers,
             open_files,
-            focus: Arc::new(WidgetId::next()),
+            focus: Arc::new(editor_id),
         }
     }
 }
@@ -404,7 +406,24 @@ impl LapceEditorViewData {
                     editor.cursor.horiz = Some(horiz);
                 }
                 CursorMode::Visual { start, end, mode } => {}
-                CursorMode::Insert(_) => {}
+                CursorMode::Insert(selection) => {
+                    let mut new_selection = Selection::new();
+                    for region in selection.regions() {
+                        let (offset, horiz) = buffer.move_offset(
+                            region.end(),
+                            region.horiz(),
+                            count,
+                            movement,
+                            true,
+                        );
+                        let new_region =
+                            SelRegion::new(offset, offset, Some(horiz.clone()));
+                        new_selection.add_region(new_region);
+                    }
+                    let editor = Arc::make_mut(&mut self.editor);
+                    editor.cursor.mode = CursorMode::Insert(new_selection);
+                    editor.cursor.horiz = None;
+                }
             },
             _ => (),
         }
@@ -519,6 +538,33 @@ impl KeyPressFocus for LapceEditorViewData {
             return;
         }
         match cmd {
+            LapceCommand::SplitLeft => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitEditorMove(
+                        SplitMoveDirection::Left,
+                        self.editor.view_id,
+                    ),
+                    Target::Widget(self.editor.split_id),
+                ));
+            }
+            LapceCommand::SplitRight => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitEditorMove(
+                        SplitMoveDirection::Right,
+                        self.editor.view_id,
+                    ),
+                    Target::Widget(self.editor.split_id),
+                ));
+            }
+            LapceCommand::SplitExchange => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitEditorExchange(self.editor.view_id),
+                    Target::Widget(self.editor.split_id),
+                ));
+            }
             LapceCommand::SplitVertical => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
@@ -526,6 +572,41 @@ impl KeyPressFocus for LapceEditorViewData {
                     Target::Widget(self.editor.split_id),
                 ));
             }
+            LapceCommand::SplitClose => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitEditorClose(self.editor.view_id),
+                    Target::Widget(self.editor.split_id),
+                ));
+            }
+            LapceCommand::InsertMode => {
+                Arc::make_mut(&mut self.editor).cursor.mode = CursorMode::Insert(
+                    Selection::caret(self.editor.cursor.offset()),
+                );
+            }
+            LapceCommand::NormalMode => match self.buffer.as_ref() {
+                Some(BufferState::Open(buffer)) => {
+                    let offset = match &self.editor.cursor.mode {
+                        CursorMode::Insert(selection) => {
+                            buffer
+                                .move_offset(
+                                    selection.get_cursor_offset(),
+                                    None,
+                                    1,
+                                    &Movement::Left,
+                                    false,
+                                )
+                                .0
+                        }
+                        CursorMode::Visual { start, end, mode } => *end,
+                        CursorMode::Normal(offset) => *offset,
+                    };
+                    let mut cursor = &mut Arc::make_mut(&mut self.editor).cursor;
+                    cursor.mode = CursorMode::Normal(offset);
+                    cursor.horiz = None;
+                }
+                _ => (),
+            },
             _ => (),
         }
     }

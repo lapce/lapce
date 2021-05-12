@@ -1005,6 +1005,10 @@ impl ViewportNew {
         }
     }
 
+    pub fn force_pan_to(&mut self, origin: Point) {
+        self.rect = self.rect.with_origin(origin);
+    }
+
     /// Pan the smallest distance that makes the target [`Rect`] visible.
     ///
     /// If the target rect is larger than viewport size, we will prioritize
@@ -1159,6 +1163,12 @@ impl<T, W: Widget<T>> ClipBoxNew<T, W> {
         } else {
             false
         }
+    }
+
+    pub fn force_pan_to(&mut self, origin: Point) {
+        self.port.force_pan_to(origin);
+        self.child
+            .set_viewport_offset(self.viewport_origin().to_vec2());
     }
 
     /// Adjust the viewport to display as much of the target region as is possible.
@@ -1596,7 +1606,7 @@ impl ScrollComponentNew {
                 }
                 Event::Timer(id) if *id == self.fade_interval_id => {
                     if self.timer_id == TimerToken::INVALID {
-                        let diff = 0.025;
+                        let diff = 0.02;
                         self.opacity -= diff;
                         if self.opacity > 0.0 {
                             self.fade_interval_id =
@@ -1711,6 +1721,10 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     /// Returns `true` if the scroll offset has changed.
     pub fn scroll_by(&mut self, delta: Vec2) -> bool {
         self.clip.pan_by(delta)
+    }
+
+    pub fn force_scroll_to(&mut self, point: Point) {
+        self.clip.force_pan_to(point)
     }
 
     pub fn scroll_to(&mut self, point: Point) -> bool {

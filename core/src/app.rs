@@ -13,10 +13,10 @@ fn build_window(data: &LapceData) -> impl Widget<LapceData> {
     LapceWindowNew::new(window_data)
         .lens(LapceWindowLens(*window_id))
         .env_scope(|env: &mut Env, data: &LapceData| data.reload_env(env))
-        .debug_widget()
-        .debug_widget_id()
-        .debug_paint_layout()
-        .debug_invalidation()
+    // .debug_widget()
+    // .debug_widget_id()
+    // .debug_paint_layout()
+    // .debug_invalidation()
 }
 
 pub fn lanuch() {

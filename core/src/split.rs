@@ -39,6 +39,7 @@ pub struct ChildWidgetNew {
     pub widget: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     flex: bool,
     params: f64,
+    layout_rect: Rect,
 }
 
 impl LapceSplitNew {
@@ -58,6 +59,7 @@ impl LapceSplitNew {
             widget: WidgetPod::new(child),
             flex: true,
             params,
+            layout_rect: Rect::ZERO,
         };
         self.children.push(child);
         self
@@ -73,6 +75,7 @@ impl LapceSplitNew {
             widget: WidgetPod::new(child),
             flex: true,
             params,
+            layout_rect: Rect::ZERO,
         };
         self.children.insert(index, child);
     }
@@ -83,6 +86,123 @@ impl LapceSplitNew {
                 child.params = 1.0;
             }
         }
+    }
+
+    fn paint_bar(&mut self, ctx: &mut PaintCtx, env: &Env) {
+        let children_len = self.children.len();
+        if children_len <= 1 {
+            return;
+        }
+
+        let size = ctx.size();
+        for i in 1..children_len {
+            let x = self.children[i].layout_rect.x0;
+            let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
+            let color = env.get(theme::BORDER_LIGHT);
+            ctx.stroke(line, &color, 1.0);
+        }
+    }
+
+    pub fn split_editor_close(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        view_id: WidgetId,
+    ) {
+        if self.children.len() <= 1 {
+            return;
+        }
+
+        let mut index = 0;
+        for (i, child) in self.children.iter().enumerate() {
+            if child.widget.id() == view_id {
+                index = i;
+                break;
+            }
+        }
+
+        let new_index = if index >= self.children.len() - 1 {
+            index - 1
+        } else {
+            index + 1
+        };
+        let new_view_id = self.children[new_index].widget.id();
+        let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
+        data.main_split.focus = Arc::new(new_editor.editor_id);
+        ctx.set_focus(new_editor.editor_id);
+        data.main_split.editors.remove(&view_id);
+        self.children.remove(index);
+
+        self.even_flex_children();
+        ctx.children_changed();
+    }
+
+    pub fn split_editor_exchange(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        view_id: WidgetId,
+    ) {
+        if self.children.len() <= 1 {
+            return;
+        }
+
+        let mut index = 0;
+        for (i, child) in self.children.iter().enumerate() {
+            if child.widget.id() == view_id {
+                index = i;
+                break;
+            }
+        }
+        if index >= self.children.len() - 1 {
+            return;
+        }
+
+        let new_view_id = self.children[index + 1].widget.id();
+        let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
+        data.main_split.focus = Arc::new(new_editor.editor_id);
+        ctx.set_focus(new_editor.editor_id);
+
+        self.children.swap(index, index + 1);
+
+        ctx.request_layout();
+    }
+
+    pub fn split_editor_move(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        direction: &SplitMoveDirection,
+        view_id: WidgetId,
+    ) {
+        let mut index = 0;
+        for (i, child) in self.children.iter().enumerate() {
+            if child.widget.id() == view_id {
+                index = i;
+                break;
+            }
+        }
+
+        let new_index = match direction {
+            SplitMoveDirection::Left => {
+                if index == 0 {
+                    return;
+                }
+                index - 1
+            }
+            SplitMoveDirection::Right => {
+                if index >= self.children.len() - 1 {
+                    return;
+                }
+                index + 1
+            }
+            _ => index,
+        };
+
+        let new_view_id = self.children[new_index].widget.id();
+        let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
+        data.main_split.focus = Arc::new(new_editor.editor_id);
+        ctx.set_focus(new_editor.editor_id);
     }
 
     pub fn split_editor(
@@ -104,15 +224,14 @@ impl LapceSplitNew {
         let mut editor_data =
             LapceEditorData::new(self.split_id, from_editor.buffer.clone());
         editor_data.cursor = from_editor.cursor.clone();
-        // editor_data.scroll_offset = from_editor.scroll_offset.clone();
-        ctx.get_external_handle().submit_command(
+        ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::ScrollTo((
+            LapceUICommand::ForceScrollTo(
                 from_editor.scroll_offset.x,
                 from_editor.scroll_offset.y,
-            )),
+            ),
             Target::Widget(editor_data.editor_id),
-        );
+        ));
 
         let editor =
             LapceEditorView::new(editor_data.view_id, editor_data.editor_id);
@@ -150,6 +269,15 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 match command {
                     LapceUICommand::SplitEditor(vertical, view_id) => {
                         self.split_editor(ctx, data, *vertical, *view_id);
+                    }
+                    LapceUICommand::SplitEditorMove(direction, view_id) => {
+                        self.split_editor_move(ctx, data, direction, *view_id);
+                    }
+                    LapceUICommand::SplitEditorExchange(view_id) => {
+                        self.split_editor_exchange(ctx, data, *view_id);
+                    }
+                    LapceUICommand::SplitEditorClose(view_id) => {
+                        self.split_editor_close(ctx, data, *view_id);
                     }
                     _ => (),
                 }
@@ -224,6 +352,10 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 .widget
                 .layout(ctx, &BoxConstraints::new(size, size), data, env);
             child.widget.set_origin(ctx, data, env, Point::new(x, 0.0));
+            child.layout_rect = child
+                .layout_rect
+                .with_size(size)
+                .with_origin(Point::new(x, 0.0));
             x += width;
         }
 
@@ -234,6 +366,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
         for child in self.children.iter_mut() {
             child.widget.paint(ctx, data, env);
         }
+        self.paint_bar(ctx, env);
     }
 }
 

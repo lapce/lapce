@@ -33,11 +33,21 @@ pub enum CursorMode {
 }
 
 impl Cursor {
+    pub fn offset(&self) -> usize {
+        match &self.mode {
+            CursorMode::Normal(offset) => *offset,
+            CursorMode::Visual { start, end, mode } => *end,
+            CursorMode::Insert(selection) => selection.get_cursor_offset(),
+        }
+    }
+
     pub fn current_line(&self, buffer: &BufferNew) -> usize {
         match &self.mode {
             CursorMode::Normal(offset) => buffer.line_of_offset(*offset),
             CursorMode::Visual { start, end, mode } => buffer.line_of_offset(*end),
-            CursorMode::Insert(_) => 0,
+            CursorMode::Insert(selection) => {
+                buffer.line_of_offset(selection.get_cursor_offset())
+            }
         }
     }
 
@@ -52,18 +62,16 @@ impl Cursor {
                 let end_line = buffer.line_of_offset(*start.max(end));
                 (start_line, end_line)
             }
-            CursorMode::Insert(_) => (0, 0),
+            CursorMode::Insert(selection) => (
+                buffer.line_of_offset(selection.min_offset()),
+                buffer.line_of_offset(selection.max_offset()),
+            ),
         }
     }
 
     pub fn region(&self, buffer: &BufferNew, env: &Env) -> Rect {
-        let (line, col) = match &self.mode {
-            CursorMode::Normal(offset) => buffer.offset_to_line_col(*offset),
-            CursorMode::Visual { start, end, mode } => {
-                buffer.offset_to_line_col(*end)
-            }
-            CursorMode::Insert(_) => (0, 0),
-        };
+        let offset = self.offset();
+        let (line, col) = buffer.offset_to_line_col(offset);
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let line_content = buffer
             .slice_to_cow(

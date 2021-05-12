@@ -224,6 +224,20 @@ impl BufferNew {
         }
     }
 
+    pub fn col_x(&self, line: usize, col: usize, width: f64) -> f64 {
+        let line_content = self
+            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+            .to_string();
+        let x = (line_content[..col]
+            .chars()
+            .filter_map(|c| if c == '\t' { Some('\t') } else { None })
+            .count()
+            * 3
+            + col) as f64
+            * width;
+        x
+    }
+
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
     }
