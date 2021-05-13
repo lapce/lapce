@@ -433,7 +433,7 @@ impl LapceEditorViewData {
                     self.editor.cursor.horiz.as_ref(),
                     count,
                     movement,
-                    false,
+                    true,
                 );
                 let start = *start;
                 let mode = mode.clone();
@@ -674,7 +674,7 @@ impl KeyPressFocus for LapceEditorViewData {
             }
             LapceCommand::NewLineBelow => {
                 let offset = self.editor.cursor.offset();
-                let offset = self.buffer.offfset_line_end(offset, true);
+                let offset = self.buffer.offset_line_end(offset, true);
                 self.insert_new_line(ctx, offset);
             }
             LapceCommand::DeleteForewardAndInsert => {
@@ -683,6 +683,15 @@ impl KeyPressFocus for LapceEditorViewData {
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }
             LapceCommand::InsertNewLine => {
+                let selection = self.editor.cursor.edit_selection(&self.buffer);
+                if selection.regions().len() > 1 {
+                    let selection = self.edit(ctx, &selection, "\n");
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(selection),
+                        None,
+                    ));
+                    return;
+                };
                 self.insert_new_line(ctx, self.editor.cursor.offset());
             }
             LapceCommand::ToggleVisualMode => {
@@ -707,7 +716,9 @@ impl KeyPressFocus for LapceEditorViewData {
                             )
                             .0
                     }
-                    CursorMode::Visual { start, end, mode } => *end,
+                    CursorMode::Visual { start, end, mode } => {
+                        self.buffer.offset_line_end(*end, false)
+                    }
                     CursorMode::Normal(offset) => *offset,
                 };
                 let mut cursor = &mut Arc::make_mut(&mut self.editor).cursor;

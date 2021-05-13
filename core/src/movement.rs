@@ -94,9 +94,9 @@ impl Cursor {
                     let (start_line, start_col) =
                         buffer.offset_to_line_col(*start.min(end));
                     let (end_line, end_col) =
-                        buffer.offset_to_line_col(*start.max(end) + 1);
+                        buffer.offset_to_line_col(*start.max(end));
                     let left = start_col.min(end_col);
-                    let right = start_col.max(end_col);
+                    let right = start_col.max(end_col) + 1;
                     for line in start_line..end_line + 1 {
                         let max_col = buffer.line_max_col(line, true);
                         if left > max_col {

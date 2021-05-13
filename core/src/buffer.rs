@@ -291,7 +291,7 @@ impl BufferNew {
         self.offset_of_line(line) + self.line_max_col(line, caret)
     }
 
-    pub fn offfset_line_end(&self, offset: usize, caret: bool) -> usize {
+    pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
         let line = self.line_of_offset(offset);
         self.line_end_offset(line, caret)
     }
@@ -363,7 +363,7 @@ impl BufferNew {
                 (new_offset, ColPosition::Col(col))
             }
             Movement::Right => {
-                let line_end = self.offfset_line_end(offset, caret);
+                let line_end = self.offset_line_end(offset, caret);
 
                 let mut new_end = offset + count;
                 if new_end > self.len() {
@@ -397,7 +397,7 @@ impl BufferNew {
                 (new_offset, ColPosition::Start)
             }
             Movement::EndOfLine => {
-                let new_offset = self.offfset_line_end(offset, caret);
+                let new_offset = self.offset_line_end(offset, caret);
                 (new_offset, ColPosition::End)
             }
             Movement::Line(position) => {
