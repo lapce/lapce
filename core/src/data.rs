@@ -11,7 +11,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_utils::sync::WaitGroup;
 use druid::{
     theme, Color, Command, Data, Env, EventCtx, FontDescriptor, FontFamily,
-    KeyEvent, Lens, Size, Target, Vec2, WidgetId, WindowId,
+    KeyEvent, Lens, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 use im;
 use parking_lot::Mutex;
@@ -477,6 +477,14 @@ impl LapceEditorViewData {
         }
     }
 
+    pub fn cusor_region(&self, env: &Env) -> Rect {
+        if let Some(buffer) = self.get_buffer() {
+            self.editor.cursor.region(buffer, env)
+        } else {
+            Rect::ZERO
+        }
+    }
+
     pub fn get_buffer(&self) -> Option<&Arc<BufferNew>> {
         match self.buffer.as_ref() {
             Some(state) => match state {
@@ -504,7 +512,6 @@ impl LapceEditorViewData {
     }
 
     pub fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
-        println!("insert new line at {}", offset);
         let data = self.clone();
         if let Some(buffer) = self.get_buffer_mut() {
             let (line, col) = buffer.offset_to_line_col(offset);

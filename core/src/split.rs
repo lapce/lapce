@@ -203,6 +203,11 @@ impl LapceSplitNew {
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
         data.main_split.focus = Arc::new(new_editor.editor_id);
         ctx.set_focus(new_editor.editor_id);
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::EnsureCursorVisible,
+            Target::Widget(new_editor.editor_id),
+        ));
     }
 
     pub fn split_editor(

@@ -218,6 +218,7 @@ pub enum LapceUICommand {
     UpdateLineChanges(BufferId),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
+    EnsureCursorVisible,
     EditorViewSize(Size),
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),

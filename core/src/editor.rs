@@ -240,6 +240,63 @@ impl LapceEditorContainer {
             editor: WidgetPod::new(editor),
         }
     }
+
+    pub fn handle_lapce_ui_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        cmd: &LapceUICommand,
+        data: &mut LapceEditorViewData,
+        env: &Env,
+    ) {
+        match cmd {
+            LapceUICommand::FillTextLayouts => {
+                data.fill_text_layouts(ctx, env);
+                ctx.set_handled();
+            }
+            LapceUICommand::EnsureCursorVisible => {
+                self.ensure_cursor_visible(ctx, data, env);
+            }
+            LapceUICommand::UpdateSize => {
+                Arc::make_mut(&mut data.editor).size =
+                    self.editor.widget().child_size();
+            }
+            LapceUICommand::ForceScrollTo(x, y) => {
+                self.editor
+                    .widget_mut()
+                    .child_mut()
+                    .inner_mut()
+                    .force_scroll_to(Point::new(*x, *y));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ResetFade,
+                    Target::Widget(self.scroll_id),
+                ));
+            }
+            _ => (),
+        }
+    }
+
+    pub fn ensure_cursor_visible(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        let rect = data.cusor_region(env);
+        if self
+            .editor
+            .widget_mut()
+            .child_mut()
+            .inner_mut()
+            .scroll_to_visible(rect)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
+    }
 }
 
 impl Widget<LapceEditorViewData> for LapceEditorContainer {
@@ -262,52 +319,12 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
             }
             Event::KeyDown(key_event) => {
                 data.key_down(ctx, key_event);
-                match data.buffer.as_ref() {
-                    Some(BufferState::Open(buffer)) => {
-                        let rect = data.editor.cursor.region(buffer, env);
-                        if self
-                            .editor
-                            .widget_mut()
-                            .child_mut()
-                            .inner_mut()
-                            .scroll_to_visible(rect)
-                        {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ResetFade,
-                                Target::Widget(self.scroll_id),
-                            ));
-                        }
-                    }
-                    _ => (),
-                }
+                self.ensure_cursor_visible(ctx, data, env);
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::FillTextLayouts => {
-                        data.fill_text_layouts(ctx, env);
-                        ctx.set_handled();
-                    }
-                    LapceUICommand::UpdateSize => {
-                        Arc::make_mut(&mut data.editor).size =
-                            self.editor.widget().child_size();
-                    }
-                    LapceUICommand::ForceScrollTo(x, y) => {
-                        self.editor
-                            .widget_mut()
-                            .child_mut()
-                            .inner_mut()
-                            .force_scroll_to(Point::new(*x, *y));
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::ResetFade,
-                            Target::Widget(self.scroll_id),
-                        ));
-                    }
-                    _ => (),
-                }
+                self.handle_lapce_ui_command(ctx, &command, data, env);
             }
             _ => (),
         }
