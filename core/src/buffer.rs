@@ -334,6 +334,56 @@ impl BufferNew {
         }
     }
 
+    pub fn update_selection(
+        &self,
+        selection: &Selection,
+        count: usize,
+        movement: &Movement,
+        caret: bool,
+        across_line: bool,
+        modify: bool,
+    ) -> Selection {
+        let mut new_selection = Selection::new();
+        for region in selection.regions() {
+            let region = self.update_region(
+                region,
+                count,
+                movement,
+                caret,
+                across_line,
+                modify,
+            );
+            new_selection.add_region(region);
+        }
+        new_selection
+    }
+
+    pub fn update_region(
+        &self,
+        region: &SelRegion,
+        count: usize,
+        movement: &Movement,
+        caret: bool,
+        across_line: bool,
+        modify: bool,
+    ) -> SelRegion {
+        let (end, horiz) = self.move_offset(
+            region.end(),
+            region.horiz(),
+            count,
+            movement,
+            caret,
+            across_line,
+        );
+
+        let start = match modify {
+            true => region.start(),
+            false => end,
+        };
+
+        SelRegion::new(start, end, Some(horiz))
+    }
+
     pub fn move_offset(
         &self,
         offset: usize,
@@ -341,6 +391,7 @@ impl BufferNew {
         count: usize,
         movement: &Movement,
         caret: bool,
+        across_line: bool,
     ) -> (usize, ColPosition) {
         let horiz = if let Some(horiz) = horiz {
             horiz.clone()
@@ -354,6 +405,8 @@ impl BufferNew {
                 let line_start_offset = self.offset_of_line(line);
                 let new_offset = if offset < count {
                     0
+                } else if across_line {
+                    offset - count
                 } else if offset - count > line_start_offset {
                     offset - count
                 } else {
@@ -428,6 +481,38 @@ impl BufferNew {
         }
     }
 
+    fn update_size(&mut self, inval_lines: &InvalLines) {
+        if inval_lines.inval_count != inval_lines.new_count {
+            self.num_lines = self.num_lines();
+        }
+        if self.max_len_line >= inval_lines.start_line
+            && self.max_len_line < inval_lines.start_line + inval_lines.inval_count
+        {
+            let (max_len, max_len_line) = self.get_max_line_len();
+            self.max_len = max_len;
+            self.max_len_line = max_len_line;
+        } else {
+            let mut max_len = 0;
+            let mut max_len_line = 0;
+            for line in inval_lines.start_line
+                ..inval_lines.start_line + inval_lines.new_count
+            {
+                let line_len = self.line_len(line);
+                if line_len > max_len {
+                    max_len = line_len;
+                    max_len_line = line;
+                }
+            }
+            if max_len > self.max_len {
+                self.max_len = max_len;
+                self.max_len_line = max_len_line;
+            } else if self.max_len >= inval_lines.start_line {
+                self.max_len_line = self.max_len_line + inval_lines.new_count
+                    - inval_lines.inval_count;
+            }
+        }
+    }
+
     fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
         let right = self.text_layouts.split_off(inval_lines.start_line);
         let right = right.skip(inval_lines.inval_count);
@@ -456,6 +541,7 @@ impl BufferNew {
             inval_count: old_hard_count,
             new_count: new_hard_count,
         };
+        self.update_size(&inval_lines);
         self.update_text_layouts(&inval_lines);
     }
 
