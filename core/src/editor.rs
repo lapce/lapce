@@ -635,19 +635,7 @@ impl LapceEditor {
                 self.paint_cursor_line(ctx, line, env);
 
                 if active {
-                    let line_content = buffer
-                        .slice_to_cow(
-                            buffer.offset_of_line(line)
-                                ..buffer.offset_of_line(line + 1),
-                        )
-                        .to_string();
-                    let cursor_x = (line_content[..col]
-                        .chars()
-                        .filter_map(|c| if c == '\t' { Some('\t') } else { None })
-                        .count()
-                        * 3
-                        + col) as f64
-                        * width;
+                    let cursor_x = buffer.col_x(line, col, width);
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(

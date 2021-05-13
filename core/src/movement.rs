@@ -66,21 +66,9 @@ impl Cursor {
     pub fn region(&self, buffer: &BufferNew, env: &Env) -> Rect {
         let offset = self.offset();
         let (line, col) = buffer.offset_to_line_col(offset);
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let line_content = buffer
-            .slice_to_cow(
-                buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
-            )
-            .to_string();
         let width = 7.6171875;
-        let cursor_x = (line_content[..col]
-            .chars()
-            .filter_map(|c| if c == '\t' { Some('\t') } else { None })
-            .count()
-            * 3
-            + col) as f64
-            * width
-            - width;
+        let cursor_x = buffer.col_x(line, col, width) - width;
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
         let line = if line > 1 { line - 1 } else { 0 };
         Rect::ZERO

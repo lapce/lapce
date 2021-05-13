@@ -746,7 +746,7 @@ impl KeyPressFocus for LapceEditorViewData {
                 if let Some(buffer) = self.get_buffer() {
                     let line = self.editor.cursor.current_line(buffer);
                     let offset = if line > 0 {
-                        buffer.line_end(line - 1, true)
+                        buffer.line_end_offset(line - 1, true)
                     } else {
                         buffer.first_non_blank_character_on_line(line)
                     };
@@ -756,7 +756,7 @@ impl KeyPressFocus for LapceEditorViewData {
             LapceCommand::NewLineBelow => {
                 if let Some(buffer) = self.get_buffer() {
                     let offset = self.editor.cursor.offset();
-                    let offset = buffer.line_end_offset(offset, true);
+                    let offset = buffer.offfset_line_end(offset, true);
                     self.insert_new_line(ctx, offset);
                 }
             }

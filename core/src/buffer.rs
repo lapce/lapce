@@ -162,9 +162,18 @@ impl BufferNew {
         self.rope.line_of_offset(offset)
     }
 
+    pub fn line_content(&self, line: usize) -> String {
+        self.slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+            .to_string()
+    }
+
     pub fn offset_of_line(&self, line: usize) -> usize {
         let last_line = self.last_line();
-        let line = if line > last_line { last_line } else { line };
+        let line = if line > last_line + 1 {
+            last_line
+        } else {
+            line
+        };
         self.rope.offset_of_line(line)
     }
 
@@ -203,11 +212,7 @@ impl BufferNew {
             return;
         }
         if self.text_layouts[line].is_none() {
-            let line_content = self
-                .slice_to_cow(
-                    self.offset_of_line(line)..self.offset_of_line(line + 1),
-                )
-                .to_string();
+            let line_content = self.line_content(line);
             self.text_layouts[line] = Arc::new(Some(Arc::new(
                 self.get_text_layout(text, line, line_content, env),
             )));
@@ -235,9 +240,12 @@ impl BufferNew {
     }
 
     pub fn col_x(&self, line: usize, col: usize, width: f64) -> f64 {
-        let line_content = self
-            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
-            .to_string();
+        let line_content = self.line_content(line);
+        let col = if col > line_content.len() {
+            line_content.len()
+        } else {
+            col
+        };
         let x = (line_content[..col]
             .chars()
             .filter_map(|c| if c == '\t' { Some('\t') } else { None })
@@ -267,29 +275,28 @@ impl BufferNew {
         (line, offset - self.offset_of_line(line))
     }
 
-    pub fn line_end(&self, line: usize, caret: bool) -> usize {
-        let line_start_offset = self.offset_of_line(line);
-        let line_end_offset = self.offset_of_line(line + 1);
-        let line_end_offset = if line_end_offset - line_start_offset <= 1 {
-            line_start_offset
-        } else {
-            if caret {
-                line_end_offset - 1
-            } else {
-                line_end_offset - 2
-            }
-        };
-        line_end_offset
+    pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
+        self.offset_of_line(line) + self.line_max_col(line, caret)
     }
 
-    pub fn line_end_offset(&self, offset: usize, caret: bool) -> usize {
+    pub fn offfset_line_end(&self, offset: usize, caret: bool) -> usize {
         let line = self.line_of_offset(offset);
-        self.line_end(line, caret)
+        self.line_end_offset(line, caret)
+    }
+
+    pub fn line_len(&self, line: usize) -> usize {
+        self.offset_of_line(line + 1) - self.offset_of_line(line)
     }
 
     pub fn line_max_col(&self, line: usize, caret: bool) -> usize {
-        match self.offset_of_line(line + 1) - self.offset_of_line(line) {
+        let line_content = self.line_content(line);
+        let n = self.line_len(line);
+        match n {
             n if n == 0 => 0,
+            n if !line_content.ends_with("\n") => match caret {
+                true => n,
+                false => n - 1,
+            },
             n if n == 1 => 0,
             n => match caret {
                 true => n - 1,
@@ -344,7 +351,7 @@ impl BufferNew {
                 (new_offset, ColPosition::Col(col))
             }
             Movement::Right => {
-                let line_end = self.line_end_offset(offset, caret);
+                let line_end = self.offfset_line_end(offset, caret);
 
                 let mut new_end = offset + count;
                 if new_end > self.len() {
@@ -378,7 +385,7 @@ impl BufferNew {
                 (new_offset, ColPosition::Start)
             }
             Movement::EndOfLine => {
-                let new_offset = self.line_end_offset(offset, caret);
+                let new_offset = self.offfset_line_end(offset, caret);
                 (new_offset, ColPosition::End)
             }
             Movement::Line(position) => {
@@ -413,11 +420,17 @@ impl BufferNew {
     }
 
     fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
+        println!("text layouts len {}", self.text_layouts.len());
         let right = self.text_layouts.split_off(inval_lines.start_line);
         let right = right.skip(inval_lines.inval_count);
         let new = im::Vector::from(vec![Arc::new(None); inval_lines.new_count]);
         self.text_layouts.append(new);
         self.text_layouts.append(right);
+        println!("new text layouts len {}", self.text_layouts.len());
+        println!(
+            "text layouts last {:?}",
+            self.text_layouts.get(self.text_layouts.len() - 1)
+        );
     }
 
     fn apply_delta(&mut self, delta: &RopeDelta) {
@@ -437,6 +450,7 @@ impl BufferNew {
             inval_count: old_hard_count,
             new_count: new_hard_count,
         };
+        println!("invalid  lines {:?}", inval_lines);
         self.update_text_layouts(&inval_lines);
     }
 
@@ -450,6 +464,7 @@ impl BufferNew {
         for (selection, content) in edits {
             let rope = Rope::from(content);
             for region in selection.regions() {
+                println!("edit {:?} {} {}", region, content, self.len());
                 builder.replace(region.min()..region.max(), rope.clone());
             }
         }
@@ -2035,6 +2050,17 @@ mod tests {
     use xi_rope::Rope;
 
     use super::*;
+
+    #[test]
+    fn test_edit() {
+        let rope = Rope::from_str("0123456789\n").unwrap();
+        let mut builder = DeltaBuilder::new(rope.len());
+        assert_eq!(11, rope.len());
+        builder.replace(11..11, Rope::from_str("a").unwrap());
+        let delta = builder.build();
+        let new_rope = delta.apply(&rope);
+        assert_eq!("", new_rope.to_string());
+    }
 
     #[test]
     fn test_reverse_delta() {
