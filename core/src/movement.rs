@@ -9,16 +9,10 @@ use crate::{
 };
 use std::cmp::{max, min};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Cursor {
     pub mode: CursorMode,
     pub horiz: Option<ColPosition>,
-}
-
-impl PartialEq for Cursor {
-    fn eq(&self, other: &Self) -> bool {
-        self.mode.eq(&other.mode)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -33,6 +27,10 @@ pub enum CursorMode {
 }
 
 impl Cursor {
+    pub fn new(mode: CursorMode, horiz: Option<ColPosition>) -> Self {
+        Self { mode, horiz }
+    }
+
     pub fn offset(&self) -> usize {
         match &self.mode {
             CursorMode::Normal(offset) => *offset,
@@ -74,6 +72,57 @@ impl Cursor {
         Rect::ZERO
             .with_origin(Point::new(cursor_x, line as f64 * line_height))
             .with_size(Size::new(width * 3.0, line_height * 3.0))
+    }
+
+    pub fn edit_selection(&self, buffer: &BufferNew) -> Selection {
+        match &self.mode {
+            CursorMode::Insert(selection) => selection.clone(),
+            CursorMode::Normal(offset) => Selection::region(*offset, offset + 1),
+            CursorMode::Visual { start, end, mode } => match mode {
+                VisualMode::Normal => {
+                    Selection::region(*start.min(end), start.max(end) + 1)
+                }
+                VisualMode::Linewise => {
+                    let start_offset = buffer
+                        .offset_of_line(buffer.line_of_offset(*start.min(end)));
+                    let end_offset = buffer
+                        .offset_of_line(buffer.line_of_offset(*start.max(end)) + 1);
+                    Selection::region(start_offset, end_offset)
+                }
+                VisualMode::Blockwise => {
+                    let mut selection = Selection::new();
+                    let (start_line, start_col) =
+                        buffer.offset_to_line_col(*start.min(end));
+                    let (end_line, end_col) =
+                        buffer.offset_to_line_col(*start.max(end) + 1);
+                    let left = start_col.min(end_col);
+                    let right = start_col.max(end_col);
+                    for line in start_line..end_line + 1 {
+                        let max_col = buffer.line_max_col(line, true);
+                        if left > max_col {
+                            continue;
+                        }
+                        let right = match &self.horiz {
+                            Some(ColPosition::End) => max_col,
+                            _ => {
+                                if right > max_col {
+                                    max_col
+                                } else {
+                                    right
+                                }
+                            }
+                        };
+                        let offset = buffer.offset_of_line(line);
+                        selection.add_region(SelRegion::new(
+                            offset + left,
+                            offset + right,
+                            None,
+                        ));
+                    }
+                    selection
+                }
+            },
+        }
     }
 
     pub fn apply_delta(&mut self, delta: &RopeDelta) {

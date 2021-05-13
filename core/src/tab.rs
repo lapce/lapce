@@ -49,36 +49,22 @@ impl Widget<LapceTabData> for LapceTabNew {
     ) {
         match event {
             Event::WindowConnected => {
-                for (_, editor) in data.main_split.editors.iter() {
-                    if let Some(path) = editor.buffer.as_ref() {
-                        if !data.main_split.open_files.contains_key(path) {
-                            let buffer_id = BufferId::next();
-                            data.main_split
-                                .open_files
-                                .insert(path.clone(), buffer_id);
-                            data.main_split
-                                .buffers
-                                .insert(buffer_id, BufferState::Loading);
-                            BufferNew::load_file(
-                                buffer_id,
-                                path.clone(),
-                                data.proxy.clone(),
-                                data.id,
-                                ctx.get_external_handle(),
-                            );
-                        }
+                for (_, buffer) in data.main_split.buffers.iter() {
+                    if !buffer.loaded {
+                        buffer.retrieve_file(
+                            data.proxy.clone(),
+                            data.id,
+                            ctx.get_external_handle(),
+                        );
                     }
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
-                    LapceUICommand::LoadBuffer { id, path, content } => {
-                        let buffer =
-                            BufferNew::new(*id, path.to_owned(), content.to_owned());
-                        data.main_split
-                            .buffers
-                            .insert(*id, BufferState::Open(Arc::new(buffer)));
+                    LapceUICommand::LoadBuffer { id, content } => {
+                        let buffer = data.main_split.buffers.get_mut(id).unwrap();
+                        Arc::make_mut(buffer).load_content(content);
                         data.main_split.notify_update_text_layouts(ctx, id);
                         ctx.set_handled();
                     }

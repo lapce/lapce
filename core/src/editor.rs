@@ -374,24 +374,6 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
             ctx.request_paint();
         }
 
-        match (old_data.buffer.as_ref(), data.buffer.as_ref()) {
-            (None, Some(_))
-            | (Some(_), None)
-            | (Some(BufferState::Loading), Some(BufferState::Open(_)))
-            | (Some(BufferState::Open(_)), Some(BufferState::Loading)) => {
-                ctx.request_layout();
-            }
-            (
-                Some(BufferState::Open(old_buffer)),
-                Some(BufferState::Open(buffer)),
-            ) => {
-                if old_buffer.id != buffer.id {
-                    ctx.request_paint();
-                }
-            }
-            _ => (),
-        }
-
         self.gutter.update(ctx, data, env);
         self.editor.update(ctx, data, env);
     }
@@ -510,18 +492,10 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
         data: &LapceEditorViewData,
         env: &Env,
     ) {
-        match (old_data.buffer.as_ref(), data.buffer.as_ref()) {
-            (
-                Some(BufferState::Open(old_buffer)),
-                Some(BufferState::Open(buffer)),
-            ) => {
-                if old_data.editor.cursor.current_line(old_buffer)
-                    != data.editor.cursor.current_line(buffer)
-                {
-                    ctx.request_paint();
-                }
-            }
-            _ => (),
+        if old_data.editor.cursor.current_line(&old_data.buffer)
+            != data.editor.cursor.current_line(&data.buffer)
+        {
+            ctx.request_paint();
         }
     }
 
@@ -532,10 +506,7 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
         data: &LapceEditorViewData,
         env: &Env,
     ) -> Size {
-        let last_line = match data.buffer.as_ref() {
-            Some(BufferState::Open(buffer)) => buffer.last_line() + 1,
-            _ => 1,
-        };
+        let last_line = data.buffer.last_line() + 1;
         let width = 7.6171875;
         let width = width * last_line.to_string().len() as f64;
         Size::new(width, bc.max().height)
@@ -546,12 +517,8 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
         let scroll_offset = data.editor.scroll_offset;
         let start_line = (scroll_offset.y / line_height).floor() as usize;
         let num_lines = (ctx.size().height / line_height).floor() as usize;
-        let (last_line, current_line) = match data.buffer.as_ref() {
-            Some(BufferState::Open(buffer)) => {
-                (buffer.last_line(), data.editor.cursor.current_line(buffer))
-            }
-            _ => (0, 0),
-        };
+        let last_line = data.buffer.last_line();
+        let current_line = data.editor.cursor.current_line(&data.buffer);
         for line in start_line..start_line + num_lines + 1 {
             if line > last_line {
                 break;
@@ -793,86 +760,86 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         data: &LapceEditorViewData,
         env: &Env,
     ) {
-        match (old_data.buffer.as_ref(), data.buffer.as_ref()) {
-            (
-                Some(BufferState::Open(old_buffer)),
-                Some(BufferState::Open(buffer)),
-            ) => {
-                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let buffer = &data.buffer;
+        let old_buffer = &old_data.buffer;
+        if buffer.max_len != old_buffer.max_len
+            || buffer.num_lines != old_buffer.num_lines
+        {
+            ctx.request_layout();
+            return;
+        }
 
-                let offset = data.editor.scroll_offset;
-                let start_line = (offset.y / line_height) as usize;
-                let num_lines = (ctx.size().height / line_height) as usize;
-                let mut updated_start_line = None;
-                let mut updated_end_line = None;
-                for line in start_line..start_line + num_lines + 1 {
-                    if line >= buffer.text_layouts.len() {
-                        break;
-                    }
-                    if !old_buffer
-                        .text_layouts
-                        .get(line)
-                        .unwrap_or(&Arc::new(None))
-                        .same(&buffer.text_layouts[line])
-                    {
-                        if updated_start_line.is_none() {
-                            updated_start_line = Some(line);
-                        }
-                        updated_end_line = Some(line);
-                    }
-                }
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
 
-                if let Some(updated_start_line) = updated_start_line {
-                    let updated_end_line = updated_end_line.unwrap();
-                    let rect = Rect::ZERO
-                        .with_origin(Point::new(
-                            0.0,
-                            updated_start_line as f64 * line_height,
-                        ))
-                        .with_size(Size::new(
-                            ctx.size().width,
-                            (updated_end_line + 1 - updated_start_line) as f64
-                                * line_height,
-                        ));
-                    ctx.request_paint_rect(rect);
-                }
-
-                if old_data.editor.cursor != data.editor.cursor {
-                    let (start, end) = old_data.editor.cursor.lines(old_buffer);
-                    let rect = Rect::ZERO
-                        .with_origin(Point::new(0.0, start as f64 * line_height))
-                        .with_size(Size::new(
-                            ctx.size().width,
-                            (end + 1 - start) as f64 * line_height,
-                        ));
-                    ctx.request_paint_rect(rect);
-
-                    let (start, end) = data.editor.cursor.lines(buffer);
-                    let rect = Rect::ZERO
-                        .with_origin(Point::new(0.0, start as f64 * line_height))
-                        .with_size(Size::new(
-                            ctx.size().width,
-                            (end + 1 - start) as f64 * line_height,
-                        ));
-                    ctx.request_paint_rect(rect);
-                }
-
-                if (*old_data.main_split.focus == self.editor_id
-                    && *data.main_split.focus != self.editor_id)
-                    || (*old_data.main_split.focus != self.editor_id
-                        && *data.main_split.focus == self.editor_id)
-                {
-                    let (start, end) = data.editor.cursor.lines(buffer);
-                    let rect = Rect::ZERO
-                        .with_origin(Point::new(0.0, start as f64 * line_height))
-                        .with_size(Size::new(
-                            ctx.size().width,
-                            (end + 1 - start) as f64 * line_height,
-                        ));
-                    ctx.request_paint_rect(rect);
-                }
+        let offset = data.editor.scroll_offset;
+        let start_line = (offset.y / line_height) as usize;
+        let num_lines = (ctx.size().height / line_height) as usize;
+        let mut updated_start_line = None;
+        let mut updated_end_line = None;
+        for line in start_line..start_line + num_lines + 1 {
+            if line >= buffer.text_layouts.len() {
+                break;
             }
-            _ => (),
+            if !old_buffer
+                .text_layouts
+                .get(line)
+                .unwrap_or(&Arc::new(None))
+                .same(&buffer.text_layouts[line])
+            {
+                if updated_start_line.is_none() {
+                    updated_start_line = Some(line);
+                }
+                updated_end_line = Some(line);
+            }
+        }
+
+        if let Some(updated_start_line) = updated_start_line {
+            let updated_end_line = updated_end_line.unwrap();
+            let rect = Rect::ZERO
+                .with_origin(Point::new(
+                    0.0,
+                    updated_start_line as f64 * line_height,
+                ))
+                .with_size(Size::new(
+                    ctx.size().width,
+                    (updated_end_line + 1 - updated_start_line) as f64 * line_height,
+                ));
+            ctx.request_paint_rect(rect);
+        }
+
+        if old_data.editor.cursor != data.editor.cursor {
+            let (start, end) = old_data.editor.cursor.lines(old_buffer);
+            let rect = Rect::ZERO
+                .with_origin(Point::new(0.0, start as f64 * line_height))
+                .with_size(Size::new(
+                    ctx.size().width,
+                    (end + 1 - start) as f64 * line_height,
+                ));
+            ctx.request_paint_rect(rect);
+
+            let (start, end) = data.editor.cursor.lines(buffer);
+            let rect = Rect::ZERO
+                .with_origin(Point::new(0.0, start as f64 * line_height))
+                .with_size(Size::new(
+                    ctx.size().width,
+                    (end + 1 - start) as f64 * line_height,
+                ));
+            ctx.request_paint_rect(rect);
+        }
+
+        if (*old_data.main_split.focus == self.editor_id
+            && *data.main_split.focus != self.editor_id)
+            || (*old_data.main_split.focus != self.editor_id
+                && *data.main_split.focus == self.editor_id)
+        {
+            let (start, end) = data.editor.cursor.lines(buffer);
+            let rect = Rect::ZERO
+                .with_origin(Point::new(0.0, start as f64 * line_height))
+                .with_size(Size::new(
+                    ctx.size().width,
+                    (end + 1 - start) as f64 * line_height,
+                ));
+            ctx.request_paint_rect(rect);
         }
     }
 
@@ -885,51 +852,42 @@ impl Widget<LapceEditorViewData> for LapceEditor {
     ) -> Size {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let width = 7.6171875;
-        match data.buffer.as_ref() {
-            Some(BufferState::Open(buffer)) => Size::new(
-                (width * buffer.max_len as f64).max(bc.max().width),
-                line_height * buffer.text_layouts.len() as f64 + bc.max().height
-                    - line_height,
-            ),
-            _ => Size::ZERO,
-        }
+        Size::new(
+            (width * data.buffer.max_len as f64).max(bc.max().width),
+            line_height * data.buffer.text_layouts.len() as f64 + bc.max().height
+                - line_height,
+        )
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rects = ctx.region().rects().to_vec();
-        match data.buffer.as_ref() {
-            Some(BufferState::Open(buffer)) => {
-                for rect in &rects {
-                    let start_line = (rect.y0 / line_height).floor() as usize;
-                    let num_lines = (rect.height() / line_height).floor() as usize;
-                    self.paint_cursor(
-                        ctx,
-                        &data.editor.cursor,
-                        buffer,
-                        *data.main_split.focus == self.editor_id,
-                        start_line,
-                        num_lines,
-                        env,
-                    );
-                    let last_line = buffer.last_line();
-                    for line in start_line..start_line + num_lines + 1 {
-                        if line > last_line {
-                            break;
-                        }
-                        if buffer.text_layouts.len() > line {
-                            if let Some(layout) = buffer.text_layouts[line].as_ref()
-                            {
-                                ctx.draw_text(
-                                    &layout.layout,
-                                    Point::new(0.0, line_height * line as f64 + 5.0),
-                                );
-                            }
-                        }
+        for rect in &rects {
+            let start_line = (rect.y0 / line_height).floor() as usize;
+            let num_lines = (rect.height() / line_height).floor() as usize;
+            self.paint_cursor(
+                ctx,
+                &data.editor.cursor,
+                &data.buffer,
+                *data.main_split.focus == self.editor_id,
+                start_line,
+                num_lines,
+                env,
+            );
+            let last_line = data.buffer.last_line();
+            for line in start_line..start_line + num_lines + 1 {
+                if line > last_line {
+                    break;
+                }
+                if data.buffer.text_layouts.len() > line {
+                    if let Some(layout) = data.buffer.text_layouts[line].as_ref() {
+                        ctx.draw_text(
+                            &layout.layout,
+                            Point::new(0.0, line_height * line as f64 + 5.0),
+                        );
                     }
                 }
             }
-            _ => (),
         }
     }
 }

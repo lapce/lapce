@@ -244,7 +244,7 @@ pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
     pub focus: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
-    pub buffers: im::HashMap<BufferId, BufferState>,
+    pub buffers: im::HashMap<BufferId, Arc<BufferNew>>,
     pub open_files: im::HashMap<PathBuf, BufferId>,
 }
 
@@ -255,12 +255,8 @@ impl LapceMainSplitData {
         buffer_id: &BufferId,
     ) {
         for (editor_id, editor) in &self.editors {
-            let editor_buffer_id = editor
-                .buffer
-                .as_ref()
-                .map(|b| self.open_files.get(b))
-                .flatten();
-            if editor_buffer_id == Some(buffer_id) {
+            let editor_buffer_id = self.open_files.get(&editor.buffer).unwrap();
+            if editor_buffer_id == buffer_id {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::FillTextLayouts,
@@ -275,14 +271,15 @@ impl LapceMainSplitData {
     pub fn new() -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
-        let editor = LapceEditorData::new(
-            *split_id,
-            Some(PathBuf::from("/Users/Lulu/lapce/src/editor_old.rs")),
-        );
+        let path = PathBuf::from("/Users/Lulu/lapce/src/editor_old.rs");
+        let editor = LapceEditorData::new(*split_id, path.clone());
         let editor_id = editor.editor_id;
         editors.insert(editor.view_id, Arc::new(editor));
-        let buffers = im::HashMap::new();
-        let open_files = im::HashMap::new();
+        let buffer = BufferNew::new(path.clone());
+        let mut open_files = im::HashMap::new();
+        open_files.insert(path.clone(), buffer.id);
+        let mut buffers = im::HashMap::new();
+        buffers.insert(buffer.id, Arc::new(buffer));
         Self {
             split_id,
             editors,
@@ -298,14 +295,14 @@ pub struct LapceEditorData {
     pub split_id: WidgetId,
     pub view_id: WidgetId,
     pub editor_id: WidgetId,
-    pub buffer: Option<PathBuf>,
+    pub buffer: PathBuf,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
     pub size: Size,
 }
 
 impl LapceEditorData {
-    pub fn new(split_id: WidgetId, buffer: Option<PathBuf>) -> Self {
+    pub fn new(split_id: WidgetId, buffer: PathBuf) -> Self {
         Self {
             split_id,
             view_id: WidgetId::next(),
@@ -322,7 +319,7 @@ impl LapceEditorData {
 pub struct LapceEditorViewData {
     pub main_split: LapceMainSplitData,
     pub editor: Arc<LapceEditorData>,
-    pub buffer: Option<BufferState>,
+    pub buffer: Arc<BufferNew>,
     pub keypress: Arc<KeyPressData>,
 }
 
@@ -334,24 +331,19 @@ impl LapceEditorViewData {
         self.keypress = keypress;
     }
 
+    pub fn buffer_mut(&mut self) -> &mut BufferNew {
+        Arc::make_mut(&mut self.buffer)
+    }
+
     pub fn fill_text_layouts(&mut self, ctx: &mut EventCtx, env: &Env) {
-        match self.buffer.as_mut() {
-            Some(state) => match state {
-                BufferState::Loading => (),
-                BufferState::Open(buffer) => {
-                    let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-                    let start_line =
-                        (self.editor.scroll_offset.y / line_height) as usize;
-                    let size = ctx.size();
-                    let num_lines = (size.height / line_height) as usize;
-                    let text = ctx.text();
-                    let buffer = Arc::make_mut(buffer);
-                    for line in start_line..start_line + num_lines + 1 {
-                        buffer.update_line_layouts(text, line, env);
-                    }
-                }
-            },
-            _ => (),
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let start_line = (self.editor.scroll_offset.y / line_height) as usize;
+        let size = ctx.size();
+        let num_lines = (size.height / line_height) as usize;
+        let text = ctx.text();
+        let buffer = self.buffer_mut();
+        for line in start_line..start_line + num_lines + 1 {
+            buffer.update_line_layouts(text, line, env);
         }
     }
 
@@ -422,168 +414,118 @@ impl LapceEditorViewData {
     }
 
     pub fn do_move(&mut self, movement: &Movement, count: usize) {
-        match self.buffer.as_ref() {
-            Some(BufferState::Open(buffer)) => match &self.editor.cursor.mode {
-                &CursorMode::Normal(offset) => {
-                    let (new_offset, horiz) = buffer.move_offset(
-                        offset,
-                        self.editor.cursor.horiz.as_ref(),
+        match &self.editor.cursor.mode {
+            &CursorMode::Normal(offset) => {
+                let (new_offset, horiz) = self.buffer.move_offset(
+                    offset,
+                    self.editor.cursor.horiz.as_ref(),
+                    count,
+                    movement,
+                    false,
+                );
+                let editor = Arc::make_mut(&mut self.editor);
+                editor.cursor.mode = CursorMode::Normal(new_offset);
+                editor.cursor.horiz = Some(horiz);
+            }
+            CursorMode::Visual { start, end, mode } => {
+                let (new_offset, horiz) = self.buffer.move_offset(
+                    *end,
+                    self.editor.cursor.horiz.as_ref(),
+                    count,
+                    movement,
+                    false,
+                );
+                let start = *start;
+                let mode = mode.clone();
+                let editor = Arc::make_mut(&mut self.editor);
+                editor.cursor.mode = CursorMode::Visual {
+                    start,
+                    end: new_offset,
+                    mode,
+                };
+                editor.cursor.horiz = Some(horiz);
+            }
+            CursorMode::Insert(selection) => {
+                let mut new_selection = Selection::new();
+                for region in selection.regions() {
+                    let (offset, horiz) = self.buffer.move_offset(
+                        region.end(),
+                        region.horiz(),
                         count,
                         movement,
-                        false,
+                        true,
                     );
-                    let editor = Arc::make_mut(&mut self.editor);
-                    editor.cursor.mode = CursorMode::Normal(new_offset);
-                    editor.cursor.horiz = Some(horiz);
+                    let new_region =
+                        SelRegion::new(offset, offset, Some(horiz.clone()));
+                    new_selection.add_region(new_region);
                 }
-                CursorMode::Visual { start, end, mode } => {
-                    let (new_offset, horiz) = buffer.move_offset(
-                        *end,
-                        self.editor.cursor.horiz.as_ref(),
-                        count,
-                        movement,
-                        false,
-                    );
-                    let start = *start;
-                    let mode = mode.clone();
-                    let editor = Arc::make_mut(&mut self.editor);
-                    editor.cursor.mode = CursorMode::Visual {
-                        start,
-                        end: new_offset,
-                        mode,
-                    };
-                    editor.cursor.horiz = Some(horiz);
-                }
-                CursorMode::Insert(selection) => {
-                    let mut new_selection = Selection::new();
-                    for region in selection.regions() {
-                        let (offset, horiz) = buffer.move_offset(
-                            region.end(),
-                            region.horiz(),
-                            count,
-                            movement,
-                            true,
-                        );
-                        let new_region =
-                            SelRegion::new(offset, offset, Some(horiz.clone()));
-                        new_selection.add_region(new_region);
-                    }
-                    let editor = Arc::make_mut(&mut self.editor);
-                    editor.cursor.mode = CursorMode::Insert(new_selection);
-                    editor.cursor.horiz = None;
-                }
-            },
-            _ => (),
+                let editor = Arc::make_mut(&mut self.editor);
+                editor.cursor.mode = CursorMode::Insert(new_selection);
+                editor.cursor.horiz = None;
+            }
         }
     }
 
     pub fn cusor_region(&self, env: &Env) -> Rect {
-        if let Some(buffer) = self.get_buffer() {
-            self.editor.cursor.region(buffer, env)
-        } else {
-            Rect::ZERO
-        }
-    }
-
-    pub fn get_buffer(&self) -> Option<&Arc<BufferNew>> {
-        match self.buffer.as_ref() {
-            Some(state) => match state {
-                BufferState::Loading => {}
-                BufferState::Open(buffer) => {
-                    return Some(buffer);
-                }
-            },
-            _ => (),
-        }
-        None
-    }
-
-    pub fn get_buffer_mut(&mut self) -> Option<&mut BufferNew> {
-        match self.buffer.as_mut() {
-            Some(state) => match state {
-                BufferState::Loading => {}
-                BufferState::Open(buffer) => {
-                    return Some(Arc::make_mut(buffer));
-                }
-            },
-            _ => (),
-        }
-        None
+        self.editor.cursor.region(&self.buffer, env)
     }
 
     pub fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
-        let data = self.clone();
-        if let Some(buffer) = self.get_buffer_mut() {
-            let (line, col) = buffer.offset_to_line_col(offset);
-            let line_content = buffer
-                .slice_to_cow(
-                    buffer.offset_of_line(line)..buffer.offset_of_line(line + 1),
-                )
-                .to_string();
-            let line_indent = buffer.indent_on_line(line);
+        let (line, col) = self.buffer.offset_to_line_col(offset);
+        let line_content = self.buffer.line_content(line);
+        let line_indent = self.buffer.indent_on_line(line);
 
-            let indent = if previous_has_unmatched_pair(&line_content, col) {
-                format!("{}    ", line_indent)
-            } else if line_indent.len() >= col {
-                line_indent[..col].to_string()
+        let indent = if previous_has_unmatched_pair(&line_content, col) {
+            format!("{}    ", line_indent)
+        } else if line_indent.len() >= col {
+            line_indent[..col].to_string()
+        } else {
+            let next_line_indent = self.buffer.indent_on_line(line + 1);
+            if next_line_indent.len() > line_indent.len() {
+                next_line_indent
             } else {
-                let next_line_indent = buffer.indent_on_line(line + 1);
-                if next_line_indent.len() > line_indent.len() {
-                    next_line_indent
-                } else {
-                    line_indent.clone()
-                }
-            };
+                line_indent.clone()
+            }
+        };
 
-            let selection = Selection::caret(offset);
-            let content = format!("{}{}", "\n", indent);
+        let selection = Selection::caret(offset);
+        let content = format!("{}{}", "\n", indent);
 
-            let delta = buffer.edit(ctx, &data, &selection, &content);
-            let selection =
-                selection.apply_delta(&delta, true, InsertDrift::Default);
-            let editor = Arc::make_mut(&mut self.editor);
-            editor.cursor.mode = CursorMode::Insert(selection);
-            editor.cursor.horiz = None;
-            self.inactive_apply_delta(&delta);
-        }
+        let selection = self.edit(ctx, &selection, &content);
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.cursor.mode = CursorMode::Insert(selection);
+        editor.cursor.horiz = None;
     }
 
-    fn edit(&mut self, ctx: &mut EventCtx, c: &str) {
-        let data = self.clone();
-        let delta = match &self.editor.cursor.mode {
-            CursorMode::Insert(selection) => match self.buffer.as_mut() {
-                Some(state) => match state {
-                    BufferState::Loading => DeltaBuilder::new(0).build(),
-                    BufferState::Open(buffer) => {
-                        Arc::make_mut(buffer).edit(ctx, &data, selection, c)
-                    }
-                },
-                _ => DeltaBuilder::new(0).build(),
-            },
-            _ => DeltaBuilder::new(0).build(),
-        };
-        Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
+    fn set_cursor(&mut self, cursor: Cursor) {
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.cursor = cursor;
+    }
+
+    fn edit(
+        &mut self,
+        ctx: &mut EventCtx,
+        selection: &Selection,
+        c: &str,
+    ) -> Selection {
+        let buffer = self.buffer_mut();
+        let delta = buffer.edit(ctx, &selection, c);
+        let buffer_id = buffer.id;
+        self.main_split.notify_update_text_layouts(ctx, &buffer_id);
         self.inactive_apply_delta(&delta);
+        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+        selection
     }
 
     fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
-        match self.buffer.as_ref() {
-            Some(BufferState::Open(buffer)) => {
-                let open_files = self.main_split.open_files.clone();
-                for (view_id, editor) in self.main_split.editors.iter_mut() {
-                    if view_id != &self.editor.view_id {
-                        let editor_buffer_id = editor
-                            .buffer
-                            .as_ref()
-                            .map(|b| open_files.get(b))
-                            .flatten();
-                        if editor_buffer_id == Some(&buffer.id) {
-                            Arc::make_mut(editor).cursor.apply_delta(delta);
-                        }
-                    }
+        let open_files = self.main_split.open_files.clone();
+        for (view_id, editor) in self.main_split.editors.iter_mut() {
+            if view_id != &self.editor.view_id {
+                let editor_buffer_id = open_files.get(&editor.buffer).unwrap();
+                if editor_buffer_id == &self.buffer.id {
+                    Arc::make_mut(editor).cursor.apply_delta(delta);
                 }
             }
-            _ => (),
         }
     }
 }
@@ -599,17 +541,11 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         let main_split = &data.main_split;
         let editor = main_split.editors.get(&self.0).unwrap();
         let editor_view = LapceEditorViewData {
-            buffer: editor
-                .buffer
-                .as_ref()
-                .map(|b| {
-                    main_split
-                        .open_files
-                        .get(b)
-                        .map(|id| main_split.buffers.get(id).map(|b| b.clone()))
-                })
-                .flatten()
-                .flatten(),
+            buffer: main_split
+                .buffers
+                .get(main_split.open_files.get(&editor.buffer).unwrap())
+                .unwrap()
+                .clone(),
             editor: editor.clone(),
             main_split: main_split.clone(),
             keypress: data.keypress.clone(),
@@ -623,15 +559,9 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         f: F,
     ) -> V {
         let editor = data.main_split.editors.get(&self.0).unwrap().clone();
-        let buffer_id = editor
-            .buffer
-            .as_ref()
-            .map(|b| data.main_split.open_files.get(b).map(|b| b.clone()))
-            .flatten();
+        let buffer_id = *data.main_split.open_files.get(&editor.buffer).unwrap();
         let mut editor_view = LapceEditorViewData {
-            buffer: buffer_id
-                .map(|id| data.main_split.buffers.get(&id).map(|b| b.clone()))
-                .flatten(),
+            buffer: data.main_split.buffers.get(&buffer_id).unwrap().clone(),
             editor: editor.clone(),
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
@@ -645,25 +575,16 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
                 .editors
                 .insert(self.0, editor_view.editor.clone());
         }
-        if let Some(buffer_id) = buffer_id {
-            let changed = match (
-                data.main_split.buffers.get(&buffer_id),
-                editor_view.buffer.as_ref(),
-            ) {
-                (None, None) => false,
-                (Some(old), Some(new)) => !old.same(new),
-                _ => true,
-            };
-            if changed {
-                match editor_view.buffer {
-                    Some(buffer) => {
-                        data.main_split.buffers.insert(buffer_id, buffer);
-                    }
-                    None => {
-                        data.main_split.buffers.remove(&buffer_id);
-                    }
-                }
-            }
+        if !data
+            .main_split
+            .buffers
+            .get(&buffer_id)
+            .unwrap()
+            .same(&editor_view.buffer)
+        {
+            data.main_split
+                .buffers
+                .insert(buffer_id, editor_view.buffer.clone());
         }
 
         result
@@ -743,22 +664,23 @@ impl KeyPressFocus for LapceEditorViewData {
                 );
             }
             LapceCommand::NewLineAbove => {
-                if let Some(buffer) = self.get_buffer() {
-                    let line = self.editor.cursor.current_line(buffer);
-                    let offset = if line > 0 {
-                        buffer.line_end_offset(line - 1, true)
-                    } else {
-                        buffer.first_non_blank_character_on_line(line)
-                    };
-                    self.insert_new_line(ctx, offset);
-                }
+                let line = self.editor.cursor.current_line(&self.buffer);
+                let offset = if line > 0 {
+                    self.buffer.line_end_offset(line - 1, true)
+                } else {
+                    self.buffer.first_non_blank_character_on_line(line)
+                };
+                self.insert_new_line(ctx, offset);
             }
             LapceCommand::NewLineBelow => {
-                if let Some(buffer) = self.get_buffer() {
-                    let offset = self.editor.cursor.offset();
-                    let offset = buffer.offfset_line_end(offset, true);
-                    self.insert_new_line(ctx, offset);
-                }
+                let offset = self.editor.cursor.offset();
+                let offset = self.buffer.offfset_line_end(offset, true);
+                self.insert_new_line(ctx, offset);
+            }
+            LapceCommand::DeleteForewardAndInsert => {
+                let selection = self.editor.cursor.edit_selection(&self.buffer);
+                let selection = self.edit(ctx, &selection, "");
+                self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }
             LapceCommand::InsertNewLine => {
                 self.insert_new_line(ctx, self.editor.cursor.offset());
@@ -772,35 +694,38 @@ impl KeyPressFocus for LapceEditorViewData {
             LapceCommand::ToggleBlockwiseVisualMode => {
                 self.toggle_visual(VisualMode::Blockwise);
             }
-            LapceCommand::NormalMode => match self.buffer.as_ref() {
-                Some(BufferState::Open(buffer)) => {
-                    let offset = match &self.editor.cursor.mode {
-                        CursorMode::Insert(selection) => {
-                            buffer
-                                .move_offset(
-                                    selection.get_cursor_offset(),
-                                    None,
-                                    1,
-                                    &Movement::Left,
-                                    false,
-                                )
-                                .0
-                        }
-                        CursorMode::Visual { start, end, mode } => *end,
-                        CursorMode::Normal(offset) => *offset,
-                    };
-                    let mut cursor = &mut Arc::make_mut(&mut self.editor).cursor;
-                    cursor.mode = CursorMode::Normal(offset);
-                    cursor.horiz = None;
-                }
-                _ => (),
-            },
+            LapceCommand::NormalMode => {
+                let offset = match &self.editor.cursor.mode {
+                    CursorMode::Insert(selection) => {
+                        self.buffer
+                            .move_offset(
+                                selection.get_cursor_offset(),
+                                None,
+                                1,
+                                &Movement::Left,
+                                false,
+                            )
+                            .0
+                    }
+                    CursorMode::Visual { start, end, mode } => *end,
+                    CursorMode::Normal(offset) => *offset,
+                };
+                let mut cursor = &mut Arc::make_mut(&mut self.editor).cursor;
+                cursor.mode = CursorMode::Normal(offset);
+                cursor.horiz = None;
+            }
             _ => (),
         }
     }
 
     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
-        self.edit(ctx, c);
+        if self.get_mode() == Mode::Insert {
+            let selection = self.editor.cursor.edit_selection(&self.buffer);
+            let selection = self.edit(ctx, &selection, c);
+            let editor = Arc::make_mut(&mut self.editor);
+            editor.cursor.mode = CursorMode::Insert(selection);
+            editor.cursor.horiz = None;
+        }
     }
 }
 

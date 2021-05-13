@@ -105,44 +105,56 @@ pub struct BufferNew {
     pub text_layouts: im::Vector<Arc<Option<Arc<HighlightTextLayout>>>>,
     pub max_len: usize,
     pub max_len_line: usize,
+    pub num_lines: usize,
     pub rev: u64,
     pub dirty: bool,
+    pub loaded: bool,
 }
 
 impl BufferNew {
-    pub fn new(id: BufferId, path: PathBuf, content: String) -> Self {
-        let rope = Rope::from_str(&content).unwrap();
+    pub fn new(path: PathBuf) -> Self {
+        let rope = Rope::from_str("").unwrap();
         let mut buffer = Self {
-            id,
+            id: BufferId::next(),
             rope,
             path,
             text_layouts: im::Vector::new(),
             max_len: 0,
             max_len_line: 0,
+            num_lines: 0,
             rev: 0,
+            loaded: false,
             dirty: false,
         };
-        let (max_len, max_len_line) = buffer.get_max_line_len();
         buffer.text_layouts =
             im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
-        buffer.max_len = max_len;
-        buffer.max_len_line = max_len_line;
         buffer
     }
 
-    pub fn load_file(
-        id: BufferId,
-        path: PathBuf,
+    pub fn load_content(&mut self, content: &str) {
+        self.rope = Rope::from_str(content).unwrap();
+        let (max_len, max_len_line) = self.get_max_line_len();
+        self.max_len = max_len;
+        self.max_len_line = max_len_line;
+        self.num_lines = self.num_lines();
+        self.text_layouts = im::Vector::from(vec![Arc::new(None); self.num_lines]);
+        self.loaded = true;
+    }
+
+    pub fn retrieve_file(
+        &self,
         proxy: Arc<LapceProxy>,
         tab_id: WidgetId,
         event_sink: ExtEventSink,
     ) {
+        let id = self.id;
+        let path = self.path.clone();
         thread::spawn(move || {
             let content = { proxy.new_buffer(id, path.clone()).unwrap() };
             println!("load file got content");
             event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::LoadBuffer { id, path, content },
+                LapceUICommand::LoadBuffer { id, content },
                 Target::Widget(tab_id),
             );
         });
@@ -420,20 +432,17 @@ impl BufferNew {
     }
 
     fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
-        println!("text layouts len {}", self.text_layouts.len());
         let right = self.text_layouts.split_off(inval_lines.start_line);
         let right = right.skip(inval_lines.inval_count);
         let new = im::Vector::from(vec![Arc::new(None); inval_lines.new_count]);
         self.text_layouts.append(new);
         self.text_layouts.append(right);
-        println!("new text layouts len {}", self.text_layouts.len());
-        println!(
-            "text layouts last {:?}",
-            self.text_layouts.get(self.text_layouts.len() - 1)
-        );
     }
 
     fn apply_delta(&mut self, delta: &RopeDelta) {
+        if !self.loaded {
+            return;
+        }
         self.rev += 1;
         self.dirty = true;
         let (iv, newlen) = delta.summary();
@@ -450,38 +459,33 @@ impl BufferNew {
             inval_count: old_hard_count,
             new_count: new_hard_count,
         };
-        println!("invalid  lines {:?}", inval_lines);
         self.update_text_layouts(&inval_lines);
     }
 
     pub fn edit_multiple(
         &mut self,
         ctx: &mut EventCtx,
-        data: &LapceEditorViewData,
         edits: Vec<(&Selection, &str)>,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
         for (selection, content) in edits {
             let rope = Rope::from(content);
             for region in selection.regions() {
-                println!("edit {:?} {} {}", region, content, self.len());
                 builder.replace(region.min()..region.max(), rope.clone());
             }
         }
         let delta = builder.build();
         self.apply_delta(&delta);
-        data.main_split.notify_update_text_layouts(ctx, &self.id);
         delta
     }
 
     pub fn edit(
         &mut self,
         ctx: &mut EventCtx,
-        data: &LapceEditorViewData,
         selection: &Selection,
         content: &str,
     ) -> RopeDelta {
-        self.edit_multiple(ctx, data, vec![(selection, content)])
+        self.edit_multiple(ctx, vec![(selection, content)])
     }
 }
 
