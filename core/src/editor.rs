@@ -651,7 +651,10 @@ impl LapceEditor {
 
                     let right_col = match mode {
                         &VisualMode::Normal => match line {
-                            _ if line == end_line => end_col + 1,
+                            _ if line == end_line => {
+                                let max_col = buffer.line_max_col(line, true);
+                                (end_col + 1).min(max_col)
+                            }
                             _ => {
                                 buffer.offset_of_line(line + 1)
                                     - buffer.offset_of_line(line)
@@ -662,7 +665,7 @@ impl LapceEditor {
                                 - buffer.offset_of_line(line)
                         }
                         &VisualMode::Blockwise => {
-                            let max_col = buffer.line_max_col(line, false) + 1;
+                            let max_col = buffer.line_max_col(line, true);
                             let right = match cursor.horiz.as_ref() {
                                 Some(&ColPosition::End) => max_col,
                                 _ => (end_col.max(start_col) + 1).min(max_col),

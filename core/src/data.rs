@@ -717,7 +717,7 @@ impl KeyPressFocus for LapceEditorViewData {
                             .0
                     }
                     CursorMode::Visual { start, end, mode } => {
-                        self.buffer.offset_line_end(*end, false)
+                        self.buffer.offset_line_end(*end, false).min(*end)
                     }
                     CursorMode::Normal(offset) => *offset,
                 };

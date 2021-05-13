@@ -365,16 +365,13 @@ impl BufferNew {
             Movement::Right => {
                 let line_end = self.offset_line_end(offset, caret);
 
-                let mut new_end = offset + count;
-                if new_end > self.len() {
-                    new_end = self.len()
-                }
-                if new_end > line_end {
-                    new_end = line_end;
+                let mut new_offset = offset + count;
+                if new_offset > line_end {
+                    new_offset = line_end;
                 }
 
-                let (_, col) = self.offset_to_line_col(new_end);
-                (new_end, ColPosition::Col(col))
+                let (_, col) = self.offset_to_line_col(new_offset);
+                (new_offset, ColPosition::Col(col))
             }
             Movement::Up => {
                 let line = self.line_of_offset(offset);
