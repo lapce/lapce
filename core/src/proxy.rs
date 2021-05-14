@@ -487,29 +487,39 @@ pub fn start_proxy_process(
         let child_stdout = child.stdout.take().unwrap();
         let mut looper = RpcLoop::new(child_stdin);
         let peer: RpcPeer = Box::new(looper.get_raw_peer());
-        //         let proxy = LapceProxy {
-        //             peer,
-        //             process: Arc::new(Mutex::new(child)),
-        //             wg: WaitGroup::new(),
-        //         };
-        //         proxy.initialize(workspace.path.clone());
-        //         {
-        //             let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-        //             let mut proxy_state = state.proxy.lock();
-        //             let old_proxy = proxy_state.take();
-        //             *proxy_state = Some(proxy);
-        //             if let Some(old_proxy) = old_proxy {
-        //                 old_proxy.process.lock().kill();
-        //             }
-        //         }
-        //
-        //         let mut handler = ProxyHandler { window_id, tab_id };
-        //         if let Err(e) =
-        //             looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
-        //         {
-        //             println!("proxy main loop failed {:?}", e);
-        //         }
-        //         println!("proxy main loop exit");
+        let proxy = LapceProxy {
+            peer: Arc::new(Mutex::new(Some(peer))),
+            process: Arc::new(Mutex::new(Some(child))),
+            cond: Arc::new(Condvar::new()),
+            initiated: Arc::new(Mutex::new(false)),
+            tab_id,
+        };
+        proxy.initialize(workspace.path.clone());
+        {
+            *proxy.initiated.lock() = true;
+            proxy.cond.notify_one();
+        }
+        {
+            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
+            let mut proxy_state = state.proxy.lock();
+            let old_proxy = proxy_state.take();
+            *proxy_state = Some(proxy);
+            if let Some(old_proxy) = old_proxy {
+                let mut process = old_proxy.process.lock();
+                let old_process = process.take();
+                if let Some(mut old) = old_process {
+                    old.kill();
+                }
+            }
+        }
+
+        let mut handler = ProxyHandler { window_id, tab_id };
+        if let Err(e) =
+            looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
+        {
+            println!("proxy main loop failed {:?}", e);
+        }
+        println!("proxy main loop exit");
     });
 }
 

@@ -348,7 +348,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
         let mut y = 0.0;
         for child in self.children.iter_mut() {
             let width = if child.flex {
-                flex_total / flex_sum * child.params
+                (flex_total / flex_sum * child.params).round()
             } else {
                 child.params
             };

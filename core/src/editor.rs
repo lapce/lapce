@@ -202,7 +202,11 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
         }
         self.header.paint(ctx, data, env);
+        let start = std::time::SystemTime::now();
         self.editor.paint(ctx, data, env);
+        let end = std::time::SystemTime::now();
+        let duration = end.duration_since(start).unwrap().as_micros();
+        println!("editor paint took {}", duration);
     }
 }
 
@@ -375,7 +379,11 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         }
 
         self.gutter.update(ctx, data, env);
+        let start = std::time::SystemTime::now();
         self.editor.update(ctx, data, env);
+        let end = std::time::SystemTime::now();
+        let duration = end.duration_since(start).unwrap().as_micros();
+        println!("editor update took {}", duration);
     }
 
     fn layout(
@@ -508,7 +516,7 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
     ) -> Size {
         let last_line = data.buffer.last_line() + 1;
         let width = 7.6171875;
-        let width = width * last_line.to_string().len() as f64;
+        let width = (width * last_line.to_string().len() as f64).ceil();
         Size::new(width, bc.max().height)
     }
 
@@ -765,49 +773,55 @@ impl Widget<LapceEditorViewData> for LapceEditor {
     ) {
         let buffer = &data.buffer;
         let old_buffer = &old_data.buffer;
-        if buffer.max_len != old_buffer.max_len
-            || buffer.num_lines != old_buffer.num_lines
-        {
-            ctx.request_layout();
-            return;
-        }
 
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
 
-        let offset = data.editor.scroll_offset;
-        let start_line = (offset.y / line_height) as usize;
-        let num_lines = (ctx.size().height / line_height) as usize;
-        let mut updated_start_line = None;
-        let mut updated_end_line = None;
-        for line in start_line..start_line + num_lines + 1 {
-            if line >= buffer.text_layouts.len() {
-                break;
-            }
-            if !old_buffer
-                .text_layouts
-                .get(line)
-                .unwrap_or(&Arc::new(None))
-                .same(&buffer.text_layouts[line])
+        if !old_buffer.same(buffer) || data.editor.size != old_data.editor.size {
+            println!("buffer content or size changed");
+            if buffer.max_len != old_buffer.max_len
+                || buffer.num_lines != old_buffer.num_lines
             {
-                if updated_start_line.is_none() {
-                    updated_start_line = Some(line);
-                }
-                updated_end_line = Some(line);
+                ctx.request_layout();
+                return;
             }
-        }
 
-        if let Some(updated_start_line) = updated_start_line {
-            let updated_end_line = updated_end_line.unwrap();
-            let rect = Rect::ZERO
-                .with_origin(Point::new(
-                    0.0,
-                    updated_start_line as f64 * line_height,
-                ))
-                .with_size(Size::new(
-                    ctx.size().width,
-                    (updated_end_line + 1 - updated_start_line) as f64 * line_height,
-                ));
-            ctx.request_paint_rect(rect);
+            let offset = data.editor.scroll_offset;
+            let start_line = (offset.y / line_height) as usize;
+            let num_lines = (data.editor.size.height / line_height) as usize;
+            println!("num of lines {}", num_lines);
+            let mut updated_start_line = None;
+            let mut updated_end_line = None;
+            for line in start_line..start_line + num_lines + 1 {
+                if line >= buffer.text_layouts.len() {
+                    break;
+                }
+                if !old_buffer
+                    .text_layouts
+                    .get(line)
+                    .unwrap_or(&Arc::new(None))
+                    .same(&buffer.text_layouts[line])
+                {
+                    if updated_start_line.is_none() {
+                        updated_start_line = Some(line);
+                    }
+                    updated_end_line = Some(line);
+                }
+            }
+
+            if let Some(updated_start_line) = updated_start_line {
+                let updated_end_line = updated_end_line.unwrap();
+                let rect = Rect::ZERO
+                    .with_origin(Point::new(
+                        0.0,
+                        updated_start_line as f64 * line_height,
+                    ))
+                    .with_size(Size::new(
+                        ctx.size().width,
+                        (updated_end_line + 1 - updated_start_line) as f64
+                            * line_height,
+                    ));
+                ctx.request_paint_rect(rect);
+            }
         }
 
         if old_data.editor.cursor != data.editor.cursor {

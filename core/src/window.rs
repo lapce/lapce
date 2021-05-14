@@ -806,12 +806,15 @@ impl Widget<LapceWindowData> for LapceWindowNew {
     ) {
         if old_data.active != data.active {
             ctx.request_layout();
-            return;
         }
+        let start = std::time::SystemTime::now();
         self.tabs
             .get_mut(&data.active)
             .unwrap()
             .update(ctx, data, env);
+        let end = std::time::SystemTime::now();
+        let duration = end.duration_since(start).unwrap().as_micros();
+        println!("update took {}", duration);
     }
 
     fn layout(
@@ -821,17 +824,27 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) -> Size {
+        let start = std::time::SystemTime::now();
         let tab = self.tabs.get_mut(&data.active).unwrap();
         tab.layout(ctx, bc, data, env);
         tab.set_origin(ctx, data, env, Point::ZERO);
+        let end = std::time::SystemTime::now();
+        let duration = end.duration_since(start).unwrap().as_micros();
+        println!("layout took {}", duration);
 
         bc.max()
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
+        let rects = ctx.region().rects().to_vec();
+        println!("window paint {:?}", rects);
+        let start = std::time::SystemTime::now();
         self.tabs
             .get_mut(&data.active)
             .unwrap()
             .paint(ctx, data, env);
+        let end = std::time::SystemTime::now();
+        let duration = end.duration_since(start).unwrap().as_micros();
+        println!("paint took {}", duration);
     }
 }

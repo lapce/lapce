@@ -27,8 +27,8 @@ pub fn lanuch() {
         .menu(MenuDesc::empty())
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
-    let launcher = AppLauncher::with_window(window)
-        .configure_env(|env, data| data.reload_env(env));
+    let launcher = AppLauncher::with_window(window);
+    let launcher = launcher.configure_env(|env, data| data.reload_env(env));
     launcher
         .use_simple_logger()
         .launch(data)
