@@ -814,7 +814,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             .update(ctx, data, env);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        println!("update took {}", duration);
+        // println!("update took {}", duration);
     }
 
     fn layout(
@@ -845,6 +845,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             .paint(ctx, data, env);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        println!("paint took {}", duration);
+        // println!("paint took {}", duration);
     }
 }

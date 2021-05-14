@@ -338,8 +338,8 @@ impl LapceEditorViewData {
     pub fn fill_text_layouts(&mut self, ctx: &mut EventCtx, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let start_line = (self.editor.scroll_offset.y / line_height) as usize;
-        let size = ctx.size();
-        let num_lines = (size.height / line_height) as usize;
+        let size = self.editor.size;
+        let num_lines = ((size.height / line_height).ceil()) as usize;
         let text = ctx.text();
         let buffer = self.buffer_mut();
         for line in start_line..start_line + num_lines + 1 {

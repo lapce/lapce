@@ -206,7 +206,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         self.editor.paint(ctx, data, env);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        println!("editor paint took {}", duration);
+        // println!("editor paint took {}", duration);
     }
 }
 
@@ -350,14 +350,15 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
     ) {
         match event {
             LifeCycle::Size(size) => {
+                println!("size change {:?}", self.editor_id);
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::FillTextLayouts,
+                    LapceUICommand::UpdateSize,
                     Target::Widget(self.editor_id),
                 ));
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSize,
+                    LapceUICommand::FillTextLayouts,
                     Target::Widget(self.editor_id),
                 ));
             }
@@ -383,7 +384,7 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         self.editor.update(ctx, data, env);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        println!("editor update took {}", duration);
+        // println!("editor update took {}", duration);
     }
 
     fn layout(
@@ -776,8 +777,12 @@ impl Widget<LapceEditorViewData> for LapceEditor {
 
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
 
-        if !old_buffer.same(buffer) || data.editor.size != old_data.editor.size {
-            println!("buffer content or size changed");
+        if data.editor.size != old_data.editor.size {
+            ctx.request_paint();
+            return;
+        }
+
+        if !old_buffer.same(buffer) {
             if buffer.max_len != old_buffer.max_len
                 || buffer.num_lines != old_buffer.num_lines
             {
@@ -788,7 +793,6 @@ impl Widget<LapceEditorViewData> for LapceEditor {
             let offset = data.editor.scroll_offset;
             let start_line = (offset.y / line_height) as usize;
             let num_lines = (data.editor.size.height / line_height) as usize;
-            println!("num of lines {}", num_lines);
             let mut updated_start_line = None;
             let mut updated_end_line = None;
             for line in start_line..start_line + num_lines + 1 {
@@ -881,7 +885,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         let rects = ctx.region().rects().to_vec();
         for rect in &rects {
             let start_line = (rect.y0 / line_height).floor() as usize;
-            let num_lines = (rect.height() / line_height).floor() as usize;
+            let num_lines = (rect.height() / line_height).ceil() as usize;
             self.paint_cursor(
                 ctx,
                 &data.editor.cursor,
@@ -3850,8 +3854,10 @@ pub struct EditorView {
     split_id: WidgetId,
     view_id: WidgetId,
     pub editor_id: WidgetId,
-    pub editor:
-        WidgetPod<LapceUIState, LapceScroll<LapceUIState, Padding<LapceUIState>>>,
+    pub editor: WidgetPod<
+        LapceUIState,
+        LapceScroll<LapceUIState, Padding<LapceUIState, IdentityWrapper<Editor>>>,
+    >,
     gutter: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     header: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
 }
