@@ -84,20 +84,19 @@ pub struct BufferUIState {
     pub dirty: bool,
 }
 
-#[derive(Data, Clone, Debug)]
+#[derive(Data, Clone)]
 pub enum BufferState {
     Loading,
     Open(Arc<BufferNew>),
 }
 
-#[derive(Debug)]
 pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,
     pub highlights: Vec<(usize, usize, String)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BufferNew {
     pub id: BufferId,
     pub rope: Rope,
@@ -444,6 +443,15 @@ impl BufferNew {
             Movement::StartOfLine => {
                 let line = self.line_of_offset(offset);
                 let new_offset = self.offset_of_line(line);
+                let new_offset = if new_offset == offset {
+                    if new_offset > 0 {
+                        new_offset - 1
+                    } else {
+                        0
+                    }
+                } else {
+                    new_offset
+                };
                 (new_offset, ColPosition::Start)
             }
             Movement::EndOfLine => {

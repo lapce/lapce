@@ -3854,10 +3854,8 @@ pub struct EditorView {
     split_id: WidgetId,
     view_id: WidgetId,
     pub editor_id: WidgetId,
-    pub editor: WidgetPod<
-        LapceUIState,
-        LapceScroll<LapceUIState, Padding<LapceUIState, IdentityWrapper<Editor>>>,
-    >,
+    pub editor:
+        WidgetPod<LapceUIState, LapceScroll<LapceUIState, Padding<LapceUIState>>>,
     gutter: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     header: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
 }
@@ -4451,7 +4449,7 @@ struct EditorTextLayout {
     text: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,

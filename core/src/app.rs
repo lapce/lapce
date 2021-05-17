@@ -1,5 +1,6 @@
 use druid::{
-    AppLauncher, Env, LocalizedString, Size, Widget, WidgetExt, WindowDesc, WindowId,
+    AppLauncher, Env, LocalizedString, MenuDesc, Size, Widget, WidgetExt,
+    WindowDesc, WindowId,
 };
 
 use crate::{
@@ -21,8 +22,9 @@ fn build_window(data: &LapceData) -> impl Widget<LapceData> {
 pub fn lanuch() {
     let data = LapceData::load();
     let root = build_window(&data);
-    let window = WindowDesc::new(root)
+    let window = WindowDesc::new(|| root)
         .title(LocalizedString::new("lapce").with_placeholder("Lapce"))
+        .menu(MenuDesc::empty())
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
     let launcher = AppLauncher::with_window(window);
