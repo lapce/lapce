@@ -478,6 +478,7 @@ pub enum Movement {
     Right,
     Up,
     Down,
+    FirstNonBlank,
     StartOfLine,
     EndOfLine,
     Line(LinePosition),
@@ -626,6 +627,11 @@ impl Movement {
                 let col = buffer.line_horiz_col(line, &horiz, include_newline);
                 let new_end = buffer.offset_of_line(line) + col;
                 (new_end, horiz)
+            }
+            Movement::FirstNonBlank => {
+                let line = buffer.line_of_offset(region.end);
+                let new_end = buffer.offset_of_line(line);
+                (new_end, ColPosition::Start)
             }
             Movement::StartOfLine => {
                 let line = buffer.line_of_offset(region.end);

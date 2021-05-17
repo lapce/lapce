@@ -684,6 +684,37 @@ impl KeyPressFocus for LapceEditorViewData {
                     Selection::caret(self.editor.cursor.offset()),
                 );
             }
+            LapceCommand::InsertFirstNonBlank => {
+                match &self.editor.cursor.mode {
+                    CursorMode::Normal(offset) => {
+                        let (offset, horiz) = self.buffer.move_offset(
+                            *offset,
+                            None,
+                            1,
+                            &Movement::FirstNonBlank,
+                            true,
+                            false,
+                        );
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Insert(Selection::caret(offset)),
+                            Some(horiz),
+                        ));
+                    }
+                    CursorMode::Visual { start, end, mode } => {
+                        let mut selection = Selection::new();
+                        for region in
+                            self.editor.cursor.edit_selection(&self.buffer).regions()
+                        {
+                            selection.add_region(SelRegion::caret(region.min()));
+                        }
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Insert(selection),
+                            None,
+                        ));
+                    }
+                    CursorMode::Insert(_) => {}
+                };
+            }
             LapceCommand::NewLineAbove => {
                 let line = self.editor.cursor.current_line(&self.buffer);
                 let offset = if line > 0 {

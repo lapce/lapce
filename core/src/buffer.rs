@@ -440,6 +440,11 @@ impl BufferNew {
                 let new_offset = self.offset_of_line(line) + col;
                 (new_offset, horiz)
             }
+            Movement::FirstNonBlank => {
+                let line = self.line_of_offset(offset);
+                let new_offset = self.first_non_blank_character_on_line(line);
+                (new_offset, ColPosition::FirstNonBlank)
+            }
             Movement::StartOfLine => {
                 let line = self.line_of_offset(offset);
                 let new_offset = self.offset_of_line(line);
