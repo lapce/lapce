@@ -1,4 +1,4 @@
-use std::{sync::Arc, thread};
+use std::{path::PathBuf, sync::Arc, thread};
 
 use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
@@ -6,11 +6,12 @@ use druid::{
 };
 
 use crate::{
-    buffer::{BufferId, BufferNew, BufferState},
+    buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     data::{LapceEditorLens, LapceMainSplitData, LapceTabData},
     editor::LapceEditorView,
     split::LapceSplitNew,
+    state::{LapceWorkspace, LapceWorkspaceType},
 };
 
 pub struct LapceTabNew {
@@ -66,6 +67,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                         tab_id, receiver, event_sink,
                     );
                 });
+                let workspace = LapceWorkspace {
+                    kind: LapceWorkspaceType::Local,
+                    path: PathBuf::from("/Users/Lulu/lapce"),
+                };
+                data.proxy.start(workspace, ctx.get_external_handle());
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -76,17 +82,42 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.main_split.notify_update_text_layouts(ctx, id);
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateSemanticTokens(id, rev, tokens) => {
+                        if let Some(buffer) = data.main_split.buffers.get(id) {
+                            if buffer.rev == *rev {
+                                if let Some(language) = buffer.language.as_ref() {
+                                    data.update_sender.send(
+                                        UpdateEvent::SemanticTokens(
+                                            BufferUpdate {
+                                                id: buffer.id,
+                                                rope: buffer.rope.clone(),
+                                                rev: *rev,
+                                                language: *language,
+                                                highlights: buffer
+                                                    .line_highlights
+                                                    .clone(),
+                                            },
+                                            tokens.to_owned(),
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateStyle {
                         id,
                         rev,
                         highlights,
                         changes,
+                        semantic_tokens,
                     } => {
                         let buffer = data.main_split.buffers.get_mut(id).unwrap();
                         Arc::make_mut(buffer).update_highlights(
                             *rev,
                             highlights.to_owned(),
                             changes.to_owned(),
+                            *semantic_tokens,
                         );
                         data.main_split.notify_update_text_layouts(ctx, id);
                         ctx.set_handled();

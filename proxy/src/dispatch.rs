@@ -413,6 +413,7 @@ impl Dispatcher {
                 let buffer = Buffer::new(buffer_id, path, self.git_sender.clone());
                 let content = buffer.rope.to_string();
                 self.buffers.lock().insert(buffer_id, buffer);
+                self.git_sender.send((buffer_id, 0));
                 let resp = NewBufferResponse { content };
                 self.sender.send(json!({
                     "id": id,

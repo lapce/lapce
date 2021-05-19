@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use crossbeam_utils::sync::WaitGroup;
-use druid::{piet::PietTextLayout, Key, Vec2};
+use druid::{piet::PietTextLayout, FontWeight, Key, Vec2};
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Color, Command, Data, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId,
@@ -104,6 +104,11 @@ pub struct Style {
     pub fg_color: Option<String>,
 }
 
+pub enum UpdateEvent {
+    Buffer(BufferUpdate),
+    SemanticTokens(BufferUpdate, Vec<(usize, usize, String)>),
+}
+
 pub struct BufferUpdate {
     pub id: BufferId,
     pub rope: Rope,
@@ -119,6 +124,7 @@ pub struct BufferNew {
     pub path: PathBuf,
     pub text_layouts: im::Vector<Arc<Option<Arc<HighlightTextLayout>>>>,
     pub line_highlights: Spans<Style>,
+    pub semantic_tokens: bool,
     pub language: Option<LapceLanguage>,
     pub max_len: usize,
     pub max_len_line: usize,
@@ -126,11 +132,11 @@ pub struct BufferNew {
     pub rev: u64,
     pub dirty: bool,
     pub loaded: bool,
-    update_sender: Arc<Sender<BufferUpdate>>,
+    update_sender: Arc<Sender<UpdateEvent>>,
 }
 
 impl BufferNew {
-    pub fn new(path: PathBuf, update_sender: Arc<Sender<BufferUpdate>>) -> Self {
+    pub fn new(path: PathBuf, update_sender: Arc<Sender<UpdateEvent>>) -> Self {
         let rope = Rope::from_str("").unwrap();
         let mut buffer = Self {
             id: BufferId::next(),
@@ -139,6 +145,7 @@ impl BufferNew {
             path,
             text_layouts: im::Vector::new(),
             line_highlights: SpansBuilder::new(0).build(),
+            semantic_tokens: false,
             max_len: 0,
             max_len_line: 0,
             num_lines: 0,
@@ -165,13 +172,15 @@ impl BufferNew {
 
     pub fn notify_update(&self) {
         if let Some(language) = self.language {
-            self.update_sender.send(BufferUpdate {
-                id: self.id,
-                rope: self.rope.clone(),
-                rev: self.rev,
-                language,
-                highlights: self.line_highlights.clone(),
-            });
+            if !self.semantic_tokens {
+                self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
+                    id: self.id,
+                    rope: self.rope.clone(),
+                    rev: self.rev,
+                    language,
+                    highlights: self.line_highlights.clone(),
+                }));
+            }
         }
     }
 
@@ -280,7 +289,7 @@ impl BufferNew {
             .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
             .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
         let start_offset = self.offset_of_line(line);
-        let end_offset = self.offset_of_line(line + 1) - 1;
+        let end_offset = self.offset_of_line(line + 1);
         for (iv, style) in self.line_highlights.iter_chunks(start_offset..end_offset)
         {
             let start = iv.start();
@@ -339,6 +348,14 @@ impl BufferNew {
 
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
+    }
+
+    pub fn offset_to_position(&self, offset: usize) -> Position {
+        let (line, col) = self.offset_to_line_col(offset);
+        Position {
+            line: line as u64,
+            character: col as u64,
+        }
     }
 
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
@@ -561,9 +578,13 @@ impl BufferNew {
         rev: u64,
         highlights: Spans<Style>,
         changes: std::collections::HashSet<usize>,
+        semantic_tokens: bool,
     ) {
         if rev != self.rev {
             return;
+        }
+        if semantic_tokens {
+            self.semantic_tokens = true;
         }
         println!("highlight changes {}", changes.len());
         self.line_highlights = highlights;
@@ -572,10 +593,6 @@ impl BufferNew {
                 *line_layout = Arc::new(None);
             }
         }
-    }
-
-    fn update_line_highlights(&mut self, delta: &RopeDelta) {
-        self.line_highlights.apply_shape(delta);
     }
 
     fn update_size(&mut self, inval_lines: &InvalLines) {
@@ -618,7 +635,7 @@ impl BufferNew {
         self.text_layouts.append(right);
     }
 
-    fn apply_delta(&mut self, delta: &RopeDelta) {
+    fn apply_delta(&mut self, proxy: Arc<LapceProxy>, delta: &RopeDelta) {
         if !self.loaded {
             return;
         }
@@ -627,7 +644,10 @@ impl BufferNew {
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
 
+        proxy.update(self.id, delta, self.rev);
+
         self.rope = delta.apply(&self.rope);
+        self.line_highlights.apply_shape(delta);
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
         let old_hard_count = old_logical_end_line - logical_start_line;
@@ -639,7 +659,6 @@ impl BufferNew {
             new_count: new_hard_count,
         };
         self.update_size(&inval_lines);
-        self.update_line_highlights(&delta);
         self.update_text_layouts(&inval_lines);
         self.notify_update();
     }
@@ -648,6 +667,7 @@ impl BufferNew {
         &mut self,
         ctx: &mut EventCtx,
         edits: Vec<(&Selection, &str)>,
+        proxy: Arc<LapceProxy>,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
         for (selection, content) in edits {
@@ -657,7 +677,7 @@ impl BufferNew {
             }
         }
         let delta = builder.build();
-        self.apply_delta(&delta);
+        self.apply_delta(proxy, &delta);
         delta
     }
 
@@ -666,8 +686,9 @@ impl BufferNew {
         ctx: &mut EventCtx,
         selection: &Selection,
         content: &str,
+        proxy: Arc<LapceProxy>,
     ) -> RopeDelta {
-        self.edit_multiple(ctx, vec![(selection, content)])
+        self.edit_multiple(ctx, vec![(selection, content)], proxy)
     }
 }
 

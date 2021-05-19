@@ -25,7 +25,7 @@ use xi_rpc::{RpcLoop, RpcPeer};
 use crate::{
     buffer::{
         previous_has_unmatched_pair, Buffer, BufferId, BufferNew, BufferState,
-        BufferUpdate, Style,
+        BufferUpdate, Style, UpdateEvent,
     },
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     keypress::{KeyPressData, KeyPressFocus},
@@ -170,7 +170,8 @@ pub struct LapceTabData {
     pub main_split: LapceMainSplitData,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
-    pub update_receiver: Option<Receiver<BufferUpdate>>,
+    pub update_receiver: Option<Receiver<UpdateEvent>>,
+    pub update_sender: Arc<Sender<UpdateEvent>>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
 }
 
@@ -189,45 +190,49 @@ impl LapceTabData {
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let proxy = Arc::new(LapceProxy::new(tab_id));
-        let main_split = LapceMainSplitData::new(update_sender);
-        let workspace = LapceWorkspace {
-            kind: LapceWorkspaceType::Local,
-            path: PathBuf::from("/Users/Lulu/lapce"),
-        };
-        proxy.start(workspace);
+        let main_split = LapceMainSplitData::new(update_sender.clone());
         Self {
             id: tab_id,
             main_split,
             proxy,
             keypress,
             theme,
+            update_sender,
             update_receiver: Some(update_receiver),
         }
     }
 
     pub fn buffer_update_process(
         tab_id: WidgetId,
-        receiver: Receiver<BufferUpdate>,
+        receiver: Receiver<UpdateEvent>,
         event_sink: ExtEventSink,
     ) {
         use std::collections::{HashMap, HashSet};
         fn insert_update(
-            updates: &mut HashMap<BufferId, BufferUpdate>,
-            update: BufferUpdate,
+            updates: &mut HashMap<BufferId, UpdateEvent>,
+            event: UpdateEvent,
         ) {
+            let update = match &event {
+                UpdateEvent::Buffer(update) => update,
+                UpdateEvent::SemanticTokens(update, tokens) => update,
+            };
             if let Some(current) = updates.get(&update.id) {
+                let current = match &event {
+                    UpdateEvent::Buffer(update) => update,
+                    UpdateEvent::SemanticTokens(update, tokens) => update,
+                };
                 if update.rev > current.rev {
-                    updates.insert(update.id, update);
+                    updates.insert(update.id, event);
                 }
             } else {
-                updates.insert(update.id, update);
+                updates.insert(update.id, event);
             }
         }
 
         fn receive_batch(
-            receiver: &Receiver<BufferUpdate>,
-        ) -> HashMap<BufferId, BufferUpdate> {
-            let mut updates: HashMap<BufferId, BufferUpdate> = HashMap::new();
+            receiver: &Receiver<UpdateEvent>,
+        ) -> HashMap<BufferId, UpdateEvent> {
+            let mut updates = HashMap::new();
             loop {
                 let update = receiver.recv().unwrap();
                 insert_update(&mut updates, update);
@@ -245,51 +250,78 @@ impl LapceTabData {
         let mut highlighter = Highlighter::new();
         let mut highlight_configs = HashMap::new();
         loop {
-            let updates = receive_batch(&receiver);
-            for (_, update) in updates {
-                if !highlight_configs.contains_key(&update.language) {
+            let events = receive_batch(&receiver);
+            for (_, event) in events {
+                let (update, tokens) = match event {
+                    UpdateEvent::Buffer(update) => (update, None),
+                    UpdateEvent::SemanticTokens(update, tokens) => {
+                        (update, Some(tokens))
+                    }
+                };
+
+                let semantic_tokens = tokens.is_some();
+
+                let highlights = if let Some(tokens) = tokens {
+                    let mut highlights = SpansBuilder::new(update.rope.len());
+                    for (start, end, hl) in tokens {
+                        highlights.add_span(
+                            Interval::new(start, end),
+                            Style {
+                                fg_color: Some(hl.to_string()),
+                            },
+                        );
+                    }
+                    let highlights = highlights.build();
+                    highlights
+                } else {
+                    if !highlight_configs.contains_key(&update.language) {
+                        let (highlight_config, highlight_names) =
+                            new_highlight_config(update.language);
+                        highlight_configs.insert(
+                            update.language,
+                            (highlight_config, highlight_names),
+                        );
+                    }
                     let (highlight_config, highlight_names) =
-                        new_highlight_config(update.language);
-                    highlight_configs.insert(
-                        update.language,
-                        (highlight_config, highlight_names),
-                    );
-                }
-                let (highlight_config, highlight_names) =
-                    highlight_configs.get(&update.language).unwrap();
-                let mut current_hl: Option<Highlight> = None;
-                let mut highlights = SpansBuilder::new(update.rope.len());
-                for hightlight in highlighter
-                    .highlight(
-                        highlight_config,
-                        update.rope.slice_to_cow(0..update.rope.len()).as_bytes(),
-                        None,
-                        |_| None,
-                    )
-                    .unwrap()
-                {
-                    if let Ok(highlight) = hightlight {
-                        match highlight {
-                            HighlightEvent::Source { start, end } => {
-                                if let Some(hl) = current_hl {
-                                    if let Some(hl) = highlight_names.get(hl.0) {
-                                        highlights.add_span(
-                                            Interval::new(start, end),
-                                            Style {
-                                                fg_color: Some(hl.to_string()),
-                                            },
-                                        );
+                        highlight_configs.get(&update.language).unwrap();
+                    let mut current_hl: Option<Highlight> = None;
+                    let mut highlights = SpansBuilder::new(update.rope.len());
+                    for hightlight in highlighter
+                        .highlight(
+                            highlight_config,
+                            update
+                                .rope
+                                .slice_to_cow(0..update.rope.len())
+                                .as_bytes(),
+                            None,
+                            |_| None,
+                        )
+                        .unwrap()
+                    {
+                        if let Ok(highlight) = hightlight {
+                            match highlight {
+                                HighlightEvent::Source { start, end } => {
+                                    if let Some(hl) = current_hl {
+                                        if let Some(hl) = highlight_names.get(hl.0) {
+                                            highlights.add_span(
+                                                Interval::new(start, end),
+                                                Style {
+                                                    fg_color: Some(hl.to_string()),
+                                                },
+                                            );
+                                        }
                                     }
                                 }
+                                HighlightEvent::HighlightStart(hl) => {
+                                    current_hl = Some(hl);
+                                }
+                                HighlightEvent::HighlightEnd => current_hl = None,
                             }
-                            HighlightEvent::HighlightStart(hl) => {
-                                current_hl = Some(hl);
-                            }
-                            HighlightEvent::HighlightEnd => current_hl = None,
                         }
                     }
-                }
-                let highlights = highlights.build();
+                    let highlights = highlights.build();
+                    highlights
+                };
 
                 let mut changes = HashSet::new();
                 let mut iter_red = update.highlights.iter();
@@ -373,16 +405,19 @@ impl LapceTabData {
                     }
                 }
 
-                event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateStyle {
-                        id: update.id,
-                        rev: update.rev,
-                        highlights,
-                        changes,
-                    },
-                    Target::Widget(tab_id),
-                );
+                if changes.len() > 0 {
+                    event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateStyle {
+                            id: update.id,
+                            rev: update.rev,
+                            highlights,
+                            changes,
+                            semantic_tokens,
+                        },
+                        Target::Widget(tab_id),
+                    );
+                }
             }
         }
     }
@@ -455,7 +490,7 @@ pub struct LapceMainSplitData {
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub buffers: im::HashMap<BufferId, Arc<BufferNew>>,
     pub open_files: im::HashMap<PathBuf, BufferId>,
-    pub update_sender: Arc<Sender<BufferUpdate>>,
+    pub update_sender: Arc<Sender<UpdateEvent>>,
 }
 
 impl LapceMainSplitData {
@@ -478,10 +513,10 @@ impl LapceMainSplitData {
 }
 
 impl LapceMainSplitData {
-    pub fn new(update_sender: Arc<Sender<BufferUpdate>>) -> Self {
+    pub fn new(update_sender: Arc<Sender<UpdateEvent>>) -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
-        let path = PathBuf::from("/Users/Lulu/lapce/src/editor_old.rs");
+        let path = PathBuf::from("/Users/Lulu/lapce/core/src/editor.rs");
         let editor = LapceEditorData::new(*split_id, path.clone());
         let editor_id = editor.editor_id;
         editors.insert(editor.view_id, Arc::new(editor));
@@ -529,6 +564,7 @@ impl LapceEditorData {
 #[derive(Clone, Data, Lens)]
 pub struct LapceEditorViewData {
     pub main_split: LapceMainSplitData,
+    pub proxy: Arc<LapceProxy>,
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,
     pub keypress: Arc<KeyPressData>,
@@ -715,8 +751,9 @@ impl LapceEditorViewData {
         selection: &Selection,
         c: &str,
     ) -> Selection {
+        let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
-        let delta = buffer.edit(ctx, &selection, c);
+        let delta = buffer.edit(ctx, &selection, c, proxy);
         let buffer_id = buffer.id;
         self.main_split.notify_update_text_layouts(ctx, &buffer_id);
         self.inactive_apply_delta(&delta);
@@ -757,6 +794,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             main_split: main_split.clone(),
             keypress: data.keypress.clone(),
             theme: data.theme.clone(),
+            proxy: data.proxy.clone(),
         };
         f(&editor_view)
     }
@@ -774,6 +812,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
             theme: data.theme.clone(),
+            proxy: data.proxy.clone(),
         };
         let result = f(&mut editor_view);
 

@@ -7,8 +7,8 @@ use std::{path::PathBuf, process::Child, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use crossbeam_utils::sync::WaitGroup;
-use druid::WidgetId;
-use druid::WindowId;
+use druid::{ExtEventSink, WidgetId};
+use druid::{Target, WindowId};
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lsp_types::Position;
 use lsp_types::PublishDiagnosticsParams;
@@ -22,11 +22,11 @@ use xi_rpc::Handler;
 use xi_rpc::RpcLoop;
 use xi_rpc::RpcPeer;
 
-use crate::buffer::BufferId;
 use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
 use crate::state::LAPCE_APP_STATE;
+use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 #[derive(Clone)]
 pub struct LapceProxy {
@@ -49,8 +49,9 @@ impl LapceProxy {
         proxy
     }
 
-    pub fn start(&self, workspace: LapceWorkspace) {
+    pub fn start(&self, workspace: LapceWorkspace, event_sink: ExtEventSink) {
         let proxy = self.clone();
+        let tab_id = self.tab_id;
         thread::spawn(move || {
             let mut child = match workspace.kind {
                 LapceWorkspaceType::Local => {
@@ -90,7 +91,7 @@ impl LapceProxy {
                 proxy.cond.notify_one();
             }
 
-            let mut handler = ProxyHandlerNew {};
+            let mut handler = ProxyHandlerNew { tab_id, event_sink };
             if let Err(e) =
                 looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
             {
@@ -523,7 +524,10 @@ pub fn start_proxy_process(
     });
 }
 
-pub struct ProxyHandlerNew {}
+pub struct ProxyHandlerNew {
+    tab_id: WidgetId,
+    event_sink: ExtEventSink,
+}
 
 impl Handler for ProxyHandlerNew {
     type Notification = Notification;
@@ -534,6 +538,32 @@ impl Handler for ProxyHandlerNew {
         ctx: &xi_rpc::RpcCtx,
         rpc: Self::Notification,
     ) {
+        match rpc {
+            Notification::SemanticTokens {
+                rev,
+                buffer_id,
+                tokens,
+            } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSemanticTokens(buffer_id, rev, tokens),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            Notification::UpdateGit {
+                buffer_id,
+                line_changes,
+                rev,
+            } => {}
+            Notification::ReloadBuffer {
+                buffer_id,
+                new_content,
+                rev,
+            } => {}
+            Notification::PublishDiagnostics { diagnostics } => {}
+            Notification::ListDir { items } => {}
+            Notification::DiffFiles { files } => {}
+        }
     }
 
     fn handle_request(
