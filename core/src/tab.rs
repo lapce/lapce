@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, thread};
 
 use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
@@ -58,6 +58,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         );
                     }
                 }
+                let receiver = data.update_receiver.take().unwrap();
+                let event_sink = ctx.get_external_handle();
+                let tab_id = self.id;
+                thread::spawn(move || {
+                    LapceTabData::buffer_update_process(
+                        tab_id, receiver, event_sink,
+                    );
+                });
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -65,6 +73,21 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::LoadBuffer { id, content } => {
                         let buffer = data.main_split.buffers.get_mut(id).unwrap();
                         Arc::make_mut(buffer).load_content(content);
+                        data.main_split.notify_update_text_layouts(ctx, id);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::UpdateStyle {
+                        id,
+                        rev,
+                        highlights,
+                        changes,
+                    } => {
+                        let buffer = data.main_split.buffers.get_mut(id).unwrap();
+                        Arc::make_mut(buffer).update_highlights(
+                            *rev,
+                            highlights.to_owned(),
+                            changes.to_owned(),
+                        );
                         data.main_split.notify_update_text_layouts(ctx, id);
                         ctx.set_handled();
                     }

@@ -1611,16 +1611,16 @@ impl ScrollComponentNew {
                         if self.opacity > 0.0 {
                             self.fade_interval_id =
                                 ctx.request_timer(Duration::from_millis(20));
-                        }
-                        if let Some(bounds) =
-                            self.calc_horizontal_bar_bounds(port, env)
-                        {
-                            ctx.request_paint_rect(bounds - scroll_offset);
-                        }
-                        if let Some(bounds) =
-                            self.calc_vertical_bar_bounds(port, env)
-                        {
-                            ctx.request_paint_rect(bounds - scroll_offset);
+                            if let Some(bounds) =
+                                self.calc_horizontal_bar_bounds(port, env)
+                            {
+                                ctx.request_paint_rect(bounds - scroll_offset);
+                            }
+                            if let Some(bounds) =
+                                self.calc_vertical_bar_bounds(port, env)
+                            {
+                                ctx.request_paint_rect(bounds - scroll_offset);
+                            }
                         }
                     }
                 }
@@ -1639,7 +1639,7 @@ impl ScrollComponentNew {
     ) {
         if !ctx.is_handled() {
             if let Event::Wheel(mouse) = event {
-                if port.pan_by(mouse.wheel_delta) {
+                if port.pan_by(mouse.wheel_delta.round()) {
                     ctx.request_paint();
                     ctx.set_handled();
                     self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);

@@ -27,7 +27,7 @@ lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
 xi-core-lib = "0.3.0"
-xi-rope = "0.3.0"
+xi-rope = { path = "../../xi-editor/rust/rope", features = ["serde"] }
 xi-rpc = "0.3.0"
 xi-trace = "0.2.0"
 fzyr = "0.1.2"

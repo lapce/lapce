@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use crossbeam_utils::sync::WaitGroup;
-use druid::{piet::PietTextLayout, Vec2};
+use druid::{piet::PietTextLayout, Key, Vec2};
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Color, Command, Data, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId,
@@ -18,7 +19,6 @@ use lsp_types::{
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
     borrow::Cow,
     ffi::OsString,
@@ -35,8 +35,11 @@ use tree_sitter_highlight::{
 };
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
-    interval::IntervalBounds, rope::Rope, Cursor, Delta, DeltaBuilder, Interval,
-    LinesMetric, RopeDelta, RopeInfo, Transformer,
+    interval::IntervalBounds,
+    rope::Rope,
+    spans::{Spans, SpansBuilder, SpansInfo},
+    Cursor, Delta, DeltaBuilder, Interval, LinesMetric, RopeDelta, RopeInfo,
+    Transformer,
 };
 
 use crate::{
@@ -96,34 +99,53 @@ pub struct HighlightTextLayout {
     pub highlights: Vec<(usize, usize, String)>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Style {
+    pub fg_color: Option<String>,
+}
+
+pub struct BufferUpdate {
+    pub id: BufferId,
+    pub rope: Rope,
+    pub rev: u64,
+    pub language: LapceLanguage,
+    pub highlights: Spans<Style>,
+}
+
 #[derive(Clone)]
 pub struct BufferNew {
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
     pub text_layouts: im::Vector<Arc<Option<Arc<HighlightTextLayout>>>>,
+    pub line_highlights: Spans<Style>,
+    pub language: Option<LapceLanguage>,
     pub max_len: usize,
     pub max_len_line: usize,
     pub num_lines: usize,
     pub rev: u64,
     pub dirty: bool,
     pub loaded: bool,
+    update_sender: Arc<Sender<BufferUpdate>>,
 }
 
 impl BufferNew {
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(path: PathBuf, update_sender: Arc<Sender<BufferUpdate>>) -> Self {
         let rope = Rope::from_str("").unwrap();
         let mut buffer = Self {
             id: BufferId::next(),
             rope,
+            language: LapceLanguage::from_path(&path),
             path,
             text_layouts: im::Vector::new(),
+            line_highlights: SpansBuilder::new(0).build(),
             max_len: 0,
             max_len_line: 0,
             num_lines: 0,
             rev: 0,
             loaded: false,
             dirty: false,
+            update_sender,
         };
         buffer.text_layouts =
             im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
@@ -138,6 +160,19 @@ impl BufferNew {
         self.num_lines = self.num_lines();
         self.text_layouts = im::Vector::from(vec![Arc::new(None); self.num_lines]);
         self.loaded = true;
+        self.notify_update();
+    }
+
+    pub fn notify_update(&self) {
+        if let Some(language) = self.language {
+            self.update_sender.send(BufferUpdate {
+                id: self.id,
+                rope: self.rope.clone(),
+                rev: self.rev,
+                language,
+                highlights: self.line_highlights.clone(),
+            });
+        }
     }
 
     pub fn retrieve_file(
@@ -217,6 +252,7 @@ impl BufferNew {
         &mut self,
         text: &mut PietText,
         line: usize,
+        theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) {
         if line >= self.text_layouts.len() {
@@ -225,7 +261,7 @@ impl BufferNew {
         if self.text_layouts[line].is_none() {
             let line_content = self.line_content(line);
             self.text_layouts[line] = Arc::new(Some(Arc::new(
-                self.get_text_layout(text, line, line_content, env),
+                self.get_text_layout(text, line, line_content, theme, env),
             )));
             return;
         }
@@ -236,12 +272,38 @@ impl BufferNew {
         text: &mut PietText,
         line: usize,
         line_content: String,
+        theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) -> HighlightTextLayout {
         let mut layout_builder = text
             .new_text_layout(line_content.replace('\t', "    "))
             .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
             .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        let start_offset = self.offset_of_line(line);
+        let end_offset = self.offset_of_line(line + 1) - 1;
+        for (iv, style) in self.line_highlights.iter_chunks(start_offset..end_offset)
+        {
+            let start = iv.start();
+            let end = iv.end();
+            if start > end_offset {
+                continue;
+            }
+            if end < start_offset {
+                continue;
+            }
+            if let Some(fg_color) = style.fg_color.as_ref() {
+                if let Some(fg_color) = theme.get(fg_color) {
+                    layout_builder = layout_builder.range_attribute(
+                        if start > start_offset {
+                            start - start_offset
+                        } else {
+                            0
+                        }..end - start_offset,
+                        TextAttribute::TextColor(fg_color.clone()),
+                    );
+                }
+            }
+        }
         let layout = layout_builder.build().unwrap();
         HighlightTextLayout {
             layout,
@@ -494,6 +556,28 @@ impl BufferNew {
         }
     }
 
+    pub fn update_highlights(
+        &mut self,
+        rev: u64,
+        highlights: Spans<Style>,
+        changes: std::collections::HashSet<usize>,
+    ) {
+        if rev != self.rev {
+            return;
+        }
+        println!("highlight changes {}", changes.len());
+        self.line_highlights = highlights;
+        for line in changes {
+            if let Some(line_layout) = self.text_layouts.get_mut(line) {
+                *line_layout = Arc::new(None);
+            }
+        }
+    }
+
+    fn update_line_highlights(&mut self, delta: &RopeDelta) {
+        self.line_highlights.apply_shape(delta);
+    }
+
     fn update_size(&mut self, inval_lines: &InvalLines) {
         if inval_lines.inval_count != inval_lines.new_count {
             self.num_lines = self.num_lines();
@@ -555,7 +639,9 @@ impl BufferNew {
             new_count: new_hard_count,
         };
         self.update_size(&inval_lines);
+        self.update_line_highlights(&delta);
         self.update_text_layouts(&inval_lines);
+        self.notify_update();
     }
 
     pub fn edit_multiple(

@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::str::FromStr;
+use std::{collections::HashMap, path::PathBuf};
 use tree_sitter::Parser;
 use tree_sitter_highlight::HighlightConfiguration;
 use tree_sitter_rust;
@@ -7,6 +8,16 @@ use tree_sitter_rust;
 pub enum LapceLanguage {
     Rust,
     // Go,
+}
+
+impl LapceLanguage {
+    pub fn from_path(path: &PathBuf) -> Option<LapceLanguage> {
+        let extension = path.extension()?.to_str()?;
+        Some(match extension {
+            "rs" => LapceLanguage::Rust,
+            _ => return None,
+        })
+    }
 }
 
 pub struct TreeSitter {

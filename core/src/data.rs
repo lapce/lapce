@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::{BufReader, Read},
     path::PathBuf,
@@ -8,23 +9,27 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use crossbeam_utils::sync::WaitGroup;
 use druid::{
-    theme, Color, Command, Data, Env, EventCtx, FontDescriptor, FontFamily,
-    KeyEvent, Lens, Rect, Size, Target, Vec2, WidgetId, WindowId,
+    theme, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
+    FontFamily, KeyEvent, Lens, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 use im;
 use parking_lot::Mutex;
+use tree_sitter_highlight::{Highlight, HighlightEvent, Highlighter};
 use xi_core_lib::selection::InsertDrift;
-use xi_rope::{DeltaBuilder, RopeDelta};
+use xi_rope::{spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta};
 use xi_rpc::{RpcLoop, RpcPeer};
 
 use crate::{
     buffer::{
         previous_has_unmatched_pair, Buffer, BufferId, BufferNew, BufferState,
+        BufferUpdate, Style,
     },
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     keypress::{KeyPressData, KeyPressFocus},
+    language::new_highlight_config,
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
     proxy::{LapceProxy, ProxyHandlerNew},
     split::SplitMoveDirection,
@@ -35,8 +40,7 @@ use crate::{
 #[derive(Clone, Data)]
 pub struct LapceData {
     pub windows: im::HashMap<WindowId, LapceWindowData>,
-    pub theme: im::HashMap<String, Color>,
-    pub theme_changed: bool,
+    pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub keypress: Arc<KeyPressData>,
 }
 
@@ -44,25 +48,26 @@ impl LapceData {
     pub fn load() -> Self {
         let mut windows = im::HashMap::new();
         let keypress = Arc::new(KeyPressData::new());
-        let window = LapceWindowData::new(keypress.clone());
+        let theme =
+            Arc::new(Self::get_theme().unwrap_or(std::collections::HashMap::new()));
+        let window = LapceWindowData::new(keypress.clone(), theme.clone());
         windows.insert(WindowId::next(), window);
         Self {
             windows,
-            theme: Self::get_theme().unwrap_or(im::HashMap::new()),
-            theme_changed: true,
+            theme,
             keypress,
         }
     }
 
-    fn get_theme() -> Result<im::HashMap<String, Color>> {
+    fn get_theme() -> Result<std::collections::HashMap<String, Color>> {
         let mut f = File::open("/Users/Lulu/lapce/.lapce/theme.toml")?;
         let mut content = vec![];
         f.read_to_end(&mut content)?;
         let toml_theme: im::HashMap<String, String> = toml::from_slice(&content)?;
 
-        let mut theme = im::HashMap::new();
+        let mut theme = std::collections::HashMap::new();
         for (name, hex) in toml_theme.iter() {
-            if let Ok(color) = hex_to_color(hex) {
+            if let Ok(color) = Color::from_hex_str(hex) {
                 theme.insert(name.to_string(), color);
             }
         }
@@ -120,7 +125,10 @@ impl LapceData {
             FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
                 .with_size(13.0),
         );
-        env.set(theme::SCROLLBAR_COLOR, hex_to_color("#c4c4c4").unwrap());
+        env.set(
+            theme::SCROLLBAR_COLOR,
+            Color::from_hex_str("#c4c4c4").unwrap(),
+        );
     }
 }
 
@@ -129,6 +137,7 @@ pub struct LapceWindowData {
     pub tabs: im::HashMap<WidgetId, LapceTabData>,
     pub active: WidgetId,
     pub keypress: Arc<KeyPressData>,
+    pub theme: Arc<std::collections::HashMap<String, Color>>,
 }
 
 impl Data for LapceWindowData {
@@ -138,15 +147,19 @@ impl Data for LapceWindowData {
 }
 
 impl LapceWindowData {
-    pub fn new(keypress: Arc<KeyPressData>) -> Self {
+    pub fn new(
+        keypress: Arc<KeyPressData>,
+        theme: Arc<std::collections::HashMap<String, Color>>,
+    ) -> Self {
         let mut tabs = im::HashMap::new();
         let tab_id = WidgetId::next();
-        let tab = LapceTabData::new(tab_id, keypress.clone());
+        let tab = LapceTabData::new(tab_id, keypress.clone(), theme.clone());
         tabs.insert(tab_id, tab);
         Self {
             tabs,
             active: tab_id,
             keypress,
+            theme,
         }
     }
 }
@@ -157,6 +170,8 @@ pub struct LapceTabData {
     pub main_split: LapceMainSplitData,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
+    pub update_receiver: Option<Receiver<BufferUpdate>>,
+    pub theme: Arc<std::collections::HashMap<String, Color>>,
 }
 
 impl Data for LapceTabData {
@@ -166,9 +181,15 @@ impl Data for LapceTabData {
 }
 
 impl LapceTabData {
-    pub fn new(tab_id: WidgetId, keypress: Arc<KeyPressData>) -> Self {
+    pub fn new(
+        tab_id: WidgetId,
+        keypress: Arc<KeyPressData>,
+        theme: Arc<std::collections::HashMap<String, Color>>,
+    ) -> Self {
+        let (update_sender, update_receiver) = unbounded();
+        let update_sender = Arc::new(update_sender);
         let proxy = Arc::new(LapceProxy::new(tab_id));
-        let main_split = LapceMainSplitData::new();
+        let main_split = LapceMainSplitData::new(update_sender);
         let workspace = LapceWorkspace {
             kind: LapceWorkspaceType::Local,
             path: PathBuf::from("/Users/Lulu/lapce"),
@@ -179,6 +200,190 @@ impl LapceTabData {
             main_split,
             proxy,
             keypress,
+            theme,
+            update_receiver: Some(update_receiver),
+        }
+    }
+
+    pub fn buffer_update_process(
+        tab_id: WidgetId,
+        receiver: Receiver<BufferUpdate>,
+        event_sink: ExtEventSink,
+    ) {
+        use std::collections::{HashMap, HashSet};
+        fn insert_update(
+            updates: &mut HashMap<BufferId, BufferUpdate>,
+            update: BufferUpdate,
+        ) {
+            if let Some(current) = updates.get(&update.id) {
+                if update.rev > current.rev {
+                    updates.insert(update.id, update);
+                }
+            } else {
+                updates.insert(update.id, update);
+            }
+        }
+
+        fn receive_batch(
+            receiver: &Receiver<BufferUpdate>,
+        ) -> HashMap<BufferId, BufferUpdate> {
+            let mut updates: HashMap<BufferId, BufferUpdate> = HashMap::new();
+            loop {
+                let update = receiver.recv().unwrap();
+                insert_update(&mut updates, update);
+                match receiver.try_recv() {
+                    Ok(update) => {
+                        insert_update(&mut updates, update);
+                    }
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => (),
+                }
+            }
+            updates
+        }
+
+        let mut highlighter = Highlighter::new();
+        let mut highlight_configs = HashMap::new();
+        loop {
+            let updates = receive_batch(&receiver);
+            for (_, update) in updates {
+                if !highlight_configs.contains_key(&update.language) {
+                    let (highlight_config, highlight_names) =
+                        new_highlight_config(update.language);
+                    highlight_configs.insert(
+                        update.language,
+                        (highlight_config, highlight_names),
+                    );
+                }
+                let (highlight_config, highlight_names) =
+                    highlight_configs.get(&update.language).unwrap();
+                let mut current_hl: Option<Highlight> = None;
+                let mut highlights = SpansBuilder::new(update.rope.len());
+                for hightlight in highlighter
+                    .highlight(
+                        highlight_config,
+                        update.rope.slice_to_cow(0..update.rope.len()).as_bytes(),
+                        None,
+                        |_| None,
+                    )
+                    .unwrap()
+                {
+                    if let Ok(highlight) = hightlight {
+                        match highlight {
+                            HighlightEvent::Source { start, end } => {
+                                if let Some(hl) = current_hl {
+                                    if let Some(hl) = highlight_names.get(hl.0) {
+                                        highlights.add_span(
+                                            Interval::new(start, end),
+                                            Style {
+                                                fg_color: Some(hl.to_string()),
+                                            },
+                                        );
+                                    }
+                                }
+                            }
+                            HighlightEvent::HighlightStart(hl) => {
+                                current_hl = Some(hl);
+                            }
+                            HighlightEvent::HighlightEnd => current_hl = None,
+                        }
+                    }
+                }
+                let highlights = highlights.build();
+
+                let mut changes = HashSet::new();
+                let mut iter_red = update.highlights.iter();
+                let mut iter_blue = highlights.iter();
+
+                let mut insert_line_changes = |iv: &Interval| {
+                    for i in update.rope.line_of_offset(iv.start)
+                        ..update.rope.line_of_offset(iv.end) + 1
+                    {
+                        changes.insert(i);
+                    }
+                };
+
+                let mut next_red = iter_red.next();
+                let mut next_blue = iter_blue.next();
+                loop {
+                    // exit conditions:
+                    if next_red.is_none() && next_blue.is_none() {
+                        // all merged.
+                        break;
+                    } else if next_red.is_none() != next_blue.is_none() {
+                        // one side is exhausted; append remaining items from other side.
+                        let iter = if next_red.is_some() {
+                            iter_red
+                        } else {
+                            iter_blue
+                        };
+                        // add this item
+                        let (iv, _) = next_red.or(next_blue).unwrap();
+                        insert_line_changes(&iv);
+
+                        for (iv, _) in iter {
+                            insert_line_changes(&iv);
+                        }
+                        break;
+                    }
+
+                    let (mut red_iv, red_val) = next_red.unwrap();
+                    let (mut blue_iv, blue_val) = next_blue.unwrap();
+
+                    if red_iv.intersect(blue_iv).is_empty() {
+                        // spans do not overlap. Add the leading span & advance that iter.
+                        insert_line_changes(&red_iv);
+                        insert_line_changes(&blue_iv);
+                        if red_iv.is_before(blue_iv.start()) {
+                            next_red = iter_red.next();
+                        } else {
+                            next_blue = iter_blue.next();
+                        }
+                        continue;
+                    }
+
+                    if red_iv.start() < blue_iv.start() {
+                        let iv = red_iv.prefix(blue_iv);
+                        insert_line_changes(&iv);
+                        red_iv = red_iv.suffix(iv);
+                    } else if blue_iv.start() < red_iv.start() {
+                        let iv = blue_iv.prefix(red_iv);
+                        insert_line_changes(&iv);
+                        blue_iv = blue_iv.suffix(iv);
+                    }
+
+                    let iv = red_iv.intersect(blue_iv);
+                    if red_val != blue_val {
+                        insert_line_changes(&iv);
+                    }
+
+                    red_iv = red_iv.suffix(iv);
+                    blue_iv = blue_iv.suffix(iv);
+
+                    if red_iv.is_empty() {
+                        next_red = iter_red.next();
+                    } else {
+                        next_red = Some((red_iv, red_val));
+                    }
+
+                    if blue_iv.is_empty() {
+                        next_blue = iter_blue.next();
+                    } else {
+                        next_blue = Some((blue_iv, blue_val));
+                    }
+                }
+
+                event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateStyle {
+                        id: update.id,
+                        rev: update.rev,
+                        highlights,
+                        changes,
+                    },
+                    Target::Widget(tab_id),
+                );
+            }
         }
     }
 }
@@ -202,8 +407,10 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
     ) -> V {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
+        tab.theme = data.theme.clone();
         let result = f(&mut tab);
         data.keypress = tab.keypress.clone();
+        data.theme = tab.theme.clone();
         if !tab.same(data.tabs.get(&self.0).unwrap()) {
             data.tabs.insert(self.0, tab);
         }
@@ -230,8 +437,10 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     ) -> V {
         let mut win = data.windows.get(&self.0).unwrap().clone();
         win.keypress = data.keypress.clone();
+        win.theme = data.theme.clone();
         let result = f(&mut win);
         data.keypress = win.keypress.clone();
+        data.theme = win.theme.clone();
         if !win.same(data.windows.get(&self.0).unwrap()) {
             data.windows.insert(self.0, win);
         }
@@ -246,6 +455,7 @@ pub struct LapceMainSplitData {
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub buffers: im::HashMap<BufferId, Arc<BufferNew>>,
     pub open_files: im::HashMap<PathBuf, BufferId>,
+    pub update_sender: Arc<Sender<BufferUpdate>>,
 }
 
 impl LapceMainSplitData {
@@ -268,14 +478,14 @@ impl LapceMainSplitData {
 }
 
 impl LapceMainSplitData {
-    pub fn new() -> Self {
+    pub fn new(update_sender: Arc<Sender<BufferUpdate>>) -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
         let path = PathBuf::from("/Users/Lulu/lapce/src/editor_old.rs");
         let editor = LapceEditorData::new(*split_id, path.clone());
         let editor_id = editor.editor_id;
         editors.insert(editor.view_id, Arc::new(editor));
-        let buffer = BufferNew::new(path.clone());
+        let buffer = BufferNew::new(path.clone(), update_sender.clone());
         let mut open_files = im::HashMap::new();
         open_files.insert(path.clone(), buffer.id);
         let mut buffers = im::HashMap::new();
@@ -286,6 +496,7 @@ impl LapceMainSplitData {
             buffers,
             open_files,
             focus: Arc::new(editor_id),
+            update_sender,
         }
     }
 }
@@ -321,6 +532,7 @@ pub struct LapceEditorViewData {
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,
     pub keypress: Arc<KeyPressData>,
+    pub theme: Arc<std::collections::HashMap<String, Color>>,
 }
 
 impl LapceEditorViewData {
@@ -335,7 +547,12 @@ impl LapceEditorViewData {
         Arc::make_mut(&mut self.buffer)
     }
 
-    pub fn fill_text_layouts(&mut self, ctx: &mut EventCtx, env: &Env) {
+    pub fn fill_text_layouts(
+        &mut self,
+        ctx: &mut EventCtx,
+        theme: &Arc<HashMap<String, Color>>,
+        env: &Env,
+    ) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let start_line = (self.editor.scroll_offset.y / line_height) as usize;
         let size = self.editor.size;
@@ -343,7 +560,7 @@ impl LapceEditorViewData {
         let text = ctx.text();
         let buffer = self.buffer_mut();
         for line in start_line..start_line + num_lines + 1 {
-            buffer.update_line_layouts(text, line, env);
+            buffer.update_line_layouts(text, line, theme, env);
         }
     }
 
@@ -539,6 +756,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             editor: editor.clone(),
             main_split: main_split.clone(),
             keypress: data.keypress.clone(),
+            theme: data.theme.clone(),
         };
         f(&editor_view)
     }
@@ -555,11 +773,13 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             editor: editor.clone(),
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
+            theme: data.theme.clone(),
         };
         let result = f(&mut editor_view);
 
         data.keypress = editor_view.keypress.clone();
         data.main_split = editor_view.main_split.clone();
+        data.theme = editor_view.theme.clone();
         if !editor.same(&editor_view.editor) {
             data.main_split
                 .editors

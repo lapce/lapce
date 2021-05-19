@@ -22,6 +22,7 @@ use crate::{
     source_control::SourceControlState,
 };
 use anyhow::{anyhow, Result};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Lens,
     Modifiers, Target, WidgetId, WindowId,
@@ -39,7 +40,6 @@ use serde_json::Value;
 use std::process::Child;
 use std::process::Command;
 use std::process::Stdio;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
     collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
     sync::Arc, thread,
@@ -137,7 +137,7 @@ impl LapceUIState {
             }
         }
 
-        let (sender, receiver) = channel();
+        let (sender, receiver) = unbounded();
         let state = LapceUIState {
             mode: Mode::Normal,
             buffers: Arc::new(HashMap::new()),

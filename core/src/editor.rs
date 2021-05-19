@@ -48,7 +48,10 @@ use druid::{
     WidgetId, WidgetPod, WindowId,
 };
 use druid::{
-    piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
+    piet::{
+        PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
+        TextLayoutBuilder,
+    },
     FontWeight,
 };
 use druid::{Application, FileDialogOptions};
@@ -254,7 +257,7 @@ impl LapceEditorContainer {
     ) {
         match cmd {
             LapceUICommand::FillTextLayouts => {
-                data.fill_text_layouts(ctx, env);
+                data.fill_text_layouts(ctx, &data.theme.clone(), env);
                 ctx.set_handled();
             }
             LapceUICommand::EnsureCursorVisible => {
@@ -337,7 +340,7 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         let offset = self.editor.widget().child().inner().offset();
         if data.editor.scroll_offset != offset {
             Arc::make_mut(&mut data.editor).scroll_offset = offset;
-            data.fill_text_layouts(ctx, env);
+            data.fill_text_layouts(ctx, &data.theme.clone(), env);
         }
     }
 
@@ -596,22 +599,24 @@ impl LapceEditor {
     fn paint_cursor(
         &mut self,
         ctx: &mut PaintCtx,
-        cursor: &Cursor,
-        buffer: &BufferNew,
-        active: bool,
-        start_line: usize,
-        number_lines: usize,
+        data: &LapceEditorViewData,
         env: &Env,
     ) {
-        let width = 7.6171875;
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        match &cursor.mode {
+        let active = *data.main_split.focus == self.editor_id;
+        let start_line =
+            (data.editor.scroll_offset.y / line_height).floor() as usize;
+        let end_line = ((data.editor.size.height + data.editor.scroll_offset.y)
+            / line_height)
+            .ceil() as usize;
+        let width = 7.6171875;
+        match &data.editor.cursor.mode {
             CursorMode::Normal(offset) => {
-                let (line, col) = buffer.offset_to_line_col(*offset);
+                let (line, col) = data.buffer.offset_to_line_col(*offset);
                 self.paint_cursor_line(ctx, line, env);
 
                 if active {
-                    let cursor_x = buffer.col_x(line, col, width);
+                    let cursor_x = data.buffer.col_x(line, col, width);
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(
@@ -625,17 +630,20 @@ impl LapceEditor {
             }
             CursorMode::Visual { start, end, mode } => {
                 let paint_start_line = start_line;
+                let paint_end_line = end_line;
                 let (start_line, start_col) =
-                    buffer.offset_to_line_col(*start.min(end));
-                let (end_line, end_col) = buffer.offset_to_line_col(*start.max(end));
-                for line in paint_start_line..paint_start_line + number_lines + 1 {
+                    data.buffer.offset_to_line_col(*start.min(end));
+                let (end_line, end_col) =
+                    data.buffer.offset_to_line_col(*start.max(end));
+                for line in paint_start_line..paint_end_line {
                     if line < start_line || line > end_line {
                         continue;
                     }
-                    let line_content = buffer
+                    let line_content = data
+                        .buffer
                         .slice_to_cow(
-                            buffer.offset_of_line(line)
-                                ..buffer.offset_of_line(line + 1),
+                            data.buffer.offset_of_line(line)
+                                ..data.buffer.offset_of_line(line + 1),
                         )
                         .to_string();
                     let left_col = match mode {
@@ -645,7 +653,7 @@ impl LapceEditor {
                         },
                         &VisualMode::Linewise => 0,
                         &VisualMode::Blockwise => {
-                            let max_col = buffer.line_max_col(line, false);
+                            let max_col = data.buffer.line_max_col(line, false);
                             let left = start_col.min(end_col);
                             if left > max_col {
                                 continue;
@@ -661,21 +669,21 @@ impl LapceEditor {
                     let right_col = match mode {
                         &VisualMode::Normal => match line {
                             _ if line == end_line => {
-                                let max_col = buffer.line_max_col(line, true);
+                                let max_col = data.buffer.line_max_col(line, true);
                                 (end_col + 1).min(max_col)
                             }
                             _ => {
-                                buffer.offset_of_line(line + 1)
-                                    - buffer.offset_of_line(line)
+                                data.buffer.offset_of_line(line + 1)
+                                    - data.buffer.offset_of_line(line)
                             }
                         },
                         &VisualMode::Linewise => {
-                            buffer.offset_of_line(line + 1)
-                                - buffer.offset_of_line(line)
+                            data.buffer.offset_of_line(line + 1)
+                                - data.buffer.offset_of_line(line)
                         }
                         &VisualMode::Blockwise => {
-                            let max_col = buffer.line_max_col(line, true);
-                            let right = match cursor.horiz.as_ref() {
+                            let max_col = data.buffer.line_max_col(line, true);
+                            let right = match data.editor.cursor.horiz.as_ref() {
                                 Some(&ColPosition::End) => max_col,
                                 _ => (end_col.max(start_col) + 1).min(max_col),
                             };
@@ -696,8 +704,8 @@ impl LapceEditor {
                         );
                     }
 
-                    let (line, col) = buffer.offset_to_line_col(*end);
-                    let cursor_x = buffer.col_x(line, col, width);
+                    let (line, col) = data.buffer.offset_to_line_col(*end);
+                    let cursor_x = data.buffer.col_x(line, col, width);
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(
@@ -711,22 +719,22 @@ impl LapceEditor {
             }
             CursorMode::Insert(selection) => {
                 let offset = selection.get_cursor_offset();
-                let line = buffer.line_of_offset(offset);
+                let line = data.buffer.line_of_offset(offset);
                 self.paint_cursor_line(ctx, line, env);
                 if active {
-                    let last_line = buffer.last_line();
-                    let end_line = start_line + number_lines;
+                    let last_line = data.buffer.last_line();
                     let end_line = if end_line > last_line {
                         last_line
                     } else {
                         end_line
                     };
-                    let start = buffer.offset_of_line(start_line);
-                    let end = buffer.offset_of_line(end_line + 1);
+                    let start = data.buffer.offset_of_line(start_line);
+                    let end = data.buffer.offset_of_line(end_line + 1);
                     let regions = selection.regions_in_range(start, end);
                     for region in regions {
-                        let (line, col) = buffer.offset_to_line_col(region.min());
-                        let x = buffer.col_x(line, col, width);
+                        let (line, col) =
+                            data.buffer.offset_to_line_col(region.min());
+                        let x = data.buffer.col_x(line, col, width).round();
                         let y = line as f64 * line_height;
                         ctx.stroke(
                             Line::new(
@@ -882,21 +890,13 @@ impl Widget<LapceEditorViewData> for LapceEditor {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        self.paint_cursor(ctx, data, env);
         let rects = ctx.region().rects().to_vec();
         for rect in &rects {
             let start_line = (rect.y0 / line_height).floor() as usize;
-            let num_lines = (rect.height() / line_height).ceil() as usize;
-            self.paint_cursor(
-                ctx,
-                &data.editor.cursor,
-                &data.buffer,
-                *data.main_split.focus == self.editor_id,
-                start_line,
-                num_lines,
-                env,
-            );
+            let end_line = (rect.y1 / line_height).ceil() as usize;
             let last_line = data.buffer.last_line();
-            for line in start_line..start_line + num_lines + 1 {
+            for line in start_line..end_line {
                 if line > last_line {
                     break;
                 }
@@ -3854,8 +3854,10 @@ pub struct EditorView {
     split_id: WidgetId,
     view_id: WidgetId,
     pub editor_id: WidgetId,
-    pub editor:
-        WidgetPod<LapceUIState, LapceScroll<LapceUIState, Padding<LapceUIState>>>,
+    pub editor: WidgetPod<
+        LapceUIState,
+        LapceScroll<LapceUIState, Padding<LapceUIState, IdentityWrapper<Editor>>>,
+    >,
     gutter: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
     header: WidgetPod<LapceUIState, Box<dyn Widget<LapceUIState>>>,
 }

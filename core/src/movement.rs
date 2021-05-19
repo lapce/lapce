@@ -70,8 +70,8 @@ impl Cursor {
         let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
         let line = if line > 1 { line - 1 } else { 0 };
         Rect::ZERO
-            .with_origin(Point::new(cursor_x, line as f64 * line_height))
-            .with_size(Size::new(width * 3.0, line_height * 3.0))
+            .with_origin(Point::new(cursor_x.floor(), line as f64 * line_height))
+            .with_size(Size::new((width * 3.0).ceil(), line_height * 3.0))
     }
 
     pub fn edit_selection(&self, buffer: &BufferNew) -> Selection {

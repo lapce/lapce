@@ -7,10 +7,11 @@ use serde_json::Value;
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
 use tree_sitter_highlight::Highlight;
+use xi_rope::spans::Spans;
 
 use crate::{
     buffer::BufferId,
-    buffer::InvalLines,
+    buffer::{InvalLines, Style},
     editor::{EditorLocation, HighlightTextLayout},
     split::SplitMoveDirection,
 };
@@ -193,7 +194,10 @@ pub enum EnsureVisiblePosition {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
-    LoadBuffer { id: BufferId, content: String },
+    LoadBuffer {
+        id: BufferId,
+        content: String,
+    },
     OpenFile(String),
     FillTextLayouts,
     UpdateSize,
@@ -210,6 +214,12 @@ pub enum LapceUICommand {
     ApplyEdits(usize, u64, Vec<TextEdit>),
     ApplyEditsAndSave(usize, u64, Result<Value>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
+    UpdateStyle {
+        id: BufferId,
+        rev: u64,
+        highlights: Spans<Style>,
+        changes: std::collections::HashSet<usize>,
+    },
     CenterOfWindow,
     UpdateLineChanges(BufferId),
     ReloadBuffer(BufferId, u64, String),
