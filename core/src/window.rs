@@ -837,7 +837,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
         let rects = ctx.region().rects().to_vec();
-        println!("window paint {:?}", rects);
+        // println!("window paint {:?}", rects);
         let start = std::time::SystemTime::now();
         self.tabs
             .get_mut(&data.active)
@@ -845,6 +845,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             .paint(ctx, data, env);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        println!("paint took {}", duration);
+        // println!("paint took {}", duration);
     }
 }

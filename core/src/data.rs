@@ -572,11 +572,17 @@ pub struct LapceEditorViewData {
 }
 
 impl LapceEditorViewData {
-    pub fn key_down(&mut self, ctx: &mut EventCtx, key_event: &KeyEvent, env: &Env) {
+    pub fn key_down(
+        &mut self,
+        ctx: &mut EventCtx,
+        key_event: &KeyEvent,
+        env: &Env,
+    ) -> bool {
         let mut keypress = self.keypress.clone();
         let k = Arc::make_mut(&mut keypress);
-        k.key_down(ctx, key_event, self, env);
+        let executed = k.key_down(ctx, key_event, self, env);
         self.keypress = keypress;
+        executed
     }
 
     pub fn buffer_mut(&mut self) -> &mut BufferNew {
@@ -666,9 +672,49 @@ impl LapceEditorViewData {
         }
     }
 
+    fn scroll(&mut self, ctx: &mut EventCtx, down: bool, count: usize, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let diff = line_height * count as f64;
+        let diff = if down { diff } else { -diff };
+
+        println!("diff is {}", diff);
+
+        let offset = self.editor.cursor.offset();
+        let (line, col) = self.buffer.offset_to_line_col(offset);
+        let top = self.editor.scroll_offset.y + diff;
+        let bottom = top + self.editor.size.height;
+
+        let line = if (line + 1) as f64 * line_height + line_height > bottom {
+            let line = (bottom / line_height).floor() as usize;
+            if line > 2 {
+                line - 2
+            } else {
+                0
+            }
+        } else if line as f64 * line_height - line_height < top {
+            let line = (top / line_height).ceil() as usize;
+            line + 1
+        } else {
+            line
+        };
+
+        let offset = self.buffer.offset_of_line(line)
+            + col.min(self.buffer.line_max_col(line, false));
+        self.set_cursor(Cursor::new(
+            CursorMode::Normal(offset),
+            self.editor.cursor.horiz.clone(),
+        ));
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Scroll((0.0, diff)),
+            Target::Widget(self.editor.editor_id),
+        ));
+    }
+
     fn page_move(&mut self, ctx: &mut EventCtx, down: bool, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let lines = (self.editor.size.height / line_height / 2.0).round() as usize;
+        let distance = (lines as f64) * line_height;
         let offset = self.editor.cursor.offset();
         let (offset, horiz) = self.buffer.move_offset(
             offset,
@@ -682,7 +728,7 @@ impl LapceEditorViewData {
         let rect = Rect::ZERO
             .with_origin(
                 self.editor.scroll_offset.to_point()
-                    + Vec2::new(0.0, (lines as f64) * line_height),
+                    + Vec2::new(0.0, if down { distance } else { -distance }),
             )
             .with_size(self.editor.size.clone());
         ctx.submit_command(Command::new(
@@ -1137,6 +1183,14 @@ impl KeyPressFocus for LapceEditorViewData {
             }
             LapceCommand::ToggleBlockwiseVisualMode => {
                 self.toggle_visual(VisualMode::Blockwise);
+            }
+            LapceCommand::ScrollDown => {
+                println!("count is {:?}", count);
+                self.scroll(ctx, true, count.unwrap_or(1), env);
+            }
+            LapceCommand::ScrollUp => {
+                println!("count is {:?}", count);
+                self.scroll(ctx, false, count.unwrap_or(1), env);
             }
             LapceCommand::PageDown => {
                 self.page_move(ctx, true, env);

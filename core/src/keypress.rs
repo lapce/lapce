@@ -112,9 +112,9 @@ impl KeyPressData {
         key_event: &KeyEvent,
         focus: &mut T,
         env: &Env,
-    ) {
+    ) -> bool {
         if key_event.key == KbKey::Shift {
-            return;
+            return false;
         }
         let mut mods = key_event.mods.clone();
         mods.set(Modifiers::SHIFT, false);
@@ -125,7 +125,7 @@ impl KeyPressData {
 
         let mode = focus.get_mode();
         if self.handle_count(&mode, &keypress) {
-            return;
+            return false;
         }
 
         let mut keypresses = self.pending_keypress.clone();
@@ -144,26 +144,34 @@ impl KeyPressData {
                 let count = self.count.take();
                 self.run_command(ctx, &command, count, focus, env);
                 self.pending_keypress = Vec::new();
-                return;
+                return true;
             }
             KeymapMatch::Prefix => {
                 self.pending_keypress.push(keypress);
-                return;
+                return false;
             }
-            KeymapMatch::None => {}
+            KeymapMatch::None => {
+                self.pending_keypress = Vec::new();
+            }
         }
 
-        self.pending_keypress = Vec::new();
+        if mode != Mode::Insert {
+            self.handle_count(&mode, &keypress);
+            return false;
+        }
+
         self.count = None;
 
         if mods.is_empty() {
             match &key_event.key {
                 druid::keyboard_types::Key::Character(c) => {
                     focus.insert(ctx, c);
+                    return true;
                 }
                 _ => (),
             }
         }
+        false
     }
 
     fn match_keymap<T: KeyPressFocus>(

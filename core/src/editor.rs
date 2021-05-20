@@ -273,6 +273,18 @@ impl LapceEditorContainer {
                 Arc::make_mut(&mut data.editor).size =
                     self.editor.widget().child_size();
             }
+            LapceUICommand::Scroll((x, y)) => {
+                self.editor
+                    .widget_mut()
+                    .child_mut()
+                    .inner_mut()
+                    .scroll_by(Vec2::new(*x, *y));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ResetFade,
+                    Target::Widget(self.scroll_id),
+                ));
+            }
             LapceUICommand::ForceScrollTo(x, y) => {
                 self.editor
                     .widget_mut()
@@ -377,8 +389,9 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                 }
             }
             Event::KeyDown(key_event) => {
-                data.key_down(ctx, key_event, env);
-                self.ensure_cursor_visible(ctx, data, env);
+                if data.key_down(ctx, key_event, env) {
+                    self.ensure_cursor_visible(ctx, data, env);
+                }
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
