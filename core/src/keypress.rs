@@ -52,6 +52,7 @@ pub trait KeyPressFocus {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         count: Option<usize>,
+        env: &Env,
     );
     fn insert(&mut self, ctx: &mut EventCtx, c: &str);
 }
@@ -78,9 +79,10 @@ impl KeyPressData {
         command: &str,
         count: Option<usize>,
         focus: &mut T,
+        env: &Env,
     ) -> Result<()> {
         let cmd = LapceCommand::from_str(command)?;
-        focus.run_command(ctx, &cmd, count);
+        focus.run_command(ctx, &cmd, count, env);
         Ok(())
     }
 
@@ -109,6 +111,7 @@ impl KeyPressData {
         ctx: &mut EventCtx,
         key_event: &KeyEvent,
         focus: &mut T,
+        env: &Env,
     ) {
         if key_event.key == KbKey::Shift {
             return;
@@ -139,7 +142,7 @@ impl KeyPressData {
         match keymatch {
             KeymapMatch::Full(command) => {
                 let count = self.count.take();
-                self.run_command(ctx, &command, count, focus);
+                self.run_command(ctx, &command, count, focus, env);
                 self.pending_keypress = Vec::new();
                 return;
             }

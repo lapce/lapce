@@ -13,7 +13,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use crossbeam_utils::sync::WaitGroup;
 use druid::{
     theme, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
-    FontFamily, KeyEvent, Lens, Rect, Size, Target, Vec2, WidgetId, WindowId,
+    FontFamily, KeyEvent, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 use im;
 use parking_lot::Mutex;
@@ -572,10 +572,10 @@ pub struct LapceEditorViewData {
 }
 
 impl LapceEditorViewData {
-    pub fn key_down(&mut self, ctx: &mut EventCtx, key_event: &KeyEvent) {
+    pub fn key_down(&mut self, ctx: &mut EventCtx, key_event: &KeyEvent, env: &Env) {
         let mut keypress = self.keypress.clone();
         let k = Arc::make_mut(&mut keypress);
-        k.key_down(ctx, key_event, self);
+        k.key_down(ctx, key_event, self, env);
         self.keypress = keypress;
     }
 
@@ -664,6 +664,32 @@ impl LapceEditorViewData {
                 };
             }
         }
+    }
+
+    fn page_move(&mut self, ctx: &mut EventCtx, down: bool, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let lines = (self.editor.size.height / line_height / 2.0).round() as usize;
+        let offset = self.editor.cursor.offset();
+        let (offset, horiz) = self.buffer.move_offset(
+            offset,
+            self.editor.cursor.horiz.as_ref(),
+            lines,
+            if down { &Movement::Down } else { &Movement::Up },
+            false,
+            false,
+        );
+        self.set_cursor(Cursor::new(CursorMode::Normal(offset), Some(horiz)));
+        let rect = Rect::ZERO
+            .with_origin(
+                self.editor.scroll_offset.to_point()
+                    + Vec2::new(0.0, (lines as f64) * line_height),
+            )
+            .with_size(self.editor.size.clone());
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::EnsureRectVisible(rect),
+            Target::Widget(self.editor.editor_id),
+        ));
     }
 
     pub fn do_move(&mut self, movement: &Movement, count: usize) {
@@ -860,6 +886,7 @@ impl KeyPressFocus for LapceEditorViewData {
         ctx: &mut EventCtx,
         cmd: &LapceCommand,
         count: Option<usize>,
+        env: &Env,
     ) {
         if let Some(movement) = self.move_command(count, cmd) {
             self.do_move(&movement, count.unwrap_or(1));
@@ -1110,6 +1137,12 @@ impl KeyPressFocus for LapceEditorViewData {
             }
             LapceCommand::ToggleBlockwiseVisualMode => {
                 self.toggle_visual(VisualMode::Blockwise);
+            }
+            LapceCommand::PageDown => {
+                self.page_move(ctx, true, env);
+            }
+            LapceCommand::PageUp => {
+                self.page_move(ctx, false, env);
             }
             LapceCommand::NormalMode => {
                 let offset = match &self.editor.cursor.mode {

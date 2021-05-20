@@ -263,6 +263,12 @@ impl LapceEditorContainer {
             LapceUICommand::EnsureCursorVisible => {
                 self.ensure_cursor_visible(ctx, data, env);
             }
+            LapceUICommand::EnsureCursorCenter => {
+                self.ensure_cursor_center(ctx, data, env);
+            }
+            LapceUICommand::EnsureRectVisible(rect) => {
+                self.ensure_rect_visible(ctx, data, *rect, env);
+            }
             LapceUICommand::UpdateSize => {
                 Arc::make_mut(&mut data.editor).size =
                     self.editor.widget().child_size();
@@ -280,6 +286,52 @@ impl LapceEditorContainer {
                 ));
             }
             _ => (),
+        }
+    }
+
+    pub fn ensure_cursor_center(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        let rect = data
+            .cusor_region(env)
+            .inflate(0.0, (data.editor.size.height / 2.0).ceil());
+        if self
+            .editor
+            .widget_mut()
+            .child_mut()
+            .inner_mut()
+            .scroll_to_visible(rect)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
+    }
+
+    pub fn ensure_rect_visible(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorViewData,
+        rect: Rect,
+        env: &Env,
+    ) {
+        if self
+            .editor
+            .widget_mut()
+            .child_mut()
+            .inner_mut()
+            .scroll_to_visible(rect)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
         }
     }
 
@@ -325,7 +377,7 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                 }
             }
             Event::KeyDown(key_event) => {
-                data.key_down(ctx, key_event);
+                data.key_down(ctx, key_event, env);
                 self.ensure_cursor_visible(ctx, data, env);
                 ctx.set_handled();
             }
