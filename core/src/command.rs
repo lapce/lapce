@@ -219,7 +219,6 @@ pub enum LapceUICommand {
         id: BufferId,
         rev: u64,
         highlights: Spans<Style>,
-        changes: std::collections::HashSet<usize>,
         semantic_tokens: bool,
     },
     CenterOfWindow,

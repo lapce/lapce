@@ -93,6 +93,12 @@ pub enum BufferState {
     Open(Arc<BufferNew>),
 }
 
+pub struct HighlightTextLayoutNew {
+    pub layout: PietTextLayout,
+    pub text: String,
+    pub styles: Arc<Vec<(usize, usize, Style)>>,
+}
+
 pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,
@@ -122,8 +128,9 @@ pub struct BufferNew {
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
-    pub text_layouts: im::Vector<Arc<Option<Arc<HighlightTextLayout>>>>,
-    pub line_highlights: Spans<Style>,
+    pub text_layouts: im::Vector<Arc<Option<Arc<HighlightTextLayoutNew>>>>,
+    pub line_highlights: im::Vector<Option<Arc<Vec<(usize, usize, Style)>>>>,
+    pub highlights: Spans<Style>,
     pub semantic_tokens: bool,
     pub language: Option<LapceLanguage>,
     pub max_len: usize,
@@ -144,7 +151,8 @@ impl BufferNew {
             language: LapceLanguage::from_path(&path),
             path,
             text_layouts: im::Vector::new(),
-            line_highlights: SpansBuilder::new(0).build(),
+            highlights: SpansBuilder::new(0).build(),
+            line_highlights: im::Vector::new(),
             semantic_tokens: false,
             max_len: 0,
             max_len_line: 0,
@@ -166,6 +174,7 @@ impl BufferNew {
         self.max_len_line = max_len_line;
         self.num_lines = self.num_lines();
         self.text_layouts = im::Vector::from(vec![Arc::new(None); self.num_lines]);
+        self.line_highlights = im::Vector::from(vec![None; self.num_lines]);
         self.loaded = true;
         self.notify_update();
     }
@@ -178,7 +187,7 @@ impl BufferNew {
                     rope: self.rope.clone(),
                     rev: self.rev,
                     language,
-                    highlights: self.line_highlights.clone(),
+                    highlights: self.highlights.clone(),
                 }));
             }
         }
@@ -267,57 +276,92 @@ impl BufferNew {
         if line >= self.text_layouts.len() {
             return;
         }
-        if self.text_layouts[line].is_none() {
+        let styles = self.get_line_highlights(line);
+        if self.text_layouts[line].is_none() || {
+            let old_styles =
+                (*self.text_layouts[line]).as_ref().unwrap().styles.clone();
+            if old_styles.same(&styles) {
+                false
+            } else {
+                let changed = *old_styles != *styles;
+                if changed {
+                    println!("stlye changed {}", line);
+                }
+                changed
+            }
+        } {
             let line_content = self.line_content(line);
             self.text_layouts[line] = Arc::new(Some(Arc::new(
-                self.get_text_layout(text, line, line_content, theme, env),
+                self.get_text_layout(text, line_content, styles, theme, env),
             )));
             return;
         }
     }
 
-    pub fn get_text_layout(
+    fn get_line_highlights(
         &mut self,
-        text: &mut PietText,
         line: usize,
-        line_content: String,
-        theme: &Arc<HashMap<String, Color>>,
-        env: &Env,
-    ) -> HighlightTextLayout {
-        let mut layout_builder = text
-            .new_text_layout(line_content.replace('\t', "    "))
-            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+    ) -> Arc<Vec<(usize, usize, Style)>> {
+        if let Some(line_highlights) = self.line_highlights[line].as_ref() {
+            return line_highlights.clone();
+        }
         let start_offset = self.offset_of_line(line);
         let end_offset = self.offset_of_line(line + 1);
-        for (iv, style) in self.line_highlights.iter_chunks(start_offset..end_offset)
-        {
-            let start = iv.start();
-            let end = iv.end();
-            if start > end_offset {
-                continue;
-            }
-            if end < start_offset {
-                continue;
-            }
-            if let Some(fg_color) = style.fg_color.as_ref() {
-                if let Some(fg_color) = theme.get(fg_color) {
-                    layout_builder = layout_builder.range_attribute(
+        let line_highlights: Vec<(usize, usize, Style)> = self
+            .highlights
+            .iter_chunks(start_offset..end_offset)
+            .filter_map(|(iv, style)| {
+                let start = iv.start();
+                let end = iv.end();
+                if start > end_offset {
+                    None
+                } else if end < start_offset {
+                    None
+                } else {
+                    Some((
                         if start > start_offset {
                             start - start_offset
                         } else {
                             0
-                        }..end - start_offset,
+                        },
+                        end - start_offset,
+                        style.clone(),
+                    ))
+                }
+            })
+            .collect();
+        let line_highlights = Arc::new(line_highlights);
+        self.line_highlights[line] = Some(line_highlights.clone());
+        line_highlights
+    }
+
+    pub fn get_text_layout(
+        &mut self,
+        text: &mut PietText,
+        line_content: String,
+        styles: Arc<Vec<(usize, usize, Style)>>,
+        theme: &Arc<HashMap<String, Color>>,
+        env: &Env,
+    ) -> HighlightTextLayoutNew {
+        let mut layout_builder = text
+            .new_text_layout(line_content.replace('\t', "    "))
+            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        for (start, end, style) in styles.iter() {
+            if let Some(fg_color) = style.fg_color.as_ref() {
+                if let Some(fg_color) = theme.get(fg_color) {
+                    layout_builder = layout_builder.range_attribute(
+                        start..end,
                         TextAttribute::TextColor(fg_color.clone()),
                     );
                 }
             }
         }
         let layout = layout_builder.build().unwrap();
-        HighlightTextLayout {
+        HighlightTextLayoutNew {
             layout,
             text: line_content,
-            highlights: Vec::new(),
+            styles,
         }
     }
 
@@ -577,7 +621,6 @@ impl BufferNew {
         &mut self,
         rev: u64,
         highlights: Spans<Style>,
-        changes: std::collections::HashSet<usize>,
         semantic_tokens: bool,
     ) {
         if rev != self.rev {
@@ -586,13 +629,8 @@ impl BufferNew {
         if semantic_tokens {
             self.semantic_tokens = true;
         }
-        println!("highlight changes {}", changes.len());
-        self.line_highlights = highlights;
-        for line in changes {
-            if let Some(line_layout) = self.text_layouts.get_mut(line) {
-                *line_layout = Arc::new(None);
-            }
-        }
+        self.highlights = highlights;
+        self.line_highlights = im::Vector::from(vec![None; self.num_lines]);
     }
 
     fn update_size(&mut self, inval_lines: &InvalLines) {
@@ -627,6 +665,19 @@ impl BufferNew {
         }
     }
 
+    fn update_line_highlights(
+        &mut self,
+        delta: &RopeDelta,
+        inval_lines: &InvalLines,
+    ) {
+        self.highlights.apply_shape(delta);
+        let right = self.line_highlights.split_off(inval_lines.start_line);
+        let right = right.skip(inval_lines.inval_count);
+        let new = im::Vector::from(vec![None; inval_lines.new_count]);
+        self.line_highlights.append(new);
+        self.line_highlights.append(right);
+    }
+
     fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
         let right = self.text_layouts.split_off(inval_lines.start_line);
         let right = right.skip(inval_lines.inval_count);
@@ -647,7 +698,6 @@ impl BufferNew {
         proxy.update(self.id, delta, self.rev);
 
         self.rope = delta.apply(&self.rope);
-        self.line_highlights.apply_shape(delta);
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
         let old_hard_count = old_logical_end_line - logical_start_line;
@@ -660,6 +710,7 @@ impl BufferNew {
         };
         self.update_size(&inval_lines);
         self.update_text_layouts(&inval_lines);
+        self.update_line_highlights(delta, &inval_lines);
         self.notify_update();
     }
 

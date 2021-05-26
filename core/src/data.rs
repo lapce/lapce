@@ -327,105 +327,16 @@ impl LapceTabData {
                     highlights
                 };
 
-                let mut changes = HashSet::new();
-                let mut iter_red = update.highlights.iter();
-                let mut iter_blue = highlights.iter();
-
-                let mut insert_line_changes = |iv: &Interval| {
-                    for i in update.rope.line_of_offset(iv.start)
-                        ..update.rope.line_of_offset(iv.end) + 1
-                    {
-                        changes.insert(i);
-                    }
-                };
-
-                let start = std::time::SystemTime::now();
-                let mut next_red = iter_red.next();
-                let mut next_blue = iter_blue.next();
-                loop {
-                    // exit conditions:
-                    if next_red.is_none() && next_blue.is_none() {
-                        // all merged.
-                        break;
-                    } else if next_red.is_none() != next_blue.is_none() {
-                        // one side is exhausted; append remaining items from other side.
-                        let iter = if next_red.is_some() {
-                            iter_red
-                        } else {
-                            iter_blue
-                        };
-                        // add this item
-                        let (iv, _) = next_red.or(next_blue).unwrap();
-                        insert_line_changes(&iv);
-
-                        for (iv, _) in iter {
-                            insert_line_changes(&iv);
-                        }
-                        break;
-                    }
-
-                    let (mut red_iv, red_val) = next_red.unwrap();
-                    let (mut blue_iv, blue_val) = next_blue.unwrap();
-
-                    if red_iv.intersect(blue_iv).is_empty() {
-                        // spans do not overlap. Add the leading span & advance that iter.
-                        insert_line_changes(&red_iv);
-                        insert_line_changes(&blue_iv);
-                        if red_iv.is_before(blue_iv.start()) {
-                            next_red = iter_red.next();
-                        } else {
-                            next_blue = iter_blue.next();
-                        }
-                        continue;
-                    }
-
-                    if red_iv.start() < blue_iv.start() {
-                        let iv = red_iv.prefix(blue_iv);
-                        insert_line_changes(&iv);
-                        red_iv = red_iv.suffix(iv);
-                    } else if blue_iv.start() < red_iv.start() {
-                        let iv = blue_iv.prefix(red_iv);
-                        insert_line_changes(&iv);
-                        blue_iv = blue_iv.suffix(iv);
-                    }
-
-                    let iv = red_iv.intersect(blue_iv);
-                    if red_val != blue_val {
-                        insert_line_changes(&iv);
-                    }
-
-                    red_iv = red_iv.suffix(iv);
-                    blue_iv = blue_iv.suffix(iv);
-
-                    if red_iv.is_empty() {
-                        next_red = iter_red.next();
-                    } else {
-                        next_red = Some((red_iv, red_val));
-                    }
-
-                    if blue_iv.is_empty() {
-                        next_blue = iter_blue.next();
-                    } else {
-                        next_blue = Some((blue_iv, blue_val));
-                    }
-                }
-                let end = std::time::SystemTime::now();
-                let duration = end.duration_since(start).unwrap().as_micros();
-                println!("highlights compare took {}", duration);
-
-                if changes.len() > 0 {
-                    event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateStyle {
-                            id: update.id,
-                            rev: update.rev,
-                            highlights,
-                            changes,
-                            semantic_tokens,
-                        },
-                        Target::Widget(tab_id),
-                    );
-                }
+                event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateStyle {
+                        id: update.id,
+                        rev: update.rev,
+                        highlights,
+                        semantic_tokens,
+                    },
+                    Target::Widget(tab_id),
+                );
             }
         }
     }
@@ -615,7 +526,7 @@ impl LapceEditorViewData {
         }
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("fill text layout took {}", duration);
+        println!("fill text layout took {}", duration);
     }
 
     fn move_command(
