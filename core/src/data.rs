@@ -262,6 +262,7 @@ impl LapceTabData {
                 let semantic_tokens = tokens.is_some();
 
                 let highlights = if let Some(tokens) = tokens {
+                    let start = std::time::SystemTime::now();
                     let mut highlights = SpansBuilder::new(update.rope.len());
                     for (start, end, hl) in tokens {
                         highlights.add_span(
@@ -272,6 +273,9 @@ impl LapceTabData {
                         );
                     }
                     let highlights = highlights.build();
+                    let end = std::time::SystemTime::now();
+                    let duration = end.duration_since(start).unwrap().as_micros();
+                    println!("semantic tokens took {}", duration);
                     highlights
                 } else {
                     if !highlight_configs.contains_key(&update.language) {
@@ -335,6 +339,7 @@ impl LapceTabData {
                     }
                 };
 
+                let start = std::time::SystemTime::now();
                 let mut next_red = iter_red.next();
                 let mut next_blue = iter_blue.next();
                 loop {
@@ -404,6 +409,9 @@ impl LapceTabData {
                         next_blue = Some((blue_iv, blue_val));
                     }
                 }
+                let end = std::time::SystemTime::now();
+                let duration = end.duration_since(start).unwrap().as_micros();
+                println!("highlights compare took {}", duration);
 
                 if changes.len() > 0 {
                     event_sink.submit_command(
@@ -595,6 +603,7 @@ impl LapceEditorViewData {
         theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) {
+        let start = std::time::SystemTime::now();
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let start_line = (self.editor.scroll_offset.y / line_height) as usize;
         let size = self.editor.size;
@@ -604,6 +613,9 @@ impl LapceEditorViewData {
         for line in start_line..start_line + num_lines + 1 {
             buffer.update_line_layouts(text, line, theme, env);
         }
+        let end = std::time::SystemTime::now();
+        let duration = end.duration_since(start).unwrap().as_micros();
+        // println!("fill text layout took {}", duration);
     }
 
     fn move_command(
@@ -677,8 +689,6 @@ impl LapceEditorViewData {
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
 
-        println!("diff is {}", diff);
-
         let offset = self.editor.cursor.offset();
         let (line, col) = self.buffer.offset_to_line_col(offset);
         let top = self.editor.scroll_offset.y + diff;
@@ -706,7 +716,7 @@ impl LapceEditorViewData {
         ));
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::Scroll((0.0, diff)),
+            LapceUICommand::ScrollTo((self.editor.scroll_offset.x, top)),
             Target::Widget(self.editor.editor_id),
         ));
     }
@@ -1185,11 +1195,9 @@ impl KeyPressFocus for LapceEditorViewData {
                 self.toggle_visual(VisualMode::Blockwise);
             }
             LapceCommand::ScrollDown => {
-                println!("count is {:?}", count);
                 self.scroll(ctx, true, count.unwrap_or(1), env);
             }
             LapceCommand::ScrollUp => {
-                println!("count is {:?}", count);
                 self.scroll(ctx, false, count.unwrap_or(1), env);
             }
             LapceCommand::PageDown => {

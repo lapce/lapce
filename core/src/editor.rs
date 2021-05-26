@@ -297,6 +297,18 @@ impl LapceEditorContainer {
                     Target::Widget(self.scroll_id),
                 ));
             }
+            LapceUICommand::ScrollTo((x, y)) => {
+                self.editor
+                    .widget_mut()
+                    .child_mut()
+                    .inner_mut()
+                    .scroll_to(Point::new(*x, *y));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ResetFade,
+                    Target::Widget(self.scroll_id),
+                ));
+            }
             _ => (),
         }
     }
@@ -569,6 +581,13 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
         data: &LapceEditorViewData,
         env: &Env,
     ) {
+        let old_last_line = old_data.buffer.last_line() + 1;
+        let last_line = data.buffer.last_line() + 1;
+        if old_last_line.to_string().len() != last_line.to_string().len() {
+            ctx.request_layout();
+            return;
+        }
+
         if old_data.editor.cursor.current_line(&old_data.buffer)
             != data.editor.cursor.current_line(&data.buffer)
         {
@@ -859,7 +878,8 @@ impl Widget<LapceEditorViewData> for LapceEditor {
             if buffer.max_len != old_buffer.max_len
                 || buffer.num_lines != old_buffer.num_lines
             {
-                ctx.request_layout();
+                ctx.request_local_layout();
+                ctx.request_paint();
                 return;
             }
 
