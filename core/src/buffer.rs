@@ -164,6 +164,7 @@ impl BufferNew {
         };
         buffer.text_layouts =
             im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
+        buffer.line_highlights = im::Vector::from(vec![None; buffer.num_lines()]);
         buffer
     }
 
