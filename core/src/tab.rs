@@ -93,9 +93,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                                 rope: buffer.rope.clone(),
                                                 rev: *rev,
                                                 language: *language,
-                                                highlights: buffer
-                                                    .highlights
-                                                    .clone(),
+                                                highlights: buffer.styles.clone(),
                                             },
                                             tokens.to_owned(),
                                         ),
@@ -112,7 +110,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         semantic_tokens,
                     } => {
                         let buffer = data.main_split.buffers.get_mut(id).unwrap();
-                        Arc::make_mut(buffer).update_highlights(
+                        Arc::make_mut(buffer).update_styles(
                             *rev,
                             highlights.to_owned(),
                             *semantic_tokens,
