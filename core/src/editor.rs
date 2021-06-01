@@ -588,6 +588,14 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
             return;
         }
 
+        if (*old_data.main_split.focus == self.editor_id
+            && *data.main_split.focus != self.editor_id)
+            || (*old_data.main_split.focus != self.editor_id
+                && *data.main_split.focus == self.editor_id)
+        {
+            ctx.request_paint();
+        }
+
         if old_data.editor.cursor.current_line(&old_data.buffer)
             != data.editor.cursor.current_line(&data.buffer)
         {
