@@ -606,9 +606,27 @@ impl BufferNew {
                 let (_, col) = self.offset_to_line_col(new_offset);
                 (new_offset, ColPosition::Col(col))
             }
-            Movement::WordEndForward => (offset, horiz),
-            Movement::WordForward => (offset, horiz),
-            Movement::WordBackward => (offset, horiz),
+            Movement::WordEndForward => {
+                let new_offset = WordCursor::new(&self.rope, offset)
+                    .end_boundary()
+                    .unwrap_or(offset);
+                let (_, col) = self.offset_to_line_col(new_offset);
+                (new_offset, ColPosition::Col(col))
+            }
+            Movement::WordForward => {
+                let new_offset = WordCursor::new(&self.rope, offset)
+                    .next_boundary()
+                    .unwrap_or(offset);
+                let (_, col) = self.offset_to_line_col(new_offset);
+                (new_offset, ColPosition::Col(col))
+            }
+            Movement::WordBackward => {
+                let new_offset = WordCursor::new(&self.rope, offset)
+                    .prev_boundary()
+                    .unwrap_or(offset);
+                let (_, col) = self.offset_to_line_col(new_offset);
+                (new_offset, ColPosition::Col(col))
+            }
             Movement::NextUnmatched(_) => (offset, horiz),
             Movement::PreviousUnmatched(_) => (offset, horiz),
             Movement::MatchPairs => (offset, horiz),

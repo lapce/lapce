@@ -1020,6 +1020,44 @@ impl KeyPressFocus for LapceEditorViewData {
                     }
                 }
             }
+            LapceCommand::DeleteWordBackward => {
+                let selection = match self.editor.cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(&self.buffer)
+                    }
+                    CursorMode::Insert(_) => {
+                        let selection =
+                            self.editor.cursor.edit_selection(&self.buffer);
+                        let selection = self.buffer.update_selection(
+                            &selection,
+                            1,
+                            &Movement::WordBackward,
+                            true,
+                            true,
+                            true,
+                        );
+                        selection
+                    }
+                };
+                let selection = self.edit(ctx, &selection, "");
+                match self.editor.cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        let offset = selection.min_offset();
+                        let offset =
+                            self.buffer.offset_line_end(offset, false).min(offset);
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Normal(offset),
+                            None,
+                        ));
+                    }
+                    CursorMode::Insert(_) => {
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Insert(selection),
+                            None,
+                        ));
+                    }
+                }
+            }
             LapceCommand::DeleteBackward => {
                 let selection = match self.editor.cursor.mode {
                     CursorMode::Normal(_) | CursorMode::Visual { .. } => {
