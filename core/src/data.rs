@@ -1101,7 +1101,9 @@ impl KeyPressFocus for LapceEditorViewData {
                     VisualMode::Normal => {
                         let selection = match self.editor.cursor.mode {
                             CursorMode::Normal(offset) => {
-                                let offset = (offset + 1).min(self.buffer.len());
+                                let line_end =
+                                    self.buffer.offset_line_end(offset, true);
+                                let offset = (offset + 1).min(line_end);
                                 Selection::caret(offset)
                             }
                             CursorMode::Insert { .. }
