@@ -416,6 +416,17 @@ pub struct Register {
     newest_delete: usize,
 }
 
+impl Register {
+    pub fn add_delete(&mut self, data: RegisterData) {
+        self.unamed = data.clone();
+    }
+
+    pub fn add_yank(&mut self, data: RegisterData) {
+        self.unamed = data.clone();
+        self.last_yank = data;
+    }
+}
+
 #[derive(Clone, Data, Lens)]
 pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
@@ -774,6 +785,22 @@ impl LapceEditorViewData {
         c: &str,
         after: bool,
     ) -> Selection {
+        match &self.editor.cursor.mode {
+            CursorMode::Normal(_) => {
+                if !selection.is_caret() {
+                    let data = self.editor.cursor.yank(&self.buffer);
+                    let register = Arc::make_mut(&mut self.main_split.register);
+                    register.add_delete(data);
+                }
+            }
+            CursorMode::Visual { start, end, mode } => {
+                let data = self.editor.cursor.yank(&self.buffer);
+                let register = Arc::make_mut(&mut self.main_split.register);
+                register.add_delete(data);
+            }
+            CursorMode::Insert(_) => {}
+        }
+
         let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
         let delta = buffer.edit(ctx, &selection, c, proxy);
@@ -1052,9 +1079,8 @@ impl KeyPressFocus for LapceEditorViewData {
             }
             LapceCommand::Yank => {
                 let data = self.editor.cursor.yank(&self.buffer);
-                let mut register = Arc::make_mut(&mut self.main_split.register);
-                register.unamed = data.clone();
-                register.last_yank = data.clone();
+                let register = Arc::make_mut(&mut self.main_split.register);
+                register.add_yank(data);
                 match &self.editor.cursor.mode {
                     CursorMode::Visual { start, end, mode } => {
                         let offset = *start.min(end);
@@ -1108,17 +1134,25 @@ impl KeyPressFocus for LapceEditorViewData {
                         }
                     }
                     VisualMode::Linewise | VisualMode::Blockwise => {
-                        let (selection, content) = match self.editor.cursor.mode {
+                        let (selection, content) = match &self.editor.cursor.mode {
                             CursorMode::Normal(offset) => {
-                                let line = self.buffer.line_of_offset(offset);
+                                let line = self.buffer.line_of_offset(*offset);
                                 let offset = self.buffer.offset_of_line(line + 1);
                                 (Selection::caret(offset), data.content.clone())
                             }
-                            CursorMode::Insert { .. }
-                            | CursorMode::Visual { .. } => (
+                            CursorMode::Insert { .. } => (
                                 self.editor.cursor.edit_selection(&self.buffer),
                                 "\n".to_string() + &data.content,
                             ),
+                            CursorMode::Visual { mode, .. } => {
+                                let selection =
+                                    self.editor.cursor.edit_selection(&self.buffer);
+                                let data = match mode {
+                                    VisualMode::Linewise => data.content.clone(),
+                                    _ => "\n".to_string() + &data.content,
+                                };
+                                (selection, data)
+                            }
                         };
                         let selection = self.edit(ctx, &selection, &content, false);
                         match self.editor.cursor.mode {

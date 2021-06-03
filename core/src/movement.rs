@@ -433,6 +433,15 @@ impl Selection {
         self.regions[0].end
     }
 
+    pub fn is_caret(&self) -> bool {
+        for region in &self.regions {
+            if !region.is_caret() {
+                return false;
+            }
+        }
+        true
+    }
+
     // pub fn min(&self) -> usize {
     //     self.regions[self.regions.len() - 1].min()
     // }
