@@ -12,8 +12,9 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use crossbeam_utils::sync::WaitGroup;
 use druid::{
-    theme, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
-    FontFamily, KeyEvent, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
+    theme, Application, Color, Command, Data, Env, EventCtx, ExtEventSink,
+    FontDescriptor, FontFamily, KeyEvent, Lens, Point, Rect, Size, Target, Vec2,
+    WidgetId, WindowId,
 };
 use im;
 use parking_lot::Mutex;
@@ -778,6 +779,90 @@ impl LapceEditorViewData {
         editor.cursor = cursor;
     }
 
+    fn paste(&mut self, ctx: &mut EventCtx, data: &RegisterData) {
+        match data.mode {
+            VisualMode::Normal => {
+                let selection = match self.editor.cursor.mode {
+                    CursorMode::Normal(offset) => {
+                        let line_end = self.buffer.offset_line_end(offset, true);
+                        let offset = (offset + 1).min(line_end);
+                        Selection::caret(offset)
+                    }
+                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(&self.buffer)
+                    }
+                };
+                let after = !data.content.contains("\n");
+                let selection = self.edit(ctx, &selection, &data.content, after);
+                if !after {
+                    self.set_cursor_after_change(selection);
+                } else {
+                    match self.editor.cursor.mode {
+                        CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                            let offset = selection.min_offset() - 1;
+                            self.set_cursor(Cursor::new(
+                                CursorMode::Normal(offset),
+                                None,
+                            ));
+                        }
+                        CursorMode::Insert { .. } => {
+                            self.set_cursor(Cursor::new(
+                                CursorMode::Insert(selection),
+                                None,
+                            ));
+                        }
+                    }
+                }
+            }
+            VisualMode::Linewise | VisualMode::Blockwise => {
+                let (selection, content) = match &self.editor.cursor.mode {
+                    CursorMode::Normal(offset) => {
+                        let line = self.buffer.line_of_offset(*offset);
+                        let offset = self.buffer.offset_of_line(line + 1);
+                        (Selection::caret(offset), data.content.clone())
+                    }
+                    CursorMode::Insert { .. } => (
+                        self.editor.cursor.edit_selection(&self.buffer),
+                        "\n".to_string() + &data.content,
+                    ),
+                    CursorMode::Visual { mode, .. } => {
+                        let selection =
+                            self.editor.cursor.edit_selection(&self.buffer);
+                        let data = match mode {
+                            VisualMode::Linewise => data.content.clone(),
+                            _ => "\n".to_string() + &data.content,
+                        };
+                        (selection, data)
+                    }
+                };
+                let selection = self.edit(ctx, &selection, &content, false);
+                match self.editor.cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        let offset = selection.min_offset();
+                        let offset = if self.editor.cursor.is_visual() {
+                            offset + 1
+                        } else {
+                            offset
+                        };
+                        let line = self.buffer.line_of_offset(offset);
+                        let offset =
+                            self.buffer.first_non_blank_character_on_line(line);
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Normal(offset),
+                            None,
+                        ));
+                    }
+                    CursorMode::Insert(_) => {
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Insert(selection),
+                            None,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
     fn edit(
         &mut self,
         ctx: &mut EventCtx,
@@ -1095,94 +1180,22 @@ impl KeyPressFocus for LapceEditorViewData {
                     CursorMode::Insert(_) => {}
                 }
             }
+            LapceCommand::ClipboardCopy => {
+                let data = self.editor.cursor.yank(&self.buffer);
+                Application::global().clipboard().put_string(data.content);
+            }
+            LapceCommand::ClipboardPaste => {
+                if let Some(s) = Application::global().clipboard().get_string() {
+                    let data = RegisterData {
+                        content: s.to_string(),
+                        mode: VisualMode::Normal,
+                    };
+                    self.paste(ctx, &data);
+                }
+            }
             LapceCommand::Paste => {
                 let data = self.main_split.register.unamed.clone();
-                match data.mode {
-                    VisualMode::Normal => {
-                        let selection = match self.editor.cursor.mode {
-                            CursorMode::Normal(offset) => {
-                                let line_end =
-                                    self.buffer.offset_line_end(offset, true);
-                                let offset = (offset + 1).min(line_end);
-                                Selection::caret(offset)
-                            }
-                            CursorMode::Insert { .. }
-                            | CursorMode::Visual { .. } => {
-                                self.editor.cursor.edit_selection(&self.buffer)
-                            }
-                        };
-                        let after = !data.content.contains("\n");
-                        let selection =
-                            self.edit(ctx, &selection, &data.content, after);
-                        if !after {
-                            self.set_cursor_after_change(selection);
-                        } else {
-                            match self.editor.cursor.mode {
-                                CursorMode::Normal(_)
-                                | CursorMode::Visual { .. } => {
-                                    let offset = selection.min_offset() - 1;
-                                    self.set_cursor(Cursor::new(
-                                        CursorMode::Normal(offset),
-                                        None,
-                                    ));
-                                }
-                                CursorMode::Insert { .. } => {
-                                    self.set_cursor(Cursor::new(
-                                        CursorMode::Insert(selection),
-                                        None,
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                    VisualMode::Linewise | VisualMode::Blockwise => {
-                        let (selection, content) = match &self.editor.cursor.mode {
-                            CursorMode::Normal(offset) => {
-                                let line = self.buffer.line_of_offset(*offset);
-                                let offset = self.buffer.offset_of_line(line + 1);
-                                (Selection::caret(offset), data.content.clone())
-                            }
-                            CursorMode::Insert { .. } => (
-                                self.editor.cursor.edit_selection(&self.buffer),
-                                "\n".to_string() + &data.content,
-                            ),
-                            CursorMode::Visual { mode, .. } => {
-                                let selection =
-                                    self.editor.cursor.edit_selection(&self.buffer);
-                                let data = match mode {
-                                    VisualMode::Linewise => data.content.clone(),
-                                    _ => "\n".to_string() + &data.content,
-                                };
-                                (selection, data)
-                            }
-                        };
-                        let selection = self.edit(ctx, &selection, &content, false);
-                        match self.editor.cursor.mode {
-                            CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                                let offset = selection.min_offset();
-                                let offset = if self.editor.cursor.is_visual() {
-                                    offset + 1
-                                } else {
-                                    offset
-                                };
-                                let line = self.buffer.line_of_offset(offset);
-                                let offset = self
-                                    .buffer
-                                    .first_non_blank_character_on_line(line);
-                                self.set_cursor(Cursor::new(
-                                    CursorMode::Normal(offset),
-                                    None,
-                                ));
-                            }
-                            CursorMode::Insert(_) => {
-                                self.set_cursor(Cursor::new(
-                                    CursorMode::Insert(selection),
-                                    None,
-                                ));
-                            }
-                        }
-                    }
-                }
+                self.paste(ctx, &data);
             }
             LapceCommand::DeleteWordBackward => {
                 let selection = match self.editor.cursor.mode {
