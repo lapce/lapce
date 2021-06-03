@@ -402,6 +402,20 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct RegisterData {
+    pub content: String,
+    pub mode: VisualMode,
+}
+
+#[derive(Clone, Default)]
+pub struct Register {
+    unamed: RegisterData,
+    last_yank: RegisterData,
+    last_deletes: [RegisterData; 10],
+    newest_delete: usize,
+}
+
 #[derive(Clone, Data, Lens)]
 pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
@@ -410,6 +424,7 @@ pub struct LapceMainSplitData {
     pub buffers: im::HashMap<BufferId, Arc<BufferNew>>,
     pub open_files: im::HashMap<PathBuf, BufferId>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
+    pub register: Arc<Register>,
 }
 
 impl LapceMainSplitData {
@@ -451,6 +466,7 @@ impl LapceMainSplitData {
             open_files,
             focus: Arc::new(editor_id),
             update_sender,
+            register: Arc::new(Register::default()),
         }
     }
 }
@@ -727,10 +743,23 @@ impl LapceEditorViewData {
         let selection = Selection::caret(offset);
         let content = format!("{}{}", "\n", indent);
 
-        let selection = self.edit(ctx, &selection, &content);
+        let selection = self.edit(ctx, &selection, &content, true);
         let editor = Arc::make_mut(&mut self.editor);
         editor.cursor.mode = CursorMode::Insert(selection);
         editor.cursor.horiz = None;
+    }
+
+    fn set_cursor_after_change(&mut self, selection: Selection) {
+        match self.editor.cursor.mode {
+            CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                let offset = selection.min_offset();
+                let offset = self.buffer.offset_line_end(offset, false).min(offset);
+                self.set_cursor(Cursor::new(CursorMode::Normal(offset), None));
+            }
+            CursorMode::Insert(_) => {
+                self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
+            }
+        }
     }
 
     fn set_cursor(&mut self, cursor: Cursor) {
@@ -743,6 +772,7 @@ impl LapceEditorViewData {
         ctx: &mut EventCtx,
         selection: &Selection,
         c: &str,
+        after: bool,
     ) -> Selection {
         let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
@@ -750,7 +780,7 @@ impl LapceEditorViewData {
         let buffer_id = buffer.id;
         self.main_split.notify_update_text_layouts(ctx, &buffer_id);
         self.inactive_apply_delta(&delta);
-        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+        let selection = selection.apply_delta(&delta, after, InsertDrift::Default);
         selection
     }
 
@@ -1001,7 +1031,7 @@ impl KeyPressFocus for LapceEditorViewData {
                         selection
                     }
                 };
-                let selection = self.edit(ctx, &selection, "");
+                let selection = self.edit(ctx, &selection, "", true);
                 match self.editor.cursor.mode {
                     CursorMode::Normal(_) | CursorMode::Visual { .. } => {
                         let offset = selection.min_offset();
@@ -1017,6 +1047,104 @@ impl KeyPressFocus for LapceEditorViewData {
                             CursorMode::Insert(selection),
                             None,
                         ));
+                    }
+                }
+            }
+            LapceCommand::Yank => {
+                let data = self.editor.cursor.yank(&self.buffer);
+                let mut register = Arc::make_mut(&mut self.main_split.register);
+                register.unamed = data.clone();
+                register.last_yank = data.clone();
+                match &self.editor.cursor.mode {
+                    CursorMode::Visual { start, end, mode } => {
+                        let offset = *start.min(end);
+                        let offset =
+                            self.buffer.offset_line_end(offset, false).min(offset);
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Normal(offset),
+                            None,
+                        ));
+                    }
+                    CursorMode::Normal(_) => {}
+                    CursorMode::Insert(_) => {}
+                }
+            }
+            LapceCommand::Paste => {
+                let data = self.main_split.register.unamed.clone();
+                match data.mode {
+                    VisualMode::Normal => {
+                        let selection = match self.editor.cursor.mode {
+                            CursorMode::Normal(offset) => {
+                                let offset = (offset + 1).min(self.buffer.len());
+                                Selection::caret(offset)
+                            }
+                            CursorMode::Insert { .. }
+                            | CursorMode::Visual { .. } => {
+                                self.editor.cursor.edit_selection(&self.buffer)
+                            }
+                        };
+                        let after = !data.content.contains("\n");
+                        let selection =
+                            self.edit(ctx, &selection, &data.content, after);
+                        if !after {
+                            self.set_cursor_after_change(selection);
+                        } else {
+                            match self.editor.cursor.mode {
+                                CursorMode::Normal(_)
+                                | CursorMode::Visual { .. } => {
+                                    let offset = selection.min_offset() - 1;
+                                    self.set_cursor(Cursor::new(
+                                        CursorMode::Normal(offset),
+                                        None,
+                                    ));
+                                }
+                                CursorMode::Insert { .. } => {
+                                    self.set_cursor(Cursor::new(
+                                        CursorMode::Insert(selection),
+                                        None,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    VisualMode::Linewise | VisualMode::Blockwise => {
+                        let (selection, content) = match self.editor.cursor.mode {
+                            CursorMode::Normal(offset) => {
+                                let line = self.buffer.line_of_offset(offset);
+                                let offset = self.buffer.offset_of_line(line + 1);
+                                (Selection::caret(offset), data.content.clone())
+                            }
+                            CursorMode::Insert { .. }
+                            | CursorMode::Visual { .. } => (
+                                self.editor.cursor.edit_selection(&self.buffer),
+                                "\n".to_string() + &data.content,
+                            ),
+                        };
+                        let selection = self.edit(ctx, &selection, &content, false);
+                        match self.editor.cursor.mode {
+                            CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                                let offset = selection.min_offset();
+                                let offset = if self.editor.cursor.is_visual() {
+                                    offset + 1
+                                } else {
+                                    offset
+                                };
+                                let line = self.buffer.line_of_offset(offset);
+                                let offset = self
+                                    .buffer
+                                    .first_non_blank_character_on_line(line);
+                                self.set_cursor(Cursor::new(
+                                    CursorMode::Normal(offset),
+                                    None,
+                                ));
+                            }
+                            CursorMode::Insert(_) => {
+                                self.set_cursor(Cursor::new(
+                                    CursorMode::Insert(selection),
+                                    None,
+                                ));
+                            }
+                        }
                     }
                 }
             }
@@ -1039,24 +1167,8 @@ impl KeyPressFocus for LapceEditorViewData {
                         selection
                     }
                 };
-                let selection = self.edit(ctx, &selection, "");
-                match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                        let offset = selection.min_offset();
-                        let offset =
-                            self.buffer.offset_line_end(offset, false).min(offset);
-                        self.set_cursor(Cursor::new(
-                            CursorMode::Normal(offset),
-                            None,
-                        ));
-                    }
-                    CursorMode::Insert(_) => {
-                        self.set_cursor(Cursor::new(
-                            CursorMode::Insert(selection),
-                            None,
-                        ));
-                    }
-                }
+                let selection = self.edit(ctx, &selection, "", true);
+                self.set_cursor_after_change(selection);
             }
             LapceCommand::DeleteBackward => {
                 let selection = match self.editor.cursor.mode {
@@ -1077,55 +1189,23 @@ impl KeyPressFocus for LapceEditorViewData {
                         selection
                     }
                 };
-                let selection = self.edit(ctx, &selection, "");
-                match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                        let offset = selection.min_offset();
-                        let offset =
-                            self.buffer.offset_line_end(offset, false).min(offset);
-                        self.set_cursor(Cursor::new(
-                            CursorMode::Normal(offset),
-                            None,
-                        ));
-                    }
-                    CursorMode::Insert(_) => {
-                        self.set_cursor(Cursor::new(
-                            CursorMode::Insert(selection),
-                            None,
-                        ));
-                    }
-                }
+                let selection = self.edit(ctx, &selection, "", true);
+                self.set_cursor_after_change(selection);
             }
             LapceCommand::DeleteForeward => {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
-                let selection = self.edit(ctx, &selection, "");
-                match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                        let offset = selection.min_offset();
-                        let offset =
-                            self.buffer.offset_line_end(offset, false).min(offset);
-                        self.set_cursor(Cursor::new(
-                            CursorMode::Normal(offset),
-                            None,
-                        ));
-                    }
-                    CursorMode::Insert(_) => {
-                        self.set_cursor(Cursor::new(
-                            CursorMode::Insert(selection),
-                            None,
-                        ));
-                    }
-                }
+                let selection = self.edit(ctx, &selection, "", true);
+                self.set_cursor_after_change(selection);
             }
             LapceCommand::DeleteForewardAndInsert => {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
-                let selection = self.edit(ctx, &selection, "");
+                let selection = self.edit(ctx, &selection, "", true);
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }
             LapceCommand::InsertNewLine => {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
                 if selection.regions().len() > 1 {
-                    let selection = self.edit(ctx, &selection, "\n");
+                    let selection = self.edit(ctx, &selection, "\n", true);
                     self.set_cursor(Cursor::new(
                         CursorMode::Insert(selection),
                         None,
@@ -1185,7 +1265,7 @@ impl KeyPressFocus for LapceEditorViewData {
     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
             let selection = self.editor.cursor.edit_selection(&self.buffer);
-            let selection = self.edit(ctx, &selection, c);
+            let selection = self.edit(ctx, &selection, c, true);
             let editor = Arc::make_mut(&mut self.editor);
             editor.cursor.mode = CursorMode::Insert(selection);
             editor.cursor.horiz = None;

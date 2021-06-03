@@ -78,6 +78,12 @@ pub enum VisualMode {
     Blockwise,
 }
 
+impl Default for VisualMode {
+    fn default() -> Self {
+        VisualMode::Normal
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Mode {
     Insert,
