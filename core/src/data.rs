@@ -1043,6 +1043,14 @@ impl KeyPressFocus for LapceEditorViewData {
                     Target::Widget(self.editor.split_id),
                 ));
             }
+            LapceCommand::Undo => {
+                let proxy = self.proxy.clone();
+                self.buffer_mut().do_undo(proxy);
+            }
+            LapceCommand::Redo => {
+                let proxy = self.proxy.clone();
+                self.buffer_mut().do_redo(proxy);
+            }
             LapceCommand::Append => {
                 let offset = self
                     .buffer

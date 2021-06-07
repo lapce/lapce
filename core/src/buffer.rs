@@ -21,6 +21,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::{
     borrow::Cow,
+    collections::BTreeSet,
     ffi::OsString,
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -36,6 +37,7 @@ use tree_sitter_highlight::{
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
     interval::IntervalBounds,
+    multiset::Subset,
     rope::Rope,
     spans::{Spans, SpansBuilder, SpansInfo},
     Cursor, Delta, DeltaBuilder, Interval, LinesMetric, RopeDelta, RopeInfo,
@@ -123,6 +125,57 @@ pub struct BufferUpdate {
     pub highlights: Spans<Style>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EditType {
+    Other,
+    InsertChars,
+    InsertNewline,
+    Undo,
+    Redo,
+}
+
+impl EditType {
+    /// Checks whether a new undo group should be created between two edits.
+    fn breaks_undo_group(self, previous: EditType) -> bool {
+        self == EditType::Other || self != previous
+    }
+}
+
+enum Edit {
+    Delta(RopeDelta),
+    Undo(BTreeSet<usize>),
+}
+
+#[derive(Clone)]
+enum Contents {
+    Edit {
+        /// Groups related edits together so that they are undone and re-done
+        /// together. For example, an auto-indent insertion would be un-done
+        /// along with the newline that triggered it.
+        undo_group: usize,
+        /// The subset of the characters of the union string from after this
+        /// revision that were added by this revision.
+        inserts: Subset,
+        /// The subset of the characters of the union string from after this
+        /// revision that were deleted by this revision.
+        deletes: Subset,
+    },
+    Undo {
+        /// The set of groups toggled between undone and done.
+        /// Just the `symmetric_difference` (XOR) of the two sets.
+        toggled_groups: BTreeSet<usize>, // set of undo_group id's
+        /// Used to store a reversible difference between the old
+        /// and new deletes_from_union
+        deletes_bitxor: Subset,
+    },
+}
+
+#[derive(Clone)]
+struct Revision {
+    max_undo_so_far: usize,
+    edit: Contents,
+}
+
 #[derive(Clone)]
 pub struct BufferNew {
     pub id: BufferId,
@@ -140,6 +193,18 @@ pub struct BufferNew {
     pub dirty: bool,
     pub loaded: bool,
     update_sender: Arc<Sender<UpdateEvent>>,
+
+    revs: Vec<Revision>,
+    cur_undo: usize,
+    undos: BTreeSet<usize>,
+    undo_group_id: usize,
+    live_undos: Vec<usize>,
+    deletes_from_union: Subset,
+    undone_groups: BTreeSet<usize>,
+    tombstones: Rope,
+
+    this_edit_type: EditType,
+    last_edit_type: EditType,
 }
 
 impl BufferNew {
@@ -161,6 +226,24 @@ impl BufferNew {
             loaded: false,
             dirty: false,
             update_sender,
+
+            revs: vec![Revision {
+                max_undo_so_far: 0,
+                edit: Contents::Undo {
+                    toggled_groups: BTreeSet::new(),
+                    deletes_bitxor: Subset::new(0),
+                },
+            }],
+            cur_undo: 0,
+            undos: BTreeSet::new(),
+            undo_group_id: 0,
+            live_undos: Vec::new(),
+            deletes_from_union: Subset::new(0),
+            undone_groups: BTreeSet::new(),
+            tombstones: Rope::default(),
+
+            last_edit_type: EditType::Other,
+            this_edit_type: EditType::Other,
         };
         buffer.text_layouts =
             im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
@@ -169,7 +252,14 @@ impl BufferNew {
     }
 
     pub fn load_content(&mut self, content: &str) {
-        self.rope = Rope::from_str(content).unwrap();
+        let delta = Delta::simple_edit(Interval::new(0, 0), Rope::from(content), 0);
+        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+            self.mk_new_rev(0, delta.clone());
+        self.revs.push(new_rev);
+        self.rope = new_text;
+        self.tombstones = new_tombstones;
+        self.deletes_from_union = new_deletes_from_union;
+
         let (max_len, max_len_line) = self.get_max_line_len();
         self.max_len = max_len;
         self.max_len_line = max_len_line;
@@ -698,18 +788,136 @@ impl BufferNew {
         self.text_layouts.append(right);
     }
 
-    fn apply_delta(&mut self, proxy: Arc<LapceProxy>, delta: &RopeDelta) {
+    fn mk_new_rev(
+        &self,
+        undo_group: usize,
+        delta: RopeDelta,
+    ) -> (Revision, Rope, Rope, Subset) {
+        let (ins_delta, deletes) = delta.factor();
+
+        let deletes_at_rev = &self.deletes_from_union;
+
+        let union_ins_delta = ins_delta.transform_expand(&deletes_at_rev, true);
+        let mut new_deletes = deletes.transform_expand(&deletes_at_rev);
+
+        let new_inserts = union_ins_delta.inserted_subset();
+        if !new_inserts.is_empty() {
+            new_deletes = new_deletes.transform_expand(&new_inserts);
+        }
+        let cur_deletes_from_union = &self.deletes_from_union;
+        let text_ins_delta =
+            union_ins_delta.transform_shrink(cur_deletes_from_union);
+        let text_with_inserts = text_ins_delta.apply(&self.rope);
+        let rebased_deletes_from_union =
+            cur_deletes_from_union.transform_expand(&new_inserts);
+
+        let undone = self.undone_groups.contains(&undo_group);
+        let new_deletes_from_union = {
+            let to_delete = if undone { &new_inserts } else { &new_deletes };
+            rebased_deletes_from_union.union(to_delete)
+        };
+
+        let (new_text, new_tombstones) = shuffle(
+            &text_with_inserts,
+            &self.tombstones,
+            &rebased_deletes_from_union,
+            &new_deletes_from_union,
+        );
+
+        let head_rev = &self.revs.last().unwrap();
+        (
+            Revision {
+                max_undo_so_far: std::cmp::max(undo_group, head_rev.max_undo_so_far),
+                edit: Contents::Edit {
+                    undo_group,
+                    inserts: new_inserts,
+                    deletes: new_deletes,
+                },
+            },
+            new_text,
+            new_tombstones,
+            new_deletes_from_union,
+        )
+    }
+
+    fn calculate_undo_group(&mut self) -> usize {
+        let has_undos = !self.live_undos.is_empty();
+        let is_unbroken_group =
+            !self.this_edit_type.breaks_undo_group(self.last_edit_type);
+
+        if has_undos && is_unbroken_group {
+            *self.live_undos.last().unwrap()
+        } else {
+            let undo_group = self.undo_group_id;
+            self.live_undos.truncate(self.cur_undo);
+            self.live_undos.push(undo_group);
+            self.cur_undo += 1;
+            self.undo_group_id += 1;
+            undo_group
+        }
+    }
+
+    fn apply_edit(
+        &mut self,
+        proxy: Arc<LapceProxy>,
+        edit: Edit,
+        edit_type: EditType,
+    ) {
         if !self.loaded {
             return;
         }
         self.rev += 1;
         self.dirty = true;
+        self.this_edit_type = edit_type;
+
+        let (delta, new_rev, new_text, new_tombstones, new_deletes_from_union) =
+            match edit {
+                Edit::Delta(delta) => {
+                    let undo_group = self.calculate_undo_group();
+                    let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+                        self.mk_new_rev(undo_group, delta.clone());
+                    (
+                        delta,
+                        new_rev,
+                        new_text,
+                        new_tombstones,
+                        new_deletes_from_union,
+                    )
+                }
+                Edit::Undo(groups) => {
+                    let (new_rev, new_deletes_from_union) =
+                        self.compute_undo(&groups);
+                    let delta = Delta::synthesize(
+                        &self.tombstones,
+                        &self.deletes_from_union,
+                        &new_deletes_from_union,
+                    );
+                    let new_text = delta.apply(&self.rope);
+                    let new_tombstones = shuffle_tombstones(
+                        &self.rope,
+                        &self.tombstones,
+                        &self.deletes_from_union,
+                        &new_deletes_from_union,
+                    );
+                    (
+                        delta,
+                        new_rev,
+                        new_text,
+                        new_tombstones,
+                        new_deletes_from_union,
+                    )
+                }
+            };
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
 
-        proxy.update(self.id, delta, self.rev);
+        proxy.update(self.id, &delta, self.rev);
 
-        self.rope = delta.apply(&self.rope);
+        self.revs.push(new_rev);
+        self.rope = new_text;
+        self.tombstones = new_tombstones;
+        self.deletes_from_union = new_deletes_from_union;
+
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
         let old_hard_count = old_logical_end_line - logical_start_line;
@@ -722,9 +930,44 @@ impl BufferNew {
         };
         self.update_size(&inval_lines);
         self.update_text_layouts(&inval_lines);
-        self.update_line_styles(delta, &inval_lines);
+        self.update_line_styles(&delta, &inval_lines);
         self.notify_update();
     }
+
+    //     fn apply_delta(&mut self, proxy: Arc<LapceProxy>, delta: &RopeDelta) {
+    //         if !self.loaded {
+    //             return;
+    //         }
+    //         self.rev += 1;
+    //         self.dirty = true;
+    //         let (iv, newlen) = delta.summary();
+    //         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
+    //
+    //         proxy.update(self.id, delta, self.rev);
+    //
+    //         let undo_group = self.calculate_undo_group();
+    //         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+    //             self.mk_new_rev(undo_group, delta.clone());
+    //         self.revs.push(new_rev);
+    //         self.rope = new_text;
+    //         self.tombstones = new_tombstones;
+    //         self.deletes_from_union = new_deletes_from_union;
+    //
+    //         let logical_start_line = self.rope.line_of_offset(iv.start);
+    //         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
+    //         let old_hard_count = old_logical_end_line - logical_start_line;
+    //         let new_hard_count = new_logical_end_line - logical_start_line;
+    //
+    //         let inval_lines = InvalLines {
+    //             start_line: logical_start_line,
+    //             inval_count: old_hard_count,
+    //             new_count: new_hard_count,
+    //         };
+    //         self.update_size(&inval_lines);
+    //         self.update_text_layouts(&inval_lines);
+    //         self.update_line_styles(delta, &inval_lines);
+    //         self.notify_update();
+    // }
 
     pub fn edit_multiple(
         &mut self,
@@ -740,7 +983,7 @@ impl BufferNew {
             }
         }
         let delta = builder.build();
-        self.apply_delta(proxy, &delta);
+        self.apply_edit(proxy, Edit::Delta(delta.clone()), EditType::InsertChars);
         delta
     }
 
@@ -753,6 +996,183 @@ impl BufferNew {
     ) -> RopeDelta {
         self.edit_multiple(ctx, vec![(selection, content)], proxy)
     }
+
+    pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) {
+        if self.cur_undo > 1 {
+            self.cur_undo -= 1;
+            self.undos.insert(self.live_undos[self.cur_undo]);
+            self.undo(self.undos.clone(), proxy);
+        }
+    }
+
+    pub fn do_redo(&mut self, proxy: Arc<LapceProxy>) {
+        if self.cur_undo < self.live_undos.len() {
+            self.undos.remove(&self.live_undos[self.cur_undo]);
+            self.cur_undo += 1;
+            self.undo(self.undos.clone(), proxy);
+        }
+    }
+
+    fn undo(&mut self, groups: BTreeSet<usize>, proxy: Arc<LapceProxy>) {
+        self.apply_edit(proxy, Edit::Undo(groups), EditType::Other);
+    }
+
+    fn deletes_from_union_before_index(
+        &self,
+        rev_index: usize,
+        invert_undos: bool,
+    ) -> Cow<Subset> {
+        let mut deletes_from_union = Cow::Borrowed(&self.deletes_from_union);
+        let mut undone_groups = Cow::Borrowed(&self.undone_groups);
+
+        // invert the changes to deletes_from_union starting in the present and working backwards
+        for rev in self.revs[rev_index..].iter().rev() {
+            deletes_from_union = match rev.edit {
+                Contents::Edit {
+                    ref inserts,
+                    ref deletes,
+                    ref undo_group,
+                    ..
+                } => {
+                    if undone_groups.contains(undo_group) {
+                        // no need to un-delete undone inserts since we'll just shrink them out
+                        Cow::Owned(deletes_from_union.transform_shrink(inserts))
+                    } else {
+                        let un_deleted = deletes_from_union.subtract(deletes);
+                        Cow::Owned(un_deleted.transform_shrink(inserts))
+                    }
+                }
+                Contents::Undo {
+                    ref toggled_groups,
+                    ref deletes_bitxor,
+                } => {
+                    if invert_undos {
+                        let new_undone = undone_groups
+                            .symmetric_difference(toggled_groups)
+                            .cloned()
+                            .collect();
+                        undone_groups = Cow::Owned(new_undone);
+                        Cow::Owned(deletes_from_union.bitxor(deletes_bitxor))
+                    } else {
+                        deletes_from_union
+                    }
+                }
+            }
+        }
+        deletes_from_union
+    }
+
+    fn find_first_undo_candidate_index(
+        &self,
+        toggled_groups: &BTreeSet<usize>,
+    ) -> usize {
+        // find the lowest toggled undo group number
+        if let Some(lowest_group) = toggled_groups.iter().cloned().next() {
+            for (i, rev) in self.revs.iter().enumerate().rev() {
+                if rev.max_undo_so_far < lowest_group {
+                    return i + 1; // +1 since we know the one we just found doesn't have it
+                }
+            }
+            0
+        } else {
+            // no toggled groups, return past end
+            self.revs.len()
+        }
+    }
+
+    fn compute_undo(&self, groups: &BTreeSet<usize>) -> (Revision, Subset) {
+        let toggled_groups = self
+            .undone_groups
+            .symmetric_difference(&groups)
+            .cloned()
+            .collect();
+        let first_candidate = self.find_first_undo_candidate_index(&toggled_groups);
+        // the `false` below: don't invert undos since our first_candidate is based on the current undo set, not past
+        let mut deletes_from_union = self
+            .deletes_from_union_before_index(first_candidate, false)
+            .into_owned();
+
+        for rev in &self.revs[first_candidate..] {
+            if let Contents::Edit {
+                ref undo_group,
+                ref inserts,
+                ref deletes,
+                ..
+            } = rev.edit
+            {
+                if groups.contains(undo_group) {
+                    if !inserts.is_empty() {
+                        deletes_from_union =
+                            deletes_from_union.transform_union(inserts);
+                    }
+                } else {
+                    if !inserts.is_empty() {
+                        deletes_from_union =
+                            deletes_from_union.transform_expand(inserts);
+                    }
+                    if !deletes.is_empty() {
+                        deletes_from_union = deletes_from_union.union(deletes);
+                    }
+                }
+            }
+        }
+
+        let deletes_bitxor = self.deletes_from_union.bitxor(&deletes_from_union);
+        let max_undo_so_far = self.revs.last().unwrap().max_undo_so_far;
+        (
+            Revision {
+                max_undo_so_far,
+                edit: Contents::Undo {
+                    toggled_groups,
+                    deletes_bitxor,
+                },
+            },
+            deletes_from_union,
+        )
+    }
+}
+
+fn shuffle_tombstones(
+    text: &Rope,
+    tombstones: &Rope,
+    old_deletes_from_union: &Subset,
+    new_deletes_from_union: &Subset,
+) -> Rope {
+    // Taking the complement of deletes_from_union leads to an interleaving valid for swapped text and tombstones,
+    // allowing us to use the same method to insert the text into the tombstones.
+    let inverse_tombstones_map = old_deletes_from_union.complement();
+    let move_delta = Delta::synthesize(
+        text,
+        &inverse_tombstones_map,
+        &new_deletes_from_union.complement(),
+    );
+    move_delta.apply(tombstones)
+}
+
+fn shuffle(
+    text: &Rope,
+    tombstones: &Rope,
+    old_deletes_from_union: &Subset,
+    new_deletes_from_union: &Subset,
+) -> (Rope, Rope) {
+    // Delta that deletes the right bits from the text
+    let del_delta = Delta::synthesize(
+        tombstones,
+        old_deletes_from_union,
+        new_deletes_from_union,
+    );
+    let new_text = del_delta.apply(text);
+    // println!("shuffle: old={:?} new={:?} old_text={:?} new_text={:?} old_tombstones={:?}",
+    //     old_deletes_from_union, new_deletes_from_union, text, new_text, tombstones);
+    (
+        new_text,
+        shuffle_tombstones(
+            text,
+            tombstones,
+            old_deletes_from_union,
+            new_deletes_from_union,
+        ),
+    )
 }
 
 pub struct Buffer {
