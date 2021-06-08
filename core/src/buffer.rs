@@ -230,10 +230,10 @@ impl BufferNew {
                     deletes_bitxor: Subset::new(0),
                 },
             }],
-            cur_undo: 0,
+            cur_undo: 1,
             undos: BTreeSet::new(),
-            undo_group_id: 0,
-            live_undos: Vec::new(),
+            undo_group_id: 1,
+            live_undos: vec![0],
             deletes_from_union: Subset::new(0),
             undone_groups: BTreeSet::new(),
             tombstones: Rope::default(),
@@ -371,9 +371,6 @@ impl BufferNew {
                 false
             } else {
                 let changed = *old_styles != *styles;
-                if changed {
-                    println!("stlye changed {}", line);
-                }
                 changed
             }
         } {
@@ -894,41 +891,6 @@ impl BufferNew {
         self.notify_update();
     }
 
-    //     fn apply_delta(&mut self, proxy: Arc<LapceProxy>, delta: &RopeDelta) {
-    //         if !self.loaded {
-    //             return;
-    //         }
-    //         self.rev += 1;
-    //         self.dirty = true;
-    //         let (iv, newlen) = delta.summary();
-    //         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
-    //
-    //         proxy.update(self.id, delta, self.rev);
-    //
-    //         let undo_group = self.calculate_undo_group();
-    //         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
-    //             self.mk_new_rev(undo_group, delta.clone());
-    //         self.revs.push(new_rev);
-    //         self.rope = new_text;
-    //         self.tombstones = new_tombstones;
-    //         self.deletes_from_union = new_deletes_from_union;
-    //
-    //         let logical_start_line = self.rope.line_of_offset(iv.start);
-    //         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
-    //         let old_hard_count = old_logical_end_line - logical_start_line;
-    //         let new_hard_count = new_logical_end_line - logical_start_line;
-    //
-    //         let inval_lines = InvalLines {
-    //             start_line: logical_start_line,
-    //             inval_count: old_hard_count,
-    //             new_count: new_hard_count,
-    //         };
-    //         self.update_size(&inval_lines);
-    //         self.update_text_layouts(&inval_lines);
-    //         self.update_line_styles(delta, &inval_lines);
-    //         self.notify_update();
-    // }
-
     pub fn edit_multiple(
         &mut self,
         ctx: &mut EventCtx,
@@ -947,6 +909,7 @@ impl BufferNew {
         self.this_edit_type = edit_type;
         let undo_group = self.calculate_undo_group();
         self.last_edit_type = self.this_edit_type;
+        println!("undo group {}", undo_group);
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
 
@@ -977,7 +940,7 @@ impl BufferNew {
         if self.cur_undo > 1 {
             self.cur_undo -= 1;
             self.undos.insert(self.live_undos[self.cur_undo]);
-            self.this_edit_type = EditType::Undo;
+            self.last_edit_type = EditType::Undo;
             Some(self.undo(self.undos.clone(), proxy))
         } else {
             None
@@ -988,7 +951,7 @@ impl BufferNew {
         if self.cur_undo < self.live_undos.len() {
             self.undos.remove(&self.live_undos[self.cur_undo]);
             self.cur_undo += 1;
-            self.this_edit_type = EditType::Redo;
+            self.last_edit_type = EditType::Redo;
             Some(self.undo(self.undos.clone(), proxy))
         } else {
             None
@@ -1000,6 +963,7 @@ impl BufferNew {
         groups: BTreeSet<usize>,
         proxy: Arc<LapceProxy>,
     ) -> RopeDelta {
+        println!("undo {:?}", groups);
         let (new_rev, new_deletes_from_union) = self.compute_undo(&groups);
         let delta = Delta::synthesize(
             &self.tombstones,
@@ -1094,7 +1058,9 @@ impl BufferNew {
             .symmetric_difference(&groups)
             .cloned()
             .collect();
+        println!("toggled groups {:?}", &toggled_groups);
         let first_candidate = self.find_first_undo_candidate_index(&toggled_groups);
+        println!("first candidate {}", first_candidate);
         // the `false` below: don't invert undos since our first_candidate is based on the current undo set, not past
         let mut deletes_from_union = self
             .deletes_from_union_before_index(first_candidate, false)
