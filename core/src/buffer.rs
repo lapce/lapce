@@ -130,6 +130,7 @@ pub enum EditType {
     Other,
     InsertChars,
     InsertNewline,
+    Delete,
     Undo,
     Redo,
 }
@@ -139,11 +140,6 @@ impl EditType {
     fn breaks_undo_group(self, previous: EditType) -> bool {
         self == EditType::Other || self != previous
     }
-}
-
-enum Edit {
-    Delta(RopeDelta),
-    Undo(BTreeSet<usize>),
 }
 
 #[derive(Clone)]
@@ -860,54 +856,18 @@ impl BufferNew {
     fn apply_edit(
         &mut self,
         proxy: Arc<LapceProxy>,
-        edit: Edit,
-        edit_type: EditType,
+        delta: &RopeDelta,
+        new_rev: Revision,
+        new_text: Rope,
+        new_tombstones: Rope,
+        new_deletes_from_union: Subset,
     ) {
         if !self.loaded {
             return;
         }
         self.rev += 1;
         self.dirty = true;
-        self.this_edit_type = edit_type;
 
-        let (delta, new_rev, new_text, new_tombstones, new_deletes_from_union) =
-            match edit {
-                Edit::Delta(delta) => {
-                    let undo_group = self.calculate_undo_group();
-                    let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
-                        self.mk_new_rev(undo_group, delta.clone());
-                    (
-                        delta,
-                        new_rev,
-                        new_text,
-                        new_tombstones,
-                        new_deletes_from_union,
-                    )
-                }
-                Edit::Undo(groups) => {
-                    let (new_rev, new_deletes_from_union) =
-                        self.compute_undo(&groups);
-                    let delta = Delta::synthesize(
-                        &self.tombstones,
-                        &self.deletes_from_union,
-                        &new_deletes_from_union,
-                    );
-                    let new_text = delta.apply(&self.rope);
-                    let new_tombstones = shuffle_tombstones(
-                        &self.rope,
-                        &self.tombstones,
-                        &self.deletes_from_union,
-                        &new_deletes_from_union,
-                    );
-                    (
-                        delta,
-                        new_rev,
-                        new_text,
-                        new_tombstones,
-                        new_deletes_from_union,
-                    )
-                }
-            };
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
 
@@ -974,6 +934,7 @@ impl BufferNew {
         ctx: &mut EventCtx,
         edits: Vec<(&Selection, &str)>,
         proxy: Arc<LapceProxy>,
+        edit_type: EditType,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
         for (selection, content) in edits {
@@ -983,7 +944,21 @@ impl BufferNew {
             }
         }
         let delta = builder.build();
-        self.apply_edit(proxy, Edit::Delta(delta.clone()), EditType::InsertChars);
+        self.this_edit_type = edit_type;
+        let undo_group = self.calculate_undo_group();
+        self.last_edit_type = self.this_edit_type;
+        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+            self.mk_new_rev(undo_group, delta.clone());
+
+        self.apply_edit(
+            proxy,
+            &delta,
+            new_rev,
+            new_text,
+            new_tombstones,
+            new_deletes_from_union,
+        );
+
         delta
     }
 
@@ -993,28 +968,61 @@ impl BufferNew {
         selection: &Selection,
         content: &str,
         proxy: Arc<LapceProxy>,
+        edit_type: EditType,
     ) -> RopeDelta {
-        self.edit_multiple(ctx, vec![(selection, content)], proxy)
+        self.edit_multiple(ctx, vec![(selection, content)], proxy, edit_type)
     }
 
-    pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) {
+    pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {
         if self.cur_undo > 1 {
             self.cur_undo -= 1;
             self.undos.insert(self.live_undos[self.cur_undo]);
-            self.undo(self.undos.clone(), proxy);
+            self.this_edit_type = EditType::Undo;
+            Some(self.undo(self.undos.clone(), proxy))
+        } else {
+            None
         }
     }
 
-    pub fn do_redo(&mut self, proxy: Arc<LapceProxy>) {
+    pub fn do_redo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {
         if self.cur_undo < self.live_undos.len() {
             self.undos.remove(&self.live_undos[self.cur_undo]);
             self.cur_undo += 1;
-            self.undo(self.undos.clone(), proxy);
+            self.this_edit_type = EditType::Redo;
+            Some(self.undo(self.undos.clone(), proxy))
+        } else {
+            None
         }
     }
 
-    fn undo(&mut self, groups: BTreeSet<usize>, proxy: Arc<LapceProxy>) {
-        self.apply_edit(proxy, Edit::Undo(groups), EditType::Other);
+    fn undo(
+        &mut self,
+        groups: BTreeSet<usize>,
+        proxy: Arc<LapceProxy>,
+    ) -> RopeDelta {
+        let (new_rev, new_deletes_from_union) = self.compute_undo(&groups);
+        let delta = Delta::synthesize(
+            &self.tombstones,
+            &self.deletes_from_union,
+            &new_deletes_from_union,
+        );
+        let new_text = delta.apply(&self.rope);
+        let new_tombstones = shuffle_tombstones(
+            &self.rope,
+            &self.tombstones,
+            &self.deletes_from_union,
+            &new_deletes_from_union,
+        );
+        self.undone_groups = groups;
+        self.apply_edit(
+            proxy,
+            &delta,
+            new_rev,
+            new_text,
+            new_tombstones,
+            new_deletes_from_union,
+        );
+        delta
     }
 
     fn deletes_from_union_before_index(
@@ -1129,6 +1137,11 @@ impl BufferNew {
             },
             deletes_from_union,
         )
+    }
+
+    pub fn update_edit_type(&mut self) {
+        self.last_edit_type = self.this_edit_type;
+        self.this_edit_type = EditType::Other
     }
 }
 
