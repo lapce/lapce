@@ -133,7 +133,7 @@ pub struct LapceEditorView {
 impl LapceEditorView {
     pub fn new(view_id: WidgetId, editor_id: WidgetId) -> LapceEditorView {
         let header = LapceEditorHeader::new();
-        let editor = LapceEditorContainer::new(editor_id);
+        let editor = LapceEditorContainer::new(view_id, editor_id);
         Self {
             view_id,
             header: WidgetPod::new(header),
@@ -214,6 +214,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
 }
 
 pub struct LapceEditorContainer {
+    pub view_id: WidgetId,
     pub editor_id: WidgetId,
     pub scroll_id: WidgetId,
     pub gutter: WidgetPod<
@@ -230,17 +231,18 @@ pub struct LapceEditorContainer {
 }
 
 impl LapceEditorContainer {
-    pub fn new(editor_id: WidgetId) -> Self {
+    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
         let scroll_id = WidgetId::next();
-        let gutter = LapceEditorGutter::new(editor_id);
+        let gutter = LapceEditorGutter::new(view_id, editor_id);
         let gutter = LapcePadding::new((10.0, 0.0, 10.0, 0.0), gutter);
-        let editor = LapceEditor::new(editor_id);
+        let editor = LapceEditor::new(view_id, editor_id);
         let editor = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(editor).vertical().horizontal(),
             scroll_id,
         );
         let editor = LapcePadding::new((10.0, 0.0, 0.0, 0.0), editor);
         Self {
+            view_id,
             editor_id,
             scroll_id,
             gutter: WidgetPod::new(gutter),
@@ -396,7 +398,7 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
     ) {
         match event {
             Event::WindowConnected => {
-                if *data.main_split.focus == self.editor_id {
+                if *data.main_split.active == self.view_id {
                     ctx.request_focus();
                 }
             }
@@ -542,13 +544,15 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
 }
 
 pub struct LapceEditorGutter {
+    view_id: WidgetId,
     editor_id: WidgetId,
     text_layouts: HashMap<String, EditorTextLayout>,
 }
 
 impl LapceEditorGutter {
-    pub fn new(editor_id: WidgetId) -> Self {
+    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
         Self {
+            view_id,
             editor_id,
             text_layouts: HashMap::new(),
         }
@@ -588,10 +592,10 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
             return;
         }
 
-        if (*old_data.main_split.focus == self.editor_id
-            && *data.main_split.focus != self.editor_id)
-            || (*old_data.main_split.focus != self.editor_id
-                && *data.main_split.focus == self.editor_id)
+        if (*old_data.main_split.active == self.view_id
+            && *data.main_split.active != self.view_id)
+            || (*old_data.main_split.active != self.view_id
+                && *data.main_split.active == self.view_id)
         {
             ctx.request_paint();
         }
@@ -627,7 +631,7 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
             if line > last_line {
                 break;
             }
-            let content = if *data.main_split.focus != self.editor_id {
+            let content = if *data.main_split.active != self.view_id {
                 line + 1
             } else {
                 if line == current_line {
@@ -669,12 +673,18 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
 }
 
 pub struct LapceEditor {
+    id: WidgetId,
+    view_id: WidgetId,
     editor_id: WidgetId,
 }
 
 impl LapceEditor {
-    pub fn new(editor_id: WidgetId) -> Self {
-        Self { editor_id }
+    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
+        Self {
+            id: WidgetId::next(),
+            view_id,
+            editor_id,
+        }
     }
 
     fn paint_cursor_line(&mut self, ctx: &mut PaintCtx, line: usize, env: &Env) {
@@ -695,7 +705,7 @@ impl LapceEditor {
         env: &Env,
     ) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let active = *data.main_split.focus == self.editor_id;
+        let active = *data.main_split.active == self.view_id;
         let start_line =
             (data.editor.scroll_offset.y / line_height).floor() as usize;
         let end_line = ((data.editor.size.height + data.editor.scroll_offset.y)
@@ -852,6 +862,16 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         env: &Env,
     ) {
         match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::UpdateWindowOrigin => {
+                        Arc::make_mut(&mut data.editor).window_origin =
+                            ctx.window_origin();
+                    }
+                    _ => (),
+                }
+            }
             _ => (),
         }
     }
@@ -949,10 +969,10 @@ impl Widget<LapceEditorViewData> for LapceEditor {
             ctx.request_paint_rect(rect);
         }
 
-        if (*old_data.main_split.focus == self.editor_id
-            && *data.main_split.focus != self.editor_id)
-            || (*old_data.main_split.focus != self.editor_id
-                && *data.main_split.focus == self.editor_id)
+        if (*old_data.main_split.active == self.view_id
+            && *data.main_split.active != self.view_id)
+            || (*old_data.main_split.active != self.view_id
+                && *data.main_split.active == self.view_id)
         {
             let (start, end) = data.editor.cursor.lines(buffer);
             let rect = Rect::ZERO
@@ -972,6 +992,12 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         data: &LapceEditorViewData,
         env: &Env,
     ) -> Size {
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::UpdateWindowOrigin,
+            Target::Widget(self.id),
+        ));
+
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let width = 7.6171875;
         Size::new(

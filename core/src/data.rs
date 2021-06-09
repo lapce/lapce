@@ -17,7 +17,9 @@ use druid::{
     WidgetId, WindowId,
 };
 use im;
+use lsp_types::CompletionResponse;
 use parking_lot::Mutex;
+use serde_json::Value;
 use tree_sitter_highlight::{Highlight, HighlightEvent, Highlighter};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta};
@@ -29,6 +31,7 @@ use crate::{
         BufferUpdate, EditType, Style, UpdateEvent,
     },
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    completion::CompletionData,
     keypress::{KeyPressData, KeyPressFocus},
     language::new_highlight_config,
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
@@ -169,16 +172,19 @@ impl LapceWindowData {
 pub struct LapceTabData {
     pub id: WidgetId,
     pub main_split: LapceMainSplitData,
+    pub completion: Arc<CompletionData>,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
+    pub window_origin: Point,
 }
 
 impl Data for LapceTabData {
     fn same(&self, other: &Self) -> bool {
         self.main_split.same(&other.main_split)
+            && self.completion.same(&other.completion)
     }
 }
 
@@ -192,15 +198,56 @@ impl LapceTabData {
         let update_sender = Arc::new(update_sender);
         let proxy = Arc::new(LapceProxy::new(tab_id));
         let main_split = LapceMainSplitData::new(update_sender.clone());
+        let completion = Arc::new(CompletionData::new());
         Self {
             id: tab_id,
             main_split,
+            completion,
             proxy,
             keypress,
             theme,
             update_sender,
             update_receiver: Some(update_receiver),
+            window_origin: Point::ZERO,
         }
+    }
+
+    pub fn completion_origin(&self, env: &Env) -> Point {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+
+        let editor = self.main_split.active_editor();
+        let buffer_id = self.main_split.open_files.get(&editor.buffer).unwrap();
+        let buffer = self.main_split.buffers.get(&buffer_id).unwrap();
+        let offset = editor.cursor.offset();
+        let (line, col) = buffer.offset_to_line_col(offset);
+        let width = 7.6171875;
+        let x = buffer.col_x(line, col, width);
+        let y = (line + 1) as f64 * line_height;
+        let origin =
+            editor.window_origin - self.window_origin.to_vec2() + Vec2::new(x, y);
+
+        origin
+    }
+
+    pub fn update_completion(&mut self, value: Value) -> Result<()> {
+        let resp: CompletionResponse = serde_json::from_value(value)?;
+        let items = match resp {
+            CompletionResponse::Array(items) => items,
+            CompletionResponse::List(list) => list.items,
+        };
+        let editor = self.main_split.active_editor();
+        let buffer_id = self.main_split.open_files.get(&editor.buffer).unwrap();
+        let buffer = self.main_split.buffers.get(&buffer_id).unwrap();
+        let offset = editor.cursor.offset();
+
+        let start_offset = buffer.prev_code_boundary(offset);
+        let end_offset = buffer.next_code_boundary(offset);
+        let input = buffer.slice_to_cow(start_offset..end_offset).to_string();
+
+        let completion = Arc::make_mut(&mut self.completion);
+        completion.update(input, items);
+
+        Ok(())
     }
 
     pub fn buffer_update_process(
@@ -276,7 +323,7 @@ impl LapceTabData {
                     let highlights = highlights.build();
                     let end = std::time::SystemTime::now();
                     let duration = end.duration_since(start).unwrap().as_micros();
-                    println!("semantic tokens took {}", duration);
+                    // println!("semantic tokens took {}", duration);
                     highlights
                 } else {
                     if !highlight_configs.contains_key(&update.language) {
@@ -431,7 +478,7 @@ impl Register {
 #[derive(Clone, Data, Lens)]
 pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
-    pub focus: Arc<WidgetId>,
+    pub active: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub buffers: im::HashMap<BufferId, Arc<BufferNew>>,
     pub open_files: im::HashMap<PathBuf, BufferId>,
@@ -456,6 +503,10 @@ impl LapceMainSplitData {
             }
         }
     }
+
+    pub fn active_editor(&self) -> &LapceEditorData {
+        self.editors.get(&self.active).unwrap()
+    }
 }
 
 impl LapceMainSplitData {
@@ -464,7 +515,7 @@ impl LapceMainSplitData {
         let mut editors = im::HashMap::new();
         let path = PathBuf::from("/Users/Lulu/lapce/core/src/editor.rs");
         let editor = LapceEditorData::new(*split_id, path.clone());
-        let editor_id = editor.editor_id;
+        let view_id = editor.view_id;
         editors.insert(editor.view_id, Arc::new(editor));
         let buffer = BufferNew::new(path.clone(), update_sender.clone());
         let mut open_files = im::HashMap::new();
@@ -476,7 +527,7 @@ impl LapceMainSplitData {
             editors,
             buffers,
             open_files,
-            focus: Arc::new(editor_id),
+            active: Arc::new(view_id),
             update_sender,
             register: Arc::new(Register::default()),
         }
@@ -492,6 +543,7 @@ pub struct LapceEditorData {
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
     pub size: Size,
+    pub window_origin: Point,
 }
 
 impl LapceEditorData {
@@ -504,6 +556,7 @@ impl LapceEditorData {
             scroll_offset: Vec2::ZERO,
             cursor: Cursor::default(),
             size: Size::ZERO,
+            window_origin: Point::ZERO,
         }
     }
 }
@@ -515,6 +568,7 @@ pub struct LapceEditorViewData {
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,
     pub keypress: Arc<KeyPressData>,
+    pub completion: Arc<CompletionData>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
 }
 
@@ -554,7 +608,7 @@ impl LapceEditorViewData {
         }
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        println!("fill text layout took {}", duration);
+        // println!("fill text layout took {}", duration);
     }
 
     fn move_command(
@@ -921,6 +975,60 @@ impl LapceEditorViewData {
             }
         }
     }
+
+    fn update_completion(&mut self, ctx: &mut EventCtx) {
+        if self.get_mode() != Mode::Insert {
+            return;
+        }
+        let offset = self.editor.cursor.offset();
+        let start_offset = self.buffer.prev_code_boundary(offset);
+        let end_offset = self.buffer.next_code_boundary(offset);
+        let input = self
+            .buffer
+            .slice_to_cow(start_offset..end_offset)
+            .to_string();
+        let char = self
+            .buffer
+            .slice_to_cow(start_offset - 1..start_offset)
+            .to_string();
+        let completion = Arc::make_mut(&mut self.completion);
+        if input == "" && char != "." && char != ":" {
+            completion.cancel();
+            return;
+        }
+
+        if let Some((buffer_id, offset)) = completion.pos.as_ref() {
+            if &self.buffer.id == buffer_id && *offset == start_offset {
+                completion.update_input(input);
+                return;
+            }
+        }
+
+        completion.pos = Some((self.buffer.id, start_offset));
+        let event_sink = ctx.get_external_handle();
+        let completion_widget_id = self.completion.id;
+        let buffer_id = self.buffer.id;
+        println!("proxy get completion");
+        self.proxy.get_completion(
+            start_offset,
+            self.buffer.id,
+            self.buffer.offset_to_position(start_offset),
+            Box::new(move |result| {
+                if let Ok(res) = result {
+                    println!("proxy completion result");
+                    event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateCompletion(
+                            buffer_id,
+                            start_offset,
+                            res,
+                        ),
+                        Target::Widget(completion_widget_id),
+                    );
+                }
+            }),
+        );
+    }
 }
 
 pub struct LapceEditorLens(pub WidgetId);
@@ -942,6 +1050,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             editor: editor.clone(),
             main_split: main_split.clone(),
             keypress: data.keypress.clone(),
+            completion: data.completion.clone(),
             theme: data.theme.clone(),
             proxy: data.proxy.clone(),
         };
@@ -960,12 +1069,14 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             editor: editor.clone(),
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
+            completion: data.completion.clone(),
             theme: data.theme.clone(),
             proxy: data.proxy.clone(),
         };
         let result = f(&mut editor_view);
 
         data.keypress = editor_view.keypress.clone();
+        data.completion = editor_view.completion.clone();
         data.main_split = editor_view.main_split.clone();
         data.theme = editor_view.theme.clone();
         if !editor.same(&editor_view.editor) {
@@ -1261,6 +1372,7 @@ impl KeyPressFocus for LapceEditorViewData {
                 let selection =
                     self.edit(ctx, &selection, "", true, EditType::Delete);
                 self.set_cursor_after_change(selection);
+                self.update_completion(ctx);
             }
             LapceCommand::DeleteBackward => {
                 let selection = match self.editor.cursor.mode {
@@ -1290,12 +1402,14 @@ impl KeyPressFocus for LapceEditorViewData {
                 let selection =
                     self.edit(ctx, &selection, "", true, EditType::Delete);
                 self.set_cursor_after_change(selection);
+                self.update_completion(ctx);
             }
             LapceCommand::DeleteForewardAndInsert => {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
                 let selection =
                     self.edit(ctx, &selection, "", true, EditType::Delete);
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
+                self.update_completion(ctx);
             }
             LapceCommand::InsertNewLine => {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
@@ -1314,6 +1428,7 @@ impl KeyPressFocus for LapceEditorViewData {
                     return;
                 };
                 self.insert_new_line(ctx, self.editor.cursor.offset());
+                self.update_completion(ctx);
             }
             LapceCommand::ToggleVisualMode => {
                 self.toggle_visual(VisualMode::Normal);
@@ -1372,6 +1487,7 @@ impl KeyPressFocus for LapceEditorViewData {
             let editor = Arc::make_mut(&mut self.editor);
             editor.cursor.mode = CursorMode::Insert(selection);
             editor.cursor.horiz = None;
+            self.update_completion(ctx);
         }
     }
 }

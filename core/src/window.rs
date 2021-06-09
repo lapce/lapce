@@ -18,9 +18,9 @@ use crate::{
 };
 use druid::{
     kurbo::Line, theme, widget::IdentityWrapper, widget::WidgetExt, BoxConstraints,
-    Env, Event, EventCtx, FontDescriptor, FontFamily, LayoutCtx, Lens, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, TextLayout, UpdateCtx,
-    Widget, WidgetId, WidgetPod, WindowId,
+    Command, Env, Event, EventCtx, FontDescriptor, FontFamily, LayoutCtx, Lens,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod, WindowId,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
@@ -831,6 +831,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
         println!("layout took {}", duration);
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::UpdateWindowOrigin,
+            Target::Widget(data.active),
+        ));
 
         bc.max()
     }

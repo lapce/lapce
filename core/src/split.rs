@@ -128,7 +128,7 @@ impl LapceSplitNew {
         };
         let new_view_id = self.children[new_index].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
-        data.main_split.focus = Arc::new(new_editor.editor_id);
+        data.main_split.active = Arc::new(new_editor.view_id);
         ctx.set_focus(new_editor.editor_id);
         data.main_split.editors.remove(&view_id);
         self.children.remove(index);
@@ -160,7 +160,7 @@ impl LapceSplitNew {
 
         let new_view_id = self.children[index + 1].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
-        data.main_split.focus = Arc::new(new_editor.editor_id);
+        data.main_split.active = Arc::new(new_editor.view_id);
         ctx.set_focus(new_editor.editor_id);
 
         self.children.swap(index, index + 1);
@@ -201,7 +201,7 @@ impl LapceSplitNew {
 
         let new_view_id = self.children[new_index].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
-        data.main_split.focus = Arc::new(new_editor.editor_id);
+        data.main_split.active = Arc::new(new_editor.view_id);
         ctx.set_focus(new_editor.editor_id);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,

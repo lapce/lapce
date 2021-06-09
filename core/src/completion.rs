@@ -1,22 +1,185 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, sync::Arc};
 
 use bit_vec::BitVec;
 use druid::{
-    scroll_component::ScrollComponent, theme, widget::SvgData, Affine, Color,
-    Command, Env, Event, EventCtx, Insets, PaintCtx, Point, Rect, RenderContext,
-    Size, Target, TextLayout, Vec2, Widget, WidgetId, WindowId,
+    scroll_component::ScrollComponent, theme, widget::SvgData, Affine,
+    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, Insets, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    TextLayout, UpdateCtx, Vec2, Widget, WidgetId, WindowId,
 };
 use fzyr::{has_match, locate};
 use lsp_types::{CompletionItem, CompletionItemKind};
 use std::str::FromStr;
 
 use crate::{
+    buffer::BufferId,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    data::LapceTabData,
     explorer::ICONS_DIR,
     state::LapceUIState,
     state::LAPCE_APP_STATE,
     theme::LapceTheme,
 };
+
+#[derive(Clone)]
+pub struct CompletionData {
+    pub id: WidgetId,
+    pub pos: Option<(BufferId, usize)>,
+    pub input: String,
+    pub items: Arc<Vec<CompletionItem>>,
+    pub filtered_items: Arc<Vec<ScoredCompletionItem>>,
+}
+
+impl CompletionData {
+    pub fn new() -> Self {
+        Self {
+            id: WidgetId::next(),
+            pos: None,
+            input: "".to_string(),
+            items: Arc::new(Vec::new()),
+            filtered_items: Arc::new(Vec::new()),
+        }
+    }
+
+    pub fn cancel(&mut self) {
+        println!("completion cancel");
+        self.input = "".to_string();
+        self.pos = None;
+    }
+
+    pub fn update_input(&mut self, input: String) {
+        self.input = input;
+        self.filter_items();
+    }
+
+    pub fn update(&mut self, input: String, completion_items: Vec<CompletionItem>) {
+        self.input = input;
+        self.items = Arc::new(completion_items);
+        self.filter_items();
+    }
+
+    pub fn filter_items(&mut self) {
+        if self.input == "" {
+            return;
+        }
+
+        let mut items: Vec<ScoredCompletionItem> = self
+            .items
+            .iter()
+            .filter_map(|i| {
+                let mut item = ScoredCompletionItem {
+                    item: i.to_owned(),
+                    score: 0.0,
+                    index: 0,
+                    match_mask: BitVec::new(),
+                };
+                if has_match(&self.input, &item.item.label) {
+                    let result = locate(&self.input, &i.label);
+                    item.score = result.score;
+                    item.match_mask = result.match_mask;
+                    Some(item)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        items
+            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
+        self.filtered_items = Arc::new(items);
+    }
+}
+
+pub struct CompletionNew {
+    pub id: WidgetId,
+}
+
+impl CompletionNew {
+    pub fn new(id: WidgetId) -> Self {
+        Self { id }
+    }
+}
+
+impl Widget<LapceTabData> for CompletionNew {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::UpdateCompletion(buffer_id, offset, value) => {
+                        if let Some((b, o)) = data.completion.pos.as_ref() {
+                            if b == buffer_id && o == offset {
+                                data.update_completion(value.to_owned());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        if old_data.completion.input != data.completion.input
+            || old_data.completion.pos != data.completion.pos
+            || !old_data.completion.items.same(&data.completion.items)
+        {
+            println!("completion request paint");
+            ctx.request_local_layout();
+            ctx.request_paint();
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let height = if data.completion.input == "" {
+            data.completion.items.len()
+        } else {
+            data.completion.filtered_items.len()
+        };
+        let height = height as f64 * line_height;
+        println!("completion layout {}", height);
+        Size::new(500.0, height)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let rects = ctx.region().rects().to_vec();
+        for rect in rects {
+            ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct ScoredCompletionItem {

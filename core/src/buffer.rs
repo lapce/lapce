@@ -716,6 +716,14 @@ impl BufferNew {
         }
     }
 
+    pub fn prev_code_boundary(&self, offset: usize) -> usize {
+        WordCursor::new(&self.rope, offset).prev_code_boundary()
+    }
+
+    pub fn next_code_boundary(&self, offset: usize) -> usize {
+        WordCursor::new(&self.rope, offset).next_code_boundary()
+    }
+
     pub fn update_styles(
         &mut self,
         rev: u64,

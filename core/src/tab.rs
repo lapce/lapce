@@ -1,15 +1,18 @@
 use std::{path::PathBuf, sync::Arc, thread};
 
 use druid::{
-    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, Size, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Size, Target, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 
 use crate::{
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    completion::CompletionNew,
     data::{LapceEditorLens, LapceMainSplitData, LapceTabData},
     editor::LapceEditorView,
+    scroll::LapceScrollNew,
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
 };
@@ -17,6 +20,7 @@ use crate::{
 pub struct LapceTabNew {
     id: WidgetId,
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
 impl LapceTabNew {
@@ -29,9 +33,13 @@ impl LapceTabNew {
                     .boxed(),
                 1.0,
             );
+        let completion =
+            LapceScrollNew::new(CompletionNew::new(data.completion.id)).vertical();
+
         Self {
             id: data.id,
             main_split: WidgetPod::new(main_split.boxed()),
+            completion: WidgetPod::new(completion.boxed()),
         }
     }
 }
@@ -76,6 +84,9 @@ impl Widget<LapceTabData> for LapceTabNew {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::UpdateWindowOrigin => {
+                        data.window_origin = ctx.window_origin();
+                    }
                     LapceUICommand::LoadBuffer { id, content } => {
                         let buffer = data.main_split.buffers.get_mut(id).unwrap();
                         Arc::make_mut(buffer).load_content(content);
@@ -124,6 +135,7 @@ impl Widget<LapceTabData> for LapceTabNew {
             _ => (),
         }
         self.main_split.event(ctx, event, data, env);
+        self.completion.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -134,6 +146,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         self.main_split.lifecycle(ctx, event, data, env);
+        self.completion.lifecycle(ctx, event, data, env);
     }
 
     fn update(
@@ -144,6 +157,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         self.main_split.update(ctx, data, env);
+        self.completion.update(ctx, data, env);
     }
 
     fn layout(
@@ -155,10 +169,19 @@ impl Widget<LapceTabData> for LapceTabNew {
     ) -> Size {
         self.main_split.layout(ctx, bc, data, env);
         self.main_split.set_origin(ctx, data, env, Point::ZERO);
+
+        let completion_bc = BoxConstraints::tight(Size::new(400.0, 300.0));
+        let completion_origin = data.completion_origin(env);
+        self.completion.layout(ctx, &completion_bc, data, env);
+        self.completion
+            .set_origin(ctx, data, env, completion_origin);
+        println!("completion origin {}", completion_origin);
+
         bc.max()
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.main_split.paint(ctx, data, env);
+        self.completion.paint(ctx, data, env);
     }
 }
