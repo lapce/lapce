@@ -1641,9 +1641,9 @@ impl ScrollComponentNew {
             if let Event::Wheel(mouse) = event {
                 if port.pan_by(mouse.wheel_delta.round()) {
                     ctx.request_paint();
-                    ctx.set_handled();
                     self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
                 }
+                ctx.set_handled();
             }
         }
     }

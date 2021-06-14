@@ -202,7 +202,7 @@ pub enum LapceUICommand {
     },
     OpenFile(String),
     FillTextLayouts,
-    UpdateCompletion(BufferId, usize, Value),
+    UpdateCompletion(usize, Value),
     UpdateWindowOrigin,
     UpdateSize,
     RequestLayout,

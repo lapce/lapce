@@ -1,11 +1,11 @@
-use std::{cmp::Ordering, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 use bit_vec::BitVec;
 use druid::{
     scroll_component::ScrollComponent, theme, widget::SvgData, Affine,
     BoxConstraints, Color, Command, Data, Env, Event, EventCtx, Insets, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    TextLayout, UpdateCtx, Vec2, Widget, WidgetId, WindowId,
+    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 use fzyr::{has_match, locate};
 use lsp_types::{CompletionItem, CompletionItemKind};
@@ -16,16 +16,30 @@ use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     data::LapceTabData,
     explorer::ICONS_DIR,
+    movement::Movement,
+    scroll::{LapceIdentityWrapper, LapceScrollNew},
     state::LapceUIState,
     state::LAPCE_APP_STATE,
     theme::LapceTheme,
 };
 
+#[derive(Clone, PartialEq)]
+pub enum CompletionStatus {
+    Inactive,
+    Started,
+    Done,
+}
+
 #[derive(Clone)]
 pub struct CompletionData {
     pub id: WidgetId,
-    pub pos: Option<(BufferId, usize)>,
+    pub scroll_id: WidgetId,
+    pub request_id: usize,
+    pub status: CompletionStatus,
+    pub offset: usize,
+    pub buffer_id: BufferId,
     pub input: String,
+    pub index: usize,
     pub items: Arc<Vec<CompletionItem>>,
     pub filtered_items: Arc<Vec<ScoredCompletionItem>>,
 }
@@ -34,25 +48,63 @@ impl CompletionData {
     pub fn new() -> Self {
         Self {
             id: WidgetId::next(),
-            pos: None,
+            scroll_id: WidgetId::next(),
+            request_id: 0,
+            index: 0,
+            offset: 0,
+            status: CompletionStatus::Inactive,
+            buffer_id: BufferId(0),
             input: "".to_string(),
             items: Arc::new(Vec::new()),
             filtered_items: Arc::new(Vec::new()),
         }
     }
 
+    fn len(&self) -> usize {
+        if self.input == "" {
+            self.items.len()
+        } else {
+            self.filtered_items.len()
+        }
+    }
+
+    pub fn next(&mut self) {
+        self.index = Movement::Down.update_index(self.index, self.len(), 1, true);
+    }
+
+    pub fn previous(&mut self) {
+        self.index = Movement::Up.update_index(self.index, self.len(), 1, true);
+    }
+
+    pub fn current(&self) -> &str {
+        if self.input == "" {
+            self.items[self.index].label.as_str()
+        } else {
+            self.filtered_items[self.index].item.label.as_str()
+        }
+    }
+
     pub fn cancel(&mut self) {
+        if self.status == CompletionStatus::Inactive {
+            return;
+        }
         println!("completion cancel");
+        self.status = CompletionStatus::Inactive;
         self.input = "".to_string();
-        self.pos = None;
+        self.index = 0;
     }
 
     pub fn update_input(&mut self, input: String) {
+        if self.status != CompletionStatus::Done {
+            return;
+        }
         self.input = input;
+        self.index = 0;
         self.filter_items();
     }
 
-    pub fn update(&mut self, input: String, completion_items: Vec<CompletionItem>) {
+    pub fn done(&mut self, input: String, completion_items: Vec<CompletionItem>) {
+        self.status = CompletionStatus::Done;
         self.input = input;
         self.items = Arc::new(completion_items);
         self.filter_items();
@@ -89,13 +141,139 @@ impl CompletionData {
     }
 }
 
+pub struct CompletionContainer {
+    scroll_id: WidgetId,
+    completion: WidgetPod<
+        LapceTabData,
+        LapceIdentityWrapper<LapceScrollNew<LapceTabData, CompletionNew>>,
+    >,
+}
+
+impl CompletionContainer {
+    pub fn new(data: &CompletionData) -> Self {
+        let completion = LapceIdentityWrapper::wrap(
+            LapceScrollNew::new(CompletionNew::new(data.id)).vertical(),
+            data.scroll_id,
+        );
+        Self {
+            completion: WidgetPod::new(completion),
+            scroll_id: data.scroll_id,
+        }
+    }
+
+    pub fn ensure_item_visble(
+        &mut self,
+        width: f64,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let rect = Size::new(width, line_height)
+            .to_rect()
+            .with_origin(Point::new(
+                0.0,
+                data.completion.index as f64 * line_height,
+            ));
+        self.completion
+            .widget_mut()
+            .inner_mut()
+            .scroll_to_visible(rect);
+    }
+}
+
+impl Widget<LapceTabData> for CompletionContainer {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        self.completion.event(ctx, event, data, env);
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        self.completion.lifecycle(ctx, event, data, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        let old_completion = &old_data.completion;
+        let completion = &data.completion;
+
+        if old_data.completion.input != data.completion.input
+            || old_data.completion.request_id != data.completion.request_id
+            || old_data.completion.status != data.completion.status
+            || !old_data.completion.items.same(&data.completion.items)
+        {
+            println!("completion request paint");
+            ctx.request_local_layout();
+            ctx.request_paint();
+        }
+
+        if (old_completion.status != CompletionStatus::Done
+            && completion.status == CompletionStatus::Done)
+            || (old_completion.input != completion.input)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
+
+        if old_completion.index != completion.index {
+            self.ensure_item_visble(ctx.size().width, data, env);
+            ctx.request_paint();
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let size = Size::new(400.0, 300.0);
+        let bc = BoxConstraints::new(Size::ZERO, size);
+        self.completion.layout(ctx, &bc, data, env);
+        self.completion.set_origin(ctx, data, env, Point::ZERO);
+        ctx.set_paint_insets((1.0, 1.0, 1.0, 1.0));
+        size
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        if data.completion.status == CompletionStatus::Done {
+            let border_rect = ctx.size().to_rect().inset(1.0 / -2.0);
+            ctx.stroke(border_rect, &env.get(theme::BORDER_LIGHT), 1.0);
+            self.completion.paint(ctx, data, env);
+        }
+    }
+}
+
 pub struct CompletionNew {
     pub id: WidgetId,
+    text_layouts: HashMap<String, TextLayout<String>>,
 }
 
 impl CompletionNew {
     pub fn new(id: WidgetId) -> Self {
-        Self { id }
+        Self {
+            id,
+            text_layouts: HashMap::new(),
+        }
     }
 }
 
@@ -115,11 +293,11 @@ impl Widget<LapceTabData> for CompletionNew {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
-                    LapceUICommand::UpdateCompletion(buffer_id, offset, value) => {
-                        if let Some((b, o)) = data.completion.pos.as_ref() {
-                            if b == buffer_id && o == offset {
-                                data.update_completion(value.to_owned());
-                            }
+                    LapceUICommand::UpdateCompletion(request_id, value) => {
+                        if data.completion.request_id == *request_id
+                            && data.completion.status == CompletionStatus::Started
+                        {
+                            data.completion_done(value.to_owned());
                         }
                     }
                     _ => {}
@@ -145,14 +323,6 @@ impl Widget<LapceTabData> for CompletionNew {
         data: &LapceTabData,
         env: &Env,
     ) {
-        if old_data.completion.input != data.completion.input
-            || old_data.completion.pos != data.completion.pos
-            || !old_data.completion.items.same(&data.completion.items)
-        {
-            println!("completion request paint");
-            ctx.request_local_layout();
-            ctx.request_paint();
-        }
     }
 
     fn layout(
@@ -170,13 +340,59 @@ impl Widget<LapceTabData> for CompletionNew {
         };
         let height = height as f64 * line_height;
         println!("completion layout {}", height);
-        Size::new(500.0, height)
+        Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rects = ctx.region().rects().to_vec();
+        let size = ctx.size();
+
+        let input = &data.completion.input;
+        let items: Vec<&CompletionItem> = if input == "" {
+            data.completion.items.iter().map(|i| i).collect()
+        } else {
+            data.completion
+                .filtered_items
+                .iter()
+                .map(|i| &i.item)
+                .collect()
+        };
+
         for rect in rects {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+
+            let start_line = (rect.y0 / line_height).floor() as usize;
+            let end_line = (rect.y1 / line_height).ceil() as usize;
+
+            for line in start_line..end_line {
+                if line >= items.len() {
+                    break;
+                }
+
+                if line == data.completion.index {
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(0.0, line as f64 * line_height))
+                            .with_size(Size::new(size.width, line_height)),
+                        &env.get(LapceTheme::EDITOR_BACKGROUND),
+                    );
+                }
+
+                let item = &items[line];
+                let content = item.label.as_str();
+                let point = Point::new(0.0, line_height * line as f64 + 5.0);
+                if let Some(text_layout) = self.text_layouts.get(content) {
+                    text_layout.draw(ctx, point);
+                } else {
+                    let mut text_layout = TextLayout::from_text(content.to_string());
+                    text_layout.set_font(LapceTheme::EDITOR_FONT);
+                    text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                    text_layout.rebuild_if_needed(&mut ctx.text(), env);
+                    text_layout.draw(ctx, point);
+                    self.text_layouts.insert(content.to_string(), text_layout);
+                }
+            }
         }
     }
 }

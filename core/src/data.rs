@@ -31,7 +31,7 @@ use crate::{
         BufferUpdate, EditType, Style, UpdateEvent,
     },
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    completion::CompletionData,
+    completion::{CompletionData, CompletionStatus},
     keypress::{KeyPressData, KeyPressFocus},
     language::new_highlight_config,
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
@@ -218,7 +218,7 @@ impl LapceTabData {
         let editor = self.main_split.active_editor();
         let buffer_id = self.main_split.open_files.get(&editor.buffer).unwrap();
         let buffer = self.main_split.buffers.get(&buffer_id).unwrap();
-        let offset = editor.cursor.offset();
+        let offset = self.completion.offset;
         let (line, col) = buffer.offset_to_line_col(offset);
         let width = 7.6171875;
         let x = buffer.col_x(line, col, width);
@@ -229,7 +229,7 @@ impl LapceTabData {
         origin
     }
 
-    pub fn update_completion(&mut self, value: Value) -> Result<()> {
+    pub fn completion_done(&mut self, value: Value) -> Result<()> {
         let resp: CompletionResponse = serde_json::from_value(value)?;
         let items = match resp {
             CompletionResponse::Array(items) => items,
@@ -245,7 +245,7 @@ impl LapceTabData {
         let input = buffer.slice_to_cow(start_offset..end_offset).to_string();
 
         let completion = Arc::make_mut(&mut self.completion);
-        completion.update(input, items);
+        completion.done(input, items);
 
         Ok(())
     }
@@ -976,6 +976,11 @@ impl LapceEditorViewData {
         }
     }
 
+    fn cancel_completion(&mut self) {
+        let completion = Arc::make_mut(&mut self.completion);
+        completion.cancel();
+    }
+
     fn update_completion(&mut self, ctx: &mut EventCtx) {
         if self.get_mode() != Mode::Insert {
             return;
@@ -997,14 +1002,20 @@ impl LapceEditorViewData {
             return;
         }
 
-        if let Some((buffer_id, offset)) = completion.pos.as_ref() {
-            if &self.buffer.id == buffer_id && *offset == start_offset {
-                completion.update_input(input);
-                return;
-            }
+        if completion.status != CompletionStatus::Inactive
+            && completion.offset == start_offset
+            && completion.buffer_id == self.buffer.id
+        {
+            println!("update input {}", input);
+            completion.update_input(input);
+            return;
         }
 
-        completion.pos = Some((self.buffer.id, start_offset));
+        completion.buffer_id = self.buffer.id;
+        completion.offset = start_offset;
+        completion.status = CompletionStatus::Started;
+        completion.request_id += 1;
+        let request_id = completion.request_id;
         let event_sink = ctx.get_external_handle();
         let completion_widget_id = self.completion.id;
         let buffer_id = self.buffer.id;
@@ -1018,11 +1029,7 @@ impl LapceEditorViewData {
                     println!("proxy completion result");
                     event_sink.submit_command(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateCompletion(
-                            buffer_id,
-                            start_offset,
-                            res,
-                        ),
+                        LapceUICommand::UpdateCompletion(request_id, res),
                         Target::Widget(completion_widget_id),
                     );
                 }
@@ -1110,8 +1117,27 @@ impl KeyPressFocus for LapceEditorViewData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        match condition.trim() {
+        let condition = condition.trim();
+        let (reverse, condition) = if condition.starts_with("!") {
+            (true, &condition[1..])
+        } else {
+            (false, condition)
+        };
+        let matched = match condition {
+            "list_focus" => {
+                self.completion.status == CompletionStatus::Done
+                    && if self.completion.input == "" {
+                        self.completion.items.len() > 0
+                    } else {
+                        self.completion.filtered_items.len() > 0
+                    }
+            }
             _ => false,
+        };
+        if reverse {
+            !matched
+        } else {
+            matched
         }
     }
 
@@ -1124,6 +1150,7 @@ impl KeyPressFocus for LapceEditorViewData {
     ) {
         if let Some(movement) = self.move_command(count, cmd) {
             self.do_move(&movement, count.unwrap_or(1));
+            self.cancel_completion();
             return;
         }
         match cmd {
@@ -1396,6 +1423,7 @@ impl KeyPressFocus for LapceEditorViewData {
                 let selection =
                     self.edit(ctx, &selection, "", true, EditType::Delete);
                 self.set_cursor_after_change(selection);
+                self.update_completion(ctx);
             }
             LapceCommand::DeleteForeward => {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
@@ -1451,6 +1479,42 @@ impl KeyPressFocus for LapceEditorViewData {
             LapceCommand::PageUp => {
                 self.page_move(ctx, false, env);
             }
+            LapceCommand::ListNext => {
+                let completion = Arc::make_mut(&mut self.completion);
+                completion.next();
+            }
+            LapceCommand::ListPrevious => {
+                let completion = Arc::make_mut(&mut self.completion);
+                completion.previous();
+            }
+            LapceCommand::ListSelect => {
+                let selection = self.editor.cursor.edit_selection(&self.buffer);
+
+                let count = self.completion.input.len();
+                let selection = if count > 0 {
+                    self.buffer.update_selection(
+                        &selection,
+                        count,
+                        &Movement::Left,
+                        true,
+                        false,
+                        true,
+                    )
+                } else {
+                    selection
+                };
+
+                let content = self.completion.current().to_string();
+                let selection = self.edit(
+                    ctx,
+                    &selection,
+                    &content,
+                    true,
+                    EditType::InsertChars,
+                );
+                self.set_cursor_after_change(selection);
+                self.cancel_completion();
+            }
             LapceCommand::NormalMode => {
                 let offset = match &self.editor.cursor.mode {
                     CursorMode::Insert(selection) => {
@@ -1474,6 +1538,7 @@ impl KeyPressFocus for LapceEditorViewData {
                 let mut cursor = &mut Arc::make_mut(&mut self.editor).cursor;
                 cursor.mode = CursorMode::Normal(offset);
                 cursor.horiz = None;
+                self.cancel_completion();
             }
             _ => (),
         }

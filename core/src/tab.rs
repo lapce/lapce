@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::Arc, thread};
 
 use druid::{
-    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    theme, BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, Size, Target, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
@@ -9,7 +9,7 @@ use druid::{
 use crate::{
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    completion::CompletionNew,
+    completion::{CompletionContainer, CompletionNew, CompletionStatus},
     data::{LapceEditorLens, LapceMainSplitData, LapceTabData},
     editor::LapceEditorView,
     scroll::LapceScrollNew,
@@ -33,8 +33,7 @@ impl LapceTabNew {
                     .boxed(),
                 1.0,
             );
-        let completion =
-            LapceScrollNew::new(CompletionNew::new(data.completion.id)).vertical();
+        let completion = CompletionContainer::new(&data.completion);
 
         Self {
             id: data.id,
@@ -134,8 +133,8 @@ impl Widget<LapceTabData> for LapceTabNew {
             }
             _ => (),
         }
-        self.main_split.event(ctx, event, data, env);
         self.completion.event(ctx, event, data, env);
+        self.main_split.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -170,9 +169,8 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.main_split.layout(ctx, bc, data, env);
         self.main_split.set_origin(ctx, data, env, Point::ZERO);
 
-        let completion_bc = BoxConstraints::tight(Size::new(400.0, 300.0));
         let completion_origin = data.completion_origin(env);
-        self.completion.layout(ctx, &completion_bc, data, env);
+        self.completion.layout(ctx, bc, data, env);
         self.completion
             .set_origin(ctx, data, env, completion_origin);
         println!("completion origin {}", completion_origin);
