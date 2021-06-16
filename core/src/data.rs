@@ -212,7 +212,7 @@ impl LapceTabData {
         }
     }
 
-    pub fn completion_origin(&self, env: &Env) -> Point {
+    pub fn completion_origin(&self, tab_size: Size, env: &Env) -> Point {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
 
         let editor = self.main_split.active_editor();
@@ -223,14 +223,26 @@ impl LapceTabData {
         let width = 7.6171875;
         let x = buffer.col_x(line, col, width);
         let y = (line + 1) as f64 * line_height;
-        let origin =
+        let mut origin =
             editor.window_origin - self.window_origin.to_vec2() + Vec2::new(x, y);
+        if origin.y + self.completion.size.height + 1.0 > tab_size.height {
+            let height = self
+                .completion
+                .size
+                .height
+                .min(self.completion.len() as f64 * line_height);
+            origin.y = editor.window_origin.y - self.window_origin.y
+                + line as f64 * line_height
+                - height;
+        }
+        if origin.x + self.completion.size.width + 1.0 > tab_size.width {
+            origin.x = tab_size.width - self.completion.size.width - 1.0;
+        }
 
         origin
     }
 
-    pub fn completion_done(&mut self, value: Value) -> Result<()> {
-        let resp: CompletionResponse = serde_json::from_value(value)?;
+    pub fn completion_done(&mut self, resp: CompletionResponse) {
         let items = match resp {
             CompletionResponse::Array(items) => items,
             CompletionResponse::List(list) => list.items,
@@ -246,8 +258,6 @@ impl LapceTabData {
 
         let completion = Arc::make_mut(&mut self.completion);
         completion.done(input, items);
-
-        Ok(())
     }
 
     pub fn buffer_update_process(
@@ -538,6 +548,7 @@ impl LapceMainSplitData {
 pub struct LapceEditorData {
     pub split_id: WidgetId,
     pub view_id: WidgetId,
+    pub container_id: WidgetId,
     pub editor_id: WidgetId,
     pub buffer: PathBuf,
     pub scroll_offset: Vec2,
@@ -551,6 +562,7 @@ impl LapceEditorData {
         Self {
             split_id,
             view_id: WidgetId::next(),
+            container_id: WidgetId::next(),
             editor_id: WidgetId::next(),
             buffer,
             scroll_offset: Vec2::ZERO,
@@ -710,7 +722,7 @@ impl LapceEditorViewData {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ScrollTo((self.editor.scroll_offset.x, top)),
-            Target::Widget(self.editor.editor_id),
+            Target::Widget(self.editor.container_id),
         ));
     }
 
@@ -737,7 +749,7 @@ impl LapceEditorViewData {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::EnsureRectVisible(rect),
-            Target::Widget(self.editor.editor_id),
+            Target::Widget(self.editor.container_id),
         ));
     }
 
@@ -976,7 +988,7 @@ impl LapceEditorViewData {
         }
     }
 
-    fn cancel_completion(&mut self) {
+    pub fn cancel_completion(&mut self) {
         let completion = Arc::make_mut(&mut self.completion);
         completion.cancel();
     }
@@ -1027,12 +1039,23 @@ impl LapceEditorViewData {
             Box::new(move |result| {
                 if let Ok(res) = result {
                     println!("proxy completion result");
-                    event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateCompletion(request_id, res),
-                        Target::Widget(completion_widget_id),
-                    );
+                    if let Ok(resp) =
+                        serde_json::from_value::<CompletionResponse>(res)
+                    {
+                        event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateCompletion(request_id, resp),
+                            Target::Widget(completion_widget_id),
+                        );
+                        return;
+                    }
                 }
+
+                event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::CancelCompletion(request_id),
+                    Target::Widget(completion_widget_id),
+                );
             }),
         );
     }

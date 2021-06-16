@@ -1,8 +1,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Result;
-use druid::{Rect, Selector, Size, WidgetId};
-use lsp_types::{Location, TextEdit};
+use druid::{Point, Rect, Selector, Size, WidgetId};
+use lsp_types::{CompletionResponse, Location, TextEdit};
 use serde_json::Value;
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
@@ -202,7 +202,8 @@ pub enum LapceUICommand {
     },
     OpenFile(String),
     FillTextLayouts,
-    UpdateCompletion(usize, Value),
+    CancelCompletion(usize),
+    UpdateCompletion(usize, CompletionResponse),
     UpdateWindowOrigin,
     UpdateSize,
     RequestLayout,

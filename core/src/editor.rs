@@ -131,9 +131,13 @@ pub struct LapceEditorView {
 }
 
 impl LapceEditorView {
-    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> LapceEditorView {
+    pub fn new(
+        view_id: WidgetId,
+        container_id: WidgetId,
+        editor_id: WidgetId,
+    ) -> LapceEditorView {
         let header = LapceEditorHeader::new();
-        let editor = LapceEditorContainer::new(view_id, editor_id);
+        let editor = LapceEditorContainer::new(view_id, container_id, editor_id);
         Self {
             view_id,
             header: WidgetPod::new(header),
@@ -215,6 +219,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
 
 pub struct LapceEditorContainer {
     pub view_id: WidgetId,
+    pub container_id: WidgetId,
     pub editor_id: WidgetId,
     pub scroll_id: WidgetId,
     pub gutter: WidgetPod<
@@ -231,11 +236,15 @@ pub struct LapceEditorContainer {
 }
 
 impl LapceEditorContainer {
-    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
+    pub fn new(
+        view_id: WidgetId,
+        container_id: WidgetId,
+        editor_id: WidgetId,
+    ) -> Self {
         let scroll_id = WidgetId::next();
-        let gutter = LapceEditorGutter::new(view_id, editor_id);
+        let gutter = LapceEditorGutter::new(view_id, container_id);
         let gutter = LapcePadding::new((10.0, 0.0, 10.0, 0.0), gutter);
-        let editor = LapceEditor::new(view_id, editor_id);
+        let editor = LapceEditor::new(view_id, container_id, editor_id);
         let editor = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(editor).vertical().horizontal(),
             scroll_id,
@@ -243,6 +252,7 @@ impl LapceEditorContainer {
         let editor = LapcePadding::new((10.0, 0.0, 0.0, 0.0), editor);
         Self {
             view_id,
+            container_id,
             editor_id,
             scroll_id,
             gutter: WidgetPod::new(gutter),
@@ -386,7 +396,7 @@ impl LapceEditorContainer {
 
 impl Widget<LapceEditorViewData> for LapceEditorContainer {
     fn id(&self) -> Option<WidgetId> {
-        Some(self.editor_id)
+        Some(self.container_id)
     }
 
     fn event(
@@ -420,6 +430,11 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         if data.editor.scroll_offset != offset {
             Arc::make_mut(&mut data.editor).scroll_offset = offset;
             data.fill_text_layouts(ctx, &data.theme.clone(), env);
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateWindowOrigin,
+                Target::Widget(self.editor_id),
+            ));
         }
     }
 
@@ -432,16 +447,16 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
     ) {
         match event {
             LifeCycle::Size(size) => {
-                println!("size change {:?}", self.editor_id);
+                println!("size change {:?}", self.container_id);
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSize,
-                    Target::Widget(self.editor_id),
+                    Target::Widget(self.container_id),
                 ));
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::FillTextLayouts,
-                    Target::Widget(self.editor_id),
+                    Target::Widget(self.container_id),
                 ));
             }
             _ => (),
@@ -545,15 +560,15 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
 
 pub struct LapceEditorGutter {
     view_id: WidgetId,
-    editor_id: WidgetId,
+    container_id: WidgetId,
     text_layouts: HashMap<String, EditorTextLayout>,
 }
 
 impl LapceEditorGutter {
-    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
+    pub fn new(view_id: WidgetId, container_id: WidgetId) -> Self {
         Self {
             view_id,
-            editor_id,
+            container_id,
             text_layouts: HashMap::new(),
         }
     }
@@ -673,17 +688,21 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
 }
 
 pub struct LapceEditor {
-    id: WidgetId,
-    view_id: WidgetId,
     editor_id: WidgetId,
+    view_id: WidgetId,
+    container_id: WidgetId,
 }
 
 impl LapceEditor {
-    pub fn new(view_id: WidgetId, editor_id: WidgetId) -> Self {
+    pub fn new(
+        view_id: WidgetId,
+        container_id: WidgetId,
+        editor_id: WidgetId,
+    ) -> Self {
         Self {
-            id: WidgetId::next(),
-            view_id,
             editor_id,
+            view_id,
+            container_id,
         }
     }
 
@@ -854,6 +873,10 @@ impl LapceEditor {
 }
 
 impl Widget<LapceEditorViewData> for LapceEditor {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.editor_id)
+    }
+
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -866,8 +889,11 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::UpdateWindowOrigin => {
-                        Arc::make_mut(&mut data.editor).window_origin =
-                            ctx.window_origin();
+                        let window_origin = ctx.window_origin();
+                        if data.editor.window_origin != window_origin {
+                            Arc::make_mut(&mut data.editor).window_origin =
+                                window_origin;
+                        }
                     }
                     _ => (),
                 }
@@ -995,7 +1021,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateWindowOrigin,
-            Target::Widget(self.id),
+            Target::Widget(self.editor_id),
         ));
 
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);

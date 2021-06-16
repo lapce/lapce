@@ -1,9 +1,9 @@
 use std::{path::PathBuf, sync::Arc, thread};
 
 use druid::{
-    theme, BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Size, Target, Widget, WidgetExt, WidgetId,
-    WidgetPod,
+    theme, BoxConstraints, Command, Env, Event, EventCtx, Insets, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Size, Target, Widget, WidgetExt,
+    WidgetId, WidgetPod,
 };
 
 use crate::{
@@ -28,9 +28,13 @@ impl LapceTabNew {
         let editor = data.main_split.editors.iter().next().unwrap().1;
         let main_split = LapceSplitNew::new(*data.main_split.split_id)
             .with_flex_child(
-                LapceEditorView::new(editor.view_id, editor.editor_id)
-                    .lens(LapceEditorLens(editor.view_id))
-                    .boxed(),
+                LapceEditorView::new(
+                    editor.view_id,
+                    editor.container_id,
+                    editor.editor_id,
+                )
+                .lens(LapceEditorLens(editor.view_id))
+                .boxed(),
                 1.0,
             );
         let completion = CompletionContainer::new(&data.completion);
@@ -155,6 +159,18 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if data.completion.status == CompletionStatus::Done {
+            let completion = &data.completion;
+            let old_editor = old_data.main_split.active_editor();
+            let editor = data.main_split.active_editor();
+            if old_editor.window_origin != editor.window_origin {
+                let completion_origin = data.completion_origin(ctx.size(), env);
+                let rect = completion.size.to_rect().with_origin(completion_origin)
+                    + Insets::new(1.0, 1.0, 1.0, 1.0);
+                ctx.request_paint_rect(rect);
+            }
+        }
+
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
     }
@@ -166,16 +182,17 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        let self_size = bc.max();
         self.main_split.layout(ctx, bc, data, env);
         self.main_split.set_origin(ctx, data, env, Point::ZERO);
 
-        let completion_origin = data.completion_origin(env);
+        let completion_origin = data.completion_origin(self_size.clone(), env);
         self.completion.layout(ctx, bc, data, env);
         self.completion
             .set_origin(ctx, data, env, completion_origin);
         println!("completion origin {}", completion_origin);
 
-        bc.max()
+        self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {

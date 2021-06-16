@@ -1045,6 +1045,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fuzzy-matcher"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54614a3312934d066701a80f20f15fa3b56d67ac7722b39eea5b4c9dd1d66c94"
+dependencies = [
+ "thread_local",
+]
+
+[[package]]
 name = "fzyr"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1603,6 +1612,7 @@ dependencies = [
  "crossbeam-channel 0.5.1",
  "crossbeam-utils 0.8.4",
  "druid",
+ "fuzzy-matcher",
  "fzyr",
  "git2",
  "im",

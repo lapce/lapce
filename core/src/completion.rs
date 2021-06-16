@@ -2,12 +2,16 @@ use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 use bit_vec::BitVec;
 use druid::{
-    scroll_component::ScrollComponent, theme, widget::SvgData, Affine,
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, Insets, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    TextLayout, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    piet::{Text, TextAttribute, TextLayoutBuilder},
+    scroll_component::ScrollComponent,
+    theme,
+    widget::SvgData,
+    Affine, BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontWeight,
+    Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt,
+    WidgetId, WidgetPod, WindowId,
 };
-use fzyr::{has_match, locate};
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lsp_types::{CompletionItem, CompletionItemKind};
 use std::str::FromStr;
 
@@ -40,8 +44,10 @@ pub struct CompletionData {
     pub buffer_id: BufferId,
     pub input: String,
     pub index: usize,
-    pub items: Arc<Vec<CompletionItem>>,
+    pub items: Arc<Vec<ScoredCompletionItem>>,
     pub filtered_items: Arc<Vec<ScoredCompletionItem>>,
+    pub matcher: Arc<SkimMatcherV2>,
+    pub size: Size,
 }
 
 impl CompletionData {
@@ -57,10 +63,12 @@ impl CompletionData {
             input: "".to_string(),
             items: Arc::new(Vec::new()),
             filtered_items: Arc::new(Vec::new()),
+            matcher: Arc::new(SkimMatcherV2::default()),
+            size: Size::new(400.0, 300.0),
         }
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         if self.input == "" {
             self.items.len()
         } else {
@@ -78,7 +86,7 @@ impl CompletionData {
 
     pub fn current(&self) -> &str {
         if self.input == "" {
-            self.items[self.index].label.as_str()
+            self.items[self.index].item.label.as_str()
         } else {
             self.filtered_items[self.index].item.label.as_str()
         }
@@ -106,7 +114,16 @@ impl CompletionData {
     pub fn done(&mut self, input: String, completion_items: Vec<CompletionItem>) {
         self.status = CompletionStatus::Done;
         self.input = input;
-        self.items = Arc::new(completion_items);
+        let items = completion_items
+            .iter()
+            .map(|i| ScoredCompletionItem {
+                item: i.to_owned(),
+                score: 0,
+                index: 0,
+                indices: Vec::new(),
+            })
+            .collect();
+        self.items = Arc::new(items);
         self.filter_items();
     }
 
@@ -119,16 +136,12 @@ impl CompletionData {
             .items
             .iter()
             .filter_map(|i| {
-                let mut item = ScoredCompletionItem {
-                    item: i.to_owned(),
-                    score: 0.0,
-                    index: 0,
-                    match_mask: BitVec::new(),
-                };
-                if has_match(&self.input, &item.item.label) {
-                    let result = locate(&self.input, &i.label);
-                    item.score = result.score;
-                    item.match_mask = result.match_mask;
+                if let Some((score, indices)) =
+                    self.matcher.fuzzy_indices(&i.item.label, &self.input)
+                {
+                    let mut item = i.clone();
+                    item.score = score;
+                    item.indices = indices;
                     Some(item)
                 } else {
                     None
@@ -142,31 +155,36 @@ impl CompletionData {
 }
 
 pub struct CompletionContainer {
+    id: WidgetId,
     scroll_id: WidgetId,
     completion: WidgetPod<
         LapceTabData,
         LapceIdentityWrapper<LapceScrollNew<LapceTabData, CompletionNew>>,
     >,
+    content_size: Size,
 }
 
 impl CompletionContainer {
     pub fn new(data: &CompletionData) -> Self {
         let completion = LapceIdentityWrapper::wrap(
-            LapceScrollNew::new(CompletionNew::new(data.id)).vertical(),
+            LapceScrollNew::new(CompletionNew::new()).vertical(),
             data.scroll_id,
         );
         Self {
+            id: data.id,
             completion: WidgetPod::new(completion),
             scroll_id: data.scroll_id,
+            content_size: Size::ZERO,
         }
     }
 
     pub fn ensure_item_visble(
         &mut self,
-        width: f64,
+        ctx: &mut UpdateCtx,
         data: &LapceTabData,
         env: &Env,
     ) {
+        let width = ctx.size().width;
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rect = Size::new(width, line_height)
             .to_rect()
@@ -174,14 +192,26 @@ impl CompletionContainer {
                 0.0,
                 data.completion.index as f64 * line_height,
             ));
-        self.completion
+        if self
+            .completion
             .widget_mut()
             .inner_mut()
-            .scroll_to_visible(rect);
+            .scroll_to_visible(rect)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
     }
 }
 
 impl Widget<LapceTabData> for CompletionContainer {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.id)
+    }
+
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -189,6 +219,30 @@ impl Widget<LapceTabData> for CompletionContainer {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::UpdateCompletion(request_id, resp) => {
+                        if data.completion.request_id == *request_id
+                            && data.completion.status == CompletionStatus::Started
+                        {
+                            data.completion_done(resp.to_owned());
+                        }
+                    }
+                    LapceUICommand::CancelCompletion(request_id) => {
+                        if data.completion.request_id == *request_id
+                            && data.completion.status == CompletionStatus::Started
+                        {
+                            let completion = Arc::make_mut(&mut data.completion);
+                            completion.cancel();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
         self.completion.event(ctx, event, data, env);
     }
 
@@ -212,12 +266,23 @@ impl Widget<LapceTabData> for CompletionContainer {
         let old_completion = &old_data.completion;
         let completion = &data.completion;
 
+        if data.completion.status == CompletionStatus::Done {
+            let old_editor = old_data.main_split.active_editor();
+            let editor = data.main_split.active_editor();
+            if old_editor.window_origin != editor.window_origin
+                || old_editor.scroll_offset != editor.scroll_offset
+            {
+                println!("completion request layout");
+                ctx.request_local_layout();
+                ctx.request_paint();
+            }
+        }
+
         if old_data.completion.input != data.completion.input
             || old_data.completion.request_id != data.completion.request_id
             || old_data.completion.status != data.completion.status
             || !old_data.completion.items.same(&data.completion.items)
         {
-            println!("completion request paint");
             ctx.request_local_layout();
             ctx.request_paint();
         }
@@ -234,7 +299,7 @@ impl Widget<LapceTabData> for CompletionContainer {
         }
 
         if old_completion.index != completion.index {
-            self.ensure_item_visble(ctx.size().width, data, env);
+            self.ensure_item_visble(ctx, data, env);
             ctx.request_paint();
         }
     }
@@ -246,42 +311,34 @@ impl Widget<LapceTabData> for CompletionContainer {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let size = Size::new(400.0, 300.0);
+        let size = data.completion.size.clone();
         let bc = BoxConstraints::new(Size::ZERO, size);
-        self.completion.layout(ctx, &bc, data, env);
+        self.content_size = self.completion.layout(ctx, &bc, data, env);
         self.completion.set_origin(ctx, data, env, Point::ZERO);
         ctx.set_paint_insets((1.0, 1.0, 1.0, 1.0));
         size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        if data.completion.status == CompletionStatus::Done {
-            let border_rect = ctx.size().to_rect().inset(1.0 / -2.0);
+        if data.completion.status == CompletionStatus::Done
+            && data.completion.len() > 0
+        {
+            let border_rect = self.content_size.to_rect().inset(1.0 / 2.0);
             ctx.stroke(border_rect, &env.get(theme::BORDER_LIGHT), 1.0);
             self.completion.paint(ctx, data, env);
         }
     }
 }
 
-pub struct CompletionNew {
-    pub id: WidgetId,
-    text_layouts: HashMap<String, TextLayout<String>>,
-}
+pub struct CompletionNew {}
 
 impl CompletionNew {
-    pub fn new(id: WidgetId) -> Self {
-        Self {
-            id,
-            text_layouts: HashMap::new(),
-        }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
 impl Widget<LapceTabData> for CompletionNew {
-    fn id(&self) -> Option<WidgetId> {
-        Some(self.id)
-    }
-
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -289,22 +346,6 @@ impl Widget<LapceTabData> for CompletionNew {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        match event {
-            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::UpdateCompletion(request_id, value) => {
-                        if data.completion.request_id == *request_id
-                            && data.completion.status == CompletionStatus::Started
-                        {
-                            data.completion_done(value.to_owned());
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
     }
 
     fn lifecycle(
@@ -339,7 +380,6 @@ impl Widget<LapceTabData> for CompletionNew {
             data.completion.filtered_items.len()
         };
         let height = height as f64 * line_height;
-        println!("completion layout {}", height);
         Size::new(bc.max().width, height)
     }
 
@@ -349,14 +389,10 @@ impl Widget<LapceTabData> for CompletionNew {
         let size = ctx.size();
 
         let input = &data.completion.input;
-        let items: Vec<&CompletionItem> = if input == "" {
-            data.completion.items.iter().map(|i| i).collect()
+        let items: &Vec<ScoredCompletionItem> = if input == "" {
+            &data.completion.items
         } else {
-            data.completion
-                .filtered_items
-                .iter()
-                .map(|i| &i.item)
-                .collect()
+            &data.completion.filtered_items
         };
 
         for rect in rects {
@@ -380,18 +416,26 @@ impl Widget<LapceTabData> for CompletionNew {
                 }
 
                 let item = &items[line];
-                let content = item.label.as_str();
+                let content = item.item.label.as_str();
                 let point = Point::new(0.0, line_height * line as f64 + 5.0);
-                if let Some(text_layout) = self.text_layouts.get(content) {
-                    text_layout.draw(ctx, point);
-                } else {
-                    let mut text_layout = TextLayout::from_text(content.to_string());
-                    text_layout.set_font(LapceTheme::EDITOR_FONT);
-                    text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                    text_layout.rebuild_if_needed(&mut ctx.text(), env);
-                    text_layout.draw(ctx, point);
-                    self.text_layouts.insert(content.to_string(), text_layout);
+                let mut text_layout = ctx
+                    .text()
+                    .new_text_layout(content.to_string())
+                    .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+                    .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+                for i in &item.indices {
+                    let i = *i;
+                    text_layout = text_layout.range_attribute(
+                        i..i + 1,
+                        TextAttribute::TextColor(Color::rgb8(0, 0, 0)),
+                    );
+                    text_layout = text_layout.range_attribute(
+                        i..i + 1,
+                        TextAttribute::Weight(FontWeight::BOLD),
+                    );
                 }
+                let text_layout = text_layout.build().unwrap();
+                ctx.draw_text(&text_layout, point);
             }
         }
     }
@@ -401,8 +445,8 @@ impl Widget<LapceTabData> for CompletionNew {
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
     index: usize,
-    score: f64,
-    match_mask: BitVec,
+    score: i64,
+    indices: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -428,17 +472,11 @@ impl CompletionState {
     }
 
     pub fn len(&self) -> usize {
-        self.items
-            .iter()
-            .filter(|i| i.score != f64::NEG_INFINITY)
-            .count()
+        self.items.iter().filter(|i| i.score != 0).count()
     }
 
     pub fn current_items(&self) -> Vec<&ScoredCompletionItem> {
-        self.items
-            .iter()
-            .filter(|i| i.score != f64::NEG_INFINITY)
-            .collect()
+        self.items.iter().filter(|i| i.score != 0).collect()
     }
 
     pub fn clear(&mut self) {
@@ -469,18 +507,18 @@ impl CompletionState {
             .map(|(index, item)| {
                 let mut item = ScoredCompletionItem {
                     item: item.to_owned(),
-                    score: -1.0 - index as f64,
+                    score: -1 - index as i64,
                     index: index,
-                    match_mask: BitVec::new(),
+                    indices: Vec::new(),
                 };
                 if input != "" {
-                    if has_match(&input, &item.item.label) {
-                        let result = locate(&input, &item.item.label);
-                        item.score = result.score;
-                        item.match_mask = result.match_mask;
-                    } else {
-                        item.score = f64::NEG_INFINITY;
-                    }
+                    // if let Some((score, indices)) =
+                    //     self.matcher.fuzzy_indices(&item.item.label, &self.input)
+                    // {
+                    //     item.score = score;
+                    // } else {
+                    //     item.score = 0;
+                    // }
                 }
                 item
             })
@@ -493,15 +531,15 @@ impl CompletionState {
     pub fn update_input(&mut self, ctx: &mut EventCtx, input: String) {
         for item in self.items.iter_mut() {
             if input != "" {
-                if has_match(&input, &item.item.label) {
-                    let result = locate(&input, &item.item.label);
-                    item.score = result.score;
-                    item.match_mask = result.match_mask;
-                } else {
-                    item.score = f64::NEG_INFINITY;
-                }
+                // if has_match(&input, &item.item.label) {
+                //     let result = locate(&input, &item.item.label);
+                //     item.score = result.score;
+                //     item.match_mask = result.match_mask;
+                // } else {
+                //     item.score = f64::NEG_INFINITY;
+                // }
             } else {
-                item.score = -1.0 - item.index as f64;
+                // item.score = -1.0 - item.index as f64;
             }
         }
         self.items

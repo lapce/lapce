@@ -129,7 +129,7 @@ impl LapceSplitNew {
         let new_view_id = self.children[new_index].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
         data.main_split.active = Arc::new(new_editor.view_id);
-        ctx.set_focus(new_editor.editor_id);
+        ctx.set_focus(new_editor.container_id);
         data.main_split.editors.remove(&view_id);
         self.children.remove(index);
 
@@ -161,7 +161,7 @@ impl LapceSplitNew {
         let new_view_id = self.children[index + 1].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
         data.main_split.active = Arc::new(new_editor.view_id);
-        ctx.set_focus(new_editor.editor_id);
+        ctx.set_focus(new_editor.container_id);
 
         self.children.swap(index, index + 1);
 
@@ -202,11 +202,11 @@ impl LapceSplitNew {
         let new_view_id = self.children[new_index].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
         data.main_split.active = Arc::new(new_editor.view_id);
-        ctx.set_focus(new_editor.editor_id);
+        ctx.set_focus(new_editor.container_id);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::EnsureCursorVisible,
-            Target::Widget(new_editor.editor_id),
+            Target::Widget(new_editor.container_id),
         ));
     }
 
@@ -235,11 +235,14 @@ impl LapceSplitNew {
                 from_editor.scroll_offset.x,
                 from_editor.scroll_offset.y,
             ),
-            Target::Widget(editor_data.editor_id),
+            Target::Widget(editor_data.container_id),
         ));
 
-        let editor =
-            LapceEditorView::new(editor_data.view_id, editor_data.editor_id);
+        let editor = LapceEditorView::new(
+            editor_data.view_id,
+            editor_data.container_id,
+            editor_data.editor_id,
+        );
         self.insert_flex_child(
             index + 1,
             editor.lens(LapceEditorLens(editor_data.view_id)).boxed(),
