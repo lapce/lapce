@@ -21,6 +21,7 @@ pub mod source_control;
 pub mod split;
 pub mod state;
 pub mod status;
+pub mod svg;
 mod tab;
 pub mod theme;
 pub mod window;

@@ -160,13 +160,16 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         if data.completion.status == CompletionStatus::Done {
+            let old_completion = &old_data.completion;
             let completion = &data.completion;
             let old_editor = old_data.main_split.active_editor();
             let editor = data.main_split.active_editor();
-            if old_editor.window_origin != editor.window_origin {
+            if old_editor.window_origin != editor.window_origin
+                || old_completion.input != completion.input
+            {
                 let completion_origin = data.completion_origin(ctx.size(), env);
                 let rect = completion.size.to_rect().with_origin(completion_origin)
-                    + Insets::new(1.0, 1.0, 1.0, 1.0);
+                    + Insets::new(10.0, 10.0, 10.0, 10.0);
                 ctx.request_paint_rect(rect);
             }
         }

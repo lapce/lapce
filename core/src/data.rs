@@ -221,7 +221,7 @@ impl LapceTabData {
         let offset = self.completion.offset;
         let (line, col) = buffer.offset_to_line_col(offset);
         let width = 7.6171875;
-        let x = buffer.col_x(line, col, width);
+        let x = buffer.col_x(line, col, width) - line_height - 5.0;
         let y = (line + 1) as f64 * line_height;
         let mut origin =
             editor.window_origin - self.window_origin.to_vec2() + Vec2::new(x, y);
@@ -237,6 +237,9 @@ impl LapceTabData {
         }
         if origin.x + self.completion.size.width + 1.0 > tab_size.width {
             origin.x = tab_size.width - self.completion.size.width - 1.0;
+        }
+        if origin.x <= 0.0 {
+            origin.x = 0.0;
         }
 
         origin

@@ -24,6 +24,7 @@ use crate::{
     scroll::{LapceIdentityWrapper, LapceScrollNew},
     state::LapceUIState,
     state::LAPCE_APP_STATE,
+    svg::Svg,
     theme::LapceTheme,
 };
 
@@ -315,7 +316,7 @@ impl Widget<LapceTabData> for CompletionContainer {
         let bc = BoxConstraints::new(Size::ZERO, size);
         self.content_size = self.completion.layout(ctx, &bc, data, env);
         self.completion.set_origin(ctx, data, env, Point::ZERO);
-        ctx.set_paint_insets((1.0, 1.0, 1.0, 1.0));
+        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
         size
     }
 
@@ -323,8 +324,10 @@ impl Widget<LapceTabData> for CompletionContainer {
         if data.completion.status == CompletionStatus::Done
             && data.completion.len() > 0
         {
-            let border_rect = self.content_size.to_rect().inset(1.0 / 2.0);
-            ctx.stroke(border_rect, &env.get(theme::BORDER_LIGHT), 1.0);
+            let blur_color = Color::grey8(180);
+            let shadow_width = 5.0;
+            let rect = self.content_size.to_rect();
+            ctx.blurred_rect(rect, shadow_width, &blur_color);
             self.completion.paint(ctx, data, env);
         }
     }
@@ -396,7 +399,7 @@ impl Widget<LapceTabData> for CompletionNew {
         };
 
         for rect in rects {
-            ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+            ctx.fill(rect, &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND));
 
             let start_line = (rect.y0 / line_height).floor() as usize;
             let end_line = (rect.y1 / line_height).ceil() as usize;
@@ -411,13 +414,37 @@ impl Widget<LapceTabData> for CompletionNew {
                         Rect::ZERO
                             .with_origin(Point::new(0.0, line as f64 * line_height))
                             .with_size(Size::new(size.width, line_height)),
-                        &env.get(LapceTheme::EDITOR_BACKGROUND),
+                        &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
                     );
                 }
 
                 let item = &items[line];
+
+                let y = line_height * line as f64 + 5.0;
+
+                if let Some((svg, color)) =
+                    completion_svg_new(item.item.kind, data.theme.clone())
+                {
+                    let color =
+                        color.unwrap_or(env.get(LapceTheme::EDITOR_FOREGROUND));
+                    let rect = Size::new(line_height, line_height)
+                        .to_rect()
+                        .with_origin(Point::new(0.0, line_height * line as f64));
+                    ctx.fill(rect, &color.clone().with_alpha(0.2));
+
+                    let width = 16.0;
+                    let height = 16.0;
+                    let rect =
+                        Size::new(width, height).to_rect().with_origin(Point::new(
+                            (line_height - width) / 2.0,
+                            (line_height - height) / 2.0 + line_height * line as f64,
+                        ));
+                    svg.paint(ctx, rect, Some(&color));
+                }
+
+                let focus_color = Color::rgb8(0, 0, 0);
                 let content = item.item.label.as_str();
-                let point = Point::new(0.0, line_height * line as f64 + 5.0);
+                let point = Point::new(line_height + 5.0, y);
                 let mut text_layout = ctx
                     .text()
                     .new_text_layout(content.to_string())
@@ -427,7 +454,7 @@ impl Widget<LapceTabData> for CompletionNew {
                     let i = *i;
                     text_layout = text_layout.range_attribute(
                         i..i + 1,
-                        TextAttribute::TextColor(Color::rgb8(0, 0, 0)),
+                        TextAttribute::TextColor(focus_color.clone()),
                     );
                     text_layout = text_layout.range_attribute(
                         i..i + 1,
@@ -611,7 +638,9 @@ impl CompletionWidget {
 
             let item = items[line];
 
-            if let Some(svg) = completion_svg(item.item.kind) {
+            if let Some((svg, color)) =
+                completion_svg(item.item.kind, Arc::new(HashMap::new()))
+            {
                 svg.to_piet(
                     Affine::translate(Vec2::new(
                         1.0,
@@ -737,7 +766,10 @@ impl Widget<LapceUIState> for CompletionWidget {
     }
 }
 
-fn completion_svg(kind: Option<CompletionItemKind>) -> Option<SvgData> {
+fn completion_svg(
+    kind: Option<CompletionItemKind>,
+    theme: Arc<HashMap<String, Color>>,
+) -> Option<(SvgData, Option<Color>)> {
     let kind = kind?;
     let kind_str = match kind {
         CompletionItemKind::Method => "method",
@@ -756,7 +788,7 @@ fn completion_svg(kind: Option<CompletionItemKind>) -> Option<SvgData> {
         CompletionItemKind::Module => "namespace",
         _ => return None,
     };
-    Some(
+    Some((
         SvgData::from_str(
             ICONS_DIR
                 .get_file(format!("symbol-{}.svg", kind_str))
@@ -764,5 +796,45 @@ fn completion_svg(kind: Option<CompletionItemKind>) -> Option<SvgData> {
                 .contents_utf8()?,
         )
         .ok()?,
-    )
+        theme.get(kind_str).map(|c| c.clone()),
+    ))
+}
+
+fn completion_svg_new(
+    kind: Option<CompletionItemKind>,
+    theme: Arc<HashMap<String, Color>>,
+) -> Option<(Svg, Option<Color>)> {
+    let kind = kind?;
+    let kind_str = match kind {
+        CompletionItemKind::Method => "method",
+        CompletionItemKind::Function => "method",
+        CompletionItemKind::Enum => "enum",
+        CompletionItemKind::EnumMember => "enum-member",
+        CompletionItemKind::Class => "class",
+        CompletionItemKind::Variable => "variable",
+        CompletionItemKind::Struct => "structure",
+        CompletionItemKind::Keyword => "keyword",
+        CompletionItemKind::Constant => "constant",
+        CompletionItemKind::Property => "property",
+        CompletionItemKind::Field => "field",
+        CompletionItemKind::Interface => "interface",
+        CompletionItemKind::Snippet => "snippet",
+        CompletionItemKind::Module => "namespace",
+        _ => "string",
+    };
+    let theme_str = match kind_str {
+        "namespace" => "builtinType",
+        "variable" => "field",
+        _ => kind_str,
+    };
+    Some((
+        Svg::from_str(
+            ICONS_DIR
+                .get_file(format!("symbol-{}.svg", kind_str))
+                .unwrap()
+                .contents_utf8()?,
+        )
+        .ok()?,
+        theme.get(theme_str).map(|c| c.clone()),
+    ))
 }
