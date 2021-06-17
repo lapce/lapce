@@ -525,9 +525,14 @@ impl LspClient {
     {
         let client_capabilities = ClientCapabilities {
             text_document: Some(TextDocumentClientCapabilities {
-                completion: Some(CompletionCapability {
+                completion: Some(CompletionClientCapabilities {
                     completion_item: Some(CompletionItemCapability {
-                        snippet_support: Some(false),
+                        snippet_support: Some(true),
+                        resolve_support: Some(
+                            CompletionItemCapabilityResolveSupport {
+                                properties: vec!["additionalTextEdits".to_string()],
+                            },
+                        ),
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -545,7 +550,7 @@ impl LspClient {
                 //     }),
                 //     ..Default::default()
                 // }),
-                code_action: Some(CodeActionCapability {
+                code_action: Some(CodeActionClientCapabilities {
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {
                             value_set: vec![
@@ -568,18 +573,16 @@ impl LspClient {
                     }),
                     ..Default::default()
                 }),
-                semantic_highlighting_capabilities: Some(
-                    SemanticHighlightingClientCapability {
-                        semantic_highlighting: true,
-                    },
-                ),
+                semantic_tokens: Some(SemanticTokensClientCapabilities {
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
             ..Default::default()
         };
 
         let init_params = InitializeParams {
-            process_id: Some(u64::from(process::id())),
+            process_id: Some(u32::from(process::id())),
             root_uri,
             initialization_options: self.options.clone(),
             capabilities: client_capabilities,
@@ -587,6 +590,7 @@ impl LspClient {
             workspace_folders: None,
             client_info: None,
             root_path: None,
+            locale: None,
         };
 
         let params = Params::from(serde_json::to_value(init_params).unwrap());
@@ -749,7 +753,7 @@ impl LspClient {
         let text_document_did_change_params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier {
                 uri,
-                version: Some(version as i64),
+                version: version as i32,
             },
             content_changes: changes,
         };

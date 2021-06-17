@@ -478,8 +478,8 @@ impl BufferNew {
     pub fn offset_to_position(&self, offset: usize) -> Position {
         let (line, col) = self.offset_to_line_col(offset);
         Position {
-            line: line as u64,
-            character: col as u64,
+            line: line as u32,
+            character: col as u32,
         }
     }
 
@@ -1730,8 +1730,8 @@ impl Buffer {
         let offset = if offset > max { max } else { offset };
         let (line, col) = self.offset_to_line_col(offset);
         Position {
-            line: line as u64,
-            character: col as u64,
+            line: line as u32,
+            character: col as u32,
         }
     }
 
@@ -2800,7 +2800,7 @@ pub fn get_document_content_changes(
                 start: buffer.offset_to_position(start),
                 end: buffer.offset_to_position(end),
             }),
-            range_length: Some((end - start) as u64),
+            range_length: Some((end - start) as u32),
             text,
         };
 
@@ -2815,7 +2815,7 @@ pub fn get_document_content_changes(
                 start: buffer.offset_to_position(start),
                 end: end_position,
             }),
-            range_length: Some((end - start) as u64),
+            range_length: Some((end - start) as u32),
             text: String::new(),
         };
 

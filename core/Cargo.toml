@@ -33,7 +33,7 @@ xi-trace = "0.2.0"
 fzyr = "0.1.2"
 fuzzy-matcher = "0.3.7"
 uuid = { version = "0.7.4", features = ["v4"] }
-lsp-types = { version = "0.82.0", features = ["proposed"] }
+lsp-types = { version = "0.89.2", features = ["proposed"] }
 druid = { path = "../../druid/druid", features = ["svg", "im"] }
 lapce-proxy = { path = "../proxy" }
 

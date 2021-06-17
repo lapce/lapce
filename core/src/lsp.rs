@@ -1,11 +1,9 @@
 use crate::{
-    command::LapceUICommand,  state::LapceWorkspaceType,
-    state::LAPCE_APP_STATE,
+    command::LapceUICommand, state::LapceWorkspaceType, state::LAPCE_APP_STATE,
 };
 use anyhow::{anyhow, Result};
 use druid::{WidgetId, WindowId};
 use jsonrpc_lite::{Id, JsonRpc, Params};
-use lsp_types::SemanticHighlightingClientCapability;
 use lsp_types::SemanticTokensClientCapabilities;
 use parking_lot::Mutex;
 use std::{
@@ -572,49 +570,11 @@ impl LspClient {
         CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
     {
         let client_capabilities = ClientCapabilities {
-            text_document: Some(TextDocumentClientCapabilities {
-                completion: Some(CompletionCapability {
-                    completion_item: Some(CompletionItemCapability {
-                        snippet_support: Some(false),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }),
-                code_action: Some(CodeActionCapability {
-                    code_action_literal_support: Some(CodeActionLiteralSupport {
-                        code_action_kind: CodeActionKindLiteralSupport {
-                            value_set: vec![
-                                CodeActionKind::EMPTY.as_str().to_string(),
-                                CodeActionKind::QUICKFIX.as_str().to_string(),
-                                CodeActionKind::REFACTOR.as_str().to_string(),
-                                CodeActionKind::REFACTOR_EXTRACT
-                                    .as_str()
-                                    .to_string(),
-                                CodeActionKind::REFACTOR_INLINE.as_str().to_string(),
-                                CodeActionKind::REFACTOR_REWRITE
-                                    .as_str()
-                                    .to_string(),
-                                CodeActionKind::SOURCE.as_str().to_string(),
-                                CodeActionKind::SOURCE_ORGANIZE_IMPORTS
-                                    .as_str()
-                                    .to_string(),
-                            ],
-                        },
-                    }),
-                    ..Default::default()
-                }),
-                semantic_highlighting_capabilities: Some(
-                    SemanticHighlightingClientCapability {
-                        semantic_highlighting: true,
-                    },
-                ),
-                ..Default::default()
-            }),
             ..Default::default()
         };
 
         let init_params = InitializeParams {
-            process_id: Some(u64::from(process::id())),
+            process_id: Some(u32::from(process::id())),
             root_uri,
             initialization_options: self.options.clone(),
             capabilities: client_capabilities,
@@ -622,6 +582,7 @@ impl LspClient {
             workspace_folders: None,
             client_info: None,
             root_path: None,
+            locale: None,
         };
 
         let params = Params::from(serde_json::to_value(init_params).unwrap());
@@ -878,7 +839,7 @@ impl LspClient {
         let text_document_did_change_params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier {
                 uri,
-                version: Some(version as i64),
+                version: version as i32,
             },
             content_changes: changes,
         };

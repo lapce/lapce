@@ -2945,7 +2945,9 @@ impl EditorSplitState {
                             let workspace_edit = action.edit.as_ref()?;
                             let edits =
                                 get_workspace_edit_edits(&url, workspace_edit)?
-                                    .clone();
+                                    .iter()
+                                    .map(|&e| e.to_owned())
+                                    .collect::<Vec<TextEdit>>();
                             self.apply_edits(ctx, ui_state, rev, &edits);
                         }
                     };
@@ -5278,7 +5280,7 @@ impl Widget<LapceUIState> for Editor {
 fn get_workspace_edit_edits<'a>(
     url: &Url,
     workspace_edit: &'a WorkspaceEdit,
-) -> Option<&'a Vec<TextEdit>> {
+) -> Option<Vec<&'a TextEdit>> {
     if let Some(edits) = get_workspace_edit_changes_edits(&url, workspace_edit) {
         Some(edits)
     } else {
@@ -5289,21 +5291,29 @@ fn get_workspace_edit_edits<'a>(
 fn get_workspace_edit_changes_edits<'a>(
     url: &Url,
     workspace_edit: &'a WorkspaceEdit,
-) -> Option<&'a Vec<TextEdit>> {
+) -> Option<Vec<&'a TextEdit>> {
     let changes = workspace_edit.changes.as_ref()?;
-    changes.get(url)
+    changes.get(url).map(|c| c.iter().map(|t| t).collect())
 }
 
 fn get_workspace_edit_document_changes_edits<'a>(
     url: &Url,
     workspace_edit: &'a WorkspaceEdit,
-) -> Option<&'a Vec<TextEdit>> {
+) -> Option<Vec<&'a TextEdit>> {
     let changes = workspace_edit.document_changes.as_ref()?;
     match changes {
         DocumentChanges::Edits(edits) => {
             for edit in edits {
                 if &edit.text_document.uri == url {
-                    return Some(&edit.edits);
+                    let e = edit
+                        .edits
+                        .iter()
+                        .filter_map(|e| match e {
+                            lsp_types::OneOf::Left(edit) => Some(edit),
+                            lsp_types::OneOf::Right(_) => None,
+                        })
+                        .collect();
+                    return Some(e);
                 }
             }
             None

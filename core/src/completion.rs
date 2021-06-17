@@ -137,9 +137,10 @@ impl CompletionData {
             .items
             .iter()
             .filter_map(|i| {
-                if let Some((score, indices)) =
-                    self.matcher.fuzzy_indices(&i.item.label, &self.input)
-                {
+                if let Some((score, indices)) = self.matcher.fuzzy_indices(
+                    &i.item.filter_text.as_ref().unwrap_or(&i.item.label),
+                    &self.input,
+                ) {
                     let mut item = i.clone();
                     item.score = score;
                     item.indices = indices;
