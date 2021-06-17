@@ -73,7 +73,7 @@ impl Cursor {
         let offset = self.offset();
         let (line, col) = buffer.offset_to_line_col(offset);
         let width = 7.6171875;
-        let cursor_x = buffer.col_x(line, col, width) - width;
+        let cursor_x = col as f64 * width - width;
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
         let line = if line > 1 { line - 1 } else { 0 };
@@ -113,7 +113,7 @@ impl Cursor {
                     let left = start_col.min(end_col);
                     let right = start_col.max(end_col) + 1;
                     for line in start_line..end_line + 1 {
-                        let max_col = buffer.line_max_col(line, true);
+                        let max_col = buffer.line_end_col(line, true);
                         if left > max_col {
                             lines.push("".to_string());
                         } else {
@@ -170,7 +170,7 @@ impl Cursor {
                     let left = start_col.min(end_col);
                     let right = start_col.max(end_col) + 1;
                     for line in start_line..end_line + 1 {
-                        let max_col = buffer.line_max_col(line, true);
+                        let max_col = buffer.line_end_col(line, true);
                         if left > max_col {
                             continue;
                         }

@@ -55,7 +55,7 @@ impl LapceProxy {
         thread::spawn(move || {
             let mut child = match workspace.kind {
                 LapceWorkspaceType::Local => {
-                    Command::new("/Users/Lulu/lapce/target/release/lapce-proxy")
+                    Command::new("/Users/Lulu/.lapce/lapce-proxy")
                         .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
                         .spawn()

@@ -5,6 +5,8 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+unicode-width = "0.1.8"
+unicode-segmentation = "1.7.1"
 im = { version = "15.0.0", features = ["serde"] }
 crossbeam-channel = "0.5.0"
 crossbeam-utils = "0.8.4"
@@ -28,6 +30,7 @@ serde = "1.0"
 serde_json = "1.0"
 xi-core-lib = "0.3.0"
 xi-rope = { path = "../../xi-editor/rust/rope", features = ["serde"] }
+xi-unicode = "0.3.0"
 xi-rpc = "0.3.0"
 xi-trace = "0.2.0"
 fzyr = "0.1.2"

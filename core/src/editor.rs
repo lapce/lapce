@@ -737,7 +737,7 @@ impl LapceEditor {
                 self.paint_cursor_line(ctx, line, env);
 
                 if active {
-                    let cursor_x = data.buffer.col_x(line, col, width);
+                    let cursor_x = col as f64 * width;
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(
@@ -774,7 +774,7 @@ impl LapceEditor {
                         },
                         &VisualMode::Linewise => 0,
                         &VisualMode::Blockwise => {
-                            let max_col = data.buffer.line_max_col(line, false);
+                            let max_col = data.buffer.line_end_col(line, false);
                             let left = start_col.min(end_col);
                             if left > max_col {
                                 continue;
@@ -782,28 +782,21 @@ impl LapceEditor {
                             left
                         }
                     };
-                    let x0 = (left_col
-                        + &line_content[..left_col].matches('\t').count() * 3)
-                        as f64
-                        * width;
+                    let x0 = left_col as f64 * width;
 
                     let right_col = match mode {
                         &VisualMode::Normal => match line {
                             _ if line == end_line => {
-                                let max_col = data.buffer.line_max_col(line, true);
+                                let max_col = data.buffer.line_end_col(line, true);
                                 (end_col + 1).min(max_col)
                             }
-                            _ => {
-                                data.buffer.offset_of_line(line + 1)
-                                    - data.buffer.offset_of_line(line)
-                            }
+                            _ => data.buffer.line_end_col(line, true) + 1,
                         },
                         &VisualMode::Linewise => {
-                            data.buffer.offset_of_line(line + 1)
-                                - data.buffer.offset_of_line(line)
+                            data.buffer.line_end_col(line, true) + 1
                         }
                         &VisualMode::Blockwise => {
-                            let max_col = data.buffer.line_max_col(line, true);
+                            let max_col = data.buffer.line_end_col(line, true);
                             let right = match data.editor.cursor.horiz.as_ref() {
                                 Some(&ColPosition::End) => max_col,
                                 _ => (end_col.max(start_col) + 1).min(max_col),
@@ -812,10 +805,7 @@ impl LapceEditor {
                         }
                     };
                     if line_content.len() > 0 {
-                        let x1 = (right_col
-                            + &line_content[..right_col].matches('\t').count() * 3)
-                            as f64
-                            * width;
+                        let x1 = right_col as f64 * width;
 
                         let y0 = line as f64 * line_height;
                         let y1 = y0 + line_height;
@@ -826,7 +816,7 @@ impl LapceEditor {
                     }
 
                     let (line, col) = data.buffer.offset_to_line_col(*end);
-                    let cursor_x = data.buffer.col_x(line, col, width);
+                    let cursor_x = col as f64 * width;
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(
@@ -855,7 +845,7 @@ impl LapceEditor {
                     for region in regions {
                         let (line, col) =
                             data.buffer.offset_to_line_col(region.min());
-                        let x = data.buffer.col_x(line, col, width).round();
+                        let x = (col as f64 * width).round();
                         let y = line as f64 * line_height;
                         ctx.stroke(
                             Line::new(

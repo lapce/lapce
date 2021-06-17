@@ -34,6 +34,8 @@ use tree_sitter::{Parser, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
     interval::IntervalBounds,
@@ -313,6 +315,12 @@ impl BufferNew {
         self.rope.line_of_offset(offset)
     }
 
+    pub fn offset_line_content(&self, offset: usize) -> Cow<str> {
+        let line = self.line_of_offset(offset);
+        let start_offset = self.offset_of_line(line);
+        self.slice_to_cow(start_offset..offset)
+    }
+
     pub fn line_content(&self, line: usize) -> String {
         self.slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
             .to_string()
@@ -446,22 +454,22 @@ impl BufferNew {
         }
     }
 
-    pub fn col_x(&self, line: usize, col: usize, width: f64) -> f64 {
-        let line_content = self.line_content(line);
-        let col = if col > line_content.len() {
-            line_content.len()
-        } else {
-            col
-        };
-        let x = (line_content[..col]
-            .chars()
-            .filter_map(|c| if c == '\t' { Some('\t') } else { None })
-            .count()
-            * 3
-            + col) as f64
-            * width;
-        x
-    }
+    // pub fn col_x(&self, line: usize, col: usize, width: f64) -> f64 {
+    //     let line_content = self.line_content(line);
+    //     let col = if col > line_content.len() {
+    //         line_content.len()
+    //     } else {
+    //         col
+    //     };
+    //     let x = (line_content[..col]
+    //         .chars()
+    //         .filter_map(|c| if c == '\t' { Some('\t') } else { None })
+    //         .count()
+    //         * 3
+    //         + col) as f64
+    //         * width;
+    //     x
+    // }
 
     pub fn indent_on_line(&self, line: usize) -> String {
         let line_start_offset = self.rope.offset_of_line(line);
@@ -483,15 +491,60 @@ impl BufferNew {
         }
     }
 
+    pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
+        let line_content = self.line_content(line);
+        let mut line_content = line_content.as_str();
+        if line_content.ends_with("\n") {
+            line_content = &line_content[..line_content.len() - 1];
+        }
+        let mut pos = 0;
+        let mut offset = self.offset_of_line(line);
+        for grapheme in line_content.graphemes(true) {
+            pos += grapheme_column_width(grapheme);
+            if pos > col {
+                return offset;
+            }
+
+            offset += grapheme.len();
+            if pos == col {
+                return offset;
+            }
+        }
+        offset
+    }
+
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
         let max = self.len();
         let offset = if offset > max { max } else { offset };
         let line = self.line_of_offset(offset);
-        (line, offset - self.offset_of_line(line))
+        let line_start = self.offset_of_line(line);
+        if offset == line_start {
+            return (line, 0);
+        }
+
+        let col = str_col(&self.slice_to_cow(line_start..offset));
+        (line, col)
+    }
+
+    pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
+        let line_start = self.offset_of_line(line);
+        let offset = self.line_end_offset(line, caret);
+        let col = str_col(&self.slice_to_cow(line_start..offset));
+        col
     }
 
     pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
-        self.offset_of_line(line) + self.line_max_col(line, caret)
+        let mut offset = self.offset_of_line(line + 1);
+        let line_content = self.line_content(line);
+        let mut line_content = line_content.as_str();
+        if line_content.ends_with("\n") {
+            offset -= 1;
+            line_content = &line_content[..line_content.len() - 1];
+        }
+        if !caret && line_content.len() > 0 {
+            offset = self.prev_grapheme_offset(offset, 1, 0);
+        }
+        offset
     }
 
     pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
@@ -503,22 +556,22 @@ impl BufferNew {
         self.offset_of_line(line + 1) - self.offset_of_line(line)
     }
 
-    pub fn line_max_col(&self, line: usize, caret: bool) -> usize {
-        let line_content = self.line_content(line);
-        let n = self.line_len(line);
-        match n {
-            n if n == 0 => 0,
-            n if !line_content.ends_with("\n") => match caret {
-                true => n,
-                false => n - 1,
-            },
-            n if n == 1 => 0,
-            n => match caret {
-                true => n - 1,
-                false => n - 2,
-            },
-        }
-    }
+    // pub fn line_max_col(&self, line: usize, caret: bool) -> usize {
+    //     let line_content = self.line_content(line);
+    //     let n = self.line_len(line);
+    //     match n {
+    //         n if n == 0 => 0,
+    //         n if !line_content.ends_with("\n") => match caret {
+    //             true => n,
+    //             false => n - 1,
+    //         },
+    //         n if n == 1 => 0,
+    //         n => match caret {
+    //             true => n - 1,
+    //             false => n - 2,
+    //         },
+    //     }
+    // }
 
     pub fn line_horiz_col(
         &self,
@@ -526,14 +579,13 @@ impl BufferNew {
         horiz: &ColPosition,
         caret: bool,
     ) -> usize {
-        let max_col = self.line_max_col(line, caret);
         match horiz {
-            &ColPosition::Col(n) => match max_col > n {
-                true => n,
-                false => max_col,
-            },
-            &ColPosition::End => max_col,
-            _ => 0,
+            &ColPosition::Col(n) => n.min(self.line_end_col(line, caret)),
+            &ColPosition::End => self.line_end_col(line, caret),
+            &ColPosition::Start => 0,
+            &ColPosition::FirstNonBlank => {
+                self.first_non_blank_character_on_line(line)
+            }
         }
     }
 
@@ -587,6 +639,48 @@ impl BufferNew {
         SelRegion::new(start, end, Some(horiz))
     }
 
+    pub fn prev_grapheme_offset(
+        &self,
+        offset: usize,
+        count: usize,
+        limit: usize,
+    ) -> usize {
+        let mut cursor = Cursor::new(&self.rope, offset);
+        let mut new_offset = offset;
+        for i in 0..count {
+            if let Some(prev_offset) = cursor.prev_grapheme() {
+                if prev_offset < limit {
+                    return new_offset;
+                }
+                new_offset = prev_offset;
+            } else {
+                return new_offset;
+            }
+        }
+        new_offset
+    }
+
+    pub fn next_grapheme_offset(
+        &self,
+        offset: usize,
+        count: usize,
+        limit: usize,
+    ) -> usize {
+        let mut cursor = Cursor::new(&self.rope, offset);
+        let mut new_offset = offset;
+        for i in 0..count {
+            if let Some(next_offset) = cursor.next_grapheme() {
+                if next_offset > limit {
+                    return new_offset;
+                }
+                new_offset = next_offset;
+            } else {
+                return new_offset;
+            }
+        }
+        new_offset
+    }
+
     pub fn move_offset(
         &self,
         offset: usize,
@@ -606,25 +700,21 @@ impl BufferNew {
             Movement::Left => {
                 let line = self.line_of_offset(offset);
                 let line_start_offset = self.offset_of_line(line);
-                let new_offset = if offset < count {
-                    0
-                } else if across_line {
-                    offset - count
-                } else if offset - count > line_start_offset {
-                    offset - count
-                } else {
-                    line_start_offset
-                };
+
+                let min_offset = if across_line { 0 } else { line_start_offset };
+
+                let new_offset =
+                    self.prev_grapheme_offset(offset, count, min_offset);
                 let (_, col) = self.offset_to_line_col(new_offset);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::Right => {
                 let line_end = self.offset_line_end(offset, caret);
 
-                let mut new_offset = offset + count;
-                if new_offset > line_end {
-                    new_offset = line_end;
-                }
+                let max_offset = if across_line { self.len() } else { line_end };
+
+                let new_offset =
+                    self.next_grapheme_offset(offset, count, max_offset);
 
                 let (_, col) = self.offset_to_line_col(new_offset);
                 (new_offset, ColPosition::Col(col))
@@ -633,7 +723,7 @@ impl BufferNew {
                 let line = self.line_of_offset(offset);
                 let line = if line > count { line - count } else { 0 };
                 let col = self.line_horiz_col(line, &horiz, caret);
-                let new_offset = self.offset_of_line(line) + col;
+                let new_offset = self.offset_of_line_col(line, col);
                 (new_offset, horiz)
             }
             Movement::Down => {
@@ -641,7 +731,7 @@ impl BufferNew {
                 let line = self.line_of_offset(offset) + count;
                 let line = if line > last_line { last_line } else { line };
                 let col = self.line_horiz_col(line, &horiz, caret);
-                let new_offset = self.offset_of_line(line) + col;
+                let new_offset = self.offset_of_line_col(line, col);
                 (new_offset, horiz)
             }
             Movement::FirstNonBlank => {
@@ -681,11 +771,13 @@ impl BufferNew {
                     LinePosition::Last => self.last_line(),
                 };
                 let col = self.line_horiz_col(line, &horiz, caret);
-                let new_offset = self.offset_of_line(line) + col;
+                let new_offset = self.offset_of_line_col(line, col);
                 (new_offset, horiz)
             }
             Movement::Offset(offset) => {
                 let new_offset = *offset;
+                let new_offset =
+                    self.rope.prev_grapheme_offset(new_offset + 1).unwrap();
                 let (_, col) = self.offset_to_line_col(new_offset);
                 (new_offset, ColPosition::Col(col))
             }
@@ -2369,6 +2461,36 @@ impl BufferUIState {
     }
 }
 
+pub fn has_unmatched_pair(line: &str) -> bool {
+    let mut count = HashMap::new();
+    let mut pair_first = HashMap::new();
+    for c in line.chars().rev() {
+        if let Some(left) = matching_pair_direction(c) {
+            let key = if left { c } else { matching_char(c).unwrap() };
+            let pair_count = *count.get(&key).unwrap_or(&0i32);
+            if !pair_first.contains_key(&key) {
+                pair_first.insert(key, left);
+            }
+            if left {
+                count.insert(key, pair_count - 1);
+            } else {
+                count.insert(key, pair_count + 1);
+            }
+        }
+    }
+    for (_, pair_count) in count.iter() {
+        if *pair_count < 0 {
+            return true;
+        }
+    }
+    for (_, left) in pair_first.iter() {
+        if *left {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn previous_has_unmatched_pair(line: &str, col: usize) -> bool {
     let mut count = HashMap::new();
     let mut pair_first = HashMap::new();
@@ -2836,4 +2958,26 @@ fn semantic_tokens_lengend(
             options,
         ) => options.semantic_tokens_options.legend.clone(),
     }
+}
+
+pub fn str_col(s: &str) -> usize {
+    s.graphemes(true).map(grapheme_column_width).sum()
+}
+//
+/// Returns the number of cells visually occupied by a grapheme.
+/// The input string must be a single grapheme.
+pub fn grapheme_column_width(s: &str) -> usize {
+    // Due to this issue:
+    // https://github.com/unicode-rs/unicode-width/issues/4
+    // we cannot simply use the unicode-width crate to compute
+    // the desired value.
+    // Let's check for emoji-ness for ourselves first
+    use xi_unicode::EmojiExt;
+    for c in s.chars() {
+        if c.is_emoji_modifier_base() || c.is_emoji_modifier() {
+            // treat modifier sequences as double wide
+            return 2;
+        }
+    }
+    UnicodeWidthStr::width(s)
 }

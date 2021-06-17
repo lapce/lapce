@@ -27,8 +27,8 @@ use xi_rpc::{RpcLoop, RpcPeer};
 
 use crate::{
     buffer::{
-        previous_has_unmatched_pair, Buffer, BufferId, BufferNew, BufferState,
-        BufferUpdate, EditType, Style, UpdateEvent,
+        has_unmatched_pair, previous_has_unmatched_pair, Buffer, BufferId,
+        BufferNew, BufferState, BufferUpdate, EditType, Style, UpdateEvent,
     },
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionData, CompletionStatus},
@@ -221,7 +221,7 @@ impl LapceTabData {
         let offset = self.completion.offset;
         let (line, col) = buffer.offset_to_line_col(offset);
         let width = 7.6171875;
-        let x = buffer.col_x(line, col, width) - line_height - 5.0;
+        let x = col as f64 * width - line_height - 5.0;
         let y = (line + 1) as f64 * line_height;
         let mut origin =
             editor.window_origin - self.window_origin.to_vec2() + Vec2::new(x, y);
@@ -717,7 +717,7 @@ impl LapceEditorViewData {
         };
 
         let offset = self.buffer.offset_of_line(line)
-            + col.min(self.buffer.line_max_col(line, false));
+            + col.min(self.buffer.line_end_col(line, false));
         self.set_cursor(Cursor::new(
             CursorMode::Normal(offset),
             self.editor.cursor.horiz.clone(),
@@ -804,14 +804,12 @@ impl LapceEditorViewData {
     }
 
     pub fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
-        let (line, col) = self.buffer.offset_to_line_col(offset);
-        let line_content = self.buffer.line_content(line);
+        let line = self.buffer.line_of_offset(offset);
         let line_indent = self.buffer.indent_on_line(line);
+        let line_content = self.buffer.offset_line_content(offset);
 
-        let indent = if previous_has_unmatched_pair(&line_content, col) {
+        let indent = if has_unmatched_pair(&line_content) {
             format!("{}    ", line_indent)
-        } else if line_indent.len() >= col {
-            line_indent[..col].to_string()
         } else {
             let next_line_indent = self.buffer.indent_on_line(line + 1);
             if next_line_indent.len() > line_indent.len() {

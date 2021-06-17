@@ -1626,12 +1626,15 @@ dependencies = [
  "tree-sitter-go",
  "tree-sitter-highlight",
  "tree-sitter-rust",
+ "unicode-segmentation",
+ "unicode-width",
  "usvg",
  "uuid 0.7.4",
  "xi-core-lib",
  "xi-rope 0.3.0",
  "xi-rpc",
  "xi-trace",
+ "xi-unicode 0.3.0",
 ]
 
 [[package]]
