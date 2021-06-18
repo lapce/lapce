@@ -84,7 +84,7 @@ impl Default for VisualMode {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy)]
 pub enum Mode {
     Insert,
     Visual,

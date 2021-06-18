@@ -739,8 +739,7 @@ impl LapceEditorViewData {
             self.editor.cursor.horiz.as_ref(),
             lines,
             if down { &Movement::Down } else { &Movement::Up },
-            false,
-            false,
+            self.get_mode(),
         );
         self.set_cursor(Cursor::new(CursorMode::Normal(offset), Some(horiz)));
         let rect = Rect::ZERO
@@ -764,8 +763,7 @@ impl LapceEditorViewData {
                     self.editor.cursor.horiz.as_ref(),
                     count,
                     movement,
-                    false,
-                    false,
+                    Mode::Normal,
                 );
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.cursor.mode = CursorMode::Normal(new_offset);
@@ -777,8 +775,7 @@ impl LapceEditorViewData {
                     self.editor.cursor.horiz.as_ref(),
                     count,
                     movement,
-                    true,
-                    false,
+                    Mode::Visual,
                 );
                 let start = *start;
                 let mode = mode.clone();
@@ -792,7 +789,11 @@ impl LapceEditorViewData {
             }
             CursorMode::Insert(selection) => {
                 let selection = self.buffer.update_selection(
-                    selection, count, movement, true, false, false,
+                    selection,
+                    count,
+                    movement,
+                    Mode::Insert,
+                    false,
                 );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }
@@ -1253,8 +1254,7 @@ impl KeyPressFocus for LapceEditorViewData {
                         None,
                         1,
                         &Movement::Right,
-                        true,
-                        false,
+                        Mode::Insert,
                     )
                     .0;
                 self.buffer_mut().update_edit_type();
@@ -1269,8 +1269,7 @@ impl KeyPressFocus for LapceEditorViewData {
                     None,
                     1,
                     &Movement::EndOfLine,
-                    true,
-                    false,
+                    Mode::Insert,
                 );
                 self.buffer_mut().update_edit_type();
                 self.set_cursor(Cursor::new(
@@ -1292,8 +1291,7 @@ impl KeyPressFocus for LapceEditorViewData {
                             None,
                             1,
                             &Movement::FirstNonBlank,
-                            true,
-                            false,
+                            Mode::Normal,
                         );
                         self.buffer_mut().update_edit_type();
                         self.set_cursor(Cursor::new(
@@ -1343,8 +1341,7 @@ impl KeyPressFocus for LapceEditorViewData {
                             &selection,
                             1,
                             &Movement::StartOfLine,
-                            true,
-                            true,
+                            Mode::Insert,
                             true,
                         );
                         selection
@@ -1417,8 +1414,7 @@ impl KeyPressFocus for LapceEditorViewData {
                             &selection,
                             1,
                             &Movement::WordBackward,
-                            true,
-                            true,
+                            Mode::Insert,
                             true,
                         );
                         selection
@@ -1441,8 +1437,7 @@ impl KeyPressFocus for LapceEditorViewData {
                             &selection,
                             1,
                             &Movement::Left,
-                            true,
-                            true,
+                            Mode::Insert,
                             true,
                         );
                         selection
@@ -1524,8 +1519,7 @@ impl KeyPressFocus for LapceEditorViewData {
                         &selection,
                         count,
                         &Movement::Left,
-                        true,
-                        false,
+                        Mode::Insert,
                         true,
                     )
                 } else {
@@ -1552,8 +1546,7 @@ impl KeyPressFocus for LapceEditorViewData {
                                 None,
                                 1,
                                 &Movement::Left,
-                                false,
-                                false,
+                                Mode::Normal,
                             )
                             .0
                     }

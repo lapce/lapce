@@ -594,20 +594,12 @@ impl BufferNew {
         selection: &Selection,
         count: usize,
         movement: &Movement,
-        caret: bool,
-        across_line: bool,
+        mode: Mode,
         modify: bool,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
-            let region = self.update_region(
-                region,
-                count,
-                movement,
-                caret,
-                across_line,
-                modify,
-            );
+            let region = self.update_region(region, count, movement, mode, modify);
             new_selection.add_region(region);
         }
         new_selection
@@ -618,18 +610,11 @@ impl BufferNew {
         region: &SelRegion,
         count: usize,
         movement: &Movement,
-        caret: bool,
-        across_line: bool,
+        mode: Mode,
         modify: bool,
     ) -> SelRegion {
-        let (end, horiz) = self.move_offset(
-            region.end(),
-            region.horiz(),
-            count,
-            movement,
-            caret,
-            across_line,
-        );
+        let (end, horiz) =
+            self.move_offset(region.end(), region.horiz(), count, movement, mode);
 
         let start = match modify {
             true => region.start(),
@@ -689,8 +674,7 @@ impl BufferNew {
         horiz: Option<&ColPosition>,
         count: usize,
         movement: &Movement,
-        caret: bool,
-        across_line: bool,
+        mode: Mode,
     ) -> (usize, ColPosition) {
         let horiz = if let Some(horiz) = horiz {
             horiz.clone()
@@ -703,7 +687,11 @@ impl BufferNew {
                 let line = self.line_of_offset(offset);
                 let line_start_offset = self.offset_of_line(line);
 
-                let min_offset = if across_line { 0 } else { line_start_offset };
+                let min_offset = if mode == Mode::Insert {
+                    0
+                } else {
+                    line_start_offset
+                };
 
                 let new_offset =
                     self.prev_grapheme_offset(offset, count, min_offset);
@@ -711,9 +699,13 @@ impl BufferNew {
                 (new_offset, ColPosition::Col(col))
             }
             Movement::Right => {
-                let line_end = self.offset_line_end(offset, caret);
+                let line_end = self.offset_line_end(offset, mode != Mode::Normal);
 
-                let max_offset = if across_line { self.len() } else { line_end };
+                let max_offset = if mode == Mode::Insert {
+                    self.len()
+                } else {
+                    line_end
+                };
 
                 let new_offset =
                     self.next_grapheme_offset(offset, count, max_offset);
@@ -724,7 +716,7 @@ impl BufferNew {
             Movement::Up => {
                 let line = self.line_of_offset(offset);
                 let line = if line > count { line - count } else { 0 };
-                let col = self.line_horiz_col(line, &horiz, caret);
+                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
                 let new_offset = self.offset_of_line_col(line, col);
                 (new_offset, horiz)
             }
@@ -732,7 +724,7 @@ impl BufferNew {
                 let last_line = self.last_line();
                 let line = self.line_of_offset(offset) + count;
                 let line = if line > last_line { last_line } else { line };
-                let col = self.line_horiz_col(line, &horiz, caret);
+                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
                 let new_offset = self.offset_of_line_col(line, col);
                 (new_offset, horiz)
             }
@@ -756,7 +748,7 @@ impl BufferNew {
                 (new_offset, ColPosition::Start)
             }
             Movement::EndOfLine => {
-                let new_offset = self.offset_line_end(offset, caret);
+                let new_offset = self.offset_line_end(offset, mode != Mode::Normal);
                 (new_offset, ColPosition::End)
             }
             Movement::Line(position) => {
@@ -772,7 +764,7 @@ impl BufferNew {
                     LinePosition::First => 0,
                     LinePosition::Last => self.last_line(),
                 };
-                let col = self.line_horiz_col(line, &horiz, caret);
+                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
                 let new_offset = self.offset_of_line_col(line, col);
                 (new_offset, horiz)
             }
@@ -787,7 +779,7 @@ impl BufferNew {
                 let mut new_offset = WordCursor::new(&self.rope, offset)
                     .end_boundary()
                     .unwrap_or(offset);
-                if !caret {
+                if mode != Mode::Insert {
                     new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
                 }
                 let (_, col) = self.offset_to_line_col(new_offset);
