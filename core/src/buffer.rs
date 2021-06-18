@@ -782,9 +782,12 @@ impl BufferNew {
                 (new_offset, ColPosition::Col(col))
             }
             Movement::WordEndForward => {
-                let new_offset = WordCursor::new(&self.rope, offset)
+                let mut new_offset = WordCursor::new(&self.rope, offset)
                     .end_boundary()
                     .unwrap_or(offset);
+                if !caret {
+                    new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
+                }
                 let (_, col) = self.offset_to_line_col(new_offset);
                 (new_offset, ColPosition::Col(col))
             }
@@ -2113,7 +2116,7 @@ impl<'a> WordCursor<'a> {
                 candidate = self.inner.pos();
             }
             self.inner.set(candidate);
-            return Some(candidate - 1);
+            return Some(candidate);
         }
         None
     }

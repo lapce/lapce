@@ -873,7 +873,11 @@ impl LapceEditorViewData {
                 } else {
                     match self.editor.cursor.mode {
                         CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                            let offset = selection.min_offset() - 1;
+                            let offset = self.buffer.prev_grapheme_offset(
+                                selection.min_offset(),
+                                1,
+                                0,
+                            );
                             self.set_cursor(Cursor::new(
                                 CursorMode::Normal(offset),
                                 None,

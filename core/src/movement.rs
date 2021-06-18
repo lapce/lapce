@@ -91,11 +91,20 @@ impl Cursor {
                 .collect::<Vec<String>>()
                 .join("\n"),
             CursorMode::Normal(offset) => {
-                buffer.slice_to_cow(*offset..*offset + 1).to_string()
+                let new_offset =
+                    buffer.next_grapheme_offset(*offset, 1, buffer.len());
+                buffer.slice_to_cow(*offset..new_offset).to_string()
             }
             CursorMode::Visual { start, end, mode } => match mode {
                 VisualMode::Normal => buffer
-                    .slice_to_cow(*start.min(end)..*start.max(end) + 1)
+                    .slice_to_cow(
+                        *start.min(end)
+                            ..buffer.next_grapheme_offset(
+                                *start.max(end),
+                                1,
+                                buffer.len(),
+                            ),
+                    )
                     .to_string(),
                 VisualMode::Linewise => {
                     let start_offset = buffer
@@ -127,12 +136,9 @@ impl Cursor {
                                     }
                                 }
                             };
-                            let offset = buffer.offset_of_line(line);
-                            lines.push(
-                                buffer
-                                    .slice_to_cow(offset + left..offset + right)
-                                    .to_string(),
-                            );
+                            let left = buffer.offset_of_line_col(line, left);
+                            let right = buffer.offset_of_line_col(line, right);
+                            lines.push(buffer.slice_to_cow(left..right).to_string());
                         }
                     }
                     lines.join("\n") + "\n"
@@ -149,11 +155,15 @@ impl Cursor {
     pub fn edit_selection(&self, buffer: &BufferNew) -> Selection {
         match &self.mode {
             CursorMode::Insert(selection) => selection.clone(),
-            CursorMode::Normal(offset) => Selection::region(*offset, offset + 1),
+            CursorMode::Normal(offset) => Selection::region(
+                *offset,
+                buffer.next_grapheme_offset(*offset, 1, buffer.len()),
+            ),
             CursorMode::Visual { start, end, mode } => match mode {
-                VisualMode::Normal => {
-                    Selection::region(*start.min(end), start.max(end) + 1)
-                }
+                VisualMode::Normal => Selection::region(
+                    *start.min(end),
+                    buffer.next_grapheme_offset(*start.max(end), 1, buffer.len()),
+                ),
                 VisualMode::Linewise => {
                     let start_offset = buffer
                         .offset_of_line(buffer.line_of_offset(*start.min(end)));
@@ -184,12 +194,9 @@ impl Cursor {
                                 }
                             }
                         };
-                        let offset = buffer.offset_of_line(line);
-                        selection.add_region(SelRegion::new(
-                            offset + left,
-                            offset + right,
-                            None,
-                        ));
+                        let left = buffer.offset_of_line_col(line, left);
+                        let right = buffer.offset_of_line_col(line, right);
+                        selection.add_region(SelRegion::new(left, right, None));
                     }
                     selection
                 }
