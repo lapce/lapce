@@ -653,6 +653,7 @@ impl BufferNew {
                     return new_offset;
                 }
                 new_offset = prev_offset;
+                cursor.set(prev_offset);
             } else {
                 return new_offset;
             }
@@ -674,6 +675,7 @@ impl BufferNew {
                     return new_offset;
                 }
                 new_offset = next_offset;
+                cursor.set(next_offset);
             } else {
                 return new_offset;
             }
