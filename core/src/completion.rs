@@ -226,10 +226,15 @@ impl CompletionData {
         let mut items: Vec<ScoredCompletionItem> = items
             .iter()
             .filter_map(|i| {
-                if let Some((score, indices)) = self.matcher.fuzzy_indices(
-                    &i.item.filter_text.as_ref().unwrap_or(&i.item.label),
-                    &self.input,
-                ) {
+                let filter_text =
+                    i.item.filter_text.as_ref().unwrap_or(&i.item.label);
+                let shift = i.item.label.match_indices(filter_text).next()?.0;
+                if let Some((score, mut indices)) =
+                    self.matcher.fuzzy_indices(filter_text, &self.input)
+                {
+                    if shift > 0 {
+                        indices = indices.iter().map(|i| i + shift).collect();
+                    }
                     let mut item = i.clone();
                     item.score = score;
                     item.indices = indices;
