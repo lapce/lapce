@@ -188,6 +188,29 @@ impl LspCatalog {
         }
     }
 
+    pub fn completion_resolve(
+        &self,
+        id: RequestId,
+        buffer: &Buffer,
+        completion_item: &CompletionItem,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.completion_resolve(completion_item, move |lsp_client, result| {
+                let mut resp = json!({ "id": id });
+                match result {
+                    Ok(v) => resp["result"] = v,
+                    Err(e) => {
+                        resp["error"] = json!({
+                            "code": 0,
+                            "message": format!("{}",e),
+                        })
+                    }
+                }
+                lsp_client.dispatcher.sender.send(resp);
+            });
+        }
+    }
+
     pub fn get_signature(&self, id: RequestId, buffer: &Buffer, position: Position) {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let uri = client.get_uri(buffer);
@@ -527,7 +550,7 @@ impl LspClient {
             text_document: Some(TextDocumentClientCapabilities {
                 completion: Some(CompletionClientCapabilities {
                     completion_item: Some(CompletionItemCapability {
-                        snippet_support: Some(false),
+                        snippet_support: Some(true),
                         resolve_support: Some(
                             CompletionItemCapabilityResolveSupport {
                                 properties: vec!["additionalTextEdits".to_string()],
@@ -721,6 +744,17 @@ impl LspClient {
             params,
             Box::new(on_completion),
         );
+    }
+
+    pub fn completion_resolve<CB>(
+        &self,
+        completion_item: &CompletionItem,
+        on_result: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = Params::from(serde_json::to_value(completion_item).unwrap());
+        self.send_request("completionItem/resolve", params, Box::new(on_result));
     }
 
     pub fn request_signature<CB>(

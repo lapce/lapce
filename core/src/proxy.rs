@@ -10,6 +10,7 @@ use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
+use lsp_types::CompletionItem;
 use lsp_types::Position;
 use lsp_types::PublishDiagnosticsParams;
 use parking_lot::{Condvar, Mutex};
@@ -169,6 +170,22 @@ impl LapceProxy {
                 "request_id": request_id,
                 "buffer_id": buffer_id,
                 "position": position,
+            }),
+            f,
+        );
+    }
+
+    pub fn completion_resolve(
+        &self,
+        buffer_id: BufferId,
+        completion_item: CompletionItem,
+        f: Box<dyn Callback>,
+    ) {
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
+            "completion_resolve",
+            &json!({
+                "buffer_id": buffer_id,
+                "completion_item": completion_item,
             }),
             f,
         );

@@ -17,7 +17,7 @@ use druid::{
     WidgetId, WindowId,
 };
 use im;
-use lsp_types::CompletionResponse;
+use lsp_types::{CompletionItem, CompletionResponse, CompletionTextEdit};
 use parking_lot::Mutex;
 use serde_json::Value;
 use tree_sitter_highlight::{Highlight, HighlightEvent, Highlighter};
@@ -243,24 +243,6 @@ impl LapceTabData {
         }
 
         origin
-    }
-
-    pub fn completion_done(&mut self, resp: CompletionResponse) {
-        let items = match resp {
-            CompletionResponse::Array(items) => items,
-            CompletionResponse::List(list) => list.items,
-        };
-        let editor = self.main_split.active_editor();
-        let buffer_id = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let buffer = self.main_split.buffers.get(&buffer_id).unwrap();
-        let offset = editor.cursor.offset();
-
-        let start_offset = buffer.prev_code_boundary(offset);
-        let end_offset = buffer.next_code_boundary(offset);
-        let input = buffer.slice_to_cow(start_offset..end_offset).to_string();
-
-        let completion = Arc::make_mut(&mut self.completion);
-        completion.done(input, items);
     }
 
     pub fn buffer_update_process(
@@ -692,6 +674,45 @@ impl LapceEditorViewData {
         }
     }
 
+    pub fn apply_completion_item(
+        &mut self,
+        ctx: &mut EventCtx,
+        item: &CompletionItem,
+    ) {
+        if let Some(edit) = &item.text_edit {
+            match edit {
+                CompletionTextEdit::Edit(edit) => {
+                    let start = edit.range.start;
+                    let start_offset = self.buffer.offset_of_position(start);
+                    let end_offset = self.buffer.next_code_boundary(start_offset);
+                    let selection = Selection::region(start_offset, end_offset);
+                    let selection = self.edit(
+                        ctx,
+                        &selection,
+                        &edit.new_text,
+                        true,
+                        EditType::InsertChars,
+                    );
+                    self.set_cursor_after_change(selection);
+                    return;
+                }
+                CompletionTextEdit::InsertAndReplace(_) => (),
+            }
+        }
+        let offset = self.editor.cursor.offset();
+        let start_offset = self.buffer.prev_code_boundary(offset);
+        let end_offset = self.buffer.next_code_boundary(offset);
+        let selection = Selection::region(start_offset, end_offset);
+        let selection = self.edit(
+            ctx,
+            &selection,
+            item.insert_text.as_ref().unwrap_or(&item.label),
+            true,
+            EditType::InsertChars,
+        );
+        self.set_cursor_after_change(selection);
+    }
+
     fn scroll(&mut self, ctx: &mut EventCtx, down: bool, count: usize, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let diff = line_height * count as f64;
@@ -1024,46 +1045,51 @@ impl LapceEditorViewData {
             && completion.offset == start_offset
             && completion.buffer_id == self.buffer.id
         {
-            println!("update input {}", input);
-            completion.update_input(input);
+            completion.update_input(input.clone());
+
+            if input != "" && !completion.input_items.contains_key(&input) {
+                let event_sink = ctx.get_external_handle();
+                completion.request(
+                    self.proxy.clone(),
+                    completion.request_id,
+                    self.buffer.id,
+                    input,
+                    self.buffer.offset_to_position(offset),
+                    completion.id,
+                    event_sink,
+                );
+            }
+
             return;
         }
 
         completion.buffer_id = self.buffer.id;
         completion.offset = start_offset;
+        completion.input = input.clone();
         completion.status = CompletionStatus::Started;
+        completion.items = Arc::new(Vec::new());
         completion.request_id += 1;
-        let request_id = completion.request_id;
         let event_sink = ctx.get_external_handle();
-        let completion_widget_id = self.completion.id;
-        let buffer_id = self.buffer.id;
-        println!("proxy get completion");
-        self.proxy.get_completion(
-            start_offset,
+        completion.request(
+            self.proxy.clone(),
+            completion.request_id,
             self.buffer.id,
+            "".to_string(),
             self.buffer.offset_to_position(start_offset),
-            Box::new(move |result| {
-                if let Ok(res) = result {
-                    println!("proxy completion result");
-                    if let Ok(resp) =
-                        serde_json::from_value::<CompletionResponse>(res)
-                    {
-                        event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateCompletion(request_id, resp),
-                            Target::Widget(completion_widget_id),
-                        );
-                        return;
-                    }
-                }
-
-                event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::CancelCompletion(request_id),
-                    Target::Widget(completion_widget_id),
-                );
-            }),
+            completion.id,
+            event_sink.clone(),
         );
+        if input != "" {
+            completion.request(
+                self.proxy.clone(),
+                completion.request_id,
+                self.buffer.id,
+                input,
+                self.buffer.offset_to_position(offset),
+                completion.id,
+                event_sink,
+            );
+        }
     }
 }
 
@@ -1526,16 +1552,39 @@ impl KeyPressFocus for LapceEditorViewData {
                     selection
                 };
 
-                let content = self.completion.current().to_string();
-                let selection = self.edit(
-                    ctx,
-                    &selection,
-                    &content,
-                    true,
-                    EditType::InsertChars,
-                );
-                self.set_cursor_after_change(selection);
+                let item = self.completion.current_item().to_owned();
                 self.cancel_completion();
+                if item.data.is_some() {
+                    let container_id = self.editor.container_id;
+                    let buffer_id = self.buffer.id;
+                    let rev = self.buffer.rev;
+                    let offset = self.editor.cursor.offset();
+                    let event_sink = ctx.get_external_handle();
+                    self.proxy.completion_resolve(
+                        buffer_id,
+                        item.clone(),
+                        Box::new(move |result| {
+                            println!("completion resolve result {:?}", result);
+                            let mut item = item.clone();
+                            if let Ok(res) = result {
+                                if let Ok(i) =
+                                    serde_json::from_value::<CompletionItem>(res)
+                                {
+                                    item = i;
+                                }
+                            };
+                            event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ResolveCompletion(
+                                    buffer_id, rev, offset, item,
+                                ),
+                                Target::Widget(container_id),
+                            );
+                        }),
+                    );
+                } else {
+                    self.apply_completion_item(ctx, &item);
+                }
             }
             LapceCommand::NormalMode => {
                 let offset = match &self.editor.cursor.mode {

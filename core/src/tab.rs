@@ -193,7 +193,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.completion.layout(ctx, bc, data, env);
         self.completion
             .set_origin(ctx, data, env, completion_origin);
-        println!("completion origin {}", completion_origin);
 
         self_size
     }

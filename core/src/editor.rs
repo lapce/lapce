@@ -56,6 +56,7 @@ use druid::{
 };
 use druid::{Application, FileDialogOptions};
 use fzyr::{has_match, locate};
+use lsp_types::CompletionTextEdit;
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     Diagnostic, DiagnosticSeverity, DocumentChanges, GotoDefinitionResponse,
@@ -284,6 +285,18 @@ impl LapceEditorContainer {
             LapceUICommand::UpdateSize => {
                 Arc::make_mut(&mut data.editor).size =
                     self.editor.widget().child_size();
+            }
+            LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
+                if data.buffer.id != *buffer_id {
+                    return;
+                }
+                if data.buffer.rev != *rev {
+                    return;
+                }
+                if data.editor.cursor.offset() != *offset {
+                    return;
+                }
+                data.apply_completion_item(ctx, item);
             }
             LapceUICommand::Scroll((x, y)) => {
                 self.editor

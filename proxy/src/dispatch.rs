@@ -7,7 +7,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Oid, Repository};
 use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
-use lsp_types::{Position, TextDocumentContentChangeEvent};
+use lsp_types::{CompletionItem, Position, TextDocumentContentChangeEvent};
 use notify::DebouncedEvent;
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -126,6 +126,10 @@ pub enum Request {
         request_id: usize,
         buffer_id: BufferId,
         position: Position,
+    },
+    CompletionResolve {
+        buffer_id: BufferId,
+        completion_item: CompletionItem,
     },
     GetSignature {
         buffer_id: BufferId,
@@ -430,6 +434,16 @@ impl Dispatcher {
                 self.lsp
                     .lock()
                     .get_completion(id, request_id, buffer, position);
+            }
+            Request::CompletionResolve {
+                buffer_id,
+                completion_item,
+            } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp
+                    .lock()
+                    .completion_resolve(id, buffer, &completion_item);
             }
             Request::GetSignature {
                 buffer_id,

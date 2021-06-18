@@ -491,6 +491,10 @@ impl BufferNew {
         }
     }
 
+    pub fn offset_of_position(&self, pos: Position) -> usize {
+        self.offset_of_line_col(pos.line as usize, pos.character as usize)
+    }
+
     pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
         let line_content = self.line_content(line);
         let mut line_content = line_content.as_str();
