@@ -152,6 +152,8 @@ impl CompletionData {
         println!("completion cancel");
         self.status = CompletionStatus::Inactive;
         self.input = "".to_string();
+        self.items = Arc::new(Vec::new());
+        self.input_items.clear();
         self.index = 0;
     }
 
@@ -375,6 +377,10 @@ impl Widget<LapceTabData> for CompletionContainer {
             || old_data.completion.request_id != data.completion.request_id
             || old_data.completion.status != data.completion.status
             || !old_data.completion.items.same(&data.completion.items)
+            || !old_data
+                .completion
+                .filtered_items
+                .same(&data.completion.filtered_items)
         {
             ctx.request_local_layout();
             ctx.request_paint();

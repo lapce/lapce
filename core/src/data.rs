@@ -1068,6 +1068,7 @@ impl LapceEditorViewData {
         completion.input = input.clone();
         completion.status = CompletionStatus::Started;
         completion.items = Arc::new(Vec::new());
+        completion.input_items.clear();
         completion.request_id += 1;
         let event_sink = ctx.get_external_handle();
         completion.request(
