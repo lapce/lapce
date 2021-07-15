@@ -550,7 +550,7 @@ impl LspClient {
             text_document: Some(TextDocumentClientCapabilities {
                 completion: Some(CompletionClientCapabilities {
                     completion_item: Some(CompletionItemCapability {
-                        snippet_support: Some(true),
+                        snippet_support: Some(false),
                         resolve_support: Some(
                             CompletionItemCapabilityResolveSupport {
                                 properties: vec!["additionalTextEdits".to_string()],

@@ -679,6 +679,9 @@ impl LapceEditorViewData {
         ctx: &mut EventCtx,
         item: &CompletionItem,
     ) {
+        let text_format = item
+            .insert_text_format
+            .unwrap_or(lsp_types::InsertTextFormat::PlainText);
         if let Some(edit) = &item.text_edit {
             match edit {
                 CompletionTextEdit::Edit(edit) => {

@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::Arc, thread};
 
 use druid::{
-    theme, BoxConstraints, Command, Env, Event, EventCtx, Insets, LayoutCtx,
+    theme, BoxConstraints, Command, Data, Env, Event, EventCtx, Insets, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Size, Target, Widget, WidgetExt,
     WidgetId, WidgetPod,
 };
@@ -166,6 +166,11 @@ impl Widget<LapceTabData> for LapceTabNew {
             let editor = data.main_split.active_editor();
             if old_editor.window_origin != editor.window_origin
                 || old_completion.input != completion.input
+                || old_completion.request_id != completion.request_id
+                || !old_completion.items.same(&completion.items)
+                || !old_completion
+                    .filtered_items
+                    .same(&completion.filtered_items)
             {
                 let completion_origin = data.completion_origin(ctx.size(), env);
                 let rect = completion.size.to_rect().with_origin(completion_origin)

@@ -1,5 +1,6 @@
 use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
+use anyhow::Error;
 use bit_vec::BitVec;
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
@@ -13,6 +14,7 @@ use druid::{
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionResponse, Position};
+use regex::Regex;
 use std::str::FromStr;
 
 use crate::{
@@ -28,6 +30,134 @@ use crate::{
     svg::Svg,
     theme::LapceTheme,
 };
+
+#[derive(Debug)]
+pub struct Snippet {
+    elements: Vec<SnippetElement>,
+}
+
+impl Snippet {
+    fn extract_elements(
+        s: &str,
+        pos: usize,
+        escs: Vec<&str>,
+        loose_escs: Vec<&str>,
+    ) -> (Vec<SnippetElement>, usize) {
+        let mut elements = Vec::new();
+        let mut pos = pos;
+        loop {
+            if s.len() == pos {
+                break;
+            } else if let Some((ele, end)) = Self::extract_tabstop(s, pos) {
+                elements.push(ele);
+                pos = end;
+            } else if let Some((ele, end)) = Self::extract_placeholder(s, pos) {
+                elements.push(ele);
+                pos = end;
+            } else if let Some((ele, end)) =
+                Self::extract_text(s, pos, escs.clone(), loose_escs.clone())
+            {
+                elements.push(ele);
+                pos = end;
+            } else {
+                break;
+            }
+        }
+        (elements, pos)
+    }
+
+    fn extract_tabstop(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
+        for re in &[
+            Regex::new(r#"^\$(\d+)"#).unwrap(),
+            Regex::new(r#"^\$\{(\d+)\}"#).unwrap(),
+        ] {
+            if let Some(caps) = re.captures(&s[pos..]) {
+                let end = pos + re.find(&s[pos..])?.end();
+                let m = caps.get(0)?;
+                let n = m.as_str().parse::<usize>().ok()?;
+                return Some((SnippetElement::Tabstop(n), end));
+            }
+        }
+
+        None
+    }
+
+    fn extract_placeholder(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
+        let re = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
+        let end = pos + re.find(&s[pos..])?.end();
+
+        let caps = re.captures(&s[pos..])?;
+
+        let tab = caps.get(0)?.as_str().parse::<usize>().ok()?;
+
+        let m = caps.get(1)?;
+        let content = m.as_str();
+        if content == "" {
+            return Some((
+                SnippetElement::PlaceHolder(
+                    tab,
+                    vec![SnippetElement::Text("".to_string())],
+                ),
+                end,
+            ));
+        }
+        let (els, pos) =
+            Self::extract_elements(s, pos + m.start(), vec!["$", "}", "\\"], vec![]);
+        Some((SnippetElement::PlaceHolder(tab, els), pos + 1))
+    }
+
+    fn extract_text(
+        s: &str,
+        pos: usize,
+        escs: Vec<&str>,
+        loose_escs: Vec<&str>,
+    ) -> Option<(SnippetElement, usize)> {
+        let mut s = &s[pos..];
+        let mut ele = "".to_string();
+        let mut end = pos;
+
+        while s.len() > 0 {
+            let esc = &s[..2];
+            let mut new_escs = escs.clone();
+            new_escs.extend_from_slice(&loose_escs);
+            let new_escs: Vec<String> =
+                new_escs.iter().map(|e| format!("\\{}", e)).collect();
+            if new_escs.contains(&esc.to_string()) {
+                ele = ele + &s[1..2].to_string();
+                end += 2;
+                s = &s[2..];
+                continue;
+            }
+            if escs.contains(&&s[0..1]) {
+                break;
+            }
+            ele = ele + &s[0..1].to_string();
+            end += 1;
+            s = &s[1..];
+        }
+        if ele.len() == 0 {
+            return None;
+        }
+        Some((SnippetElement::Text(ele), end))
+    }
+}
+
+impl FromStr for Snippet {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (elements, _) = Self::extract_elements(s, 0, vec!["$", "\\"], vec!["}"]);
+        Ok(Snippet { elements })
+    }
+}
+
+#[derive(Debug)]
+pub enum SnippetElement {
+    Text(String),
+    PlaceHolder(usize, Vec<SnippetElement>),
+    Choice(usize, Vec<String>),
+    Tabstop(usize),
+}
 
 #[derive(Clone, PartialEq)]
 pub enum CompletionStatus {
@@ -940,4 +1070,19 @@ fn completion_svg_new(
         .ok()?,
         theme.get(theme_str).map(|c| c.clone()),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_snippet() {
+        let snippet = Snippet::from_str(
+            "unshift(${1:newelt}) ${2:another ${3:placeholder}}  ${0}",
+        )
+        .unwrap();
+        println!("{:?}", snippet);
+        assert_eq!("", "2");
+    }
 }
