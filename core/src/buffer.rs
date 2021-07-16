@@ -2843,60 +2843,6 @@ fn get_git_diff(
 //    }
 //}
 
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-    use xi_rope::Delta;
-    use xi_rope::Rope;
-
-    use super::*;
-
-    #[test]
-    fn test_edit() {
-        let rope = Rope::from_str("0123456789\n").unwrap();
-        let mut builder = DeltaBuilder::new(rope.len());
-        assert_eq!(11, rope.len());
-        builder.replace(11..11, Rope::from_str("a").unwrap());
-        let delta = builder.build();
-        let new_rope = delta.apply(&rope);
-        assert_eq!("", new_rope.to_string());
-    }
-
-    #[test]
-    fn test_reverse_delta() {
-        let rope = Rope::from_str("0123456789").unwrap();
-        let mut builder = DeltaBuilder::new(rope.len());
-        builder.replace(3..4, Rope::from_str("a").unwrap());
-        let delta1 = builder.build();
-        println!("{:?}", delta1);
-        let middle_rope = delta1.apply(&rope);
-
-        let mut builder = DeltaBuilder::new(middle_rope.len());
-        builder.replace(1..5, Rope::from_str("b").unwrap());
-        let delta2 = builder.build();
-        println!("{:?}", delta2);
-        let new_rope = delta2.apply(&middle_rope);
-
-        let (ins1, del1) = delta1.factor();
-        let in1 = ins1.inserted_subset();
-        let (ins2, del2) = delta2.factor();
-        let in2 = ins2.inserted_subset();
-
-        ins2.transform_expand(&in1, true)
-            .inserted_subset()
-            .transform_union(&in1);
-        // del1.transform_expand(&in1).transform_expand(&del2);
-        // let del1 = del1.transform_expand(&in1).transform_expand(&in2);
-        // let del2 = del2.transform_expand(&in2);
-        // let del = del1.union(&del2);
-        let union = ins2.transform_expand(&in1, true).apply(&ins1.apply(&rope));
-
-        println!("{}", union);
-
-        // if delta1.is_simple_delete()
-    }
-}
-
 fn language_id_from_path(path: &str) -> Option<&str> {
     let path_buf = PathBuf::from_str(path).ok()?;
     Some(match path_buf.extension()?.to_str()? {

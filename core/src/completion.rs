@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashMap, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, fmt::Display, sync::Arc};
 
 use anyhow::Error;
 use bit_vec::BitVec;
@@ -13,6 +13,7 @@ use druid::{
     WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use itertools::Itertools;
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionResponse, Position};
 use regex::Regex;
 use std::str::FromStr;
@@ -73,7 +74,7 @@ impl Snippet {
         ] {
             if let Some(caps) = re.captures(&s[pos..]) {
                 let end = pos + re.find(&s[pos..])?.end();
-                let m = caps.get(0)?;
+                let m = caps.get(1)?;
                 let n = m.as_str().parse::<usize>().ok()?;
                 return Some((SnippetElement::Tabstop(n), end));
             }
@@ -88,9 +89,9 @@ impl Snippet {
 
         let caps = re.captures(&s[pos..])?;
 
-        let tab = caps.get(0)?.as_str().parse::<usize>().ok()?;
+        let tab = caps.get(1)?.as_str().parse::<usize>().ok()?;
 
-        let m = caps.get(1)?;
+        let m = caps.get(2)?;
         let content = m.as_str();
         if content == "" {
             return Some((
@@ -117,16 +118,18 @@ impl Snippet {
         let mut end = pos;
 
         while s.len() > 0 {
-            let esc = &s[..2];
-            let mut new_escs = escs.clone();
-            new_escs.extend_from_slice(&loose_escs);
-            let new_escs: Vec<String> =
-                new_escs.iter().map(|e| format!("\\{}", e)).collect();
-            if new_escs.contains(&esc.to_string()) {
-                ele = ele + &s[1..2].to_string();
-                end += 2;
-                s = &s[2..];
-                continue;
+            if s.len() >= 2 {
+                let esc = &s[..2];
+                let mut new_escs = escs.clone();
+                new_escs.extend_from_slice(&loose_escs);
+                let new_escs: Vec<String> =
+                    new_escs.iter().map(|e| format!("\\{}", e)).collect();
+                if new_escs.contains(&esc.to_string()) {
+                    ele = ele + &s[1..2].to_string();
+                    end += 2;
+                    s = &s[2..];
+                    continue;
+                }
             }
             if escs.contains(&&s[0..1]) {
                 break;
@@ -140,6 +143,40 @@ impl Snippet {
         }
         Some((SnippetElement::Text(ele), end))
     }
+
+    pub fn text(&self) -> String {
+        self.elements.iter().map(|e| e.text()).join("")
+    }
+
+    pub fn tabs(&self) -> Vec<(usize, (usize, usize))> {
+        Self::elements_tabs(&self.elements, 0)
+    }
+
+    pub fn elements_tabs(
+        elements: &[SnippetElement],
+        start: usize,
+    ) -> Vec<(usize, (usize, usize))> {
+        let mut tabs = Vec::new();
+        let mut pos = start;
+        for el in elements {
+            match el {
+                SnippetElement::Text(t) => {
+                    pos += t.len();
+                }
+                SnippetElement::PlaceHolder(tab, els) => {
+                    let placeholder_tabs = Self::elements_tabs(els, pos);
+                    let end = pos + els.iter().map(|e| e.len()).sum::<usize>();
+                    tabs.push((*tab, (pos, end)));
+                    tabs.extend_from_slice(&placeholder_tabs);
+                    pos = end;
+                }
+                SnippetElement::Tabstop(tab) => {
+                    tabs.push((*tab, (pos, pos)));
+                }
+            }
+        }
+        tabs
+    }
 }
 
 impl FromStr for Snippet {
@@ -151,12 +188,53 @@ impl FromStr for Snippet {
     }
 }
 
+impl Display for Snippet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = self.elements.iter().map(|e| e.to_string()).join("");
+        f.write_str(&text)
+    }
+}
+
 #[derive(Debug)]
 pub enum SnippetElement {
     Text(String),
     PlaceHolder(usize, Vec<SnippetElement>),
-    Choice(usize, Vec<String>),
     Tabstop(usize),
+}
+
+impl SnippetElement {
+    pub fn len(&self) -> usize {
+        match &self {
+            SnippetElement::Text(text) => text.len(),
+            SnippetElement::PlaceHolder(_, elements) => {
+                elements.iter().map(|e| e.len()).sum()
+            }
+            SnippetElement::Tabstop(_) => 0,
+        }
+    }
+
+    pub fn text(&self) -> String {
+        match &self {
+            SnippetElement::Text(t) => t.to_string(),
+            SnippetElement::PlaceHolder(_, elements) => {
+                elements.iter().map(|e| e.text()).join("")
+            }
+            SnippetElement::Tabstop(_) => "".to_string(),
+        }
+    }
+}
+
+impl Display for SnippetElement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            SnippetElement::Text(text) => f.write_str(text),
+            SnippetElement::PlaceHolder(tab, elements) => {
+                let elements = elements.iter().map(|e| e.to_string()).join("");
+                write!(f, "${{{}:{}}}", tab, elements)
+            }
+            SnippetElement::Tabstop(tab) => write!(f, "${}", tab),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -1078,11 +1156,16 @@ mod tests {
 
     #[test]
     fn test_snippet() {
-        let snippet = Snippet::from_str(
-            "unshift(${1:newelt}) ${2:another ${3:placeholder}}  ${0}",
-        )
-        .unwrap();
-        println!("{:?}", snippet);
-        assert_eq!("", "2");
+        let s = "start $1${2:second ${3:third}} $0";
+        let parsed = Snippet::from_str(s).unwrap();
+        assert_eq!(s, parsed.to_string());
+
+        let text = "start second third ";
+        assert_eq!(text, parsed.text());
+
+        assert_eq!(
+            vec![(1, (6, 6)), (2, (6, 18)), (3, (13, 18)), (0, (19, 19))],
+            parsed.tabs()
+        );
     }
 }

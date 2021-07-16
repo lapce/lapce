@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+itertools = "0.10.1"
 unicode-width = "0.1.8"
 unicode-segmentation = "1.7.1"
 im = { version = "15.0.0", features = ["serde"] }
