@@ -4,6 +4,7 @@ use std::{
     io::{BufReader, Read},
     path::PathBuf,
     process::{self, Stdio},
+    str::FromStr,
     sync::Arc,
     thread,
 };
@@ -22,7 +23,9 @@ use parking_lot::Mutex;
 use serde_json::Value;
 use tree_sitter_highlight::{Highlight, HighlightEvent, Highlighter};
 use xi_core_lib::selection::InsertDrift;
-use xi_rope::{spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta};
+use xi_rope::{
+    spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta, Transformer,
+};
 use xi_rpc::{RpcLoop, RpcPeer};
 
 use crate::{
@@ -31,7 +34,7 @@ use crate::{
         BufferNew, BufferState, BufferUpdate, EditType, Style, UpdateEvent,
     },
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    completion::{CompletionData, CompletionStatus},
+    completion::{CompletionData, CompletionStatus, Snippet},
     keypress::{KeyPressData, KeyPressFocus},
     language::new_highlight_config,
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
@@ -540,6 +543,7 @@ pub struct LapceEditorData {
     pub cursor: Cursor,
     pub size: Size,
     pub window_origin: Point,
+    pub snippet: Option<Vec<(usize, (usize, usize))>>,
 }
 
 impl LapceEditorData {
@@ -554,6 +558,7 @@ impl LapceEditorData {
             cursor: Cursor::default(),
             size: Size::ZERO,
             window_origin: Point::ZERO,
+            snippet: None,
         }
     }
 }
@@ -678,34 +683,60 @@ impl LapceEditorViewData {
         &mut self,
         ctx: &mut EventCtx,
         item: &CompletionItem,
-    ) {
+    ) -> Result<()> {
+        let offset = self.editor.cursor.offset();
+        let start_offset = self.buffer.prev_code_boundary(offset);
+        let end_offset = self.buffer.next_code_boundary(offset);
+        let selection = Selection::region(start_offset, end_offset);
+
         let text_format = item
             .insert_text_format
             .unwrap_or(lsp_types::InsertTextFormat::PlainText);
         if let Some(edit) = &item.text_edit {
             match edit {
-                CompletionTextEdit::Edit(edit) => {
-                    let start = edit.range.start;
-                    let start_offset = self.buffer.offset_of_position(start);
-                    let end_offset = self.buffer.next_code_boundary(start_offset);
-                    let selection = Selection::region(start_offset, end_offset);
-                    let selection = self.edit(
-                        ctx,
-                        &selection,
-                        &edit.new_text,
-                        true,
-                        EditType::InsertChars,
-                    );
-                    self.set_cursor_after_change(selection);
-                    return;
-                }
+                CompletionTextEdit::Edit(edit) => match text_format {
+                    lsp_types::InsertTextFormat::PlainText => {
+                        let selection = self.edit(
+                            ctx,
+                            &selection,
+                            &edit.new_text,
+                            true,
+                            EditType::InsertChars,
+                        );
+                        self.set_cursor_after_change(selection);
+                        return Ok(());
+                    }
+                    lsp_types::InsertTextFormat::Snippet => {
+                        let snippet = Snippet::from_str(&edit.new_text)?;
+                        let text = snippet.text();
+                        let selection = self.edit(
+                            ctx,
+                            &selection,
+                            &text,
+                            true,
+                            EditType::InsertChars,
+                        );
+                        let snippet_tabs = snippet.tabs(start_offset);
+                        if snippet_tabs.len() == 0 {
+                            self.set_cursor_after_change(selection);
+                            return Ok(());
+                        }
+
+                        let mut selection = Selection::new();
+                        let (tab, (start, end)) = &snippet_tabs[0];
+                        let region = SelRegion::new(*start, *end, None);
+                        selection.add_region(region);
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Insert(selection),
+                            None,
+                        ));
+                        Arc::make_mut(&mut self.editor).snippet = Some(snippet_tabs);
+                        return Ok(());
+                    }
+                },
                 CompletionTextEdit::InsertAndReplace(_) => (),
             }
         }
-        let offset = self.editor.cursor.offset();
-        let start_offset = self.buffer.prev_code_boundary(offset);
-        let end_offset = self.buffer.next_code_boundary(offset);
-        let selection = Selection::region(start_offset, end_offset);
         let selection = self.edit(
             ctx,
             &selection,
@@ -714,6 +745,7 @@ impl LapceEditorViewData {
             EditType::InsertChars,
         );
         self.set_cursor_after_change(selection);
+        Ok(())
     }
 
     fn scroll(&mut self, ctx: &mut EventCtx, down: bool, count: usize, env: &Env) {
@@ -875,6 +907,7 @@ impl LapceEditorViewData {
     fn paste(&mut self, ctx: &mut EventCtx, data: &RegisterData) {
         match data.mode {
             VisualMode::Normal => {
+                Arc::make_mut(&mut self.editor).snippet = None;
                 let selection = match self.editor.cursor.mode {
                     CursorMode::Normal(offset) => {
                         let line_end = self.buffer.offset_line_end(offset, true);
@@ -1003,6 +1036,23 @@ impl LapceEditorViewData {
         self.main_split.notify_update_text_layouts(ctx, &buffer_id);
         self.inactive_apply_delta(&delta);
         let selection = selection.apply_delta(&delta, after, InsertDrift::Default);
+        if let Some(snippet) = self.editor.snippet.clone() {
+            let mut transformer = Transformer::new(&delta);
+            Arc::make_mut(&mut self.editor).snippet = Some(
+                snippet
+                    .iter()
+                    .map(|(tab, (start, end))| {
+                        (
+                            *tab,
+                            (
+                                transformer.transform(*start, false),
+                                transformer.transform(*end, true),
+                            ),
+                        )
+                    })
+                    .collect(),
+            );
+        }
         selection
     }
 
@@ -1209,6 +1259,19 @@ impl KeyPressFocus for LapceEditorViewData {
     ) {
         if let Some(movement) = self.move_command(count, cmd) {
             self.do_move(&movement, count.unwrap_or(1));
+            if let Some(snippet) = self.editor.snippet.as_ref() {
+                let offset = self.editor.cursor.offset();
+                let mut within_region = false;
+                for (_, (start, end)) in snippet {
+                    if offset >= *start && offset <= *end {
+                        within_region = true;
+                        break;
+                    }
+                }
+                if !within_region {
+                    Arc::make_mut(&mut self.editor).snippet = None;
+                }
+            }
             self.cancel_completion();
             return;
         }

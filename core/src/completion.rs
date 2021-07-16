@@ -148,8 +148,8 @@ impl Snippet {
         self.elements.iter().map(|e| e.text()).join("")
     }
 
-    pub fn tabs(&self) -> Vec<(usize, (usize, usize))> {
-        Self::elements_tabs(&self.elements, 0)
+    pub fn tabs(&self, pos: usize) -> Vec<(usize, (usize, usize))> {
+        Self::elements_tabs(&self.elements, pos)
     }
 
     pub fn elements_tabs(
@@ -1165,7 +1165,7 @@ mod tests {
 
         assert_eq!(
             vec![(1, (6, 6)), (2, (6, 18)), (3, (13, 18)), (0, (19, 19))],
-            parsed.tabs()
+            parsed.tabs(0)
         );
     }
 }

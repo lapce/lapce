@@ -730,6 +730,60 @@ impl LapceEditor {
         );
     }
 
+    fn paint_snippet(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let start_line =
+            (data.editor.scroll_offset.y / line_height).floor() as usize;
+        let end_line = ((data.editor.size.height + data.editor.scroll_offset.y)
+            / line_height)
+            .ceil() as usize;
+        let width = 7.6171875;
+        if let Some(snippet) = data.editor.snippet.as_ref() {
+            for (_, (start, end)) in snippet {
+                let paint_start_line = start_line;
+                let paint_end_line = end_line;
+                let (start_line, start_col) =
+                    data.buffer.offset_to_line_col(*start.min(end));
+                let (end_line, end_col) =
+                    data.buffer.offset_to_line_col(*start.max(end));
+                for line in paint_start_line..paint_end_line {
+                    if line < start_line || line > end_line {
+                        continue;
+                    }
+                    let line_content = data.buffer.line_content(line);
+                    let left_col = match line {
+                        _ if line == start_line => start_col,
+                        _ => 0,
+                    };
+                    let x0 = left_col as f64 * width;
+
+                    let right_col = match line {
+                        _ if line == end_line => {
+                            let max_col = data.buffer.line_end_col(line, true);
+                            end_col.min(max_col)
+                        }
+                        _ => data.buffer.line_end_col(line, true),
+                    };
+                    if line_content.len() > 0 {
+                        let x1 = right_col as f64 * width;
+                        let y0 = line as f64 * line_height;
+                        let y1 = y0 + line_height;
+                        ctx.stroke(
+                            Rect::new(x0, y0, x1, y1).inflate(1.0, -0.5),
+                            &env.get(LapceTheme::EDITOR_FOREGROUND),
+                            1.0,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     fn paint_cursor(
         &mut self,
         ctx: &mut PaintCtx,
@@ -844,7 +898,6 @@ impl LapceEditor {
             CursorMode::Insert(selection) => {
                 let offset = selection.get_cursor_offset();
                 let line = data.buffer.line_of_offset(offset);
-                self.paint_cursor_line(ctx, line, env);
                 if active {
                     let last_line = data.buffer.last_line();
                     let end_line = if end_line > last_line {
@@ -856,8 +909,53 @@ impl LapceEditor {
                     let end = data.buffer.offset_of_line(end_line + 1);
                     let regions = selection.regions_in_range(start, end);
                     for region in regions {
+                        if region.start() == region.end() {
+                            let line = data.buffer.line_of_offset(region.start());
+                            self.paint_cursor_line(ctx, line, env);
+                        } else {
+                            let start = region.start();
+                            let end = region.end();
+                            let paint_start_line = start_line;
+                            let paint_end_line = end_line;
+                            let (start_line, start_col) =
+                                data.buffer.offset_to_line_col(start.min(end));
+                            let (end_line, end_col) =
+                                data.buffer.offset_to_line_col(start.max(end));
+                            for line in paint_start_line..paint_end_line {
+                                if line < start_line || line > end_line {
+                                    continue;
+                                }
+
+                                let line_content = data.buffer.line_content(line);
+                                let left_col = match line {
+                                    _ if line == start_line => start_col,
+                                    _ => 0,
+                                };
+                                let x0 = left_col as f64 * width;
+
+                                let right_col = match line {
+                                    _ if line == end_line => {
+                                        let max_col =
+                                            data.buffer.line_end_col(line, true);
+                                        end_col.min(max_col)
+                                    }
+                                    _ => data.buffer.line_end_col(line, true),
+                                };
+
+                                if line_content.len() > 0 {
+                                    let x1 = right_col as f64 * width;
+                                    let y0 = line as f64 * line_height;
+                                    let y1 = y0 + line_height;
+                                    ctx.fill(
+                                        Rect::new(x0, y0, x1, y1),
+                                        &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
+                                    );
+                                }
+                            }
+                        }
+
                         let (line, col) =
-                            data.buffer.offset_to_line_col(region.min());
+                            data.buffer.offset_to_line_col(region.end());
                         let x = (col as f64 * width).round();
                         let y = line as f64 * line_height;
                         ctx.stroke(
@@ -1058,6 +1156,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                 }
             }
         }
+        self.paint_snippet(ctx, data, env);
     }
 }
 
