@@ -1717,6 +1717,31 @@ impl KeyPressFocus for LapceEditorViewData {
                     self.cancel_completion();
                 }
             }
+            LapceCommand::JumpToPrevSnippetPlaceholder => {
+                if let Some(snippet) = self.editor.snippet.as_ref() {
+                    let mut current = 0;
+                    let offset = self.editor.cursor.offset();
+                    for (i, (_, (start, end))) in snippet.iter().enumerate() {
+                        if *start <= offset && offset <= *end {
+                            current = i;
+                            break;
+                        }
+                    }
+
+                    if current > 0 {
+                        if let Some((_, (start, end))) = snippet.get(current - 1) {
+                            let mut selection = Selection::new();
+                            let region = SelRegion::new(*start, *end, None);
+                            selection.add_region(region);
+                            self.set_cursor(Cursor::new(
+                                CursorMode::Insert(selection),
+                                None,
+                            ));
+                        }
+                        self.cancel_completion();
+                    }
+                }
+            }
             LapceCommand::ListSelect => {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
 

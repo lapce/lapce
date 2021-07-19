@@ -117,7 +117,12 @@ impl KeyPressData {
             return false;
         }
         let mut mods = key_event.mods.clone();
-        mods.set(Modifiers::SHIFT, false);
+        match key_event.key {
+            druid::keyboard_types::Key::Character(_) => {
+                mods.set(Modifiers::SHIFT, false);
+            }
+            _ => (),
+        }
         let keypress = KeyPress {
             key: key_event.key.clone(),
             mods,
