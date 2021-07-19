@@ -561,6 +561,33 @@ impl LapceEditorData {
             snippet: None,
         }
     }
+
+    pub fn add_snippet_placeholders(
+        &mut self,
+        new_placeholders: Vec<(usize, (usize, usize))>,
+    ) {
+        if self.snippet.is_none() {
+            if new_placeholders.len() > 0 {
+                self.snippet = Some(new_placeholders);
+            }
+            return;
+        }
+
+        let placeholders = self.snippet.as_mut().unwrap();
+
+        let mut current = 0;
+        let offset = self.cursor.offset();
+        for (i, (_, (start, end))) in placeholders.iter().enumerate() {
+            if *start <= offset && offset <= *end {
+                current = i;
+                break;
+            }
+        }
+
+        let v = placeholders.split_off(current);
+        placeholders.extend_from_slice(&new_placeholders);
+        placeholders.extend_from_slice(&v[1..]);
+    }
 }
 
 #[derive(Clone, Data, Lens)]
@@ -730,10 +757,8 @@ impl LapceEditorViewData {
                             CursorMode::Insert(selection),
                             None,
                         ));
-                        if snippet_tabs.len() > 1 {
-                            Arc::make_mut(&mut self.editor).snippet =
-                                Some(snippet_tabs);
-                        }
+                        Arc::make_mut(&mut self.editor)
+                            .add_snippet_placeholders(snippet_tabs);
                         return Ok(());
                     }
                 },
