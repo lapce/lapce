@@ -19,6 +19,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use std::cmp::Ordering;
 use std::{
     borrow::Cow,
     collections::BTreeSet,
@@ -1000,11 +1001,25 @@ impl BufferNew {
         edit_type: EditType,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
+        let mut interval_rope = Vec::new();
         for (selection, content) in edits {
             let rope = Rope::from(content);
             for region in selection.regions() {
-                builder.replace(region.min()..region.max(), rope.clone());
+                interval_rope.push((region.min(), region.max(), rope.clone()));
             }
+        }
+        interval_rope.sort_by(|a, b| {
+            if a.0 == b.0 && a.1 == b.1 {
+                Ordering::Equal
+            } else if a.1 == b.0 {
+                Ordering::Less
+            } else {
+                a.1.cmp(&b.0)
+            }
+        });
+        println!("interval rope {:?}", interval_rope);
+        for (start, end, rope) in interval_rope.into_iter() {
+            builder.replace(start..end, rope);
         }
         let delta = builder.build();
         self.this_edit_type = edit_type;
@@ -1769,12 +1784,20 @@ impl Buffer {
         new_undo_group: bool,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
+
+        let mut interval_rope = Vec::new();
         for (selection, content) in edits {
             let rope = Rope::from(content);
             for region in selection.regions() {
-                builder.replace(region.min()..region.max(), rope.clone());
+                interval_rope.push((region.min(), region.max(), rope.clone()));
             }
         }
+        interval_rope.sort_by(|a, b| a.1.cmp(&b.0));
+        println!("interval rope {:?}", interval_rope);
+        for (start, end, rope) in interval_rope.into_iter() {
+            builder.replace(start..end, rope);
+        }
+
         let delta = builder.build();
         self.add_undo(&delta, new_undo_group);
         self.apply_delta(ctx, ui_state, &delta);
