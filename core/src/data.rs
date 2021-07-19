@@ -730,7 +730,10 @@ impl LapceEditorViewData {
                             CursorMode::Insert(selection),
                             None,
                         ));
-                        Arc::make_mut(&mut self.editor).snippet = Some(snippet_tabs);
+                        if snippet_tabs.len() > 1 {
+                            Arc::make_mut(&mut self.editor).snippet =
+                                Some(snippet_tabs);
+                        }
                         return Ok(());
                     }
                 },
@@ -1233,6 +1236,7 @@ impl KeyPressFocus for LapceEditorViewData {
             (false, condition)
         };
         let matched = match condition {
+            "in_snippet" => self.editor.snippet.is_some(),
             "list_focus" => {
                 self.completion.status == CompletionStatus::Done
                     && if self.completion.input == "" {
@@ -1603,6 +1607,35 @@ impl KeyPressFocus for LapceEditorViewData {
                 let completion = Arc::make_mut(&mut self.completion);
                 completion.previous();
             }
+            LapceCommand::JumpToNextSnippetPlaceholder => {
+                if let Some(snippet) = self.editor.snippet.as_ref() {
+                    let mut current = 0;
+                    let offset = self.editor.cursor.offset();
+                    for (i, (_, (start, end))) in snippet.iter().enumerate() {
+                        if *start <= offset && offset <= *end {
+                            current = i;
+                            break;
+                        }
+                    }
+
+                    let last_placeholder = current + 1 >= snippet.len() - 1;
+
+                    if let Some((_, (start, end))) = snippet.get(current + 1) {
+                        let mut selection = Selection::new();
+                        let region = SelRegion::new(*start, *end, None);
+                        selection.add_region(region);
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Insert(selection),
+                            None,
+                        ));
+                    }
+
+                    if last_placeholder {
+                        Arc::make_mut(&mut self.editor).snippet = None;
+                    }
+                    self.cancel_completion();
+                }
+            }
             LapceCommand::ListSelect => {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
 
@@ -1675,6 +1708,7 @@ impl KeyPressFocus for LapceEditorViewData {
                 let mut cursor = &mut Arc::make_mut(&mut self.editor).cursor;
                 cursor.mode = CursorMode::Normal(offset);
                 cursor.horiz = None;
+                Arc::make_mut(&mut self.editor).snippet = None;
                 self.cancel_completion();
             }
             _ => (),

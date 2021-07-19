@@ -170,6 +170,8 @@ pub enum LapceCommand {
     MatchPairs,
     #[strum(serialize = "next_unmatched_right_bracket")]
     NextUnmatchedRightBracket,
+    #[strum(serialize = "jump_to_next_snippet_placeholder")]
+    JumpToNextSnippetPlaceholder,
     #[strum(serialize = "previous_unmatched_left_bracket")]
     PreviousUnmatchedLeftBracket,
     #[strum(serialize = "next_unmatched_right_curly_bracket")]
