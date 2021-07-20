@@ -190,6 +190,7 @@ impl Data for LapceTabData {
     fn same(&self, other: &Self) -> bool {
         self.main_split.same(&other.main_split)
             && self.completion.same(&other.completion)
+            && self.palette.same(&other.palette)
     }
 }
 
