@@ -1,5 +1,6 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
+use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
     kurbo::{Line, Rect},
     piet::TextAttribute,
@@ -19,28 +20,27 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, TextLayout, UpdateCtx,
     Widget, WidgetExt, WidgetPod,
 };
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
 use fzyr::{has_match, locate, Score};
 use lsp_types::{DocumentSymbolResponse, Location, Position, SymbolKind};
 use serde_json::{self, json, Value};
+use std::cmp::Ordering;
+use std::fs::{self, DirEntry};
+use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::{cmp::Ordering, sync::mpsc::Receiver};
-use std::{
-    fs::{self, DirEntry},
-    sync::mpsc::channel,
-};
-use std::{marker::PhantomData, sync::mpsc::Sender};
 use usvg;
 use uuid::Uuid;
 
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
-    command::LAPCE_UI_COMMAND, editor::EditorSplitState, explorer::ICONS_DIR,
-    scroll::LapceScroll, state::LapceFocus, state::LapceUIState,
-    state::LapceWorkspace, state::LapceWorkspaceType, state::LAPCE_APP_STATE,
-    theme::LapceTheme,
+    command::LAPCE_UI_COMMAND, data::LapceTabData, editor::EditorSplitState,
+    explorer::ICONS_DIR, proxy::LapceProxy, scroll::LapceScroll, state::LapceFocus,
+    state::LapceUIState, state::LapceWorkspace, state::LapceWorkspaceType,
+    state::LAPCE_APP_STATE, theme::LapceTheme,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -58,6 +58,193 @@ pub enum PaletteIcon {
     File(String),
     Symbol(SymbolKind),
     None,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum PaletteStatus {
+    Inactive,
+    Started,
+    Done,
+}
+
+#[derive(Clone, Debug)]
+pub struct NewPaletteItem {
+    filter_text: String,
+    score: i64,
+    indices: Vec<usize>,
+}
+
+#[derive(Clone)]
+pub struct PaletteData {
+    widget_id: WidgetId,
+    status: PaletteStatus,
+    proxy: Arc<LapceProxy>,
+    palette_type: PaletteType,
+    sender: Sender<(String, String, Vec<NewPaletteItem>)>,
+    receiver: Option<Receiver<(String, String, Vec<NewPaletteItem>)>>,
+    run_id: String,
+    input: String,
+    cursor: usize,
+    items: Vec<NewPaletteItem>,
+    filtered_items: Vec<NewPaletteItem>,
+}
+
+impl PaletteData {
+    pub fn new(proxy: Arc<LapceProxy>) -> Self {
+        let (sender, receiver) = unbounded();
+        let widget_id = WidgetId::next();
+        Self {
+            widget_id,
+            status: PaletteStatus::Inactive,
+            proxy,
+            palette_type: PaletteType::File,
+            sender,
+            receiver: Some(receiver),
+            run_id: Uuid::new_v4().to_string(),
+            input: "".to_string(),
+            cursor: 0,
+            items: Vec::new(),
+            filtered_items: Vec::new(),
+        }
+    }
+
+    pub fn run(
+        &mut self,
+        palette_type: Option<PaletteType>,
+        event_sink: ExtEventSink,
+    ) {
+        self.status = PaletteStatus::Started;
+        self.palette_type = palette_type.unwrap_or(PaletteType::File);
+        match &self.palette_type {
+            _ => self.get_files(event_sink),
+        }
+    }
+
+    pub fn insert(&mut self, content: &str, event_sink: ExtEventSink) {
+        self.input.insert_str(self.cursor, content);
+        self.cursor += content.len();
+        self.update_palette(event_sink);
+    }
+
+    fn update_palette(&mut self, event_sink: ExtEventSink) {
+        let palette_type = self.get_palette_type();
+        if self.palette_type != palette_type {
+            self.run(Some(palette_type), event_sink);
+            return;
+        }
+        if self.input != "" {
+            self.sender.send((
+                self.run_id.clone(),
+                self.input.clone(),
+                self.items.clone(),
+            ));
+        }
+    }
+
+    fn get_palette_type(&self) -> PaletteType {
+        if self.palette_type == PaletteType::Reference {
+            return PaletteType::Reference;
+        }
+        if self.input == "" {
+            return PaletteType::File;
+        }
+        match self.input {
+            _ if self.input.starts_with("/") => PaletteType::Line,
+            _ if self.input.starts_with("@") => PaletteType::DocumentSymbol,
+            _ if self.input.starts_with(">") => PaletteType::Workspace,
+            _ if self.input.starts_with(":") => PaletteType::Command,
+            _ => PaletteType::File,
+        }
+    }
+
+    fn get_files(&self, event_sink: ExtEventSink) {
+        let run_id = self.run_id.clone();
+        let widget_id = self.widget_id;
+        self.proxy.get_files(Box::new(move |result| {
+            if let Ok(res) = result {
+                let resp: Result<Vec<PathBuf>, serde_json::Error> =
+                    serde_json::from_value(res);
+                if let Ok(resp) = resp {
+                    let items: Vec<NewPaletteItem> = resp
+                        .iter()
+                        .enumerate()
+                        .map(|(index, path)| NewPaletteItem {
+                            filter_text: path.to_str().unwrap_or("").to_string(),
+                            score: 0,
+                            indices: Vec::new(),
+                        })
+                        .collect();
+                    event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdatePaletteItems(run_id, items),
+                        Target::Widget(widget_id),
+                    );
+                }
+            }
+        }));
+    }
+
+    pub fn update_process(
+        receiver: Receiver<(String, String, Vec<NewPaletteItem>)>,
+        widget_id: WidgetId,
+        event_sink: ExtEventSink,
+    ) {
+        fn receive_batch(
+            receiver: &Receiver<(String, String, Vec<NewPaletteItem>)>,
+        ) -> (String, String, Vec<NewPaletteItem>) {
+            let (mut run_id, mut input, mut items) = receiver.recv().unwrap();
+            loop {
+                match receiver.try_recv() {
+                    Ok(update) => {
+                        run_id = update.0;
+                        input = update.1;
+                        items = update.2;
+                    }
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => break,
+                }
+            }
+            (run_id, input, items)
+        }
+
+        let matcher = SkimMatcherV2::default();
+        loop {
+            let (run_id, input, items) = receive_batch(&receiver);
+            let filtered_items =
+                Self::filter_items(&run_id, &input, items, &matcher);
+            event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::FilterPaletteItems(run_id, input, filtered_items),
+                Target::Widget(widget_id),
+            );
+        }
+    }
+
+    fn filter_items(
+        run_id: &str,
+        input: &str,
+        items: Vec<NewPaletteItem>,
+        matcher: &SkimMatcherV2,
+    ) -> Vec<NewPaletteItem> {
+        let mut items: Vec<NewPaletteItem> = items
+            .iter()
+            .filter_map(|i| {
+                if let Some((score, mut indices)) =
+                    matcher.fuzzy_indices(&i.filter_text, input)
+                {
+                    let mut item = i.clone();
+                    item.score = score;
+                    item.indices = indices;
+                    Some(item)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        items
+            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
+        items
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -99,7 +286,7 @@ pub struct PaletteState {
 impl PaletteState {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> PaletteState {
         let widget_id = WidgetId::next();
-        let (sender, receiver) = channel();
+        let (sender, receiver) = unbounded();
         let state = PaletteState {
             window_id,
             tab_id,
@@ -887,6 +1074,111 @@ pub fn start_filter_process(
         }
         palette.filtered_items = items;
         LAPCE_APP_STATE.submit_ui_command(LapceUICommand::FilterItems, widget_id);
+    }
+}
+
+pub struct NewPalette {
+    widget_id: WidgetId,
+}
+
+impl NewPalette {
+    pub fn new(data: &PaletteData) -> Self {
+        Self {
+            widget_id: data.widget_id,
+        }
+    }
+}
+
+impl Widget<LapceTabData> for NewPalette {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        match event {
+            Event::WindowConnected => {
+                let receiver =
+                    Arc::make_mut(&mut data.palette).receiver.take().unwrap();
+                let event_sink = ctx.get_external_handle();
+                let widget_id = self.widget_id;
+                thread::spawn(move || {
+                    PaletteData::update_process(receiver, widget_id, event_sink);
+                });
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::UpdatePaletteItems(run_id, items) => {
+                        let palette = Arc::make_mut(&mut data.palette);
+                        if &palette.run_id == run_id {
+                            palette.items = items.to_owned();
+                            if palette.input != "" {
+                                palette.sender.send((
+                                    palette.run_id.clone(),
+                                    palette.input.clone(),
+                                    palette.items.clone(),
+                                ));
+                            }
+                        }
+                    }
+                    LapceUICommand::FilterPaletteItems(
+                        run_id,
+                        input,
+                        filtered_items,
+                    ) => {
+                        let palette = Arc::make_mut(&mut data.palette);
+                        if &palette.run_id == run_id && &palette.input == input {
+                            palette.filtered_items = filtered_items.to_owned();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        Size::new(600.0, 800.0)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        if data.palette.status == PaletteStatus::Inactive {
+            return;
+        }
+        let size = ctx.size();
+        let rect = size.to_rect();
+        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
     }
 }
 

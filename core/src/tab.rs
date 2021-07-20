@@ -12,6 +12,7 @@ use crate::{
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     data::{LapceEditorLens, LapceMainSplitData, LapceTabData},
     editor::LapceEditorView,
+    palette::NewPalette,
     scroll::LapceScrollNew,
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
@@ -21,6 +22,7 @@ pub struct LapceTabNew {
     id: WidgetId,
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
 impl LapceTabNew {
@@ -38,11 +40,13 @@ impl LapceTabNew {
                 1.0,
             );
         let completion = CompletionContainer::new(&data.completion);
+        let palette = NewPalette::new(&data.palette);
 
         Self {
             id: data.id,
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion.boxed()),
+            palette: WidgetPod::new(palette.boxed()),
         }
     }
 }
@@ -137,6 +141,7 @@ impl Widget<LapceTabData> for LapceTabNew {
             }
             _ => (),
         }
+        self.palette.event(ctx, event, data, env);
         self.completion.event(ctx, event, data, env);
         self.main_split.event(ctx, event, data, env);
     }
@@ -148,6 +153,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        self.palette.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
     }
@@ -179,6 +185,7 @@ impl Widget<LapceTabData> for LapceTabNew {
             }
         }
 
+        self.palette.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
     }
@@ -199,11 +206,15 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.completion
             .set_origin(ctx, data, env, completion_origin);
 
+        self.palette.layout(ctx, bc, data, env);
+        self.palette.set_origin(ctx, data, env, Point::ZERO);
+
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.main_split.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
+        self.palette.paint(ctx, data, env);
     }
 }
