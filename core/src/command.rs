@@ -210,6 +210,8 @@ pub enum LapceUICommand {
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, CompletionItem),
     UpdateCompletion(usize, String, CompletionResponse),
+    CancelPalette,
+    RunPalette,
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateWindowOrigin,

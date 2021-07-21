@@ -1318,13 +1318,8 @@ impl KeyPressFocus for LapceEditorViewData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        let condition = condition.trim();
-        let (reverse, condition) = if condition.starts_with("!") {
-            (true, &condition[1..])
-        } else {
-            (false, condition)
-        };
-        let matched = match condition {
+        match condition {
+            "editor_focus" => true,
             "in_snippet" => self.editor.snippet.is_some(),
             "list_focus" => {
                 self.completion.status == CompletionStatus::Done
@@ -1335,11 +1330,6 @@ impl KeyPressFocus for LapceEditorViewData {
                     }
             }
             _ => false,
-        };
-        if reverse {
-            !matched
-        } else {
-            matched
         }
     }
 

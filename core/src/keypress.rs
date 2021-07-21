@@ -207,31 +207,54 @@ impl KeyPressData {
             .unwrap_or(Vec::new())
     }
 
+    fn check_one_condition<T: KeyPressFocus>(
+        &self,
+        condition: &str,
+        check: &T,
+    ) -> bool {
+        let condition = condition.trim();
+        let (reverse, condition) = if condition.starts_with("!") {
+            (true, &condition[1..])
+        } else {
+            (false, condition)
+        };
+        let matched = check.check_condition(condition);
+        if reverse {
+            !matched
+        } else {
+            matched
+        }
+    }
+
     fn check_condition<T: KeyPressFocus>(&self, condition: &str, check: &T) -> bool {
         let or_indics: Vec<_> = condition.match_indices("||").collect();
         let and_indics: Vec<_> = condition.match_indices("&&").collect();
         if and_indics.is_empty() {
             if or_indics.is_empty() {
-                return check.check_condition(condition);
+                return self.check_one_condition(&condition, check);
             } else {
-                return check.check_condition(&condition[..or_indics[0].0])
+                return self
+                    .check_one_condition(&condition[..or_indics[0].0], check)
                     || self
                         .check_condition(&condition[or_indics[0].0 + 2..], check);
             }
         } else {
             if or_indics.is_empty() {
-                return check.check_condition(&condition[..and_indics[0].0])
+                return self
+                    .check_one_condition(&condition[..and_indics[0].0], check)
                     && self
                         .check_condition(&condition[and_indics[0].0 + 2..], check);
             } else {
                 if or_indics[0].0 < and_indics[0].0 {
-                    return check.check_condition(&condition[..or_indics[0].0])
+                    return self
+                        .check_one_condition(&condition[..or_indics[0].0], check)
                         || self.check_condition(
                             &condition[or_indics[0].0 + 2..],
                             check,
                         );
                 } else {
-                    return check.check_condition(&condition[..and_indics[0].0])
+                    return self
+                        .check_one_condition(&condition[..and_indics[0].0], check)
                         && self.check_condition(
                             &condition[and_indics[0].0 + 2..],
                             check,

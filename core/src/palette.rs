@@ -36,11 +36,22 @@ use usvg;
 use uuid::Uuid;
 
 use crate::{
-    command::LapceCommand, command::LapceUICommand, command::LAPCE_COMMAND,
-    command::LAPCE_UI_COMMAND, data::LapceTabData, editor::EditorSplitState,
-    explorer::ICONS_DIR, proxy::LapceProxy, scroll::LapceScroll, state::LapceFocus,
-    state::LapceUIState, state::LapceWorkspace, state::LapceWorkspaceType,
-    state::LAPCE_APP_STATE, theme::LapceTheme,
+    command::LapceCommand,
+    command::LapceUICommand,
+    command::LAPCE_COMMAND,
+    command::LAPCE_UI_COMMAND,
+    data::LapceTabData,
+    editor::EditorSplitState,
+    explorer::ICONS_DIR,
+    keypress::KeyPressFocus,
+    proxy::LapceProxy,
+    scroll::LapceScroll,
+    state::LapceFocus,
+    state::LapceWorkspace,
+    state::LapceWorkspaceType,
+    state::LAPCE_APP_STATE,
+    state::{LapceUIState, Mode},
+    theme::LapceTheme,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -89,6 +100,37 @@ pub struct PaletteData {
     filtered_items: Vec<NewPaletteItem>,
 }
 
+impl KeyPressFocus for PaletteData {
+    fn get_mode(&self) -> Mode {
+        Mode::Insert
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        match condition {
+            "list_focus" => true,
+            "palette_focus" => true,
+            _ => false,
+        }
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommand,
+        count: Option<usize>,
+        env: &Env,
+    ) {
+        match command {
+            LapceCommand::PaletteCancel => {
+                self.cancel(ctx);
+            }
+            _ => {}
+        }
+    }
+
+    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {}
+}
+
 impl PaletteData {
     pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let (sender, receiver) = unbounded();
@@ -108,12 +150,28 @@ impl PaletteData {
         }
     }
 
+    fn cancel(&mut self, ctx: &mut EventCtx) {
+        self.status = PaletteStatus::Inactive;
+        self.input = "".to_string();
+        self.cursor = 0;
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::CancelPalette,
+            Target::Widget(self.widget_id),
+        ));
+    }
+
     pub fn run(
         &mut self,
         palette_type: Option<PaletteType>,
         event_sink: ExtEventSink,
     ) {
         self.status = PaletteStatus::Started;
+        event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::RunPalette,
+            Target::Widget(self.widget_id),
+        );
         self.palette_type = palette_type.unwrap_or(PaletteType::File);
         match &self.palette_type {
             _ => self.get_files(event_sink),
@@ -1111,9 +1169,21 @@ impl Widget<LapceTabData> for NewPalette {
                     PaletteData::update_process(receiver, widget_id, event_sink);
                 });
             }
+            Event::KeyDown(key_event) => {
+                let keypress = Arc::make_mut(&mut data.keypress);
+                let palette = Arc::make_mut(&mut data.palette);
+                keypress.key_down(ctx, key_event, palette, env);
+                ctx.set_handled();
+            }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::RunPalette => {
+                        ctx.request_focus();
+                    }
+                    LapceUICommand::CancelPalette => {
+                        ctx.resign_focus();
+                    }
                     LapceUICommand::UpdatePaletteItems(run_id, items) => {
                         let palette = Arc::make_mut(&mut data.palette);
                         if &palette.run_id == run_id {
@@ -1160,6 +1230,9 @@ impl Widget<LapceTabData> for NewPalette {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if !old_data.palette.same(&data.palette) {
+            ctx.request_paint();
+        }
     }
 
     fn layout(
@@ -1169,7 +1242,7 @@ impl Widget<LapceTabData> for NewPalette {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        Size::new(600.0, 800.0)
+        Size::new(600.0, 400.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {

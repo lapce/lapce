@@ -206,8 +206,13 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.completion
             .set_origin(ctx, data, env, completion_origin);
 
-        self.palette.layout(ctx, bc, data, env);
-        self.palette.set_origin(ctx, data, env, Point::ZERO);
+        let palette_size = self.palette.layout(ctx, bc, data, env);
+        self.palette.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new((self_size.width - palette_size.width) / 2.0, 0.0),
+        );
 
         self_size
     }
