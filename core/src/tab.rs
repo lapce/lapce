@@ -12,7 +12,7 @@ use crate::{
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     data::{LapceEditorLens, LapceMainSplitData, LapceTabData},
     editor::LapceEditorView,
-    palette::NewPalette,
+    palette::{NewPalette, PaletteViewLens},
     scroll::LapceScrollNew,
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
@@ -40,7 +40,7 @@ impl LapceTabNew {
                 1.0,
             );
         let completion = CompletionContainer::new(&data.completion);
-        let palette = NewPalette::new(&data.palette);
+        let palette = NewPalette::new(&data.palette).lens(PaletteViewLens);
 
         Self {
             id: data.id,
@@ -82,11 +82,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                         tab_id, receiver, event_sink,
                     );
                 });
-                let workspace = LapceWorkspace {
-                    kind: LapceWorkspaceType::Local,
-                    path: PathBuf::from("/Users/Lulu/lapce"),
-                };
-                data.proxy.start(workspace, ctx.get_external_handle());
+                data.proxy
+                    .start((*data.workspace).clone(), ctx.get_external_handle());
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);

@@ -18,6 +18,7 @@ use crate::{
 #[derive(PartialEq)]
 enum KeymapMatch {
     Full(String),
+    Multiple(Vec<String>),
     Prefix,
     None,
 }
@@ -141,6 +142,12 @@ impl KeyPressData {
             KeymapMatch::None
         } else if matches.len() == 1 && matches[0].key == keypresses {
             KeymapMatch::Full(matches[0].command.clone())
+        } else if matches.len() > 1
+            && matches.iter().filter(|m| m.key != keypresses).count() == 0
+        {
+            KeymapMatch::Multiple(
+                matches.iter().map(|m| m.command.clone()).collect(),
+            )
         } else {
             KeymapMatch::Prefix
         };
@@ -148,6 +155,14 @@ impl KeyPressData {
             KeymapMatch::Full(command) => {
                 let count = self.count.take();
                 self.run_command(ctx, &command, count, focus, env);
+                self.pending_keypress = Vec::new();
+                return true;
+            }
+            KeymapMatch::Multiple(commands) => {
+                let count = self.count.take();
+                for command in commands {
+                    self.run_command(ctx, &command, count, focus, env);
+                }
                 self.pending_keypress = Vec::new();
                 return true;
             }
@@ -524,6 +539,7 @@ impl KeyPressState {
                         return;
                     }
                     KeymapMatch::None => {}
+                    _ => {}
                 }
             }
         }

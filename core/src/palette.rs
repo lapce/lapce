@@ -9,8 +9,8 @@ use druid::{
     widget::IdentityWrapper,
     widget::Svg,
     widget::SvgData,
-    Affine, Command, ExtEventSink, FontFamily, FontWeight, Insets, KeyEvent, Target,
-    Vec2, WidgetId, WindowId,
+    Affine, Command, ExtEventSink, FontFamily, FontWeight, Insets, KeyEvent, Lens,
+    Target, Vec2, WidgetId, WindowId,
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -43,9 +43,9 @@ use crate::{
     data::LapceTabData,
     editor::EditorSplitState,
     explorer::ICONS_DIR,
-    keypress::KeyPressFocus,
+    keypress::{KeyPressData, KeyPressFocus},
     proxy::LapceProxy,
-    scroll::LapceScroll,
+    scroll::{LapceScroll, LapceScrollNew},
     state::LapceFocus,
     state::LapceWorkspace,
     state::LapceWorkspaceType,
@@ -78,11 +78,49 @@ pub enum PaletteStatus {
     Done,
 }
 
+pub enum PaletteItemContent {
+    File(PathBuf),
+}
+
 #[derive(Clone, Debug)]
 pub struct NewPaletteItem {
+    text: String,
     filter_text: String,
     score: i64,
     indices: Vec<usize>,
+}
+
+pub struct PaletteViewLens;
+
+#[derive(Clone, Data)]
+pub struct PaletteViewData {
+    pub palette: Arc<PaletteData>,
+    pub workspace: Arc<LapceWorkspace>,
+    pub keypress: Arc<KeyPressData>,
+}
+
+impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
+    fn with<V, F: FnOnce(&PaletteViewData) -> V>(
+        &self,
+        data: &LapceTabData,
+        f: F,
+    ) -> V {
+        let palette_view = data.palette_view_data();
+        f(&palette_view)
+    }
+
+    fn with_mut<V, F: FnOnce(&mut PaletteViewData) -> V>(
+        &self,
+        data: &mut LapceTabData,
+        f: F,
+    ) -> V {
+        let mut palette_view = data.palette_view_data();
+        let result = f(&mut palette_view);
+        data.palette = palette_view.palette.clone();
+        data.workspace = palette_view.workspace.clone();
+        data.keypress = palette_view.keypress.clone();
+        result
+    }
 }
 
 #[derive(Clone)]
@@ -96,11 +134,12 @@ pub struct PaletteData {
     run_id: String,
     input: String,
     cursor: usize,
+    index: usize,
     items: Vec<NewPaletteItem>,
     filtered_items: Vec<NewPaletteItem>,
 }
 
-impl KeyPressFocus for PaletteData {
+impl KeyPressFocus for PaletteViewData {
     fn get_mode(&self) -> Mode {
         Mode::Insert
     }
@@ -124,11 +163,22 @@ impl KeyPressFocus for PaletteData {
             LapceCommand::PaletteCancel => {
                 self.cancel(ctx);
             }
+            LapceCommand::DeleteBackward => {
+                self.delete_backward(ctx);
+            }
+            LapceCommand::DeleteToBeginningOfLine => {
+                self.delete_to_beginning_of_line(ctx);
+            }
             _ => {}
         }
     }
 
-    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.input.insert_str(palette.cursor, c);
+        palette.cursor += c.len();
+        self.update_palette(ctx);
+    }
 }
 
 impl PaletteData {
@@ -145,80 +195,121 @@ impl PaletteData {
             run_id: Uuid::new_v4().to_string(),
             input: "".to_string(),
             cursor: 0,
+            index: 0,
             items: Vec::new(),
             filtered_items: Vec::new(),
         }
     }
+}
+
+impl PaletteViewData {
+    fn len(&self) -> usize {
+        if self.palette.input == "" {
+            self.palette.items.len()
+        } else {
+            self.palette.filtered_items.len()
+        }
+    }
 
     fn cancel(&mut self, ctx: &mut EventCtx) {
-        self.status = PaletteStatus::Inactive;
-        self.input = "".to_string();
-        self.cursor = 0;
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.status = PaletteStatus::Inactive;
+        palette.input = "".to_string();
+        palette.cursor = 0;
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::CancelPalette,
-            Target::Widget(self.widget_id),
+            Target::Widget(palette.widget_id),
         ));
     }
 
-    pub fn run(
-        &mut self,
-        palette_type: Option<PaletteType>,
-        event_sink: ExtEventSink,
-    ) {
-        self.status = PaletteStatus::Started;
-        event_sink.submit_command(
+    pub fn run(&mut self, ctx: &mut EventCtx, palette_type: Option<PaletteType>) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.status = PaletteStatus::Started;
+        ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::RunPalette,
-            Target::Widget(self.widget_id),
-        );
-        self.palette_type = palette_type.unwrap_or(PaletteType::File);
-        match &self.palette_type {
-            _ => self.get_files(event_sink),
+            Target::Widget(palette.widget_id),
+        ));
+        palette.palette_type = palette_type.unwrap_or(PaletteType::File);
+        match &palette.palette_type {
+            _ => self.get_files(ctx),
         }
     }
 
-    pub fn insert(&mut self, content: &str, event_sink: ExtEventSink) {
-        self.input.insert_str(self.cursor, content);
-        self.cursor += content.len();
-        self.update_palette(event_sink);
-    }
-
-    fn update_palette(&mut self, event_sink: ExtEventSink) {
-        let palette_type = self.get_palette_type();
-        if self.palette_type != palette_type {
-            self.run(Some(palette_type), event_sink);
+    fn delete_backward(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        if palette.cursor == 0 {
             return;
         }
-        if self.input != "" {
-            self.sender.send((
-                self.run_id.clone(),
-                self.input.clone(),
-                self.items.clone(),
+
+        palette.input.remove(palette.cursor - 1);
+        palette.cursor = palette.cursor - 1;
+        self.update_palette(ctx);
+    }
+
+    pub fn delete_to_beginning_of_line(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        if palette.cursor == 0 {
+            return;
+        }
+
+        let start = match &palette.palette_type {
+            &PaletteType::File => 0,
+            &PaletteType::Reference => 0,
+            &PaletteType::Line => 1,
+            &PaletteType::DocumentSymbol => 1,
+            &PaletteType::Workspace => 1,
+            &PaletteType::Command => 1,
+        };
+
+        if palette.cursor == start {
+            palette.input = "".to_string();
+            palette.cursor = 0;
+        } else {
+            palette.input.replace_range(start..palette.cursor, "");
+            palette.cursor = start;
+        }
+        self.update_palette(ctx);
+    }
+
+    fn update_palette(&mut self, ctx: &mut EventCtx) {
+        let palette_type = self.get_palette_type();
+        if self.palette.palette_type != palette_type {
+            self.run(ctx, Some(palette_type));
+            return;
+        }
+        if self.palette.input != "" {
+            self.palette.sender.send((
+                self.palette.run_id.clone(),
+                self.palette.input.clone(),
+                self.palette.items.clone(),
             ));
         }
     }
 
     fn get_palette_type(&self) -> PaletteType {
-        if self.palette_type == PaletteType::Reference {
+        if self.palette.palette_type == PaletteType::Reference {
             return PaletteType::Reference;
         }
-        if self.input == "" {
+        if self.palette.input == "" {
             return PaletteType::File;
         }
-        match self.input {
-            _ if self.input.starts_with("/") => PaletteType::Line,
-            _ if self.input.starts_with("@") => PaletteType::DocumentSymbol,
-            _ if self.input.starts_with(">") => PaletteType::Workspace,
-            _ if self.input.starts_with(":") => PaletteType::Command,
+        match self.palette.input {
+            _ if self.palette.input.starts_with("/") => PaletteType::Line,
+            _ if self.palette.input.starts_with("@") => PaletteType::DocumentSymbol,
+            _ if self.palette.input.starts_with(">") => PaletteType::Workspace,
+            _ if self.palette.input.starts_with(":") => PaletteType::Command,
             _ => PaletteType::File,
         }
     }
 
-    fn get_files(&self, event_sink: ExtEventSink) {
-        let run_id = self.run_id.clone();
-        let widget_id = self.widget_id;
-        self.proxy.get_files(Box::new(move |result| {
+    fn get_files(&self, ctx: &mut EventCtx) {
+        let run_id = self.palette.run_id.clone();
+        let widget_id = self.palette.widget_id;
+        let workspace = (*self.workspace).clone();
+        let event_sink = ctx.get_external_handle();
+        self.palette.proxy.get_files(Box::new(move |result| {
             if let Ok(res) = result {
                 let resp: Result<Vec<PathBuf>, serde_json::Error> =
                     serde_json::from_value(res);
@@ -226,10 +317,17 @@ impl PaletteData {
                     let items: Vec<NewPaletteItem> = resp
                         .iter()
                         .enumerate()
-                        .map(|(index, path)| NewPaletteItem {
-                            filter_text: path.to_str().unwrap_or("").to_string(),
-                            score: 0,
-                            indices: Vec::new(),
+                        .map(|(index, path)| {
+                            let path =
+                                path.strip_prefix(&workspace.path).unwrap_or(path);
+                            let text = path.to_str().unwrap_or("").to_string();
+                            let filter_text = text.clone();
+                            NewPaletteItem {
+                                text,
+                                filter_text,
+                                score: 0,
+                                indices: Vec::new(),
+                            }
                         })
                         .collect();
                     event_sink.submit_command(
@@ -1137,17 +1235,29 @@ pub fn start_filter_process(
 
 pub struct NewPalette {
     widget_id: WidgetId,
+    content_size: Size,
+    content: WidgetPod<PaletteViewData, Box<dyn Widget<PaletteViewData>>>,
+    input: WidgetPod<PaletteViewData, Box<dyn Widget<PaletteViewData>>>,
 }
 
 impl NewPalette {
     pub fn new(data: &PaletteData) -> Self {
+        let padding = 6.0;
+        let input = NewPaletteInput::new()
+            .padding((padding, padding, padding, padding * 2.0))
+            .background(LapceTheme::EDITOR_BACKGROUND)
+            .padding((padding, padding, padding, padding));
+        let content = LapceScrollNew::new(NewPaletteContent::new()).vertical();
         Self {
             widget_id: data.widget_id,
+            content_size: Size::ZERO,
+            input: WidgetPod::new(input).boxed(),
+            content: WidgetPod::new(content).boxed(),
         }
     }
 }
 
-impl Widget<LapceTabData> for NewPalette {
+impl Widget<PaletteViewData> for NewPalette {
     fn id(&self) -> Option<WidgetId> {
         Some(self.widget_id)
     }
@@ -1156,7 +1266,7 @@ impl Widget<LapceTabData> for NewPalette {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceTabData,
+        data: &mut PaletteViewData,
         env: &Env,
     ) {
         match event {
@@ -1166,13 +1276,14 @@ impl Widget<LapceTabData> for NewPalette {
                 let event_sink = ctx.get_external_handle();
                 let widget_id = self.widget_id;
                 thread::spawn(move || {
-                    PaletteData::update_process(receiver, widget_id, event_sink);
+                    PaletteViewData::update_process(receiver, widget_id, event_sink);
                 });
             }
             Event::KeyDown(key_event) => {
-                let keypress = Arc::make_mut(&mut data.keypress);
-                let palette = Arc::make_mut(&mut data.palette);
-                keypress.key_down(ctx, key_event, palette, env);
+                let mut keypress = data.keypress.clone();
+                let mut_keypress = Arc::make_mut(&mut keypress);
+                mut_keypress.key_down(ctx, key_event, data, env);
+                data.keypress = keypress;
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -1212,25 +1323,30 @@ impl Widget<LapceTabData> for NewPalette {
             }
             _ => {}
         }
+        self.input.event(ctx, event, data, env);
+        self.content.event(ctx, event, data, env);
     }
 
     fn lifecycle(
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceTabData,
+        data: &PaletteViewData,
         env: &Env,
     ) {
+        self.input.lifecycle(ctx, event, data, env);
+        self.content.lifecycle(ctx, event, data, env);
     }
 
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
+        old_data: &PaletteViewData,
+        data: &PaletteViewData,
         env: &Env,
     ) {
         if !old_data.palette.same(&data.palette) {
+            ctx.request_local_layout();
             ctx.request_paint();
         }
     }
@@ -1239,19 +1355,43 @@ impl Widget<LapceTabData> for NewPalette {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceTabData,
+        data: &PaletteViewData,
         env: &Env,
     ) -> Size {
-        Size::new(600.0, 400.0)
+        let width = 600.0;
+
+        let bc = BoxConstraints::tight(Size::new(width, bc.max().height));
+        let input_size = self.input.layout(ctx, &bc, data, env);
+        self.input.set_origin(ctx, data, env, Point::ZERO);
+
+        let max_items = 15;
+        let height = max_items.min(data.len());
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let height = line_height * height as f64;
+        let bc = BoxConstraints::tight(Size::new(width, height));
+        let content_size = self.content.layout(ctx, &bc, data, env);
+        self.content
+            .set_origin(ctx, data, env, Point::new(0.0, input_size.height));
+
+        ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
+        let self_size = Size::new(width, input_size.height + content_size.height);
+        self.content_size = self_size;
+        self_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {
         if data.palette.status == PaletteStatus::Inactive {
             return;
         }
-        let size = ctx.size();
-        let rect = size.to_rect();
+
+        let blur_color = Color::grey8(180);
+        let shadow_width = 5.0;
+        let rect = self.content_size.to_rect();
+        ctx.blurred_rect(rect, shadow_width, &blur_color);
         ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+
+        self.input.paint(ctx, data, env);
+        self.content.paint(ctx, data, env);
     }
 }
 
@@ -1274,6 +1414,170 @@ pub struct PaletteContent {
     window_id: WindowId,
     tab_id: WidgetId,
     max_items: usize,
+}
+
+pub struct NewPaletteInput {}
+
+impl NewPaletteInput {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<PaletteViewData> for NewPaletteInput {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &PaletteViewData,
+        data: &PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &PaletteViewData,
+        env: &Env,
+    ) -> Size {
+        Size::new(bc.max().width, 13.0)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {
+        let text = data.palette.input.clone();
+        let cursor = data.palette.cursor;
+        let mut text_layout = TextLayout::<String>::from_text(&text);
+        text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+        text_layout.rebuild_if_needed(ctx.text(), env);
+        let line = text_layout.cursor_line_for_text_position(cursor);
+        ctx.stroke(line, &env.get(LapceTheme::EDITOR_FOREGROUND), 1.0);
+        text_layout.draw(ctx, Point::new(0.0, 0.0));
+    }
+}
+
+pub struct NewPaletteContent {}
+
+impl NewPaletteContent {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<PaletteViewData> for NewPaletteContent {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &PaletteViewData,
+        data: &PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &PaletteViewData,
+        env: &Env,
+    ) -> Size {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let height = line_height * data.len() as f64;
+        Size::new(bc.max().width, height)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let rects = ctx.region().rects().to_vec();
+        let size = ctx.size();
+
+        let input = &data.palette.input;
+        let items: &Vec<NewPaletteItem> = if input == "" {
+            &data.palette.items
+        } else {
+            &data.palette.filtered_items
+        };
+
+        for rect in rects {
+            let start_line = (rect.y0 / line_height).floor() as usize;
+            let end_line = (rect.y1 / line_height).ceil() as usize;
+
+            for line in start_line..end_line {
+                if line >= items.len() {
+                    break;
+                }
+                if line == data.palette.index {
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(0.0, line as f64 * line_height))
+                            .with_size(Size::new(size.width, line_height)),
+                        &env.get(LapceTheme::EDITOR_BACKGROUND),
+                    );
+                }
+
+                let item = &items[line];
+                let content = item.text.clone();
+                let focus_color = Color::rgb8(0, 0, 0);
+                let y = line_height * line as f64 + 5.0;
+                let point = Point::new(line_height + 5.0, y);
+
+                let mut text_layout = ctx
+                    .text()
+                    .new_text_layout(content)
+                    .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+                    .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+                for i in &item.indices {
+                    let i = *i;
+                    text_layout = text_layout.range_attribute(
+                        i..i + 1,
+                        TextAttribute::TextColor(focus_color.clone()),
+                    );
+                    text_layout = text_layout.range_attribute(
+                        i..i + 1,
+                        TextAttribute::Weight(FontWeight::BOLD),
+                    );
+                }
+                let text_layout = text_layout.build().unwrap();
+                ctx.draw_text(&text_layout, point);
+            }
+        }
+    }
 }
 
 impl Palette {

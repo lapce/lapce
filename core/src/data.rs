@@ -38,7 +38,7 @@ use crate::{
     keypress::{KeyPressData, KeyPressFocus},
     language::new_highlight_config,
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
-    palette::PaletteData,
+    palette::{PaletteData, PaletteViewData},
     proxy::{LapceProxy, ProxyHandlerNew},
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
@@ -175,6 +175,7 @@ impl LapceWindowData {
 #[derive(Clone, Lens)]
 pub struct LapceTabData {
     pub id: WidgetId,
+    pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<PaletteData>,
@@ -208,6 +209,10 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         Self {
             id: tab_id,
+            workspace: Arc::new(LapceWorkspace {
+                kind: LapceWorkspaceType::Local,
+                path: PathBuf::from("/Users/Lulu/lapce"),
+            }),
             main_split,
             completion,
             palette,
@@ -251,6 +256,14 @@ impl LapceTabData {
         }
 
         origin
+    }
+
+    pub fn palette_view_data(&self) -> PaletteViewData {
+        PaletteViewData {
+            palette: self.palette.clone(),
+            workspace: self.workspace.clone(),
+            keypress: self.keypress.clone(),
+        }
     }
 
     pub fn buffer_update_process(
@@ -603,7 +616,7 @@ pub struct LapceEditorViewData {
     pub buffer: Arc<BufferNew>,
     pub keypress: Arc<KeyPressData>,
     pub completion: Arc<CompletionData>,
-    pub palette: Arc<PaletteData>,
+    pub palette: PaletteViewData,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
 }
 
@@ -1256,7 +1269,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             main_split: main_split.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
-            palette: data.palette.clone(),
+            palette: data.palette_view_data(),
             theme: data.theme.clone(),
             proxy: data.proxy.clone(),
         };
@@ -1276,7 +1289,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
-            palette: data.palette.clone(),
+            palette: data.palette_view_data(),
             theme: data.theme.clone(),
             proxy: data.proxy.clone(),
         };
@@ -1284,7 +1297,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
 
         data.keypress = editor_view.keypress.clone();
         data.completion = editor_view.completion.clone();
-        data.palette = editor_view.palette.clone();
+        data.palette = editor_view.palette.palette.clone();
         data.main_split = editor_view.main_split.clone();
         data.theme = editor_view.theme.clone();
         if !editor.same(&editor_view.editor) {
@@ -1817,8 +1830,7 @@ impl KeyPressFocus for LapceEditorViewData {
                 self.cancel_completion();
             }
             LapceCommand::Palette => {
-                Arc::make_mut(&mut self.palette)
-                    .run(None, ctx.get_external_handle());
+                self.palette.run(ctx, None);
             }
             _ => (),
         }
