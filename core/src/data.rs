@@ -38,7 +38,7 @@ use crate::{
     keypress::{KeyPressData, KeyPressFocus},
     language::new_highlight_config,
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
-    palette::{PaletteData, PaletteViewData},
+    palette::{PaletteData, PaletteType, PaletteViewData},
     proxy::{LapceProxy, ProxyHandlerNew},
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
@@ -267,6 +267,7 @@ impl LapceTabData {
         PaletteViewData {
             palette: self.palette.clone(),
             workspace: self.workspace.clone(),
+            main_split: self.main_split.clone(),
             keypress: self.keypress.clone(),
         }
     }
@@ -1878,6 +1879,9 @@ impl KeyPressFocus for LapceEditorViewData {
             }
             LapceCommand::Palette => {
                 self.palette.run(ctx, None);
+            }
+            LapceCommand::PaletteSymbol => {
+                self.palette.run(ctx, Some(PaletteType::DocumentSymbol));
             }
             _ => (),
         }
