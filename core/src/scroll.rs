@@ -946,6 +946,7 @@ impl ScrollComponent {
     ) {
         if let LifeCycle::Size(_) = event {
             // Show the scrollbars any time our size changes
+            ctx.request_paint();
             self.reset_scrollbar_fade(|d| ctx.request_timer(d), &env);
         }
     }
@@ -1306,7 +1307,7 @@ impl ScrollComponentNew {
         F: FnOnce(Duration) -> TimerToken,
     {
         self.opacity = env.get(theme::SCROLLBAR_MAX_OPACITY);
-        let fade_delay = 100;
+        let fade_delay = 500;
         let deadline = Duration::from_millis(fade_delay);
         self.timer_id = request_timer(deadline);
     }
@@ -1639,10 +1640,9 @@ impl ScrollComponentNew {
     ) {
         if !ctx.is_handled() {
             if let Event::Wheel(mouse) = event {
-                if port.pan_by(mouse.wheel_delta.round()) {
-                    ctx.request_paint();
-                    self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
-                }
+                if port.pan_by(mouse.wheel_delta.round()) {}
+                ctx.request_paint();
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
                 ctx.set_handled();
             }
         }
@@ -1659,6 +1659,7 @@ impl ScrollComponentNew {
     ) {
         if let LifeCycle::Size(_) = event {
             // Show the scrollbars any time our size changes
+            ctx.request_paint();
             self.reset_scrollbar_fade(|d| ctx.request_timer(d), &env);
         }
     }
@@ -1735,8 +1736,22 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     ///
     /// If the target region is larger than the viewport, we will display the
     /// portion that fits, prioritizing the portion closest to the origin.
-    pub fn scroll_to_visible(&mut self, region: Rect) -> bool {
-        self.clip.pan_to_visible(region)
+    pub fn scroll_to_visible<F>(
+        &mut self,
+        region: Rect,
+        request_timer: F,
+        env: &Env,
+    ) -> bool
+    where
+        F: FnOnce(Duration) -> TimerToken,
+    {
+        if self.clip.pan_to_visible(region) {
+            self.scroll_component
+                .reset_scrollbar_fade(request_timer, env);
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -1793,14 +1808,14 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
     ) -> Size {
         bc.debug_check("Scroll");
 
-        let old_size = self.clip.viewport().rect.size();
+        let old_viewport = self.clip.port.clone();
         let child_size = self.clip.layout(ctx, &bc, data, env);
 
         let self_size = bc.constrain(child_size);
         // The new size might have made the current scroll offset invalid. This makes it valid
         // again.
         let _ = self.scroll_by(Vec2::ZERO);
-        if old_size != self_size {
+        if old_viewport != self.clip.port {
             self.scroll_component
                 .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
         }

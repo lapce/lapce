@@ -347,19 +347,11 @@ impl LapceEditorContainer {
         let rect = data
             .cusor_region(env)
             .inflate(0.0, (data.editor.size.height / 2.0).ceil());
-        if self
-            .editor
+        self.editor
             .widget_mut()
             .child_mut()
             .inner_mut()
-            .scroll_to_visible(rect)
-        {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ResetFade,
-                Target::Widget(self.scroll_id),
-            ));
-        }
+            .scroll_to_visible(rect, |d| ctx.request_timer(d), env);
     }
 
     pub fn ensure_rect_visible(
@@ -369,19 +361,11 @@ impl LapceEditorContainer {
         rect: Rect,
         env: &Env,
     ) {
-        if self
-            .editor
+        self.editor
             .widget_mut()
             .child_mut()
             .inner_mut()
-            .scroll_to_visible(rect)
-        {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ResetFade,
-                Target::Widget(self.scroll_id),
-            ));
-        }
+            .scroll_to_visible(rect, |d| ctx.request_timer(d), env);
     }
 
     pub fn ensure_cursor_visible(
@@ -391,19 +375,11 @@ impl LapceEditorContainer {
         env: &Env,
     ) {
         let rect = data.cusor_region(env);
-        if self
-            .editor
+        self.editor
             .widget_mut()
             .child_mut()
             .inner_mut()
-            .scroll_to_visible(rect)
-        {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ResetFade,
-                Target::Widget(self.scroll_id),
-            ));
-        }
+            .scroll_to_visible(rect, |d| ctx.request_timer(d), env);
     }
 }
 

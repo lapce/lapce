@@ -90,6 +90,14 @@ impl LapceData {
         if !changed {
             return;
         }
+        env.set(theme::SCROLLBAR_RADIUS, 0.0);
+        env.set(theme::SCROLLBAR_EDGE_WIDTH, 0.0);
+        env.set(theme::SCROLLBAR_WIDTH, 10.0);
+        env.set(theme::SCROLLBAR_PAD, 0.0);
+        env.set(
+            theme::SCROLLBAR_COLOR,
+            Color::from_hex_str("#949494").unwrap(),
+        );
 
         env.set(LapceTheme::CHANGED, false);
         let theme = &self.theme;
@@ -132,10 +140,6 @@ impl LapceData {
             LapceTheme::EDITOR_FONT,
             FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
                 .with_size(13.0),
-        );
-        env.set(
-            theme::SCROLLBAR_COLOR,
-            Color::from_hex_str("#c4c4c4").unwrap(),
         );
     }
 }

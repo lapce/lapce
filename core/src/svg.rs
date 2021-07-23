@@ -7,7 +7,10 @@ use druid::{
     },
     Affine, Color, PaintCtx, Point, Rect, RenderContext, Size,
 };
+use include_dir::{include_dir, Dir};
 use usvg;
+
+pub const ICONS_DIR: Dir = include_dir!("../icons");
 
 pub struct Svg {
     tree: Arc<usvg::Tree>,
@@ -298,4 +301,18 @@ fn transform_to_affine(t: usvg::Transform) -> Affine {
 
 fn color_from_svg(c: usvg::Color, opacity: usvg::Opacity) -> Color {
     Color::rgb8(c.red, c.green, c.blue).with_alpha(opacity.value())
+}
+
+fn get_svg(name: &str) -> Option<Svg> {
+    Svg::from_str(ICONS_DIR.get_file(name)?.contents_utf8()?).ok()
+}
+
+pub fn file_svg_new(exten: &str) -> Option<Svg> {
+    let file_type = match exten {
+        "rs" => "rust",
+        "md" => "markdown",
+        "cc" => "cpp",
+        s => s,
+    };
+    get_svg(&format!("file_type_{}.svg", file_type))
 }

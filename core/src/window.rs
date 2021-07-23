@@ -830,7 +830,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         tab.set_origin(ctx, data, env, Point::ZERO);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        println!("layout took {}", duration);
+        // println!("layout took {}", duration);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateWindowOrigin,
