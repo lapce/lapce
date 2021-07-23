@@ -86,6 +86,18 @@ pub enum PaletteItemContent {
 }
 
 impl PaletteItemContent {
+    fn select(&self, ctx: &mut EventCtx) {
+        match &self {
+            PaletteItemContent::File(_, full_path) => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenFile(full_path.clone()),
+                    Target::Auto,
+                ));
+            }
+        }
+    }
+
     fn paint(&self, ctx: &mut PaintCtx, line: usize, indices: &[usize], env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         match &self {
@@ -276,6 +288,9 @@ impl KeyPressFocus for PaletteViewData {
             LapceCommand::ListPrevious => {
                 self.previous();
             }
+            LapceCommand::ListSelect => {
+                self.select(ctx);
+            }
             _ => {}
         }
     }
@@ -307,22 +322,50 @@ impl PaletteData {
             filtered_items: Vec::new(),
         }
     }
-}
 
-impl PaletteViewData {
     fn len(&self) -> usize {
-        if self.palette.input == "" {
-            self.palette.items.len()
+        if self.input == "" {
+            self.items.len()
         } else {
-            self.palette.filtered_items.len()
+            self.filtered_items.len()
         }
     }
 
+    pub fn current_items(&self) -> &Vec<NewPaletteItem> {
+        if self.get_input() == "" {
+            &self.items
+        } else {
+            &self.filtered_items
+        }
+    }
+
+    pub fn get_item(&self) -> Option<&NewPaletteItem> {
+        let items = self.current_items();
+        if items.is_empty() {
+            return None;
+        }
+        Some(&items[self.index])
+    }
+
+    pub fn get_input(&self) -> &str {
+        match &self.palette_type {
+            PaletteType::File => &self.input,
+            PaletteType::Reference => &self.input,
+            PaletteType::Line => &self.input[1..],
+            PaletteType::DocumentSymbol => &self.input[1..],
+            PaletteType::Workspace => &self.input[1..],
+            PaletteType::Command => &self.input[1..],
+        }
+    }
+}
+
+impl PaletteViewData {
     fn cancel(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Inactive;
         palette.input = "".to_string();
         palette.cursor = 0;
+        palette.index = 0;
         palette.items.clear();
         palette.filtered_items.clear();
         ctx.submit_command(Command::new(
@@ -383,15 +426,23 @@ impl PaletteViewData {
     }
 
     pub fn next(&mut self) {
-        let len = self.len();
         let palette = Arc::make_mut(&mut self.palette);
-        palette.index = Movement::Down.update_index(palette.index, len, 1, true);
+        palette.index =
+            Movement::Down.update_index(palette.index, palette.len(), 1, true);
     }
 
     pub fn previous(&mut self) {
-        let len = self.len();
         let palette = Arc::make_mut(&mut self.palette);
-        palette.index = Movement::Up.update_index(palette.index, len, 1, true);
+        palette.index =
+            Movement::Up.update_index(palette.index, palette.len(), 1, true);
+    }
+
+    pub fn select(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        if let Some(item) = palette.get_item() {
+            item.content.select(ctx);
+        }
+        self.cancel(ctx);
     }
 
     fn update_palette(&mut self, ctx: &mut EventCtx) {
@@ -1598,7 +1649,7 @@ impl Widget<PaletteViewData> for PaletteContainer {
         self.input.set_origin(ctx, data, env, Point::ZERO);
 
         let max_items = 15;
-        let height = max_items.min(data.len());
+        let height = max_items.min(data.palette.len());
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let height = line_height * height as f64;
         let bc = BoxConstraints::tight(Size::new(width, height));
@@ -1748,7 +1799,7 @@ impl Widget<PaletteViewData> for NewPaletteContent {
         env: &Env,
     ) -> Size {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let height = line_height * data.len() as f64;
+        let height = line_height * data.palette.len() as f64;
         Size::new(bc.max().width, height)
     }
 

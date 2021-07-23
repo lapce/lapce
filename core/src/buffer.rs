@@ -204,6 +204,9 @@ pub struct BufferNew {
 
     this_edit_type: EditType,
     last_edit_type: EditType,
+
+    pub cursor_offset: usize,
+    pub scroll_offset: Vec2,
 }
 
 impl BufferNew {
@@ -243,6 +246,9 @@ impl BufferNew {
 
             last_edit_type: EditType::Other,
             this_edit_type: EditType::Other,
+
+            cursor_offset: 0,
+            scroll_offset: Vec2::ZERO,
         };
         buffer.text_layouts =
             im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
@@ -283,12 +289,7 @@ impl BufferNew {
         }
     }
 
-    pub fn retrieve_file(
-        &self,
-        proxy: Arc<LapceProxy>,
-        tab_id: WidgetId,
-        event_sink: ExtEventSink,
-    ) {
+    pub fn retrieve_file(&self, proxy: Arc<LapceProxy>, event_sink: ExtEventSink) {
         let id = self.id;
         let path = self.path.clone();
         thread::spawn(move || {
@@ -297,7 +298,7 @@ impl BufferNew {
             event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::LoadBuffer { id, content },
-                Target::Widget(tab_id),
+                Target::Auto,
             );
         });
     }

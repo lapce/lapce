@@ -69,7 +69,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                     if !buffer.loaded {
                         buffer.retrieve_file(
                             data.proxy.clone(),
-                            data.id,
                             ctx.get_external_handle(),
                         );
                     }
@@ -95,6 +94,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                         let buffer = data.main_split.buffers.get_mut(id).unwrap();
                         Arc::make_mut(buffer).load_content(content);
                         data.main_split.notify_update_text_layouts(ctx, id);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::OpenFile(path) => {
+                        data.main_split.open_file(ctx, path);
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSemanticTokens(id, rev, tokens) => {

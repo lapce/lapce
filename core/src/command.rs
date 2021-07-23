@@ -205,7 +205,7 @@ pub enum LapceUICommand {
         id: BufferId,
         content: String,
     },
-    OpenFile(String),
+    OpenFile(PathBuf),
     FillTextLayouts,
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, CompletionItem),

@@ -111,7 +111,11 @@ impl Widget<LapceUIState> for LapceContainer {
                                 .get_tab_state(&self.window_id, &self.tab_id)
                                 .editor_split
                                 .lock()
-                                .open_file(ctx, data, path);
+                                .open_file(
+                                    ctx,
+                                    data,
+                                    &path.to_str().unwrap().to_string(),
+                                );
                             ctx.request_layout();
                         }
                         LapceUICommand::UpdateLineChanges(buffer_id) => {}

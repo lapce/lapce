@@ -405,6 +405,9 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                 if data.key_down(ctx, key_event, env) {
                     self.ensure_cursor_visible(ctx, data, env);
                 }
+                data.sync_buffer_position(
+                    self.editor.widget().child().inner().offset(),
+                );
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {

@@ -208,7 +208,8 @@ impl LapceTabData {
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let proxy = Arc::new(LapceProxy::new(tab_id));
-        let main_split = LapceMainSplitData::new(update_sender.clone());
+        let main_split =
+            LapceMainSplitData::new(update_sender.clone(), proxy.clone());
         let completion = Arc::new(CompletionData::new());
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         Self {
@@ -504,6 +505,7 @@ pub struct LapceMainSplitData {
     pub open_files: im::HashMap<PathBuf, BufferId>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub register: Arc<Register>,
+    pub proxy: Arc<LapceProxy>,
 }
 
 impl LapceMainSplitData {
@@ -527,10 +529,43 @@ impl LapceMainSplitData {
     pub fn active_editor(&self) -> &LapceEditorData {
         self.editors.get(&self.active).unwrap()
     }
+
+    pub fn active_editor_mut(&mut self) -> &mut LapceEditorData {
+        Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
+    }
+
+    pub fn open_file(&mut self, ctx: &mut EventCtx, path: &PathBuf) {
+        let (cursor_offset, scroll_offset) = if let Some(buffer_id) =
+            self.open_files.get(path)
+        {
+            let buffer = self.buffers.get(buffer_id).unwrap();
+            (buffer.cursor_offset, buffer.scroll_offset)
+        } else {
+            let buffer =
+                Arc::new(BufferNew::new(path.clone(), self.update_sender.clone()));
+            self.open_files.insert(path.clone(), buffer.id);
+            self.buffers.insert(buffer.id, buffer.clone());
+            buffer.retrieve_file(self.proxy.clone(), ctx.get_external_handle());
+            (0, Vec2::new(0.0, 0.0))
+        };
+
+        let editor = self.active_editor_mut();
+        editor.buffer = path.clone();
+        editor.cursor = Cursor::new(CursorMode::Normal(cursor_offset), None);
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::ForceScrollTo(scroll_offset.x, scroll_offset.y),
+            Target::Widget(editor.container_id),
+        ));
+    }
 }
 
 impl LapceMainSplitData {
-    pub fn new(update_sender: Arc<Sender<UpdateEvent>>) -> Self {
+    pub fn new(
+        update_sender: Arc<Sender<UpdateEvent>>,
+        proxy: Arc<LapceProxy>,
+    ) -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
         let path = PathBuf::from("/Users/Lulu/lapce/core/src/editor.rs");
@@ -550,6 +585,7 @@ impl LapceMainSplitData {
             active: Arc::new(view_id),
             update_sender,
             register: Arc::new(Register::default()),
+            proxy,
         }
     }
 }
@@ -640,6 +676,13 @@ impl LapceEditorViewData {
 
     pub fn buffer_mut(&mut self) -> &mut BufferNew {
         Arc::make_mut(&mut self.buffer)
+    }
+
+    pub fn sync_buffer_position(&mut self, scroll_offset: Vec2) {
+        let cursor_offset = self.editor.cursor.offset();
+        let buffer = self.buffer_mut();
+        buffer.cursor_offset = cursor_offset;
+        buffer.scroll_offset = scroll_offset;
     }
 
     pub fn fill_text_layouts(
