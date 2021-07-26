@@ -40,8 +40,11 @@ use crate::{
     command::LapceUICommand,
     command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND,
-    data::{LapceMainSplitData, LapceTabData},
-    editor::EditorSplitState,
+    data::{
+        LapceEditorData, LapceEditorLens, LapceEditorViewData, LapceMainSplitData,
+        LapceTabData,
+    },
+    editor::{EditorSplitState, LapceEditorContainer},
     explorer::ICONS_DIR,
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
@@ -328,6 +331,7 @@ pub struct PaletteData {
     index: usize,
     items: Vec<NewPaletteItem>,
     filtered_items: Vec<NewPaletteItem>,
+    pub preview_editor: Arc<LapceEditorData>,
 }
 
 impl KeyPressFocus for PaletteViewData {
@@ -385,6 +389,10 @@ impl PaletteData {
     pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let (sender, receiver) = unbounded();
         let widget_id = WidgetId::next();
+        let preview_editor = Arc::new(LapceEditorData::new(
+            WidgetId::next(),
+            PathBuf::from("[No Name]"),
+        ));
         Self {
             widget_id,
             status: PaletteStatus::Inactive,
@@ -398,6 +406,7 @@ impl PaletteData {
             index: 0,
             items: Vec::new(),
             filtered_items: Vec::new(),
+            preview_editor,
         }
     }
 
@@ -1561,18 +1570,12 @@ pub fn start_filter_process(
 
 pub struct NewPalette {
     widget_id: WidgetId,
-    container: WidgetPod<PaletteViewData, Box<dyn Widget<PaletteViewData>>>,
+    container: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
 impl NewPalette {
     pub fn new(data: &PaletteData) -> Self {
-        let padding = 6.0;
-        let input = NewPaletteInput::new()
-            .padding((padding, padding, padding, padding * 2.0))
-            .background(LapceTheme::EDITOR_BACKGROUND)
-            .padding((padding, padding, padding, padding));
-        let content = LapceScrollNew::new(NewPaletteContent::new()).vertical();
-        let container = PaletteContainer::new();
+        let container = PaletteContainer::new(data);
         Self {
             widget_id: data.widget_id,
             container: WidgetPod::new(container).boxed(),
@@ -1580,7 +1583,7 @@ impl NewPalette {
     }
 }
 
-impl Widget<PaletteViewData> for NewPalette {
+impl Widget<LapceTabData> for NewPalette {
     fn id(&self) -> Option<WidgetId> {
         Some(self.widget_id)
     }
@@ -1589,7 +1592,7 @@ impl Widget<PaletteViewData> for NewPalette {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut PaletteViewData,
+        data: &mut LapceTabData,
         env: &Env,
     ) {
         match event {
@@ -1605,8 +1608,11 @@ impl Widget<PaletteViewData> for NewPalette {
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
                 let mut_keypress = Arc::make_mut(&mut keypress);
-                mut_keypress.key_down(ctx, key_event, data, env);
+                let mut palette_data = data.palette_view_data();
+                mut_keypress.key_down(ctx, key_event, &mut palette_data, env);
+                data.palette = palette_data.palette.clone();
                 data.keypress = keypress;
+                data.workspace = palette_data.workspace.clone();
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -1654,7 +1660,7 @@ impl Widget<PaletteViewData> for NewPalette {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &PaletteViewData,
+        data: &LapceTabData,
         env: &Env,
     ) {
         self.container.lifecycle(ctx, event, data, env);
@@ -1663,8 +1669,8 @@ impl Widget<PaletteViewData> for NewPalette {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &PaletteViewData,
-        data: &PaletteViewData,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         env: &Env,
     ) {
         if !old_data.palette.same(&data.palette) {
@@ -1679,7 +1685,7 @@ impl Widget<PaletteViewData> for NewPalette {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &PaletteViewData,
+        data: &LapceTabData,
         env: &Env,
     ) -> Size {
         let width = 600.0;
@@ -1693,7 +1699,7 @@ impl Widget<PaletteViewData> for NewPalette {
         self_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         if data.palette.status == PaletteStatus::Inactive {
             return;
         }
@@ -1704,39 +1710,51 @@ impl Widget<PaletteViewData> for NewPalette {
 
 pub struct PaletteContainer {
     content_size: Size,
-    input: WidgetPod<PaletteViewData, Box<dyn Widget<PaletteViewData>>>,
+    input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     content: WidgetPod<
-        PaletteViewData,
-        LapceScrollNew<PaletteViewData, NewPaletteContent>,
+        LapceTabData,
+        LapceScrollNew<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     >,
+    preview: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
 impl PaletteContainer {
-    pub fn new() -> Self {
+    pub fn new(data: &PaletteData) -> Self {
         let padding = 6.0;
         let input = NewPaletteInput::new()
             .padding((padding, padding, padding, padding * 2.0))
             .background(LapceTheme::EDITOR_BACKGROUND)
-            .padding((padding, padding, padding, padding));
-        let content = LapceScrollNew::new(NewPaletteContent::new()).vertical();
+            .padding((padding, padding, padding, padding))
+            .lens(PaletteViewLens);
+        let content = LapceScrollNew::new(
+            NewPaletteContent::new().lens(PaletteViewLens).boxed(),
+        )
+        .vertical();
+        let preview = LapceEditorContainer::new(
+            data.preview_editor.view_id,
+            data.preview_editor.container_id,
+            data.preview_editor.editor_id,
+        )
+        .lens(LapceEditorLens(data.preview_editor.view_id));
         Self {
             content_size: Size::ZERO,
-            input: WidgetPod::new(input).boxed(),
+            input: WidgetPod::new(input.boxed()),
             content: WidgetPod::new(content),
+            preview: WidgetPod::new(preview.boxed()),
         }
     }
 
     fn ensure_item_visble(
         &mut self,
         ctx: &mut UpdateCtx,
-        data: &PaletteViewData,
+        palette: &PaletteData,
         env: &Env,
     ) {
         let width = ctx.size().width;
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let rect = Size::new(width, line_height)
             .to_rect()
-            .with_origin(Point::new(0.0, data.palette.index as f64 * line_height));
+            .with_origin(Point::new(0.0, palette.index as f64 * line_height));
         self.content.widget_mut().scroll_to_visible(
             rect,
             |d| ctx.request_timer(d),
@@ -1745,53 +1763,57 @@ impl PaletteContainer {
     }
 }
 
-impl Widget<PaletteViewData> for PaletteContainer {
+impl Widget<LapceTabData> for PaletteContainer {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut PaletteViewData,
+        data: &mut LapceTabData,
         env: &Env,
     ) {
         self.input.event(ctx, event, data, env);
         self.content.event(ctx, event, data, env);
+        self.preview.event(ctx, event, data, env);
     }
 
     fn lifecycle(
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &PaletteViewData,
+        data: &LapceTabData,
         env: &Env,
     ) {
         self.input.lifecycle(ctx, event, data, env);
         self.content.lifecycle(ctx, event, data, env);
+        self.preview.lifecycle(ctx, event, data, env);
     }
 
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &PaletteViewData,
-        data: &PaletteViewData,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         env: &Env,
     ) {
         if old_data.palette.input != data.palette.input
             || old_data.palette.index != data.palette.index
         {
-            self.ensure_item_visble(ctx, data, env);
+            self.ensure_item_visble(ctx, &data.palette, env);
         }
         self.input.update(ctx, data, env);
         self.content.update(ctx, data, env);
+        self.preview.update(ctx, data, env);
     }
 
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &PaletteViewData,
+        data: &LapceTabData,
         env: &Env,
     ) -> Size {
         let width = 600.0;
+        let max_height = bc.max().height;
 
         let bc = BoxConstraints::tight(Size::new(width, bc.max().height));
         let input_size = self.input.layout(ctx, &bc, data, env);
@@ -1805,15 +1827,30 @@ impl Widget<PaletteViewData> for PaletteContainer {
         let content_size = self.content.layout(ctx, &bc, data, env);
         self.content
             .set_origin(ctx, data, env, Point::new(0.0, input_size.height));
+        let mut content_height = content_size.height;
+        if content_height > 0.0 {
+            content_height += 6.0;
+        }
+
+        let bc = BoxConstraints::tight(Size::new(
+            width,
+            max_height - input_size.height - content_height,
+        ));
+        self.preview.layout(ctx, &bc, data, env);
+        self.preview.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(0.0, input_size.height + content_height),
+        );
 
         ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
-        let self_size =
-            Size::new(width, input_size.height + content_size.height + 6.0);
+        let self_size = Size::new(width, input_size.height + content_height);
         self.content_size = self_size;
         self_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let blur_color = Color::grey8(180);
         let shadow_width = 5.0;
         let rect = self.content_size.to_rect();
@@ -1822,6 +1859,7 @@ impl Widget<PaletteViewData> for PaletteContainer {
 
         self.input.paint(ctx, data, env);
         self.content.paint(ctx, data, env);
+        self.preview.paint(ctx, data, env);
     }
 }
 
@@ -1981,6 +2019,62 @@ impl Widget<PaletteViewData> for NewPaletteContent {
             }
         }
     }
+}
+
+pub struct PalettePreview {}
+
+impl PalettePreview {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<PaletteViewData> for PalettePreview {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &PaletteViewData,
+        data: &PaletteViewData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &PaletteViewData,
+        env: &Env,
+    ) -> Size {
+        match data.palette.palette_type {
+            PaletteType::File | PaletteType::Command | PaletteType::Workspace => {
+                Size::ZERO
+            }
+            PaletteType::DocumentSymbol
+            | PaletteType::Line
+            | PaletteType::Reference => bc.max(),
+        }
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {}
 }
 
 impl Palette {

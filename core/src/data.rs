@@ -1323,7 +1323,11 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         f: F,
     ) -> V {
         let main_split = &data.main_split;
-        let editor = main_split.editors.get(&self.0).unwrap();
+        let editor = if self.0 == data.palette.preview_editor.view_id {
+            &data.palette.preview_editor
+        } else {
+            main_split.editors.get(&self.0).unwrap()
+        };
         let editor_view = LapceEditorViewData {
             buffer: main_split
                 .buffers
@@ -1346,7 +1350,12 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         data: &mut LapceTabData,
         f: F,
     ) -> V {
-        let editor = data.main_split.editors.get(&self.0).unwrap().clone();
+        let main_split = &data.main_split;
+        let editor = if self.0 == data.palette.preview_editor.view_id {
+            data.palette.preview_editor.clone()
+        } else {
+            main_split.editors.get(&self.0).unwrap().clone()
+        };
         let buffer_id = *data.main_split.open_files.get(&editor.buffer).unwrap();
         let mut editor_view = LapceEditorViewData {
             buffer: data.main_split.buffers.get(&buffer_id).unwrap().clone(),
@@ -1365,10 +1374,15 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         data.palette = editor_view.palette.palette.clone();
         data.main_split = editor_view.main_split.clone();
         data.theme = editor_view.theme.clone();
-        if !editor.same(&editor_view.editor) {
-            data.main_split
-                .editors
-                .insert(self.0, editor_view.editor.clone());
+        if self.0 == data.palette.preview_editor.view_id {
+            Arc::make_mut(&mut data.palette).preview_editor =
+                editor_view.editor.clone();
+        } else {
+            if !editor.same(&editor_view.editor) {
+                data.main_split
+                    .editors
+                    .insert(self.0, editor_view.editor.clone());
+            }
         }
         if !data
             .main_split

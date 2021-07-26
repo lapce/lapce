@@ -40,7 +40,7 @@ impl LapceTabNew {
                 1.0,
             );
         let completion = CompletionContainer::new(&data.completion);
-        let palette = NewPalette::new(&data.palette).lens(PaletteViewLens);
+        let palette = NewPalette::new(&data.palette);
 
         Self {
             id: data.id,
