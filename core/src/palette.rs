@@ -52,7 +52,7 @@ use crate::{
     state::LapceWorkspaceType,
     state::LAPCE_APP_STATE,
     state::{LapceUIState, Mode},
-    svg::file_svg_new,
+    svg::{file_svg_new, symbol_svg_new},
     theme::LapceTheme,
 };
 
@@ -125,7 +125,7 @@ impl PaletteItemContent {
 
     fn paint(&self, ctx: &mut PaintCtx, line: usize, indices: &[usize], env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let (svg, text, hint) = match &self {
+        let (svg, text, text_indices, hint, hint_indices) = match &self {
             PaletteItemContent::File(path, _) => {
                 let svg = file_svg_new(
                     &path
@@ -144,18 +144,67 @@ impl PaletteItemContent {
                     .and_then(|s| s.to_str())
                     .unwrap_or("")
                     .to_string();
-                (svg, file_name, folder)
+                let folder_len = folder.len();
+                let text_indices: Vec<usize> = indices
+                    .iter()
+                    .filter_map(|i| {
+                        let i = *i;
+                        if folder_len > 0 {
+                            if i > folder_len {
+                                Some(i - folder_len - 1)
+                            } else {
+                                None
+                            }
+                        } else {
+                            Some(i)
+                        }
+                    })
+                    .collect();
+                let hint_indices: Vec<usize> = indices
+                    .iter()
+                    .filter_map(|i| {
+                        let i = *i;
+                        if i < folder_len {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                (svg, file_name, text_indices, folder, hint_indices)
             }
             PaletteItemContent::DocumentSymbol {
                 kind,
                 name,
                 range,
                 container_name,
-            } => (
-                None,
-                name.to_string(),
-                container_name.clone().unwrap_or("".to_string()),
-            ),
+            } => {
+                let text = name.to_string();
+                let hint = container_name.clone().unwrap_or("".to_string());
+                let text_indices = indices
+                    .iter()
+                    .filter_map(|i| {
+                        let i = *i;
+                        if i < text.len() {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let hint_indices = indices
+                    .iter()
+                    .filter_map(|i| {
+                        let i = *i;
+                        if i >= text.len() {
+                            Some(i - text.len())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                (symbol_svg_new(kind), text, text_indices, hint, hint_indices)
+            }
         };
 
         if let Some(svg) = svg.as_ref() {
@@ -168,11 +217,22 @@ impl PaletteItemContent {
             svg.paint(ctx, rect, None);
         }
 
+        let focus_color = Color::rgb8(0, 0, 0);
+
         let mut text_layout = ctx
             .text()
             .new_text_layout(text.clone())
             .font(FontFamily::SYSTEM_UI, 14.0)
             .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        for i in &text_indices {
+            let i = *i;
+            text_layout = text_layout.range_attribute(
+                i..i + 1,
+                TextAttribute::TextColor(focus_color.clone()),
+            );
+            text_layout = text_layout
+                .range_attribute(i..i + 1, TextAttribute::Weight(FontWeight::BOLD));
+        }
         let text_layout = text_layout.build().unwrap();
         let x = line_height + 5.0;
         let y = line_height * line as f64 + 4.0;
@@ -186,6 +246,17 @@ impl PaletteItemContent {
                 .new_text_layout(hint)
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(env.get(LapceTheme::EDITOR_FOREGROUND).with_alpha(0.6));
+            for i in &hint_indices {
+                let i = *i;
+                text_layout = text_layout.range_attribute(
+                    i..i + 1,
+                    TextAttribute::TextColor(focus_color.clone()),
+                );
+                text_layout = text_layout.range_attribute(
+                    i..i + 1,
+                    TextAttribute::Weight(FontWeight::BOLD),
+                );
+            }
             let text_layout = text_layout.build().unwrap();
             ctx.draw_text(
                 &text_layout,
@@ -363,6 +434,7 @@ impl PaletteViewData {
         palette.input = "".to_string();
         palette.cursor = 0;
         palette.index = 0;
+        palette.palette_type = PaletteType::File;
         palette.items.clear();
         palette.filtered_items.clear();
         ctx.submit_command(Command::new(
