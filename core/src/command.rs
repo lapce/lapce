@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
-use lsp_types::{CompletionItem, CompletionResponse, Location, TextEdit};
+use lsp_types::{CompletionItem, CompletionResponse, Location, Range, TextEdit};
 use serde_json::Value;
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
@@ -255,5 +255,6 @@ pub enum LapceUICommand {
     SplitExchange,
     SplitClose,
     SplitMove(SplitMoveDirection),
+    JumpToPosition(Range),
     GotoLocation(Location),
 }

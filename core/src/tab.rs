@@ -100,6 +100,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.main_split.open_file(ctx, path);
                         ctx.set_handled();
                     }
+                    LapceUICommand::JumpToPosition(range) => {
+                        data.main_split.jump_to_position(ctx, &range.start);
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateSemanticTokens(id, rev, tokens) => {
                         if let Some(buffer) = data.main_split.buffers.get(id) {
                             if buffer.rev == *rev {

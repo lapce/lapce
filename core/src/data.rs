@@ -18,7 +18,7 @@ use druid::{
     WidgetId, WindowId,
 };
 use im;
-use lsp_types::{CompletionItem, CompletionResponse, CompletionTextEdit};
+use lsp_types::{CompletionItem, CompletionResponse, CompletionTextEdit, Position};
 use parking_lot::Mutex;
 use serde_json::Value;
 use tree_sitter_highlight::{Highlight, HighlightEvent, Highlighter};
@@ -535,6 +535,23 @@ impl LapceMainSplitData {
         Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
     }
 
+    pub fn jump_to_position(&mut self, ctx: &mut EventCtx, position: &Position) {
+        let buffer = self
+            .buffers
+            .get(self.open_files.get(&self.active_editor().buffer).unwrap())
+            .unwrap();
+        let offset = buffer.offset_of_position(position);
+
+        let editor = self.active_editor_mut();
+        editor.cursor = Cursor::new(CursorMode::Normal(offset), None);
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::EnsureCursorCenter,
+            Target::Widget(editor.container_id),
+        ));
+    }
+
     pub fn open_file(&mut self, ctx: &mut EventCtx, path: &PathBuf) {
         let (cursor_offset, scroll_offset) = if let Some(buffer_id) =
             self.open_files.get(path)
@@ -783,8 +800,8 @@ impl LapceEditorViewData {
                 .iter()
                 .map(|edit| {
                     let selection = Selection::region(
-                        self.buffer.offset_of_position(edit.range.start),
-                        self.buffer.offset_of_position(edit.range.end),
+                        self.buffer.offset_of_position(&edit.range.start),
+                        self.buffer.offset_of_position(&edit.range.end),
                     );
                     (selection, edit.new_text.clone())
                 })
@@ -807,8 +824,8 @@ impl LapceEditorViewData {
                     let start_offset = self.buffer.prev_code_boundary(offset);
                     let end_offset = self.buffer.next_code_boundary(offset);
                     let edit_start =
-                        self.buffer.offset_of_position(edit.range.start);
-                    let edit_end = self.buffer.offset_of_position(edit.range.end);
+                        self.buffer.offset_of_position(&edit.range.start);
+                    let edit_end = self.buffer.offset_of_position(&edit.range.end);
                     let selection = Selection::region(
                         start_offset.min(edit_start),
                         end_offset.max(edit_end),

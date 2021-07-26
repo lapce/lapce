@@ -119,7 +119,13 @@ impl PaletteItemContent {
                 name,
                 range,
                 container_name,
-            } => todo!(),
+            } => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::JumpToPosition(range.clone()),
+                    Target::Auto,
+                ));
+            }
         }
     }
 

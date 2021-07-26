@@ -493,7 +493,7 @@ impl BufferNew {
         }
     }
 
-    pub fn offset_of_position(&self, pos: Position) -> usize {
+    pub fn offset_of_position(&self, pos: &Position) -> usize {
         self.offset_of_line_col(pos.line as usize, pos.character as usize)
     }
 
