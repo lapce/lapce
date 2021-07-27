@@ -208,10 +208,13 @@ impl LapceTabData {
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let proxy = Arc::new(LapceProxy::new(tab_id));
-        let main_split =
-            LapceMainSplitData::new(update_sender.clone(), proxy.clone());
-        let completion = Arc::new(CompletionData::new());
         let palette = Arc::new(PaletteData::new(proxy.clone()));
+        let main_split = LapceMainSplitData::new(
+            palette.preview_editor,
+            update_sender.clone(),
+            proxy.clone(),
+        );
+        let completion = Arc::new(CompletionData::new());
         Self {
             id: tab_id,
             workspace: Arc::new(LapceWorkspace {
@@ -581,13 +584,14 @@ impl LapceMainSplitData {
 
 impl LapceMainSplitData {
     pub fn new(
+        palette_preview_editor: WidgetId,
         update_sender: Arc<Sender<UpdateEvent>>,
         proxy: Arc<LapceProxy>,
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
         let path = PathBuf::from("/Users/Lulu/lapce/core/src/editor.rs");
-        let editor = LapceEditorData::new(*split_id, path.clone());
+        let editor = LapceEditorData::new(None, *split_id, path.clone());
         let view_id = editor.view_id;
         editors.insert(editor.view_id, Arc::new(editor));
         let buffer = BufferNew::new(path.clone(), update_sender.clone());
@@ -595,6 +599,18 @@ impl LapceMainSplitData {
         open_files.insert(path.clone(), buffer.id);
         let mut buffers = im::HashMap::new();
         buffers.insert(buffer.id, Arc::new(buffer));
+
+        let path = PathBuf::from("[Palette Preview Editor]");
+        let editor = LapceEditorData::new(
+            Some(palette_preview_editor),
+            *split_id,
+            path.clone(),
+        );
+        editors.insert(editor.view_id, Arc::new(editor));
+        let buffer = BufferNew::new(path.clone(), update_sender.clone());
+        open_files.insert(path.clone(), buffer.id);
+        buffers.insert(buffer.id, Arc::new(buffer));
+
         Self {
             split_id,
             editors,
@@ -623,10 +639,14 @@ pub struct LapceEditorData {
 }
 
 impl LapceEditorData {
-    pub fn new(split_id: WidgetId, buffer: PathBuf) -> Self {
+    pub fn new(
+        view_id: Option<WidgetId>,
+        split_id: WidgetId,
+        buffer: PathBuf,
+    ) -> Self {
         Self {
             split_id,
-            view_id: WidgetId::next(),
+            view_id: view_id.unwrap_or(WidgetId::next()),
             container_id: WidgetId::next(),
             editor_id: WidgetId::next(),
             buffer,
@@ -1323,11 +1343,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         f: F,
     ) -> V {
         let main_split = &data.main_split;
-        let editor = if self.0 == data.palette.preview_editor.view_id {
-            &data.palette.preview_editor
-        } else {
-            main_split.editors.get(&self.0).unwrap()
-        };
+        let editor = main_split.editors.get(&self.0).unwrap();
         let editor_view = LapceEditorViewData {
             buffer: main_split
                 .buffers
@@ -1351,11 +1367,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         f: F,
     ) -> V {
         let main_split = &data.main_split;
-        let editor = if self.0 == data.palette.preview_editor.view_id {
-            data.palette.preview_editor.clone()
-        } else {
-            main_split.editors.get(&self.0).unwrap().clone()
-        };
+        let editor = main_split.editors.get(&self.0).unwrap().clone();
         let buffer_id = *data.main_split.open_files.get(&editor.buffer).unwrap();
         let mut editor_view = LapceEditorViewData {
             buffer: data.main_split.buffers.get(&buffer_id).unwrap().clone(),
@@ -1374,15 +1386,10 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         data.palette = editor_view.palette.palette.clone();
         data.main_split = editor_view.main_split.clone();
         data.theme = editor_view.theme.clone();
-        if self.0 == data.palette.preview_editor.view_id {
-            Arc::make_mut(&mut data.palette).preview_editor =
-                editor_view.editor.clone();
-        } else {
-            if !editor.same(&editor_view.editor) {
-                data.main_split
-                    .editors
-                    .insert(self.0, editor_view.editor.clone());
-            }
+        if !editor.same(&editor_view.editor) {
+            data.main_split
+                .editors
+                .insert(self.0, editor_view.editor.clone());
         }
         if !data
             .main_split

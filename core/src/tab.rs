@@ -27,7 +27,7 @@ pub struct LapceTabNew {
 
 impl LapceTabNew {
     pub fn new(data: &LapceTabData) -> Self {
-        let editor = data.main_split.editors.iter().next().unwrap().1;
+        let editor = data.main_split.active_editor();
         let main_split = LapceSplitNew::new(*data.main_split.split_id)
             .with_flex_child(
                 LapceEditorView::new(
@@ -40,7 +40,13 @@ impl LapceTabNew {
                 1.0,
             );
         let completion = CompletionContainer::new(&data.completion);
-        let palette = NewPalette::new(&data.palette);
+        let palette = NewPalette::new(
+            &data.palette,
+            data.main_split
+                .editors
+                .get(&data.palette.preview_editor)
+                .unwrap(),
+        );
 
         Self {
             id: data.id,

@@ -331,7 +331,7 @@ pub struct PaletteData {
     index: usize,
     items: Vec<NewPaletteItem>,
     filtered_items: Vec<NewPaletteItem>,
-    pub preview_editor: Arc<LapceEditorData>,
+    pub preview_editor: WidgetId,
 }
 
 impl KeyPressFocus for PaletteViewData {
@@ -389,10 +389,7 @@ impl PaletteData {
     pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let (sender, receiver) = unbounded();
         let widget_id = WidgetId::next();
-        let preview_editor = Arc::new(LapceEditorData::new(
-            WidgetId::next(),
-            PathBuf::from("[No Name]"),
-        ));
+        let preview_editor = WidgetId::next();
         Self {
             widget_id,
             status: PaletteStatus::Inactive,
@@ -1574,8 +1571,8 @@ pub struct NewPalette {
 }
 
 impl NewPalette {
-    pub fn new(data: &PaletteData) -> Self {
-        let container = PaletteContainer::new(data);
+    pub fn new(data: &PaletteData, preview_editor: &LapceEditorData) -> Self {
+        let container = PaletteContainer::new(data, preview_editor);
         Self {
             widget_id: data.widget_id,
             container: WidgetPod::new(container).boxed(),
@@ -1719,7 +1716,7 @@ pub struct PaletteContainer {
 }
 
 impl PaletteContainer {
-    pub fn new(data: &PaletteData) -> Self {
+    pub fn new(data: &PaletteData, preview_editor: &LapceEditorData) -> Self {
         let padding = 6.0;
         let input = NewPaletteInput::new()
             .padding((padding, padding, padding, padding * 2.0))
@@ -1731,11 +1728,11 @@ impl PaletteContainer {
         )
         .vertical();
         let preview = LapceEditorContainer::new(
-            data.preview_editor.view_id,
-            data.preview_editor.container_id,
-            data.preview_editor.editor_id,
+            preview_editor.view_id,
+            preview_editor.container_id,
+            preview_editor.editor_id,
         )
-        .lens(LapceEditorLens(data.preview_editor.view_id));
+        .lens(LapceEditorLens(data.preview_editor));
         Self {
             content_size: Size::ZERO,
             input: WidgetPod::new(input.boxed()),

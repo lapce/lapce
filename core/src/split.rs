@@ -227,7 +227,7 @@ impl LapceSplitNew {
 
         let from_editor = data.main_split.editors.get(&view_id).unwrap();
         let mut editor_data =
-            LapceEditorData::new(self.split_id, from_editor.buffer.clone());
+            LapceEditorData::new(None, self.split_id, from_editor.buffer.clone());
         editor_data.cursor = from_editor.cursor.clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
