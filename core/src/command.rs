@@ -258,5 +258,6 @@ pub enum LapceUICommand {
     SplitMove(SplitMoveDirection),
     JumpToPosition(EditorKind, Range),
     JumpToLine(EditorKind, usize),
+    JumpToLocation(EditorKind, Location),
     GotoLocation(Location),
 }

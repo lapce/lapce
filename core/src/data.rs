@@ -18,7 +18,10 @@ use druid::{
     WidgetId, WindowId,
 };
 use im;
-use lsp_types::{CompletionItem, CompletionResponse, CompletionTextEdit, Position};
+use lsp_types::{
+    CompletionItem, CompletionResponse, CompletionTextEdit, GotoDefinitionResponse,
+    Position,
+};
 use parking_lot::Mutex;
 use serde_json::Value;
 use tree_sitter_highlight::{Highlight, HighlightEvent, Highlighter};
@@ -1973,6 +1976,52 @@ impl KeyPressFocus for LapceEditorViewData {
                 cursor.horiz = None;
                 Arc::make_mut(&mut self.editor).snippet = None;
                 self.cancel_completion();
+            }
+            LapceCommand::GotoDefinition => {
+                let offset = self.editor.cursor.offset();
+                let start_offset = self.buffer.prev_code_boundary(offset);
+                let start_position = self.buffer.offset_to_position(start_offset);
+                let event_sink = ctx.get_external_handle();
+                self.proxy.get_definition(
+                    offset,
+                    self.buffer.id,
+                    self.buffer.offset_to_position(offset),
+                    Box::new(move |result| {
+                        if let Ok(res) = result {
+                            if let Ok(resp) =
+                                serde_json::from_value::<GotoDefinitionResponse>(res)
+                            {
+                                if let Some(location) = match resp {
+                                    GotoDefinitionResponse::Scalar(location) => {
+                                        Some(location)
+                                    }
+                                    GotoDefinitionResponse::Array(locations) => {
+                                        if locations.len() > 0 {
+                                            Some(locations[0].clone())
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    GotoDefinitionResponse::Link(location_links) => {
+                                        None
+                                    }
+                                } {
+                                    if location.range.start == start_position {
+                                    } else {
+                                        event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::JumpToLocation(
+                                                EditorKind::SplitActive,
+                                                location,
+                                            ),
+                                            Target::Auto,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }),
+                );
             }
             LapceCommand::Palette => {
                 ctx.submit_command(Command::new(
