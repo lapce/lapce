@@ -632,6 +632,9 @@ impl Movement {
         count: usize,
         recursive: bool,
     ) -> usize {
+        if len == 0 {
+            return 0;
+        }
         match self {
             Movement::Up => {
                 format_index(index as i64 - count as i64, len, recursive)

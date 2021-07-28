@@ -12,8 +12,9 @@ use xi_rope::spans::Spans;
 use crate::{
     buffer::BufferId,
     buffer::{InvalLines, Style},
+    data::EditorKind,
     editor::{EditorLocation, HighlightTextLayout},
-    palette::NewPaletteItem,
+    palette::{NewPaletteItem, PaletteType},
     split::SplitMoveDirection,
 };
 
@@ -211,7 +212,7 @@ pub enum LapceUICommand {
     ResolveCompletion(BufferId, u64, usize, CompletionItem),
     UpdateCompletion(usize, String, CompletionResponse),
     CancelPalette,
-    RunPalette,
+    RunPalette(Option<PaletteType>),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateWindowOrigin,
@@ -255,6 +256,7 @@ pub enum LapceUICommand {
     SplitExchange,
     SplitClose,
     SplitMove(SplitMoveDirection),
-    JumpToPosition(Range),
+    JumpToPosition(EditorKind, Range),
+    JumpToLine(EditorKind, usize),
     GotoLocation(Location),
 }

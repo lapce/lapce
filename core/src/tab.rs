@@ -106,8 +106,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.main_split.open_file(ctx, path);
                         ctx.set_handled();
                     }
-                    LapceUICommand::JumpToPosition(range) => {
-                        data.main_split.jump_to_position(ctx, &range.start);
+                    LapceUICommand::JumpToPosition(kind, range) => {
+                        data.main_split.jump_to_position(ctx, kind, &range.start);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::JumpToLine(kind, line) => {
+                        data.main_split.jump_to_line(ctx, kind, *line);
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSemanticTokens(id, rev, tokens) => {

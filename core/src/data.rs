@@ -500,6 +500,12 @@ impl Register {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum EditorKind {
+    PalettePreview,
+    SplitActive,
+}
+
 #[derive(Clone, Data, Lens)]
 pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
@@ -510,6 +516,7 @@ pub struct LapceMainSplitData {
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
+    pub palette_preview_editor: Arc<WidgetId>,
 }
 
 impl LapceMainSplitData {
@@ -530,6 +537,26 @@ impl LapceMainSplitData {
         }
     }
 
+    pub fn editor_kind(&self, kind: &EditorKind) -> &LapceEditorData {
+        match kind {
+            EditorKind::PalettePreview => {
+                self.editors.get(&self.palette_preview_editor).unwrap()
+            }
+            EditorKind::SplitActive => self.editors.get(&self.active).unwrap(),
+        }
+    }
+
+    pub fn editor_kind_mut(&mut self, kind: &EditorKind) -> &mut LapceEditorData {
+        match kind {
+            EditorKind::PalettePreview => Arc::make_mut(
+                self.editors.get_mut(&self.palette_preview_editor).unwrap(),
+            ),
+            EditorKind::SplitActive => {
+                Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
+            }
+        }
+    }
+
     pub fn active_editor(&self) -> &LapceEditorData {
         self.editors.get(&self.active).unwrap()
     }
@@ -538,14 +565,45 @@ impl LapceMainSplitData {
         Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
     }
 
-    pub fn jump_to_position(&mut self, ctx: &mut EventCtx, position: &Position) {
+    pub fn jump_to_position(
+        &mut self,
+        ctx: &mut EventCtx,
+        kind: &EditorKind,
+        position: &Position,
+    ) {
         let buffer = self
             .buffers
-            .get(self.open_files.get(&self.active_editor().buffer).unwrap())
+            .get(self.open_files.get(&self.editor_kind(kind).buffer).unwrap())
             .unwrap();
         let offset = buffer.offset_of_position(position);
 
-        let editor = self.active_editor_mut();
+        let editor = self.editor_kind_mut(kind);
+        editor.cursor = Cursor::new(CursorMode::Normal(offset), None);
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::EnsureCursorCenter,
+            Target::Widget(editor.container_id),
+        ));
+    }
+
+    pub fn jump_to_line(
+        &mut self,
+        ctx: &mut EventCtx,
+        kind: &EditorKind,
+        line: usize,
+    ) {
+        let buffer = self
+            .buffers
+            .get(self.open_files.get(&self.editor_kind(kind).buffer).unwrap())
+            .unwrap();
+        let offset = buffer.first_non_blank_character_on_line(if line > 0 {
+            line - 1
+        } else {
+            0
+        });
+
+        let editor = self.editor_kind_mut(kind);
         editor.cursor = Cursor::new(CursorMode::Normal(offset), None);
 
         ctx.submit_command(Command::new(
@@ -607,7 +665,8 @@ impl LapceMainSplitData {
             path.clone(),
         );
         editors.insert(editor.view_id, Arc::new(editor));
-        let buffer = BufferNew::new(path.clone(), update_sender.clone());
+        let mut buffer = BufferNew::new(path.clone(), update_sender.clone());
+        buffer.loaded = true;
         open_files.insert(path.clone(), buffer.id);
         buffers.insert(buffer.id, Arc::new(buffer));
 
@@ -620,6 +679,7 @@ impl LapceMainSplitData {
             update_sender,
             register: Arc::new(Register::default()),
             proxy,
+            palette_preview_editor: Arc::new(palette_preview_editor),
         }
     }
 }
@@ -694,7 +754,7 @@ pub struct LapceEditorViewData {
     pub buffer: Arc<BufferNew>,
     pub keypress: Arc<KeyPressData>,
     pub completion: Arc<CompletionData>,
-    pub palette: PaletteViewData,
+    pub palette: Arc<WidgetId>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
 }
 
@@ -1354,7 +1414,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             main_split: main_split.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
-            palette: data.palette_view_data(),
+            palette: Arc::new(data.palette.widget_id),
             theme: data.theme.clone(),
             proxy: data.proxy.clone(),
         };
@@ -1375,7 +1435,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
-            palette: data.palette_view_data(),
+            palette: Arc::new(data.palette.widget_id),
             theme: data.theme.clone(),
             proxy: data.proxy.clone(),
         };
@@ -1383,7 +1443,6 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
 
         data.keypress = editor_view.keypress.clone();
         data.completion = editor_view.completion.clone();
-        data.palette = editor_view.palette.palette.clone();
         data.main_split = editor_view.main_split.clone();
         data.theme = editor_view.theme.clone();
         if !editor.same(&editor_view.editor) {
@@ -1916,10 +1975,25 @@ impl KeyPressFocus for LapceEditorViewData {
                 self.cancel_completion();
             }
             LapceCommand::Palette => {
-                self.palette.run(ctx, None);
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(None),
+                    Target::Widget(*self.palette),
+                ));
             }
             LapceCommand::PaletteSymbol => {
-                self.palette.run(ctx, Some(PaletteType::DocumentSymbol));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::DocumentSymbol)),
+                    Target::Widget(*self.palette),
+                ));
+            }
+            LapceCommand::PaletteLine => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::Line)),
+                    Target::Widget(*self.palette),
+                ));
             }
             _ => (),
         }

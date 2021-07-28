@@ -496,6 +496,10 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        let rects = ctx.region().rects().to_vec();
+        for rect in &rects {
+            ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+        }
         self.gutter.paint(ctx, data, env);
         self.editor.paint(ctx, data, env);
     }
