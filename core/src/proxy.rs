@@ -576,7 +576,13 @@ impl Handler for ProxyHandlerNew {
                 buffer_id,
                 new_content,
                 rev,
-            } => {}
+            } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
+                    Target::Widget(self.tab_id),
+                );
+            }
             Notification::PublishDiagnostics { diagnostics } => {}
             Notification::ListDir { items } => {}
             Notification::DiffFiles { files } => {}

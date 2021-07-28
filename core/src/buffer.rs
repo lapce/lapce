@@ -211,7 +211,7 @@ pub struct BufferNew {
 
 impl BufferNew {
     pub fn new(path: PathBuf, update_sender: Arc<Sender<UpdateEvent>>) -> Self {
-        let rope = Rope::from_str("").unwrap();
+        let rope = Rope::from("");
         let mut buffer = Self {
             id: BufferId::next(),
             rope,
@@ -256,7 +256,25 @@ impl BufferNew {
         buffer
     }
 
+    pub fn reset_revs(&mut self) {
+        self.rope = Rope::from("");
+        self.revs = vec![Revision {
+            max_undo_so_far: 0,
+            edit: Contents::Undo {
+                toggled_groups: BTreeSet::new(),
+                deletes_bitxor: Subset::new(0),
+            },
+        }];
+        self.cur_undo = 1;
+        self.undo_group_id = 1;
+        self.live_undos = vec![0];
+        self.deletes_from_union = Subset::new(0);
+        self.undone_groups = BTreeSet::new();
+        self.tombstones = Rope::default();
+    }
+
     pub fn load_content(&mut self, content: &str) {
+        self.reset_revs();
         let delta = Delta::simple_edit(Interval::new(0, 0), Rope::from(content), 0);
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(0, delta.clone());

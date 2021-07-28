@@ -114,6 +114,16 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.main_split.jump_to_line(ctx, kind, *line);
                         ctx.set_handled();
                     }
+                    LapceUICommand::ReloadBuffer(id, rev, new_content) => {
+                        let buffer = data.main_split.buffers.get_mut(id).unwrap();
+                        if buffer.rev + 1 == *rev {
+                            let buffer = Arc::make_mut(buffer);
+                            buffer.load_content(new_content);
+                            buffer.rev = *rev;
+                            data.main_split.notify_update_text_layouts(ctx, id);
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateSemanticTokens(id, rev, tokens) => {
                         if let Some(buffer) = data.main_split.buffers.get(id) {
                             if buffer.rev == *rev {
