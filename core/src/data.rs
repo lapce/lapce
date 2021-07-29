@@ -659,15 +659,8 @@ impl LapceMainSplitData {
         } else {
             0
         });
-
-        let editor = self.editor_kind_mut(kind);
-        editor.cursor = Cursor::new(CursorMode::Normal(offset), None);
-
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::EnsureCursorCenter,
-            Target::Widget(editor.container_id),
-        ));
+        let position = buffer.offset_to_position(offset);
+        self.jump_to_position(ctx, kind, position);
     }
 
     pub fn open_file(&mut self, ctx: &mut EventCtx, path: &PathBuf) {
