@@ -325,25 +325,24 @@ impl BufferNew {
         });
     }
 
-    pub fn retrieve_file_and_jump_to_location(
+    pub fn retrieve_file_and_go_to_location(
         &self,
         proxy: Arc<LapceProxy>,
         event_sink: ExtEventSink,
-        kind: &EditorKind,
+        editor_view_id: WidgetId,
         location: EditorLocationNew,
     ) {
         let id = self.id;
         let path = self.path.clone();
-        let kind = kind.clone();
         thread::spawn(move || {
             let content = { proxy.new_buffer(id, path.clone()).unwrap() };
             println!("load file got content");
             event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::LoadBufferAndJumpToPosition {
+                LapceUICommand::LoadBufferAndGoToPosition {
                     path,
                     content,
-                    kind,
+                    editor_view_id,
                     location,
                 },
                 Target::Auto,

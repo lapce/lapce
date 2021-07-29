@@ -587,7 +587,21 @@ impl LapceMainSplitData {
         kind: &EditorKind,
         location: EditorLocationNew,
     ) {
-        let editor = self.editor_kind(kind);
+        let path = self.editor_kind(kind).buffer.clone();
+        let buffer = self.open_files.get(&path).unwrap().clone();
+        let editor = self.editor_kind_mut(kind);
+        editor.save_jump_location(&buffer);
+        let editor_view_id = editor.view_id;
+        self.go_to_location(ctx, editor_view_id, location);
+    }
+
+    pub fn go_to_location(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_view_id: WidgetId,
+        location: EditorLocationNew,
+    ) {
+        let editor = Arc::make_mut(self.editors.get_mut(&editor_view_id).unwrap());
         let new_buffer = editor.buffer != location.path;
         let path = location.path.clone();
         let buffer_exists = self.open_files.contains_key(&path);
@@ -595,32 +609,40 @@ impl LapceMainSplitData {
             let buffer =
                 Arc::new(BufferNew::new(path.clone(), self.update_sender.clone()));
             self.open_files.insert(path.clone(), buffer.clone());
-            buffer.retrieve_file_and_jump_to_location(
+            buffer.retrieve_file_and_go_to_location(
                 self.proxy.clone(),
                 ctx.get_external_handle(),
-                kind,
+                editor.view_id,
                 location,
             );
         } else {
             let buffer = self.open_files.get(&path).unwrap();
             let offset = buffer.offset_of_position(&location.position);
-            let editor = self.editor_kind_mut(kind);
             editor.buffer = path.clone();
             editor.cursor = Cursor::new(CursorMode::Normal(offset), None);
-            if new_buffer {
+
+            if let Some(scroll_offset) = location.scroll_offset {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::EnsureCursorCenter,
+                    LapceUICommand::ForceScrollTo(scroll_offset.x, scroll_offset.y),
                     Target::Widget(editor.container_id),
                 ));
             } else {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::EnsureCursorVisible(Some(
-                        EnsureVisiblePosition::CenterOfWindow,
-                    )),
-                    Target::Widget(editor.container_id),
-                ));
+                if new_buffer {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EnsureCursorCenter,
+                        Target::Widget(editor.container_id),
+                    ));
+                } else {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EnsureCursorVisible(Some(
+                            EnsureVisiblePosition::CenterOfWindow,
+                        )),
+                        Target::Widget(editor.container_id),
+                    ));
+                }
             }
         }
     }
@@ -726,6 +748,9 @@ pub struct LapceEditorData {
     pub size: Size,
     pub window_origin: Point,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
+    pub locations: Vec<EditorLocationNew>,
+    pub current_location: usize,
+    last_movement: Movement,
 }
 
 impl LapceEditorData {
@@ -745,6 +770,9 @@ impl LapceEditorData {
             size: Size::ZERO,
             window_origin: Point::ZERO,
             snippet: None,
+            locations: vec![],
+            current_location: 0,
+            last_movement: Movement::Left,
         }
     }
 
@@ -773,6 +801,16 @@ impl LapceEditorData {
         let v = placeholders.split_off(current);
         placeholders.extend_from_slice(&new_placeholders);
         placeholders.extend_from_slice(&v[1..]);
+    }
+
+    pub fn save_jump_location(&mut self, buffer: &BufferNew) {
+        let location = EditorLocationNew {
+            path: buffer.path.clone(),
+            position: buffer.offset_to_position(self.cursor.offset()),
+            scroll_offset: Some(self.scroll_offset.clone()),
+        };
+        self.locations.push(location);
+        self.current_location = self.locations.len();
     }
 }
 
@@ -1073,7 +1111,56 @@ impl LapceEditorViewData {
         ));
     }
 
+    pub fn jump_location_forward(
+        &mut self,
+        ctx: &mut EventCtx,
+        env: &Env,
+    ) -> Option<()> {
+        if self.editor.current_location >= self.editor.locations.len() - 1 {
+            return None;
+        }
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.current_location += 1;
+        let location = editor.locations[editor.current_location].clone();
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::GoToLocationNew(editor.view_id, location),
+            Target::Auto,
+        ));
+        None
+    }
+
+    pub fn jump_location_backward(
+        &mut self,
+        ctx: &mut EventCtx,
+        env: &Env,
+    ) -> Option<()> {
+        if self.editor.current_location < 1 {
+            return None;
+        }
+        if self.editor.current_location >= self.editor.locations.len() {
+            let editor = Arc::make_mut(&mut self.editor);
+            editor.save_jump_location(&self.buffer);
+            editor.current_location -= 1;
+        }
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.current_location -= 1;
+        let location = editor.locations[editor.current_location].clone();
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::GoToLocationNew(editor.view_id, location),
+            Target::Auto,
+        ));
+        None
+    }
+
     pub fn do_move(&mut self, movement: &Movement, count: usize) {
+        if movement.is_jump() && movement != &self.editor.last_movement {
+            let editor = Arc::make_mut(&mut self.editor);
+            editor.save_jump_location(&self.buffer);
+        }
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.last_movement = movement.clone();
         match &self.editor.cursor.mode {
             &CursorMode::Normal(offset) => {
                 let (new_offset, horiz) = self.buffer.move_offset(
@@ -1859,6 +1946,12 @@ impl KeyPressFocus for LapceEditorViewData {
             }
             LapceCommand::PageUp => {
                 self.page_move(ctx, false, env);
+            }
+            LapceCommand::JumpLocationBackward => {
+                self.jump_location_backward(ctx, env);
+            }
+            LapceCommand::JumpLocationForward => {
+                self.jump_location_forward(ctx, env);
             }
             LapceCommand::ListNext => {
                 let completion = Arc::make_mut(&mut self.completion);

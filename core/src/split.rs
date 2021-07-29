@@ -229,6 +229,7 @@ impl LapceSplitNew {
         let mut editor_data =
             LapceEditorData::new(None, self.split_id, from_editor.buffer.clone());
         editor_data.cursor = from_editor.cursor.clone();
+        editor_data.locations = from_editor.locations.clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ForceScrollTo(

@@ -103,25 +103,33 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.main_split.notify_update_text_layouts(ctx, path);
                         ctx.set_handled();
                     }
-                    LapceUICommand::LoadBufferAndJumpToPosition {
+                    LapceUICommand::LoadBufferAndGoToPosition {
                         path,
                         content,
-                        kind,
+                        editor_view_id,
                         location,
                     } => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).load_content(content);
                         data.main_split.notify_update_text_layouts(ctx, path);
-                        data.main_split.jump_to_location(
+                        data.main_split.go_to_location(
                             ctx,
-                            kind,
+                            *editor_view_id,
                             location.clone(),
                         );
                         ctx.set_handled();
                     }
                     LapceUICommand::OpenFile(path) => {
                         data.main_split.open_file(ctx, path);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::GoToLocationNew(editor_view_id, location) => {
+                        data.main_split.go_to_location(
+                            ctx,
+                            *editor_view_id,
+                            location.clone(),
+                        );
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToPosition(kind, position) => {

@@ -208,10 +208,10 @@ pub enum LapceUICommand {
         path: PathBuf,
         content: String,
     },
-    LoadBufferAndJumpToPosition {
+    LoadBufferAndGoToPosition {
         path: PathBuf,
         content: String,
-        kind: EditorKind,
+        editor_view_id: WidgetId,
         location: EditorLocationNew,
     },
     OpenFile(PathBuf),
@@ -269,6 +269,7 @@ pub enum LapceUICommand {
     JumpToPosition(EditorKind, Position),
     JumpToLine(EditorKind, usize),
     JumpToLocation(EditorKind, EditorLocationNew),
+    GoToLocationNew(WidgetId, EditorLocationNew),
     GotoReference(usize, EditorLocationNew),
     GotoDefinition(usize, EditorLocationNew),
     PaletteReferences(usize, Vec<Location>),

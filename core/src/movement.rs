@@ -553,14 +553,14 @@ impl Selection {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum LinePosition {
     First,
     Last,
     Line(usize),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Movement {
     Left,
     Right,
