@@ -103,6 +103,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.main_split.notify_update_text_layouts(ctx, path);
                         ctx.set_handled();
                     }
+                    LapceUICommand::PublishDiagnostics(diagnostics) => {
+                        let path = PathBuf::from(diagnostics.uri.path());
+                        data.diagnostics
+                            .insert(path, Arc::new(diagnostics.diagnostics.clone()));
+                        ctx.set_handled();
+                    }
                     LapceUICommand::LoadBufferAndGoToPosition {
                         path,
                         content,

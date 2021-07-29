@@ -579,7 +579,13 @@ impl Handler for ProxyHandlerNew {
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::PublishDiagnostics { diagnostics } => {}
+            Notification::PublishDiagnostics { diagnostics } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::PublishDiagnostics(diagnostics),
+                    Target::Widget(self.tab_id),
+                );
+            }
             Notification::ListDir { items } => {}
             Notification::DiffFiles { files } => {}
         }

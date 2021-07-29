@@ -3,7 +3,8 @@ use std::{collections::HashMap, path::PathBuf};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
 use lsp_types::{
-    CompletionItem, CompletionResponse, Location, Position, Range, TextEdit,
+    CompletionItem, CompletionResponse, Location, Position,
+    PublishDiagnosticsParams, Range, TextEdit,
 };
 use serde_json::Value;
 use strum;
@@ -249,6 +250,7 @@ pub enum LapceUICommand {
     },
     CenterOfWindow,
     UpdateLineChanges(BufferId),
+    PublishDiagnostics(PublishDiagnosticsParams),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),

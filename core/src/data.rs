@@ -19,8 +19,8 @@ use druid::{
 };
 use im;
 use lsp_types::{
-    CompletionItem, CompletionResponse, CompletionTextEdit, GotoDefinitionResponse,
-    Location, Position,
+    CompletionItem, CompletionResponse, CompletionTextEdit, Diagnostic,
+    GotoDefinitionResponse, Location, Position,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -189,6 +189,7 @@ pub struct LapceTabData {
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<PaletteData>,
+    pub diagnostics: im::HashMap<PathBuf, Arc<Vec<Diagnostic>>>,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
@@ -202,6 +203,7 @@ impl Data for LapceTabData {
         self.main_split.same(&other.main_split)
             && self.completion.same(&other.completion)
             && self.palette.same(&other.palette)
+            && self.diagnostics.same(&other.diagnostics)
     }
 }
 
@@ -231,6 +233,7 @@ impl LapceTabData {
             completion,
             palette,
             proxy,
+            diagnostics: im::HashMap::new(),
             keypress,
             theme,
             update_sender,
@@ -813,6 +816,7 @@ pub struct LapceEditorViewData {
     pub proxy: Arc<LapceProxy>,
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,
+    pub diagnostics: Arc<Vec<Diagnostic>>,
     pub keypress: Arc<KeyPressData>,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<WidgetId>,
@@ -1513,10 +1517,16 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
     ) -> V {
         let main_split = &data.main_split;
         let editor = main_split.editors.get(&self.0).unwrap();
+        let diagnostics = data
+            .diagnostics
+            .get(&editor.buffer)
+            .unwrap_or(&Arc::new(vec![]))
+            .clone();
         let editor_view = LapceEditorViewData {
             buffer: main_split.open_files.get(&editor.buffer).unwrap().clone(),
             editor: editor.clone(),
             main_split: main_split.clone(),
+            diagnostics,
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
             palette: Arc::new(data.palette.widget_id),
@@ -1533,9 +1543,16 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
     ) -> V {
         let main_split = &data.main_split;
         let editor = main_split.editors.get(&self.0).unwrap().clone();
+        let buffer = main_split.open_files.get(&editor.buffer).unwrap().clone();
+        let diagnostics = data
+            .diagnostics
+            .get(&editor.buffer)
+            .unwrap_or(&Arc::new(vec![]))
+            .clone();
         let mut editor_view = LapceEditorViewData {
-            buffer: main_split.open_files.get(&editor.buffer).unwrap().clone(),
+            buffer,
             editor: editor.clone(),
+            diagnostics,
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
