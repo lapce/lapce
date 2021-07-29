@@ -133,7 +133,7 @@ impl PaletteItemContent {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::JumpToPosition(
                         EditorKind::SplitActive,
-                        range.clone(),
+                        range.start.clone(),
                     ),
                     Target::Auto,
                 ));
@@ -161,7 +161,7 @@ impl PaletteItemContent {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::JumpToPosition(
                         EditorKind::PalettePreview,
-                        range.clone(),
+                        range.start.clone(),
                     ),
                     Target::Auto,
                 ));
@@ -677,8 +677,7 @@ impl PaletteViewData {
 
     fn get_lines(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
-        let buffer_id = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let buffer = self.main_split.buffers.get(buffer_id).unwrap();
+        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
         let last_line_number = buffer.last_line() + 1;
         let last_line_number_len = last_line_number.to_string().len();
         let palette = Arc::make_mut(&mut self.palette);
@@ -708,12 +707,12 @@ impl PaletteViewData {
     fn get_document_symbols(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
         let widget_id = self.palette.widget_id;
-        let buffer_id = self.main_split.open_files.get(&editor.buffer).unwrap();
+        let buffer_id = self.main_split.open_files.get(&editor.buffer).unwrap().id;
         let run_id = self.palette.run_id.clone();
         let event_sink = ctx.get_external_handle();
 
         self.palette.proxy.get_document_symbols(
-            *buffer_id,
+            buffer_id,
             Box::new(move |result| {
                 if let Ok(res) = result {
                     let resp: Result<DocumentSymbolResponse, serde_json::Error> =

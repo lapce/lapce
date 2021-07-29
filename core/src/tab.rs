@@ -10,7 +10,7 @@ use crate::{
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
-    data::{LapceEditorLens, LapceMainSplitData, LapceTabData},
+    data::{EditorKind, LapceEditorLens, LapceMainSplitData, LapceTabData},
     editor::LapceEditorView,
     palette::{NewPalette, PaletteViewLens},
     scroll::LapceScrollNew,
@@ -71,7 +71,7 @@ impl Widget<LapceTabData> for LapceTabNew {
     ) {
         match event {
             Event::WindowConnected => {
-                for (_, buffer) in data.main_split.buffers.iter() {
+                for (_, buffer) in data.main_split.open_files.iter() {
                     if !buffer.loaded {
                         buffer.retrieve_file(
                             data.proxy.clone(),
@@ -96,68 +96,112 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::UpdateWindowOrigin => {
                         data.window_origin = ctx.window_origin();
                     }
-                    LapceUICommand::LoadBuffer { id, content } => {
-                        let buffer = data.main_split.buffers.get_mut(id).unwrap();
+                    LapceUICommand::LoadBuffer { path, content } => {
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).load_content(content);
-                        data.main_split.notify_update_text_layouts(ctx, id);
+                        data.main_split.notify_update_text_layouts(ctx, path);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::LoadBufferAndJumpToPosition {
+                        path,
+                        content,
+                        kind,
+                        location,
+                    } => {
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        Arc::make_mut(buffer).load_content(content);
+                        data.main_split.notify_update_text_layouts(ctx, path);
+                        data.main_split.jump_to_location(
+                            ctx,
+                            kind,
+                            location.clone(),
+                        );
                         ctx.set_handled();
                     }
                     LapceUICommand::OpenFile(path) => {
                         data.main_split.open_file(ctx, path);
                         ctx.set_handled();
                     }
-                    LapceUICommand::JumpToPosition(kind, range) => {
-                        data.main_split.jump_to_position(ctx, kind, &range.start);
+                    LapceUICommand::JumpToPosition(kind, position) => {
+                        data.main_split.jump_to_position(ctx, kind, *position);
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToLine(kind, line) => {
                         data.main_split.jump_to_line(ctx, kind, *line);
                         ctx.set_handled();
                     }
+                    LapceUICommand::GotoDefinition(offset, location) => {
+                        if *offset == data.main_split.active_editor().cursor.offset()
+                        {
+                            data.main_split.jump_to_location(
+                                ctx,
+                                &EditorKind::SplitActive,
+                                location.clone(),
+                            );
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::ReloadBuffer(id, rev, new_content) => {
-                        let buffer = data.main_split.buffers.get_mut(id).unwrap();
-                        if buffer.rev + 1 == *rev {
-                            let buffer = Arc::make_mut(buffer);
-                            buffer.load_content(new_content);
-                            buffer.rev = *rev;
-                            data.main_split.notify_update_text_layouts(ctx, id);
+                        for (_, buffer) in data.main_split.open_files.iter_mut() {
+                            if &buffer.id == id {
+                                if buffer.rev + 1 == *rev {
+                                    let buffer = Arc::make_mut(buffer);
+                                    buffer.load_content(new_content);
+                                    buffer.rev = *rev;
+                                    let path = buffer.path.clone();
+                                    data.main_split
+                                        .notify_update_text_layouts(ctx, &path);
+                                }
+                                break;
+                            }
                         }
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSemanticTokens(id, rev, tokens) => {
-                        if let Some(buffer) = data.main_split.buffers.get(id) {
-                            if buffer.rev == *rev {
-                                if let Some(language) = buffer.language.as_ref() {
-                                    data.update_sender.send(
-                                        UpdateEvent::SemanticTokens(
-                                            BufferUpdate {
-                                                id: buffer.id,
-                                                rope: buffer.rope.clone(),
-                                                rev: *rev,
-                                                language: *language,
-                                                highlights: buffer.styles.clone(),
-                                            },
-                                            tokens.to_owned(),
-                                        ),
-                                    );
+                        for (_, buffer) in data.main_split.open_files.iter() {
+                            if &buffer.id == id {
+                                if buffer.rev == *rev {
+                                    if let Some(language) = buffer.language.as_ref()
+                                    {
+                                        data.update_sender.send(
+                                            UpdateEvent::SemanticTokens(
+                                                BufferUpdate {
+                                                    id: buffer.id,
+                                                    path: buffer.path.clone(),
+                                                    rope: buffer.rope.clone(),
+                                                    rev: *rev,
+                                                    language: *language,
+                                                    highlights: buffer
+                                                        .styles
+                                                        .clone(),
+                                                },
+                                                tokens.to_owned(),
+                                            ),
+                                        );
+                                    }
                                 }
                             }
+                            break;
                         }
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateStyle {
                         id,
+                        path,
                         rev,
                         highlights,
                         semantic_tokens,
                     } => {
-                        let buffer = data.main_split.buffers.get_mut(id).unwrap();
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).update_styles(
                             *rev,
                             highlights.to_owned(),
                             *semantic_tokens,
                         );
-                        data.main_split.notify_update_text_layouts(ctx, id);
+                        data.main_split.notify_update_text_layouts(ctx, path);
                         ctx.set_handled();
                     }
                     _ => (),

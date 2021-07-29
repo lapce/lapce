@@ -20,7 +20,7 @@ use druid::{
 use im;
 use lsp_types::{
     CompletionItem, CompletionResponse, CompletionTextEdit, GotoDefinitionResponse,
-    Position,
+    Location, Position,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -36,8 +36,11 @@ use crate::{
         has_unmatched_pair, previous_has_unmatched_pair, Buffer, BufferId,
         BufferNew, BufferState, BufferUpdate, EditType, Style, UpdateEvent,
     },
-    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+    },
     completion::{CompletionData, CompletionStatus, Snippet},
+    editor::EditorLocationNew,
     keypress::{KeyPressData, KeyPressFocus},
     language::new_highlight_config,
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
@@ -240,8 +243,7 @@ impl LapceTabData {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
 
         let editor = self.main_split.active_editor();
-        let buffer_id = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let buffer = self.main_split.buffers.get(&buffer_id).unwrap();
+        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
         let offset = self.completion.offset;
         let (line, col) = buffer.offset_to_line_col(offset);
         let width = 7.6171875;
@@ -407,6 +409,7 @@ impl LapceTabData {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateStyle {
                         id: update.id,
+                        path: update.path,
                         rev: update.rev,
                         highlights,
                         semantic_tokens,
@@ -514,8 +517,8 @@ pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
     pub active: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
-    pub buffers: im::HashMap<BufferId, Arc<BufferNew>>,
-    pub open_files: im::HashMap<PathBuf, BufferId>,
+    // pub buffers: im::HashMap<BufferId, Arc<BufferNew>>,
+    pub open_files: im::HashMap<PathBuf, Arc<BufferNew>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
@@ -523,14 +526,9 @@ pub struct LapceMainSplitData {
 }
 
 impl LapceMainSplitData {
-    pub fn notify_update_text_layouts(
-        &self,
-        ctx: &mut EventCtx,
-        buffer_id: &BufferId,
-    ) {
+    pub fn notify_update_text_layouts(&self, ctx: &mut EventCtx, path: &PathBuf) {
         for (editor_id, editor) in &self.editors {
-            let editor_buffer_id = self.open_files.get(&editor.buffer).unwrap();
-            if editor_buffer_id == buffer_id {
+            if &editor.buffer == path {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::FillTextLayouts,
@@ -572,22 +570,59 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         kind: &EditorKind,
-        position: &Position,
+        position: Position,
     ) {
-        let buffer = self
-            .buffers
-            .get(self.open_files.get(&self.editor_kind(kind).buffer).unwrap())
-            .unwrap();
-        let offset = buffer.offset_of_position(position);
-
         let editor = self.editor_kind_mut(kind);
-        editor.cursor = Cursor::new(CursorMode::Normal(offset), None);
+        let location = EditorLocationNew {
+            path: editor.buffer.clone(),
+            position,
+            scroll_offset: None,
+        };
+        self.jump_to_location(ctx, kind, location);
+    }
 
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::EnsureCursorCenter,
-            Target::Widget(editor.container_id),
-        ));
+    pub fn jump_to_location(
+        &mut self,
+        ctx: &mut EventCtx,
+        kind: &EditorKind,
+        location: EditorLocationNew,
+    ) {
+        let editor = self.editor_kind(kind);
+        let new_buffer = editor.buffer != location.path;
+        let path = location.path.clone();
+        let buffer_exists = self.open_files.contains_key(&path);
+        if !buffer_exists {
+            let buffer =
+                Arc::new(BufferNew::new(path.clone(), self.update_sender.clone()));
+            self.open_files.insert(path.clone(), buffer.clone());
+            buffer.retrieve_file_and_jump_to_location(
+                self.proxy.clone(),
+                ctx.get_external_handle(),
+                kind,
+                location,
+            );
+        } else {
+            let buffer = self.open_files.get(&path).unwrap();
+            let offset = buffer.offset_of_position(&location.position);
+            let editor = self.editor_kind_mut(kind);
+            editor.buffer = path.clone();
+            editor.cursor = Cursor::new(CursorMode::Normal(offset), None);
+            if new_buffer {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureCursorCenter,
+                    Target::Widget(editor.container_id),
+                ));
+            } else {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureCursorVisible(Some(
+                        EnsureVisiblePosition::CenterOfWindow,
+                    )),
+                    Target::Widget(editor.container_id),
+                ));
+            }
+        }
     }
 
     pub fn jump_to_line(
@@ -596,10 +631,7 @@ impl LapceMainSplitData {
         kind: &EditorKind,
         line: usize,
     ) {
-        let buffer = self
-            .buffers
-            .get(self.open_files.get(&self.editor_kind(kind).buffer).unwrap())
-            .unwrap();
+        let buffer = self.open_files.get(&self.editor_kind(kind).buffer).unwrap();
         let offset = buffer.first_non_blank_character_on_line(if line > 0 {
             line - 1
         } else {
@@ -617,16 +649,14 @@ impl LapceMainSplitData {
     }
 
     pub fn open_file(&mut self, ctx: &mut EventCtx, path: &PathBuf) {
-        let (cursor_offset, scroll_offset) = if let Some(buffer_id) =
+        let (cursor_offset, scroll_offset) = if let Some(buffer) =
             self.open_files.get(path)
         {
-            let buffer = self.buffers.get(buffer_id).unwrap();
             (buffer.cursor_offset, buffer.scroll_offset)
         } else {
             let buffer =
                 Arc::new(BufferNew::new(path.clone(), self.update_sender.clone()));
-            self.open_files.insert(path.clone(), buffer.id);
-            self.buffers.insert(buffer.id, buffer.clone());
+            self.open_files.insert(path.clone(), buffer.clone());
             buffer.retrieve_file(self.proxy.clone(), ctx.get_external_handle());
             (0, Vec2::new(0.0, 0.0))
         };
@@ -657,9 +687,7 @@ impl LapceMainSplitData {
         editors.insert(editor.view_id, Arc::new(editor));
         let buffer = BufferNew::new(path.clone(), update_sender.clone());
         let mut open_files = im::HashMap::new();
-        open_files.insert(path.clone(), buffer.id);
-        let mut buffers = im::HashMap::new();
-        buffers.insert(buffer.id, Arc::new(buffer));
+        open_files.insert(path.clone(), Arc::new(buffer));
 
         let path = PathBuf::from("[Palette Preview Editor]");
         let editor = LapceEditorData::new(
@@ -670,13 +698,12 @@ impl LapceMainSplitData {
         editors.insert(editor.view_id, Arc::new(editor));
         let mut buffer = BufferNew::new(path.clone(), update_sender.clone());
         buffer.loaded = true;
-        open_files.insert(path.clone(), buffer.id);
-        buffers.insert(buffer.id, Arc::new(buffer));
+        open_files.insert(path.clone(), Arc::new(buffer));
 
         Self {
             split_id,
             editors,
-            buffers,
+            // buffers,
             open_files,
             active: Arc::new(view_id),
             update_sender,
@@ -1282,8 +1309,8 @@ impl LapceEditorViewData {
         } else {
             buffer.edit(ctx, &selection, c, proxy, edit_type)
         };
-        let buffer_id = buffer.id;
-        self.main_split.notify_update_text_layouts(ctx, &buffer_id);
+        self.main_split
+            .notify_update_text_layouts(ctx, &self.editor.buffer);
         self.inactive_apply_delta(&delta);
         let selection = selection.apply_delta(&delta, after, InsertDrift::Default);
         if let Some(snippet) = self.editor.snippet.clone() {
@@ -1310,8 +1337,7 @@ impl LapceEditorViewData {
         let open_files = self.main_split.open_files.clone();
         for (view_id, editor) in self.main_split.editors.iter_mut() {
             if view_id != &self.editor.view_id {
-                let editor_buffer_id = open_files.get(&editor.buffer).unwrap();
-                if editor_buffer_id == &self.buffer.id {
+                if self.editor.buffer == editor.buffer {
                     Arc::make_mut(editor).cursor.apply_delta(delta);
                 }
             }
@@ -1408,11 +1434,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         let main_split = &data.main_split;
         let editor = main_split.editors.get(&self.0).unwrap();
         let editor_view = LapceEditorViewData {
-            buffer: main_split
-                .buffers
-                .get(main_split.open_files.get(&editor.buffer).unwrap())
-                .unwrap()
-                .clone(),
+            buffer: main_split.open_files.get(&editor.buffer).unwrap().clone(),
             editor: editor.clone(),
             main_split: main_split.clone(),
             keypress: data.keypress.clone(),
@@ -1431,9 +1453,8 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
     ) -> V {
         let main_split = &data.main_split;
         let editor = main_split.editors.get(&self.0).unwrap().clone();
-        let buffer_id = *data.main_split.open_files.get(&editor.buffer).unwrap();
         let mut editor_view = LapceEditorViewData {
-            buffer: data.main_split.buffers.get(&buffer_id).unwrap().clone(),
+            buffer: main_split.open_files.get(&editor.buffer).unwrap().clone(),
             editor: editor.clone(),
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
@@ -1453,17 +1474,9 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
                 .editors
                 .insert(self.0, editor_view.editor.clone());
         }
-        if !data
-            .main_split
-            .buffers
-            .get(&buffer_id)
-            .unwrap()
-            .same(&editor_view.buffer)
-        {
-            data.main_split
-                .buffers
-                .insert(buffer_id, editor_view.buffer.clone());
-        }
+        data.main_split
+            .open_files
+            .insert(editor_view.buffer.path.clone(), editor_view.buffer.clone());
 
         result
     }
@@ -1565,8 +1578,8 @@ impl KeyPressFocus for LapceEditorViewData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_undo(proxy) {
-                    let buffer_id = buffer.id;
-                    self.main_split.notify_update_text_layouts(ctx, &buffer_id);
+                    self.main_split
+                        .notify_update_text_layouts(ctx, &self.editor.buffer);
                     let selection = Selection::caret(self.editor.cursor.offset())
                         .apply_delta(&delta, true, InsertDrift::Default);
                     self.set_cursor_after_change(selection);
@@ -1576,8 +1589,8 @@ impl KeyPressFocus for LapceEditorViewData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_redo(proxy) {
-                    let buffer_id = buffer.id;
-                    self.main_split.notify_update_text_layouts(ctx, &buffer_id);
+                    self.main_split
+                        .notify_update_text_layouts(ctx, &self.editor.buffer);
                     let selection = Selection::caret(self.editor.cursor.offset())
                         .apply_delta(&delta, true, InsertDrift::Default);
                     self.set_cursor_after_change(selection);
@@ -1828,6 +1841,13 @@ impl KeyPressFocus for LapceEditorViewData {
             LapceCommand::ToggleBlockwiseVisualMode => {
                 self.toggle_visual(VisualMode::Blockwise);
             }
+            LapceCommand::CenterOfWindow => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureCursorCenter,
+                    Target::Widget(self.editor.container_id),
+                ));
+            }
             LapceCommand::ScrollDown => {
                 self.scroll(ctx, true, count.unwrap_or(1), env);
             }
@@ -1982,10 +2002,13 @@ impl KeyPressFocus for LapceEditorViewData {
                 let start_offset = self.buffer.prev_code_boundary(offset);
                 let start_position = self.buffer.offset_to_position(start_offset);
                 let event_sink = ctx.get_external_handle();
+                let buffer_id = self.buffer.id;
+                let position = self.buffer.offset_to_position(offset);
+                let proxy = self.proxy.clone();
                 self.proxy.get_definition(
                     offset,
-                    self.buffer.id,
-                    self.buffer.offset_to_position(offset),
+                    buffer_id,
+                    position,
                     Box::new(move |result| {
                         if let Ok(res) = result {
                             if let Ok(resp) =
@@ -2007,12 +2030,27 @@ impl KeyPressFocus for LapceEditorViewData {
                                     }
                                 } {
                                     if location.range.start == start_position {
+                                        proxy.get_references(
+                                            buffer_id,
+                                            position,
+                                            Box::new(move |result| {
+                                                process_get_references(
+                                                    offset, result, event_sink,
+                                                );
+                                            }),
+                                        );
                                     } else {
                                         event_sink.submit_command(
                                             LAPCE_UI_COMMAND,
-                                            LapceUICommand::JumpToLocation(
-                                                EditorKind::SplitActive,
-                                                location,
+                                            LapceUICommand::GotoDefinition(
+                                                offset,
+                                                EditorLocationNew {
+                                                    path: PathBuf::from(
+                                                        location.uri.as_str(),
+                                                    ),
+                                                    position: location.range.start,
+                                                    scroll_offset: None,
+                                                },
                                             ),
                                             Target::Auto,
                                         );
@@ -2059,6 +2097,31 @@ impl KeyPressFocus for LapceEditorViewData {
             self.update_completion(ctx);
         }
     }
+}
+
+fn process_get_references(
+    offset: usize,
+    result: Result<Value, xi_rpc::Error>,
+    event_sink: ExtEventSink,
+) -> Result<()> {
+    let res = result.map_err(|e| anyhow!("{:?}", e))?;
+    let locations: Vec<Location> = serde_json::from_value(res)?;
+    if locations.len() == 0 {
+        return Ok(());
+    }
+    if locations.len() == 1 {
+        event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::GotoReference(offset, locations[0].clone()),
+            Target::Auto,
+        );
+    }
+    event_sink.submit_command(
+        LAPCE_UI_COMMAND,
+        LapceUICommand::PaletteReferences(locations),
+        Target::Auto,
+    );
+    Ok(())
 }
 
 pub fn hex_to_color(hex: &str) -> Result<Color> {

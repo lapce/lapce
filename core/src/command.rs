@@ -2,7 +2,9 @@ use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
-use lsp_types::{CompletionItem, CompletionResponse, Location, Range, TextEdit};
+use lsp_types::{
+    CompletionItem, CompletionResponse, Location, Position, Range, TextEdit,
+};
 use serde_json::Value;
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
@@ -13,7 +15,7 @@ use crate::{
     buffer::BufferId,
     buffer::{InvalLines, Style},
     data::EditorKind,
-    editor::{EditorLocation, HighlightTextLayout},
+    editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
     palette::{NewPaletteItem, PaletteType},
     split::SplitMoveDirection,
 };
@@ -203,8 +205,14 @@ pub enum EnsureVisiblePosition {
 #[derive(Debug)]
 pub enum LapceUICommand {
     LoadBuffer {
-        id: BufferId,
+        path: PathBuf,
         content: String,
+    },
+    LoadBufferAndJumpToPosition {
+        path: PathBuf,
+        content: String,
+        kind: EditorKind,
+        location: EditorLocationNew,
     },
     OpenFile(PathBuf),
     FillTextLayouts,
@@ -233,6 +241,7 @@ pub enum LapceUICommand {
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
     UpdateStyle {
         id: BufferId,
+        path: PathBuf,
         rev: u64,
         highlights: Spans<Style>,
         semantic_tokens: bool,
@@ -242,7 +251,7 @@ pub enum LapceUICommand {
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),
-    EnsureCursorVisible,
+    EnsureCursorVisible(Option<EnsureVisiblePosition>),
     EnsureCursorCenter,
     EditorViewSize(Size),
     Scroll((f64, f64)),
@@ -256,8 +265,11 @@ pub enum LapceUICommand {
     SplitExchange,
     SplitClose,
     SplitMove(SplitMoveDirection),
-    JumpToPosition(EditorKind, Range),
+    JumpToPosition(EditorKind, Position),
     JumpToLine(EditorKind, usize),
-    JumpToLocation(EditorKind, Location),
+    JumpToLocation(EditorKind, EditorLocationNew),
+    GotoReference(usize, Location),
+    GotoDefinition(usize, EditorLocationNew),
+    PaletteReferences(Vec<Location>),
     GotoLocation(Location),
 }

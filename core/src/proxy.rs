@@ -407,10 +407,6 @@ impl Handler for ProxyHandler {
                 if buffer.rev + 1 != rev {
                     return;
                 }
-                LAPCE_APP_STATE.submit_ui_command(
-                    LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
-                    self.tab_id,
-                );
             }
             Notification::ListDir { mut items } => {
                 items.sort();

@@ -1712,6 +1712,10 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
         self.clip.content_size()
     }
 
+    pub fn set_child_size(&mut self, size: Size) {
+        self.clip.port.content_size = size;
+    }
+
     /// Returns the current scroll offset.
     pub fn offset(&self) -> Vec2 {
         self.clip.viewport_origin().to_vec2()

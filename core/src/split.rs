@@ -205,7 +205,7 @@ impl LapceSplitNew {
         ctx.set_focus(new_editor.container_id);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::EnsureCursorVisible,
+            LapceUICommand::EnsureCursorVisible(None),
             Target::Widget(new_editor.container_id),
         ));
     }

@@ -119,6 +119,13 @@ pub struct EditorState {
 }
 
 #[derive(Clone, Debug)]
+pub struct EditorLocationNew {
+    pub path: PathBuf,
+    pub position: Position,
+    pub scroll_offset: Option<Vec2>,
+}
+
+#[derive(Clone, Debug)]
 pub struct EditorLocation {
     pub path: String,
     pub offset: usize,
@@ -273,8 +280,8 @@ impl LapceEditorContainer {
                 data.fill_text_layouts(ctx, &data.theme.clone(), env);
                 ctx.set_handled();
             }
-            LapceUICommand::EnsureCursorVisible => {
-                self.ensure_cursor_visible(ctx, data, env);
+            LapceUICommand::EnsureCursorVisible(position) => {
+                self.ensure_cursor_visible(ctx, data, position.as_ref(), env);
             }
             LapceUICommand::EnsureCursorCenter => {
                 self.ensure_cursor_center(ctx, data, env);
@@ -344,14 +351,29 @@ impl LapceEditorContainer {
         data: &LapceEditorViewData,
         env: &Env,
     ) {
-        let rect = data
-            .cusor_region(env)
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let offset = data.editor.cursor.offset();
+        let (line, col) = data.buffer.offset_to_line_col(offset);
+        let width = 7.6171875;
+        let cursor_x = col as f64 * width - width;
+        let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
+        let rect = Rect::ZERO
+            .with_origin(Point::new(
+                cursor_x.floor(),
+                line as f64 * line_height + line_height / 2.0,
+            ))
+            .with_size(Size::new((width * 3.0).ceil(), 0.0))
             .inflate(0.0, (data.editor.size.height / 2.0).ceil());
-        self.editor
-            .widget_mut()
-            .child_mut()
-            .inner_mut()
-            .scroll_to_visible(rect, |d| ctx.request_timer(d), env);
+
+        let size = Size::new(
+            (width * data.buffer.max_len as f64).max(data.editor.size.width),
+            line_height * data.buffer.text_layouts.len() as f64
+                + data.editor.size.height
+                - line_height,
+        );
+        let scroll = self.editor.widget_mut().child_mut().inner_mut();
+        scroll.set_child_size(size);
+        scroll.scroll_to_visible(rect, |d| ctx.request_timer(d), env);
     }
 
     pub fn ensure_rect_visible(
@@ -372,14 +394,30 @@ impl LapceEditorContainer {
         &mut self,
         ctx: &mut EventCtx,
         data: &LapceEditorViewData,
+        position: Option<&EnsureVisiblePosition>,
         env: &Env,
     ) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let width = 7.6171875;
+        let size = Size::new(
+            (width * data.buffer.max_len as f64).max(data.editor.size.width),
+            line_height * data.buffer.text_layouts.len() as f64
+                + data.editor.size.height
+                - line_height,
+        );
+
         let rect = data.cusor_region(env);
-        self.editor
-            .widget_mut()
-            .child_mut()
-            .inner_mut()
-            .scroll_to_visible(rect, |d| ctx.request_timer(d), env);
+        let scroll = self.editor.widget_mut().child_mut().inner_mut();
+        scroll.set_child_size(size);
+        if scroll.scroll_to_visible(rect, |d| ctx.request_timer(d), env) {
+            if let Some(position) = position {
+                match position {
+                    EnsureVisiblePosition::CenterOfWindow => {
+                        self.ensure_cursor_center(ctx, data, env)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -403,7 +441,7 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
             }
             Event::KeyDown(key_event) => {
                 if data.key_down(ctx, key_event, env) {
-                    self.ensure_cursor_visible(ctx, data, env);
+                    self.ensure_cursor_visible(ctx, data, None, env);
                 }
                 data.sync_buffer_position(
                     self.editor.widget().child().inner().offset(),
@@ -551,7 +589,15 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
         Size::new(bc.max().width, 25.0)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {}
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        let text = data.editor.buffer.to_str().unwrap();
+        let mut text_layout = TextLayout::<String>::from_text(text);
+        text_layout
+            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
+        text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+        text_layout.rebuild_if_needed(ctx.text(), env);
+        text_layout.draw(ctx, Point::new(10.0, 5.0));
+    }
 }
 
 pub struct LapceEditorGutter {

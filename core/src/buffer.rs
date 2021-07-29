@@ -10,12 +10,12 @@ use druid::{
 use druid::{Env, PaintCtx};
 use git2::Repository;
 use language::{new_highlight_config, new_parser, LapceLanguage};
-use lsp_types::SemanticTokens;
 use lsp_types::SemanticTokensLegend;
 use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{
     CodeActionResponse, Position, Range, TextDocumentContentChangeEvent,
 };
+use lsp_types::{Location, SemanticTokens};
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -47,6 +47,8 @@ use xi_rope::{
     Transformer,
 };
 
+use crate::data::EditorKind;
+use crate::editor::EditorLocationNew;
 use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
@@ -122,6 +124,7 @@ pub enum UpdateEvent {
 
 pub struct BufferUpdate {
     pub id: BufferId,
+    pub path: PathBuf,
     pub rope: Rope,
     pub rev: u64,
     pub language: LapceLanguage,
@@ -298,6 +301,7 @@ impl BufferNew {
             if !self.semantic_tokens {
                 self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
                     id: self.id,
+                    path: self.path.clone(),
                     rope: self.rope.clone(),
                     rev: self.rev,
                     language,
@@ -315,7 +319,33 @@ impl BufferNew {
             println!("load file got content");
             event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::LoadBuffer { id, content },
+                LapceUICommand::LoadBuffer { path, content },
+                Target::Auto,
+            );
+        });
+    }
+
+    pub fn retrieve_file_and_jump_to_location(
+        &self,
+        proxy: Arc<LapceProxy>,
+        event_sink: ExtEventSink,
+        kind: &EditorKind,
+        location: EditorLocationNew,
+    ) {
+        let id = self.id;
+        let path = self.path.clone();
+        let kind = kind.clone();
+        thread::spawn(move || {
+            let content = { proxy.new_buffer(id, path.clone()).unwrap() };
+            println!("load file got content");
+            event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::LoadBufferAndJumpToPosition {
+                    path,
+                    content,
+                    kind,
+                    location,
+                },
                 Target::Auto,
             );
         });
