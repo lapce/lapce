@@ -1936,16 +1936,18 @@ impl Widget<LapceTabData> for PaletteContainer {
             content_height += 6.0;
         }
 
+        let max_preview_height =
+            max_height - input_size.height - max_items as f64 * line_height - 6.0;
         let preview_height = if data.palette.palette_type.has_preview() {
             if content_height > 0.0 {
-                max_height - input_size.height - content_height
+                max_preview_height
             } else {
                 0.0
             }
         } else {
             0.0
         };
-        let bc = BoxConstraints::tight(Size::new(width, preview_height));
+        let bc = BoxConstraints::tight(Size::new(width, max_preview_height));
         let preview_size = self.preview.layout(ctx, &bc, data, env);
         self.preview.set_origin(
             ctx,
@@ -1955,10 +1957,8 @@ impl Widget<LapceTabData> for PaletteContainer {
         );
 
         ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
-        let self_size = Size::new(
-            width,
-            input_size.height + content_height + preview_size.height,
-        );
+        let self_size =
+            Size::new(width, input_size.height + content_height + preview_height);
         self.content_size = self_size;
         self_size
     }
@@ -1972,7 +1972,12 @@ impl Widget<LapceTabData> for PaletteContainer {
 
         self.input.paint(ctx, data, env);
         self.content.paint(ctx, data, env);
-        self.preview.paint(ctx, data, env);
+
+        if data.palette.current_items().len() > 0
+            && data.palette.palette_type.has_preview()
+        {
+            self.preview.paint(ctx, data, env);
+        }
     }
 }
 

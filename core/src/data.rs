@@ -2046,7 +2046,7 @@ impl KeyPressFocus for LapceEditorViewData {
                                                 offset,
                                                 EditorLocationNew {
                                                     path: PathBuf::from(
-                                                        location.uri.as_str(),
+                                                        location.uri.path(),
                                                     ),
                                                     position: location.range.start,
                                                     scroll_offset: None,
