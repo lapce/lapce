@@ -4,11 +4,10 @@ use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
     kurbo::{Line, Rect},
     piet::TextAttribute,
-    widget::Container,
     widget::FillStrat,
     widget::IdentityWrapper,
-    widget::Svg,
     widget::SvgData,
+    widget::{Container, Svg},
     Affine, Command, ExtEventSink, FontFamily, FontWeight, Insets, KeyEvent, Lens,
     Target, Vec2, WidgetId, WindowId,
 };
@@ -42,7 +41,7 @@ use crate::{
         EditorKind, LapceEditorData, LapceEditorLens, LapceEditorViewData,
         LapceMainSplitData, LapceTabData,
     },
-    editor::{EditorSplitState, LapceEditorContainer},
+    editor::{EditorLocationNew, EditorSplitState, LapceEditorContainer},
     explorer::ICONS_DIR,
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
@@ -111,17 +110,20 @@ pub enum PaletteItemContent {
         range: Range,
         container_name: Option<String>,
     },
+    ReferenceLocation(PathBuf, EditorLocationNew),
 }
 
 impl PaletteItemContent {
-    fn select(&self, ctx: &mut EventCtx) {
+    fn select(&self, ctx: &mut EventCtx, preview: bool) {
         match &self {
             PaletteItemContent::File(_, full_path) => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::OpenFile(full_path.clone()),
-                    Target::Auto,
-                ));
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::OpenFile(full_path.clone()),
+                        Target::Auto,
+                    ));
+                }
             }
             PaletteItemContent::DocumentSymbol {
                 kind,
@@ -129,47 +131,38 @@ impl PaletteItemContent {
                 range,
                 container_name,
             } => {
+                let kind = if preview {
+                    EditorKind::PalettePreview
+                } else {
+                    EditorKind::SplitActive
+                };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToPosition(
-                        EditorKind::SplitActive,
-                        range.start.clone(),
-                    ),
+                    LapceUICommand::JumpToPosition(kind, range.start.clone()),
                     Target::Auto,
                 ));
             }
             PaletteItemContent::Line(line, _) => {
+                let kind = if preview {
+                    EditorKind::PalettePreview
+                } else {
+                    EditorKind::SplitActive
+                };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLine(EditorKind::SplitActive, *line),
+                    LapceUICommand::JumpToLine(kind, *line),
                     Target::Auto,
                 ));
             }
-        }
-    }
-
-    fn preview(&self, ctx: &mut EventCtx) {
-        match &self {
-            PaletteItemContent::File(_, full_path) => {}
-            PaletteItemContent::DocumentSymbol {
-                kind,
-                name,
-                range,
-                container_name,
-            } => {
+            PaletteItemContent::ReferenceLocation(rel_path, location) => {
+                let kind = if preview {
+                    EditorKind::PalettePreview
+                } else {
+                    EditorKind::SplitActive
+                };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToPosition(
-                        EditorKind::PalettePreview,
-                        range.start.clone(),
-                    ),
-                    Target::Auto,
-                ));
-            }
-            PaletteItemContent::Line(line, _) => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLine(EditorKind::PalettePreview, *line),
+                    LapceUICommand::JumpToLocation(kind, location.clone()),
                     Target::Auto,
                 ));
             }
@@ -179,53 +172,7 @@ impl PaletteItemContent {
     fn paint(&self, ctx: &mut PaintCtx, line: usize, indices: &[usize], env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let (svg, text, text_indices, hint, hint_indices) = match &self {
-            PaletteItemContent::File(path, _) => {
-                let svg = file_svg_new(
-                    &path
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                        .to_string(),
-                );
-                let file_name = path
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string();
-                let folder = path
-                    .parent()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string();
-                let folder_len = folder.len();
-                let text_indices: Vec<usize> = indices
-                    .iter()
-                    .filter_map(|i| {
-                        let i = *i;
-                        if folder_len > 0 {
-                            if i > folder_len {
-                                Some(i - folder_len - 1)
-                            } else {
-                                None
-                            }
-                        } else {
-                            Some(i)
-                        }
-                    })
-                    .collect();
-                let hint_indices: Vec<usize> = indices
-                    .iter()
-                    .filter_map(|i| {
-                        let i = *i;
-                        if i < folder_len {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                (svg, file_name, text_indices, folder, hint_indices)
-            }
+            PaletteItemContent::File(path, _) => file_paint_items(path, indices),
             PaletteItemContent::DocumentSymbol {
                 kind,
                 name,
@@ -260,6 +207,9 @@ impl PaletteItemContent {
             }
             PaletteItemContent::Line(_, text) => {
                 (None, text.clone(), indices.to_vec(), "".to_string(), vec![])
+            }
+            PaletteItemContent::ReferenceLocation(rel_path, location) => {
+                file_paint_items(rel_path, indices)
             }
         };
 
@@ -474,7 +424,7 @@ impl PaletteData {
 
     pub fn preview(&self, ctx: &mut EventCtx) {
         if let Some(item) = self.get_item() {
-            item.content.preview(ctx);
+            item.content.select(ctx, true);
         }
     }
 
@@ -515,6 +465,37 @@ impl PaletteViewData {
         ));
     }
 
+    pub fn run_references(
+        &mut self,
+        ctx: &mut EventCtx,
+        locations: &Vec<EditorLocationNew>,
+    ) {
+        self.run(ctx, Some(PaletteType::Reference));
+        let items: Vec<NewPaletteItem> = locations
+            .iter()
+            .map(|l| {
+                let full_path = l.path.clone();
+                let path = l
+                    .path
+                    .strip_prefix(&self.workspace.path)
+                    .unwrap_or(&full_path);
+                let filter_text = path.to_str().unwrap_or("").to_string();
+                NewPaletteItem {
+                    content: PaletteItemContent::ReferenceLocation(
+                        path.to_path_buf(),
+                        l.clone(),
+                    ),
+                    filter_text,
+                    score: 0,
+                    indices: vec![],
+                }
+            })
+            .collect();
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.items = items;
+        palette.preview(ctx);
+    }
+
     pub fn run(&mut self, ctx: &mut EventCtx, palette_type: Option<PaletteType>) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Started;
@@ -538,6 +519,7 @@ impl PaletteViewData {
             &PaletteType::DocumentSymbol => {
                 self.get_document_symbols(ctx);
             }
+            &PaletteType::Reference => {}
             _ => self.get_files(ctx),
         }
     }
@@ -595,7 +577,7 @@ impl PaletteViewData {
     pub fn select(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {
-            item.content.select(ctx);
+            item.content.select(ctx, false);
         }
         self.cancel(ctx);
     }
@@ -1723,6 +1705,15 @@ impl Widget<LapceTabData> for NewPalette {
                         data.workspace = palette_data.workspace.clone();
                         data.main_split = palette_data.main_split.clone();
                     }
+                    LapceUICommand::RunPaletteReferences(locations) => {
+                        ctx.request_focus();
+                        let mut palette_data = data.palette_view_data();
+                        palette_data.run_references(ctx, locations);
+                        data.palette = palette_data.palette.clone();
+                        data.keypress = palette_data.keypress.clone();
+                        data.workspace = palette_data.workspace.clone();
+                        data.main_split = palette_data.main_split.clone();
+                    }
                     LapceUICommand::CancelPalette => {
                         ctx.resign_focus();
                     }
@@ -2752,6 +2743,63 @@ fn filter_items(input: &str, items: Vec<PaletteItem>) -> Vec<PaletteItem> {
         .collect();
     items.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
     items
+}
+
+fn file_paint_items(
+    path: &PathBuf,
+    indices: &[usize],
+) -> (
+    Option<crate::svg::Svg>,
+    String,
+    Vec<usize>,
+    String,
+    Vec<usize>,
+) {
+    let svg = file_svg_new(
+        &path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string(),
+    );
+    let file_name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let folder = path
+        .parent()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let folder_len = folder.len();
+    let text_indices: Vec<usize> = indices
+        .iter()
+        .filter_map(|i| {
+            let i = *i;
+            if folder_len > 0 {
+                if i > folder_len {
+                    Some(i - folder_len - 1)
+                } else {
+                    None
+                }
+            } else {
+                Some(i)
+            }
+        })
+        .collect();
+    let hint_indices: Vec<usize> = indices
+        .iter()
+        .filter_map(|i| {
+            let i = *i;
+            if i < folder_len {
+                Some(i)
+            } else {
+                None
+            }
+        })
+        .collect();
+    (svg, file_name, text_indices, folder, hint_indices)
 }
 
 pub fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {

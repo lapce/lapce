@@ -2110,15 +2110,23 @@ fn process_get_references(
         return Ok(());
     }
     if locations.len() == 1 {
+        let location = &locations[0];
         event_sink.submit_command(
             LAPCE_UI_COMMAND,
-            LapceUICommand::GotoReference(offset, locations[0].clone()),
+            LapceUICommand::GotoReference(
+                offset,
+                EditorLocationNew {
+                    path: PathBuf::from(location.uri.path()),
+                    position: location.range.start.clone(),
+                    scroll_offset: None,
+                },
+            ),
             Target::Auto,
         );
     }
     event_sink.submit_command(
         LAPCE_UI_COMMAND,
-        LapceUICommand::PaletteReferences(locations),
+        LapceUICommand::PaletteReferences(offset, locations),
         Target::Auto,
     );
     Ok(())

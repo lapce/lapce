@@ -221,6 +221,7 @@ pub enum LapceUICommand {
     UpdateCompletion(usize, String, CompletionResponse),
     CancelPalette,
     RunPalette(Option<PaletteType>),
+    RunPaletteReferences(Vec<EditorLocationNew>),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateWindowOrigin,
@@ -268,8 +269,8 @@ pub enum LapceUICommand {
     JumpToPosition(EditorKind, Position),
     JumpToLine(EditorKind, usize),
     JumpToLocation(EditorKind, EditorLocationNew),
-    GotoReference(usize, Location),
+    GotoReference(usize, EditorLocationNew),
     GotoDefinition(usize, EditorLocationNew),
-    PaletteReferences(Vec<Location>),
+    PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
 }

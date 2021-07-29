@@ -11,7 +11,7 @@ use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     data::{EditorKind, LapceEditorLens, LapceMainSplitData, LapceTabData},
-    editor::LapceEditorView,
+    editor::{EditorLocationNew, LapceEditorView},
     palette::{NewPalette, PaletteViewLens},
     scroll::LapceScrollNew,
     split::LapceSplitNew,
@@ -128,6 +128,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.main_split.jump_to_position(ctx, kind, *position);
                         ctx.set_handled();
                     }
+                    LapceUICommand::JumpToLocation(kind, location) => {
+                        data.main_split.jump_to_location(
+                            ctx,
+                            kind,
+                            location.clone(),
+                        );
+                        ctx.set_handled();
+                    }
                     LapceUICommand::JumpToLine(kind, line) => {
                         data.main_split.jump_to_line(ctx, kind, *line);
                         ctx.set_handled();
@@ -140,6 +148,36 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 &EditorKind::SplitActive,
                                 location.clone(),
                             );
+                        }
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::GotoReference(offset, location) => {
+                        if *offset == data.main_split.active_editor().cursor.offset()
+                        {
+                            data.main_split.jump_to_location(
+                                ctx,
+                                &EditorKind::SplitActive,
+                                location.clone(),
+                            );
+                        }
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::PaletteReferences(offset, locations) => {
+                        if *offset == data.main_split.active_editor().cursor.offset()
+                        {
+                            let locations = locations
+                                .iter()
+                                .map(|l| EditorLocationNew {
+                                    path: PathBuf::from(l.uri.path()),
+                                    position: l.range.start.clone(),
+                                    scroll_offset: None,
+                                })
+                                .collect();
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::RunPaletteReferences(locations),
+                                Target::Widget(data.palette.widget_id),
+                            ));
                         }
                         ctx.set_handled();
                     }
