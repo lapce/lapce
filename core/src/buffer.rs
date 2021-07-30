@@ -386,6 +386,12 @@ impl BufferNew {
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
+        let last_line = self.last_line();
+        let line = if line > last_line + 1 {
+            last_line
+        } else {
+            line
+        };
         let line_start_offset = self.rope.offset_of_line(line);
         WordCursor::new(&self.rope, line_start_offset).next_non_blank_char()
     }

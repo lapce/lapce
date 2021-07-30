@@ -40,6 +40,13 @@ impl Cursor {
         }
     }
 
+    pub fn is_normal(&self) -> bool {
+        match &self.mode {
+            CursorMode::Normal(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_visual(&self) -> bool {
         match &self.mode {
             CursorMode::Visual { .. } => true,

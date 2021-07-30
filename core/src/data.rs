@@ -875,6 +875,17 @@ impl LapceEditorViewData {
         // println!("fill text layout took {}", duration);
     }
 
+    pub fn on_diagnostic(&self) -> Option<usize> {
+        let offset = self.editor.cursor.offset();
+        let position = self.buffer.offset_to_position(offset);
+        for diagnostic in self.diagnostics.iter() {
+            if diagnostic.diagnositc.range.start == position {
+                return Some(offset);
+            }
+        }
+        None
+    }
+
     fn move_command(
         &self,
         count: Option<usize>,

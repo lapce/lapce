@@ -773,11 +773,21 @@ impl LapceEditor {
             .ceil() as usize;
 
         let width = 7.6171875;
+        let mut current = None;
+        let cursor_offset = data.editor.cursor.offset();
         for diagnostic in data.diagnostics.iter() {
             let start = diagnostic.diagnositc.range.start;
             let end = diagnostic.diagnositc.range.end;
             if (start.line as usize) <= end_line || (end.line as usize) >= start_line
             {
+                let start_offset = if let Some(range) = diagnostic.range {
+                    range.0
+                } else {
+                    data.buffer.offset_of_position(&start)
+                };
+                if start_offset == cursor_offset {
+                    current = Some(diagnostic.clone());
+                }
                 for line in start.line as usize..end.line as usize + 1 {
                     if line < start_line {
                         continue;
@@ -785,6 +795,7 @@ impl LapceEditor {
                     if line > end_line {
                         break;
                     }
+
                     let x0 = if line == start.line as usize {
                         start.character as f64 * width
                     } else {
@@ -817,6 +828,46 @@ impl LapceEditor {
                     };
                     ctx.fill(Rect::new(x0, y0, x1, y1), &color);
                 }
+            }
+        }
+
+        if let Some(diagnostic) = current {
+            println!("{:?}", diagnostic.diagnositc);
+            if data.editor.cursor.is_normal() {
+                let mut text_layout = TextLayout::<String>::from_text(
+                    diagnostic.diagnositc.message.clone(),
+                );
+                text_layout.set_font(
+                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
+                );
+                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                text_layout.rebuild_if_needed(ctx.text(), env);
+                let text_size = text_layout.size();
+                let size = ctx.size();
+                let start = diagnostic.diagnositc.range.start;
+                let rect = Rect::ZERO
+                    .with_origin(Point::new(
+                        0.0,
+                        (start.line + 1) as f64 * line_height,
+                    ))
+                    .with_size(Size::new(size.width, text_size.height + 20.0));
+                ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+
+                let severity = diagnostic
+                    .diagnositc
+                    .severity
+                    .as_ref()
+                    .unwrap_or(&DiagnosticSeverity::Information);
+                let color = match severity {
+                    DiagnosticSeverity::Error => env.get(LapceTheme::EDITOR_ERROR),
+                    DiagnosticSeverity::Warning => env.get(LapceTheme::EDITOR_WARN),
+                    _ => env.get(LapceTheme::EDITOR_WARN),
+                };
+                ctx.stroke(rect, &color, 1.0);
+                text_layout.draw(
+                    ctx,
+                    Point::new(10.0, (start.line + 1) as f64 * line_height + 10.0),
+                );
             }
         }
     }
@@ -1185,6 +1236,10 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                     (end + 1 - start) as f64 * line_height,
                 ));
             ctx.request_paint_rect(rect);
+        }
+
+        if old_data.on_diagnostic() != data.on_diagnostic() {
+            ctx.request_paint();
         }
 
         if (*old_data.main_split.active == self.view_id
