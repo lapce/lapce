@@ -890,6 +890,7 @@ impl LapceEditorData {
 #[derive(Clone, Data, Lens)]
 pub struct LapceEditorViewData {
     pub main_split: LapceMainSplitData,
+    pub workspace: Arc<LapceWorkspace>,
     pub proxy: Arc<LapceProxy>,
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,
@@ -1706,6 +1707,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             .clone();
         let editor_view = LapceEditorViewData {
             buffer: main_split.open_files.get(&editor.buffer).unwrap().clone(),
+            workspace: data.workspace.clone(),
             editor: editor.clone(),
             main_split: main_split.clone(),
             diagnostics,
@@ -1734,6 +1736,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             .clone();
         let mut editor_view = LapceEditorViewData {
             buffer,
+            workspace: data.workspace.clone(),
             editor: editor.clone(),
             diagnostics: diagnostics.clone(),
             all_diagnostics: data.diagnostics.clone(),

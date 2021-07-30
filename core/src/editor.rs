@@ -1,5 +1,6 @@
 use crate::find::Find;
 use crate::signature::SignatureState;
+use crate::svg::file_svg_new;
 use crate::{buffer::get_word_property, state::LapceFocus};
 use crate::{buffer::matching_char, data::LapceEditorViewData};
 use crate::{buffer::previous_has_unmatched_pair, movement::Cursor};
@@ -216,12 +217,12 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         for rect in &rects {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
         }
-        self.header.paint(ctx, data, env);
         let start = std::time::SystemTime::now();
         self.editor.paint(ctx, data, env);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
         // println!("editor paint took {}", duration);
+        self.header.paint(ctx, data, env);
     }
 }
 
@@ -538,8 +539,8 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         for rect in &rects {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
         }
-        self.gutter.paint(ctx, data, env);
         self.editor.paint(ctx, data, env);
+        self.gutter.paint(ctx, data, env);
     }
 }
 
@@ -592,21 +593,70 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
         data: &LapceEditorViewData,
         env: &Env,
     ) -> Size {
-        Size::new(bc.max().width, 25.0)
+        ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        Size::new(bc.max().width, line_height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
-        let text = format!(
-            "{}{}",
-            if data.buffer.dirty { "* " } else { "" },
-            data.editor.buffer.to_str().unwrap()
+        let blur_color = Color::grey8(180);
+        let shadow_width = 5.0;
+        let rect = ctx.size().to_rect();
+        ctx.blurred_rect(rect, shadow_width, &blur_color);
+        ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+
+        let path = data.editor.buffer.clone();
+        let svg = file_svg_new(
+            &path
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string(),
         );
-        let mut text_layout = TextLayout::<String>::from_text(text);
+
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        if let Some(svg) = svg.as_ref() {
+            let width = 13.0;
+            let height = 13.0;
+            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+                (line_height - width) / 2.0 + 5.0,
+                (line_height - height) / 2.0,
+            ));
+            svg.paint(ctx, rect, None);
+        }
+
+        let mut file_name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        if data.buffer.dirty {
+            file_name += " *"
+        }
+        let mut text_layout = TextLayout::<String>::from_text(file_name);
         text_layout
             .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
         text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
         text_layout.rebuild_if_needed(ctx.text(), env);
-        text_layout.draw(ctx, Point::new(10.0, 5.0));
+        text_layout.draw(ctx, Point::new(5.0 + line_height, 5.0));
+
+        let path = path.strip_prefix(&data.workspace.path).unwrap_or(&path);
+        let folder = path
+            .parent()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        if folder != "" {
+            let x = text_layout.size().width;
+
+            let mut text_layout = TextLayout::<String>::from_text(folder);
+            text_layout.set_font(
+                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+            );
+            text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
+            text_layout.rebuild_if_needed(ctx.text(), env);
+            text_layout.draw(ctx, Point::new(5.0 + line_height + x + 5.0, 5.0));
+        }
     }
 }
 
@@ -1249,6 +1299,10 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         }
 
         if old_data.on_diagnostic() != data.on_diagnostic() {
+            ctx.request_paint();
+        }
+
+        if old_data.diagnostics.len() != data.diagnostics.len() {
             ctx.request_paint();
         }
 
