@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
 use lsp_types::{
-    CompletionItem, CompletionResponse, Location, Position,
+    CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
     PublishDiagnosticsParams, Range, TextEdit,
 };
 use serde_json::Value;
@@ -222,6 +222,7 @@ pub enum LapceUICommand {
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, CompletionItem),
     UpdateCompletion(usize, String, CompletionResponse),
+    UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
     RunPalette(Option<PaletteType>),
     RunPaletteReferences(Vec<EditorLocationNew>),

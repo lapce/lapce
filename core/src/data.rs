@@ -20,8 +20,9 @@ use druid::{
 };
 use im;
 use lsp_types::{
-    CompletionItem, CompletionResponse, CompletionTextEdit, Diagnostic,
-    DiagnosticSeverity, GotoDefinitionResponse, Location, Position, TextEdit,
+    CodeActionResponse, CompletionItem, CompletionResponse, CompletionTextEdit,
+    Diagnostic, DiagnosticSeverity, GotoDefinitionResponse, Location, Position,
+    TextEdit,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -966,6 +967,46 @@ impl LapceEditorViewData {
             }
         }
         None
+    }
+
+    pub fn current_code_actions(&self) -> Option<&CodeActionResponse> {
+        let offset = self.editor.cursor.offset();
+        let prev_offset = self.buffer.prev_code_boundary(offset);
+        self.buffer.code_actions.get(&prev_offset)
+    }
+
+    pub fn get_code_actions(&mut self, ctx: &mut EventCtx) {
+        let offset = self.editor.cursor.offset();
+        let prev_offset = self.buffer.prev_code_boundary(offset);
+        if self.buffer.code_actions.get(&prev_offset).is_none() {
+            let buffer_id = self.buffer.id;
+            let position = self.buffer.offset_to_position(prev_offset);
+            let path = self.buffer.path.clone();
+            let rev = self.buffer.rev;
+            let event_sink = ctx.get_external_handle();
+            self.proxy.get_code_actions(
+                buffer_id,
+                position,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        if let Ok(resp) =
+                            serde_json::from_value::<CodeActionResponse>(res)
+                        {
+                            event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateCodeActions(
+                                    path,
+                                    rev,
+                                    prev_offset,
+                                    resp,
+                                ),
+                                Target::Auto,
+                            );
+                        }
+                    }
+                }),
+            );
+        }
     }
 
     fn move_command(

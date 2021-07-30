@@ -1,6 +1,6 @@
 use crate::find::Find;
 use crate::signature::SignatureState;
-use crate::svg::file_svg_new;
+use crate::svg::{file_svg_new, get_svg};
 use crate::{buffer::get_word_property, state::LapceFocus};
 use crate::{buffer::matching_char, data::LapceEditorViewData};
 use crate::{buffer::previous_has_unmatched_pair, movement::Cursor};
@@ -448,6 +448,7 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                     self.editor.widget().child().inner().offset(),
                 );
                 ctx.set_handled();
+                data.get_code_actions(ctx);
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -817,6 +818,27 @@ impl LapceEditor {
                 .with_size(Size::new(size.width, line_height)),
             &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND),
         );
+    }
+
+    fn paint_code_actions_hint(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        if let Some(_) = data.current_code_actions() {
+            let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+            let offset = data.editor.cursor.offset();
+            let (line, _) = data.buffer.offset_to_line_col(offset);
+            let svg = get_svg("lightbulb.svg").unwrap();
+            let width = 14.0;
+            let height = 14.0;
+            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+                (line_height - width) / 2.0 + 5.0 + data.editor.scroll_offset.x,
+                (line_height - height) / 2.0 + line_height * line as f64,
+            ));
+            svg.paint(ctx, rect, None);
+        }
     }
 
     fn paint_diagnostics(
@@ -1368,6 +1390,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         }
         self.paint_snippet(ctx, data, env);
         self.paint_diagnostics(ctx, data, env);
+        self.paint_code_actions_hint(ctx, data, env);
     }
 }
 

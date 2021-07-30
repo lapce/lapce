@@ -229,6 +229,15 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateCodeActions(path, rev, offset, resp) => {
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        if buffer.rev == *rev {
+                            Arc::make_mut(buffer)
+                                .code_actions
+                                .insert(*offset, resp.clone());
+                        }
+                    }
                     LapceUICommand::PaletteReferences(offset, locations) => {
                         if *offset == data.main_split.active_editor().cursor.offset()
                         {

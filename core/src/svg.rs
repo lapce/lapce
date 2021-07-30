@@ -304,7 +304,7 @@ fn color_from_svg(c: usvg::Color, opacity: usvg::Opacity) -> Color {
     Color::rgb8(c.red, c.green, c.blue).with_alpha(opacity.value())
 }
 
-fn get_svg(name: &str) -> Option<Svg> {
+pub fn get_svg(name: &str) -> Option<Svg> {
     Svg::from_str(ICONS_DIR.get_file(name)?.contents_utf8()?).ok()
 }
 

@@ -210,6 +210,8 @@ pub struct BufferNew {
 
     pub cursor_offset: usize,
     pub scroll_offset: Vec2,
+
+    pub code_actions: im::HashMap<usize, CodeActionResponse>,
 }
 
 impl BufferNew {
@@ -252,6 +254,8 @@ impl BufferNew {
 
             cursor_offset: 0,
             scroll_offset: Vec2::ZERO,
+
+            code_actions: im::HashMap::new(),
         };
         buffer.text_layouts =
             im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
@@ -285,6 +289,7 @@ impl BufferNew {
         self.rope = new_text;
         self.tombstones = new_tombstones;
         self.deletes_from_union = new_deletes_from_union;
+        self.code_actions.clear();
 
         let (max_len, max_len_line) = self.get_max_line_len();
         self.max_len = max_len;
@@ -1030,6 +1035,7 @@ impl BufferNew {
         self.rope = new_text;
         self.tombstones = new_tombstones;
         self.deletes_from_union = new_deletes_from_union;
+        self.code_actions.clear();
 
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
