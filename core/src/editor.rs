@@ -759,6 +759,68 @@ impl LapceEditor {
         );
     }
 
+    fn paint_diagnostics(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let start_line =
+            (data.editor.scroll_offset.y / line_height).floor() as usize;
+        let end_line = ((data.editor.size.height + data.editor.scroll_offset.y)
+            / line_height)
+            .ceil() as usize;
+
+        let width = 7.6171875;
+        for diagnostic in data.diagnostics.iter() {
+            let start = diagnostic.diagnositc.range.start;
+            let end = diagnostic.diagnositc.range.end;
+            if (start.line as usize) <= end_line || (end.line as usize) >= start_line
+            {
+                for line in start.line as usize..end.line as usize + 1 {
+                    if line < start_line {
+                        continue;
+                    }
+                    if line > end_line {
+                        break;
+                    }
+                    let x0 = if line == start.line as usize {
+                        start.character as f64 * width
+                    } else {
+                        let (_, col) = data.buffer.offset_to_line_col(
+                            data.buffer.first_non_blank_character_on_line(line),
+                        );
+                        col as f64 * width
+                    };
+                    let x1 = if line == end.line as usize {
+                        end.character as f64 * width
+                    } else {
+                        data.buffer.line_len(line) as f64 * width
+                    };
+                    let y1 = (line + 1) as f64 * line_height;
+                    let y0 = (line + 1) as f64 * line_height - 2.0;
+
+                    let severity = diagnostic
+                        .diagnositc
+                        .severity
+                        .as_ref()
+                        .unwrap_or(&DiagnosticSeverity::Information);
+                    let color = match severity {
+                        DiagnosticSeverity::Error => {
+                            env.get(LapceTheme::EDITOR_ERROR)
+                        }
+                        DiagnosticSeverity::Warning => {
+                            env.get(LapceTheme::EDITOR_WARN)
+                        }
+                        _ => env.get(LapceTheme::EDITOR_WARN),
+                    };
+                    ctx.fill(Rect::new(x0, y0, x1, y1), &color);
+                }
+            }
+        }
+    }
+
     fn paint_snippet(
         &mut self,
         ctx: &mut PaintCtx,
@@ -1186,6 +1248,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
             }
         }
         self.paint_snippet(ctx, data, env);
+        self.paint_diagnostics(ctx, data, env);
     }
 }
 

@@ -10,7 +10,10 @@ use crate::{
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
-    data::{EditorKind, LapceEditorLens, LapceMainSplitData, LapceTabData},
+    data::{
+        EditorDiagnostic, EditorKind, LapceEditorLens, LapceMainSplitData,
+        LapceTabData,
+    },
     editor::{EditorLocationNew, LapceEditorView},
     palette::{NewPalette, PaletteViewLens},
     scroll::LapceScrollNew,
@@ -105,8 +108,15 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::PublishDiagnostics(diagnostics) => {
                         let path = PathBuf::from(diagnostics.uri.path());
-                        data.diagnostics
-                            .insert(path, Arc::new(diagnostics.diagnostics.clone()));
+                        let diagnostics = diagnostics
+                            .diagnostics
+                            .iter()
+                            .map(|d| EditorDiagnostic {
+                                range: None,
+                                diagnositc: d.clone(),
+                            })
+                            .collect();
+                        data.diagnostics.insert(path, Arc::new(diagnostics));
                         ctx.set_handled();
                     }
                     LapceUICommand::LoadBufferAndGoToPosition {

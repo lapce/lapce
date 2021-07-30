@@ -182,6 +182,12 @@ impl LapceWindowData {
     }
 }
 
+#[derive(Clone)]
+pub struct EditorDiagnostic {
+    pub range: Option<(usize, usize)>,
+    pub diagnositc: Diagnostic,
+}
+
 #[derive(Clone, Lens)]
 pub struct LapceTabData {
     pub id: WidgetId,
@@ -189,7 +195,7 @@ pub struct LapceTabData {
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<PaletteData>,
-    pub diagnostics: im::HashMap<PathBuf, Arc<Vec<Diagnostic>>>,
+    pub diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
@@ -816,7 +822,7 @@ pub struct LapceEditorViewData {
     pub proxy: Arc<LapceProxy>,
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,
-    pub diagnostics: Arc<Vec<Diagnostic>>,
+    pub diagnostics: Arc<Vec<EditorDiagnostic>>,
     pub keypress: Arc<KeyPressData>,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<WidgetId>,
@@ -1359,6 +1365,44 @@ impl LapceEditorViewData {
         }
     }
 
+    fn initiate_diagnositcs_offset(&mut self) {
+        if self.diagnostics.len() > 0 {
+            let buffer = self.buffer.clone();
+            for diagnostic in Arc::make_mut(&mut self.diagnostics).iter_mut() {
+                if diagnostic.range.is_none() {
+                    diagnostic.range = Some((
+                        buffer
+                            .offset_of_position(&diagnostic.diagnositc.range.start),
+                        buffer.offset_of_position(&diagnostic.diagnositc.range.end),
+                    ));
+                }
+            }
+        }
+    }
+
+    fn update_diagnositcs_offset(&mut self, delta: &RopeDelta) {
+        if self.diagnostics.len() > 0 {
+            let buffer = self.buffer.clone();
+            let mut transformer = Transformer::new(delta);
+            for diagnostic in Arc::make_mut(&mut self.diagnostics).iter_mut() {
+                let (start, end) = diagnostic.range.clone().unwrap();
+                let (new_start, new_end) = (
+                    transformer.transform(start, false),
+                    transformer.transform(end, true),
+                );
+                diagnostic.range = Some((new_start, new_end));
+                if start != new_start {
+                    diagnostic.diagnositc.range.start =
+                        buffer.offset_to_position(new_start);
+                }
+                if end != new_end {
+                    diagnostic.diagnositc.range.end =
+                        buffer.offset_to_position(new_end);
+                }
+            }
+        }
+    }
+
     fn edit(
         &mut self,
         ctx: &mut EventCtx,
@@ -1383,6 +1427,8 @@ impl LapceEditorViewData {
             }
             CursorMode::Insert(_) => {}
         }
+
+        self.initiate_diagnositcs_offset();
 
         let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
@@ -1414,11 +1460,13 @@ impl LapceEditorViewData {
                     .collect(),
             );
         }
+
+        self.update_diagnositcs_offset(&delta);
+
         (selection, delta)
     }
 
     fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
-        let open_files = self.main_split.open_files.clone();
         for (view_id, editor) in self.main_split.editors.iter_mut() {
             if view_id != &self.editor.view_id {
                 if self.editor.buffer == editor.buffer {
@@ -1552,7 +1600,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         let mut editor_view = LapceEditorViewData {
             buffer,
             editor: editor.clone(),
-            diagnostics,
+            diagnostics: diagnostics.clone(),
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
@@ -1565,6 +1613,12 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         data.keypress = editor_view.keypress.clone();
         data.completion = editor_view.completion.clone();
         data.main_split = editor_view.main_split.clone();
+        if !diagnostics.same(&editor_view.diagnostics) {
+            data.diagnostics.insert(
+                editor_view.buffer.path.clone(),
+                editor_view.diagnostics.clone(),
+            );
+        }
         data.theme = editor_view.theme.clone();
         if !editor.same(&editor_view.editor) {
             data.main_split
@@ -1672,6 +1726,7 @@ impl KeyPressFocus for LapceEditorViewData {
                 ));
             }
             LapceCommand::Undo => {
+                self.initiate_diagnositcs_offset();
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_undo(proxy) {
@@ -1680,9 +1735,11 @@ impl KeyPressFocus for LapceEditorViewData {
                     let selection = Selection::caret(self.editor.cursor.offset())
                         .apply_delta(&delta, true, InsertDrift::Default);
                     self.set_cursor_after_change(selection);
+                    self.update_diagnositcs_offset(&delta);
                 }
             }
             LapceCommand::Redo => {
+                self.initiate_diagnositcs_offset();
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_redo(proxy) {
@@ -1691,6 +1748,7 @@ impl KeyPressFocus for LapceEditorViewData {
                     let selection = Selection::caret(self.editor.cursor.offset())
                         .apply_delta(&delta, true, InsertDrift::Default);
                     self.set_cursor_after_change(selection);
+                    self.update_diagnositcs_offset(&delta);
                 }
             }
             LapceCommand::Append => {
