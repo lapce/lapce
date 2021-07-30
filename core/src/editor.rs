@@ -834,7 +834,7 @@ impl LapceEditor {
             let width = 14.0;
             let height = 14.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                (line_height - width) / 2.0 + 5.0 + data.editor.scroll_offset.x,
+                data.editor.scroll_offset.x,
                 (line_height - height) / 2.0 + line_height * line as f64,
             ));
             svg.paint(ctx, rect, None);
@@ -1317,6 +1317,17 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                     ctx.size().width,
                     (end + 1 - start) as f64 * line_height,
                 ));
+            ctx.request_paint_rect(rect);
+        }
+
+        if old_data.current_code_actions().is_some()
+            != data.current_code_actions().is_some()
+        {
+            let offset = data.editor.cursor.offset();
+            let (line, _) = data.buffer.offset_to_line_col(offset);
+            let rect = Rect::ZERO
+                .with_origin(Point::new(0.0, line as f64 * line_height))
+                .with_size(Size::new(ctx.size().width, line_height));
             ctx.request_paint_rect(rect);
         }
 
