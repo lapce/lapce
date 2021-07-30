@@ -256,6 +256,9 @@ impl LapceTabData {
 
     pub fn set_workspace(&mut self, ctx: &mut EventCtx, workspace: LapceWorkspace) {
         self.workspace = Arc::new(workspace.clone());
+        self.diagnostics.clear();
+        self.error_count = 0;
+        self.warning_count = 0;
         self.proxy.start(workspace, ctx.get_external_handle());
     }
 
