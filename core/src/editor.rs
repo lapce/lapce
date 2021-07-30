@@ -631,7 +631,7 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
             .unwrap_or("")
             .to_string();
         if data.buffer.dirty {
-            file_name += " *"
+            file_name = "*".to_string() + &file_name;
         }
         let mut text_layout = TextLayout::<String>::from_text(file_name);
         text_layout

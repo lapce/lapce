@@ -80,7 +80,7 @@ impl PaletteType {
 
     fn has_preview(&self) -> bool {
         match &self {
-            PaletteType::File => false,
+            PaletteType::File | PaletteType::Workspace => false,
             _ => true,
         }
     }
@@ -111,6 +111,7 @@ pub enum PaletteItemContent {
         container_name: Option<String>,
     },
     ReferenceLocation(PathBuf, EditorLocationNew),
+    Workspace(LapceWorkspace),
 }
 
 impl PaletteItemContent {
@@ -166,6 +167,15 @@ impl PaletteItemContent {
                     Target::Auto,
                 ));
             }
+            PaletteItemContent::Workspace(workspace) => {
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SetWorkspace(workspace.clone()),
+                        Target::Auto,
+                    ));
+                }
+            }
         }
     }
 
@@ -211,6 +221,16 @@ impl PaletteItemContent {
             PaletteItemContent::ReferenceLocation(rel_path, location) => {
                 file_paint_items(rel_path, indices)
             }
+            PaletteItemContent::Workspace(w) => {
+                let text = w.path.to_str().unwrap();
+                let text = match &w.kind {
+                    LapceWorkspaceType::Local => text.to_string(),
+                    LapceWorkspaceType::RemoteSSH(user, host) => {
+                        format!("[{}@{}] {}", user, host, text)
+                    }
+                };
+                (None, text, indices.to_vec(), "".to_string(), vec![])
+            }
         };
 
         if let Some(svg) = svg.as_ref() {
@@ -224,7 +244,9 @@ impl PaletteItemContent {
         }
 
         let svg_x = match &self {
-            &PaletteItemContent::Line(_, _) => 0.0,
+            &PaletteItemContent::Line(_, _) | &PaletteItemContent::Workspace(_) => {
+                0.0
+            }
             _ => line_height,
         };
 
@@ -519,6 +541,9 @@ impl PaletteViewData {
             &PaletteType::DocumentSymbol => {
                 self.get_document_symbols(ctx);
             }
+            &PaletteType::Workspace => {
+                self.get_workspaces(ctx);
+            }
             &PaletteType::Reference => {}
             _ => self.get_files(ctx),
         }
@@ -655,6 +680,62 @@ impl PaletteViewData {
                 }
             }
         }));
+    }
+
+    fn get_workspaces(&mut self, ctx: &mut EventCtx) {
+        let workspaces = vec![
+            LapceWorkspace {
+                kind: LapceWorkspaceType::Local,
+                path: PathBuf::from("/Users/Lulu/lapce"),
+            },
+            LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH(
+                    "root".to_string(),
+                    "10.154.0.5".to_string(),
+                ),
+                path: PathBuf::from("/root/nebula"),
+            },
+            LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH(
+                    "dz".to_string(),
+                    "10.132.0.2".to_string(),
+                ),
+                path: PathBuf::from("/home/dz/go/src/galaxy"),
+            },
+            LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH(
+                    "dz".to_string(),
+                    "10.132.0.2".to_string(),
+                ),
+                path: PathBuf::from("/home/dz/go/src/tardis"),
+            },
+            LapceWorkspace {
+                kind: LapceWorkspaceType::RemoteSSH(
+                    "dz".to_string(),
+                    "10.132.0.2".to_string(),
+                ),
+                path: PathBuf::from("/home/dz/cosmos"),
+            },
+        ];
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.items = workspaces
+            .into_iter()
+            .map(|w| {
+                let text = w.path.to_str().unwrap();
+                let filter_text = match &w.kind {
+                    LapceWorkspaceType::Local => text.to_string(),
+                    LapceWorkspaceType::RemoteSSH(user, host) => {
+                        format!("[{}@{}] {}", user, host, text)
+                    }
+                };
+                NewPaletteItem {
+                    content: PaletteItemContent::Workspace(w),
+                    filter_text,
+                    score: 0,
+                    indices: vec![],
+                }
+            })
+            .collect();
     }
 
     fn get_lines(&mut self, ctx: &mut EventCtx) {

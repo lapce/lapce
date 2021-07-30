@@ -19,6 +19,7 @@ use crate::{
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
     palette::{NewPaletteItem, PaletteType},
     split::SplitMoveDirection,
+    state::LapceWorkspace,
 };
 
 pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.command");
@@ -215,6 +216,7 @@ pub enum LapceUICommand {
         editor_view_id: WidgetId,
         location: EditorLocationNew,
     },
+    SetWorkspace(LapceWorkspace),
     OpenFile(PathBuf),
     FillTextLayouts,
     CancelCompletion(usize),

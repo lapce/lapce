@@ -532,9 +532,7 @@ impl Widget<LapceTabData> for CompletionContainer {
                         );
                     }
                     LapceUICommand::CancelCompletion(request_id) => {
-                        if data.completion.request_id == *request_id
-                            && data.completion.status == CompletionStatus::Started
-                        {
+                        if data.completion.request_id == *request_id {
                             let completion = Arc::make_mut(&mut data.completion);
                             completion.cancel();
                         }

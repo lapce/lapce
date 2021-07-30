@@ -101,6 +101,12 @@ impl Widget<LapceTabData> for LapceTabNew {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::SetWorkspace(workspace) => {
+                        if workspace != &*data.workspace {
+                            data.set_workspace(ctx, workspace.clone());
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateWindowOrigin => {
                         data.window_origin = ctx.window_origin();
                     }

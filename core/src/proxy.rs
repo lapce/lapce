@@ -52,6 +52,7 @@ impl LapceProxy {
 
     pub fn start(&self, workspace: LapceWorkspace, event_sink: ExtEventSink) {
         let proxy = self.clone();
+        *proxy.initiated.lock() = false;
         let tab_id = self.tab_id;
         thread::spawn(move || {
             let mut child = match workspace.kind {

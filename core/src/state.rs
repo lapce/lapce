@@ -180,13 +180,13 @@ impl LapceUIState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(String, String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LapceWorkspace {
     pub kind: LapceWorkspaceType,
     pub path: PathBuf,
