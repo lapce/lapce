@@ -7,10 +7,11 @@ use std::{
     str::FromStr,
     sync::Arc,
     thread,
+    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
+use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
 use crossbeam_utils::sync::WaitGroup;
 use druid::{
     theme, Application, Color, Command, Data, Env, EventCtx, ExtEventSink,
@@ -20,7 +21,7 @@ use druid::{
 use im;
 use lsp_types::{
     CompletionItem, CompletionResponse, CompletionTextEdit, Diagnostic,
-    GotoDefinitionResponse, Location, Position,
+    DiagnosticSeverity, GotoDefinitionResponse, Location, Position, TextEdit,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -196,6 +197,8 @@ pub struct LapceTabData {
     pub completion: Arc<CompletionData>,
     pub palette: Arc<PaletteData>,
     pub diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
+    pub error_count: usize,
+    pub warning_count: usize,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
@@ -240,6 +243,8 @@ impl LapceTabData {
             palette,
             proxy,
             diagnostics: im::HashMap::new(),
+            error_count: 0,
+            warning_count: 0,
             keypress,
             theme,
             update_sender,
@@ -575,6 +580,72 @@ impl LapceMainSplitData {
         Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
     }
 
+    pub fn document_format_and_save(
+        &mut self,
+        ctx: &mut EventCtx,
+        path: &PathBuf,
+        rev: u64,
+        result: &Result<Value>,
+    ) {
+        let buffer = self.open_files.get(path).unwrap();
+        if buffer.rev != rev {
+            return;
+        }
+
+        if let Ok(res) = result {
+            let edits: Result<Vec<TextEdit>, serde_json::Error> =
+                serde_json::from_value(res.clone());
+            if let Ok(edits) = edits {
+                if edits.len() > 0 {
+                    let buffer = self.open_files.get_mut(path).unwrap();
+
+                    let edits: Vec<(Selection, String)> = edits
+                        .iter()
+                        .map(|edit| {
+                            let selection = Selection::region(
+                                buffer.offset_of_position(&edit.range.start),
+                                buffer.offset_of_position(&edit.range.end),
+                            );
+                            (selection, edit.new_text.clone())
+                        })
+                        .collect();
+
+                    let delta = Arc::make_mut(buffer).edit_multiple(
+                        ctx,
+                        edits.iter().map(|(s, c)| (s, c.as_ref())).collect(),
+                        self.proxy.clone(),
+                        EditType::Other,
+                    );
+                    self.notify_update_text_layouts(ctx, path);
+                    for (_, editor) in self.editors.iter_mut() {
+                        if &editor.buffer == path {
+                            Arc::make_mut(editor).cursor.apply_delta(&delta);
+                        }
+                    }
+                }
+            }
+        }
+
+        let buffer = self.open_files.get(path).unwrap();
+        let rev = buffer.rev;
+        let buffer_id = buffer.id;
+        let event_sink = ctx.get_external_handle();
+        let path = path.clone();
+        self.proxy.save(
+            rev,
+            buffer_id,
+            Box::new(move |result| {
+                if let Ok(r) = result {
+                    event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::BufferSave(path, rev),
+                        Target::Auto,
+                    );
+                }
+            }),
+        );
+    }
+
     pub fn jump_to_position(
         &mut self,
         ctx: &mut EventCtx,
@@ -823,6 +894,7 @@ pub struct LapceEditorViewData {
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,
     pub diagnostics: Arc<Vec<EditorDiagnostic>>,
+    pub all_diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
     pub keypress: Arc<KeyPressData>,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<WidgetId>,
@@ -1122,6 +1194,57 @@ impl LapceEditorViewData {
             LAPCE_UI_COMMAND,
             LapceUICommand::EnsureRectVisible(rect),
             Target::Widget(self.editor.container_id),
+        ));
+    }
+
+    pub fn next_error(&mut self, ctx: &mut EventCtx, env: &Env) {
+        let mut file_diagnostics = self
+            .all_diagnostics
+            .iter()
+            .filter_map(|(path, diagnositics)| {
+                //let buffer = self.get_buffer_from_path(ctx, ui_state, path);
+                let mut errors: Vec<Position> = diagnositics
+                    .iter()
+                    .filter_map(|d| {
+                        let severity = d
+                            .diagnositc
+                            .severity
+                            .unwrap_or(DiagnosticSeverity::Hint);
+                        if severity != DiagnosticSeverity::Error {
+                            return None;
+                        }
+                        Some(d.diagnositc.range.start)
+                    })
+                    .collect();
+                if errors.len() == 0 {
+                    None
+                } else {
+                    errors.sort();
+                    Some((path, errors))
+                }
+            })
+            .collect::<Vec<(&PathBuf, Vec<Position>)>>();
+        if file_diagnostics.len() == 0 {
+            return;
+        }
+        file_diagnostics.sort_by(|a, b| a.0.cmp(b.0));
+
+        let offset = self.editor.cursor.offset();
+        let position = self.buffer.offset_to_position(offset);
+        let (path, position) = next_in_file_errors_offset(
+            position,
+            &self.buffer.path,
+            &file_diagnostics,
+        );
+        let location = EditorLocationNew {
+            path,
+            position,
+            scroll_offset: None,
+        };
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::JumpToLocation(EditorKind::SplitActive, location),
+            Target::Auto,
         ));
     }
 
@@ -1586,6 +1709,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             editor: editor.clone(),
             main_split: main_split.clone(),
             diagnostics,
+            all_diagnostics: data.diagnostics.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
             palette: Arc::new(data.palette.widget_id),
@@ -1612,6 +1736,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             buffer,
             editor: editor.clone(),
             diagnostics: diagnostics.clone(),
+            all_diagnostics: data.diagnostics.clone(),
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
@@ -1646,11 +1771,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
 
 impl KeyPressFocus for LapceEditorViewData {
     fn get_mode(&self) -> Mode {
-        match self.editor.cursor.mode {
-            CursorMode::Normal(_) => Mode::Normal,
-            CursorMode::Visual { .. } => Mode::Visual,
-            CursorMode::Insert(_) => Mode::Insert,
-        }
+        self.editor.cursor.get_mode()
     }
 
     fn check_condition(&self, condition: &str) -> bool {
@@ -2032,6 +2153,10 @@ impl KeyPressFocus for LapceEditorViewData {
             LapceCommand::JumpLocationForward => {
                 self.jump_location_forward(ctx, env);
             }
+            LapceCommand::NextError => {
+                self.next_error(ctx, env);
+            }
+            LapceCommand::PreviousError => {}
             LapceCommand::ListNext => {
                 let completion = Arc::make_mut(&mut self.completion);
                 completion.next();
@@ -2254,6 +2379,37 @@ impl KeyPressFocus for LapceEditorViewData {
                     Target::Widget(*self.palette),
                 ));
             }
+            LapceCommand::Save => {
+                if !self.buffer.dirty {
+                    return;
+                }
+
+                let proxy = self.proxy.clone();
+                let buffer_id = self.buffer.id;
+                let rev = self.buffer.rev;
+                let path = self.buffer.path.clone();
+                let event_sink = ctx.get_external_handle();
+                let (sender, receiver) = bounded(1);
+                thread::spawn(move || {
+                    proxy.get_document_formatting(
+                        buffer_id,
+                        Box::new(move |result| {
+                            sender.send(result);
+                        }),
+                    );
+
+                    let result =
+                        receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
+                            |e| Err(anyhow!("{}", e)),
+                            |v| v.map_err(|e| anyhow!("{:?}", e)),
+                        );
+                    event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::DocumentFormatAndSave(path, rev, result),
+                        Target::Auto,
+                    );
+                });
+            }
             _ => (),
         }
     }
@@ -2269,6 +2425,29 @@ impl KeyPressFocus for LapceEditorViewData {
             self.update_completion(ctx);
         }
     }
+}
+
+fn next_in_file_errors_offset(
+    position: Position,
+    path: &PathBuf,
+    file_diagnostics: &Vec<(&PathBuf, Vec<Position>)>,
+) -> (PathBuf, Position) {
+    for (current_path, positions) in file_diagnostics {
+        if &path == current_path {
+            for error_position in positions {
+                if error_position.line > position.line
+                    || (error_position.line == position.line
+                        && error_position.character > position.character)
+                {
+                    return ((*current_path).clone(), *error_position);
+                }
+            }
+        }
+        if current_path > &path {
+            return ((*current_path).clone(), positions[0]);
+        }
+    }
+    ((*file_diagnostics[0].0).clone(), file_diagnostics[0].1[0])
 }
 
 fn process_get_references(

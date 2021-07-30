@@ -6,6 +6,7 @@ use druid::{
 };
 use lsp_types::DiagnosticSeverity;
 
+use crate::data::LapceTabData;
 use crate::state::Mode;
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -150,5 +151,104 @@ impl Widget<LapceUIState> for LapceStatus {
 
     fn id(&self) -> Option<WidgetId> {
         Some(self.status_id)
+    }
+}
+
+pub struct LapceStatusNew {}
+
+impl LapceStatusNew {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<LapceTabData> for LapceStatusNew {
+    fn event(
+        &mut self,
+        ctx: &mut druid::EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &druid::Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut druid::LifeCycleCtx,
+        event: &druid::LifeCycle,
+        data: &LapceTabData,
+        env: &druid::Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &druid::Env,
+    ) {
+        if old_data.main_split.active_editor().cursor.get_mode()
+            != data.main_split.active_editor().cursor.get_mode()
+        {
+            ctx.request_paint();
+            return;
+        }
+
+        if old_data.warning_count != data.warning_count
+            || old_data.error_count != data.error_count
+        {
+            ctx.request_paint();
+            return;
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut druid::LayoutCtx,
+        bc: &druid::BoxConstraints,
+        data: &LapceTabData,
+        env: &druid::Env,
+    ) -> Size {
+        Size::new(bc.max().width, 25.0)
+    }
+
+    fn paint(
+        &mut self,
+        ctx: &mut druid::PaintCtx,
+        data: &LapceTabData,
+        env: &druid::Env,
+    ) {
+        let size = ctx.size();
+        let rect = size.to_rect();
+        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+
+        let mut left = 0.0;
+        let (mode, color) = match data.main_split.active_editor().cursor.get_mode() {
+            Mode::Normal => ("Normal", Color::rgb8(64, 120, 242)),
+            Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
+            Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
+        };
+        let mut text_layout = TextLayout::<String>::from_text(mode);
+        text_layout
+            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
+        text_layout.set_text_color(LapceTheme::EDITOR_BACKGROUND);
+        text_layout.rebuild_if_needed(ctx.text(), env);
+        let text_size = text_layout.size();
+        let fill_size = Size::new(text_size.width + 10.0, size.height);
+        ctx.fill(fill_size.to_rect(), &color);
+        text_layout.draw(ctx, Point::new(5.0, 4.0));
+        left += text_size.width + 10.0;
+
+        let mut text_layout = TextLayout::<String>::from_text(format!(
+            "{}  {}",
+            data.error_count, data.warning_count
+        ));
+        text_layout
+            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
+        text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+        text_layout.rebuild_if_needed(ctx.text(), env);
+        text_layout.draw(ctx, Point::new(left + 10.0, 4.0));
+        left += 10.0 + text_layout.size().width;
     }
 }

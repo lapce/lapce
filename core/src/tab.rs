@@ -5,6 +5,7 @@ use druid::{
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Size, Target, Widget, WidgetExt,
     WidgetId, WidgetPod,
 };
+use lsp_types::DiagnosticSeverity;
 
 use crate::{
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
@@ -19,6 +20,7 @@ use crate::{
     scroll::LapceScrollNew,
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
+    status::LapceStatusNew,
 };
 
 pub struct LapceTabNew {
@@ -26,6 +28,7 @@ pub struct LapceTabNew {
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
 impl LapceTabNew {
@@ -50,12 +53,14 @@ impl LapceTabNew {
                 .get(&data.palette.preview_editor)
                 .unwrap(),
         );
+        let status = LapceStatusNew::new();
 
         Self {
             id: data.id,
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion.boxed()),
             palette: WidgetPod::new(palette.boxed()),
+            status: WidgetPod::new(status.boxed()),
         }
     }
 }
@@ -117,6 +122,38 @@ impl Widget<LapceTabData> for LapceTabNew {
                             })
                             .collect();
                         data.diagnostics.insert(path, Arc::new(diagnostics));
+
+                        let mut errors = 0;
+                        let mut warnings = 0;
+                        for (_, diagnositics) in data.diagnostics.iter() {
+                            for diagnositic in diagnositics.iter() {
+                                if let Some(severity) =
+                                    diagnositic.diagnositc.severity
+                                {
+                                    match severity {
+                                        DiagnosticSeverity::Error => errors += 1,
+                                        DiagnosticSeverity::Warning => warnings += 1,
+                                        _ => (),
+                                    }
+                                }
+                            }
+                        }
+                        data.error_count = errors;
+                        data.warning_count = warnings;
+
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::DocumentFormatAndSave(path, rev, result) => {
+                        data.main_split
+                            .document_format_and_save(ctx, path, *rev, result);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::BufferSave(path, rev) => {
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        if buffer.rev == *rev {
+                            Arc::make_mut(buffer).dirty = false;
+                        }
                         ctx.set_handled();
                     }
                     LapceUICommand::LoadBufferAndGoToPosition {
@@ -274,6 +311,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.palette.event(ctx, event, data, env);
         self.completion.event(ctx, event, data, env);
         self.main_split.event(ctx, event, data, env);
+        self.status.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -285,6 +323,7 @@ impl Widget<LapceTabData> for LapceTabNew {
     ) {
         self.palette.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);
+        self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
     }
 
@@ -318,6 +357,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.palette.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
+        self.status.update(ctx, data, env);
     }
 
     fn layout(
@@ -328,7 +368,19 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
-        self.main_split.layout(ctx, bc, data, env);
+
+        let status_size = self.status.layout(ctx, bc, data, env);
+        self.status.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(0.0, self_size.height - status_size.height),
+        );
+
+        let main_split_size =
+            Size::new(self_size.width, self_size.height - status_size.height);
+        let main_split_bc = BoxConstraints::tight(main_split_size);
+        self.main_split.layout(ctx, &main_split_bc, data, env);
         self.main_split.set_origin(ctx, data, env, Point::ZERO);
 
         let completion_origin = data.completion_origin(self_size.clone(), env);
@@ -349,6 +401,7 @@ impl Widget<LapceTabData> for LapceTabNew {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.main_split.paint(ctx, data, env);
+        self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
     }

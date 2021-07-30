@@ -54,6 +54,14 @@ impl Cursor {
         }
     }
 
+    pub fn get_mode(&self) -> Mode {
+        match &self.mode {
+            CursorMode::Normal(_) => Mode::Normal,
+            CursorMode::Visual { .. } => Mode::Visual,
+            CursorMode::Insert(_) => Mode::Insert,
+        }
+    }
+
     pub fn current_line(&self, buffer: &BufferNew) -> usize {
         buffer.line_of_offset(self.offset())
     }

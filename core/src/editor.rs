@@ -577,6 +577,12 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
         data: &LapceEditorViewData,
         env: &Env,
     ) {
+        if data.buffer.path != old_data.buffer.path {
+            ctx.request_paint();
+        }
+        if data.buffer.dirty != old_data.buffer.dirty {
+            ctx.request_paint();
+        }
     }
 
     fn layout(
@@ -590,7 +596,11 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
-        let text = data.editor.buffer.to_str().unwrap();
+        let text = format!(
+            "{}{}",
+            if data.buffer.dirty { "* " } else { "" },
+            data.editor.buffer.to_str().unwrap()
+        );
         let mut text_layout = TextLayout::<String>::from_text(text);
         text_layout
             .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
