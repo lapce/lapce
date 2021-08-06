@@ -596,7 +596,7 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
     ) -> Size {
         ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        Size::new(bc.max().width, line_height)
+        Size::new(bc.max().width, 30.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
@@ -620,8 +620,8 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
             let width = 13.0;
             let height = 13.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                (line_height - width) / 2.0 + 5.0,
-                (line_height - height) / 2.0,
+                (30.0 - width) / 2.0,
+                (30.0 - height) / 2.0,
             ));
             svg.paint(ctx, rect, None);
         }
@@ -639,7 +639,7 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
             .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
         text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
         text_layout.rebuild_if_needed(ctx.text(), env);
-        text_layout.draw(ctx, Point::new(5.0 + line_height, 5.0));
+        text_layout.draw(ctx, Point::new(30.0, 7.0));
 
         let path = path.strip_prefix(&data.workspace.path).unwrap_or(&path);
         let folder = path
@@ -656,7 +656,7 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
             );
             text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
             text_layout.rebuild_if_needed(ctx.text(), env);
-            text_layout.draw(ctx, Point::new(5.0 + line_height + x + 5.0, 5.0));
+            text_layout.draw(ctx, Point::new(30.0 + x + 5.0, 7.0));
         }
     }
 }
@@ -831,13 +831,14 @@ impl LapceEditor {
             let offset = data.editor.cursor.offset();
             let (line, _) = data.buffer.offset_to_line_col(offset);
             let svg = get_svg("lightbulb.svg").unwrap();
-            let width = 14.0;
-            let height = 14.0;
+            let width = 16.0;
+            let height = 16.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
                 data.editor.scroll_offset.x,
                 (line_height - height) / 2.0 + line_height * line as f64,
             ));
-            svg.paint(ctx, rect, None);
+            let color = env.get(LapceTheme::EDITOR_WARN);
+            svg.paint(ctx, rect, Some(&color));
         }
     }
 
