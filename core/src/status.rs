@@ -195,8 +195,8 @@ impl Widget<LapceTabData> for LapceStatusNew {
             return;
         }
 
-        if old_data.warning_count != data.warning_count
-            || old_data.error_count != data.error_count
+        if old_data.main_split.warning_count != data.main_split.warning_count
+            || old_data.main_split.error_count != data.main_split.error_count
         {
             ctx.request_paint();
             return;
@@ -242,7 +242,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
 
         let mut text_layout = TextLayout::<String>::from_text(format!(
             "{}  {}",
-            data.error_count, data.warning_count
+            data.main_split.error_count, data.main_split.warning_count
         ));
         text_layout
             .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));

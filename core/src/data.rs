@@ -200,9 +200,6 @@ pub struct LapceTabData {
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<PaletteData>,
-    pub diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
-    pub error_count: usize,
-    pub warning_count: usize,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
@@ -216,7 +213,6 @@ impl Data for LapceTabData {
         self.main_split.same(&other.main_split)
             && self.completion.same(&other.completion)
             && self.palette.same(&other.palette)
-            && self.diagnostics.same(&other.diagnostics)
             && self.workspace.same(&other.workspace)
     }
 }
@@ -247,9 +243,6 @@ impl LapceTabData {
             completion,
             palette,
             proxy,
-            diagnostics: im::HashMap::new(),
-            error_count: 0,
-            warning_count: 0,
             keypress,
             theme,
             update_sender,
@@ -260,9 +253,9 @@ impl LapceTabData {
 
     pub fn set_workspace(&mut self, ctx: &mut EventCtx, workspace: LapceWorkspace) {
         self.workspace = Arc::new(workspace.clone());
-        self.diagnostics.clear();
-        self.error_count = 0;
-        self.warning_count = 0;
+        self.main_split.diagnostics.clear();
+        self.main_split.error_count = 0;
+        self.main_split.warning_count = 0;
         self.proxy.start(workspace, ctx.get_external_handle());
     }
 
@@ -597,13 +590,16 @@ pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
     pub active: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
-    // pub buffers: im::HashMap<BufferId, Arc<BufferNew>>,
     pub open_files: im::HashMap<PathBuf, Arc<BufferNew>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
     pub palette_preview_editor: Arc<WidgetId>,
     pub show_code_actions: bool,
+    pub current_code_actions: usize,
+    pub diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
+    pub error_count: usize,
+    pub warning_count: usize,
 }
 
 impl LapceMainSplitData {
@@ -711,6 +707,76 @@ impl LapceMainSplitData {
                 }
             }),
         );
+    }
+
+    fn initiate_diagnositcs_offset(&mut self, path: &PathBuf) {
+        if let Some(diagnostics) = self.diagnostics.get_mut(path) {
+            if let Some(buffer) = self.open_files.get(path) {
+                for diagnostic in Arc::make_mut(diagnostics).iter_mut() {
+                    if diagnostic.range.is_none() {
+                        diagnostic.range = Some((
+                            buffer.offset_of_position(
+                                &diagnostic.diagnositc.range.start,
+                            ),
+                            buffer.offset_of_position(
+                                &diagnostic.diagnositc.range.end,
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    fn update_diagnositcs_offset(&mut self, path: &PathBuf, delta: &RopeDelta) {
+        if let Some(diagnostics) = self.diagnostics.get_mut(path) {
+            if let Some(buffer) = self.open_files.get(path) {
+                let mut transformer = Transformer::new(delta);
+                for diagnostic in Arc::make_mut(diagnostics).iter_mut() {
+                    let (start, end) = diagnostic.range.clone().unwrap();
+                    let (new_start, new_end) = (
+                        transformer.transform(start, false),
+                        transformer.transform(end, true),
+                    );
+                    diagnostic.range = Some((new_start, new_end));
+                    if start != new_start {
+                        diagnostic.diagnositc.range.start =
+                            buffer.offset_to_position(new_start);
+                    }
+                    if end != new_end {
+                        diagnostic.diagnositc.range.end =
+                            buffer.offset_to_position(new_end);
+                        buffer.offset_to_position(new_end);
+                    }
+                }
+            }
+        }
+    }
+
+    fn cursor_apply_delta(&mut self, path: &PathBuf, delta: &RopeDelta) {
+        for (view_id, editor) in self.editors.iter_mut() {
+            if &editor.buffer == path {
+                Arc::make_mut(editor).cursor.apply_delta(delta);
+            }
+        }
+    }
+
+    pub fn edit(
+        &mut self,
+        ctx: &mut EventCtx,
+        path: &PathBuf,
+        edits: Vec<(&Selection, &str)>,
+        edit_type: EditType,
+    ) -> Option<RopeDelta> {
+        self.initiate_diagnositcs_offset(path);
+        let proxy = self.proxy.clone();
+        let buffer = self.open_files.get_mut(path)?;
+        let delta =
+            Arc::make_mut(buffer).edit_multiple(ctx, edits, proxy, edit_type);
+        self.notify_update_text_layouts(ctx, path);
+        self.cursor_apply_delta(path, &delta);
+        self.update_diagnositcs_offset(path, &delta);
+        Some(delta)
     }
 
     pub fn jump_to_position(
@@ -865,7 +931,6 @@ impl LapceMainSplitData {
         Self {
             split_id,
             editors,
-            // buffers,
             open_files,
             active: Arc::new(view_id),
             update_sender,
@@ -873,6 +938,10 @@ impl LapceMainSplitData {
             proxy,
             palette_preview_editor: Arc::new(palette_preview_editor),
             show_code_actions: false,
+            current_code_actions: 0,
+            diagnostics: im::HashMap::new(),
+            error_count: 0,
+            warning_count: 0,
         }
     }
 }
@@ -1600,7 +1669,7 @@ impl LapceEditorViewData {
         }
     }
 
-    fn initiate_diagnositcs_offset(&mut self) {
+    pub fn initiate_diagnositcs_offset(&mut self) {
         if self.diagnostics.len() > 0 {
             let buffer = self.buffer.clone();
             for diagnostic in Arc::make_mut(&mut self.diagnostics).iter_mut() {
@@ -1615,7 +1684,7 @@ impl LapceEditorViewData {
         }
     }
 
-    fn update_diagnositcs_offset(&mut self, delta: &RopeDelta) {
+    pub fn update_diagnositcs_offset(&mut self, delta: &RopeDelta) {
         if self.diagnostics.len() > 0 {
             let buffer = self.buffer.clone();
             let mut transformer = Transformer::new(delta);
@@ -1801,6 +1870,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         let main_split = &data.main_split;
         let editor = main_split.editors.get(&self.0).unwrap();
         let diagnostics = data
+            .main_split
             .diagnostics
             .get(&editor.buffer)
             .unwrap_or(&Arc::new(vec![]))
@@ -1811,7 +1881,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             editor: editor.clone(),
             main_split: main_split.clone(),
             diagnostics,
-            all_diagnostics: data.diagnostics.clone(),
+            all_diagnostics: data.main_split.diagnostics.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
             palette: Arc::new(data.palette.widget_id),
@@ -1830,6 +1900,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         let editor = main_split.editors.get(&self.0).unwrap().clone();
         let buffer = main_split.open_files.get(&editor.buffer).unwrap().clone();
         let diagnostics = data
+            .main_split
             .diagnostics
             .get(&editor.buffer)
             .unwrap_or(&Arc::new(vec![]))
@@ -1839,7 +1910,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             workspace: data.workspace.clone(),
             editor: editor.clone(),
             diagnostics: diagnostics.clone(),
-            all_diagnostics: data.diagnostics.clone(),
+            all_diagnostics: data.main_split.diagnostics.clone(),
             main_split: data.main_split.clone(),
             keypress: data.keypress.clone(),
             completion: data.completion.clone(),
@@ -1853,7 +1924,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
         data.completion = editor_view.completion.clone();
         data.main_split = editor_view.main_split.clone();
         if !diagnostics.same(&editor_view.diagnostics) {
-            data.diagnostics.insert(
+            data.main_split.diagnostics.insert(
                 editor_view.buffer.path.clone(),
                 editor_view.diagnostics.clone(),
             );
@@ -2620,6 +2691,7 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
         ),
         _ => return Err(anyhow!("invalid hex color")),
     };
+
     Ok(Color::rgba8(
         u8::from_str_radix(&r, 16)?,
         u8::from_str_radix(&g, 16)?,

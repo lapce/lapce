@@ -131,11 +131,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 diagnositc: d.clone(),
                             })
                             .collect();
-                        data.diagnostics.insert(path, Arc::new(diagnostics));
+                        data.main_split
+                            .diagnostics
+                            .insert(path, Arc::new(diagnostics));
 
                         let mut errors = 0;
                         let mut warnings = 0;
-                        for (_, diagnositics) in data.diagnostics.iter() {
+                        for (_, diagnositics) in data.main_split.diagnostics.iter() {
                             for diagnositic in diagnositics.iter() {
                                 if let Some(severity) =
                                     diagnositic.diagnositc.severity
@@ -148,8 +150,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 }
                             }
                         }
-                        data.error_count = errors;
-                        data.warning_count = warnings;
+                        data.main_split.error_count = errors;
+                        data.main_split.warning_count = warnings;
 
                         ctx.set_handled();
                     }
