@@ -36,6 +36,8 @@ pub enum LapceCommand {
     SourceControl,
     #[strum(serialize = "source_control.cancel")]
     SourceControlCancel,
+    #[strum(serialize = "code_actions.cancel")]
+    CodeActionsCancel,
     #[strum(serialize = "palette.line")]
     PaletteLine,
     #[strum(serialize = "palette")]
@@ -224,6 +226,8 @@ pub enum LapceUICommand {
     UpdateCompletion(usize, String, CompletionResponse),
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
+    ShowCodeActions,
+    CancelCodeActions,
     RunPalette(Option<PaletteType>),
     RunPaletteReferences(Vec<EditorLocationNew>),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),

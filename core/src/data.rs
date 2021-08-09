@@ -14,15 +14,18 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
 use crossbeam_utils::sync::WaitGroup;
 use druid::{
-    theme, Application, Color, Command, Data, Env, EventCtx, ExtEventSink,
-    FontDescriptor, FontFamily, KeyEvent, Lens, Point, Rect, Size, Target, Vec2,
-    WidgetId, WindowId,
+    piet::PietText,
+    theme,
+    widget::{Label, LabelText},
+    Application, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
+    FontFamily, Insets, KeyEvent, Lens, LocalizedString, Menu, MenuItem, Point,
+    Rect, Size, Target, TextLayout, Vec2, WidgetId, WindowId,
 };
 use im;
 use lsp_types::{
-    CodeActionResponse, CompletionItem, CompletionResponse, CompletionTextEdit,
-    Diagnostic, DiagnosticSeverity, GotoDefinitionResponse, Location, Position,
-    TextEdit,
+    CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
+    CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
+    Location, Position, TextEdit,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -261,6 +264,59 @@ impl LapceTabData {
         self.error_count = 0;
         self.warning_count = 0;
         self.proxy.start(workspace, ctx.get_external_handle());
+    }
+
+    pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
+        let editor = self.main_split.active_editor();
+        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
+        let offset = editor.cursor.offset();
+        let prev_offset = buffer.prev_code_boundary(offset);
+        let empty_vec = Vec::new();
+        let code_actions =
+            buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+
+        let action_text_layouts: Vec<TextLayout<String>> = code_actions
+            .iter()
+            .map(|code_action| {
+                let title = match code_action {
+                    CodeActionOrCommand::Command(cmd) => cmd.title.to_string(),
+                    CodeActionOrCommand::CodeAction(action) => {
+                        action.title.to_string()
+                    }
+                };
+                let mut text_layout = TextLayout::<String>::from_text(title.clone());
+                text_layout.set_font(
+                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
+                );
+                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                text_layout.rebuild_if_needed(text, env);
+                text_layout
+            })
+            .collect();
+
+        let mut width = 0.0;
+        for text_layout in &action_text_layouts {
+            let line_width = text_layout.size().width + 10.0;
+            if line_width > width {
+                width = line_width;
+            }
+        }
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        Size::new(width, code_actions.len() as f64 * line_height)
+    }
+
+    pub fn code_action_origin(&self, tab_size: Size, env: &Env) -> Point {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let editor = self.main_split.active_editor();
+        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
+        let offset = editor.cursor.offset();
+        let (line, col) = buffer.offset_to_line_col(offset);
+        let width = 7.6171875;
+        let x = col as f64 * width;
+        let y = (line + 1) as f64 * line_height;
+        let origin =
+            editor.window_origin - self.window_origin.to_vec2() + Vec2::new(x, y);
+        origin
     }
 
     pub fn completion_origin(&self, tab_size: Size, env: &Env) -> Point {
@@ -547,6 +603,7 @@ pub struct LapceMainSplitData {
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
     pub palette_preview_editor: Arc<WidgetId>,
+    pub show_code_actions: bool,
 }
 
 impl LapceMainSplitData {
@@ -815,6 +872,7 @@ impl LapceMainSplitData {
             register: Arc::new(Register::default()),
             proxy,
             palette_preview_editor: Arc::new(palette_preview_editor),
+            show_code_actions: false,
         }
     }
 }
@@ -2423,6 +2481,17 @@ impl KeyPressFocus for LapceEditorViewData {
                     LapceUICommand::RunPalette(Some(PaletteType::Line)),
                     Target::Widget(*self.palette),
                 ));
+            }
+            LapceCommand::ShowCodeActions => {
+                if let Some(actions) = self.current_code_actions() {
+                    if actions.len() > 0 {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ShowCodeActions,
+                            Target::Auto,
+                        ));
+                    }
+                }
             }
             LapceCommand::Save => {
                 if !self.buffer.dirty {

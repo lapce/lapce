@@ -48,6 +48,7 @@ use druid::{
     RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt,
     WidgetId, WidgetPod, WindowId,
 };
+use druid::{menu, Application, FileDialogOptions, Menu};
 use druid::{
     piet::{
         PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
@@ -55,7 +56,6 @@ use druid::{
     },
     FontWeight,
 };
-use druid::{Application, FileDialogOptions};
 use fzyr::{has_match, locate};
 use lsp_types::CompletionTextEdit;
 use lsp_types::{

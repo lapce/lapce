@@ -9,6 +9,7 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
+    code_action::CodeAction,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     data::{
@@ -28,6 +29,7 @@ pub struct LapceTabNew {
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    code_action: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
@@ -54,11 +56,13 @@ impl LapceTabNew {
                 .unwrap(),
         );
         let status = LapceStatusNew::new();
+        let code_action = CodeAction::new();
 
         Self {
             id: data.id,
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion.boxed()),
+            code_action: WidgetPod::new(code_action.boxed()),
             palette: WidgetPod::new(palette.boxed()),
             status: WidgetPod::new(status.boxed()),
         }
@@ -301,6 +305,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::ShowCodeActions
+                    | LapceUICommand::CancelCodeActions => {
+                        self.code_action.event(ctx, event, data, env);
+                    }
                     LapceUICommand::UpdateStyle {
                         id,
                         path,
@@ -325,6 +333,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         }
         self.palette.event(ctx, event, data, env);
         self.completion.event(ctx, event, data, env);
+        self.code_action.event(ctx, event, data, env);
         self.main_split.event(ctx, event, data, env);
         self.status.event(ctx, event, data, env);
     }
@@ -338,6 +347,7 @@ impl Widget<LapceTabData> for LapceTabNew {
     ) {
         self.palette.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);
+        self.code_action.lifecycle(ctx, event, data, env);
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
     }
@@ -369,9 +379,36 @@ impl Widget<LapceTabData> for LapceTabNew {
             }
         }
 
+        if old_data.main_split.show_code_actions || data.main_split.show_code_actions
+        {
+            let old_editor = old_data.main_split.active_editor();
+            let editor = data.main_split.active_editor();
+            if data.main_split.show_code_actions
+                != old_data.main_split.show_code_actions
+                || old_editor.window_origin != editor.window_origin
+            {
+                let origin = old_data.code_action_origin(ctx.size(), env);
+                let rect = old_data
+                    .code_action_size(ctx.text(), env)
+                    .to_rect()
+                    .with_origin(origin)
+                    .inset(10.0);
+                ctx.request_paint_rect(rect);
+
+                let origin = data.code_action_origin(ctx.size(), env);
+                let rect = data
+                    .code_action_size(ctx.text(), env)
+                    .to_rect()
+                    .with_origin(origin)
+                    .inset(10.0);
+                ctx.request_paint_rect(rect);
+            }
+        }
+
         self.palette.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
+        self.code_action.update(ctx, data, env);
         self.status.update(ctx, data, env);
     }
 
@@ -403,6 +440,11 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.completion
             .set_origin(ctx, data, env, completion_origin);
 
+        let code_action_origin = data.code_action_origin(self_size.clone(), env);
+        self.code_action.layout(ctx, bc, data, env);
+        self.code_action
+            .set_origin(ctx, data, env, code_action_origin);
+
         let palette_size = self.palette.layout(ctx, bc, data, env);
         self.palette.set_origin(
             ctx,
@@ -418,6 +460,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.main_split.paint(ctx, data, env);
         self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
+        self.code_action.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
     }
 }
