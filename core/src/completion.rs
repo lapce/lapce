@@ -241,7 +241,6 @@ impl Display for SnippetElement {
 pub enum CompletionStatus {
     Inactive,
     Started,
-    Done,
 }
 
 #[derive(Clone)]
@@ -255,7 +254,7 @@ pub struct CompletionData {
     pub input: String,
     pub index: usize,
     pub input_items: im::HashMap<String, Arc<Vec<ScoredCompletionItem>>>,
-    pub items: Arc<Vec<ScoredCompletionItem>>,
+    empty: Arc<Vec<ScoredCompletionItem>>,
     pub filtered_items: Arc<Vec<ScoredCompletionItem>>,
     pub matcher: Arc<SkimMatcherV2>,
     pub size: Size,
@@ -273,19 +272,15 @@ impl CompletionData {
             buffer_id: BufferId(0),
             input: "".to_string(),
             input_items: im::HashMap::new(),
-            items: Arc::new(Vec::new()),
             filtered_items: Arc::new(Vec::new()),
             matcher: Arc::new(SkimMatcherV2::default()),
             size: Size::new(400.0, 300.0),
+            empty: Arc::new(Vec::new()),
         }
     }
 
     pub fn len(&self) -> usize {
-        if self.input == "" {
-            self.items.len()
-        } else {
-            self.filtered_items.len()
-        }
+        self.current_items().len()
     }
 
     pub fn next(&mut self) {
@@ -296,20 +291,26 @@ impl CompletionData {
         self.index = Movement::Up.update_index(self.index, self.len(), 1, true);
     }
 
-    pub fn current_item(&self) -> &CompletionItem {
+    pub fn current_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {
         if self.input == "" {
-            &self.items[self.index].item
+            self.all_items()
         } else {
-            &self.filtered_items[self.index].item
+            &self.filtered_items
         }
     }
 
+    pub fn all_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {
+        self.input_items
+            .get(&self.input)
+            .unwrap_or_else(move || self.input_items.get("").unwrap_or(&self.empty))
+    }
+
+    pub fn current_item(&self) -> &CompletionItem {
+        &self.current_items()[self.index].item
+    }
+
     pub fn current(&self) -> &str {
-        if self.input == "" {
-            self.items[self.index].item.label.as_str()
-        } else {
-            self.filtered_items[self.index].item.label.as_str()
-        }
+        self.current_items()[self.index].item.label.as_str()
     }
 
     pub fn request(
@@ -342,13 +343,6 @@ impl CompletionData {
                         return;
                     }
                 }
-                if input == "" {
-                    event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::CancelCompletion(request_id),
-                        Target::Widget(completion_widget_id),
-                    );
-                }
             }),
         );
     }
@@ -360,7 +354,6 @@ impl CompletionData {
         println!("completion cancel");
         self.status = CompletionStatus::Inactive;
         self.input = "".to_string();
-        self.items = Arc::new(Vec::new());
         self.input_items.clear();
         self.index = 0;
     }
@@ -368,7 +361,7 @@ impl CompletionData {
     pub fn update_input(&mut self, input: String) {
         self.input = input;
         self.index = 0;
-        if self.status != CompletionStatus::Done {
+        if self.status == CompletionStatus::Inactive {
             return;
         }
         self.filter_items();
@@ -385,7 +378,6 @@ impl CompletionData {
             return;
         }
 
-        self.status = CompletionStatus::Done;
         let items = match resp {
             CompletionResponse::Array(items) => items,
             CompletionResponse::List(list) => list.items,
@@ -400,27 +392,7 @@ impl CompletionData {
             })
             .collect();
 
-        if input == "" {
-            self.items = Arc::new(items);
-        } else {
-            self.input_items.insert(input, Arc::new(items));
-        }
-        self.filter_items();
-    }
-
-    pub fn done(&mut self, input: String, completion_items: Vec<CompletionItem>) {
-        self.status = CompletionStatus::Done;
-        self.input = input;
-        let items = completion_items
-            .iter()
-            .map(|i| ScoredCompletionItem {
-                item: i.to_owned(),
-                score: 0,
-                index: 0,
-                indices: Vec::new(),
-            })
-            .collect();
-        self.items = Arc::new(items);
+        self.input_items.insert(input, Arc::new(items));
         self.filter_items();
     }
 
@@ -429,9 +401,8 @@ impl CompletionData {
             return;
         }
 
-        let items = self.input_items.get(&self.input).unwrap_or(&self.items);
-
-        let mut items: Vec<ScoredCompletionItem> = items
+        let mut items: Vec<ScoredCompletionItem> = self
+            .all_items()
             .iter()
             .filter_map(|i| {
                 let filter_text =
@@ -454,9 +425,6 @@ impl CompletionData {
             .collect();
         items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        if items.len() > 0 {
-            println!("{}", serde_json::to_string(&items[0].item).unwrap());
-        }
         self.filtered_items = Arc::new(items);
     }
 }
@@ -565,7 +533,7 @@ impl Widget<LapceTabData> for CompletionContainer {
         let old_completion = &old_data.completion;
         let completion = &data.completion;
 
-        if data.completion.status == CompletionStatus::Done {
+        if data.completion.status != CompletionStatus::Inactive {
             let old_editor = old_data.main_split.active_editor();
             let editor = data.main_split.active_editor();
             if old_editor.window_origin != editor.window_origin
@@ -580,7 +548,10 @@ impl Widget<LapceTabData> for CompletionContainer {
         if old_data.completion.input != data.completion.input
             || old_data.completion.request_id != data.completion.request_id
             || old_data.completion.status != data.completion.status
-            || !old_data.completion.items.same(&data.completion.items)
+            || !old_data
+                .completion
+                .current_items()
+                .same(&data.completion.current_items())
             || !old_data
                 .completion
                 .filtered_items
@@ -590,8 +561,8 @@ impl Widget<LapceTabData> for CompletionContainer {
             ctx.request_paint();
         }
 
-        if (old_completion.status != CompletionStatus::Done
-            && completion.status == CompletionStatus::Done)
+        if (old_completion.status == CompletionStatus::Inactive
+            && completion.status != CompletionStatus::Inactive)
             || (old_completion.input != completion.input)
         {
             ctx.submit_command(Command::new(
@@ -623,7 +594,7 @@ impl Widget<LapceTabData> for CompletionContainer {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        if data.completion.status == CompletionStatus::Done
+        if data.completion.status != CompletionStatus::Inactive
             && data.completion.len() > 0
         {
             let blur_color = Color::grey8(180);
@@ -679,11 +650,7 @@ impl Widget<LapceTabData> for CompletionNew {
         env: &Env,
     ) -> Size {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let height = if data.completion.input == "" {
-            data.completion.items.len()
-        } else {
-            data.completion.filtered_items.len()
-        };
+        let height = data.completion.len();
         let height = height as f64 * line_height;
         Size::new(bc.max().width, height)
     }
@@ -694,11 +661,7 @@ impl Widget<LapceTabData> for CompletionNew {
         let size = ctx.size();
 
         let input = &data.completion.input;
-        let items: &Vec<ScoredCompletionItem> = if input == "" {
-            &data.completion.items
-        } else {
-            &data.completion.filtered_items
-        };
+        let items: &Vec<ScoredCompletionItem> = data.completion.current_items();
 
         for rect in rects {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND));

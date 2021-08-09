@@ -361,7 +361,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
-        if data.completion.status == CompletionStatus::Done {
+        if data.completion.status != CompletionStatus::Inactive {
             let old_completion = &old_data.completion;
             let completion = &data.completion;
             let old_editor = old_data.main_split.active_editor();
@@ -369,7 +369,9 @@ impl Widget<LapceTabData> for LapceTabNew {
             if old_editor.window_origin != editor.window_origin
                 || old_completion.input != completion.input
                 || old_completion.request_id != completion.request_id
-                || !old_completion.items.same(&completion.items)
+                || !old_completion
+                    .current_items()
+                    .same(&completion.current_items())
                 || !old_completion
                     .filtered_items
                     .same(&completion.filtered_items)

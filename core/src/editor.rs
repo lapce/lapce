@@ -915,7 +915,6 @@ impl LapceEditor {
         }
 
         if let Some(diagnostic) = current {
-            println!("{:?}", diagnostic.diagnositc);
             if data.editor.cursor.is_normal() {
                 let mut text_layout = TextLayout::<String>::from_text(
                     diagnostic.diagnositc.message.clone(),

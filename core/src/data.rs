@@ -1806,7 +1806,20 @@ impl LapceEditorViewData {
         {
             completion.update_input(input.clone());
 
-            if input != "" && !completion.input_items.contains_key(&input) {
+            if !completion.input_items.contains_key("") {
+                let event_sink = ctx.get_external_handle();
+                completion.request(
+                    self.proxy.clone(),
+                    completion.request_id,
+                    self.buffer.id,
+                    "".to_string(),
+                    self.buffer.offset_to_position(start_offset),
+                    completion.id,
+                    event_sink,
+                );
+            }
+
+            if !completion.input_items.contains_key(&input) {
                 let event_sink = ctx.get_external_handle();
                 completion.request(
                     self.proxy.clone(),
@@ -1826,7 +1839,6 @@ impl LapceEditorViewData {
         completion.offset = start_offset;
         completion.input = input.clone();
         completion.status = CompletionStatus::Started;
-        completion.items = Arc::new(Vec::new());
         completion.input_items.clear();
         completion.request_id += 1;
         let event_sink = ctx.get_external_handle();
@@ -1947,12 +1959,8 @@ impl KeyPressFocus for LapceEditorViewData {
             "editor_focus" => true,
             "in_snippet" => self.editor.snippet.is_some(),
             "list_focus" => {
-                self.completion.status == CompletionStatus::Done
-                    && if self.completion.input == "" {
-                        self.completion.items.len() > 0
-                    } else {
-                        self.completion.filtered_items.len() > 0
-                    }
+                self.completion.status != CompletionStatus::Inactive
+                    && self.completion.len() > 0
             }
             _ => false,
         }
