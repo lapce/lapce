@@ -237,10 +237,7 @@ pub struct LapceEditorContainer {
     >,
     pub editor: WidgetPod<
         LapceEditorViewData,
-        LapcePadding<
-            LapceEditorViewData,
-            LapceIdentityWrapper<LapceScrollNew<LapceEditorViewData, LapceEditor>>,
-        >,
+        LapceIdentityWrapper<LapceScrollNew<LapceEditorViewData, LapceEditor>>,
     >,
 }
 
@@ -252,13 +249,12 @@ impl LapceEditorContainer {
     ) -> Self {
         let scroll_id = WidgetId::next();
         let gutter = LapceEditorGutter::new(view_id, container_id);
-        let gutter = LapcePadding::new((10.0, 0.0, 10.0, 0.0), gutter);
+        let gutter = LapcePadding::new((10.0, 0.0, 0.0, 0.0), gutter);
         let editor = LapceEditor::new(view_id, container_id, editor_id);
         let editor = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(editor).vertical().horizontal(),
             scroll_id,
         );
-        let editor = LapcePadding::new((10.0, 0.0, 0.0, 0.0), editor);
         Self {
             view_id,
             container_id,
@@ -291,8 +287,7 @@ impl LapceEditorContainer {
                 self.ensure_rect_visible(ctx, data, *rect, env);
             }
             LapceUICommand::UpdateSize => {
-                Arc::make_mut(&mut data.editor).size =
-                    self.editor.widget().child_size();
+                Arc::make_mut(&mut data.editor).size = ctx.size();
             }
             LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
                 if data.buffer.id != *buffer_id {
@@ -309,7 +304,6 @@ impl LapceEditorContainer {
             LapceUICommand::Scroll((x, y)) => {
                 self.editor
                     .widget_mut()
-                    .child_mut()
                     .inner_mut()
                     .scroll_by(Vec2::new(*x, *y));
                 ctx.submit_command(Command::new(
@@ -321,7 +315,6 @@ impl LapceEditorContainer {
             LapceUICommand::ForceScrollTo(x, y) => {
                 self.editor
                     .widget_mut()
-                    .child_mut()
                     .inner_mut()
                     .force_scroll_to(Point::new(*x, *y));
                 ctx.submit_command(Command::new(
@@ -333,7 +326,6 @@ impl LapceEditorContainer {
             LapceUICommand::ScrollTo((x, y)) => {
                 self.editor
                     .widget_mut()
-                    .child_mut()
                     .inner_mut()
                     .scroll_to(Point::new(*x, *y));
                 ctx.submit_command(Command::new(
@@ -372,7 +364,7 @@ impl LapceEditorContainer {
                 + data.editor.size.height
                 - line_height,
         );
-        let scroll = self.editor.widget_mut().child_mut().inner_mut();
+        let scroll = self.editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
         scroll.scroll_to_visible(rect, |d| ctx.request_timer(d), env);
     }
@@ -384,11 +376,11 @@ impl LapceEditorContainer {
         rect: Rect,
         env: &Env,
     ) {
-        self.editor
-            .widget_mut()
-            .child_mut()
-            .inner_mut()
-            .scroll_to_visible(rect, |d| ctx.request_timer(d), env);
+        self.editor.widget_mut().inner_mut().scroll_to_visible(
+            rect,
+            |d| ctx.request_timer(d),
+            env,
+        );
     }
 
     pub fn ensure_cursor_visible(
@@ -408,7 +400,7 @@ impl LapceEditorContainer {
         );
 
         let rect = data.cusor_region(env);
-        let scroll = self.editor.widget_mut().child_mut().inner_mut();
+        let scroll = self.editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
         if scroll.scroll_to_visible(rect, |d| ctx.request_timer(d), env) {
             if let Some(position) = position {
@@ -444,9 +436,7 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                 if data.key_down(ctx, key_event, env) {
                     self.ensure_cursor_visible(ctx, data, None, env);
                 }
-                data.sync_buffer_position(
-                    self.editor.widget().child().inner().offset(),
-                );
+                data.sync_buffer_position(self.editor.widget().inner().offset());
                 ctx.set_handled();
                 data.get_code_actions(ctx);
             }
@@ -458,7 +448,7 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         }
         self.gutter.event(ctx, event, data, env);
         self.editor.event(ctx, event, data, env);
-        let offset = self.editor.widget().child().inner().offset();
+        let offset = self.editor.widget().inner().offset();
         if data.editor.scroll_offset != offset {
             Arc::make_mut(&mut data.editor).scroll_offset = offset;
             data.fill_text_layouts(ctx, &data.theme.clone(), env);
@@ -665,6 +655,7 @@ pub struct LapceEditorGutter {
     view_id: WidgetId,
     container_id: WidgetId,
     text_layouts: HashMap<String, EditorTextLayout>,
+    width: f64,
 }
 
 impl LapceEditorGutter {
@@ -673,6 +664,30 @@ impl LapceEditorGutter {
             view_id,
             container_id,
             text_layouts: HashMap::new(),
+            width: 0.0,
+        }
+    }
+
+    fn paint_code_actions_hint(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        if let Some(_) = data.current_code_actions() {
+            let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+            let offset = data.editor.cursor.offset();
+            let (line, _) = data.buffer.offset_to_line_col(offset);
+            let svg = get_svg("lightbulb.svg").unwrap();
+            let width = 16.0;
+            let height = 16.0;
+            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+                self.width + 5.0,
+                (line_height - height) / 2.0 + line_height * line as f64
+                    - data.editor.scroll_offset.y,
+            ));
+            let color = env.get(LapceTheme::EDITOR_WARN);
+            svg.paint(ctx, rect, Some(&color));
         }
     }
 }
@@ -723,6 +738,12 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
         {
             ctx.request_paint();
         }
+
+        if old_data.current_code_actions().is_some()
+            != data.current_code_actions().is_some()
+        {
+            ctx.request_paint();
+        }
     }
 
     fn layout(
@@ -732,9 +753,11 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
         data: &LapceEditorViewData,
         env: &Env,
     ) -> Size {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let last_line = data.buffer.last_line() + 1;
         let width = 7.6171875;
-        let width = (width * last_line.to_string().len() as f64).ceil();
+        self.width = (width * last_line.to_string().len() as f64).ceil();
+        let width = self.width + 26.0;
         Size::new(width, bc.max().height)
     }
 
@@ -787,6 +810,10 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
                 self.text_layouts.insert(content, text_layout);
             }
         }
+
+        if *data.main_split.active == self.view_id {
+            self.paint_code_actions_hint(ctx, data, env);
+        }
     }
 }
 
@@ -818,28 +845,6 @@ impl LapceEditor {
                 .with_size(Size::new(size.width, line_height)),
             &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND),
         );
-    }
-
-    fn paint_code_actions_hint(
-        &mut self,
-        ctx: &mut PaintCtx,
-        data: &LapceEditorViewData,
-        env: &Env,
-    ) {
-        if let Some(_) = data.current_code_actions() {
-            let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-            let offset = data.editor.cursor.offset();
-            let (line, _) = data.buffer.offset_to_line_col(offset);
-            let svg = get_svg("lightbulb.svg").unwrap();
-            let width = 16.0;
-            let height = 16.0;
-            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                data.editor.scroll_offset.x,
-                (line_height - height) / 2.0 + line_height * line as f64,
-            ));
-            let color = env.get(LapceTheme::EDITOR_WARN);
-            svg.paint(ctx, rect, Some(&color));
-        }
     }
 
     fn paint_diagnostics(
@@ -1402,7 +1407,6 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         }
         self.paint_snippet(ctx, data, env);
         self.paint_diagnostics(ctx, data, env);
-        self.paint_code_actions_hint(ctx, data, env);
     }
 }
 

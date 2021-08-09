@@ -1226,15 +1226,7 @@ impl LapceEditorViewData {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let lines = (self.editor.size.height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
-        let offset = self.editor.cursor.offset();
-        let (offset, horiz) = self.buffer.move_offset(
-            offset,
-            self.editor.cursor.horiz.as_ref(),
-            lines,
-            if down { &Movement::Down } else { &Movement::Up },
-            self.get_mode(),
-        );
-        self.set_cursor(Cursor::new(CursorMode::Normal(offset), Some(horiz)));
+        self.do_move(if down { &Movement::Down } else { &Movement::Up }, lines);
         let rect = Rect::ZERO
             .with_origin(
                 self.editor.scroll_offset.to_point()
