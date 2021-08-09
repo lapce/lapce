@@ -673,18 +673,12 @@ impl LapceMainSplitData {
                         })
                         .collect();
 
-                    let delta = Arc::make_mut(buffer).edit_multiple(
+                    self.edit(
                         ctx,
+                        &path,
                         edits.iter().map(|(s, c)| (s, c.as_ref())).collect(),
-                        self.proxy.clone(),
                         EditType::Other,
                     );
-                    self.notify_update_text_layouts(ctx, path);
-                    for (_, editor) in self.editors.iter_mut() {
-                        if &editor.buffer == path {
-                            Arc::make_mut(editor).cursor.apply_delta(&delta);
-                        }
-                    }
                 }
             }
         }

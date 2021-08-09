@@ -15,18 +15,13 @@ use crate::{
 };
 use crate::{
     buffer::{Buffer, BufferId, BufferUIState, InvalLines},
-    command::EnsureVisiblePosition,
-    command::LapceCommand,
-    command::LapceUICommand,
-    command::LAPCE_UI_COMMAND,
+    command::{
+        EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+    },
     completion::ScoredCompletionItem,
     container::LapceContainer,
     explorer::ICONS_DIR,
-    movement::ColPosition,
-    movement::LinePosition,
-    movement::Movement,
-    movement::SelRegion,
-    movement::Selection,
+    movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     scroll::LapceScroll,
     split::SplitMoveDirection,
     state::LapceTabState,
