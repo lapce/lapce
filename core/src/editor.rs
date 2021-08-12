@@ -330,6 +330,11 @@ impl LapceEditorContainer {
                     Target::Widget(self.scroll_id),
                 ));
             }
+            LapceUICommand::FocusTab => {
+                if *data.main_split.active == self.view_id {
+                    ctx.request_focus();
+                }
+            }
             _ => (),
         }
     }

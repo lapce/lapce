@@ -2,7 +2,7 @@ use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
     container::LapceContainer,
-    data::{LapceTabLens, LapceWindowData},
+    data::{LapceTabData, LapceTabLens, LapceWindowData},
     editor::EditorUIState,
     explorer::{FileExplorer, FileExplorerState},
     panel::{LapcePanel, PanelPosition, PanelProperty},
@@ -750,10 +750,7 @@ impl Widget<LapceUIState> for LapceWindow {
 }
 
 pub struct LapceWindowNew {
-    pub tabs: HashMap<
-        WidgetId,
-        WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
-    >,
+    pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
 }
 
 impl LapceWindowNew {
@@ -764,7 +761,7 @@ impl LapceWindowNew {
             .map(|(tab_id, data)| {
                 let tab = LapceTabNew::new(data);
                 let tab = tab.lens(LapceTabLens(*tab_id));
-                (*tab_id, WidgetPod::new(tab.boxed()))
+                WidgetPod::new(tab.boxed())
             })
             .collect();
         Self { tabs }
@@ -779,10 +776,70 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &mut LapceWindowData,
         env: &Env,
     ) {
-        self.tabs
-            .get_mut(&data.active)
-            .unwrap()
-            .event(ctx, event, data, env);
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::NewTab => {
+                        let tab_id = WidgetId::next();
+                        let tab_data = LapceTabData::new(
+                            tab_id,
+                            data.keypress.clone(),
+                            data.theme.clone(),
+                        );
+                        let tab =
+                            LapceTabNew::new(&tab_data).lens(LapceTabLens(tab_id));
+                        data.tabs.insert(tab_id, tab_data);
+                        self.tabs
+                            .insert(data.active + 1, WidgetPod::new(tab.boxed()));
+                        data.active = data.active + 1;
+                        data.active_id = tab_id;
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::FocusTab,
+                            Target::Auto,
+                        ));
+                        ctx.children_changed();
+                        ctx.set_handled();
+                        ctx.request_layout();
+                        return;
+                    }
+                    LapceUICommand::NextTab => {
+                        let new_index = if data.active >= self.tabs.len() - 1 {
+                            0
+                        } else {
+                            data.active + 1
+                        };
+                        data.active = new_index;
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::FocusTab,
+                            Target::Auto,
+                        ));
+                        ctx.request_layout();
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::PreviousTab => {
+                        let new_index = if data.active == 0 {
+                            self.tabs.len() - 1
+                        } else {
+                            data.active - 1
+                        };
+                        data.active = new_index;
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::FocusTab,
+                            Target::Auto,
+                        ));
+                        ctx.request_layout();
+                        ctx.set_handled();
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
+        self.tabs[data.active].event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -792,7 +849,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) {
-        for (_, tab) in self.tabs.iter_mut() {
+        for tab in self.tabs.iter_mut() {
             tab.lifecycle(ctx, event, data, env);
         }
     }
@@ -808,10 +865,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             ctx.request_layout();
         }
         let start = std::time::SystemTime::now();
-        self.tabs
-            .get_mut(&data.active)
-            .unwrap()
-            .update(ctx, data, env);
+        self.tabs[data.active].update(ctx, data, env);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
         // println!("update took {}", duration);
@@ -825,16 +879,16 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         env: &Env,
     ) -> Size {
         let start = std::time::SystemTime::now();
-        let tab = self.tabs.get_mut(&data.active).unwrap();
+        let tab = &mut self.tabs[data.active];
         tab.layout(ctx, bc, data, env);
         tab.set_origin(ctx, data, env, Point::ZERO);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("layout took {}", duration);
+        // println!("layout took {}", duration
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateWindowOrigin,
-            Target::Widget(data.active),
+            Target::Widget(data.active_id),
         ));
 
         bc.max()
@@ -844,10 +898,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         let rects = ctx.region().rects().to_vec();
         // println!("window paint {:?}", rects);
         let start = std::time::SystemTime::now();
-        self.tabs
-            .get_mut(&data.active)
-            .unwrap()
-            .paint(ctx, data, env);
+        self.tabs[data.active].paint(ctx, data, env);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
         // println!("paint took {}", duration);

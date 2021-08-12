@@ -163,7 +163,8 @@ impl LapceData {
 #[derive(Clone)]
 pub struct LapceWindowData {
     pub tabs: im::HashMap<WidgetId, LapceTabData>,
-    pub active: WidgetId,
+    pub active: usize,
+    pub active_id: WidgetId,
     pub keypress: Arc<KeyPressData>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
 }
@@ -185,7 +186,8 @@ impl LapceWindowData {
         tabs.insert(tab_id, tab);
         Self {
             tabs,
-            active: tab_id,
+            active: 0,
+            active_id: tab_id,
             keypress,
             theme,
         }
@@ -855,7 +857,7 @@ impl LapceMainSplitData {
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
-        let path = PathBuf::from("/Users/Lulu/lapce/core/src/editor.rs");
+        let path = PathBuf::from("/Users/Lulu/[UNAMED]");
         let editor = LapceEditorData::new(None, *split_id, path.clone());
         let view_id = editor.view_id;
         editors.insert(editor.view_id, Arc::new(editor));
@@ -2574,6 +2576,27 @@ impl KeyPressFocus for LapceEditorViewData {
                         ));
                     }
                 }
+            }
+            LapceCommand::NewTab => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::NewTab,
+                    Target::Auto,
+                ));
+            }
+            LapceCommand::NextTab => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::NextTab,
+                    Target::Auto,
+                ));
+            }
+            LapceCommand::PreviousTab => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::PreviousTab,
+                    Target::Auto,
+                ));
             }
             LapceCommand::Save => {
                 if !self.buffer.dirty {

@@ -238,6 +238,7 @@ pub enum LapceUICommand {
     RequestLayout,
     RequestPaint,
     ResetFade,
+    FocusTab,
     CloseTab,
     NewTab,
     NextTab,
