@@ -312,7 +312,7 @@ pub struct PaletteViewLens;
 #[derive(Clone, Data)]
 pub struct PaletteViewData {
     pub palette: Arc<PaletteData>,
-    pub workspace: Arc<LapceWorkspace>,
+    pub workspace: Option<Arc<LapceWorkspace>>,
     pub main_split: LapceMainSplitData,
     pub keypress: Arc<KeyPressData>,
 }
@@ -497,10 +497,13 @@ impl PaletteViewData {
             .iter()
             .map(|l| {
                 let full_path = l.path.clone();
-                let path = l
-                    .path
-                    .strip_prefix(&self.workspace.path)
-                    .unwrap_or(&full_path);
+                let mut path = l.path.clone();
+                if let Some(workspace) = self.workspace.as_ref() {
+                    path = path
+                        .strip_prefix(&workspace.path)
+                        .unwrap_or(&full_path)
+                        .to_path_buf();
+                }
                 let filter_text = path.to_str().unwrap_or("").to_string();
                 NewPaletteItem {
                     content: PaletteItemContent::ReferenceLocation(
@@ -645,7 +648,7 @@ impl PaletteViewData {
     fn get_files(&self, ctx: &mut EventCtx) {
         let run_id = self.palette.run_id.clone();
         let widget_id = self.palette.widget_id;
-        let workspace = (*self.workspace).clone();
+        let workspace = self.workspace.clone();
         let event_sink = ctx.get_external_handle();
         self.palette.proxy.get_files(Box::new(move |result| {
             if let Ok(res) = result {
@@ -657,8 +660,13 @@ impl PaletteViewData {
                         .enumerate()
                         .map(|(index, path)| {
                             let full_path = path.clone();
-                            let path =
-                                path.strip_prefix(&workspace.path).unwrap_or(path);
+                            let mut path = path.clone();
+                            if let Some(workspace) = workspace.as_ref() {
+                                path = path
+                                    .strip_prefix(&workspace.path)
+                                    .unwrap_or(&full_path)
+                                    .to_path_buf();
+                            }
                             let filter_text =
                                 path.to_str().unwrap_or("").to_string();
                             NewPaletteItem {

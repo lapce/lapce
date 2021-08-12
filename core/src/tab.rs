@@ -99,14 +99,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         tab_id, receiver, event_sink,
                     );
                 });
-                data.proxy
-                    .start((*data.workspace).clone(), ctx.get_external_handle());
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::SetWorkspace(workspace) => {
-                        if workspace != &*data.workspace {
+                        if Some(workspace)
+                            != data.workspace.as_ref().map(|w| w.as_ref())
+                        {
                             data.set_workspace(ctx, workspace.clone());
                         }
                         ctx.set_handled();

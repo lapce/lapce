@@ -201,7 +201,7 @@ pub struct EditorDiagnostic {
 #[derive(Clone, Lens)]
 pub struct LapceTabData {
     pub id: WidgetId,
-    pub workspace: Arc<LapceWorkspace>,
+    pub workspace: Option<Arc<LapceWorkspace>>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<PaletteData>,
@@ -240,10 +240,7 @@ impl LapceTabData {
         let completion = Arc::new(CompletionData::new());
         Self {
             id: tab_id,
-            workspace: Arc::new(LapceWorkspace {
-                kind: LapceWorkspaceType::Local,
-                path: PathBuf::from("/Users/Lulu/lapce"),
-            }),
+            workspace: None,
             main_split,
             completion,
             palette,
@@ -257,7 +254,7 @@ impl LapceTabData {
     }
 
     pub fn set_workspace(&mut self, ctx: &mut EventCtx, workspace: LapceWorkspace) {
-        self.workspace = Arc::new(workspace.clone());
+        self.workspace = Some(Arc::new(workspace.clone()));
         self.main_split.diagnostics.clear();
         self.main_split.error_count = 0;
         self.main_split.warning_count = 0;
@@ -976,7 +973,7 @@ impl LapceEditorData {
 #[derive(Clone, Data, Lens)]
 pub struct LapceEditorViewData {
     pub main_split: LapceMainSplitData,
-    pub workspace: Arc<LapceWorkspace>,
+    pub workspace: Option<Arc<LapceWorkspace>>,
     pub proxy: Arc<LapceProxy>,
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,

@@ -592,7 +592,7 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
         ctx.blurred_rect(rect, shadow_width, &blur_color);
         ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
 
-        let path = data.editor.buffer.clone();
+        let mut path = data.editor.buffer.clone();
         let svg = file_svg_new(
             &path
                 .extension()
@@ -627,7 +627,12 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
         text_layout.rebuild_if_needed(ctx.text(), env);
         text_layout.draw(ctx, Point::new(30.0, 7.0));
 
-        let path = path.strip_prefix(&data.workspace.path).unwrap_or(&path);
+        if let Some(workspace) = data.workspace.as_ref() {
+            path = path
+                .strip_prefix(&workspace.path)
+                .unwrap_or(&path)
+                .to_path_buf();
+        }
         let folder = path
             .parent()
             .and_then(|s| s.to_str())

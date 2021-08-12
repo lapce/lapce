@@ -225,13 +225,15 @@ impl LapceProxy {
     }
 
     pub fn get_files(&self, f: Box<dyn Callback>) {
-        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
-            "get_files",
-            &json!({
-                "path": "path",
-            }),
-            f,
-        );
+        if let Some(peer) = self.peer.lock().as_ref() {
+            peer.send_rpc_request_async(
+                "get_files",
+                &json!({
+                    "path": "path",
+                }),
+                f,
+            );
+        }
     }
 
     pub fn read_dir(&self, path: &PathBuf, f: Box<dyn Callback>) {
@@ -278,14 +280,16 @@ impl LapceProxy {
         position: Position,
         f: Box<dyn Callback>,
     ) {
-        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
-            "get_code_actions",
-            &json!({
-                "buffer_id": buffer_id,
-                "position": position,
-            }),
-            f,
-        );
+        if let Some(peer) = self.peer.lock().as_ref() {
+            peer.send_rpc_request_async(
+                "get_code_actions",
+                &json!({
+                    "buffer_id": buffer_id,
+                    "position": position,
+                }),
+                f,
+            );
+        }
     }
 
     pub fn get_document_formatting(
