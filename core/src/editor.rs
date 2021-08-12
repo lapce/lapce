@@ -186,6 +186,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
     ) {
         self.header.update(ctx, data, env);
         self.editor.update(ctx, data, env);
+        self.editor.update(ctx, data, env);
     }
 
     fn layout(

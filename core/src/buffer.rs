@@ -924,6 +924,14 @@ impl BufferNew {
         }
     }
 
+    pub fn previous_unmatched(&self, c: char, offset: usize) -> Option<usize> {
+        if self.syntax_tree.is_some() {
+            self.find_tag(offset, true, &c.to_string())
+        } else {
+            WordCursor::new(&self.rope, offset).previous_unmatched(c)
+        }
+    }
+
     fn find_matching_pair(&self, offset: usize) -> Option<usize> {
         let tree = self.syntax_tree.as_ref()?;
         let node = tree

@@ -2227,13 +2227,44 @@ impl KeyPressFocus for LapceEditorViewData {
                     CursorMode::Insert(_) => {
                         let selection =
                             self.editor.cursor.edit_selection(&self.buffer);
-                        let selection = self.buffer.update_selection(
+                        let mut selection = self.buffer.update_selection(
                             &selection,
                             1,
                             &Movement::Left,
                             Mode::Insert,
                             true,
                         );
+                        if selection.regions().len() == 1 {
+                            let delete_str = self
+                                .buffer
+                                .slice_to_cow(
+                                    selection.min_offset()..selection.max_offset(),
+                                )
+                                .to_string();
+                            if str_is_pair_left(&delete_str) {
+                                if let Some(c) = str_matching_pair(&delete_str) {
+                                    let offset = selection.max_offset();
+                                    let line = self.buffer.line_of_offset(offset);
+                                    let line_end =
+                                        self.buffer.line_end_offset(line, true);
+                                    let content = self
+                                        .buffer
+                                        .slice_to_cow(offset..line_end)
+                                        .to_string();
+                                    if content.trim().starts_with(&c.to_string()) {
+                                        let index = content
+                                            .match_indices(c)
+                                            .next()
+                                            .unwrap()
+                                            .0;
+                                        selection = Selection::region(
+                                            selection.min_offset(),
+                                            offset + index + 1,
+                                        );
+                                    }
+                                }
+                            }
+                        }
                         selection
                     }
                 };
@@ -2584,22 +2615,49 @@ impl KeyPressFocus for LapceEditorViewData {
 
     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
-            let selection = self.editor.cursor.edit_selection(&self.buffer);
+            let mut selection = self.editor.cursor.edit_selection(&self.buffer);
             let cursor_char =
                 self.buffer.char_at_offset(selection.get_cursor_offset());
 
+            let mut content = c.to_string();
             if c.chars().count() == 1 {
                 let c = c.chars().next().unwrap();
                 if !matching_pair_direction(c).unwrap_or(true) {
                     if cursor_char == Some(c) {
                         self.do_move(&Movement::Right, 1);
                         return;
+                    } else {
+                        let offset = selection.get_cursor_offset();
+                        let line = self.buffer.line_of_offset(offset);
+                        let line_start = self.buffer.offset_of_line(line);
+                        if self.buffer.slice_to_cow(line_start..offset).trim() == ""
+                        {
+                            if let Some(c) = matching_char(c) {
+                                if let Some(previous_offset) =
+                                    self.buffer.previous_unmatched(c, offset)
+                                {
+                                    let previous_line =
+                                        self.buffer.line_of_offset(previous_offset);
+                                    let line_indent =
+                                        self.buffer.indent_on_line(previous_line);
+                                    content = line_indent + &content;
+                                    selection =
+                                        Selection::region(line_start, offset);
+                                }
+                            }
+                        };
                     }
                 }
             }
 
-            let (selection, _) =
-                self.edit(ctx, &selection, c, None, true, EditType::InsertChars);
+            let (selection, _) = self.edit(
+                ctx,
+                &selection,
+                &content,
+                None,
+                true,
+                EditType::InsertChars,
+            );
             let editor = Arc::make_mut(&mut self.editor);
             editor.cursor.mode = CursorMode::Insert(selection.clone());
             editor.cursor.horiz = None;
@@ -2809,33 +2867,28 @@ fn buffer_receive_update(
     }
 }
 
-fn find_tag(node: Node, previous: bool, tag: &str) -> Option<usize> {
-    if let Some(offset) = find_tag_in_siblings(node, previous, tag) {
-        return Some(offset);
-    }
-    let mut node = node;
-    while let Some(parent) = node.parent() {
-        if let Some(offset) = find_tag_in_siblings(parent, previous, tag) {
-            return Some(offset);
+fn str_is_pair_left(c: &str) -> bool {
+    if c.chars().count() == 1 {
+        let c = c.chars().next().unwrap();
+        if matching_pair_direction(c).unwrap_or(false) {
+            return true;
         }
-        node = parent;
     }
-
-    None
+    false
 }
 
-fn find_tag_in_siblings(node: Node, previous: bool, tag: &str) -> Option<usize> {
-    let mut node = node;
-    while let Some(sibling) = if previous {
-        node.prev_sibling()
-    } else {
-        node.next_sibling()
-    } {
-        if sibling.kind() == "(" {
-            let offset = sibling.start_byte();
-            return Some(offset);
-        }
-        node = sibling;
+fn str_is_pair_right(c: &str) -> bool {
+    if c.chars().count() == 1 {
+        let c = c.chars().next().unwrap();
+        return !matching_pair_direction(c).unwrap_or(true);
+    }
+    false
+}
+
+fn str_matching_pair(c: &str) -> Option<char> {
+    if c.chars().count() == 1 {
+        let c = c.chars().next().unwrap();
+        return matching_char(c);
     }
     None
 }
