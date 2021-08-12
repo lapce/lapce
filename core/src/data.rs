@@ -29,7 +29,10 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde_json::Value;
-use tree_sitter_highlight::{Highlight, HighlightEvent, Highlighter};
+use tree_sitter::{Node, Parser};
+use tree_sitter_highlight::{
+    Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
+};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
     spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta, Transformer,
@@ -47,7 +50,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus, Snippet},
     editor::EditorLocationNew,
     keypress::{KeyPressData, KeyPressFocus},
-    language::new_highlight_config,
+    language::{new_highlight_config, new_parser, LapceLanguage},
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
     palette::{PaletteData, PaletteType, PaletteViewData},
     proxy::{LapceProxy, ProxyHandlerNew},
@@ -398,97 +401,47 @@ impl LapceTabData {
             updates
         }
 
+        let mut parsers = HashMap::new();
         let mut highlighter = Highlighter::new();
         let mut highlight_configs = HashMap::new();
         loop {
             let events = receive_batch(&receiver);
             for (_, event) in events {
-                let (update, tokens) = match event {
-                    UpdateEvent::Buffer(update) => (update, None),
+                match event {
+                    UpdateEvent::Buffer(update) => {
+                        buffer_receive_update(
+                            update,
+                            &mut parsers,
+                            &mut highlighter,
+                            &mut highlight_configs,
+                            &event_sink,
+                            tab_id,
+                        );
+                    }
                     UpdateEvent::SemanticTokens(update, tokens) => {
-                        (update, Some(tokens))
-                    }
-                };
-
-                let semantic_tokens = tokens.is_some();
-
-                let highlights = if let Some(tokens) = tokens {
-                    let start = std::time::SystemTime::now();
-                    let mut highlights = SpansBuilder::new(update.rope.len());
-                    for (start, end, hl) in tokens {
-                        highlights.add_span(
-                            Interval::new(start, end),
-                            Style {
-                                fg_color: Some(hl.to_string()),
-                            },
-                        );
-                    }
-                    let highlights = highlights.build();
-                    let end = std::time::SystemTime::now();
-                    let duration = end.duration_since(start).unwrap().as_micros();
-                    // println!("semantic tokens took {}", duration);
-                    highlights
-                } else {
-                    if !highlight_configs.contains_key(&update.language) {
-                        let (highlight_config, highlight_names) =
-                            new_highlight_config(update.language);
-                        highlight_configs.insert(
-                            update.language,
-                            (highlight_config, highlight_names),
-                        );
-                    }
-                    let (highlight_config, highlight_names) =
-                        highlight_configs.get(&update.language).unwrap();
-                    let mut current_hl: Option<Highlight> = None;
-                    let mut highlights = SpansBuilder::new(update.rope.len());
-                    for hightlight in highlighter
-                        .highlight(
-                            highlight_config,
-                            update
-                                .rope
-                                .slice_to_cow(0..update.rope.len())
-                                .as_bytes(),
-                            None,
-                            |_| None,
-                        )
-                        .unwrap()
-                    {
-                        if let Ok(highlight) = hightlight {
-                            match highlight {
-                                HighlightEvent::Source { start, end } => {
-                                    if let Some(hl) = current_hl {
-                                        if let Some(hl) = highlight_names.get(hl.0) {
-                                            highlights.add_span(
-                                                Interval::new(start, end),
-                                                Style {
-                                                    fg_color: Some(hl.to_string()),
-                                                },
-                                            );
-                                        }
-                                    }
-                                }
-                                HighlightEvent::HighlightStart(hl) => {
-                                    current_hl = Some(hl);
-                                }
-                                HighlightEvent::HighlightEnd => current_hl = None,
-                            }
+                        let mut highlights = SpansBuilder::new(update.rope.len());
+                        for (start, end, hl) in tokens {
+                            highlights.add_span(
+                                Interval::new(start, end),
+                                Style {
+                                    fg_color: Some(hl.to_string()),
+                                },
+                            );
                         }
+                        let highlights = highlights.build();
+                        event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateStyle {
+                                id: update.id,
+                                path: update.path,
+                                rev: update.rev,
+                                highlights,
+                                semantic_tokens: true,
+                            },
+                            Target::Widget(tab_id),
+                        );
                     }
-                    let highlights = highlights.build();
-                    highlights
                 };
-
-                event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateStyle {
-                        id: update.id,
-                        path: update.path,
-                        rev: update.rev,
-                        highlights,
-                        semantic_tokens,
-                    },
-                    Target::Widget(tab_id),
-                );
             }
         }
     }
@@ -2700,4 +2653,123 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
         u8::from_str_radix(&b, 16)?,
         u8::from_str_radix(&a, 16)?,
     ))
+}
+
+fn buffer_receive_update(
+    update: BufferUpdate,
+    parsers: &mut HashMap<LapceLanguage, Parser>,
+    highlighter: &mut Highlighter,
+    highlight_configs: &mut HashMap<
+        LapceLanguage,
+        (HighlightConfiguration, Vec<String>),
+    >,
+    event_sink: &ExtEventSink,
+    tab_id: WidgetId,
+) {
+    if !parsers.contains_key(&update.language) {
+        let parser = new_parser(update.language);
+        parsers.insert(update.language, parser);
+    }
+    let parser = parsers.get_mut(&update.language).unwrap();
+    if let Some(tree) = parser.parse(
+        update.rope.slice_to_cow(0..update.rope.len()).as_bytes(),
+        None,
+    ) {
+        event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::UpdateSyntaxTree {
+                id: update.id,
+                path: update.path.clone(),
+                rev: update.rev,
+                tree,
+            },
+            Target::Widget(tab_id),
+        );
+    }
+
+    if !update.semantic_tokens {
+        if !highlight_configs.contains_key(&update.language) {
+            let (highlight_config, highlight_names) =
+                new_highlight_config(update.language);
+            highlight_configs
+                .insert(update.language, (highlight_config, highlight_names));
+        }
+        let (highlight_config, highlight_names) =
+            highlight_configs.get(&update.language).unwrap();
+        let mut current_hl: Option<Highlight> = None;
+        let mut highlights = SpansBuilder::new(update.rope.len());
+        for hightlight in highlighter
+            .highlight(
+                highlight_config,
+                update.rope.slice_to_cow(0..update.rope.len()).as_bytes(),
+                None,
+                |_| None,
+            )
+            .unwrap()
+        {
+            if let Ok(highlight) = hightlight {
+                match highlight {
+                    HighlightEvent::Source { start, end } => {
+                        if let Some(hl) = current_hl {
+                            if let Some(hl) = highlight_names.get(hl.0) {
+                                highlights.add_span(
+                                    Interval::new(start, end),
+                                    Style {
+                                        fg_color: Some(hl.to_string()),
+                                    },
+                                );
+                            }
+                        }
+                    }
+                    HighlightEvent::HighlightStart(hl) => {
+                        current_hl = Some(hl);
+                    }
+                    HighlightEvent::HighlightEnd => current_hl = None,
+                }
+            }
+        }
+        let highlights = highlights.build();
+        event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::UpdateStyle {
+                id: update.id,
+                path: update.path,
+                rev: update.rev,
+                highlights,
+                semantic_tokens: false,
+            },
+            Target::Widget(tab_id),
+        );
+    }
+}
+
+fn find_tag(node: Node, previous: bool, tag: &str) -> Option<usize> {
+    if let Some(offset) = find_tag_in_siblings(node, previous, tag) {
+        return Some(offset);
+    }
+    let mut node = node;
+    while let Some(parent) = node.parent() {
+        if let Some(offset) = find_tag_in_siblings(parent, previous, tag) {
+            return Some(offset);
+        }
+        node = parent;
+    }
+
+    None
+}
+
+fn find_tag_in_siblings(node: Node, previous: bool, tag: &str) -> Option<usize> {
+    let mut node = node;
+    while let Some(sibling) = if previous {
+        node.prev_sibling()
+    } else {
+        node.next_sibling()
+    } {
+        if sibling.kind() == "(" {
+            let offset = sibling.start_byte();
+            return Some(offset);
+        }
+        node = sibling;
+    }
+    None
 }

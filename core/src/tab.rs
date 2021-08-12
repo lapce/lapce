@@ -296,6 +296,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                                     highlights: buffer
                                                         .styles
                                                         .clone(),
+                                                    semantic_tokens: true,
                                                 },
                                                 tokens.to_owned(),
                                             ),
@@ -326,6 +327,18 @@ impl Widget<LapceTabData> for LapceTabNew {
                             *semantic_tokens,
                         );
                         data.main_split.notify_update_text_layouts(ctx, path);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::UpdateSyntaxTree {
+                        id,
+                        path,
+                        rev,
+                        tree,
+                    } => {
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        Arc::make_mut(buffer)
+                            .update_syntax_tree(*rev, tree.to_owned());
                         ctx.set_handled();
                     }
                     _ => (),

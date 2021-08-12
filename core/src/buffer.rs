@@ -20,6 +20,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::cmp::Ordering;
+use std::rc::Rc;
 use std::{
     borrow::Cow,
     collections::BTreeSet,
@@ -31,7 +32,7 @@ use std::{
 };
 use std::{collections::HashMap, fs::File};
 use std::{fs, str::FromStr};
-use tree_sitter::{Parser, Tree};
+use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
@@ -129,6 +130,7 @@ pub struct BufferUpdate {
     pub rev: u64,
     pub language: LapceLanguage,
     pub highlights: Spans<Style>,
+    pub semantic_tokens: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -212,15 +214,17 @@ pub struct BufferNew {
     pub scroll_offset: Vec2,
 
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
+    pub syntax_tree: Option<Arc<Tree>>,
 }
 
 impl BufferNew {
     pub fn new(path: PathBuf, update_sender: Arc<Sender<UpdateEvent>>) -> Self {
         let rope = Rope::from("");
+        let language = LapceLanguage::from_path(&path);
         let mut buffer = Self {
             id: BufferId::next(),
             rope,
-            language: LapceLanguage::from_path(&path),
+            language,
             path,
             text_layouts: im::Vector::new(),
             styles: SpansBuilder::new(0).build(),
@@ -256,6 +260,7 @@ impl BufferNew {
             scroll_offset: Vec2::ZERO,
 
             code_actions: im::HashMap::new(),
+            syntax_tree: None,
         };
         buffer.text_layouts =
             im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
@@ -278,6 +283,7 @@ impl BufferNew {
         self.deletes_from_union = Subset::new(0);
         self.undone_groups = BTreeSet::new();
         self.tombstones = Rope::default();
+        self.syntax_tree = None;
     }
 
     pub fn load_content(&mut self, content: &str) {
@@ -286,7 +292,7 @@ impl BufferNew {
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(0, delta.clone());
         self.revs.push(new_rev);
-        self.rope = new_text;
+        self.rope = new_text.clone();
         self.tombstones = new_tombstones;
         self.deletes_from_union = new_deletes_from_union;
         self.code_actions.clear();
@@ -303,16 +309,15 @@ impl BufferNew {
 
     pub fn notify_update(&self) {
         if let Some(language) = self.language {
-            if !self.semantic_tokens {
-                self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
-                    id: self.id,
-                    path: self.path.clone(),
-                    rope: self.rope.clone(),
-                    rev: self.rev,
-                    language,
-                    highlights: self.styles.clone(),
-                }));
-            }
+            self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
+                id: self.id,
+                path: self.path.clone(),
+                rope: self.rope.clone(),
+                rev: self.rev,
+                language,
+                highlights: self.styles.clone(),
+                semantic_tokens: self.semantic_tokens,
+            }));
         }
     }
 
@@ -863,10 +868,113 @@ impl BufferNew {
                 let (_, col) = self.offset_to_line_col(new_offset);
                 (new_offset, ColPosition::Col(col))
             }
-            Movement::NextUnmatched(_) => (offset, horiz),
-            Movement::PreviousUnmatched(_) => (offset, horiz),
-            Movement::MatchPairs => (offset, horiz),
+            Movement::NextUnmatched(c) => {
+                if self.syntax_tree.is_some() {
+                    let new_offset = self
+                        .find_tag(offset, false, &c.to_string())
+                        .unwrap_or(offset);
+                    let (_, col) = self.offset_to_line_col(new_offset);
+                    (new_offset, ColPosition::Col(col))
+                } else {
+                    let new_offset = match WordCursor::new(&self.rope, offset)
+                        .next_unmatched(*c)
+                    {
+                        Some(new_offset) => new_offset - 1,
+                        None => offset,
+                    };
+                    let (_, col) = self.offset_to_line_col(new_offset);
+                    (new_offset, ColPosition::Col(col))
+                }
+            }
+            Movement::PreviousUnmatched(c) => {
+                if self.syntax_tree.is_some() {
+                    let new_offset = self
+                        .find_tag(offset, true, &c.to_string())
+                        .unwrap_or(offset);
+                    let (_, col) = self.offset_to_line_col(new_offset);
+                    (new_offset, ColPosition::Col(col))
+                } else {
+                    let new_offset = WordCursor::new(&self.rope, offset)
+                        .previous_unmatched(*c)
+                        .unwrap_or(offset);
+                    let (_, col) = self.offset_to_line_col(new_offset);
+                    (new_offset, ColPosition::Col(col))
+                }
+            }
+            Movement::MatchPairs => {
+                if self.syntax_tree.is_some() {
+                    let new_offset =
+                        self.find_matching_pair(offset).unwrap_or(offset);
+                    let (_, col) = self.offset_to_line_col(new_offset);
+                    (new_offset, ColPosition::Col(col))
+                } else {
+                    let new_offset = WordCursor::new(&self.rope, offset)
+                        .match_pairs()
+                        .unwrap_or(offset);
+                    let (_, col) = self.offset_to_line_col(new_offset);
+                    (new_offset, ColPosition::Col(col))
+                }
+            }
         }
+    }
+
+    fn find_matching_pair(&self, offset: usize) -> Option<usize> {
+        let tree = self.syntax_tree.as_ref()?;
+        let node = tree
+            .root_node()
+            .descendant_for_byte_range(offset, offset + 1)?;
+        let mut chars = node.kind().chars();
+        let char = chars.next()?;
+        let char = matching_char(char)?;
+        let tag = &char.to_string();
+
+        if let Some(offset) = self.find_tag_in_siblings(node, true, tag) {
+            return Some(offset);
+        }
+        if let Some(offset) = self.find_tag_in_siblings(node, false, tag) {
+            return Some(offset);
+        }
+        None
+    }
+
+    fn find_tag(&self, offset: usize, previous: bool, tag: &str) -> Option<usize> {
+        let tree = self.syntax_tree.as_ref()?;
+        let node = tree
+            .root_node()
+            .descendant_for_byte_range(offset, offset + 1)?;
+
+        if let Some(offset) = self.find_tag_in_siblings(node, previous, tag) {
+            return Some(offset);
+        }
+        let mut node = node;
+        while let Some(parent) = node.parent() {
+            if let Some(offset) = self.find_tag_in_siblings(parent, previous, tag) {
+                return Some(offset);
+            }
+            node = parent;
+        }
+        None
+    }
+
+    fn find_tag_in_siblings(
+        &self,
+        node: Node,
+        previous: bool,
+        tag: &str,
+    ) -> Option<usize> {
+        let mut node = node;
+        while let Some(sibling) = if previous {
+            node.prev_sibling()
+        } else {
+            node.next_sibling()
+        } {
+            if sibling.kind() == tag {
+                let offset = sibling.start_byte();
+                return Some(offset);
+            }
+            node = sibling;
+        }
+        None
     }
 
     pub fn prev_code_boundary(&self, offset: usize) -> usize {
@@ -875,6 +983,13 @@ impl BufferNew {
 
     pub fn next_code_boundary(&self, offset: usize) -> usize {
         WordCursor::new(&self.rope, offset).next_code_boundary()
+    }
+
+    pub fn update_syntax_tree(&mut self, rev: u64, tree: Tree) {
+        if rev != self.rev {
+            return;
+        }
+        self.syntax_tree = Some(Arc::new(tree));
     }
 
     pub fn update_styles(
@@ -1032,10 +1147,11 @@ impl BufferNew {
         proxy.update(self.id, &delta, self.rev);
 
         self.revs.push(new_rev);
-        self.rope = new_text;
+        self.rope = new_text.clone();
         self.tombstones = new_tombstones;
         self.deletes_from_union = new_deletes_from_union;
         self.code_actions.clear();
+        self.syntax_tree = None;
 
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;

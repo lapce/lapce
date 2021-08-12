@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
@@ -9,6 +9,7 @@ use lsp_types::{
 use serde_json::Value;
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
+use tree_sitter::Tree;
 use tree_sitter_highlight::Highlight;
 use xi_rope::spans::Spans;
 
@@ -256,6 +257,12 @@ pub enum LapceUICommand {
         rev: u64,
         highlights: Spans<Style>,
         semantic_tokens: bool,
+    },
+    UpdateSyntaxTree {
+        id: BufferId,
+        path: PathBuf,
+        rev: u64,
+        tree: Tree,
     },
     CenterOfWindow,
     UpdateLineChanges(BufferId),
