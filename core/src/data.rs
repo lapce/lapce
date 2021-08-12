@@ -21,11 +21,11 @@ use druid::{
     FontFamily, Insets, KeyEvent, Lens, LocalizedString, Menu, MenuItem, Point,
     Rect, Size, Target, TextLayout, Vec2, WidgetId, WindowId,
 };
-use im;
+use im::{self, hashmap};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
-    Location, Position, TextEdit,
+    Location, Position, TextEdit, WorkspaceClientCapabilities,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -41,8 +41,10 @@ use xi_rpc::{RpcLoop, RpcPeer};
 
 use crate::{
     buffer::{
-        has_unmatched_pair, previous_has_unmatched_pair, Buffer, BufferId,
+        get_word_property, has_unmatched_pair, matching_char,
+        matching_pair_direction, previous_has_unmatched_pair, Buffer, BufferId,
         BufferNew, BufferState, BufferUpdate, EditType, Style, UpdateEvent,
+        WordProperty,
     },
     command::{
         EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
@@ -1465,10 +1467,13 @@ impl LapceEditorViewData {
 
     pub fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
         let line = self.buffer.line_of_offset(offset);
+        let line_start = self.buffer.offset_of_line(line);
+        let line_end = self.buffer.line_end_offset(line, true);
         let line_indent = self.buffer.indent_on_line(line);
-        let line_content = self.buffer.offset_line_content(offset);
+        let first_half = self.buffer.slice_to_cow(line_start..offset).to_string();
+        let second_half = self.buffer.slice_to_cow(offset..line_end).to_string();
 
-        let indent = if has_unmatched_pair(&line_content) {
+        let indent = if has_unmatched_pair(&first_half) {
             format!("{}    ", line_indent)
         } else {
             let next_line_indent = self.buffer.indent_on_line(line + 1);
@@ -1491,8 +1496,31 @@ impl LapceEditorViewData {
             EditType::InsertNewline,
         );
         let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor.mode = CursorMode::Insert(selection);
+        editor.cursor.mode = CursorMode::Insert(selection.clone());
         editor.cursor.horiz = None;
+
+        for c in first_half.chars().rev() {
+            if c != ' ' {
+                if let Some(pair_start) = matching_pair_direction(c) {
+                    if pair_start {
+                        if let Some(c) = matching_char(c) {
+                            if second_half.trim().starts_with(&c.to_string()) {
+                                let content = format!("{}{}", "\n", line_indent);
+                                self.edit(
+                                    ctx,
+                                    &selection,
+                                    &content,
+                                    None,
+                                    true,
+                                    EditType::InsertNewline,
+                                );
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
     }
 
     fn set_cursor_after_change(&mut self, selection: Selection) {
@@ -2557,11 +2585,49 @@ impl KeyPressFocus for LapceEditorViewData {
     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
             let selection = self.editor.cursor.edit_selection(&self.buffer);
+            let cursor_char =
+                self.buffer.char_at_offset(selection.get_cursor_offset());
+
+            if c.chars().count() == 1 {
+                let c = c.chars().next().unwrap();
+                if !matching_pair_direction(c).unwrap_or(true) {
+                    if cursor_char == Some(c) {
+                        self.do_move(&Movement::Right, 1);
+                        return;
+                    }
+                }
+            }
+
             let (selection, _) =
                 self.edit(ctx, &selection, c, None, true, EditType::InsertChars);
             let editor = Arc::make_mut(&mut self.editor);
-            editor.cursor.mode = CursorMode::Insert(selection);
+            editor.cursor.mode = CursorMode::Insert(selection.clone());
             editor.cursor.horiz = None;
+            if c.chars().count() == 1 {
+                let c = c.chars().next().unwrap();
+                if matching_pair_direction(c).unwrap_or(false) {
+                    if cursor_char
+                        .map(|c| {
+                            let prop = get_word_property(c);
+                            prop == WordProperty::Lf
+                                || prop == WordProperty::Space
+                                || prop == WordProperty::Punctuation
+                        })
+                        .unwrap_or(true)
+                    {
+                        if let Some(c) = matching_char(c) {
+                            self.edit(
+                                ctx,
+                                &selection,
+                                &c.to_string(),
+                                None,
+                                false,
+                                EditType::InsertChars,
+                            );
+                        }
+                    }
+                }
+            }
             self.update_completion(ctx);
         }
     }

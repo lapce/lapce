@@ -395,6 +395,12 @@ impl BufferNew {
         self.rope.offset_of_line(line)
     }
 
+    pub fn char_at_offset(&self, offset: usize) -> Option<char> {
+        WordCursor::new(&self.rope, offset)
+            .inner
+            .peek_next_codepoint()
+    }
+
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
         let last_line = self.last_line();
         let line = if line > last_line + 1 {
@@ -946,6 +952,11 @@ impl BufferNew {
         if let Some(offset) = self.find_tag_in_siblings(node, previous, tag) {
             return Some(offset);
         }
+
+        if let Some(offset) = self.find_tag_in_children(node, tag) {
+            return Some(offset);
+        }
+
         let mut node = node;
         while let Some(parent) = node.parent() {
             if let Some(offset) = self.find_tag_in_siblings(parent, previous, tag) {
@@ -973,6 +984,18 @@ impl BufferNew {
                 return Some(offset);
             }
             node = sibling;
+        }
+        None
+    }
+
+    fn find_tag_in_children(&self, node: Node, tag: &str) -> Option<usize> {
+        for i in 0..node.child_count() {
+            if let Some(child) = node.child(i) {
+                if child.kind() == tag {
+                    let offset = child.start_byte();
+                    return Some(offset);
+                }
+            }
         }
         None
     }
