@@ -811,6 +811,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                             data.active + 1
                         };
                         data.active = new_index;
+                        data.active_id = self.tabs[new_index].id();
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::FocusTab,
@@ -826,6 +827,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                             data.active - 1
                         };
                         data.active = new_index;
+                        data.active_id = self.tabs[new_index].id();
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::FocusTab,
@@ -864,6 +866,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         if old_data.active != data.active {
             ctx.request_layout();
         }
+        let old_tab = old_data.tabs.get(&old_data.active_id).unwrap();
+        let tab = data.tabs.get(&data.active_id).unwrap();
+        if old_tab.workspace != tab.workspace {
+            ctx.request_layout();
+        }
         let start = std::time::SystemTime::now();
         self.tabs[data.active].update(ctx, data, env);
         let end = std::time::SystemTime::now();
@@ -878,10 +885,22 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) -> Size {
+        let self_size = bc.max();
+
+        let (tab_size, tab_origin) = if self.tabs.len() > 1 {
+            let tab_height = 25.0;
+            let tab_size = Size::new(self_size.width, self_size.height - tab_height);
+            let tab_origin = Point::new(0.0, tab_height);
+            (tab_size, tab_origin)
+        } else {
+            (self_size.clone(), Point::ZERO)
+        };
+
         let start = std::time::SystemTime::now();
         let tab = &mut self.tabs[data.active];
-        tab.layout(ctx, bc, data, env);
-        tab.set_origin(ctx, data, env, Point::ZERO);
+        let bc = BoxConstraints::tight(tab_size);
+        tab.layout(ctx, &bc, data, env);
+        tab.set_origin(ctx, data, env, tab_origin);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
         // println!("layout took {}", duration
@@ -891,10 +910,70 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             Target::Widget(data.active_id),
         ));
 
-        bc.max()
+        self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
+        let tab_height = 25.0;
+        let size = ctx.size();
+        if self.tabs.len() > 1 {
+            ctx.fill(
+                Size::new(size.width, tab_height).to_rect(),
+                &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
+            );
+            let color = env.get(theme::BORDER_LIGHT);
+            let num = self.tabs.len();
+            let section = size.width / num as f64;
+            for (i, tab) in self.tabs.iter().enumerate() {
+                let tab_id = tab.id();
+                if i == data.active {
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(section * i as f64, 0.0))
+                            .with_size(Size::new(section, tab_height)),
+                        &env.get(LapceTheme::EDITOR_BACKGROUND),
+                    );
+                }
+                let tab = data.tabs.get(&tab_id).unwrap();
+                let dir = tab
+                    .workspace
+                    .as_ref()
+                    .map(|w| {
+                        let dir = w.path.file_name().unwrap().to_str().unwrap();
+                        let dir = match &w.kind {
+                            LapceWorkspaceType::Local => dir.to_string(),
+                            LapceWorkspaceType::RemoteSSH(user, host) => {
+                                format!("{} [{}@{}]", dir, user, host)
+                            }
+                        };
+                        dir
+                    })
+                    .unwrap_or("Lapce".to_string());
+                let mut text_layout = TextLayout::<String>::from_text(dir);
+                text_layout.set_font(
+                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+                );
+                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                text_layout.rebuild_if_needed(ctx.text(), env);
+                let text_width = text_layout.size().width;
+                let x = (section - text_width) / 2.0 + section * i as f64;
+                text_layout.draw(ctx, Point::new(x, 3.0));
+            }
+            for i in 1..num {
+                let line = Line::new(
+                    Point::new(i as f64 * section, 0.0),
+                    Point::new(i as f64 * section, tab_height),
+                );
+                ctx.stroke(line, &color, 1.0);
+            }
+            ctx.fill(
+                Rect::ZERO
+                    .with_origin(Point::new(0.0, tab_height - 1.0))
+                    .with_size(Size::new(size.width, 1.0)),
+                &color,
+            );
+        }
+
         let rects = ctx.region().rects().to_vec();
         // println!("window paint {:?}", rects);
         let start = std::time::SystemTime::now();
