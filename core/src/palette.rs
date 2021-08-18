@@ -349,7 +349,7 @@ pub struct PaletteData {
     proxy: Arc<LapceProxy>,
     palette_type: PaletteType,
     sender: Sender<(String, String, Vec<NewPaletteItem>)>,
-    receiver: Option<Receiver<(String, String, Vec<NewPaletteItem>)>>,
+    pub receiver: Option<Receiver<(String, String, Vec<NewPaletteItem>)>>,
     run_id: String,
     input: String,
     cursor: usize,
@@ -848,8 +848,8 @@ impl PaletteViewData {
     ) {
         fn receive_batch(
             receiver: &Receiver<(String, String, Vec<NewPaletteItem>)>,
-        ) -> (String, String, Vec<NewPaletteItem>) {
-            let (mut run_id, mut input, mut items) = receiver.recv().unwrap();
+        ) -> Result<(String, String, Vec<NewPaletteItem>)> {
+            let (mut run_id, mut input, mut items) = receiver.recv()?;
             loop {
                 match receiver.try_recv() {
                     Ok(update) => {
@@ -861,19 +861,26 @@ impl PaletteViewData {
                     Err(TryRecvError::Disconnected) => break,
                 }
             }
-            (run_id, input, items)
+            Ok((run_id, input, items))
         }
 
         let matcher = SkimMatcherV2::default();
         loop {
-            let (run_id, input, items) = receive_batch(&receiver);
-            let filtered_items =
-                Self::filter_items(&run_id, &input, items, &matcher);
-            event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::FilterPaletteItems(run_id, input, filtered_items),
-                Target::Widget(widget_id),
-            );
+            if let Ok((run_id, input, items)) = receive_batch(&receiver) {
+                let filtered_items =
+                    Self::filter_items(&run_id, &input, items, &matcher);
+                event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::FilterPaletteItems(
+                        run_id,
+                        input,
+                        filtered_items,
+                    ),
+                    Target::Widget(widget_id),
+                );
+            } else {
+                return;
+            }
         }
     }
 
@@ -1762,15 +1769,15 @@ impl Widget<LapceTabData> for NewPalette {
         env: &Env,
     ) {
         match event {
-            Event::WindowConnected => {
-                let receiver =
-                    Arc::make_mut(&mut data.palette).receiver.take().unwrap();
-                let event_sink = ctx.get_external_handle();
-                let widget_id = self.widget_id;
-                thread::spawn(move || {
-                    PaletteViewData::update_process(receiver, widget_id, event_sink);
-                });
-            }
+            // Event::WindowConnected => {
+            //     let receiver =
+            //         Arc::make_mut(&mut data.palette).receiver.take().unwrap();
+            //     let event_sink = ctx.get_external_handle();
+            //     let widget_id = self.widget_id;
+            //     thread::spawn(move || {
+            //         PaletteViewData::update_process(receiver, widget_id, event_sink);
+            //     });
+            // }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
                 let mut_keypress = Arc::make_mut(&mut keypress);

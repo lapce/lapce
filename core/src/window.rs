@@ -9,8 +9,8 @@ use crate::{
     source_control::{SourceControl, SourceControlState},
     split::LapceSplit,
     state::{
-        LapceTabState, LapceUIState, LapceWindowState, LapceWorkspaceType,
-        LAPCE_APP_STATE,
+        LapceTabState, LapceUIState, LapceWindowState, LapceWorkspace,
+        LapceWorkspaceType, LAPCE_APP_STATE,
     },
     status::LapceStatus,
     tab::LapceTabNew,
@@ -766,6 +766,46 @@ impl LapceWindowNew {
             .collect();
         Self { tabs }
     }
+
+    pub fn new_tab(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceWindowData,
+        workspace: Option<LapceWorkspace>,
+        replace_current: bool,
+    ) {
+        let tab_id = WidgetId::next();
+        let mut tab_data = LapceTabData::new(
+            tab_id,
+            data.keypress.clone(),
+            data.theme.clone(),
+            Some(ctx.get_external_handle()),
+        );
+        if let Some(workspace) = workspace {
+            tab_data.set_workspace(workspace, ctx.get_external_handle());
+        }
+        let tab = LapceTabNew::new(&tab_data).lens(LapceTabLens(tab_id));
+        data.tabs.insert(tab_id, tab_data);
+        if replace_current {
+            self.tabs[data.active] = WidgetPod::new(tab.boxed());
+            data.tabs.remove(&data.active_id);
+            data.active_id = tab_id;
+        } else {
+            self.tabs
+                .insert(data.active + 1, WidgetPod::new(tab.boxed()));
+            data.active = data.active + 1;
+            data.active_id = tab_id;
+        }
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::FocusTab,
+            Target::Auto,
+        ));
+        ctx.children_changed();
+        ctx.set_handled();
+        ctx.request_layout();
+        return;
+    }
 }
 
 impl Widget<LapceWindowData> for LapceWindowNew {
@@ -780,28 +820,12 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::SetWorkspace(workspace) => {
+                        self.new_tab(ctx, data, Some(workspace.clone()), true);
+                        return;
+                    }
                     LapceUICommand::NewTab => {
-                        let tab_id = WidgetId::next();
-                        let tab_data = LapceTabData::new(
-                            tab_id,
-                            data.keypress.clone(),
-                            data.theme.clone(),
-                        );
-                        let tab =
-                            LapceTabNew::new(&tab_data).lens(LapceTabLens(tab_id));
-                        data.tabs.insert(tab_id, tab_data);
-                        self.tabs
-                            .insert(data.active + 1, WidgetPod::new(tab.boxed()));
-                        data.active = data.active + 1;
-                        data.active_id = tab_id;
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::FocusTab,
-                            Target::Auto,
-                        ));
-                        ctx.children_changed();
-                        ctx.set_handled();
-                        ctx.request_layout();
+                        self.new_tab(ctx, data, None, false);
                         return;
                     }
                     LapceUICommand::NextTab => {

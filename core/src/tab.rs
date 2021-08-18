@@ -82,35 +82,27 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         match event {
-            Event::WindowConnected => {
-                for (_, buffer) in data.main_split.open_files.iter() {
-                    if !buffer.loaded {
-                        buffer.retrieve_file(
-                            data.proxy.clone(),
-                            ctx.get_external_handle(),
-                        );
-                    }
-                }
-                let receiver = data.update_receiver.take().unwrap();
-                let event_sink = ctx.get_external_handle();
-                let tab_id = self.id;
-                thread::spawn(move || {
-                    LapceTabData::buffer_update_process(
-                        tab_id, receiver, event_sink,
-                    );
-                });
-            }
+            // Event::WindowConnected => {
+            //     for (_, buffer) in data.main_split.open_files.iter() {
+            //         if !buffer.loaded {
+            //             buffer.retrieve_file(
+            //                 data.proxy.clone(),
+            //                 ctx.get_external_handle(),
+            //             );
+            //         }
+            //     }
+            //     let receiver = data.update_receiver.take().unwrap();
+            //     let event_sink = ctx.get_external_handle();
+            //     let tab_id = self.id;
+            //     thread::spawn(move || {
+            //         LapceTabData::buffer_update_process(
+            //             tab_id, receiver, event_sink,
+            //         );
+            //     });
+            // }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
-                    LapceUICommand::SetWorkspace(workspace) => {
-                        if Some(workspace)
-                            != data.workspace.as_ref().map(|w| w.as_ref())
-                        {
-                            data.set_workspace(ctx, workspace.clone());
-                        }
-                        ctx.set_handled();
-                    }
                     LapceUICommand::UpdateWindowOrigin => {
                         data.window_origin = ctx.window_origin();
                     }

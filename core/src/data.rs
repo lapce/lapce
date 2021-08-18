@@ -182,7 +182,7 @@ impl LapceWindowData {
     ) -> Self {
         let mut tabs = im::HashMap::new();
         let tab_id = WidgetId::next();
-        let tab = LapceTabData::new(tab_id, keypress.clone(), theme.clone());
+        let tab = LapceTabData::new(tab_id, keypress.clone(), theme.clone(), None);
         tabs.insert(tab_id, tab);
         Self {
             tabs,
@@ -229,6 +229,7 @@ impl LapceTabData {
         tab_id: WidgetId,
         keypress: Arc<KeyPressData>,
         theme: Arc<std::collections::HashMap<String, Color>>,
+        event_sink: Option<ExtEventSink>,
     ) -> Self {
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
@@ -240,7 +241,7 @@ impl LapceTabData {
             proxy.clone(),
         );
         let completion = Arc::new(CompletionData::new());
-        Self {
+        let mut tab = Self {
             id: tab_id,
             workspace: None,
             main_split,
@@ -252,15 +253,44 @@ impl LapceTabData {
             update_sender,
             update_receiver: Some(update_receiver),
             window_origin: Point::ZERO,
+        };
+        if let Some(event_sink) = event_sink {
+            tab.start_update_process(event_sink);
+        }
+        tab
+    }
+
+    pub fn start_update_process(&mut self, event_sink: ExtEventSink) {
+        if let Some(receiver) = self.update_receiver.take() {
+            let tab_id = self.id;
+            let local_event_sink = event_sink.clone();
+            thread::spawn(move || {
+                LapceTabData::buffer_update_process(
+                    tab_id,
+                    receiver,
+                    local_event_sink,
+                );
+            });
+        }
+
+        if let Some(receiver) = Arc::make_mut(&mut self.palette).receiver.take() {
+            let widget_id = self.palette.widget_id;
+            thread::spawn(move || {
+                PaletteViewData::update_process(receiver, widget_id, event_sink);
+            });
         }
     }
 
-    pub fn set_workspace(&mut self, ctx: &mut EventCtx, workspace: LapceWorkspace) {
+    pub fn set_workspace(
+        &mut self,
+        workspace: LapceWorkspace,
+        event_sink: ExtEventSink,
+    ) {
         self.workspace = Some(Arc::new(workspace.clone()));
         self.main_split.diagnostics.clear();
         self.main_split.error_count = 0;
         self.main_split.warning_count = 0;
-        self.proxy.start(workspace, ctx.get_external_handle());
+        self.proxy.start(workspace, event_sink.clone());
     }
 
     pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
@@ -389,14 +419,15 @@ impl LapceTabData {
         ) -> HashMap<BufferId, UpdateEvent> {
             let mut updates = HashMap::new();
             loop {
-                let update = receiver.recv().unwrap();
-                insert_update(&mut updates, update);
+                if let Ok(update) = receiver.recv() {
+                    insert_update(&mut updates, update);
+                }
                 match receiver.try_recv() {
                     Ok(update) => {
                         insert_update(&mut updates, update);
                     }
                     Err(TryRecvError::Empty) => break,
-                    Err(TryRecvError::Disconnected) => (),
+                    Err(TryRecvError::Disconnected) => break,
                 }
             }
             updates
@@ -407,6 +438,9 @@ impl LapceTabData {
         let mut highlight_configs = HashMap::new();
         loop {
             let events = receive_batch(&receiver);
+            if events.len() == 0 {
+                return;
+            }
             for (_, event) in events {
                 match event {
                     UpdateEvent::Buffer(update) => {
@@ -1051,6 +1085,9 @@ impl LapceEditorViewData {
     }
 
     pub fn get_code_actions(&mut self, ctx: &mut EventCtx) {
+        if !self.buffer.loaded {
+            return;
+        }
         let offset = self.editor.cursor.offset();
         let prev_offset = self.buffer.prev_code_boundary(offset);
         if self.buffer.code_actions.get(&prev_offset).is_none() {
