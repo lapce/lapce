@@ -51,6 +51,7 @@ use crate::{
     },
     completion::{CompletionData, CompletionStatus, Snippet},
     editor::EditorLocationNew,
+    find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     language::{new_highlight_config, new_parser, LapceLanguage},
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
@@ -583,6 +584,7 @@ pub struct LapceMainSplitData {
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
     pub palette_preview_editor: Arc<WidgetId>,
+    pub find: Arc<Find>,
     pub show_code_actions: bool,
     pub current_code_actions: usize,
     pub diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
@@ -917,6 +919,7 @@ impl LapceMainSplitData {
             active: Arc::new(view_id),
             update_sender,
             register: Arc::new(Register::default()),
+            find: Arc::new(Find::new(0)),
             proxy,
             palette_preview_editor: Arc::new(palette_preview_editor),
             show_code_actions: false,
@@ -2634,6 +2637,44 @@ impl KeyPressFocus for LapceEditorViewData {
                     LapceUICommand::PreviousTab,
                     Target::Auto,
                 ));
+            }
+            LapceCommand::SearchWholeWordForward => {
+                let offset = self.editor.cursor.offset();
+                let (start, end) = self.buffer.select_word(offset);
+                let word = self.buffer.slice_to_cow(start..end).to_string();
+                Arc::make_mut(&mut self.main_split.find)
+                    .set_find(&word, false, false, true);
+                let next = self.main_split.find.next(
+                    &self.buffer.rope,
+                    offset,
+                    false,
+                    true,
+                );
+                if let Some((start, end)) = next {
+                    self.do_move(&Movement::Offset(start), 1);
+                }
+            }
+            LapceCommand::SearchForward => {
+                let offset = self.editor.cursor.offset();
+                let next = self.main_split.find.next(
+                    &self.buffer.rope,
+                    offset,
+                    false,
+                    true,
+                );
+                if let Some((start, end)) = next {
+                    self.do_move(&Movement::Offset(start), 1);
+                }
+            }
+            LapceCommand::SearchBackward => {
+                let offset = self.editor.cursor.offset();
+                let next =
+                    self.main_split
+                        .find
+                        .next(&self.buffer.rope, offset, true, true);
+                if let Some((start, end)) = next {
+                    self.do_move(&Movement::Offset(start), 1);
+                }
             }
             LapceCommand::Save => {
                 if !self.buffer.dirty {

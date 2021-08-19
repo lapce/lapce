@@ -395,6 +395,10 @@ impl BufferNew {
         self.rope.offset_of_line(line)
     }
 
+    pub fn select_word(&self, offset: usize) -> (usize, usize) {
+        WordCursor::new(&self.rope, offset).select_word()
+    }
+
     pub fn char_at_offset(&self, offset: usize) -> Option<char> {
         WordCursor::new(&self.rope, offset)
             .inner
