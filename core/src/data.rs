@@ -2676,6 +2676,23 @@ impl KeyPressFocus for LapceEditorViewData {
                     self.do_move(&Movement::Offset(start), 1);
                 }
             }
+            LapceCommand::JoinLines => {
+                let offset = self.editor.cursor.offset();
+                let (line, col) = self.buffer.offset_to_line_col(offset);
+                if line < self.buffer.last_line() {
+                    let start = self.buffer.line_end_offset(line, true);
+                    let end =
+                        self.buffer.first_non_blank_character_on_line(line + 1);
+                    self.edit(
+                        ctx,
+                        &Selection::region(start, end),
+                        " ",
+                        None,
+                        false,
+                        EditType::Other,
+                    );
+                }
+            }
             LapceCommand::Save => {
                 if !self.buffer.dirty {
                     return;
