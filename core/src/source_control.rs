@@ -5,9 +5,9 @@ use druid::{
     theme,
     widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll},
     Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
-    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetExt, WidgetId,
-    WidgetPod, WindowId,
+    FontDescriptor, FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetExt,
+    WidgetId, WidgetPod, WindowId,
 };
 
 use crate::{
@@ -16,16 +16,20 @@ use crate::{
     editor::{LapceEditorContainer, LapceEditorView},
     palette::{file_svg, svg_tree_size},
     panel::{PanelPosition, PanelProperty},
+    scroll::LapceScrollNew,
     split::LapceSplitNew,
     state::{LapceUIState, LAPCE_APP_STATE},
+    svg::file_svg_new,
     theme::LapceTheme,
 };
 
 pub const SOURCE_CONTROL_BUFFER: &'static str = "[Source Control Buffer]";
 
+#[derive(Clone)]
 pub struct SourceControlData {
     pub widget_id: WidgetId,
     pub editor_view_id: WidgetId,
+    pub diff_files: Vec<PathBuf>,
 }
 
 impl SourceControlData {
@@ -33,6 +37,7 @@ impl SourceControlData {
         Self {
             widget_id: WidgetId::next(),
             editor_view_id: WidgetId::next(),
+            diff_files: Vec::new(),
         }
     }
 }
@@ -58,8 +63,13 @@ impl SourceControlNew {
             editor_data.editor_id,
         )
         .lens(LapceEditorLens(editor_data.view_id));
-        let split =
-            LapceSplitNew::new(split_id).with_flex_child(editor.boxed(), 0.5);
+
+        let file_list = LapceScrollNew::new(SourceControlFileList::new());
+
+        let split = LapceSplitNew::new(split_id)
+            .horizontal()
+            .with_flex_child(editor.boxed(), 0.5)
+            .with_flex_child(file_list.boxed(), 0.5);
         Self {
             widget_id: data.source_control.widget_id,
             editor_view_id: data.source_control.editor_view_id,
@@ -121,6 +131,10 @@ impl Widget<LapceTabData> for SourceControlNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if !data.source_control.same(&old_data.source_control) {
+            ctx.request_local_layout();
+            ctx.request_paint();
+        }
         self.split.update(ctx, data, env);
     }
 
@@ -138,6 +152,144 @@ impl Widget<LapceTabData> for SourceControlNew {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.split.paint(ctx, data, env);
+    }
+}
+
+pub struct SourceControlFileList {}
+
+impl SourceControlFileList {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<LapceTabData> for SourceControlFileList {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let height = line_height * data.source_control.diff_files.len() as f64;
+        Size::new(bc.max().width, height)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+
+        let files = &data.source_control.diff_files;
+
+        let rects = ctx.region().rects().to_vec();
+        for rect in rects {
+            ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+            let start_line = (rect.y0 / line_height).floor() as usize;
+            let end_line = (rect.y1 / line_height).ceil() as usize;
+            for line in start_line..end_line {
+                if line >= files.len() {
+                    break;
+                }
+                let mut path = files[line].clone();
+                if let Some(workspace) = data.workspace.as_ref() {
+                    path = path
+                        .strip_prefix(&workspace.path)
+                        .unwrap_or(&path)
+                        .to_path_buf();
+                }
+                {
+                    let width = 13.0;
+                    let height = 13.0;
+                    let rect =
+                        Size::new(width, height).to_rect().with_origin(Point::new(
+                            (line_height - width) / 2.0,
+                            (line_height - height) / 2.0 + line_height * line as f64,
+                        ));
+                    ctx.stroke(rect, &Color::rgb8(0, 0, 0), 1.0);
+                }
+                let svg = file_svg_new(
+                    &path
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .to_string(),
+                );
+                if let Some(svg) = svg.as_ref() {
+                    let width = 13.0;
+                    let height = 13.0;
+                    let rect =
+                        Size::new(width, height).to_rect().with_origin(Point::new(
+                            (line_height - width) / 2.0 + line_height,
+                            (line_height - height) / 2.0 + line_height * line as f64,
+                        ));
+                    svg.paint(ctx, rect, None);
+                }
+                let file_name = path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_string();
+                let mut text_layout = TextLayout::<String>::from_text(file_name);
+                text_layout.set_font(
+                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+                );
+                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                text_layout.rebuild_if_needed(ctx.text(), env);
+                text_layout.draw(
+                    ctx,
+                    Point::new(line_height * 2.0, line_height * line as f64 + 4.0),
+                );
+                let folder = path
+                    .parent()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_string();
+                if folder != "" {
+                    let x = text_layout.size().width;
+
+                    let mut text_layout = TextLayout::<String>::from_text(folder);
+                    text_layout.set_font(
+                        FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+                    );
+                    text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
+                    text_layout.rebuild_if_needed(ctx.text(), env);
+                    text_layout.draw(
+                        ctx,
+                        Point::new(
+                            line_height * 2.0 + x + 5.0,
+                            line_height * line as f64 + 4.0,
+                        ),
+                    );
+                }
+            }
+        }
     }
 }
 

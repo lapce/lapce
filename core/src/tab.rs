@@ -175,6 +175,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.main_split.notify_update_text_layouts(ctx, path);
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateDiffFiles(files) => {
+                        Arc::make_mut(&mut data.source_control).diff_files =
+                            files.to_owned();
+                        ctx.set_handled();
+                    }
                     LapceUICommand::PublishDiagnostics(diagnostics) => {
                         let path = PathBuf::from(diagnostics.uri.path());
                         let diagnostics = diagnostics

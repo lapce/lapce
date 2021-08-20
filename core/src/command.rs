@@ -270,6 +270,7 @@ pub enum LapceUICommand {
     CenterOfWindow,
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
+    UpdateDiffFiles(Vec<PathBuf>),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),

@@ -592,7 +592,13 @@ impl Handler for ProxyHandlerNew {
                 );
             }
             Notification::ListDir { items } => {}
-            Notification::DiffFiles { files } => {}
+            Notification::DiffFiles { files } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateDiffFiles(files),
+                    Target::Widget(self.tab_id),
+                );
+            }
         }
     }
 

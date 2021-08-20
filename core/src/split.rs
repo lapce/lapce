@@ -33,6 +33,7 @@ pub enum SplitMoveDirection {
 pub struct LapceSplitNew {
     split_id: WidgetId,
     children: Vec<ChildWidgetNew>,
+    vertical: bool,
 }
 
 pub struct ChildWidgetNew {
@@ -47,7 +48,13 @@ impl LapceSplitNew {
         Self {
             split_id,
             children: Vec::new(),
+            vertical: true,
         }
+    }
+
+    pub fn horizontal(mut self) -> Self {
+        self.vertical = false;
+        self
     }
 
     pub fn with_flex_child(
@@ -351,25 +358,46 @@ impl Widget<LapceTabData> for LapceSplitNew {
             }
         }
 
-        let flex_total = my_size.width - non_flex_total;
+        let flex_total = if self.vertical {
+            my_size.width
+        } else {
+            my_size.height
+        } - non_flex_total;
+
         let mut x = 0.0;
         let mut y = 0.0;
         for child in self.children.iter_mut() {
-            let width = if child.flex {
-                (flex_total / flex_sum * child.params).round()
+            let (width, height) = if self.vertical {
+                let width = if child.flex {
+                    (flex_total / flex_sum * child.params).round()
+                } else {
+                    child.params
+                };
+                let height = my_size.height;
+                (width, height)
             } else {
-                child.params
+                let height = if child.flex {
+                    (flex_total / flex_sum * child.params).round()
+                } else {
+                    child.params
+                };
+                let width = my_size.width;
+                (width, height)
             };
-            let size = Size::new(width, my_size.height);
+            let size = Size::new(width, height);
             child
                 .widget
                 .layout(ctx, &BoxConstraints::new(size, size), data, env);
-            child.widget.set_origin(ctx, data, env, Point::new(x, 0.0));
+            child.widget.set_origin(ctx, data, env, Point::new(x, y));
             child.layout_rect = child
                 .layout_rect
                 .with_size(size)
-                .with_origin(Point::new(x, 0.0));
-            x += width;
+                .with_origin(Point::new(x, y));
+            if self.vertical {
+                x += width;
+            } else {
+                y += height;
+            }
         }
 
         my_size

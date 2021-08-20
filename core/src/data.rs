@@ -250,6 +250,7 @@ impl Data for LapceTabData {
             && self.completion.same(&other.completion)
             && self.palette.same(&other.palette)
             && self.workspace.same(&other.workspace)
+            && self.source_control.same(&other.source_control)
             && self.panels.same(&other.panels)
             && self.panel_size.same(&other.panel_size)
     }
