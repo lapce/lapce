@@ -4,41 +4,76 @@ use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     theme,
     widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll},
-    Affine, BoxConstraints, Color, Cursor, Data, Env, Event, EventCtx, FontFamily,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    TextLayout, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
+    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod, WindowId,
 };
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::LapceTabData,
+    data::{LapceEditorLens, LapceTabData},
+    editor::{LapceEditorContainer, LapceEditorView},
     palette::{file_svg, svg_tree_size},
     panel::{PanelPosition, PanelProperty},
+    split::LapceSplitNew,
     state::{LapceUIState, LAPCE_APP_STATE},
     theme::LapceTheme,
 };
 
+pub const SOURCE_CONTROL_BUFFER: &'static str = "[Source Control Buffer]";
+
 pub struct SourceControlData {
     pub widget_id: WidgetId,
+    pub editor_view_id: WidgetId,
 }
 
 impl SourceControlData {
     pub fn new() -> Self {
         Self {
             widget_id: WidgetId::next(),
+            editor_view_id: WidgetId::next(),
         }
     }
 }
 
-pub struct SourceControlNew {}
+pub struct SourceControlNew {
+    widget_id: WidgetId,
+    editor_view_id: WidgetId,
+    editor_container_id: WidgetId,
+    split: WidgetPod<LapceTabData, LapceSplitNew>,
+}
 
 impl SourceControlNew {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(data: &LapceTabData) -> Self {
+        let split_id = WidgetId::next();
+        let editor_data = data
+            .main_split
+            .editors
+            .get(&data.source_control.editor_view_id)
+            .unwrap();
+        let editor = LapceEditorView::new(
+            editor_data.view_id,
+            editor_data.container_id,
+            editor_data.editor_id,
+        )
+        .lens(LapceEditorLens(editor_data.view_id));
+        let split =
+            LapceSplitNew::new(split_id).with_flex_child(editor.boxed(), 0.5);
+        Self {
+            widget_id: data.source_control.widget_id,
+            editor_view_id: data.source_control.editor_view_id,
+            editor_container_id: editor_data.container_id,
+            split: WidgetPod::new(split),
+        }
     }
 }
 
 impl Widget<LapceTabData> for SourceControlNew {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -46,6 +81,27 @@ impl Widget<LapceTabData> for SourceControlNew {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::Command(cmd) => match cmd {
+                _ if cmd.is(LAPCE_UI_COMMAND) => {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                    match command {
+                        LapceUICommand::Focus => {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(self.editor_container_id),
+                            ));
+                            ctx.set_handled();
+                        }
+                        _ => (),
+                    }
+                }
+                _ => (),
+            },
+            _ => (),
+        }
+        self.split.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -55,6 +111,7 @@ impl Widget<LapceTabData> for SourceControlNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        self.split.lifecycle(ctx, event, data, env);
     }
 
     fn update(
@@ -64,6 +121,7 @@ impl Widget<LapceTabData> for SourceControlNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        self.split.update(ctx, data, env);
     }
 
     fn layout(
@@ -73,10 +131,14 @@ impl Widget<LapceTabData> for SourceControlNew {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        self.split.layout(ctx, bc, data, env);
+        self.split.set_origin(ctx, data, env, Point::ZERO);
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {}
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        self.split.paint(ctx, data, env);
+    }
 }
 
 pub struct SourceControl {

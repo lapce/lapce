@@ -269,6 +269,16 @@ impl LapceEditorContainer {
         env: &Env,
     ) {
         match cmd {
+            LapceUICommand::Focus => {
+                println!(
+                    "receive focus {:?}, old focus {:?}",
+                    self.view_id, data.main_split.active
+                );
+                data.main_split.last_active = data.main_split.active.clone();
+                data.main_split.active = Arc::new(self.view_id);
+                ctx.request_focus();
+                ctx.set_handled();
+            }
             LapceUICommand::FillTextLayouts => {
                 data.fill_text_layouts(ctx, &data.theme.clone(), env);
                 ctx.set_handled();

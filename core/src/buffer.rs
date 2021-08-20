@@ -196,6 +196,7 @@ pub struct BufferNew {
     pub rev: u64,
     pub dirty: bool,
     pub loaded: bool,
+    pub local: bool,
     update_sender: Arc<Sender<UpdateEvent>>,
 
     revs: Vec<Revision>,
@@ -237,6 +238,7 @@ impl BufferNew {
             loaded: false,
             dirty: false,
             update_sender,
+            local: false,
 
             revs: vec![Revision {
                 max_undo_so_far: 0,
@@ -266,6 +268,11 @@ impl BufferNew {
             im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
         buffer.line_styles = im::Vector::from(vec![None; buffer.num_lines()]);
         buffer
+    }
+
+    pub fn set_local(mut self) -> Self {
+        self.local = true;
+        self
     }
 
     pub fn reset_revs(&mut self) {
@@ -400,6 +407,9 @@ impl BufferNew {
     }
 
     pub fn char_at_offset(&self, offset: usize) -> Option<char> {
+        if self.len() == 0 {
+            return None;
+        }
         WordCursor::new(&self.rope, offset)
             .inner
             .peek_next_codepoint()
@@ -1179,7 +1189,9 @@ impl BufferNew {
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
 
-        proxy.update(self.id, &delta, self.rev);
+        if !self.local {
+            proxy.update(self.id, &delta, self.rev);
+        }
 
         self.revs.push(new_rev);
         self.rope = new_text.clone();

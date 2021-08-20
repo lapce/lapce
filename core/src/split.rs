@@ -1,6 +1,6 @@
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::{LapceEditorData, LapceEditorLens, LapceTabData},
+    data::{EditorType, LapceEditorData, LapceEditorLens, LapceTabData},
     editor::Editor,
     editor::EditorState,
     editor::{EditorLocation, EditorView, LapceEditorView},
@@ -226,8 +226,12 @@ impl LapceSplitNew {
         }
 
         let from_editor = data.main_split.editors.get(&view_id).unwrap();
-        let mut editor_data =
-            LapceEditorData::new(None, self.split_id, from_editor.buffer.clone());
+        let mut editor_data = LapceEditorData::new(
+            None,
+            Some(self.split_id),
+            from_editor.buffer.clone(),
+            EditorType::Normal,
+        );
         editor_data.cursor = from_editor.cursor.clone();
         editor_data.locations = from_editor.locations.clone();
         ctx.submit_command(Command::new(

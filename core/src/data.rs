@@ -58,7 +58,7 @@ use crate::{
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
     proxy::{LapceProxy, ProxyHandlerNew},
-    source_control::SourceControlData,
+    source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     theme::LapceTheme,
@@ -206,8 +206,8 @@ pub struct EditorDiagnostic {
 #[derive(Clone)]
 pub struct PanelData {
     pub active: WidgetId,
-    widgets: Vec<WidgetId>,
-    shown: bool,
+    pub widgets: Vec<WidgetId>,
+    pub shown: bool,
 }
 
 impl PanelData {
@@ -266,13 +266,14 @@ impl LapceTabData {
         let update_sender = Arc::new(update_sender);
         let proxy = Arc::new(LapceProxy::new(tab_id));
         let palette = Arc::new(PaletteData::new(proxy.clone()));
-        let main_split = LapceMainSplitData::new(
+        let completion = Arc::new(CompletionData::new());
+        let source_control = Arc::new(SourceControlData::new());
+        let mut main_split = LapceMainSplitData::new(
             palette.preview_editor,
             update_sender.clone(),
             proxy.clone(),
         );
-        let completion = Arc::new(CompletionData::new());
-        let source_control = Arc::new(SourceControlData::new());
+        main_split.add_source_control_editor(source_control.editor_view_id);
 
         let mut panels = im::HashMap::new();
         panels.insert(
@@ -629,6 +630,7 @@ pub enum EditorKind {
 pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
     pub active: Arc<WidgetId>,
+    pub last_active: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub open_files: im::HashMap<PathBuf, Arc<BufferNew>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
@@ -944,8 +946,13 @@ impl LapceMainSplitData {
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
-        let path = PathBuf::from("/Users/Lulu/[UNAMED]");
-        let editor = LapceEditorData::new(None, *split_id, path.clone());
+        let path = PathBuf::from("[UNAMED]");
+        let editor = LapceEditorData::new(
+            None,
+            Some(*split_id),
+            path.clone(),
+            EditorType::Normal,
+        );
         let view_id = editor.view_id;
         editors.insert(editor.view_id, Arc::new(editor));
         let buffer = BufferNew::new(path.clone(), update_sender.clone());
@@ -955,8 +962,9 @@ impl LapceMainSplitData {
         let path = PathBuf::from("[Palette Preview Editor]");
         let editor = LapceEditorData::new(
             Some(palette_preview_editor),
-            *split_id,
+            None,
             path.clone(),
+            EditorType::Palette,
         );
         editors.insert(editor.view_id, Arc::new(editor));
         let mut buffer = BufferNew::new(path.clone(), update_sender.clone());
@@ -968,6 +976,7 @@ impl LapceMainSplitData {
             editors,
             open_files,
             active: Arc::new(view_id),
+            last_active: Arc::new(view_id),
             update_sender,
             register: Arc::new(Register::default()),
             find: Arc::new(Find::new(0)),
@@ -980,14 +989,37 @@ impl LapceMainSplitData {
             warning_count: 0,
         }
     }
+
+    pub fn add_source_control_editor(&mut self, view_id: WidgetId) {
+        let path = PathBuf::from(SOURCE_CONTROL_BUFFER);
+        let mut buffer =
+            BufferNew::new(path.clone(), self.update_sender.clone()).set_local();
+        buffer.load_content("");
+        self.open_files.insert(path.clone(), Arc::new(buffer));
+        let editor = LapceEditorData::new(
+            Some(view_id),
+            None,
+            path.clone(),
+            EditorType::SourceControl,
+        );
+        self.editors.insert(editor.view_id, Arc::new(editor));
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum EditorType {
+    Normal,
+    SourceControl,
+    Palette,
 }
 
 #[derive(Clone, Debug)]
 pub struct LapceEditorData {
-    pub split_id: WidgetId,
+    pub split_id: Option<WidgetId>,
     pub view_id: WidgetId,
     pub container_id: WidgetId,
     pub editor_id: WidgetId,
+    editor_type: EditorType,
     pub buffer: PathBuf,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
@@ -1002,14 +1034,16 @@ pub struct LapceEditorData {
 impl LapceEditorData {
     pub fn new(
         view_id: Option<WidgetId>,
-        split_id: WidgetId,
+        split_id: Option<WidgetId>,
         buffer: PathBuf,
+        editor_type: EditorType,
     ) -> Self {
         Self {
             split_id,
             view_id: view_id.unwrap_or(WidgetId::next()),
             container_id: WidgetId::next(),
             editor_id: WidgetId::next(),
+            editor_type,
             buffer,
             scroll_offset: Vec2::ZERO,
             cursor: Cursor::default(),
@@ -1140,6 +1174,9 @@ impl LapceEditorViewData {
 
     pub fn get_code_actions(&mut self, ctx: &mut EventCtx) {
         if !self.buffer.loaded {
+            return;
+        }
+        if self.buffer.local {
             return;
         }
         let offset = self.editor.cursor.offset();
@@ -1462,6 +1499,9 @@ impl LapceEditorViewData {
         ctx: &mut EventCtx,
         env: &Env,
     ) -> Option<()> {
+        if self.editor.locations.len() == 0 {
+            return None;
+        }
         if self.editor.current_location >= self.editor.locations.len() - 1 {
             return None;
         }
@@ -1854,6 +1894,12 @@ impl LapceEditorViewData {
         if self.get_mode() != Mode::Insert {
             return;
         }
+        if !self.buffer.loaded {
+            return;
+        }
+        if self.buffer.local {
+            return;
+        }
         let offset = self.editor.cursor.offset();
         let start_offset = self.buffer.prev_code_boundary(offset);
         let end_offset = self.buffer.next_code_boundary(offset);
@@ -2028,6 +2074,7 @@ impl KeyPressFocus for LapceEditorViewData {
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
             "editor_focus" => true,
+            "source_control_focus" => true,
             "in_snippet" => self.editor.snippet.is_some(),
             "list_focus" => {
                 self.completion.status != CompletionStatus::Inactive
@@ -2064,45 +2111,55 @@ impl KeyPressFocus for LapceEditorViewData {
         }
         match cmd {
             LapceCommand::SplitLeft => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorMove(
-                        SplitMoveDirection::Left,
-                        self.editor.view_id,
-                    ),
-                    Target::Widget(self.editor.split_id),
-                ));
+                if let Some(split_id) = self.editor.split_id.clone() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorMove(
+                            SplitMoveDirection::Left,
+                            self.editor.view_id,
+                        ),
+                        Target::Widget(split_id),
+                    ));
+                }
             }
             LapceCommand::SplitRight => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorMove(
-                        SplitMoveDirection::Right,
-                        self.editor.view_id,
-                    ),
-                    Target::Widget(self.editor.split_id),
-                ));
+                if let Some(split_id) = self.editor.split_id.clone() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorMove(
+                            SplitMoveDirection::Right,
+                            self.editor.view_id,
+                        ),
+                        Target::Widget(split_id),
+                    ));
+                }
             }
             LapceCommand::SplitExchange => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorExchange(self.editor.view_id),
-                    Target::Widget(self.editor.split_id),
-                ));
+                if let Some(split_id) = self.editor.split_id.clone() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorExchange(self.editor.view_id),
+                        Target::Widget(split_id),
+                    ));
+                }
             }
             LapceCommand::SplitVertical => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditor(true, self.editor.view_id),
-                    Target::Widget(self.editor.split_id),
-                ));
+                if let Some(split_id) = self.editor.split_id.clone() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditor(true, self.editor.view_id),
+                        Target::Widget(split_id),
+                    ));
+                }
             }
             LapceCommand::SplitClose => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorClose(self.editor.view_id),
-                    Target::Widget(self.editor.split_id),
-                ));
+                if let Some(split_id) = self.editor.split_id.clone() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorClose(self.editor.view_id),
+                        Target::Widget(split_id),
+                    ));
+                }
             }
             LapceCommand::Undo => {
                 self.initiate_diagnositcs_offset();
@@ -2636,26 +2693,56 @@ impl KeyPressFocus for LapceEditorViewData {
                     }),
                 );
             }
-            LapceCommand::Palette => {
+            LapceCommand::SourceControl => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::RunPalette(None),
-                    Target::Widget(*self.palette),
+                    LapceUICommand::FocusSourceControl,
+                    Target::Auto,
                 ));
+            }
+            LapceCommand::SourceControlCancel => {
+                if self.editor.editor_type == EditorType::SourceControl {
+                    let last_active_editor = self
+                        .main_split
+                        .editors
+                        .get(&*self.main_split.last_active)
+                        .unwrap();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(last_active_editor.container_id),
+                    ));
+                    println!("source control cancel");
+                }
+            }
+            LapceCommand::Palette => {
+                if self.editor.editor_type == EditorType::Normal {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RunPalette(None),
+                        Target::Widget(*self.palette),
+                    ));
+                }
             }
             LapceCommand::PaletteSymbol => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::RunPalette(Some(PaletteType::DocumentSymbol)),
-                    Target::Widget(*self.palette),
-                ));
+                if self.editor.editor_type == EditorType::Normal {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RunPalette(Some(
+                            PaletteType::DocumentSymbol,
+                        )),
+                        Target::Widget(*self.palette),
+                    ));
+                }
             }
             LapceCommand::PaletteLine => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::RunPalette(Some(PaletteType::Line)),
-                    Target::Widget(*self.palette),
-                ));
+                if self.editor.editor_type == EditorType::Normal {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RunPalette(Some(PaletteType::Line)),
+                        Target::Widget(*self.palette),
+                    ));
+                }
             }
             LapceCommand::ShowCodeActions => {
                 if let Some(actions) = self.current_code_actions() {

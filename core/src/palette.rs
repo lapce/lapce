@@ -41,7 +41,9 @@ use crate::{
         EditorKind, LapceEditorData, LapceEditorLens, LapceEditorViewData,
         LapceMainSplitData, LapceTabData,
     },
-    editor::{EditorLocationNew, EditorSplitState, LapceEditorContainer},
+    editor::{
+        EditorLocationNew, EditorSplitState, LapceEditorContainer, LapceEditorView,
+    },
     explorer::ICONS_DIR,
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
@@ -1921,7 +1923,7 @@ impl PaletteContainer {
             NewPaletteContent::new().lens(PaletteViewLens).boxed(),
         )
         .vertical();
-        let preview = LapceEditorContainer::new(
+        let preview = LapceEditorView::new(
             preview_editor.view_id,
             preview_editor.container_id,
             preview_editor.editor_id,

@@ -229,6 +229,8 @@ pub enum LapceUICommand {
     CancelPalette,
     ShowCodeActions,
     CancelCodeActions,
+    Focus,
+    FocusSourceControl,
     RunPalette(Option<PaletteType>),
     RunPaletteReferences(Vec<EditorLocationNew>),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
