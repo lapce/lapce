@@ -273,7 +273,7 @@ impl CompletionData {
             input: "".to_string(),
             input_items: im::HashMap::new(),
             filtered_items: Arc::new(Vec::new()),
-            matcher: Arc::new(SkimMatcherV2::default()),
+            matcher: Arc::new(SkimMatcherV2::default().ignore_case()),
             size: Size::new(400.0, 300.0),
             empty: Arc::new(Vec::new()),
         }

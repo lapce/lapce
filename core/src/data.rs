@@ -56,7 +56,9 @@ use crate::{
     language::{new_highlight_config, new_parser, LapceLanguage},
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
     palette::{PaletteData, PaletteType, PaletteViewData},
+    panel::PanelPosition,
     proxy::{LapceProxy, ProxyHandlerNew},
+    source_control::SourceControlData,
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     theme::LapceTheme,
@@ -201,6 +203,29 @@ pub struct EditorDiagnostic {
     pub diagnositc: Diagnostic,
 }
 
+#[derive(Clone)]
+pub struct PanelData {
+    pub active: WidgetId,
+    widgets: Vec<WidgetId>,
+    shown: bool,
+}
+
+impl PanelData {
+    pub fn is_shown(&self) -> bool {
+        self.shown && self.widgets.len() > 0
+    }
+}
+
+#[derive(Clone, Data)]
+pub struct PanelSize {
+    pub left: f64,
+    pub left_split: f64,
+    pub bottom: f64,
+    pub bottom_split: f64,
+    pub right: f64,
+    pub right_split: f64,
+}
+
 #[derive(Clone, Lens)]
 pub struct LapceTabData {
     pub id: WidgetId,
@@ -208,12 +233,15 @@ pub struct LapceTabData {
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub palette: Arc<PaletteData>,
+    pub source_control: Arc<SourceControlData>,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub window_origin: Point,
+    pub panels: im::HashMap<PanelPosition, Arc<PanelData>>,
+    pub panel_size: PanelSize,
 }
 
 impl Data for LapceTabData {
@@ -222,6 +250,8 @@ impl Data for LapceTabData {
             && self.completion.same(&other.completion)
             && self.palette.same(&other.palette)
             && self.workspace.same(&other.workspace)
+            && self.panels.same(&other.panels)
+            && self.panel_size.same(&other.panel_size)
     }
 }
 
@@ -242,11 +272,23 @@ impl LapceTabData {
             proxy.clone(),
         );
         let completion = Arc::new(CompletionData::new());
+        let source_control = Arc::new(SourceControlData::new());
+
+        let mut panels = im::HashMap::new();
+        panels.insert(
+            PanelPosition::LeftTop,
+            Arc::new(PanelData {
+                active: source_control.widget_id,
+                widgets: vec![source_control.widget_id],
+                shown: true,
+            }),
+        );
         let mut tab = Self {
             id: tab_id,
             workspace: None,
             main_split,
             completion,
+            source_control,
             palette,
             proxy,
             keypress,
@@ -254,6 +296,15 @@ impl LapceTabData {
             update_sender,
             update_receiver: Some(update_receiver),
             window_origin: Point::ZERO,
+            panels,
+            panel_size: PanelSize {
+                left: 300.0,
+                left_split: 0.5,
+                bottom: 300.0,
+                bottom_split: 0.5,
+                right: 300.0,
+                right_split: 0.5,
+            },
         };
         if let Some(event_sink) = event_sink {
             tab.start_update_process(event_sink);

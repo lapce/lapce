@@ -864,7 +864,7 @@ impl PaletteViewData {
             Ok((run_id, input, items))
         }
 
-        let matcher = SkimMatcherV2::default();
+        let matcher = SkimMatcherV2::default().ignore_case();
         loop {
             if let Ok((run_id, input, items)) = receive_batch(&receiver) {
                 let filtered_items =

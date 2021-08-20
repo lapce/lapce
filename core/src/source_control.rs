@@ -11,11 +11,73 @@ use druid::{
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    data::LapceTabData,
     palette::{file_svg, svg_tree_size},
     panel::{PanelPosition, PanelProperty},
     state::{LapceUIState, LAPCE_APP_STATE},
     theme::LapceTheme,
 };
+
+pub struct SourceControlData {
+    pub widget_id: WidgetId,
+}
+
+impl SourceControlData {
+    pub fn new() -> Self {
+        Self {
+            widget_id: WidgetId::next(),
+        }
+    }
+}
+
+pub struct SourceControlNew {}
+
+impl SourceControlNew {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<LapceTabData> for SourceControlNew {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {}
+}
 
 pub struct SourceControl {
     window_id: WindowId,

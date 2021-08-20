@@ -15,6 +15,11 @@ use crate::{
     state::{LapceUIState, LAPCE_APP_STATE},
 };
 
+pub enum PanelResizePosition {
+    Left,
+    LeftSplit,
+}
+
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub enum PanelPosition {
     LeftTop,
