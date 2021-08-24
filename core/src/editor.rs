@@ -148,6 +148,27 @@ impl LapceEditorView {
             editor: WidgetPod::new(editor),
         }
     }
+
+    pub fn hide_header(mut self) -> Self {
+        self.header.widget_mut().display = false;
+        self
+    }
+
+    pub fn hide_gutter(mut self) -> Self {
+        self.editor.widget_mut().display_gutter = false;
+        self
+    }
+
+    pub fn set_placeholder(mut self, placehoder: String) -> Self {
+        self.editor
+            .widget_mut()
+            .editor
+            .widget_mut()
+            .inner_mut()
+            .child_mut()
+            .placeholder = Some(placehoder);
+        self
+    }
 }
 
 impl Widget<LapceEditorViewData> for LapceEditorView {
@@ -227,6 +248,7 @@ pub struct LapceEditorContainer {
     pub container_id: WidgetId,
     pub editor_id: WidgetId,
     pub scroll_id: WidgetId,
+    pub display_gutter: bool,
     pub gutter: WidgetPod<
         LapceEditorViewData,
         LapcePadding<LapceEditorViewData, LapceEditorGutter>,
@@ -256,6 +278,7 @@ impl LapceEditorContainer {
             container_id,
             editor_id,
             scroll_id,
+            display_gutter: true,
             gutter: WidgetPod::new(gutter),
             editor: WidgetPod::new(editor),
         }
@@ -527,12 +550,30 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         let self_size = bc.max();
         let gutter_size = self.gutter.layout(ctx, bc, data, env);
         self.gutter.set_origin(ctx, data, env, Point::ZERO);
-        let editor_size =
-            Size::new(self_size.width - gutter_size.width, self_size.height);
+        let editor_size = Size::new(
+            self_size.width
+                - if self.display_gutter {
+                    gutter_size.width
+                } else {
+                    0.0
+                },
+            self_size.height,
+        );
         let editor_bc = BoxConstraints::new(Size::ZERO, editor_size);
         self.editor.layout(ctx, &editor_bc, data, env);
-        self.editor
-            .set_origin(ctx, data, env, Point::new(gutter_size.width, 0.0));
+        self.editor.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(
+                if self.display_gutter {
+                    gutter_size.width
+                } else {
+                    0.0
+                },
+                0.0,
+            ),
+        );
         self_size
     }
 
@@ -542,15 +583,19 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
         }
         self.editor.paint(ctx, data, env);
-        self.gutter.paint(ctx, data, env);
+        if self.display_gutter {
+            self.gutter.paint(ctx, data, env);
+        }
     }
 }
 
-pub struct LapceEditorHeader {}
+pub struct LapceEditorHeader {
+    pub display: bool,
+}
 
 impl LapceEditorHeader {
     pub fn new() -> Self {
-        Self {}
+        Self { display: true }
     }
 }
 
@@ -597,10 +642,17 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
     ) -> Size {
         ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        Size::new(bc.max().width, 30.0)
+        if self.display {
+            Size::new(bc.max().width, 30.0)
+        } else {
+            Size::new(bc.max().width, 0.0)
+        }
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        if !self.display {
+            return;
+        }
         let blur_color = Color::grey8(180);
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
@@ -837,6 +889,7 @@ pub struct LapceEditor {
     editor_id: WidgetId,
     view_id: WidgetId,
     container_id: WidgetId,
+    placeholder: Option<String>,
 }
 
 impl LapceEditor {
@@ -849,10 +902,21 @@ impl LapceEditor {
             editor_id,
             view_id,
             container_id,
+            placeholder: None,
         }
     }
 
-    fn paint_cursor_line(&mut self, ctx: &mut PaintCtx, line: usize, env: &Env) {
+    fn paint_cursor_line(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceEditorViewData,
+        line: usize,
+        env: &Env,
+    ) {
+        let active = *data.main_split.active == self.view_id;
+        if !active && data.buffer.len() == 0 && self.placeholder.is_some() {
+            return;
+        }
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let size = ctx.size();
         ctx.fill(
@@ -1046,7 +1110,7 @@ impl LapceEditor {
         match &data.editor.cursor.mode {
             CursorMode::Normal(offset) => {
                 let (line, col) = data.buffer.offset_to_line_col(*offset);
-                self.paint_cursor_line(ctx, line, env);
+                self.paint_cursor_line(ctx, data, line, env);
 
                 if active {
                     let cursor_x = col as f64 * width;
@@ -1156,7 +1220,7 @@ impl LapceEditor {
                     for region in regions {
                         if region.start() == region.end() {
                             let line = data.buffer.line_of_offset(region.start());
-                            self.paint_cursor_line(ctx, line, env);
+                            self.paint_cursor_line(ctx, data, line, env);
                         } else {
                             let start = region.start();
                             let end = region.end();
@@ -1422,6 +1486,17 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         }
         self.paint_snippet(ctx, data, env);
         self.paint_diagnostics(ctx, data, env);
+        if data.buffer.len() == 0 {
+            if let Some(placeholder) = self.placeholder.as_ref() {
+                let mut text_layout = TextLayout::<String>::from_text(placeholder);
+                text_layout.set_font(
+                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+                );
+                text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
+                text_layout.rebuild_if_needed(ctx.text(), env);
+                text_layout.draw(ctx, Point::new(0.0, 5.0));
+            }
+        }
     }
 }
 

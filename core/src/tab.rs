@@ -176,8 +176,20 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateDiffFiles(files) => {
-                        Arc::make_mut(&mut data.source_control).diff_files =
-                            files.to_owned();
+                        let source_control = Arc::make_mut(&mut data.source_control);
+                        source_control.diff_files = files
+                            .iter()
+                            .map(|path| {
+                                let mut checked = true;
+                                for (p, c) in source_control.diff_files.iter() {
+                                    if p == path {
+                                        checked = *c;
+                                        break;
+                                    }
+                                }
+                                (path.clone(), checked)
+                            })
+                            .collect();
                         ctx.set_handled();
                     }
                     LapceUICommand::PublishDiagnostics(diagnostics) => {

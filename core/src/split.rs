@@ -72,6 +72,21 @@ impl LapceSplitNew {
         self
     }
 
+    pub fn with_child(
+        mut self,
+        child: Box<dyn Widget<LapceTabData>>,
+        params: f64,
+    ) -> Self {
+        let child = ChildWidgetNew {
+            widget: WidgetPod::new(child),
+            flex: false,
+            params,
+            layout_rect: Rect::ZERO,
+        };
+        self.children.push(child);
+        self
+    }
+
     pub fn insert_flex_child(
         &mut self,
         index: usize,

@@ -1,7 +1,11 @@
 use std::path::PathBuf;
 
 use druid::{
-    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
+    kurbo::BezPath,
+    piet::{
+        LineCap, LineJoin, RoundFrom, StrokeStyle, Text,
+        TextLayout as PietTextLayout, TextLayoutBuilder,
+    },
     theme,
     widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll},
     Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
@@ -29,7 +33,7 @@ pub const SOURCE_CONTROL_BUFFER: &'static str = "[Source Control Buffer]";
 pub struct SourceControlData {
     pub widget_id: WidgetId,
     pub editor_view_id: WidgetId,
-    pub diff_files: Vec<PathBuf>,
+    pub diff_files: Vec<(PathBuf, bool)>,
 }
 
 impl SourceControlData {
@@ -62,13 +66,17 @@ impl SourceControlNew {
             editor_data.container_id,
             editor_data.editor_id,
         )
-        .lens(LapceEditorLens(editor_data.view_id));
+        .hide_header()
+        .hide_gutter()
+        .set_placeholder("Commit Message".to_string())
+        .lens(LapceEditorLens(editor_data.view_id))
+        .padding(10.0);
 
         let file_list = LapceScrollNew::new(SourceControlFileList::new());
 
         let split = LapceSplitNew::new(split_id)
             .horizontal()
-            .with_flex_child(editor.boxed(), 0.5)
+            .with_child(editor.boxed(), 200.0)
             .with_flex_child(file_list.boxed(), 0.5);
         Self {
             widget_id: data.source_control.widget_id,
@@ -151,6 +159,8 @@ impl Widget<LapceTabData> for SourceControlNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let rect = ctx.size().to_rect();
+        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
         self.split.paint(ctx, data, env);
     }
 }
@@ -210,14 +220,13 @@ impl Widget<LapceTabData> for SourceControlFileList {
 
         let rects = ctx.region().rects().to_vec();
         for rect in rects {
-            ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
             let start_line = (rect.y0 / line_height).floor() as usize;
             let end_line = (rect.y1 / line_height).ceil() as usize;
             for line in start_line..end_line {
                 if line >= files.len() {
                     break;
                 }
-                let mut path = files[line].clone();
+                let (mut path, checked) = files[line].clone();
                 if let Some(workspace) = data.workspace.as_ref() {
                     path = path
                         .strip_prefix(&workspace.path)
@@ -227,12 +236,24 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 {
                     let width = 13.0;
                     let height = 13.0;
+                    let origin = Point::new(
+                        (line_height - width) / 2.0,
+                        (line_height - height) / 2.0 + line_height * line as f64,
+                    );
                     let rect =
-                        Size::new(width, height).to_rect().with_origin(Point::new(
-                            (line_height - width) / 2.0,
-                            (line_height - height) / 2.0 + line_height * line as f64,
-                        ));
+                        Size::new(width, height).to_rect().with_origin(origin);
                     ctx.stroke(rect, &Color::rgb8(0, 0, 0), 1.0);
+
+                    if checked {
+                        let mut path = BezPath::new();
+                        path.move_to((origin.x + 3.0, origin.y + 7.0));
+                        path.line_to((origin.x + 6.0, origin.y + 10.0));
+                        path.line_to((origin.x + 10.0, origin.y + 3.0));
+                        let style = StrokeStyle::new()
+                            .line_cap(LineCap::Round)
+                            .line_join(LineJoin::Round);
+                        ctx.stroke_styled(path, &Color::rgb8(0, 0, 0), 2., &style);
+                    }
                 }
                 let svg = file_svg_new(
                     &path
