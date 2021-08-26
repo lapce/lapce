@@ -95,6 +95,10 @@ pub enum LapceCommand {
     SplitRight,
     #[strum(serialize = "split_left")]
     SplitLeft,
+    #[strum(serialize = "split_up")]
+    SplitUp,
+    #[strum(serialize = "split_down")]
+    SplitDown,
     #[strum(serialize = "close_tab")]
     CloseTab,
     #[strum(serialize = "new_tab")]

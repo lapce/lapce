@@ -50,6 +50,7 @@ impl LapceTabNew {
                 )
                 .lens(LapceEditorLens(editor.view_id))
                 .boxed(),
+                Some(editor.container_id),
                 1.0,
             );
         let completion = CompletionContainer::new(&data.completion);

@@ -1,8 +1,9 @@
+use druid::theme;
 use druid::Color;
 use druid::Vec2;
 use druid::{
-    Event, FontDescriptor, FontFamily, Point, RenderContext, Size, TextLayout,
-    Widget, WidgetId, WindowId,
+    kurbo::Line, Event, FontDescriptor, FontFamily, Point, RenderContext, Size,
+    TextLayout, Widget, WidgetId, WindowId,
 };
 use lsp_types::DiagnosticSeverity;
 

@@ -274,7 +274,10 @@ impl LapceTabData {
             update_sender.clone(),
             proxy.clone(),
         );
-        main_split.add_source_control_editor(source_control.editor_view_id);
+        main_split.add_source_control_editor(
+            source_control.editor_view_id,
+            source_control.split_id,
+        );
 
         let mut panels = im::HashMap::new();
         panels.insert(
@@ -991,7 +994,11 @@ impl LapceMainSplitData {
         }
     }
 
-    pub fn add_source_control_editor(&mut self, view_id: WidgetId) {
+    pub fn add_source_control_editor(
+        &mut self,
+        view_id: WidgetId,
+        split_id: WidgetId,
+    ) {
         let path = PathBuf::from(SOURCE_CONTROL_BUFFER);
         let mut buffer =
             BufferNew::new(path.clone(), self.update_sender.clone()).set_local();
@@ -999,7 +1006,7 @@ impl LapceMainSplitData {
         self.open_files.insert(path.clone(), Arc::new(buffer));
         let editor = LapceEditorData::new(
             Some(view_id),
-            None,
+            Some(split_id),
             path.clone(),
             EditorType::SourceControl,
         );
@@ -2075,7 +2082,9 @@ impl KeyPressFocus for LapceEditorViewData {
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
             "editor_focus" => true,
-            "source_control_focus" => true,
+            "source_control_focus" => {
+                self.editor.editor_type == EditorType::SourceControl
+            }
             "in_snippet" => self.editor.snippet.is_some(),
             "list_focus" => {
                 self.completion.status != CompletionStatus::Inactive
@@ -2117,7 +2126,7 @@ impl KeyPressFocus for LapceEditorViewData {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SplitEditorMove(
                             SplitMoveDirection::Left,
-                            self.editor.view_id,
+                            self.editor.container_id,
                         ),
                         Target::Widget(split_id),
                     ));
@@ -2129,7 +2138,31 @@ impl KeyPressFocus for LapceEditorViewData {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SplitEditorMove(
                             SplitMoveDirection::Right,
-                            self.editor.view_id,
+                            self.editor.container_id,
+                        ),
+                        Target::Widget(split_id),
+                    ));
+                }
+            }
+            LapceCommand::SplitUp => {
+                if let Some(split_id) = self.editor.split_id.clone() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorMove(
+                            SplitMoveDirection::Up,
+                            self.editor.container_id,
+                        ),
+                        Target::Widget(split_id),
+                    ));
+                }
+            }
+            LapceCommand::SplitDown => {
+                if let Some(split_id) = self.editor.split_id.clone() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitEditorMove(
+                            SplitMoveDirection::Down,
+                            self.editor.container_id,
                         ),
                         Target::Widget(split_id),
                     ));
@@ -2137,29 +2170,42 @@ impl KeyPressFocus for LapceEditorViewData {
             }
             LapceCommand::SplitExchange => {
                 if let Some(split_id) = self.editor.split_id.clone() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitEditorExchange(self.editor.view_id),
-                        Target::Widget(split_id),
-                    ));
+                    if self.editor.editor_type == EditorType::Normal {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::SplitEditorExchange(
+                                self.editor.container_id,
+                            ),
+                            Target::Widget(split_id),
+                        ));
+                    }
                 }
             }
             LapceCommand::SplitVertical => {
                 if let Some(split_id) = self.editor.split_id.clone() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitEditor(true, self.editor.view_id),
-                        Target::Widget(split_id),
-                    ));
+                    if self.editor.editor_type == EditorType::Normal {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::SplitEditor(
+                                true,
+                                self.editor.container_id,
+                            ),
+                            Target::Widget(split_id),
+                        ));
+                    }
                 }
             }
             LapceCommand::SplitClose => {
                 if let Some(split_id) = self.editor.split_id.clone() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitEditorClose(self.editor.view_id),
-                        Target::Widget(split_id),
-                    ));
+                    if self.editor.editor_type == EditorType::Normal {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::SplitEditorClose(
+                                self.editor.container_id,
+                            ),
+                            Target::Widget(split_id),
+                        ));
+                    }
                 }
             }
             LapceCommand::Undo => {

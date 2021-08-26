@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use druid::{
     kurbo::BezPath,
@@ -15,14 +15,15 @@ use druid::{
 };
 
 use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     data::{LapceEditorLens, LapceTabData},
     editor::{LapceEditorContainer, LapceEditorView},
+    keypress::KeyPressFocus,
     palette::{file_svg, svg_tree_size},
     panel::{PanelPosition, PanelProperty},
     scroll::LapceScrollNew,
-    split::LapceSplitNew,
-    state::{LapceUIState, LAPCE_APP_STATE},
+    split::{LapceSplitNew, SplitMoveDirection},
+    state::{LapceUIState, Mode, LAPCE_APP_STATE},
     svg::file_svg_new,
     theme::LapceTheme,
 };
@@ -31,19 +32,63 @@ pub const SOURCE_CONTROL_BUFFER: &'static str = "[Source Control Buffer]";
 
 #[derive(Clone)]
 pub struct SourceControlData {
+    pub active: WidgetId,
     pub widget_id: WidgetId,
+    pub split_id: WidgetId,
+    pub file_list_id: WidgetId,
     pub editor_view_id: WidgetId,
     pub diff_files: Vec<(PathBuf, bool)>,
 }
 
 impl SourceControlData {
     pub fn new() -> Self {
+        let file_list_id = WidgetId::next();
         Self {
+            active: file_list_id,
             widget_id: WidgetId::next(),
             editor_view_id: WidgetId::next(),
+            file_list_id,
+            split_id: WidgetId::next(),
             diff_files: Vec::new(),
         }
     }
+}
+
+impl KeyPressFocus for SourceControlData {
+    fn get_mode(&self) -> Mode {
+        Mode::Normal
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        match condition {
+            "source_control_focus" => true,
+            _ => false,
+        }
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommand,
+        count: Option<usize>,
+        env: &Env,
+    ) {
+        match command {
+            LapceCommand::SplitLeft => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitEditorMove(
+                        SplitMoveDirection::Left,
+                        self.active,
+                    ),
+                    Target::Widget(self.split_id),
+                ));
+            }
+            _ => (),
+        }
+    }
+
+    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {}
 }
 
 pub struct SourceControlNew {
@@ -55,7 +100,6 @@ pub struct SourceControlNew {
 
 impl SourceControlNew {
     pub fn new(data: &LapceTabData) -> Self {
-        let split_id = WidgetId::next();
         let editor_data = data
             .main_split
             .editors
@@ -72,12 +116,14 @@ impl SourceControlNew {
         .lens(LapceEditorLens(editor_data.view_id))
         .padding(10.0);
 
-        let file_list = LapceScrollNew::new(SourceControlFileList::new());
+        let file_list = SourceControlFileList::new(data.source_control.file_list_id);
+        let file_list_id = data.source_control.file_list_id;
+        let file_list = LapceScrollNew::new(file_list);
 
-        let split = LapceSplitNew::new(split_id)
+        let split = LapceSplitNew::new(data.source_control.split_id)
             .horizontal()
-            .with_child(editor.boxed(), 200.0)
-            .with_flex_child(file_list.boxed(), 0.5);
+            .with_child(editor.boxed(), Some(editor_data.container_id), 200.0)
+            .with_flex_child(file_list.boxed(), Some(file_list_id), 0.5);
         Self {
             widget_id: data.source_control.widget_id,
             editor_view_id: data.source_control.editor_view_id,
@@ -165,15 +211,21 @@ impl Widget<LapceTabData> for SourceControlNew {
     }
 }
 
-pub struct SourceControlFileList {}
+pub struct SourceControlFileList {
+    widget_id: WidgetId,
+}
 
 impl SourceControlFileList {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(widget_id: WidgetId) -> Self {
+        Self { widget_id }
     }
 }
 
 impl Widget<LapceTabData> for SourceControlFileList {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -181,6 +233,30 @@ impl Widget<LapceTabData> for SourceControlFileList {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::KeyDown(key_event) => {
+                let mut keypress = data.keypress.clone();
+                let mut_keypress = Arc::make_mut(&mut keypress);
+                mut_keypress.key_down(
+                    ctx,
+                    key_event,
+                    Arc::make_mut(&mut data.source_control),
+                    env,
+                );
+                data.keypress = keypress;
+                ctx.set_handled();
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::Focus => {
+                        ctx.set_handled();
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
     }
 
     fn lifecycle(
