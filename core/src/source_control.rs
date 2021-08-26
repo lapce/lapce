@@ -74,14 +74,31 @@ impl KeyPressFocus for SourceControlData {
         env: &Env,
     ) {
         match command {
-            LapceCommand::SplitLeft => {
+            LapceCommand::SplitUp => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::SplitEditorMove(
-                        SplitMoveDirection::Left,
+                        SplitMoveDirection::Up,
                         self.active,
                     ),
                     Target::Widget(self.split_id),
+                ));
+            }
+            LapceCommand::SplitDown => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitEditorMove(
+                        SplitMoveDirection::Up,
+                        self.active,
+                    ),
+                    Target::Widget(self.split_id),
+                ));
+            }
+            LapceCommand::SourceControlCancel => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::FocusEditor,
+                    Target::Auto,
                 ));
             }
             _ => (),
@@ -250,6 +267,10 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
+                        Arc::make_mut(&mut data.source_control).active =
+                            self.widget_id;
+                        ctx.request_focus();
+                        ctx.request_paint();
                         ctx.set_handled();
                     }
                     _ => (),
@@ -266,6 +287,12 @@ impl Widget<LapceTabData> for SourceControlFileList {
         data: &LapceTabData,
         env: &Env,
     ) {
+        match event {
+            LifeCycle::FocusChanged(_) => {
+                ctx.request_paint();
+            }
+            _ => (),
+        }
     }
 
     fn update(

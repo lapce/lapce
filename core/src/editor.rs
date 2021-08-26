@@ -1,3 +1,4 @@
+use crate::data::EditorType;
 use crate::find::Find;
 use crate::signature::SignatureState;
 use crate::svg::{file_svg_new, get_svg};
@@ -297,8 +298,9 @@ impl LapceEditorContainer {
                     "receive focus {:?}, old focus {:?}",
                     self.view_id, data.main_split.active
                 );
-                data.main_split.last_active = data.main_split.active.clone();
-                data.main_split.active = Arc::new(self.view_id);
+                if data.editor.editor_type != EditorType::SourceControl {
+                    data.main_split.active = Arc::new(self.view_id);
+                }
                 ctx.request_focus();
                 ctx.set_handled();
             }
@@ -502,6 +504,9 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         env: &Env,
     ) {
         match event {
+            LifeCycle::FocusChanged(_) => {
+                ctx.request_paint();
+            }
             LifeCycle::Size(size) => {
                 println!("size change {:?}", self.container_id);
                 ctx.submit_command(Command::new(
@@ -578,6 +583,8 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        self.editor.widget_mut().inner_mut().child_mut().is_focused =
+            ctx.is_focused();
         let rects = ctx.region().rects().to_vec();
         for rect in &rects {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
@@ -890,6 +897,7 @@ pub struct LapceEditor {
     view_id: WidgetId,
     container_id: WidgetId,
     placeholder: Option<String>,
+    is_focused: bool,
 }
 
 impl LapceEditor {
@@ -903,6 +911,7 @@ impl LapceEditor {
             view_id,
             container_id,
             placeholder: None,
+            is_focused: false,
         }
     }
 
@@ -913,7 +922,7 @@ impl LapceEditor {
         line: usize,
         env: &Env,
     ) {
-        let active = *data.main_split.active == self.view_id;
+        let active = self.is_focused;
         if !active && data.buffer.len() == 0 && self.placeholder.is_some() {
             return;
         }
@@ -1100,7 +1109,7 @@ impl LapceEditor {
         env: &Env,
     ) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let active = *data.main_split.active == self.view_id;
+        let active = self.is_focused;
         let start_line =
             (data.editor.scroll_offset.y / line_height).floor() as usize;
         let end_line = ((data.editor.size.height + data.editor.scroll_offset.y)

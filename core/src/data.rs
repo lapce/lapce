@@ -634,7 +634,6 @@ pub enum EditorKind {
 pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
     pub active: Arc<WidgetId>,
-    pub last_active: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub open_files: im::HashMap<PathBuf, Arc<BufferNew>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
@@ -980,7 +979,6 @@ impl LapceMainSplitData {
             editors,
             open_files,
             active: Arc::new(view_id),
-            last_active: Arc::new(view_id),
             update_sender,
             register: Arc::new(Register::default()),
             find: Arc::new(Find::new(0)),
@@ -1027,7 +1025,7 @@ pub struct LapceEditorData {
     pub view_id: WidgetId,
     pub container_id: WidgetId,
     pub editor_id: WidgetId,
-    editor_type: EditorType,
+    pub editor_type: EditorType,
     pub buffer: PathBuf,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
@@ -2749,15 +2747,10 @@ impl KeyPressFocus for LapceEditorViewData {
             }
             LapceCommand::SourceControlCancel => {
                 if self.editor.editor_type == EditorType::SourceControl {
-                    let last_active_editor = self
-                        .main_split
-                        .editors
-                        .get(&*self.main_split.last_active)
-                        .unwrap();
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(last_active_editor.container_id),
+                        LapceUICommand::FocusEditor,
+                        Target::Auto,
                     ));
                     println!("source control cancel");
                 }

@@ -420,6 +420,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::FocusEditor => {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(*data.main_split.active),
+                        ));
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateSyntaxTree {
                         id,
                         path,
