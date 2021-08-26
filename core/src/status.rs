@@ -222,7 +222,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
     ) {
         let size = ctx.size();
         let rect = size.to_rect();
-        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+        ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
 
         let mut left = 0.0;
         let (mode, color) = match data.main_split.active_editor().cursor.get_mode() {

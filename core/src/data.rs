@@ -160,6 +160,8 @@ impl LapceData {
             FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
                 .with_size(13.0),
         );
+        env.set(LapceTheme::LIST_BACKGROUND, Color::rgb8(234, 234, 235));
+        env.set(LapceTheme::LIST_CURRENT, Color::rgb8(219, 219, 220));
     }
 }
 

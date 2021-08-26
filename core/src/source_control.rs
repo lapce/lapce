@@ -223,18 +223,22 @@ impl Widget<LapceTabData> for SourceControlNew {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let rect = ctx.size().to_rect();
-        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+        ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
         self.split.paint(ctx, data, env);
     }
 }
 
 pub struct SourceControlFileList {
+    index: usize,
     widget_id: WidgetId,
 }
 
 impl SourceControlFileList {
     pub fn new(widget_id: WidgetId) -> Self {
-        Self { widget_id }
+        Self {
+            widget_id,
+            index: 0,
+        }
     }
 }
 
@@ -269,8 +273,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     LapceUICommand::Focus => {
                         Arc::make_mut(&mut data.source_control).active =
                             self.widget_id;
+                        self.index = 0;
                         ctx.request_focus();
-                        ctx.request_paint();
                         ctx.set_handled();
                     }
                     _ => (),
@@ -320,6 +324,13 @@ impl Widget<LapceTabData> for SourceControlFileList {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
 
         let files = &data.source_control.diff_files;
+
+        if ctx.is_focused() && files.len() > 0 {
+            let rect = Size::new(ctx.size().width, line_height)
+                .to_rect()
+                .with_origin(Point::new(0.0, self.index as f64 * line_height));
+            ctx.fill(rect, &env.get(LapceTheme::LIST_CURRENT));
+        }
 
         let rects = ctx.region().rects().to_vec();
         for rect in rects {

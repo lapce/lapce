@@ -664,7 +664,7 @@ impl Widget<LapceTabData> for CompletionNew {
         let items: &Vec<ScoredCompletionItem> = data.completion.current_items();
 
         for rect in rects {
-            ctx.fill(rect, &env.get(LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND));
+            ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
 
             let start_line = (rect.y0 / line_height).floor() as usize;
             let end_line = (rect.y1 / line_height).ceil() as usize;
@@ -679,7 +679,7 @@ impl Widget<LapceTabData> for CompletionNew {
                         Rect::ZERO
                             .with_origin(Point::new(0.0, line as f64 * line_height))
                             .with_size(Size::new(size.width, line_height)),
-                        &env.get(LapceTheme::EDITOR_SELECTION_COLOR),
+                        &env.get(LapceTheme::LIST_CURRENT),
                     );
                 }
 

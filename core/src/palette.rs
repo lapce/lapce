@@ -2057,7 +2057,7 @@ impl Widget<LapceTabData> for PaletteContainer {
         let shadow_width = 5.0;
         let rect = self.content_size.to_rect();
         ctx.blurred_rect(rect, shadow_width, &blur_color);
-        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+        ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
 
         self.input.paint(ctx, data, env);
         self.content.paint(ctx, data, env);
@@ -2217,7 +2217,7 @@ impl Widget<PaletteViewData> for NewPaletteContent {
                         Rect::ZERO
                             .with_origin(Point::new(0.0, line as f64 * line_height))
                             .with_size(Size::new(size.width, line_height)),
-                        &env.get(LapceTheme::EDITOR_BACKGROUND),
+                        &env.get(LapceTheme::LIST_CURRENT),
                     );
                 }
 
