@@ -2199,31 +2199,29 @@ impl Widget<PaletteViewData> for NewPaletteContent {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let rects = ctx.region().rects().to_vec();
+        let rect = ctx.region().bounding_box();
         let size = ctx.size();
 
         let items = data.palette.current_items();
 
-        for rect in rects {
-            let start_line = (rect.y0 / line_height).floor() as usize;
-            let end_line = (rect.y1 / line_height).ceil() as usize;
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let end_line = (rect.y1 / line_height).ceil() as usize;
 
-            for line in start_line..end_line {
-                if line >= items.len() {
-                    break;
-                }
-                if line == data.palette.index {
-                    ctx.fill(
-                        Rect::ZERO
-                            .with_origin(Point::new(0.0, line as f64 * line_height))
-                            .with_size(Size::new(size.width, line_height)),
-                        &env.get(LapceTheme::LIST_CURRENT),
-                    );
-                }
-
-                let item = &items[line];
-                item.content.paint(ctx, line, &item.indices, env);
+        for line in start_line..end_line {
+            if line >= items.len() {
+                break;
             }
+            if line == data.palette.index {
+                ctx.fill(
+                    Rect::ZERO
+                        .with_origin(Point::new(0.0, line as f64 * line_height))
+                        .with_size(Size::new(size.width, line_height)),
+                    &env.get(LapceTheme::LIST_CURRENT),
+                );
+            }
+
+            let item = &items[line];
+            item.content.paint(ctx, line, &item.indices, env);
         }
     }
 }

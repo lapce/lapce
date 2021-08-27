@@ -990,20 +990,50 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 );
                 ctx.stroke(line, &color, 1.0);
             }
+        }
+        self.tabs[data.active].paint(ctx, data, env);
+        if self.tabs.len() > 1 {
+            let num = self.tabs.len();
+            let section = size.width / num as f64;
+
             ctx.fill(
                 Rect::ZERO
-                    .with_origin(Point::new(0.0, tab_height - 1.0))
-                    .with_size(Size::new(size.width, 1.0)),
-                &color,
+                    .with_origin(Point::new(section * data.active as f64, 0.0))
+                    .with_size(Size::new(section, tab_height)),
+                &env.get(LapceTheme::EDITOR_BACKGROUND),
             );
-        }
 
-        let rects = ctx.region().rects().to_vec();
-        // println!("window paint {:?}", rects);
-        let start = std::time::SystemTime::now();
-        self.tabs[data.active].paint(ctx, data, env);
-        let end = std::time::SystemTime::now();
-        let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("paint took {}", duration);
+            let tab = data.tabs.get(&self.tabs[data.active].id()).unwrap();
+            let dir = tab
+                .workspace
+                .as_ref()
+                .map(|w| {
+                    let dir = w.path.file_name().unwrap().to_str().unwrap();
+                    let dir = match &w.kind {
+                        LapceWorkspaceType::Local => dir.to_string(),
+                        LapceWorkspaceType::RemoteSSH(user, host) => {
+                            format!("{} [{}@{}]", dir, user, host)
+                        }
+                    };
+                    dir
+                })
+                .unwrap_or("Lapce".to_string());
+            let mut text_layout = TextLayout::<String>::from_text(dir);
+            text_layout.set_font(
+                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+            );
+            text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+            text_layout.rebuild_if_needed(ctx.text(), env);
+            let text_width = text_layout.size().width;
+            let x = (section - text_width) / 2.0 + section * data.active as f64;
+            text_layout.draw(ctx, Point::new(x, 3.0));
+
+            let line = Line::new(
+                Point::new(0.0, tab_height - 0.5),
+                Point::new(size.width, tab_height - 0.5),
+            );
+            let color = env.get(theme::BORDER_LIGHT);
+            ctx.stroke(line, &color, 1.0);
+        }
     }
 }

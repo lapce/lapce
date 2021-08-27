@@ -19,6 +19,7 @@ use crate::{
     data::{LapceEditorLens, LapceTabData},
     editor::{LapceEditorContainer, LapceEditorView},
     keypress::KeyPressFocus,
+    movement::Movement,
     palette::{file_svg, svg_tree_size},
     panel::{PanelPosition, PanelProperty},
     scroll::LapceScrollNew,
@@ -36,6 +37,7 @@ pub struct SourceControlData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub file_list_id: WidgetId,
+    pub file_list_index: usize,
     pub editor_view_id: WidgetId,
     pub diff_files: Vec<(PathBuf, bool)>,
 }
@@ -48,6 +50,7 @@ impl SourceControlData {
             widget_id: WidgetId::next(),
             editor_view_id: WidgetId::next(),
             file_list_id,
+            file_list_index: 0,
             split_id: WidgetId::next(),
             diff_files: Vec::new(),
         }
@@ -62,6 +65,7 @@ impl KeyPressFocus for SourceControlData {
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
             "source_control_focus" => true,
+            "list_focus" => self.active == self.file_list_id,
             _ => false,
         }
     }
@@ -101,6 +105,28 @@ impl KeyPressFocus for SourceControlData {
                     Target::Auto,
                 ));
             }
+            LapceCommand::Up | LapceCommand::ListPrevious => {
+                self.file_list_index = Movement::Up.update_index(
+                    self.file_list_index,
+                    self.diff_files.len(),
+                    1,
+                    true,
+                );
+            }
+            LapceCommand::Down | LapceCommand::ListNext => {
+                self.file_list_index = Movement::Down.update_index(
+                    self.file_list_index,
+                    self.diff_files.len(),
+                    1,
+                    true,
+                );
+            }
+            LapceCommand::ListExpand => {
+                if self.diff_files.len() > 0 {
+                    self.diff_files[self.file_list_index].1 =
+                        !self.diff_files[self.file_list_index].1;
+                }
+            }
             _ => (),
         }
     }
@@ -139,6 +165,7 @@ impl SourceControlNew {
 
         let split = LapceSplitNew::new(data.source_control.split_id)
             .horizontal()
+            .hide_border()
             .with_child(editor.boxed(), Some(editor_data.container_id), 200.0)
             .with_flex_child(file_list.boxed(), Some(file_list_id), 0.5);
         Self {
@@ -216,6 +243,21 @@ impl Widget<LapceTabData> for SourceControlNew {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        for (pos, panel) in data.panels.iter() {
+            if panel.active == self.widget_id {
+                match pos {
+                    PanelPosition::LeftTop | PanelPosition::LeftBottom => {
+                        ctx.set_paint_insets((0.0, 0.0, 10.0, 0.0));
+                    }
+                    PanelPosition::BottomLeft | PanelPosition::BottomRight => {
+                        ctx.set_paint_insets((0.0, 10.0, 0.0, 0.0));
+                    }
+                    PanelPosition::RightTop | PanelPosition::RightBottom => {
+                        ctx.set_paint_insets((10.0, 0.0, 0.0, 0.0));
+                    }
+                }
+            }
+        }
         self.split.layout(ctx, bc, data, env);
         self.split.set_origin(ctx, data, env, Point::ZERO);
         bc.max()
@@ -223,22 +265,19 @@ impl Widget<LapceTabData> for SourceControlNew {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let rect = ctx.size().to_rect();
+        ctx.blurred_rect(rect, 5.0, &Color::grey8(180));
         ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
         self.split.paint(ctx, data, env);
     }
 }
 
 pub struct SourceControlFileList {
-    index: usize,
     widget_id: WidgetId,
 }
 
 impl SourceControlFileList {
     pub fn new(widget_id: WidgetId) -> Self {
-        Self {
-            widget_id,
-            index: 0,
-        }
+        Self { widget_id }
     }
 }
 
@@ -255,6 +294,22 @@ impl Widget<LapceTabData> for SourceControlFileList {
         env: &Env,
     ) {
         match event {
+            Event::MouseDown(mouse_event) => {
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+                let y = mouse_event.pos.y - line_height - 10.0;
+                if y > 0.0 {
+                    let line = (y / line_height).floor() as usize;
+                    if line < data.source_control.diff_files.len() {
+                        let source_control = Arc::make_mut(&mut data.source_control);
+                        source_control.file_list_index = line;
+                        if mouse_event.pos.x < line_height {
+                            source_control.diff_files[line].1 =
+                                !source_control.diff_files[line].1;
+                        }
+                    }
+                }
+                ctx.set_handled();
+            }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
                 let mut_keypress = Arc::make_mut(&mut keypress);
@@ -271,9 +326,9 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
-                        Arc::make_mut(&mut data.source_control).active =
-                            self.widget_id;
-                        self.index = 0;
+                        let source_control = Arc::make_mut(&mut data.source_control);
+                        source_control.active = self.widget_id;
+                        source_control.file_list_index = 0;
                         ctx.request_focus();
                         ctx.set_handled();
                     }
@@ -316,113 +371,127 @@ impl Widget<LapceTabData> for SourceControlFileList {
         env: &Env,
     ) -> Size {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let height = line_height * data.source_control.diff_files.len() as f64;
+        let height = line_height * data.source_control.diff_files.len() as f64
+            + line_height
+            + 10.0;
         Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
 
+        {
+            let blur_color = Color::grey8(180);
+            let shadow_width = 5.0;
+            let rect = Size::new(ctx.size().width, line_height)
+                .to_rect()
+                .with_origin(Point::new(0.0, 5.0));
+            ctx.blurred_rect(rect, shadow_width, &blur_color);
+            ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
+
+            let mut text_layout = TextLayout::<String>::from_text("Changes");
+            text_layout.set_font(
+                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+            );
+            text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+            text_layout.rebuild_if_needed(ctx.text(), env);
+            text_layout.draw(ctx, Point::new(5.0, 5.0 + 4.0));
+        }
+
         let files = &data.source_control.diff_files;
 
         if ctx.is_focused() && files.len() > 0 {
             let rect = Size::new(ctx.size().width, line_height)
                 .to_rect()
-                .with_origin(Point::new(0.0, self.index as f64 * line_height));
+                .with_origin(Point::new(
+                    0.0,
+                    (data.source_control.file_list_index + 1) as f64 * line_height
+                        + 10.0,
+                ));
             ctx.fill(rect, &env.get(LapceTheme::LIST_CURRENT));
         }
 
-        let rects = ctx.region().rects().to_vec();
-        for rect in rects {
-            let start_line = (rect.y0 / line_height).floor() as usize;
-            let end_line = (rect.y1 / line_height).ceil() as usize;
-            for line in start_line..end_line {
-                if line >= files.len() {
-                    break;
-                }
-                let (mut path, checked) = files[line].clone();
-                if let Some(workspace) = data.workspace.as_ref() {
-                    path = path
-                        .strip_prefix(&workspace.path)
-                        .unwrap_or(&path)
-                        .to_path_buf();
-                }
-                {
-                    let width = 13.0;
-                    let height = 13.0;
-                    let origin = Point::new(
-                        (line_height - width) / 2.0,
-                        (line_height - height) / 2.0 + line_height * line as f64,
-                    );
-                    let rect =
-                        Size::new(width, height).to_rect().with_origin(origin);
-                    ctx.stroke(rect, &Color::rgb8(0, 0, 0), 1.0);
-
-                    if checked {
-                        let mut path = BezPath::new();
-                        path.move_to((origin.x + 3.0, origin.y + 7.0));
-                        path.line_to((origin.x + 6.0, origin.y + 10.0));
-                        path.line_to((origin.x + 10.0, origin.y + 3.0));
-                        let style = StrokeStyle::new()
-                            .line_cap(LineCap::Round)
-                            .line_join(LineJoin::Round);
-                        ctx.stroke_styled(path, &Color::rgb8(0, 0, 0), 2., &style);
-                    }
-                }
-                let svg = file_svg_new(
-                    &path
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                        .to_string(),
+        let rect = ctx.region().bounding_box();
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let end_line = (rect.y1 / line_height).ceil() as usize;
+        for line in start_line..end_line {
+            if line >= files.len() {
+                break;
+            }
+            let y = line_height * (line + 1) as f64 + 10.0;
+            let (mut path, checked) = files[line].clone();
+            if let Some(workspace) = data.workspace.as_ref() {
+                path = path
+                    .strip_prefix(&workspace.path)
+                    .unwrap_or(&path)
+                    .to_path_buf();
+            }
+            {
+                let width = 13.0;
+                let height = 13.0;
+                let origin = Point::new(
+                    (line_height - width) / 2.0,
+                    (line_height - height) / 2.0 + y,
                 );
-                if let Some(svg) = svg.as_ref() {
-                    let width = 13.0;
-                    let height = 13.0;
-                    let rect =
-                        Size::new(width, height).to_rect().with_origin(Point::new(
-                            (line_height - width) / 2.0 + line_height,
-                            (line_height - height) / 2.0 + line_height * line as f64,
-                        ));
-                    svg.paint(ctx, rect, None);
+                let rect = Size::new(width, height).to_rect().with_origin(origin);
+                ctx.stroke(rect, &Color::rgb8(0, 0, 0), 1.0);
+
+                if checked {
+                    let mut path = BezPath::new();
+                    path.move_to((origin.x + 3.0, origin.y + 7.0));
+                    path.line_to((origin.x + 6.0, origin.y + 10.0));
+                    path.line_to((origin.x + 10.0, origin.y + 3.0));
+                    let style = StrokeStyle::new()
+                        .line_cap(LineCap::Round)
+                        .line_join(LineJoin::Round);
+                    ctx.stroke_styled(path, &Color::rgb8(0, 0, 0), 2., &style);
                 }
-                let file_name = path
-                    .file_name()
+            }
+            let svg = file_svg_new(
+                &path
+                    .extension()
                     .and_then(|s| s.to_str())
                     .unwrap_or("")
-                    .to_string();
-                let mut text_layout = TextLayout::<String>::from_text(file_name);
+                    .to_string(),
+            );
+            if let Some(svg) = svg.as_ref() {
+                let width = 13.0;
+                let height = 13.0;
+                let rect =
+                    Size::new(width, height).to_rect().with_origin(Point::new(
+                        (line_height - width) / 2.0 + line_height,
+                        (line_height - height) / 2.0 + y,
+                    ));
+                svg.paint(ctx, rect, None);
+            }
+            let file_name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            let mut text_layout = TextLayout::<String>::from_text(file_name);
+            text_layout.set_font(
+                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+            );
+            text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+            text_layout.rebuild_if_needed(ctx.text(), env);
+            text_layout.draw(ctx, Point::new(line_height * 2.0, y + 4.0));
+            let folder = path
+                .parent()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            if folder != "" {
+                let x = text_layout.size().width;
+
+                let mut text_layout = TextLayout::<String>::from_text(folder);
                 text_layout.set_font(
                     FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
                 );
-                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
                 text_layout.rebuild_if_needed(ctx.text(), env);
-                text_layout.draw(
-                    ctx,
-                    Point::new(line_height * 2.0, line_height * line as f64 + 4.0),
-                );
-                let folder = path
-                    .parent()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string();
-                if folder != "" {
-                    let x = text_layout.size().width;
-
-                    let mut text_layout = TextLayout::<String>::from_text(folder);
-                    text_layout.set_font(
-                        FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
-                    );
-                    text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
-                    text_layout.rebuild_if_needed(ctx.text(), env);
-                    text_layout.draw(
-                        ctx,
-                        Point::new(
-                            line_height * 2.0 + x + 5.0,
-                            line_height * line as f64 + 4.0,
-                        ),
-                    );
-                }
+                text_layout
+                    .draw(ctx, Point::new(line_height * 2.0 + x + 5.0, y + 4.0));
             }
         }
     }

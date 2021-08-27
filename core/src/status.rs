@@ -211,6 +211,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
         data: &LapceTabData,
         env: &druid::Env,
     ) -> Size {
+        ctx.set_paint_insets((0.0, 10.0, 0.0, 0.0));
         Size::new(bc.max().width, 25.0)
     }
 
@@ -222,6 +223,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
     ) {
         let size = ctx.size();
         let rect = size.to_rect();
+        ctx.blurred_rect(rect, 5.0, &Color::grey8(180));
         ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
 
         let mut left = 0.0;

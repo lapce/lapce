@@ -657,78 +657,75 @@ impl Widget<LapceTabData> for CompletionNew {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let rects = ctx.region().rects().to_vec();
+        let rect = ctx.region().bounding_box();
         let size = ctx.size();
 
         let input = &data.completion.input;
         let items: &Vec<ScoredCompletionItem> = data.completion.current_items();
 
-        for rect in rects {
-            ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
+        ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
 
-            let start_line = (rect.y0 / line_height).floor() as usize;
-            let end_line = (rect.y1 / line_height).ceil() as usize;
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let end_line = (rect.y1 / line_height).ceil() as usize;
 
-            for line in start_line..end_line {
-                if line >= items.len() {
-                    break;
-                }
-
-                if line == data.completion.index {
-                    ctx.fill(
-                        Rect::ZERO
-                            .with_origin(Point::new(0.0, line as f64 * line_height))
-                            .with_size(Size::new(size.width, line_height)),
-                        &env.get(LapceTheme::LIST_CURRENT),
-                    );
-                }
-
-                let item = &items[line];
-
-                let y = line_height * line as f64 + 5.0;
-
-                if let Some((svg, color)) =
-                    completion_svg_new(item.item.kind, data.theme.clone())
-                {
-                    let color =
-                        color.unwrap_or(env.get(LapceTheme::EDITOR_FOREGROUND));
-                    let rect = Size::new(line_height, line_height)
-                        .to_rect()
-                        .with_origin(Point::new(0.0, line_height * line as f64));
-                    ctx.fill(rect, &color.clone().with_alpha(0.2));
-
-                    let width = 16.0;
-                    let height = 16.0;
-                    let rect =
-                        Size::new(width, height).to_rect().with_origin(Point::new(
-                            (line_height - width) / 2.0,
-                            (line_height - height) / 2.0 + line_height * line as f64,
-                        ));
-                    svg.paint(ctx, rect, Some(&color));
-                }
-
-                let focus_color = Color::rgb8(0, 0, 0);
-                let content = item.item.label.as_str();
-                let point = Point::new(line_height + 5.0, y);
-                let mut text_layout = ctx
-                    .text()
-                    .new_text_layout(content.to_string())
-                    .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-                    .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-                for i in &item.indices {
-                    let i = *i;
-                    text_layout = text_layout.range_attribute(
-                        i..i + 1,
-                        TextAttribute::TextColor(focus_color.clone()),
-                    );
-                    text_layout = text_layout.range_attribute(
-                        i..i + 1,
-                        TextAttribute::Weight(FontWeight::BOLD),
-                    );
-                }
-                let text_layout = text_layout.build().unwrap();
-                ctx.draw_text(&text_layout, point);
+        for line in start_line..end_line {
+            if line >= items.len() {
+                break;
             }
+
+            if line == data.completion.index {
+                ctx.fill(
+                    Rect::ZERO
+                        .with_origin(Point::new(0.0, line as f64 * line_height))
+                        .with_size(Size::new(size.width, line_height)),
+                    &env.get(LapceTheme::LIST_CURRENT),
+                );
+            }
+
+            let item = &items[line];
+
+            let y = line_height * line as f64 + 5.0;
+
+            if let Some((svg, color)) =
+                completion_svg_new(item.item.kind, data.theme.clone())
+            {
+                let color = color.unwrap_or(env.get(LapceTheme::EDITOR_FOREGROUND));
+                let rect = Size::new(line_height, line_height)
+                    .to_rect()
+                    .with_origin(Point::new(0.0, line_height * line as f64));
+                ctx.fill(rect, &color.clone().with_alpha(0.2));
+
+                let width = 16.0;
+                let height = 16.0;
+                let rect =
+                    Size::new(width, height).to_rect().with_origin(Point::new(
+                        (line_height - width) / 2.0,
+                        (line_height - height) / 2.0 + line_height * line as f64,
+                    ));
+                svg.paint(ctx, rect, Some(&color));
+            }
+
+            let focus_color = Color::rgb8(0, 0, 0);
+            let content = item.item.label.as_str();
+            let point = Point::new(line_height + 5.0, y);
+            let mut text_layout = ctx
+                .text()
+                .new_text_layout(content.to_string())
+                .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+                .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+            for i in &item.indices {
+                let i = *i;
+                text_layout = text_layout.range_attribute(
+                    i..i + 1,
+                    TextAttribute::TextColor(focus_color.clone()),
+                );
+                text_layout = text_layout.range_attribute(
+                    i..i + 1,
+                    TextAttribute::Weight(FontWeight::BOLD),
+                );
+            }
+            let text_layout = text_layout.build().unwrap();
+            ctx.draw_text(&text_layout, point);
         }
     }
 }

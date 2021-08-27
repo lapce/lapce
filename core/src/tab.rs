@@ -1,9 +1,9 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, thread};
 
 use druid::{
-    theme, BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, Insets,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Size, Target, Widget,
-    WidgetExt, WidgetId, WidgetPod,
+    theme, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
+    Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext,
+    Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 
@@ -559,6 +559,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        // ctx.set_paint_insets((0.0, 10.0, 0.0, 0.0));
         let self_size = bc.max();
 
         let status_size = self.status.layout(ctx, bc, data, env);
@@ -690,6 +691,10 @@ impl Widget<LapceTabData> for LapceTabNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        // let rect = ctx.size().to_rect();
+        // ctx.blurred_rect(rect, 5.0, &Color::grey8(180));
+
+        self.main_split.paint(ctx, data, env);
         for (_, panel) in data.panels.iter() {
             if panel.is_shown() {
                 self.panels
@@ -698,7 +703,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                     .paint(ctx, data, env);
             }
         }
-        self.main_split.paint(ctx, data, env);
         self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
         self.code_action.paint(ctx, data, env);

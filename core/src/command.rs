@@ -77,6 +77,8 @@ pub enum LapceCommand {
     ScrollUp,
     #[strum(serialize = "scroll_down")]
     ScrollDown,
+    #[strum(serialize = "list.expand")]
+    ListExpand,
     #[strum(serialize = "list.select")]
     ListSelect,
     #[strum(serialize = "list.next")]

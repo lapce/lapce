@@ -35,6 +35,7 @@ pub struct LapceSplitNew {
     children: Vec<ChildWidgetNew>,
     children_ids: Vec<WidgetId>,
     vertical: bool,
+    show_border: bool,
 }
 
 pub struct ChildWidgetNew {
@@ -51,11 +52,17 @@ impl LapceSplitNew {
             children: Vec::new(),
             children_ids: Vec::new(),
             vertical: true,
+            show_border: true,
         }
     }
 
     pub fn horizontal(mut self) -> Self {
         self.vertical = false;
+        self
+    }
+
+    pub fn hide_border(mut self) -> Self {
+        self.show_border = false;
         self
     }
 
@@ -129,8 +136,15 @@ impl LapceSplitNew {
 
         let size = ctx.size();
         for i in 1..children_len {
-            let x = self.children[i].layout_rect.x0;
-            let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
+            let line = if self.vertical {
+                let x = self.children[i].layout_rect.x0;
+                let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
+                line
+            } else {
+                let y = self.children[i].layout_rect.y0;
+                let line = Line::new(Point::new(0.0, y), Point::new(size.width, y));
+                line
+            };
             let color = env.get(theme::BORDER_LIGHT);
             ctx.stroke(line, &color, 1.0);
         }
@@ -454,7 +468,9 @@ impl Widget<LapceTabData> for LapceSplitNew {
         for child in self.children.iter_mut() {
             child.widget.paint(ctx, data, env);
         }
-        self.paint_bar(ctx, env);
+        if self.show_border {
+            self.paint_bar(ctx, env);
+        }
     }
 }
 

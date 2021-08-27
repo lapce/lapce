@@ -1474,22 +1474,20 @@ impl Widget<LapceEditorViewData> for LapceEditor {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         self.paint_cursor(ctx, data, env);
-        let rects = ctx.region().rects().to_vec();
-        for rect in &rects {
-            let start_line = (rect.y0 / line_height).floor() as usize;
-            let end_line = (rect.y1 / line_height).ceil() as usize;
-            let last_line = data.buffer.last_line();
-            for line in start_line..end_line {
-                if line > last_line {
-                    break;
-                }
-                if data.buffer.text_layouts.len() > line {
-                    if let Some(layout) = data.buffer.text_layouts[line].as_ref() {
-                        ctx.draw_text(
-                            &layout.layout,
-                            Point::new(0.0, line_height * line as f64 + 5.0),
-                        );
-                    }
+        let rect = ctx.region().bounding_box();
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let end_line = (rect.y1 / line_height).ceil() as usize;
+        let last_line = data.buffer.last_line();
+        for line in start_line..end_line {
+            if line > last_line {
+                break;
+            }
+            if data.buffer.text_layouts.len() > line {
+                if let Some(layout) = data.buffer.text_layouts[line].as_ref() {
+                    ctx.draw_text(
+                        &layout.layout,
+                        Point::new(0.0, line_height * line as f64 + 5.0),
+                    );
                 }
             }
         }
