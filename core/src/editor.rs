@@ -438,12 +438,19 @@ impl LapceEditorContainer {
         let rect = data.cusor_region(env);
         let scroll = self.editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
+        let old_scroll_offset = scroll.offset();
         if scroll.scroll_to_visible(rect, |d| ctx.request_timer(d), env) {
             if let Some(position) = position {
                 match position {
                     EnsureVisiblePosition::CenterOfWindow => {
-                        self.ensure_cursor_center(ctx, data, env)
+                        self.ensure_cursor_center(ctx, data, env);
                     }
+                }
+            } else {
+                let scroll_offset = scroll.offset();
+                if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
+                {
+                    self.ensure_cursor_center(ctx, data, env);
                 }
             }
         }
