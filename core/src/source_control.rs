@@ -273,11 +273,15 @@ impl Widget<LapceTabData> for SourceControlNew {
 
 pub struct SourceControlFileList {
     widget_id: WidgetId,
+    mouse_down: Option<usize>,
 }
 
 impl SourceControlFileList {
     pub fn new(widget_id: WidgetId) -> Self {
-        Self { widget_id }
+        Self {
+            widget_id,
+            mouse_down: None,
+        }
     }
 }
 
@@ -294,20 +298,47 @@ impl Widget<LapceTabData> for SourceControlFileList {
         env: &Env,
     ) {
         match event {
-            Event::MouseDown(mouse_event) => {
+            Event::MouseMove(mouse_event) => {
+                ctx.set_cursor(&druid::Cursor::Pointer);
+                ctx.set_handled();
+            }
+            Event::MouseUp(mouse_event) => {
                 let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
                 let y = mouse_event.pos.y - line_height - 10.0;
                 if y > 0.0 {
                     let line = (y / line_height).floor() as usize;
-                    if line < data.source_control.diff_files.len() {
-                        let source_control = Arc::make_mut(&mut data.source_control);
-                        source_control.file_list_index = line;
-                        if mouse_event.pos.x < line_height {
-                            source_control.diff_files[line].1 =
-                                !source_control.diff_files[line].1;
+                    if line < data.source_control.diff_files.len()
+                        && mouse_event.pos.x < line_height
+                    {
+                        if let Some(mouse_down) = self.mouse_down {
+                            if mouse_down == line {
+                                let source_control =
+                                    Arc::make_mut(&mut data.source_control);
+                                source_control.diff_files[line].1 =
+                                    !source_control.diff_files[line].1;
+                            }
                         }
                     }
                 }
+                self.mouse_down = None;
+                ctx.set_handled();
+            }
+            Event::MouseDown(mouse_event) => {
+                self.mouse_down = None;
+                let source_control = Arc::make_mut(&mut data.source_control);
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+                let y = mouse_event.pos.y - line_height - 10.0;
+                if y > 0.0 {
+                    let line = (y / line_height).floor() as usize;
+                    if line < source_control.diff_files.len() {
+                        source_control.file_list_index = line;
+                        if mouse_event.pos.x < line_height {
+                            self.mouse_down = Some(line);
+                        }
+                    }
+                }
+                source_control.active = self.widget_id;
+                ctx.request_focus();
                 ctx.set_handled();
             }
             Event::KeyDown(key_event) => {
@@ -328,7 +359,6 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     LapceUICommand::Focus => {
                         let source_control = Arc::make_mut(&mut data.source_control);
                         source_control.active = self.widget_id;
-                        source_control.file_list_index = 0;
                         ctx.request_focus();
                         ctx.set_handled();
                     }

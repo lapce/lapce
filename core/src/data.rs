@@ -883,7 +883,7 @@ impl LapceMainSplitData {
                     Target::Widget(editor.container_id),
                 ));
             } else {
-                if new_buffer {
+                if new_buffer || editor_view_id == *self.palette_preview_editor {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::EnsureCursorCenter,
@@ -1661,7 +1661,7 @@ impl LapceEditorViewData {
         }
     }
 
-    fn set_cursor_after_change(&mut self, selection: Selection) {
+    pub fn set_cursor_after_change(&mut self, selection: Selection) {
         match self.editor.cursor.mode {
             CursorMode::Normal(_) | CursorMode::Visual { .. } => {
                 let offset = selection.min_offset();
@@ -1674,7 +1674,30 @@ impl LapceEditorViewData {
         }
     }
 
-    fn set_cursor(&mut self, cursor: Cursor) {
+    pub fn offset_of_mouse(&self, pos: Point, env: &Env) -> usize {
+        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line = (pos.y / line_height).floor() as usize;
+        let last_line = self.buffer.last_line();
+        let (line, col) = if line > last_line {
+            (last_line, 0)
+        } else {
+            let line_end = self
+                .buffer
+                .line_end_col(line, !self.editor.cursor.is_normal());
+            let width = 7.6171875;
+
+            let col = (if self.editor.cursor.is_insert() {
+                (pos.x / width).round() as usize
+            } else {
+                (pos.x / width).floor() as usize
+            })
+            .min(line_end);
+            (line, col)
+        };
+        self.buffer.offset_of_line_col(line, col)
+    }
+
+    pub fn set_cursor(&mut self, cursor: Cursor) {
         let editor = Arc::make_mut(&mut self.editor);
         editor.cursor = cursor;
     }

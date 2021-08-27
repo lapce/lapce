@@ -47,6 +47,13 @@ impl Cursor {
         }
     }
 
+    pub fn is_insert(&self) -> bool {
+        match &self.mode {
+            CursorMode::Insert(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_visual(&self) -> bool {
         match &self.mode {
             CursorMode::Visual { .. } => true,
@@ -364,6 +371,13 @@ impl Selection {
                 horiz: None,
             }],
         }
+    }
+
+    pub fn first(&self) -> Option<&SelRegion> {
+        if self.len() == 0 {
+            return None;
+        }
+        Some(&self.regions[0])
     }
 
     pub fn last(&self) -> Option<&SelRegion> {

@@ -482,11 +482,9 @@ impl PaletteViewData {
         palette.palette_type = PaletteType::File;
         palette.items.clear();
         palette.filtered_items.clear();
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::CancelPalette,
-            Target::Widget(palette.widget_id),
-        ));
+        if ctx.is_focused() {
+            ctx.resign_focus();
+        }
     }
 
     pub fn run_references(
@@ -609,7 +607,11 @@ impl PaletteViewData {
         if let Some(item) = palette.get_item() {
             item.content.select(ctx, false);
         }
-        self.cancel(ctx);
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::CancelPalette,
+            Target::Widget(palette.widget_id),
+        ));
     }
 
     fn update_palette(&mut self, ctx: &mut EventCtx) {
@@ -1771,15 +1773,6 @@ impl Widget<LapceTabData> for NewPalette {
         env: &Env,
     ) {
         match event {
-            // Event::WindowConnected => {
-            //     let receiver =
-            //         Arc::make_mut(&mut data.palette).receiver.take().unwrap();
-            //     let event_sink = ctx.get_external_handle();
-            //     let widget_id = self.widget_id;
-            //     thread::spawn(move || {
-            //         PaletteViewData::update_process(receiver, widget_id, event_sink);
-            //     });
-            // }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
                 let mut_keypress = Arc::make_mut(&mut keypress);
@@ -1813,7 +1806,9 @@ impl Widget<LapceTabData> for NewPalette {
                         data.main_split = palette_data.main_split.clone();
                     }
                     LapceUICommand::CancelPalette => {
-                        ctx.resign_focus();
+                        let mut palette_data = data.palette_view_data();
+                        palette_data.cancel(ctx);
+                        data.palette = palette_data.palette.clone();
                     }
                     LapceUICommand::UpdatePaletteItems(run_id, items) => {
                         let palette = Arc::make_mut(&mut data.palette);
@@ -1856,6 +1851,19 @@ impl Widget<LapceTabData> for NewPalette {
         data: &LapceTabData,
         env: &Env,
     ) {
+        match event {
+            LifeCycle::FocusChanged(is_focused) => {
+                ctx.request_paint();
+                if !is_focused {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::CancelPalette,
+                        Target::Widget(data.palette.widget_id),
+                    ));
+                }
+            }
+            _ => (),
+        }
         self.container.lifecycle(ctx, event, data, env);
     }
 
@@ -2149,11 +2157,13 @@ impl Widget<PaletteViewData> for NewPaletteInput {
     }
 }
 
-pub struct NewPaletteContent {}
+pub struct NewPaletteContent {
+    mouse_down: usize,
+}
 
 impl NewPaletteContent {
     pub fn new() -> Self {
-        Self {}
+        Self { mouse_down: 0 }
     }
 }
 
@@ -2165,6 +2175,29 @@ impl Widget<PaletteViewData> for NewPaletteContent {
         data: &mut PaletteViewData,
         env: &Env,
     ) {
+        match event {
+            Event::MouseMove(mouse_event) => {
+                ctx.set_cursor(&druid::Cursor::Pointer);
+                ctx.set_handled();
+            }
+            Event::MouseDown(mouse_event) => {
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+                let line = (mouse_event.pos.y / line_height).floor() as usize;
+                self.mouse_down = line;
+                ctx.set_handled();
+            }
+            Event::MouseUp(mouse_event) => {
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+                let line = (mouse_event.pos.y / line_height).floor() as usize;
+                if line == self.mouse_down {
+                    let palette = Arc::make_mut(&mut data.palette);
+                    palette.index = line;
+                    data.select(ctx);
+                }
+                ctx.set_handled();
+            }
+            _ => (),
+        }
     }
 
     fn lifecycle(

@@ -285,6 +285,13 @@ impl LapceEditorContainer {
         }
     }
 
+    fn set_focus(&self, ctx: &mut EventCtx, data: &mut LapceEditorViewData) {
+        if data.editor.editor_type != EditorType::SourceControl {
+            data.main_split.active = Arc::new(self.view_id);
+        }
+        ctx.request_focus();
+    }
+
     pub fn handle_lapce_ui_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -294,14 +301,7 @@ impl LapceEditorContainer {
     ) {
         match cmd {
             LapceUICommand::Focus => {
-                println!(
-                    "receive focus {:?}, old focus {:?}",
-                    self.view_id, data.main_split.active
-                );
-                if data.editor.editor_type != EditorType::SourceControl {
-                    data.main_split.active = Arc::new(self.view_id);
-                }
-                ctx.request_focus();
+                self.set_focus(ctx, data);
                 ctx.set_handled();
             }
             LapceUICommand::FillTextLayouts => {
@@ -596,10 +596,10 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         for rect in &rects {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
         }
-        self.editor.paint(ctx, data, env);
         if self.display_gutter {
             self.gutter.paint(ctx, data, env);
         }
+        self.editor.paint(ctx, data, env);
     }
 }
 
@@ -1311,6 +1311,149 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         env: &Env,
     ) {
         match event {
+            Event::MouseMove(mouse_event) => {
+                ctx.set_cursor(&druid::Cursor::IBeam);
+                if ctx.is_active() {
+                    let new_offset = data.offset_of_mouse(mouse_event.pos, env);
+                    match data.editor.cursor.mode.clone() {
+                        CursorMode::Normal(offset) => {
+                            if new_offset != offset {
+                                data.set_cursor(Cursor::new(
+                                    CursorMode::Visual {
+                                        start: offset,
+                                        end: new_offset,
+                                        mode: VisualMode::Normal,
+                                    },
+                                    None,
+                                ));
+                            }
+                        }
+                        CursorMode::Visual { start, end, mode } => {
+                            let mode = mode.clone();
+                            let editor = Arc::make_mut(&mut data.editor);
+                            editor.cursor.mode = CursorMode::Visual {
+                                start,
+                                end: new_offset,
+                                mode,
+                            };
+                            editor.cursor.horiz = None;
+                        }
+                        CursorMode::Insert(selection) => {
+                            let mut new_selection = Selection::new();
+                            if let Some(region) = selection.first() {
+                                let new_regoin =
+                                    SelRegion::new(region.start(), new_offset, None);
+                                new_selection.add_region(new_regoin);
+                            } else {
+                                new_selection.add_region(SelRegion::new(
+                                    new_offset, new_offset, None,
+                                ));
+                            }
+                            data.set_cursor(Cursor::new(
+                                CursorMode::Insert(new_selection),
+                                None,
+                            ));
+                        }
+                    }
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EnsureCursorVisible(None),
+                        Target::Widget(self.container_id),
+                    ));
+                }
+                ctx.set_handled();
+            }
+            Event::MouseUp(mouse_event) => {
+                ctx.set_active(false);
+                ctx.set_handled();
+            }
+            Event::MouseDown(mouse_event) => {
+                ctx.set_active(true);
+                let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+                let line = (mouse_event.pos.y / line_height).floor() as usize;
+                let last_line = data.buffer.last_line();
+                let (line, col) = if line > last_line {
+                    (last_line, 0)
+                } else {
+                    let line_end = data
+                        .buffer
+                        .line_end_col(line, !data.editor.cursor.is_normal());
+                    let width = 7.6171875;
+
+                    let col = (if data.editor.cursor.is_insert() {
+                        (mouse_event.pos.x / width).round() as usize
+                    } else {
+                        (mouse_event.pos.x / width).floor() as usize
+                    })
+                    .min(line_end);
+                    (line, col)
+                };
+                let new_offset = data.buffer.offset_of_line_col(line, col);
+                match data.editor.cursor.mode.clone() {
+                    CursorMode::Normal(offset) => {
+                        if mouse_event.mods.shift() {
+                            data.set_cursor(Cursor::new(
+                                CursorMode::Visual {
+                                    start: offset,
+                                    end: new_offset,
+                                    mode: VisualMode::Normal,
+                                },
+                                None,
+                            ));
+                        } else {
+                            let editor = Arc::make_mut(&mut data.editor);
+                            editor.cursor.mode = CursorMode::Normal(new_offset);
+                            editor.cursor.horiz = None;
+                        }
+                    }
+                    CursorMode::Visual { start, end, mode } => {
+                        if mouse_event.mods.shift() {
+                            data.set_cursor(Cursor::new(
+                                CursorMode::Visual {
+                                    start,
+                                    end: new_offset,
+                                    mode: VisualMode::Normal,
+                                },
+                                None,
+                            ));
+                        } else {
+                            data.set_cursor(Cursor::new(
+                                CursorMode::Normal(new_offset),
+                                None,
+                            ));
+                        }
+                    }
+                    CursorMode::Insert(selection) => {
+                        if mouse_event.mods.shift() {
+                            let mut new_selection = Selection::new();
+                            if let Some(region) = selection.first() {
+                                let new_regoin =
+                                    SelRegion::new(region.start(), new_offset, None);
+                                new_selection.add_region(new_regoin);
+                            } else {
+                                new_selection.add_region(SelRegion::new(
+                                    new_offset, new_offset, None,
+                                ));
+                            }
+                            data.set_cursor(Cursor::new(
+                                CursorMode::Insert(new_selection),
+                                None,
+                            ));
+                        } else {
+                            data.set_cursor(Cursor::new(
+                                CursorMode::Insert(Selection::caret(new_offset)),
+                                None,
+                            ));
+                        }
+                    }
+                }
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(self.container_id),
+                ));
+                ctx.set_handled();
+            }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
