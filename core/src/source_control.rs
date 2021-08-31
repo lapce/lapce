@@ -148,16 +148,11 @@ impl SourceControlNew {
             .editors
             .get(&data.source_control.editor_view_id)
             .unwrap();
-        let editor = LapceEditorView::new(
-            editor_data.view_id,
-            editor_data.container_id,
-            editor_data.editor_id,
-        )
-        .hide_header()
-        .hide_gutter()
-        .set_placeholder("Commit Message".to_string())
-        .lens(LapceEditorLens(editor_data.view_id))
-        .padding(10.0);
+        let editor = LapceEditorView::new(editor_data)
+            .hide_header()
+            .hide_gutter()
+            .set_placeholder("Commit Message".to_string())
+            .padding(10.0);
 
         let file_list = SourceControlFileList::new(data.source_control.file_list_id);
         let file_list_id = data.source_control.file_list_id;

@@ -701,6 +701,10 @@ impl PaletteViewData {
                 path: PathBuf::from("/Users/Lulu/lapce"),
             },
             LapceWorkspace {
+                kind: LapceWorkspaceType::Local,
+                path: PathBuf::from("/Users/Lulu/piet-wgpu"),
+            },
+            LapceWorkspace {
                 kind: LapceWorkspaceType::RemoteSSH(
                     "root".to_string(),
                     "10.154.0.5".to_string(),
@@ -1931,12 +1935,7 @@ impl PaletteContainer {
             NewPaletteContent::new().lens(PaletteViewLens).boxed(),
         )
         .vertical();
-        let preview = LapceEditorView::new(
-            preview_editor.view_id,
-            preview_editor.container_id,
-            preview_editor.editor_id,
-        )
-        .lens(LapceEditorLens(data.preview_editor));
+        let preview = LapceEditorView::new(preview_editor);
         Self {
             content_size: Size::ZERO,
             input: WidgetPod::new(input.boxed()),

@@ -310,14 +310,10 @@ impl LapceSplitNew {
             Target::Widget(editor_data.container_id),
         ));
 
-        let editor = LapceEditorView::new(
-            editor_data.view_id,
-            editor_data.container_id,
-            editor_data.editor_id,
-        );
+        let editor = LapceEditorView::new(&editor_data);
         self.insert_flex_child(
             index + 1,
-            editor.lens(LapceEditorLens(editor_data.view_id)).boxed(),
+            editor.boxed(),
             Some(editor_data.container_id),
             1.0,
         );

@@ -1,6 +1,7 @@
-use crate::data::EditorType;
+use crate::data::{EditorType, LapceEditorData, LapceEditorLens, LapceTabData};
 use crate::find::Find;
 use crate::signature::SignatureState;
+use crate::split::LapceSplitNew;
 use crate::svg::{file_svg_new, get_svg};
 use crate::{buffer::get_word_property, state::LapceFocus};
 use crate::{buffer::matching_char, data::LapceEditorViewData};
@@ -36,6 +37,7 @@ use crate::{completion::CompletionState, scroll::LapceIdentityWrapper};
 use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
 use crossbeam_channel::{self, bounded};
+use druid::widget::{LensWrap, WidgetWrapper};
 use druid::{
     kurbo::Line, piet::PietText, theme, widget::Flex, widget::IdentityWrapper,
     widget::Padding, widget::Scroll, widget::SvgData, Affine, BoxConstraints, Color,
@@ -52,7 +54,7 @@ use druid::{
     },
     FontWeight,
 };
-use fzyr::{has_match, locate};
+use fzyr::has_match;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
@@ -67,9 +69,7 @@ use std::{str::FromStr, time::Duration};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{Interval, RopeDelta};
 
-pub struct LapceUI {
-    container: LapceContainer,
-}
+pub struct LapceUI {}
 
 #[derive(Copy, Clone)]
 pub struct EditorCount(Option<usize>);
@@ -129,40 +129,120 @@ pub struct EditorLocation {
     pub scroll_offset: Option<Vec2>,
 }
 
+pub enum LapceEditorContainerKind {
+    Container(WidgetPod<LapceEditorViewData, LapceEditorContainer>),
+    DiffSplit(LapceSplitNew),
+}
+
+pub struct EditorDiffSplit {
+    left: WidgetPod<LapceEditorViewData, LapceEditorContainer>,
+    right: WidgetPod<LapceEditorViewData, LapceEditorContainer>,
+}
+
+impl Widget<LapceEditorViewData> for EditorDiffSplit {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceEditorViewData,
+        env: &Env,
+    ) {
+        self.left.event(ctx, event, data, env);
+        self.right.event(ctx, event, data, env);
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        self.left.lifecycle(ctx, event, data, env);
+        self.right.lifecycle(ctx, event, data, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceEditorViewData,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) {
+        self.left.update(ctx, data, env);
+        self.right.update(ctx, data, env);
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceEditorViewData,
+        env: &Env,
+    ) -> Size {
+        self.left.layout(ctx, bc, data, env);
+        self.right.layout(ctx, bc, data, env);
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        self.left.paint(ctx, data, env);
+        self.right.paint(ctx, data, env);
+    }
+}
+
 pub struct LapceEditorView {
     pub view_id: WidgetId,
-    pub header: WidgetPod<LapceEditorViewData, LapceEditorHeader>,
-    pub editor: WidgetPod<LapceEditorViewData, LapceEditorContainer>,
+    pub header: WidgetPod<
+        LapceTabData,
+        LensWrap<
+            LapceTabData,
+            LapceEditorViewData,
+            LapceEditorLens,
+            LapceEditorHeader,
+        >,
+    >,
+    pub editor: WidgetPod<
+        LapceTabData,
+        LensWrap<
+            LapceTabData,
+            LapceEditorViewData,
+            LapceEditorLens,
+            LapceEditorContainer,
+        >,
+    >,
 }
 
 impl LapceEditorView {
-    pub fn new(
-        view_id: WidgetId,
-        container_id: WidgetId,
-        editor_id: WidgetId,
-    ) -> LapceEditorView {
-        let header = LapceEditorHeader::new();
-        let editor = LapceEditorContainer::new(view_id, container_id, editor_id);
+    pub fn new(data: &LapceEditorData) -> LapceEditorView {
+        let header = LapceEditorHeader::new().lens(LapceEditorLens(data.view_id));
+        let editor = LapceEditorContainer::new(
+            data.view_id,
+            data.container_id,
+            data.editor_id,
+        )
+        .lens(LapceEditorLens(data.view_id));
         Self {
-            view_id,
+            view_id: data.view_id,
             header: WidgetPod::new(header),
             editor: WidgetPod::new(editor),
         }
     }
 
     pub fn hide_header(mut self) -> Self {
-        self.header.widget_mut().display = false;
+        self.header.widget_mut().wrapped_mut().display = false;
         self
     }
 
     pub fn hide_gutter(mut self) -> Self {
-        self.editor.widget_mut().display_gutter = false;
+        self.editor.widget_mut().wrapped_mut().display_gutter = false;
         self
     }
 
     pub fn set_placeholder(mut self, placehoder: String) -> Self {
         self.editor
             .widget_mut()
+            .wrapped_mut()
             .editor
             .widget_mut()
             .inner_mut()
@@ -172,7 +252,7 @@ impl LapceEditorView {
     }
 }
 
-impl Widget<LapceEditorViewData> for LapceEditorView {
+impl Widget<LapceTabData> for LapceEditorView {
     fn id(&self) -> Option<WidgetId> {
         Some(self.view_id)
     }
@@ -181,7 +261,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceEditorViewData,
+        data: &mut LapceTabData,
         env: &Env,
     ) {
         self.header.event(ctx, event, data, env);
@@ -192,7 +272,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceEditorViewData,
+        data: &LapceTabData,
         env: &Env,
     ) {
         self.header.lifecycle(ctx, event, data, env);
@@ -202,8 +282,8 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        old_data: &LapceEditorViewData,
-        data: &LapceEditorViewData,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         env: &Env,
     ) {
         self.header.update(ctx, data, env);
@@ -215,7 +295,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceEditorViewData,
+        data: &LapceTabData,
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
@@ -230,7 +310,7 @@ impl Widget<LapceEditorViewData> for LapceEditorView {
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let rects = ctx.region().rects().to_vec();
         for rect in &rects {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));

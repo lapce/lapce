@@ -43,13 +43,7 @@ impl LapceTabNew {
         let editor = data.main_split.active_editor();
         let main_split = LapceSplitNew::new(*data.main_split.split_id)
             .with_flex_child(
-                LapceEditorView::new(
-                    editor.view_id,
-                    editor.container_id,
-                    editor.editor_id,
-                )
-                .lens(LapceEditorLens(editor.view_id))
-                .boxed(),
+                LapceEditorView::new(editor).boxed(),
                 Some(editor.container_id),
                 1.0,
             );

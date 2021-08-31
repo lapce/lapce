@@ -294,6 +294,7 @@ impl Dispatcher {
             if let Some((diff, line_changes)) =
                 file_git_diff(&workspace, &PathBuf::from(path), &content)
             {
+                eprintln!("diff {:?}", diff);
                 self.sender.send(json!({
                     "method": "update_git",
                     "params": {

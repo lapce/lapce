@@ -1016,9 +1016,15 @@ impl LapceMainSplitData {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EditorType {
+    DiffSplit(WidgetId, WidgetId),
     Normal,
     SourceControl,
     Palette,
+}
+
+pub enum LapceEditorContainerKind {
+    Container(WidgetId),
+    DiffSplit(WidgetId, WidgetId),
 }
 
 #[derive(Clone, Debug)]
