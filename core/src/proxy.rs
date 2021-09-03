@@ -307,7 +307,10 @@ impl LapceProxy {
     }
 
     pub fn stop(&self) {
-        self.process.lock().as_mut().unwrap().kill();
+        let mut process = self.process.lock();
+        if let Some(mut p) = process.as_mut() {
+            p.kill();
+        }
     }
 }
 

@@ -22,7 +22,7 @@ pub fn lanuch() {
     let mut data = LapceData::load();
     let root = build_window(&data);
     let window = WindowDesc::new(root)
-        .title(LocalizedString::new("lapce").with_placeholder("Lapce"))
+        .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
     let launcher = AppLauncher::with_window(window);

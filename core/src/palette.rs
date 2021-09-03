@@ -705,6 +705,10 @@ impl PaletteViewData {
                 path: PathBuf::from("/Users/Lulu/piet-wgpu"),
             },
             LapceWorkspace {
+                kind: LapceWorkspaceType::Local,
+                path: PathBuf::from("/Users/Lulu/druid"),
+            },
+            LapceWorkspace {
                 kind: LapceWorkspaceType::RemoteSSH(
                     "root".to_string(),
                     "10.154.0.5".to_string(),

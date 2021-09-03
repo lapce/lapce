@@ -788,7 +788,9 @@ impl LapceWindowNew {
         data.tabs.insert(tab_id, tab_data);
         if replace_current {
             self.tabs[data.active] = WidgetPod::new(tab.boxed());
-            data.tabs.remove(&data.active_id);
+            if let Some(tab) = data.tabs.remove(&data.active_id) {
+                tab.proxy.stop();
+            }
             data.active_id = tab_id;
         } else {
             self.tabs
@@ -938,6 +940,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
+        let rect = ctx.size().to_rect();
+        ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+
         let tab_height = 25.0;
         let size = ctx.size();
         if self.tabs.len() > 1 {
