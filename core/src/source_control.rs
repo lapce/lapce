@@ -414,13 +414,13 @@ impl Widget<LapceTabData> for SourceControlFileList {
             ctx.blurred_rect(rect, shadow_width, &blur_color);
             ctx.fill(rect, &env.get(LapceTheme::LIST_BACKGROUND));
 
-            let mut text_layout = TextLayout::<String>::from_text("Changes");
-            text_layout.set_font(
-                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
-            );
-            text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-            text_layout.rebuild_if_needed(ctx.text(), env);
-            text_layout.draw(ctx, Point::new(5.0, 5.0 + 4.0));
+            let text_layout = ctx
+                .text()
+                .new_text_layout("Changes")
+                .font(FontFamily::SYSTEM_UI, 13.0)
+                .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+                .build_with_ctx(ctx);
+            ctx.draw_text(&text_layout, Point::new(5.0, 5.0 + 4.0));
         }
 
         let files = &data.source_control.diff_files;
@@ -494,13 +494,14 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            let mut text_layout = TextLayout::<String>::from_text(file_name);
-            text_layout.set_font(
-                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
-            );
-            text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-            text_layout.rebuild_if_needed(ctx.text(), env);
-            text_layout.draw(ctx, Point::new(line_height * 2.0, y + 4.0));
+
+            let text_layout = ctx
+                .text()
+                .new_text_layout(file_name)
+                .font(FontFamily::SYSTEM_UI, 13.0)
+                .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+                .build_with_ctx(ctx);
+            ctx.draw_text(&text_layout, Point::new(line_height * 2.0, y + 4.0));
             let folder = path
                 .parent()
                 .and_then(|s| s.to_str())
@@ -509,14 +510,16 @@ impl Widget<LapceTabData> for SourceControlFileList {
             if folder != "" {
                 let x = text_layout.size().width;
 
-                let mut text_layout = TextLayout::<String>::from_text(folder);
-                text_layout.set_font(
-                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(folder)
+                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .text_color(env.get(LapceTheme::EDITOR_COMMENT))
+                    .build_with_ctx(ctx);
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(line_height * 2.0 + x + 5.0, y + 4.0),
                 );
-                text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
-                text_layout.rebuild_if_needed(ctx.text(), env);
-                text_layout
-                    .draw(ctx, Point::new(line_height * 2.0 + x + 5.0, y + 4.0));
             }
         }
     }

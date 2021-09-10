@@ -268,7 +268,7 @@ impl PaletteItemContent {
             text_layout = text_layout
                 .range_attribute(i..i + 1, TextAttribute::Weight(FontWeight::BOLD));
         }
-        let text_layout = text_layout.build().unwrap();
+        let text_layout = text_layout.build_with_ctx(ctx);
         let x = svg_x + 5.0;
         let y = line_height * line as f64 + 4.0;
         let point = Point::new(x, y);
@@ -292,7 +292,7 @@ impl PaletteItemContent {
                     TextAttribute::Weight(FontWeight::BOLD),
                 );
             }
-            let text_layout = text_layout.build().unwrap();
+            let text_layout = text_layout.build_with_ctx(ctx);
             ctx.draw_text(
                 &text_layout,
                 Point::new(x + text_x + 4.0, line as f64 * line_height + 5.0),

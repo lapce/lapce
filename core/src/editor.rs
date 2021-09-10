@@ -676,10 +676,10 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
         for rect in &rects {
             ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
         }
+        self.editor.paint(ctx, data, env);
         if self.display_gutter {
             self.gutter.paint(ctx, data, env);
         }
-        self.editor.paint(ctx, data, env);
     }
 }
 
@@ -924,6 +924,8 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
+        let rect = ctx.size().to_rect();
+        ctx.fill(rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let scroll_offset = data.editor.scroll_offset;
         let start_line = (scroll_offset.y / line_height).floor() as usize;
@@ -952,25 +954,14 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
             let y = line_height * line as f64 + 5.0 - scroll_offset.y;
             let pos = Point::new(x, y);
             let content = content.to_string();
-            if let Some(text_layout) = self.text_layouts.get_mut(&content) {
-                if text_layout.text != content {
-                    text_layout.layout.set_text(content.clone());
-                    text_layout.text = content;
-                    text_layout.layout.rebuild_if_needed(&mut ctx.text(), env);
-                }
-                text_layout.layout.draw(ctx, pos);
-            } else {
-                let mut layout = TextLayout::from_text(content.clone());
-                layout.set_font(LapceTheme::EDITOR_FONT);
-                layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                layout.rebuild_if_needed(&mut ctx.text(), env);
-                layout.draw(ctx, pos);
-                let text_layout = EditorTextLayout {
-                    layout,
-                    text: content.clone(),
-                };
-                self.text_layouts.insert(content, text_layout);
-            }
+
+            let text_layout = ctx
+                .text()
+                .new_text_layout(content)
+                .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+                .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+                .build_with_ctx(ctx);
+            ctx.draw_text(&text_layout, pos);
         }
 
         if *data.main_split.active == self.view_id {
@@ -1713,7 +1704,11 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                 break;
             }
             if data.buffer.text_layouts.len() > line {
-                if let Some(layout) = data.buffer.text_layouts[line].as_ref() {
+                data.buffer
+                    .update_new_line_layouts(ctx, line, &data.theme, env);
+                if let Some(layout) =
+                    data.buffer.new_text_layouts.borrow()[line].as_ref()
+                {
                     ctx.draw_text(
                         &layout.layout,
                         Point::new(0.0, line_height * line as f64 + 5.0),
