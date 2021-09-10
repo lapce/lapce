@@ -275,7 +275,7 @@ impl PaletteItemContent {
         ctx.draw_text(&text_layout, point);
 
         if hint != "" {
-            let text_x = text_layout.hit_test_text_position(text.len()).point.x;
+            let text_x = text_layout.size().width;
             let mut text_layout = ctx
                 .text()
                 .new_text_layout(hint)
@@ -2151,12 +2151,16 @@ impl Widget<PaletteViewData> for NewPaletteInput {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {
         let text = data.palette.input.clone();
         let cursor = data.palette.cursor;
-        let mut text_layout = TextLayout::<String>::from_text(&text);
-        text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-        text_layout.rebuild_if_needed(ctx.text(), env);
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout(text)
+            .font(FontFamily::SYSTEM_UI, 14.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+            .build_with_ctx(ctx);
         let line = text_layout.cursor_line_for_text_position(cursor);
         ctx.stroke(line, &env.get(LapceTheme::EDITOR_FOREGROUND), 1.0);
-        text_layout.draw(ctx, Point::new(0.0, 0.0));
+        ctx.draw_text(&text_layout, Point::new(0.0, 0.0));
     }
 }
 

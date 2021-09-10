@@ -708,6 +708,7 @@ impl Widget<LapceTabData> for CompletionNew {
             let focus_color = Color::rgb8(0, 0, 0);
             let content = item.item.label.as_str();
             let point = Point::new(line_height + 5.0, y);
+
             let mut text_layout = ctx
                 .text()
                 .new_text_layout(content.to_string())
@@ -724,7 +725,7 @@ impl Widget<LapceTabData> for CompletionNew {
                     TextAttribute::Weight(FontWeight::BOLD),
                 );
             }
-            let text_layout = text_layout.build().unwrap();
+            let text_layout = text_layout.build_with_ctx(ctx);
             ctx.draw_text(&text_layout, point);
         }
     }

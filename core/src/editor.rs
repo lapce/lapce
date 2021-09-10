@@ -781,12 +781,13 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
         if data.buffer.dirty {
             file_name = "*".to_string() + &file_name;
         }
-        let mut text_layout = TextLayout::<String>::from_text(file_name);
-        text_layout
-            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
-        text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-        text_layout.rebuild_if_needed(ctx.text(), env);
-        text_layout.draw(ctx, Point::new(30.0, 7.0));
+        let text_layout = ctx
+            .text()
+            .new_text_layout(file_name)
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+            .build_with_ctx(ctx);
+        ctx.draw_text(&text_layout, Point::new(30.0, 7.0));
 
         if let Some(workspace) = data.workspace.as_ref() {
             path = path
@@ -802,13 +803,13 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
         if folder != "" {
             let x = text_layout.size().width;
 
-            let mut text_layout = TextLayout::<String>::from_text(folder);
-            text_layout.set_font(
-                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
-            );
-            text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
-            text_layout.rebuild_if_needed(ctx.text(), env);
-            text_layout.draw(ctx, Point::new(30.0 + x + 5.0, 7.0));
+            let text_layout = ctx
+                .text()
+                .new_text_layout(folder)
+                .font(FontFamily::SYSTEM_UI, 13.0)
+                .text_color(env.get(LapceTheme::EDITOR_COMMENT))
+                .build_with_ctx(ctx);
+            ctx.draw_text(&text_layout, Point::new(30.0 + x + 5.0, 7.0));
         }
     }
 }
