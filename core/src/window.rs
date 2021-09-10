@@ -17,10 +17,14 @@ use crate::{
     theme::LapceTheme,
 };
 use druid::{
-    kurbo::Line, theme, widget::IdentityWrapper, widget::WidgetExt, BoxConstraints,
-    Command, Env, Event, EventCtx, FontDescriptor, FontFamily, LayoutCtx, Lens,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod, WindowId,
+    kurbo::Line,
+    piet::{Text, TextLayout, TextLayoutBuilder},
+    theme,
+    widget::IdentityWrapper,
+    widget::WidgetExt,
+    BoxConstraints, Command, Env, Event, EventCtx, FontDescriptor, FontFamily,
+    LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext,
+    Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod, WindowId,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, sync::Arc};
@@ -717,15 +721,15 @@ impl Widget<LapceUIState> for LapceWindow {
                         format!("{} [{}@{}]", dir, user, host)
                     }
                 };
-                let mut text_layout = TextLayout::<String>::from_text(dir);
-                text_layout.set_font(
-                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
-                );
-                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                text_layout.rebuild_if_needed(ctx.text(), env);
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(dir)
+                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+                    .build_with_ctx(ctx);
                 let text_width = text_layout.size().width;
                 let x = (section - text_width) / 2.0 + section * i as f64;
-                text_layout.draw(ctx, Point::new(x, 3.0));
+                ctx.draw_text(&text_layout, Point::new(x, 3.0));
             }
             for i in 1..num {
                 let line = Line::new(
@@ -978,15 +982,16 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         dir
                     })
                     .unwrap_or("Lapce".to_string());
-                let mut text_layout = TextLayout::<String>::from_text(dir);
-                text_layout.set_font(
-                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
-                );
-                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                text_layout.rebuild_if_needed(ctx.text(), env);
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(dir)
+                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+                    .build_with_ctx(ctx);
+
                 let text_width = text_layout.size().width;
                 let x = (section - text_width) / 2.0 + section * i as f64;
-                text_layout.draw(ctx, Point::new(x, 3.0));
+                ctx.draw_text(&text_layout, Point::new(x, 3.0));
             }
             for i in 1..num {
                 let line = Line::new(
@@ -1023,15 +1028,15 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     dir
                 })
                 .unwrap_or("Lapce".to_string());
-            let mut text_layout = TextLayout::<String>::from_text(dir);
-            text_layout.set_font(
-                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
-            );
-            text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-            text_layout.rebuild_if_needed(ctx.text(), env);
+            let text_layout = ctx
+                .text()
+                .new_text_layout(dir)
+                .font(FontFamily::SYSTEM_UI, 13.0)
+                .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+                .build_with_ctx(ctx);
             let text_width = text_layout.size().width;
             let x = (section - text_width) / 2.0 + section * data.active as f64;
-            text_layout.draw(ctx, Point::new(x, 3.0));
+            ctx.draw_text(&text_layout, Point::new(x, 3.0));
 
             let line = Line::new(
                 Point::new(0.0, tab_height - 0.5),

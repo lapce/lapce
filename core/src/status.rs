@@ -1,9 +1,12 @@
+use druid::piet::Text;
+use druid::piet::TextLayout;
+use druid::piet::TextLayoutBuilder;
 use druid::theme;
 use druid::Color;
 use druid::Vec2;
 use druid::{
     kurbo::Line, Event, FontDescriptor, FontFamily, Point, RenderContext, Size,
-    TextLayout, Widget, WidgetId, WindowId,
+    Widget, WidgetId, WindowId,
 };
 use lsp_types::DiagnosticSeverity;
 
@@ -115,15 +118,18 @@ impl Widget<LapceUIState> for LapceStatus {
             Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
             Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
         };
-        let mut text_layout = TextLayout::<String>::from_text(mode);
-        text_layout
-            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
-        text_layout.set_text_color(LapceTheme::EDITOR_BACKGROUND);
-        text_layout.rebuild_if_needed(ctx.text(), env);
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout(mode)
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_BACKGROUND))
+            .build_with_ctx(ctx);
+
         let text_size = text_layout.size();
         let fill_size = Size::new(text_size.width + 10.0, size.height);
         ctx.fill(fill_size.to_rect(), &color);
-        text_layout.draw(ctx, Point::new(5.0, 4.0));
+        ctx.draw_text(&text_layout, Point::new(5.0, 4.0));
         left += text_size.width + 10.0;
 
         let mut errors = 0;
@@ -140,13 +146,13 @@ impl Widget<LapceUIState> for LapceStatus {
             }
         }
 
-        let mut text_layout =
-            TextLayout::<String>::from_text(format!("{}  {}", errors, warnings));
-        text_layout
-            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
-        text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-        text_layout.rebuild_if_needed(ctx.text(), env);
-        text_layout.draw(ctx, Point::new(left + 10.0, 4.0));
+        let text_layout = ctx
+            .text()
+            .new_text_layout(format!("{}  {}", errors, warnings))
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+            .build_with_ctx(ctx);
+        ctx.draw_text(&text_layout, Point::new(left + 10.0, 4.0));
         left += 10.0 + text_layout.size().width;
     }
 
@@ -232,26 +238,29 @@ impl Widget<LapceTabData> for LapceStatusNew {
             Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
             Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
         };
-        let mut text_layout = TextLayout::<String>::from_text(mode);
-        text_layout
-            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
-        text_layout.set_text_color(LapceTheme::EDITOR_BACKGROUND);
-        text_layout.rebuild_if_needed(ctx.text(), env);
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout(mode)
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_BACKGROUND))
+            .build_with_ctx(ctx);
         let text_size = text_layout.size();
         let fill_size = Size::new(text_size.width + 10.0, size.height);
         ctx.fill(fill_size.to_rect(), &color);
-        text_layout.draw(ctx, Point::new(5.0, 4.0));
+        ctx.draw_text(&text_layout, Point::new(5.0, 4.0));
         left += text_size.width + 10.0;
 
-        let mut text_layout = TextLayout::<String>::from_text(format!(
-            "{}  {}",
-            data.main_split.error_count, data.main_split.warning_count
-        ));
-        text_layout
-            .set_font(FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0));
-        text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-        text_layout.rebuild_if_needed(ctx.text(), env);
-        text_layout.draw(ctx, Point::new(left + 10.0, 4.0));
+        let text_layout = ctx
+            .text()
+            .new_text_layout(format!(
+                "{}  {}",
+                data.main_split.error_count, data.main_split.warning_count
+            ))
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+            .build_with_ctx(ctx);
+        ctx.draw_text(&text_layout, Point::new(left + 10.0, 4.0));
         left += 10.0 + text_layout.size().width;
     }
 }

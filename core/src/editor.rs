@@ -1089,14 +1089,12 @@ impl LapceEditor {
 
         if let Some(diagnostic) = current {
             if data.editor.cursor.is_normal() {
-                let mut text_layout = TextLayout::<String>::from_text(
-                    diagnostic.diagnositc.message.clone(),
-                );
-                text_layout.set_font(
-                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
-                );
-                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
-                text_layout.rebuild_if_needed(ctx.text(), env);
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(diagnostic.diagnositc.message.clone())
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
+                    .build_with_ctx(ctx);
                 let text_size = text_layout.size();
                 let size = ctx.size();
                 let start = diagnostic.diagnositc.range.start;
@@ -1119,8 +1117,8 @@ impl LapceEditor {
                     _ => env.get(LapceTheme::EDITOR_WARN),
                 };
                 ctx.stroke(rect, &color, 1.0);
-                text_layout.draw(
-                    ctx,
+                ctx.draw_text(
+                    &text_layout,
                     Point::new(10.0, (start.line + 1) as f64 * line_height + 10.0),
                 );
             }
@@ -1721,13 +1719,13 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         self.paint_diagnostics(ctx, data, env);
         if data.buffer.len() == 0 {
             if let Some(placeholder) = self.placeholder.as_ref() {
-                let mut text_layout = TextLayout::<String>::from_text(placeholder);
-                text_layout.set_font(
-                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
-                );
-                text_layout.set_text_color(LapceTheme::EDITOR_COMMENT);
-                text_layout.rebuild_if_needed(ctx.text(), env);
-                text_layout.draw(ctx, Point::new(0.0, 5.0));
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(placeholder.to_string())
+                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .text_color(env.get(LapceTheme::EDITOR_COMMENT))
+                    .build_with_ctx(ctx);
+                ctx.draw_text(&text_layout, Point::new(0.0, 5.0));
             }
         }
     }
