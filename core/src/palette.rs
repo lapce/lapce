@@ -267,7 +267,7 @@ impl PaletteItemContent {
             text_layout = text_layout
                 .range_attribute(i..i + 1, TextAttribute::Weight(FontWeight::BOLD));
         }
-        let text_layout = text_layout.build_with_ctx(ctx);
+        let text_layout = text_layout.build().unwrap();
         let x = svg_x + 5.0;
         let y = line_height * line as f64 + 4.0;
         let point = Point::new(x, y);
@@ -291,7 +291,7 @@ impl PaletteItemContent {
                     TextAttribute::Weight(FontWeight::BOLD),
                 );
             }
-            let text_layout = text_layout.build_with_ctx(ctx);
+            let text_layout = text_layout.build().unwrap();
             ctx.draw_text(
                 &text_layout,
                 Point::new(x + text_x + 4.0, line as f64 * line_height + 5.0),
@@ -2156,7 +2156,8 @@ impl Widget<PaletteViewData> for NewPaletteInput {
             .new_text_layout(text)
             .font(FontFamily::SYSTEM_UI, 14.0)
             .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-            .build_with_ctx(ctx);
+            .build()
+            .unwrap();
         let line = text_layout.cursor_line_for_text_position(cursor);
         ctx.stroke(line, &env.get(LapceTheme::EDITOR_FOREGROUND), 1.0);
         ctx.draw_text(&text_layout, Point::new(0.0, 0.0));

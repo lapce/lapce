@@ -785,7 +785,8 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
             .new_text_layout(file_name)
             .font(FontFamily::SYSTEM_UI, 13.0)
             .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-            .build_with_ctx(ctx);
+            .build()
+            .unwrap();
         ctx.draw_text(&text_layout, Point::new(30.0, 7.0));
 
         if let Some(workspace) = data.workspace.as_ref() {
@@ -807,7 +808,8 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
                 .new_text_layout(folder)
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(env.get(LapceTheme::EDITOR_COMMENT))
-                .build_with_ctx(ctx);
+                .build()
+                .unwrap();
             ctx.draw_text(&text_layout, Point::new(30.0 + x + 5.0, 7.0));
         }
     }
@@ -960,7 +962,8 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
                 .new_text_layout(content)
                 .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
                 .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-                .build_with_ctx(ctx);
+                .build()
+                .unwrap();
             ctx.draw_text(&text_layout, pos);
         }
 
@@ -1093,7 +1096,8 @@ impl LapceEditor {
                     .new_text_layout(diagnostic.diagnositc.message.clone())
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-                    .build_with_ctx(ctx);
+                    .build()
+                    .unwrap();
                 let text_size = text_layout.size();
                 let size = ctx.size();
                 let start = diagnostic.diagnositc.range.start;
@@ -1723,7 +1727,8 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                     .new_text_layout(placeholder.to_string())
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(env.get(LapceTheme::EDITOR_COMMENT))
-                    .build_with_ctx(ctx);
+                    .build()
+                    .unwrap();
                 ctx.draw_text(&text_layout, Point::new(0.0, 5.0));
             }
         }

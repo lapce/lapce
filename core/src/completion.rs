@@ -724,7 +724,7 @@ impl Widget<LapceTabData> for CompletionNew {
                     TextAttribute::Weight(FontWeight::BOLD),
                 );
             }
-            let text_layout = text_layout.build_with_ctx(ctx);
+            let text_layout = text_layout.build().unwrap();
             ctx.draw_text(&text_layout, point);
         }
     }

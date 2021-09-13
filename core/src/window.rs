@@ -726,7 +726,8 @@ impl Widget<LapceUIState> for LapceWindow {
                     .new_text_layout(dir)
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-                    .build_with_ctx(ctx);
+                    .build()
+                    .unwrap();
                 let text_width = text_layout.size().width;
                 let x = (section - text_width) / 2.0 + section * i as f64;
                 ctx.draw_text(&text_layout, Point::new(x, 3.0));
@@ -933,7 +934,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         tab.set_origin(ctx, data, env, tab_origin);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("layout took {}", duration
+        // println!("layout took {}", duration);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateWindowOrigin,
@@ -987,7 +988,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     .new_text_layout(dir)
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-                    .build_with_ctx(ctx);
+                    .build()
+                    .unwrap();
 
                 let text_width = text_layout.size().width;
                 let x = (section - text_width) / 2.0 + section * i as f64;
@@ -1033,7 +1035,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 .new_text_layout(dir)
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-                .build_with_ctx(ctx);
+                .build()
+                .unwrap();
             let text_width = text_layout.size().width;
             let x = (section - text_width) / 2.0 + section * data.active as f64;
             ctx.draw_text(&text_layout, Point::new(x, 3.0));

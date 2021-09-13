@@ -572,7 +572,7 @@ impl BufferNew {
             }
         }
         let layout = layout_builder.build().unwrap();
-        layout.rebuild(ctx);
+        layout.rebuild();
         StyledTextLayout {
             layout,
             text: line_content,

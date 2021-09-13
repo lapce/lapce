@@ -419,7 +419,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .new_text_layout("Changes")
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-                .build_with_ctx(ctx);
+                .build()
+                .unwrap();
             ctx.draw_text(&text_layout, Point::new(5.0, 5.0 + 4.0));
         }
 
@@ -500,7 +501,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .new_text_layout(file_name)
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-                .build_with_ctx(ctx);
+                .build()
+                .unwrap();
             ctx.draw_text(&text_layout, Point::new(line_height * 2.0, y + 4.0));
             let folder = path
                 .parent()
@@ -515,7 +517,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     .new_text_layout(folder)
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(env.get(LapceTheme::EDITOR_COMMENT))
-                    .build_with_ctx(ctx);
+                    .build()
+                    .unwrap();
                 ctx.draw_text(
                     &text_layout,
                     Point::new(line_height * 2.0 + x + 5.0, y + 4.0),

@@ -124,7 +124,8 @@ impl Widget<LapceUIState> for LapceStatus {
             .new_text_layout(mode)
             .font(FontFamily::SYSTEM_UI, 13.0)
             .text_color(env.get(LapceTheme::EDITOR_BACKGROUND))
-            .build_with_ctx(ctx);
+            .build()
+            .unwrap();
 
         let text_size = text_layout.size();
         let fill_size = Size::new(text_size.width + 10.0, size.height);
@@ -151,7 +152,8 @@ impl Widget<LapceUIState> for LapceStatus {
             .new_text_layout(format!("{}  {}", errors, warnings))
             .font(FontFamily::SYSTEM_UI, 13.0)
             .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-            .build_with_ctx(ctx);
+            .build()
+            .unwrap();
         ctx.draw_text(&text_layout, Point::new(left + 10.0, 4.0));
         left += 10.0 + text_layout.size().width;
     }
@@ -244,7 +246,8 @@ impl Widget<LapceTabData> for LapceStatusNew {
             .new_text_layout(mode)
             .font(FontFamily::SYSTEM_UI, 13.0)
             .text_color(env.get(LapceTheme::EDITOR_BACKGROUND))
-            .build_with_ctx(ctx);
+            .build()
+            .unwrap();
         let text_size = text_layout.size();
         let fill_size = Size::new(text_size.width + 10.0, size.height);
         ctx.fill(fill_size.to_rect(), &color);
@@ -259,7 +262,8 @@ impl Widget<LapceTabData> for LapceStatusNew {
             ))
             .font(FontFamily::SYSTEM_UI, 13.0)
             .text_color(env.get(LapceTheme::EDITOR_FOREGROUND))
-            .build_with_ctx(ctx);
+            .build()
+            .unwrap();
         ctx.draw_text(&text_layout, Point::new(left + 10.0, 4.0));
         left += 10.0 + text_layout.size().width;
     }
