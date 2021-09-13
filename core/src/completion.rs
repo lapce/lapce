@@ -22,12 +22,12 @@ use crate::{
     buffer::BufferId,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     data::LapceTabData,
-    explorer::ICONS_DIR,
     movement::Movement,
     proxy::LapceProxy,
     scroll::{LapceIdentityWrapper, LapceScrollNew},
     state::LapceUIState,
     state::LAPCE_APP_STATE,
+    svg::completion_svg,
     theme::LapceTheme,
 };
 
@@ -686,7 +686,7 @@ impl Widget<LapceTabData> for CompletionNew {
             let y = line_height * line as f64 + 5.0;
 
             if let Some((svg, color)) =
-                completion_svg_new(item.item.kind, data.theme.clone())
+                completion_svg(item.item.kind, data.theme.clone())
             {
                 let color = color.unwrap_or(env.get(LapceTheme::EDITOR_FOREGROUND));
                 let rect = Size::new(line_height, line_height)
@@ -900,18 +900,6 @@ impl CompletionWidget {
 
             let item = items[line];
 
-            if let Some((svg, color)) =
-                completion_svg(item.item.kind, Arc::new(HashMap::new()))
-            {
-                svg.to_piet(
-                    Affine::translate(Vec2::new(
-                        1.0,
-                        line_height * line as f64 - scroll_offset,
-                    )),
-                    ctx,
-                );
-            }
-
             let mut layout =
                 TextLayout::<String>::from_text(item.item.label.as_str());
             layout.set_font(LapceTheme::EDITOR_FONT);
@@ -1026,79 +1014,6 @@ impl Widget<LapceUIState> for CompletionWidget {
     fn id(&self) -> Option<WidgetId> {
         Some(self.id)
     }
-}
-
-fn completion_svg(
-    kind: Option<CompletionItemKind>,
-    theme: Arc<HashMap<String, Color>>,
-) -> Option<(SvgData, Option<Color>)> {
-    let kind = kind?;
-    let kind_str = match kind {
-        CompletionItemKind::Method => "method",
-        CompletionItemKind::Function => "method",
-        CompletionItemKind::Enum => "enum",
-        CompletionItemKind::EnumMember => "enum-member",
-        CompletionItemKind::Class => "class",
-        CompletionItemKind::Variable => "variable",
-        CompletionItemKind::Struct => "structure",
-        CompletionItemKind::Keyword => "keyword",
-        CompletionItemKind::Constant => "constant",
-        CompletionItemKind::Property => "property",
-        CompletionItemKind::Field => "field",
-        CompletionItemKind::Interface => "interface",
-        CompletionItemKind::Snippet => "snippet",
-        CompletionItemKind::Module => "namespace",
-        _ => return None,
-    };
-    Some((
-        SvgData::from_str(
-            ICONS_DIR
-                .get_file(format!("symbol-{}.svg", kind_str))
-                .unwrap()
-                .contents_utf8()?,
-        )
-        .ok()?,
-        theme.get(kind_str).map(|c| c.clone()),
-    ))
-}
-
-fn completion_svg_new(
-    kind: Option<CompletionItemKind>,
-    theme: Arc<HashMap<String, Color>>,
-) -> Option<(Svg, Option<Color>)> {
-    let kind = kind?;
-    let kind_str = match kind {
-        CompletionItemKind::Method => "method",
-        CompletionItemKind::Function => "method",
-        CompletionItemKind::Enum => "enum",
-        CompletionItemKind::EnumMember => "enum-member",
-        CompletionItemKind::Class => "class",
-        CompletionItemKind::Variable => "variable",
-        CompletionItemKind::Struct => "structure",
-        CompletionItemKind::Keyword => "keyword",
-        CompletionItemKind::Constant => "constant",
-        CompletionItemKind::Property => "property",
-        CompletionItemKind::Field => "field",
-        CompletionItemKind::Interface => "interface",
-        CompletionItemKind::Snippet => "snippet",
-        CompletionItemKind::Module => "namespace",
-        _ => "string",
-    };
-    let theme_str = match kind_str {
-        "namespace" => "builtinType",
-        "variable" => "field",
-        _ => kind_str,
-    };
-    Some((
-        Svg::from_str(
-            ICONS_DIR
-                .get_file(format!("symbol-{}.svg", kind_str))
-                .unwrap()
-                .contents_utf8()?,
-        )
-        .ok()?,
-        theme.get(theme_str).map(|c| c.clone()),
-    ))
 }
 
 #[cfg(test)]

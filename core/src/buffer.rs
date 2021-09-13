@@ -459,21 +459,30 @@ impl BufferNew {
         theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) {
-        {
-            let text_layouts = self.new_text_layouts.borrow();
-            if line >= text_layouts.len() {
-                return;
-            }
-            if text_layouts[line].is_some() {
-                return;
-            }
+        let mut text_layouts = self.new_text_layouts.borrow_mut();
+        if line >= text_layouts.len() {
+            return;
         }
-
         let styles = self.get_line_styles(line);
-        let line_content = self.line_content(line);
-        let text_layout =
-            self.get_new_text_layout(ctx, line_content, styles, theme, env);
-        self.new_text_layouts.borrow_mut()[line] = Some(Arc::new(text_layout));
+        if text_layouts[line].is_none() || {
+            let old_styles = text_layouts[line].as_ref().unwrap().styles.clone();
+            if old_styles.same(&styles) {
+                false
+            } else {
+                let changed = *old_styles != *styles;
+                if !changed {
+                    let text_layout = text_layouts[line].clone();
+                    text_layouts[line] = text_layout;
+                }
+                changed
+            }
+        } {
+            let line_content = self.line_content(line);
+            let text_layout =
+                self.get_new_text_layout(ctx, line_content, styles, theme, env);
+            text_layouts[line] = Some(Arc::new(text_layout));
+            return;
+        }
     }
 
     pub fn update_line_layouts(

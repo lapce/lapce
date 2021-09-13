@@ -9,7 +9,7 @@ use crate::{
     editor::EditorSplitState,
     editor::EditorUIState,
     editor::HighlightTextLayout,
-    explorer::{FileExplorerState, ICONS_DIR},
+    explorer::FileExplorerState,
     keypress::KeyPressState,
     language::TreeSitter,
     lsp::LspCatalog,

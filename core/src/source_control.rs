@@ -20,7 +20,7 @@ use crate::{
     editor::{LapceEditorContainer, LapceEditorView},
     keypress::KeyPressFocus,
     movement::Movement,
-    palette::{file_svg, svg_tree_size},
+    palette::svg_tree_size,
     panel::{PanelPosition, PanelProperty},
     scroll::LapceScrollNew,
     split::{LapceSplitNew, SplitMoveDirection},
@@ -694,22 +694,6 @@ impl PanelProperty for SourceControlState {
                 } else {
                     ""
                 };
-                if let Some((svg_data, svg_tree)) = file_svg(&icon) {
-                    let svg_size = svg_tree_size(&svg_tree);
-                    let scale = 13.0 / svg_size.height;
-                    let affine = Affine::new([
-                        scale,
-                        0.0,
-                        0.0,
-                        scale,
-                        1.0,
-                        line as f64 * line_height
-                            + 5.0
-                            + header_height
-                            + commit_height,
-                    ]);
-                    svg_data.to_piet(affine, ctx);
-                }
                 let mut text_layout = ctx
                     .text()
                     .new_text_layout(file_name.clone())

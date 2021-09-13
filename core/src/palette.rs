@@ -44,7 +44,6 @@ use crate::{
     editor::{
         EditorLocationNew, EditorSplitState, LapceEditorContainer, LapceEditorView,
     },
-    explorer::ICONS_DIR,
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
     proxy::LapceProxy,
@@ -2574,23 +2573,6 @@ impl Widget<LapceUIState> for PaletteContent {
                         )
                     }
                 }
-                if let Some((svg_data, svg_tree)) = match &item.icon {
-                    PaletteIcon::File(exten) => file_svg(&exten),
-                    PaletteIcon::Symbol(symbol) => symbol_svg(&symbol),
-                    _ => None,
-                } {
-                    let svg_size = svg_tree_size(&svg_tree);
-                    let scale = 13.0 / svg_size.height;
-                    let affine = Affine::new([
-                        scale,
-                        0.0,
-                        0.0,
-                        scale,
-                        1.0,
-                        line as f64 * line_height + 5.0 - scroll_offset,
-                    ]);
-                    svg_data.to_piet(affine, ctx);
-                }
                 let mut text_layout = ctx
                     .text()
                     .new_text_layout(item.text.clone())
@@ -2667,52 +2649,6 @@ impl Widget<LapceUIState> for PaletteContent {
             palette.scroll_offset = scroll_offset;
         }
     }
-}
-
-fn get_svg(name: &str) -> Option<(SvgData, usvg::Tree)> {
-    let content = ICONS_DIR.get_file(name)?.contents_utf8()?;
-
-    let opt = usvg::Options {
-        keep_named_groups: false,
-        ..usvg::Options::default()
-    };
-    let usvg_tree = usvg::Tree::from_str(&content, &opt).ok()?;
-
-    Some((SvgData::from_str(&content).ok()?, usvg_tree))
-}
-
-pub fn file_svg(exten: &str) -> Option<(SvgData, usvg::Tree)> {
-    get_svg(&format!("file_type_{}.svg", exten))
-}
-
-fn symbol_svg(kind: &SymbolKind) -> Option<(SvgData, usvg::Tree)> {
-    let kind_str = match kind {
-        SymbolKind::Array => "array",
-        SymbolKind::Boolean => "boolean",
-        SymbolKind::Class => "class",
-        SymbolKind::Constant => "constant",
-        SymbolKind::EnumMember => "enum-member",
-        SymbolKind::Enum => "enum",
-        SymbolKind::Event => "event",
-        SymbolKind::Field => "field",
-        SymbolKind::File => "file",
-        SymbolKind::Interface => "interface",
-        SymbolKind::Key => "key",
-        SymbolKind::Function => "method",
-        SymbolKind::Method => "method",
-        SymbolKind::Object => "namespace",
-        SymbolKind::Namespace => "namespace",
-        SymbolKind::Number => "numeric",
-        SymbolKind::Operator => "operator",
-        SymbolKind::TypeParameter => "parameter",
-        SymbolKind::Property => "property",
-        SymbolKind::String => "string",
-        SymbolKind::Struct => "structure",
-        SymbolKind::Variable => "variable",
-        _ => return None,
-    };
-
-    get_svg(&format!("symbol-{}.svg", kind_str))
 }
 
 impl Widget<LapceUIState> for PaletteInput {

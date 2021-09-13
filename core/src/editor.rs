@@ -22,7 +22,6 @@ use crate::{
     },
     completion::ScoredCompletionItem,
     container::LapceContainer,
-    explorer::ICONS_DIR,
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     scroll::LapceScroll,
     split::SplitMoveDirection,
@@ -5752,23 +5751,7 @@ impl Widget<LapceUIState> for Editor {
                     if let Some(code_actions) =
                         buffer.code_actions.get(&code_action_offset)
                     {
-                        if code_actions.len() > 0 {
-                            let svg = SvgData::from_str(
-                                ICONS_DIR
-                                    .get_file("lightbulb.svg")
-                                    .unwrap()
-                                    .contents_utf8()
-                                    .unwrap(),
-                            )
-                            .unwrap();
-                            svg.to_piet(
-                                Affine::translate(Vec2::new(
-                                    0.0,
-                                    line_height * line as f64 + 5.0,
-                                )),
-                                ctx,
-                            );
-                        }
+                        if code_actions.len() > 0 {}
                     }
                 }
             }
