@@ -3,11 +3,11 @@ use bit_vec::BitVec;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
     kurbo::{Line, Rect},
-    piet::TextAttribute,
+    piet::{Svg, TextAttribute},
+    widget::Container,
     widget::FillStrat,
     widget::IdentityWrapper,
     widget::SvgData,
-    widget::{Container, Svg},
     Affine, Command, ExtEventSink, FontFamily, FontWeight, Insets, KeyEvent, Lens,
     Target, Vec2, WidgetId, WindowId,
 };
@@ -242,7 +242,7 @@ impl PaletteItemContent {
                 (line_height - width) / 2.0 + 5.0,
                 (line_height - height) / 2.0 + line_height * line as f64,
             ));
-            svg.paint(ctx, rect, None);
+            ctx.draw_svg(&svg, rect, None);
         }
 
         let svg_x = match &self {
@@ -2884,13 +2884,7 @@ fn filter_items(input: &str, items: Vec<PaletteItem>) -> Vec<PaletteItem> {
 fn file_paint_items(
     path: &PathBuf,
     indices: &[usize],
-) -> (
-    Option<crate::svg::Svg>,
-    String,
-    Vec<usize>,
-    String,
-    Vec<usize>,
-) {
+) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>) {
     let svg = file_svg_new(
         &path
             .extension()

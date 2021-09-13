@@ -770,7 +770,7 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
                 (30.0 - width) / 2.0,
                 (30.0 - height) / 2.0,
             ));
-            svg.paint(ctx, rect, None);
+            ctx.draw_svg(&svg, rect, None);
         }
 
         let mut file_name = path
@@ -850,7 +850,7 @@ impl LapceEditorGutter {
                     - data.editor.scroll_offset.y,
             ));
             let color = env.get(LapceTheme::EDITOR_WARN);
-            svg.paint(ctx, rect, Some(&color));
+            ctx.draw_svg(&svg, rect, Some(&color));
         }
     }
 }

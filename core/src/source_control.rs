@@ -487,7 +487,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         (line_height - width) / 2.0 + line_height,
                         (line_height - height) / 2.0 + y,
                     ));
-                svg.paint(ctx, rect, None);
+                ctx.draw_svg(&svg, rect, None);
             }
             let file_name = path
                 .file_name()

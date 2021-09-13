@@ -3,7 +3,7 @@ use std::{cmp::Ordering, collections::HashMap, fmt::Display, sync::Arc};
 use anyhow::Error;
 use bit_vec::BitVec;
 use druid::{
-    piet::{Text, TextAttribute, TextLayoutBuilder},
+    piet::{Svg, Text, TextAttribute, TextLayoutBuilder},
     scroll_component::ScrollComponent,
     theme,
     widget::SvgData,
@@ -28,7 +28,6 @@ use crate::{
     scroll::{LapceIdentityWrapper, LapceScrollNew},
     state::LapceUIState,
     state::LAPCE_APP_STATE,
-    svg::Svg,
     theme::LapceTheme,
 };
 
@@ -702,7 +701,7 @@ impl Widget<LapceTabData> for CompletionNew {
                         (line_height - width) / 2.0,
                         (line_height - height) / 2.0 + line_height * line as f64,
                     ));
-                svg.paint(ctx, rect, Some(&color));
+                ctx.draw_svg(&svg, rect, Some(&color));
             }
 
             let focus_color = Color::rgb8(0, 0, 0);
