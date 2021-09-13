@@ -989,7 +989,7 @@ dependencies = [
  "tracing-wasm",
  "unic-langid",
  "unicode-segmentation",
- "usvg 0.14.1",
+ "usvg",
  "winit",
  "xi-unicode 0.3.0",
 ]
@@ -1022,7 +1022,7 @@ dependencies = [
  "instant",
  "js-sys",
  "keyboard-types",
- "kurbo 0.8.1",
+ "kurbo",
  "lazy_static 1.4.0",
  "objc",
  "piet-common",
@@ -1211,18 +1211,6 @@ dependencies = [
  "servo-fontconfig",
  "walkdir",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "fontdb"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccfec742e7db963305c1d8fde9edef949b47b01e1664dae127489928633fbea8"
-dependencies = [
- "log",
- "memmap2 0.1.0",
- "ttf-parser 0.9.0",
- "uuid 0.8.2",
 ]
 
 [[package]]
@@ -2040,15 +2028,6 @@ dependencies = [
 
 [[package]]
 name = "kurbo"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16cb54cd28cb3d2e964d9444ca185676a94fd9b7cce5f02b22c717947ed8e9a2"
-dependencies = [
- "arrayvec 0.5.2",
-]
-
-[[package]]
-name = "kurbo"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e30b1df631d23875f230ed3ddd1a88c231f269a04b2044eb6ca87e763b5f4c42"
@@ -2111,8 +2090,8 @@ dependencies = [
  "tree-sitter-rust",
  "unicode-segmentation",
  "unicode-width",
- "usvg 0.12.0",
- "uuid 0.7.4",
+ "usvg",
+ "uuid",
  "xi-core-lib",
  "xi-rope 0.3.0",
  "xi-rpc",
@@ -3023,15 +3002,19 @@ dependencies = [
 
 [[package]]
 name = "pico-args"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28b9b4df73455c861d7cbf8be42f01d3b373ed7f02e378d55fa84eafc6f638b1"
-
-[[package]]
-name = "pico-args"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db8bcd96cb740d03149cbad5518db9fd87126a10ab519c011893b1754134c468"
+
+[[package]]
+name = "piet"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31bf73f4f995c6ae50f709ff3635e466d1e42d814a84099ea0f90da9dd0f0b69"
+dependencies = [
+ "kurbo",
+ "unic-bidi",
+]
 
 [[package]]
 name = "piet"
@@ -3039,16 +3022,7 @@ version = "0.5.0-pre1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e2a9423cf762dd366a7cc1fafe9eacc66e2cca12564f231e5740022fe3e9bd0"
 dependencies = [
- "kurbo 0.8.1",
- "unic-bidi",
-]
-
-[[package]]
-name = "piet"
-version = "0.5.0-pre1"
-source = "git+https://github.com/linebender/piet#87c0690a98a3511b657456085ec5d295e792628e"
-dependencies = [
- "kurbo 0.8.1",
+ "kurbo",
  "unic-bidi",
 ]
 
@@ -3063,7 +3037,7 @@ dependencies = [
  "pango",
  "pango-sys",
  "pangocairo",
- "piet 0.5.0-pre1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "piet 0.5.0-pre1",
  "unicode-segmentation",
  "xi-unicode 0.3.0",
 ]
@@ -3078,7 +3052,7 @@ dependencies = [
  "cairo-sys-rs",
  "cfg-if 1.0.0",
  "core-graphics 0.22.2",
- "piet 0.5.0-pre1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "piet 0.5.0-pre1",
  "piet-cairo",
  "piet-coregraphics",
  "piet-direct2d",
@@ -3098,7 +3072,7 @@ dependencies = [
  "core-graphics 0.22.2",
  "core-text",
  "foreign-types",
- "piet 0.5.0-pre1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "piet 0.5.0-pre1",
 ]
 
 [[package]]
@@ -3109,7 +3083,7 @@ checksum = "bb06801806103d6d0bafaf89ac285129da1b5783530f4e83162ac079b199dd07"
 dependencies = [
  "associative-cache",
  "dwrote",
- "piet 0.5.0-pre1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "piet 0.5.0-pre1",
  "utf16_lit",
  "winapi 0.3.9",
  "wio",
@@ -3122,7 +3096,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57790afb197978c66f454a3eac6d5bf36d41bb28ae85fbb9132ef8b042e6d6e7"
 dependencies = [
  "js-sys",
- "piet 0.5.0-pre1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "piet 0.5.0-pre1",
  "unicode-segmentation",
  "wasm-bindgen",
  "web-sys",
@@ -3140,9 +3114,10 @@ dependencies = [
  "linked-hash-map",
  "lyon",
  "pathfinder_geometry",
- "piet 0.5.0-pre1 (git+https://github.com/linebender/piet)",
+ "piet 0.4.0",
  "raw-window-handle",
  "rustc-hash",
+ "usvg",
  "wgpu",
 ]
 
@@ -3500,15 +3475,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcd16c61e9205949fa4f8a22096705b4c2f8b8025b2ff67ff6c86afd854039ae"
 dependencies = [
  "petgraph 0.6.0",
-]
-
-[[package]]
-name = "roxmltree"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbf7d7b1ea646d380d0e8153158063a6da7efe30ddbf3184042848e3f8a6f671"
-dependencies = [
- "xmlparser",
 ]
 
 [[package]]
@@ -4454,33 +4420,6 @@ dependencies = [
 
 [[package]]
 name = "usvg"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05a7ff57fca79848360bd2c00072a8029543cf554fe49c4d0af247271434702e"
-dependencies = [
- "base64 0.13.0",
- "data-url",
- "flate2",
- "fontdb 0.3.0",
- "kurbo 0.7.1",
- "log",
- "memmap2 0.1.0",
- "pico-args 0.3.4",
- "rctree",
- "roxmltree 0.13.1",
- "rustybuzz",
- "simplecss",
- "siphasher",
- "svgtypes",
- "ttf-parser 0.9.0",
- "unicode-bidi",
- "unicode-script",
- "unicode-vo",
- "xmlwriter",
-]
-
-[[package]]
-name = "usvg"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef8352f317d8f9a918ba5154797fb2a93e2730244041cf7d5be35148266adfa5"
@@ -4488,13 +4427,13 @@ dependencies = [
  "base64 0.13.0",
  "data-url",
  "flate2",
- "fontdb 0.5.4",
- "kurbo 0.8.1",
+ "fontdb",
+ "kurbo",
  "log",
  "memmap2 0.2.3",
- "pico-args 0.4.2",
+ "pico-args",
  "rctree",
- "roxmltree 0.14.1",
+ "roxmltree",
  "rustybuzz",
  "simplecss",
  "siphasher",
@@ -4519,15 +4458,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90dbc611eb48397705a6b0f6e917da23ae517e4d127123d2cf7674206627d32a"
 dependencies = [
  "rand 0.6.5",
-]
-
-[[package]]
-name = "uuid"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-dependencies = [
- "getrandom",
 ]
 
 [[package]]

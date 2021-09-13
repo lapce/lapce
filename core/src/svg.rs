@@ -19,11 +19,7 @@ pub struct Svg {
 
 impl Svg {
     pub fn paint(&self, ctx: &mut PaintCtx, rect: Rect, color: Option<&Color>) {
-        let svg_size = self.size();
-        let scale =
-            (rect.width() / svg_size.width).min(rect.height() / svg_size.height);
-        let affine = Affine::new([scale, 0.0, 0.0, scale, rect.x0, rect.y0]);
-        self.to_piet(affine, ctx, color);
+        ctx.draw_svg(&*self.tree, rect, color);
     }
 
     pub fn to_piet(
