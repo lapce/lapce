@@ -27,7 +27,7 @@ use druid::{
     Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod, WindowId,
 };
 use parking_lot::Mutex;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, ops::Index, sync::Arc};
 
 pub struct LapceTab {
     window_id: WindowId,
@@ -813,6 +813,31 @@ impl LapceWindowNew {
         ctx.request_layout();
         return;
     }
+
+    pub fn close_tab(&mut self, ctx: &mut EventCtx, data: &mut LapceWindowData) {
+        if data.tabs.len() == 1 {
+            return;
+        }
+
+        self.tabs.remove(data.active);
+        if let Some(tab) = data.tabs.remove(&data.active_id) {
+            tab.proxy.stop();
+        }
+
+        if data.active >= self.tabs.len() {
+            data.active = self.tabs.len() - 1;
+        }
+        data.active_id = self.tabs[data.active].id();
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::FocusTab,
+            Target::Auto,
+        ));
+        ctx.children_changed();
+        ctx.set_handled();
+        ctx.request_layout();
+    }
 }
 
 impl Widget<LapceWindowData> for LapceWindowNew {
@@ -833,6 +858,10 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     }
                     LapceUICommand::NewTab => {
                         self.new_tab(ctx, data, None, false);
+                        return;
+                    }
+                    LapceUICommand::CloseTab => {
+                        self.close_tab(ctx, data);
                         return;
                     }
                     LapceUICommand::NextTab => {

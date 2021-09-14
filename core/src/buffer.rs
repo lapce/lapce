@@ -188,7 +188,6 @@ pub struct BufferNew {
     pub rope: Rope,
     pub path: PathBuf,
     pub new_text_layouts: Rc<RefCell<Vec<Option<Arc<StyledTextLayout>>>>>,
-    pub text_layouts: im::Vector<Arc<Option<Arc<StyledTextLayout>>>>,
     pub line_styles: Rc<RefCell<Vec<Option<Arc<Vec<(usize, usize, Style)>>>>>>,
     pub styles: Spans<Style>,
     pub semantic_tokens: bool,
@@ -230,7 +229,6 @@ impl BufferNew {
             rope,
             language,
             path,
-            text_layouts: im::Vector::new(),
             new_text_layouts: Rc::new(RefCell::new(Vec::new())),
             styles: SpansBuilder::new(0).build(),
             line_styles: Rc::new(RefCell::new(Vec::new())),
@@ -268,8 +266,6 @@ impl BufferNew {
             code_actions: im::HashMap::new(),
             syntax_tree: None,
         };
-        buffer.text_layouts =
-            im::Vector::from(vec![Arc::new(None); buffer.num_lines()]);
         *buffer.line_styles.borrow_mut() = vec![None; buffer.num_lines()];
         *buffer.new_text_layouts.borrow_mut() = vec![None; buffer.num_lines()];
         buffer
@@ -313,7 +309,6 @@ impl BufferNew {
         self.max_len = max_len;
         self.max_len_line = max_len_line;
         self.num_lines = self.num_lines();
-        self.text_layouts = im::Vector::from(vec![Arc::new(None); self.num_lines]);
         *self.new_text_layouts.borrow_mut() = vec![None; self.num_lines()];
         *self.line_styles.borrow_mut() = vec![None; self.num_lines()];
         self.loaded = true;
@@ -492,26 +487,26 @@ impl BufferNew {
         theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) {
-        if line >= self.text_layouts.len() {
-            return;
-        }
-        let styles = self.get_line_styles(line);
-        if self.text_layouts[line].is_none() || {
-            let old_styles =
-                (*self.text_layouts[line]).as_ref().unwrap().styles.clone();
-            if old_styles.same(&styles) {
-                false
-            } else {
-                let changed = *old_styles != *styles;
-                changed
-            }
-        } {
-            let line_content = self.line_content(line);
-            self.text_layouts[line] = Arc::new(Some(Arc::new(
-                self.get_text_layout(text, line_content, styles, theme, env),
-            )));
-            return;
-        }
+        // if line >= self.text_layouts.len() {
+        //     return;
+        // }
+        // let styles = self.get_line_styles(line);
+        // if self.text_layouts[line].is_none() || {
+        //     let old_styles =
+        //         (*self.text_layouts[line]).as_ref().unwrap().styles.clone();
+        //     if old_styles.same(&styles) {
+        //         false
+        //     } else {
+        //         let changed = *old_styles != *styles;
+        //         changed
+        //     }
+        // } {
+        //     let line_content = self.line_content(line);
+        //     self.text_layouts[line] = Arc::new(Some(Arc::new(
+        //         self.get_text_layout(text, line_content, styles, theme, env),
+        //     )));
+        //     return;
+        // }
     }
 
     fn get_line_styles(&self, line: usize) -> Arc<Vec<(usize, usize, Style)>> {
@@ -1177,11 +1172,11 @@ impl BufferNew {
     }
 
     fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
-        let right = self.text_layouts.split_off(inval_lines.start_line);
-        let right = right.skip(inval_lines.inval_count);
-        let new = im::Vector::from(vec![Arc::new(None); inval_lines.new_count]);
-        self.text_layouts.append(new);
-        self.text_layouts.append(right);
+        // let right = self.text_layouts.split_off(inval_lines.start_line);
+        // let right = right.skip(inval_lines.inval_count);
+        // let new = im::Vector::from(vec![Arc::new(None); inval_lines.new_count]);
+        // self.text_layouts.append(new);
+        // self.text_layouts.append(right);
     }
 
     fn mk_new_rev(

@@ -465,12 +465,9 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 if checked {
                     let mut path = BezPath::new();
                     path.move_to((origin.x + 3.0, origin.y + 7.0));
-                    path.line_to((origin.x + 6.0, origin.y + 10.0));
+                    path.line_to((origin.x + 6.0, origin.y + 9.5));
                     path.line_to((origin.x + 10.0, origin.y + 3.0));
-                    let style = StrokeStyle::new()
-                        .line_cap(LineCap::Round)
-                        .line_join(LineJoin::Round);
-                    ctx.stroke_styled(path, &Color::rgb8(0, 0, 0), 2., &style);
+                    ctx.stroke(path, &Color::rgb8(0, 0, 0), 2.0);
                 }
             }
             let svg = file_svg_new(
