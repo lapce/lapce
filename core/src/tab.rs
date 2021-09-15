@@ -161,13 +161,15 @@ impl Widget<LapceTabData> for LapceTabNew {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::UpdateWindowOrigin => {
-                        data.window_origin = ctx.window_origin();
+                        let window_origin = ctx.window_origin();
+                        if data.window_origin != window_origin {
+                            data.window_origin = window_origin;
+                        }
                     }
                     LapceUICommand::LoadBuffer { path, content } => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).load_content(content);
-                        data.main_split.notify_update_text_layouts(ctx, path);
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateDiffFiles(files) => {
@@ -243,7 +245,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).load_content(content);
-                        data.main_split.notify_update_text_layouts(ctx, path);
                         data.main_split.go_to_location(
                             ctx,
                             *editor_view_id,
@@ -339,8 +340,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                                     buffer.load_content(new_content);
                                     buffer.rev = *rev;
                                     let path = buffer.path.clone();
-                                    data.main_split
-                                        .notify_update_text_layouts(ctx, &path);
                                 }
                                 break;
                             }
@@ -394,7 +393,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                             highlights.to_owned(),
                             *semantic_tokens,
                         );
-                        data.main_split.notify_update_text_layouts(ctx, path);
                         ctx.set_handled();
                     }
                     LapceUICommand::FocusSourceControl => {

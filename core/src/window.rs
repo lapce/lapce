@@ -124,7 +124,6 @@ impl Widget<LapceUIState> for LapceTab {
                             let buffer =
                                 editor_split.buffers.get_mut(buffer_id).unwrap();
                             buffer.reload(*rev, new_content);
-                            editor_split.notify_fill_text_layouts(ctx, buffer_id);
                         }
                         LapceUICommand::UpdateLineChanges(buffer_id) => {
                             let state = LAPCE_APP_STATE

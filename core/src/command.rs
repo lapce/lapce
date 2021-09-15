@@ -227,7 +227,6 @@ pub enum LapceUICommand {
     },
     SetWorkspace(LapceWorkspace),
     OpenFile(PathBuf),
-    FillTextLayouts,
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, CompletionItem),
     UpdateCompletion(usize, String, CompletionResponse),

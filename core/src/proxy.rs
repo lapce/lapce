@@ -376,14 +376,6 @@ impl Handler for ProxyHandler {
                 }
                 buffer.semantic_tokens = Some(tokens);
                 buffer.line_highlights = HashMap::new();
-                for (view_id, editor) in editor_split.editors.iter() {
-                    if editor.buffer_id.as_ref() == Some(&buffer_id) {
-                        LAPCE_APP_STATE.submit_ui_command(
-                            LapceUICommand::FillTextLayouts,
-                            view_id.clone(),
-                        );
-                    }
-                }
             }
             Notification::UpdateGit {
                 buffer_id,

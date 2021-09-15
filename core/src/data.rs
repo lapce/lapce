@@ -653,18 +653,6 @@ pub struct LapceMainSplitData {
 }
 
 impl LapceMainSplitData {
-    pub fn notify_update_text_layouts(&self, ctx: &mut EventCtx, path: &PathBuf) {
-        for (editor_id, editor) in &self.editors {
-            if &editor.buffer == path {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::FillTextLayouts,
-                    Target::Widget(*editor_id),
-                ));
-            }
-        }
-    }
-
     pub fn editor_kind(&self, kind: &EditorKind) -> &LapceEditorData {
         match kind {
             EditorKind::PalettePreview => {
@@ -817,7 +805,6 @@ impl LapceMainSplitData {
         let buffer = self.open_files.get_mut(path)?;
         let delta =
             Arc::make_mut(buffer).edit_multiple(ctx, edits, proxy, edit_type);
-        self.notify_update_text_layouts(ctx, path);
         self.cursor_apply_delta(path, &delta);
         self.update_diagnositcs_offset(path, &delta);
         Some(delta)
@@ -1145,9 +1132,13 @@ impl LapceEditorViewData {
 
     pub fn sync_buffer_position(&mut self, scroll_offset: Vec2) {
         let cursor_offset = self.editor.cursor.offset();
-        let buffer = self.buffer_mut();
-        buffer.cursor_offset = cursor_offset;
-        buffer.scroll_offset = scroll_offset;
+        if self.buffer.cursor_offset != cursor_offset
+            || self.buffer.scroll_offset != scroll_offset
+        {
+            let buffer = self.buffer_mut();
+            buffer.cursor_offset = cursor_offset;
+            buffer.scroll_offset = scroll_offset;
+        }
     }
 
     pub fn fill_text_layouts(
@@ -1156,18 +1147,18 @@ impl LapceEditorViewData {
         theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) {
-        let start = std::time::SystemTime::now();
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        let start_line = (self.editor.scroll_offset.y / line_height) as usize;
-        let size = self.editor.size;
-        let num_lines = ((size.height / line_height).ceil()) as usize;
-        let text = ctx.text();
-        let buffer = self.buffer_mut();
-        for line in start_line..start_line + num_lines + 1 {
-            buffer.update_line_layouts(text, line, theme, env);
-        }
-        let end = std::time::SystemTime::now();
-        let duration = end.duration_since(start).unwrap().as_micros();
+        // let start = std::time::SystemTime::now();
+        // let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        // let start_line = (self.editor.scroll_offset.y / line_height) as usize;
+        // let size = self.editor.size;
+        // let num_lines = ((size.height / line_height).ceil()) as usize;
+        // let text = ctx.text();
+        // let buffer = self.buffer_mut();
+        // for line in start_line..start_line + num_lines + 1 {
+        //     buffer.update_line_layouts(text, line, theme, env);
+        // }
+        // let end = std::time::SystemTime::now();
+        // let duration = end.duration_since(start).unwrap().as_micros();
         // println!("fill text layout took {}", duration);
     }
 
@@ -1887,8 +1878,6 @@ impl LapceEditorViewData {
         } else {
             buffer.edit(ctx, &selection, c, proxy, edit_type)
         };
-        self.main_split
-            .notify_update_text_layouts(ctx, &self.editor.buffer);
         self.inactive_apply_delta(&delta);
         let selection = selection.apply_delta(&delta, after, InsertDrift::Default);
         if let Some(snippet) = self.editor.snippet.clone() {
@@ -2068,7 +2057,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             .unwrap_or(&Arc::new(vec![]))
             .clone();
         let mut editor_view = LapceEditorViewData {
-            buffer,
+            buffer: buffer.clone(),
             workspace: data.workspace.clone(),
             editor: editor.clone(),
             diagnostics: diagnostics.clone(),
@@ -2097,9 +2086,11 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
                 .editors
                 .insert(self.0, editor_view.editor.clone());
         }
-        data.main_split
-            .open_files
-            .insert(editor_view.buffer.path.clone(), editor_view.buffer.clone());
+        if !buffer.same(&editor_view.buffer) {
+            data.main_split
+                .open_files
+                .insert(editor_view.buffer.path.clone(), editor_view.buffer.clone());
+        }
 
         result
     }
@@ -2244,8 +2235,6 @@ impl KeyPressFocus for LapceEditorViewData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_undo(proxy) {
-                    self.main_split
-                        .notify_update_text_layouts(ctx, &self.editor.buffer);
                     let (iv, _) = delta.summary();
                     let line = self.buffer.line_of_offset(iv.start);
                     let offset = self.buffer.first_non_blank_character_on_line(line);
@@ -2259,8 +2248,6 @@ impl KeyPressFocus for LapceEditorViewData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_redo(proxy) {
-                    self.main_split
-                        .notify_update_text_layouts(ctx, &self.editor.buffer);
                     let (iv, _) = delta.summary();
                     let line = self.buffer.line_of_offset(iv.start);
                     let offset = self.buffer.first_non_blank_character_on_line(line);

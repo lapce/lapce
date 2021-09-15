@@ -132,8 +132,6 @@ impl Widget<LapceUIState> for LapceContainer {
                             if *rev == buffer.rev {
                                 buffer.highlights = highlights.to_owned();
                                 buffer.line_highlights = HashMap::new();
-                                editor_split
-                                    .notify_fill_text_layouts(ctx, buffer_id);
                             }
                         }
                         _ => (),

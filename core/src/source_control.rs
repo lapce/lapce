@@ -225,7 +225,7 @@ impl Widget<LapceTabData> for SourceControlNew {
         env: &Env,
     ) {
         if !data.source_control.same(&old_data.source_control) {
-            ctx.request_local_layout();
+            ctx.request_layout();
             ctx.request_paint();
         }
         self.split.update(ctx, data, env);
@@ -352,9 +352,12 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
-                        let source_control = Arc::make_mut(&mut data.source_control);
-                        source_control.active = self.widget_id;
-                        ctx.request_focus();
+                        if !ctx.is_focused() {
+                            let source_control =
+                                Arc::make_mut(&mut data.source_control);
+                            source_control.active = self.widget_id;
+                            ctx.request_focus();
+                        }
                         ctx.set_handled();
                     }
                     _ => (),

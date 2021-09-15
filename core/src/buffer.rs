@@ -131,7 +131,7 @@ pub struct BufferUpdate {
     pub rope: Rope,
     pub rev: u64,
     pub language: LapceLanguage,
-    pub highlights: Spans<Style>,
+    pub highlights: Arc<Spans<Style>>,
     pub semantic_tokens: bool,
 }
 
@@ -189,7 +189,7 @@ pub struct BufferNew {
     pub path: PathBuf,
     pub new_text_layouts: Rc<RefCell<Vec<Option<Arc<StyledTextLayout>>>>>,
     pub line_styles: Rc<RefCell<Vec<Option<Arc<Vec<(usize, usize, Style)>>>>>>,
-    pub styles: Spans<Style>,
+    pub styles: Arc<Spans<Style>>,
     pub semantic_tokens: bool,
     pub language: Option<LapceLanguage>,
     pub max_len: usize,
@@ -224,13 +224,13 @@ impl BufferNew {
     pub fn new(path: PathBuf, update_sender: Arc<Sender<UpdateEvent>>) -> Self {
         let rope = Rope::from("");
         let language = LapceLanguage::from_path(&path);
-        let mut buffer = Self {
+        let buffer = Self {
             id: BufferId::next(),
             rope,
             language,
             path,
             new_text_layouts: Rc::new(RefCell::new(Vec::new())),
-            styles: SpansBuilder::new(0).build(),
+            styles: Arc::new(SpansBuilder::new(0).build()),
             line_styles: Rc::new(RefCell::new(Vec::new())),
             semantic_tokens: false,
             max_len: 0,
@@ -478,35 +478,6 @@ impl BufferNew {
             text_layouts[line] = Some(Arc::new(text_layout));
             return;
         }
-    }
-
-    pub fn update_line_layouts(
-        &mut self,
-        text: &mut PietText,
-        line: usize,
-        theme: &Arc<HashMap<String, Color>>,
-        env: &Env,
-    ) {
-        // if line >= self.text_layouts.len() {
-        //     return;
-        // }
-        // let styles = self.get_line_styles(line);
-        // if self.text_layouts[line].is_none() || {
-        //     let old_styles =
-        //         (*self.text_layouts[line]).as_ref().unwrap().styles.clone();
-        //     if old_styles.same(&styles) {
-        //         false
-        //     } else {
-        //         let changed = *old_styles != *styles;
-        //         changed
-        //     }
-        // } {
-        //     let line_content = self.line_content(line);
-        //     self.text_layouts[line] = Arc::new(Some(Arc::new(
-        //         self.get_text_layout(text, line_content, styles, theme, env),
-        //     )));
-        //     return;
-        // }
     }
 
     fn get_line_styles(&self, line: usize) -> Arc<Vec<(usize, usize, Style)>> {
@@ -1115,7 +1086,7 @@ impl BufferNew {
         if semantic_tokens {
             self.semantic_tokens = true;
         }
-        self.styles = highlights;
+        self.styles = Arc::new(highlights);
         *self.line_styles.borrow_mut() = vec![None; self.num_lines];
     }
 
@@ -1152,7 +1123,7 @@ impl BufferNew {
     }
 
     fn update_line_styles(&mut self, delta: &RopeDelta, inval_lines: &InvalLines) {
-        self.styles.apply_shape(delta);
+        Arc::make_mut(&mut self.styles).apply_shape(delta);
         let mut line_styles = self.line_styles.borrow_mut();
         let mut right = line_styles.split_off(inval_lines.start_line);
         let right = &right[inval_lines.inval_count..];
@@ -1169,14 +1140,6 @@ impl BufferNew {
         let mut new = vec![None; inval_lines.new_count];
         text_layouts.append(&mut new);
         text_layouts.extend_from_slice(right);
-    }
-
-    fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
-        // let right = self.text_layouts.split_off(inval_lines.start_line);
-        // let right = right.skip(inval_lines.inval_count);
-        // let new = im::Vector::from(vec![Arc::new(None); inval_lines.new_count]);
-        // self.text_layouts.append(new);
-        // self.text_layouts.append(right);
     }
 
     fn mk_new_rev(
@@ -1288,7 +1251,6 @@ impl BufferNew {
             new_count: new_hard_count,
         };
         self.update_size(&inval_lines);
-        self.update_text_layouts(&inval_lines);
         self.update_new_text_layouts(&inval_lines);
         self.update_line_styles(&delta, &inval_lines);
         self.notify_update();
@@ -1737,17 +1699,6 @@ impl Buffer {
         let window_id = self.window_id;
         let tab_id = self.tab_id;
         let buffer_id = self.id;
-        thread::spawn(move || {
-            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-            for (view_id, editor) in state.editor_split.lock().editors.iter() {
-                if editor.buffer_id.as_ref() == Some(&buffer_id) {
-                    LAPCE_APP_STATE.submit_ui_command(
-                        LapceUICommand::FillTextLayouts,
-                        view_id.clone(),
-                    );
-                }
-            }
-        });
         None
     }
 
@@ -2290,73 +2241,6 @@ impl Buffer {
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
     }
-
-    pub fn update_line_layouts(
-        &mut self,
-        text: &mut PietText,
-        line: usize,
-        env: &Env,
-    ) -> bool {
-        // if line >= self.num_lines() {
-        //     return false;
-        // }
-
-        // let theme = &LAPCE_STATE.theme;
-
-        // let line_hightlight = self.get_line_highligh(line).clone();
-        // if self.text_layouts[line].is_none()
-        //     || self.text_layouts[line]
-        //         .as_ref()
-        //         .as_ref()
-        //         .unwrap()
-        //         .highlights
-        //         != line_hightlight
-        // {
-        //     let line_content = self
-        //         .slice_to_cow(
-        //             self.offset_of_line(line)..self.offset_of_line(line + 1),
-        //         )
-        //         .to_string();
-        //     self.text_layouts[line] = Arc::new(Some(self.get_text_layout(
-        //         text,
-        //         theme,
-        //         line,
-        //         line_content,
-        //         env,
-        //     )));
-        //     return true;
-        // }
-
-        false
-    }
-
-    // pub fn get_text_layout(
-    //     &mut self,
-    //     text: &mut PietText,
-    //     theme: &HashMap<String, Color>,
-    //     line: usize,
-    //     line_content: String,
-    //     env: &Env,
-    // ) -> HighlightTextLayout {
-    //     let mut layout_builder = text
-    //         .new_text_layout(line_content.clone())
-    //         .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-    //         .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-    //     for (start, end, hl) in self.get_line_highligh(line) {
-    //         if let Some(color) = theme.get(hl) {
-    //             layout_builder = layout_builder.range_attribute(
-    //                 start..end,
-    //                 TextAttribute::TextColor(color.clone()),
-    //             );
-    //         }
-    //     }
-    //     let layout = layout_builder.build().unwrap();
-    //     HighlightTextLayout {
-    //         layout,
-    //         text: line_content,
-    //         highlights: self.get_line_highligh(line).clone(),
-    //     }
-    // }
 
     pub fn get_document(&self) -> String {
         self.rope.to_string()
@@ -2983,16 +2867,6 @@ pub fn start_buffer_highlights(
             }
             buffer.highlights = highlights.to_owned();
             buffer.line_highlights = HashMap::new();
-
-            for (view_id, editor) in editor_split.editors.iter() {
-                if editor.buffer_id.as_ref() == Some(&buffer_id) {
-                    event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::FillTextLayouts,
-                        Target::Widget(view_id.clone()),
-                    );
-                }
-            }
         }
 
         if !parsers.contains_key(&language) {
