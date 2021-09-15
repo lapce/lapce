@@ -635,9 +635,6 @@ impl Widget<LapceTabData> for LapceTabNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        // let rect = ctx.size().to_rect();
-        // ctx.blurred_rect(rect, 5.0, &Color::grey8(180));
-
         self.main_split.paint(ctx, data, env);
         for (_, panel) in data.panels.iter() {
             if panel.is_shown() {

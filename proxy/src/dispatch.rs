@@ -552,7 +552,6 @@ impl Dispatcher {
                 });
             }
             Request::Save { rev, buffer_id } => {
-                eprintln!("receive save");
                 let mut buffers = self.buffers.lock();
                 let buffer = buffers.get_mut(&buffer_id).unwrap();
                 let resp = buffer.save(rev).map(|r| json!({}));

@@ -255,6 +255,7 @@ impl Data for LapceTabData {
             && self.source_control.same(&other.source_control)
             && self.panels.same(&other.panels)
             && self.panel_size.same(&other.panel_size)
+            && self.window_origin.same(&other.window_origin)
     }
 }
 

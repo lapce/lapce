@@ -590,7 +590,6 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                 ctx.request_paint();
             }
             LifeCycle::Size(size) => {
-                println!("size change {:?}", self.container_id);
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSize,

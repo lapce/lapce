@@ -1232,7 +1232,6 @@ impl BufferNew {
                 a.1.cmp(&b.0)
             }
         });
-        println!("interval rope {:?}", interval_rope);
         for (start, end, rope) in interval_rope.into_iter() {
             builder.replace(start..end, rope);
         }
@@ -1240,7 +1239,6 @@ impl BufferNew {
         self.this_edit_type = edit_type;
         let undo_group = self.calculate_undo_group();
         self.last_edit_type = self.this_edit_type;
-        println!("undo group {}", undo_group);
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
 
