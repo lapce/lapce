@@ -538,60 +538,12 @@ impl BufferNew {
             }
         }
         let layout = layout_builder.build().unwrap();
-        layout.rebuild();
         StyledTextLayout {
             layout,
             text: line_content,
             styles,
         }
     }
-
-    pub fn get_text_layout(
-        &mut self,
-        text: &mut PietText,
-        line_content: String,
-        styles: Arc<Vec<(usize, usize, Style)>>,
-        theme: &Arc<HashMap<String, Color>>,
-        env: &Env,
-    ) -> StyledTextLayout {
-        let mut layout_builder = text
-            .new_text_layout(line_content.replace('\t', "    "))
-            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-        for (start, end, style) in styles.iter() {
-            if let Some(fg_color) = style.fg_color.as_ref() {
-                if let Some(fg_color) = theme.get(fg_color) {
-                    layout_builder = layout_builder.range_attribute(
-                        start..end,
-                        TextAttribute::TextColor(fg_color.clone()),
-                    );
-                }
-            }
-        }
-        let layout = layout_builder.build().unwrap();
-        StyledTextLayout {
-            layout,
-            text: line_content,
-            styles,
-        }
-    }
-
-    // pub fn col_x(&self, line: usize, col: usize, width: f64) -> f64 {
-    //     let line_content = self.line_content(line);
-    //     let col = if col > line_content.len() {
-    //         line_content.len()
-    //     } else {
-    //         col
-    //     };
-    //     let x = (line_content[..col]
-    //         .chars()
-    //         .filter_map(|c| if c == '\t' { Some('\t') } else { None })
-    //         .count()
-    //         * 3
-    //         + col) as f64
-    //         * width;
-    //     x
-    // }
 
     pub fn indent_on_line(&self, line: usize) -> String {
         let line_start_offset = self.rope.offset_of_line(line);

@@ -477,54 +477,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
-        if data.completion.status != CompletionStatus::Inactive {
-            let old_completion = &old_data.completion;
-            let completion = &data.completion;
-            let old_editor = old_data.main_split.active_editor();
-            let editor = data.main_split.active_editor();
-            if old_editor.window_origin != editor.window_origin
-                || old_completion.input != completion.input
-                || old_completion.request_id != completion.request_id
-                || !old_completion
-                    .current_items()
-                    .same(&completion.current_items())
-                || !old_completion
-                    .filtered_items
-                    .same(&completion.filtered_items)
-            {
-                let completion_origin = data.completion_origin(ctx.size(), env);
-                let rect = completion.size.to_rect().with_origin(completion_origin)
-                    + Insets::new(10.0, 10.0, 10.0, 10.0);
-                ctx.request_paint_rect(rect);
-            }
-        }
-
-        if old_data.main_split.show_code_actions || data.main_split.show_code_actions
-        {
-            let old_editor = old_data.main_split.active_editor();
-            let editor = data.main_split.active_editor();
-            if data.main_split.show_code_actions
-                != old_data.main_split.show_code_actions
-                || old_editor.window_origin != editor.window_origin
-            {
-                let origin = old_data.code_action_origin(ctx.size(), env);
-                let rect = old_data
-                    .code_action_size(ctx.text(), env)
-                    .to_rect()
-                    .with_origin(origin)
-                    .inset(10.0);
-                ctx.request_paint_rect(rect);
-
-                let origin = data.code_action_origin(ctx.size(), env);
-                let rect = data
-                    .code_action_size(ctx.text(), env)
-                    .to_rect()
-                    .with_origin(origin)
-                    .inset(10.0);
-                ctx.request_paint_rect(rect);
-            }
-        }
-
         if !old_data.panels.same(&data.panels) {
             ctx.request_layout();
         }
