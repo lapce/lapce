@@ -187,7 +187,7 @@ pub struct BufferNew {
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
-    pub new_text_layouts: Rc<RefCell<Vec<Option<Arc<StyledTextLayout>>>>>,
+    pub text_layouts: Rc<RefCell<Vec<Option<Arc<StyledTextLayout>>>>>,
     pub line_styles: Rc<RefCell<Vec<Option<Arc<Vec<(usize, usize, Style)>>>>>>,
     pub styles: Arc<Spans<Style>>,
     pub semantic_tokens: bool,
@@ -229,7 +229,7 @@ impl BufferNew {
             rope,
             language,
             path,
-            new_text_layouts: Rc::new(RefCell::new(Vec::new())),
+            text_layouts: Rc::new(RefCell::new(Vec::new())),
             styles: Arc::new(SpansBuilder::new(0).build()),
             line_styles: Rc::new(RefCell::new(Vec::new())),
             semantic_tokens: false,
@@ -267,7 +267,7 @@ impl BufferNew {
             syntax_tree: None,
         };
         *buffer.line_styles.borrow_mut() = vec![None; buffer.num_lines()];
-        *buffer.new_text_layouts.borrow_mut() = vec![None; buffer.num_lines()];
+        *buffer.text_layouts.borrow_mut() = vec![None; buffer.num_lines()];
         buffer
     }
 
@@ -309,7 +309,7 @@ impl BufferNew {
         self.max_len = max_len;
         self.max_len_line = max_len_line;
         self.num_lines = self.num_lines();
-        *self.new_text_layouts.borrow_mut() = vec![None; self.num_lines()];
+        *self.text_layouts.borrow_mut() = vec![None; self.num_lines()];
         *self.line_styles.borrow_mut() = vec![None; self.num_lines()];
         self.loaded = true;
         self.notify_update();
@@ -454,7 +454,7 @@ impl BufferNew {
         theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) {
-        let mut text_layouts = self.new_text_layouts.borrow_mut();
+        let mut text_layouts = self.text_layouts.borrow_mut();
         if line >= text_layouts.len() {
             return;
         }
@@ -474,7 +474,7 @@ impl BufferNew {
         } {
             let line_content = self.line_content(line);
             let text_layout =
-                self.get_new_text_layout(ctx, line_content, styles, theme, env);
+                self.get_text_layout(ctx, line_content, styles, theme, env);
             text_layouts[line] = Some(Arc::new(text_layout));
             return;
         }
@@ -514,7 +514,7 @@ impl BufferNew {
         line_styles
     }
 
-    pub fn get_new_text_layout(
+    pub fn get_text_layout(
         &self,
         ctx: &mut PaintCtx,
         line_content: String,
@@ -1132,8 +1132,8 @@ impl BufferNew {
         line_styles.extend_from_slice(right);
     }
 
-    fn update_new_text_layouts(&mut self, inval_lines: &InvalLines) {
-        let mut text_layouts = self.new_text_layouts.borrow_mut();
+    fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
+        let mut text_layouts = self.text_layouts.borrow_mut();
         let mut right = text_layouts.split_off(inval_lines.start_line);
         let right = &right[inval_lines.inval_count..];
 
@@ -1251,7 +1251,7 @@ impl BufferNew {
             new_count: new_hard_count,
         };
         self.update_size(&inval_lines);
-        self.update_new_text_layouts(&inval_lines);
+        self.update_text_layouts(&inval_lines);
         self.update_line_styles(&delta, &inval_lines);
         self.notify_update();
     }

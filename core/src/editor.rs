@@ -471,7 +471,7 @@ impl LapceEditorContainer {
 
         let size = Size::new(
             (width * data.buffer.max_len as f64).max(data.editor.size.width),
-            line_height * data.buffer.new_text_layouts.borrow().len() as f64
+            line_height * data.buffer.text_layouts.borrow().len() as f64
                 + data.editor.size.height
                 - line_height,
         );
@@ -505,7 +505,7 @@ impl LapceEditorContainer {
         let width = 7.6171875;
         let size = Size::new(
             (width * data.buffer.max_len as f64).max(data.editor.size.width),
-            line_height * data.buffer.new_text_layouts.borrow().len() as f64
+            line_height * data.buffer.text_layouts.borrow().len() as f64
                 + data.editor.size.height
                 - line_height,
         );
@@ -1626,7 +1626,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         let width = 7.6171875;
         Size::new(
             (width * data.buffer.max_len as f64).max(bc.max().width),
-            line_height * data.buffer.new_text_layouts.borrow().len() as f64
+            line_height * data.buffer.text_layouts.borrow().len() as f64
                 + bc.max().height
                 - line_height,
         )
@@ -1643,11 +1643,11 @@ impl Widget<LapceEditorViewData> for LapceEditor {
             if line > last_line {
                 break;
             }
-            if data.buffer.new_text_layouts.borrow().len() > line {
+            if data.buffer.text_layouts.borrow().len() > line {
                 data.buffer
                     .update_new_line_layouts(ctx, line, &data.theme, env);
                 if let Some(layout) =
-                    data.buffer.new_text_layouts.borrow()[line].as_ref()
+                    data.buffer.text_layouts.borrow()[line].as_ref()
                 {
                     ctx.draw_text(
                         &layout.layout,
