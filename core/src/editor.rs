@@ -808,7 +808,6 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
 pub struct LapceEditorGutter {
     view_id: WidgetId,
     container_id: WidgetId,
-    text_layouts: HashMap<String, EditorTextLayout>,
     width: f64,
 }
 
@@ -1637,24 +1636,30 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
-        let last_line = data.buffer.last_line();
-        for line in start_line..end_line {
-            if line > last_line {
-                break;
-            }
-            if data.buffer.text_layouts.borrow().len() > line {
-                data.buffer
-                    .update_new_line_layouts(ctx, line, &data.theme, env);
-                if let Some(layout) =
-                    data.buffer.text_layouts.borrow()[line].as_ref()
-                {
-                    ctx.draw_text(
-                        &layout.layout,
-                        Point::new(0.0, line_height * line as f64 + 5.0),
-                    );
-                }
-            }
+
+        let start_offset = data.buffer.offset_of_line(start_line);
+        let end_offset = data.buffer.offset_of_line(end_line + 1);
+        for (i, line_content) in data
+            .buffer
+            .slice_to_cow(start_offset..end_offset)
+            .split('\n')
+            .enumerate()
+        {
+            let line = i + start_line;
+            let text_layout = data.buffer.new_text_layout(
+                ctx,
+                line,
+                line_content,
+                [rect.x0, rect.x1],
+                &data.theme,
+                env,
+            );
+            ctx.draw_text(
+                &text_layout,
+                Point::new(0.0, line_height * line as f64 + 5.0),
+            );
         }
+
         self.paint_snippet(ctx, data, env);
         self.paint_diagnostics(ctx, data, env);
         if data.buffer.len() == 0 {

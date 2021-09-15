@@ -459,22 +459,10 @@ impl BufferNew {
             return;
         }
         let styles = self.get_line_styles(line);
-        if text_layouts[line].is_none() || {
-            let old_styles = text_layouts[line].as_ref().unwrap().styles.clone();
-            if old_styles.same(&styles) {
-                false
-            } else {
-                let changed = *old_styles != *styles;
-                if !changed {
-                    let text_layout = text_layouts[line].clone();
-                    text_layouts[line] = text_layout;
-                }
-                changed
-            }
-        } {
-            let line_content = self.line_content(line);
-            let text_layout =
-                self.get_text_layout(ctx, line_content, styles, theme, env);
+        if text_layouts[line].is_none()
+            || !text_layouts[line].as_ref().unwrap().styles.same(&styles)
+        {
+            let text_layout = self.get_text_layout(ctx, line, theme, env);
             text_layouts[line] = Some(Arc::new(text_layout));
             return;
         }
@@ -514,14 +502,85 @@ impl BufferNew {
         line_styles
     }
 
+    pub fn new_text_layout(
+        &self,
+        ctx: &mut PaintCtx,
+        line: usize,
+        line_content: &str,
+        bounds: [f64; 2],
+        theme: &Arc<HashMap<String, Color>>,
+        env: &Env,
+    ) -> PietTextLayout {
+        let line_content = line_content.replace('\t', "    ");
+        let styles = self.get_line_styles(line);
+        let mut layout_builder = ctx
+            .text()
+            .new_text_layout(line_content)
+            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        for (start, end, style) in styles.iter() {
+            if let Some(fg_color) = style.fg_color.as_ref() {
+                if let Some(fg_color) = theme.get(fg_color) {
+                    layout_builder = layout_builder.range_attribute(
+                        start..end,
+                        TextAttribute::TextColor(fg_color.clone()),
+                    );
+                }
+            }
+        }
+        layout_builder.build_with_bounds(bounds)
+    }
+
+    pub fn get_range_text_layout(
+        &self,
+        ctx: &mut PaintCtx,
+        line: usize,
+        range: std::ops::Range<usize>,
+        theme: &Arc<HashMap<String, Color>>,
+        env: &Env,
+    ) -> PietTextLayout {
+        let line_content = self.line_content(line);
+        let line_content = line_content.replace('\t', "    ");
+        if range.start > line_content.len() {
+            return ctx.text().new_text_layout("").build().unwrap();
+        }
+        let range = range.start..range.end.min(line_content.len());
+        let styles = self.get_line_styles(line);
+        let mut layout_builder = ctx
+            .text()
+            .new_text_layout(line_content[range.clone()].to_string())
+            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
+            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
+        for (start, end, style) in styles.iter() {
+            if let Some(fg_color) = style.fg_color.as_ref() {
+                if let Some(fg_color) = theme.get(fg_color) {
+                    if end > &range.start {
+                        let start = if start < &range.start {
+                            0
+                        } else {
+                            start - range.start
+                        };
+                        let end = end - range.start;
+                        layout_builder = layout_builder.range_attribute(
+                            start..end,
+                            TextAttribute::TextColor(fg_color.clone()),
+                        );
+                    }
+                }
+            }
+        }
+        layout_builder.build().unwrap()
+    }
+
     pub fn get_text_layout(
         &self,
         ctx: &mut PaintCtx,
-        line_content: String,
-        styles: Arc<Vec<(usize, usize, Style)>>,
+        line: usize,
         theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) -> StyledTextLayout {
+        let line_content = self.line_content(line);
+        let styles = self.get_line_styles(line);
         let mut layout_builder = ctx
             .text()
             .new_text_layout(line_content.replace('\t', "    "))
