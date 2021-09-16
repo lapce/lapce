@@ -9,7 +9,7 @@ use crate::{
     editor::EditorSplitState,
     editor::EditorUIState,
     editor::HighlightTextLayout,
-    explorer::{FileExplorerState, ICONS_DIR},
+    explorer::FileExplorerState,
     keypress::KeyPressState,
     language::TreeSitter,
     lsp::LspCatalog,
@@ -22,6 +22,7 @@ use crate::{
     source_control::SourceControlState,
 };
 use anyhow::{anyhow, Result};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Lens,
     Modifiers, Target, WidgetId, WindowId,
@@ -39,7 +40,6 @@ use serde_json::Value;
 use std::process::Child;
 use std::process::Command;
 use std::process::Stdio;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{
     collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
     sync::Arc, thread,
@@ -78,7 +78,13 @@ pub enum VisualMode {
     Blockwise,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+impl Default for VisualMode {
+    fn default() -> Self {
+        VisualMode::Normal
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy)]
 pub enum Mode {
     Insert,
     Visual,
@@ -137,7 +143,7 @@ impl LapceUIState {
             }
         }
 
-        let (sender, receiver) = channel();
+        let (sender, receiver) = unbounded();
         let state = LapceUIState {
             mode: Mode::Normal,
             buffers: Arc::new(HashMap::new()),
@@ -174,13 +180,13 @@ impl LapceUIState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(String, String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LapceWorkspace {
     pub kind: LapceWorkspaceType,
     pub path: PathBuf,

@@ -5,20 +5,22 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+itertools = "0.10.1"
+unicode-width = "0.1.8"
+unicode-segmentation = "1.7.1"
 im = { version = "15.0.0", features = ["serde"] }
 crossbeam-channel = "0.5.0"
 crossbeam-utils = "0.8.4"
 regex = "1.4.2"
-usvg = "0.12.0"
-git2 = "0.13"
+usvg = "0.14.0"
+git2 = "0.13.20"
 jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
-tree-sitter-go = "0.16.0"
+tree-sitter = "=0.19.2"
 tree-sitter-rust = "0.19.0"
 tree-sitter-highlight = "0.19.2"
-tree-sitter = "0.19.3"
 toml = "0.5.6"
 anyhow = "1.0.32"
 strum = "0.19"
@@ -27,13 +29,15 @@ lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
 xi-core-lib = "0.3.0"
-xi-rope = "0.3.0"
+xi-rope = { path = "../../xi-editor/rust/rope", features = ["serde"] }
+xi-unicode = "0.3.0"
 xi-rpc = "0.3.0"
 xi-trace = "0.2.0"
 fzyr = "0.1.2"
+fuzzy-matcher = "0.3.7"
 uuid = { version = "0.7.4", features = ["v4"] }
-lsp-types = { version = "0.82.0", features = ["proposed"] }
-druid = { version = "0.7.0", features = ["svg", "im"] }
+lsp-types = { version = "0.89.2", features = ["proposed"] }
+druid = { path = "../../druid/druid", features = ["svg", "im"] }
 lapce-proxy = { path = "../proxy" }
 
 [build-dependencies]

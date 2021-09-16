@@ -18,6 +18,7 @@ use crate::{
 #[derive(PartialEq)]
 enum KeymapMatch {
     Full(String),
+    Multiple(Vec<String>),
     Prefix,
     None,
 }
@@ -52,6 +53,7 @@ pub trait KeyPressFocus {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         count: Option<usize>,
+        env: &Env,
     );
     fn insert(&mut self, ctx: &mut EventCtx, c: &str);
 }
@@ -78,9 +80,10 @@ impl KeyPressData {
         command: &str,
         count: Option<usize>,
         focus: &mut T,
+        env: &Env,
     ) -> Result<()> {
         let cmd = LapceCommand::from_str(command)?;
-        focus.run_command(ctx, &cmd, count);
+        focus.run_command(ctx, &cmd, count, env);
         Ok(())
     }
 
@@ -109,9 +112,10 @@ impl KeyPressData {
         ctx: &mut EventCtx,
         key_event: &KeyEvent,
         focus: &mut T,
-    ) {
+        env: &Env,
+    ) -> bool {
         if key_event.key == KbKey::Shift {
-            return;
+            return false;
         }
         let mut mods = key_event.mods.clone();
         mods.set(Modifiers::SHIFT, false);
@@ -122,7 +126,7 @@ impl KeyPressData {
 
         let mode = focus.get_mode();
         if self.handle_count(&mode, &keypress) {
-            return;
+            return false;
         }
 
         let mut keypresses = self.pending_keypress.clone();
@@ -133,34 +137,56 @@ impl KeyPressData {
             KeymapMatch::None
         } else if matches.len() == 1 && matches[0].key == keypresses {
             KeymapMatch::Full(matches[0].command.clone())
+        } else if matches.len() > 1
+            && matches.iter().filter(|m| m.key != keypresses).count() == 0
+        {
+            KeymapMatch::Multiple(
+                matches.iter().map(|m| m.command.clone()).collect(),
+            )
         } else {
             KeymapMatch::Prefix
         };
         match keymatch {
             KeymapMatch::Full(command) => {
                 let count = self.count.take();
-                self.run_command(ctx, &command, count, focus);
+                self.run_command(ctx, &command, count, focus, env);
                 self.pending_keypress = Vec::new();
-                return;
+                return true;
+            }
+            KeymapMatch::Multiple(commands) => {
+                let count = self.count.take();
+                for command in commands {
+                    self.run_command(ctx, &command, count, focus, env);
+                }
+                self.pending_keypress = Vec::new();
+                return true;
             }
             KeymapMatch::Prefix => {
                 self.pending_keypress.push(keypress);
-                return;
+                return false;
             }
-            KeymapMatch::None => {}
+            KeymapMatch::None => {
+                self.pending_keypress = Vec::new();
+            }
         }
 
-        self.pending_keypress = Vec::new();
+        if mode != Mode::Insert {
+            self.handle_count(&mode, &keypress);
+            return false;
+        }
+
         self.count = None;
 
         if mods.is_empty() {
             match &key_event.key {
                 druid::keyboard_types::Key::Character(c) => {
                     focus.insert(ctx, c);
+                    return true;
                 }
                 _ => (),
             }
         }
+        false
     }
 
     fn match_keymap<T: KeyPressFocus>(
@@ -191,31 +217,54 @@ impl KeyPressData {
             .unwrap_or(Vec::new())
     }
 
+    fn check_one_condition<T: KeyPressFocus>(
+        &self,
+        condition: &str,
+        check: &T,
+    ) -> bool {
+        let condition = condition.trim();
+        let (reverse, condition) = if condition.starts_with("!") {
+            (true, &condition[1..])
+        } else {
+            (false, condition)
+        };
+        let matched = check.check_condition(condition);
+        if reverse {
+            !matched
+        } else {
+            matched
+        }
+    }
+
     fn check_condition<T: KeyPressFocus>(&self, condition: &str, check: &T) -> bool {
         let or_indics: Vec<_> = condition.match_indices("||").collect();
         let and_indics: Vec<_> = condition.match_indices("&&").collect();
         if and_indics.is_empty() {
             if or_indics.is_empty() {
-                return check.check_condition(condition);
+                return self.check_one_condition(&condition, check);
             } else {
-                return check.check_condition(&condition[..or_indics[0].0])
+                return self
+                    .check_one_condition(&condition[..or_indics[0].0], check)
                     || self
                         .check_condition(&condition[or_indics[0].0 + 2..], check);
             }
         } else {
             if or_indics.is_empty() {
-                return check.check_condition(&condition[..and_indics[0].0])
+                return self
+                    .check_one_condition(&condition[..and_indics[0].0], check)
                     && self
                         .check_condition(&condition[and_indics[0].0 + 2..], check);
             } else {
                 if or_indics[0].0 < and_indics[0].0 {
-                    return check.check_condition(&condition[..or_indics[0].0])
+                    return self
+                        .check_one_condition(&condition[..or_indics[0].0], check)
                         || self.check_condition(
                             &condition[or_indics[0].0 + 2..],
                             check,
                         );
                 } else {
-                    return check.check_condition(&condition[..and_indics[0].0])
+                    return self
+                        .check_one_condition(&condition[..and_indics[0].0], check)
                         && self.check_condition(
                             &condition[and_indics[0].0 + 2..],
                             check,
@@ -485,6 +534,7 @@ impl KeyPressState {
                         return;
                     }
                     KeymapMatch::None => {}
+                    _ => {}
                 }
             }
         }

@@ -7,9 +7,10 @@ use std::{path::PathBuf, process::Child, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use crossbeam_utils::sync::WaitGroup;
-use druid::WidgetId;
-use druid::WindowId;
+use druid::{ExtEventSink, WidgetId};
+use druid::{Target, WindowId};
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
+use lsp_types::CompletionItem;
 use lsp_types::Position;
 use lsp_types::PublishDiagnosticsParams;
 use parking_lot::{Condvar, Mutex};
@@ -22,11 +23,11 @@ use xi_rpc::Handler;
 use xi_rpc::RpcLoop;
 use xi_rpc::RpcPeer;
 
-use crate::buffer::BufferId;
 use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
 use crate::state::LAPCE_APP_STATE;
+use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 #[derive(Clone)]
 pub struct LapceProxy {
@@ -49,12 +50,14 @@ impl LapceProxy {
         proxy
     }
 
-    pub fn start(&self, workspace: LapceWorkspace) {
+    pub fn start(&self, workspace: LapceWorkspace, event_sink: ExtEventSink) {
         let proxy = self.clone();
+        *proxy.initiated.lock() = false;
+        let tab_id = self.tab_id;
         thread::spawn(move || {
             let mut child = match workspace.kind {
                 LapceWorkspaceType::Local => {
-                    Command::new("/Users/Lulu/lapce/target/release/lapce-proxy")
+                    Command::new("/Users/Lulu/.lapce/lapce-proxy")
                         .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
                         .spawn()
@@ -90,7 +93,7 @@ impl LapceProxy {
                 proxy.cond.notify_one();
             }
 
-            let mut handler = ProxyHandlerNew {};
+            let mut handler = ProxyHandlerNew { tab_id, event_sink };
             if let Err(e) =
                 looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
             {
@@ -173,6 +176,22 @@ impl LapceProxy {
         );
     }
 
+    pub fn completion_resolve(
+        &self,
+        buffer_id: BufferId,
+        completion_item: CompletionItem,
+        f: Box<dyn Callback>,
+    ) {
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
+            "completion_resolve",
+            &json!({
+                "buffer_id": buffer_id,
+                "completion_item": completion_item,
+            }),
+            f,
+        );
+    }
+
     pub fn get_signature(
         &self,
         buffer_id: BufferId,
@@ -206,13 +225,15 @@ impl LapceProxy {
     }
 
     pub fn get_files(&self, f: Box<dyn Callback>) {
-        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
-            "get_files",
-            &json!({
-                "path": "path",
-            }),
-            f,
-        );
+        if let Some(peer) = self.peer.lock().as_ref() {
+            peer.send_rpc_request_async(
+                "get_files",
+                &json!({
+                    "path": "path",
+                }),
+                f,
+            );
+        }
     }
 
     pub fn read_dir(&self, path: &PathBuf, f: Box<dyn Callback>) {
@@ -259,14 +280,16 @@ impl LapceProxy {
         position: Position,
         f: Box<dyn Callback>,
     ) {
-        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
-            "get_code_actions",
-            &json!({
-                "buffer_id": buffer_id,
-                "position": position,
-            }),
-            f,
-        );
+        if let Some(peer) = self.peer.lock().as_ref() {
+            peer.send_rpc_request_async(
+                "get_code_actions",
+                &json!({
+                    "buffer_id": buffer_id,
+                    "position": position,
+                }),
+                f,
+            );
+        }
     }
 
     pub fn get_document_formatting(
@@ -284,7 +307,10 @@ impl LapceProxy {
     }
 
     pub fn stop(&self) {
-        self.process.lock().as_mut().unwrap().kill();
+        let mut process = self.process.lock();
+        if let Some(mut p) = process.as_mut() {
+            p.kill();
+        }
     }
 }
 
@@ -295,6 +321,7 @@ pub enum Notification {
     SemanticTokens {
         rev: u64,
         buffer_id: BufferId,
+        path: PathBuf,
         tokens: Vec<(usize, usize, String)>,
     },
     UpdateGit {
@@ -339,6 +366,7 @@ impl Handler for ProxyHandler {
             Notification::SemanticTokens {
                 rev,
                 buffer_id,
+                path,
                 tokens,
             } => {
                 let state =
@@ -350,14 +378,6 @@ impl Handler for ProxyHandler {
                 }
                 buffer.semantic_tokens = Some(tokens);
                 buffer.line_highlights = HashMap::new();
-                for (view_id, editor) in editor_split.editors.iter() {
-                    if editor.buffer_id.as_ref() == Some(&buffer_id) {
-                        LAPCE_APP_STATE.submit_ui_command(
-                            LapceUICommand::FillTextLayouts,
-                            view_id.clone(),
-                        );
-                    }
-                }
             }
             Notification::UpdateGit {
                 buffer_id,
@@ -389,10 +409,6 @@ impl Handler for ProxyHandler {
                 if buffer.rev + 1 != rev {
                     return;
                 }
-                LAPCE_APP_STATE.submit_ui_command(
-                    LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
-                    self.tab_id,
-                );
             }
             Notification::ListDir { mut items } => {
                 items.sort();
@@ -523,7 +539,10 @@ pub fn start_proxy_process(
     });
 }
 
-pub struct ProxyHandlerNew {}
+pub struct ProxyHandlerNew {
+    tab_id: WidgetId,
+    event_sink: ExtEventSink,
+}
 
 impl Handler for ProxyHandlerNew {
     type Notification = Notification;
@@ -534,6 +553,53 @@ impl Handler for ProxyHandlerNew {
         ctx: &xi_rpc::RpcCtx,
         rpc: Self::Notification,
     ) {
+        match rpc {
+            Notification::SemanticTokens {
+                rev,
+                buffer_id,
+                path,
+                tokens,
+            } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSemanticTokens(
+                        buffer_id, path, rev, tokens,
+                    ),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            Notification::UpdateGit {
+                buffer_id,
+                line_changes,
+                rev,
+            } => {}
+            Notification::ReloadBuffer {
+                buffer_id,
+                new_content,
+                rev,
+            } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            Notification::PublishDiagnostics { diagnostics } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::PublishDiagnostics(diagnostics),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            Notification::ListDir { items } => {}
+            Notification::DiffFiles { files } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateDiffFiles(files),
+                    Target::Widget(self.tab_id),
+                );
+            }
+        }
     }
 
     fn handle_request(

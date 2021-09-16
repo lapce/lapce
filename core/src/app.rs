@@ -1,6 +1,5 @@
 use druid::{
-    AppLauncher, Env, LocalizedString, MenuDesc, Size, Widget, WidgetExt,
-    WindowDesc, WindowId,
+    AppLauncher, Env, LocalizedString, Size, Widget, WidgetExt, WindowDesc, WindowId,
 };
 
 use crate::{
@@ -20,15 +19,19 @@ fn build_window(data: &LapceData) -> impl Widget<LapceData> {
 }
 
 pub fn lanuch() {
-    let data = LapceData::load();
-    let local_data = data.clone();
-    let window = WindowDesc::new(move || build_window(&local_data))
-        .title(LocalizedString::new("lapce").with_placeholder("Lapce"))
-        .menu(MenuDesc::empty())
+    let mut data = LapceData::load();
+    let root = build_window(&data);
+    let window = WindowDesc::new(root)
+        .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
     let launcher = AppLauncher::with_window(window);
     let launcher = launcher.configure_env(|env, data| data.reload_env(env));
+    for (_, win) in data.windows.iter_mut() {
+        for (_, tab) in win.tabs.iter_mut() {
+            tab.start_update_process(launcher.get_external_handle());
+        }
+    }
     launcher
         .use_simple_logger()
         .launch(data)

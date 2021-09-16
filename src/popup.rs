@@ -184,16 +184,12 @@ impl Popup {
                 let result = locate(&filter, &item.label);
                 let mut filtered_item = item.clone();
                 filtered_item.score = result.score;
-                let index =
-                    match filtered_items.binary_search_by(|other_item| {
-                        filtered_item
-                            .score
-                            .partial_cmp(&other_item.score)
-                            .unwrap()
-                    }) {
-                        Ok(index) => index,
-                        Err(index) => index,
-                    };
+                let index = match filtered_items.binary_search_by(|other_item| {
+                    filtered_item.score.partial_cmp(&other_item.score).unwrap()
+                }) {
+                    Ok(index) => index,
+                    Err(index) => index,
+                };
                 filtered_items.insert(index, filtered_item);
             }
         }

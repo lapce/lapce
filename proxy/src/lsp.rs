@@ -106,6 +106,7 @@ impl LspCatalog {
 
     pub fn get_semantic_tokens(&self, buffer: &Buffer) {
         let buffer_id = buffer.id;
+        let path = buffer.path.clone();
         let rev = buffer.rev;
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let uri = client.get_uri(buffer);
@@ -131,6 +132,7 @@ impl LspCatalog {
                             json!({
                                 "rev": rev,
                                 "buffer_id": buffer_id,
+                                "path": path,
                                 "tokens": tokens,
                             }),
                         )
@@ -173,6 +175,29 @@ impl LspCatalog {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let uri = client.get_uri(buffer);
             client.request_completion(uri, position, move |lsp_client, result| {
+                let mut resp = json!({ "id": id });
+                match result {
+                    Ok(v) => resp["result"] = v,
+                    Err(e) => {
+                        resp["error"] = json!({
+                            "code": 0,
+                            "message": format!("{}",e),
+                        })
+                    }
+                }
+                lsp_client.dispatcher.sender.send(resp);
+            });
+        }
+    }
+
+    pub fn completion_resolve(
+        &self,
+        id: RequestId,
+        buffer: &Buffer,
+        completion_item: &CompletionItem,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            client.completion_resolve(completion_item, move |lsp_client, result| {
                 let mut resp = json!({ "id": id });
                 match result {
                     Ok(v) => resp["result"] = v,
@@ -525,9 +550,14 @@ impl LspClient {
     {
         let client_capabilities = ClientCapabilities {
             text_document: Some(TextDocumentClientCapabilities {
-                completion: Some(CompletionCapability {
+                completion: Some(CompletionClientCapabilities {
                     completion_item: Some(CompletionItemCapability {
-                        snippet_support: Some(false),
+                        snippet_support: Some(true),
+                        resolve_support: Some(
+                            CompletionItemCapabilityResolveSupport {
+                                properties: vec!["additionalTextEdits".to_string()],
+                            },
+                        ),
                         ..Default::default()
                     }),
                     ..Default::default()
@@ -545,7 +575,7 @@ impl LspClient {
                 //     }),
                 //     ..Default::default()
                 // }),
-                code_action: Some(CodeActionCapability {
+                code_action: Some(CodeActionClientCapabilities {
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {
                             value_set: vec![
@@ -568,18 +598,16 @@ impl LspClient {
                     }),
                     ..Default::default()
                 }),
-                semantic_highlighting_capabilities: Some(
-                    SemanticHighlightingClientCapability {
-                        semantic_highlighting: true,
-                    },
-                ),
+                semantic_tokens: Some(SemanticTokensClientCapabilities {
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
             ..Default::default()
         };
 
         let init_params = InitializeParams {
-            process_id: Some(u64::from(process::id())),
+            process_id: Some(u32::from(process::id())),
             root_uri,
             initialization_options: self.options.clone(),
             capabilities: client_capabilities,
@@ -587,6 +615,7 @@ impl LspClient {
             workspace_folders: None,
             client_info: None,
             root_path: None,
+            locale: None,
         };
 
         let params = Params::from(serde_json::to_value(init_params).unwrap());
@@ -719,6 +748,17 @@ impl LspClient {
         );
     }
 
+    pub fn completion_resolve<CB>(
+        &self,
+        completion_item: &CompletionItem,
+        on_result: CB,
+    ) where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let params = Params::from(serde_json::to_value(completion_item).unwrap());
+        self.send_request("completionItem/resolve", params, Box::new(on_result));
+    }
+
     pub fn request_signature<CB>(
         &self,
         document_uri: Url,
@@ -749,7 +789,7 @@ impl LspClient {
         let text_document_did_change_params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier {
                 uri,
-                version: Some(version as i64),
+                version: version as i32,
             },
             content_changes: changes,
         };

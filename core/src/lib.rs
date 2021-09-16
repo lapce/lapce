@@ -1,5 +1,6 @@
 pub mod app;
 pub mod buffer;
+pub mod code_action;
 pub mod command;
 pub mod completion;
 pub mod container;
@@ -21,6 +22,7 @@ pub mod source_control;
 pub mod split;
 pub mod state;
 pub mod status;
+pub mod svg;
 mod tab;
 pub mod theme;
 pub mod window;

@@ -24,4 +24,6 @@ impl LapceTheme {
         Key::new("lapce.eidtor_current_line_background");
     pub const EDITOR_SELECTION_COLOR: Key<Color> =
         Key::new("lapce.editor_selection_color");
+    pub const LIST_BACKGROUND: Key<Color> = Key::new("lapce.list_background");
+    pub const LIST_CURRENT: Key<Color> = Key::new("lapce.list_current");
 }

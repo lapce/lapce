@@ -4,6 +4,7 @@ use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
     buffer::{Buffer, BufferNew},
+    data::RegisterData,
     state::{Mode, VisualMode},
     theme::LapceTheme,
 };
@@ -39,6 +40,35 @@ impl Cursor {
         }
     }
 
+    pub fn is_normal(&self) -> bool {
+        match &self.mode {
+            CursorMode::Normal(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_insert(&self) -> bool {
+        match &self.mode {
+            CursorMode::Insert(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_visual(&self) -> bool {
+        match &self.mode {
+            CursorMode::Visual { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn get_mode(&self) -> Mode {
+        match &self.mode {
+            CursorMode::Normal(_) => Mode::Normal,
+            CursorMode::Visual { .. } => Mode::Visual,
+            CursorMode::Insert(_) => Mode::Insert,
+        }
+    }
+
     pub fn current_line(&self, buffer: &BufferNew) -> usize {
         buffer.line_of_offset(self.offset())
     }
@@ -65,23 +95,97 @@ impl Cursor {
         let offset = self.offset();
         let (line, col) = buffer.offset_to_line_col(offset);
         let width = 7.6171875;
-        let cursor_x = buffer.col_x(line, col, width) - width;
+        let cursor_x = col as f64 * width - width;
         let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
         let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
         let line = if line > 1 { line - 1 } else { 0 };
         Rect::ZERO
-            .with_origin(Point::new(cursor_x, line as f64 * line_height))
-            .with_size(Size::new(width * 3.0, line_height * 3.0))
+            .with_origin(Point::new(cursor_x.floor(), line as f64 * line_height))
+            .with_size(Size::new((width * 3.0).ceil(), line_height * 3.0))
+    }
+
+    pub fn yank(&self, buffer: &BufferNew) -> RegisterData {
+        let content = match &self.mode {
+            CursorMode::Insert(selection) => selection
+                .regions()
+                .iter()
+                .map(|r| buffer.slice_to_cow(r.min()..r.max()).to_string())
+                .collect::<Vec<String>>()
+                .join("\n"),
+            CursorMode::Normal(offset) => {
+                let new_offset =
+                    buffer.next_grapheme_offset(*offset, 1, buffer.len());
+                buffer.slice_to_cow(*offset..new_offset).to_string()
+            }
+            CursorMode::Visual { start, end, mode } => match mode {
+                VisualMode::Normal => buffer
+                    .slice_to_cow(
+                        *start.min(end)
+                            ..buffer.next_grapheme_offset(
+                                *start.max(end),
+                                1,
+                                buffer.len(),
+                            ),
+                    )
+                    .to_string(),
+                VisualMode::Linewise => {
+                    let start_offset = buffer
+                        .offset_of_line(buffer.line_of_offset(*start.min(end)));
+                    let end_offset = buffer
+                        .offset_of_line(buffer.line_of_offset(*start.max(end)) + 1);
+                    buffer.slice_to_cow(start_offset..end_offset).to_string()
+                }
+                VisualMode::Blockwise => {
+                    let mut lines = Vec::new();
+                    let (start_line, start_col) =
+                        buffer.offset_to_line_col(*start.min(end));
+                    let (end_line, end_col) =
+                        buffer.offset_to_line_col(*start.max(end));
+                    let left = start_col.min(end_col);
+                    let right = start_col.max(end_col) + 1;
+                    for line in start_line..end_line + 1 {
+                        let max_col = buffer.line_end_col(line, true);
+                        if left > max_col {
+                            lines.push("".to_string());
+                        } else {
+                            let right = match &self.horiz {
+                                Some(ColPosition::End) => max_col,
+                                _ => {
+                                    if right > max_col {
+                                        max_col
+                                    } else {
+                                        right
+                                    }
+                                }
+                            };
+                            let left = buffer.offset_of_line_col(line, left);
+                            let right = buffer.offset_of_line_col(line, right);
+                            lines.push(buffer.slice_to_cow(left..right).to_string());
+                        }
+                    }
+                    lines.join("\n") + "\n"
+                }
+            },
+        };
+        let mode = match &self.mode {
+            CursorMode::Normal(_) | CursorMode::Insert { .. } => VisualMode::Normal,
+            CursorMode::Visual { mode, .. } => mode.clone(),
+        };
+        RegisterData { content, mode }
     }
 
     pub fn edit_selection(&self, buffer: &BufferNew) -> Selection {
         match &self.mode {
             CursorMode::Insert(selection) => selection.clone(),
-            CursorMode::Normal(offset) => Selection::region(*offset, offset + 1),
+            CursorMode::Normal(offset) => Selection::region(
+                *offset,
+                buffer.next_grapheme_offset(*offset, 1, buffer.len()),
+            ),
             CursorMode::Visual { start, end, mode } => match mode {
-                VisualMode::Normal => {
-                    Selection::region(*start.min(end), start.max(end) + 1)
-                }
+                VisualMode::Normal => Selection::region(
+                    *start.min(end),
+                    buffer.next_grapheme_offset(*start.max(end), 1, buffer.len()),
+                ),
                 VisualMode::Linewise => {
                     let start_offset = buffer
                         .offset_of_line(buffer.line_of_offset(*start.min(end)));
@@ -98,7 +202,7 @@ impl Cursor {
                     let left = start_col.min(end_col);
                     let right = start_col.max(end_col) + 1;
                     for line in start_line..end_line + 1 {
-                        let max_col = buffer.line_max_col(line, true);
+                        let max_col = buffer.line_end_col(line, true);
                         if left > max_col {
                             continue;
                         }
@@ -112,12 +216,9 @@ impl Cursor {
                                 }
                             }
                         };
-                        let offset = buffer.offset_of_line(line);
-                        selection.add_region(SelRegion::new(
-                            offset + left,
-                            offset + right,
-                            None,
-                        ));
+                        let left = buffer.offset_of_line_col(line, left);
+                        let right = buffer.offset_of_line_col(line, right);
+                        selection.add_region(SelRegion::new(left, right, None));
                     }
                     selection
                 }
@@ -129,12 +230,12 @@ impl Cursor {
         match &self.mode {
             CursorMode::Normal(offset) => {
                 let mut transformer = Transformer::new(delta);
-                let new_offset = transformer.transform(*offset, true);
+                let new_offset = transformer.transform(*offset, false);
                 self.mode = CursorMode::Normal(new_offset);
             }
             CursorMode::Visual { start, end, mode } => {
                 let mut transformer = Transformer::new(delta);
-                let start = transformer.transform(*start, true);
+                let start = transformer.transform(*start, false);
                 let end = transformer.transform(*end, true);
                 self.mode = CursorMode::Visual {
                     start,
@@ -272,6 +373,13 @@ impl Selection {
         }
     }
 
+    pub fn first(&self) -> Option<&SelRegion> {
+        if self.len() == 0 {
+            return None;
+        }
+        Some(&self.regions[0])
+    }
+
     pub fn last(&self) -> Option<&SelRegion> {
         if self.len() == 0 {
             return None;
@@ -359,6 +467,15 @@ impl Selection {
 
     pub fn get_cursor_offset(&self) -> usize {
         self.regions[0].end
+    }
+
+    pub fn is_caret(&self) -> bool {
+        for region in &self.regions {
+            if !region.is_caret() {
+                return false;
+            }
+        }
+        true
     }
 
     // pub fn min(&self) -> usize {
@@ -465,19 +582,20 @@ impl Selection {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum LinePosition {
     First,
     Last,
     Line(usize),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Movement {
     Left,
     Right,
     Up,
     Down,
+    FirstNonBlank,
     StartOfLine,
     EndOfLine,
     Line(LinePosition),
@@ -543,6 +661,9 @@ impl Movement {
         count: usize,
         recursive: bool,
     ) -> usize {
+        if len == 0 {
+            return 0;
+        }
         match self {
             Movement::Up => {
                 format_index(index as i64 - count as i64, len, recursive)
@@ -626,6 +747,11 @@ impl Movement {
                 let col = buffer.line_horiz_col(line, &horiz, include_newline);
                 let new_end = buffer.offset_of_line(line) + col;
                 (new_end, horiz)
+            }
+            Movement::FirstNonBlank => {
+                let line = buffer.line_of_offset(region.end);
+                let new_end = buffer.offset_of_line(line);
+                (new_end, ColPosition::Start)
             }
             Movement::StartOfLine => {
                 let line = buffer.line_of_offset(region.end);

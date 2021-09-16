@@ -3,14 +3,10 @@ name = "lapce"
 version = "0.0.1"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
+resolver = "2"
 
 [dependencies]
 lapce-core = { path = "./core" }
-parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
-druid = { version = "0.7.0", features = ["svg"] }
-
-[build-dependencies]
-cc = "*"
 
 [workspace]
 members = ["lsp", "core", "proxy", "rpc"]

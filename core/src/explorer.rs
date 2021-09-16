@@ -18,12 +18,12 @@ use parking_lot::Mutex;
 use crate::{
     command::LapceCommand, command::LapceUICommand, command::LAPCE_UI_COMMAND,
     editor::EditorSplitState, movement::LinePosition, movement::Movement,
-    palette::file_svg, palette::svg_tree_size, panel::PanelPosition,
-    panel::PanelProperty, state::LapceFocus, state::LapceUIState,
-    state::LAPCE_APP_STATE, theme::LapceTheme,
+    palette::svg_tree_size, panel::PanelPosition, panel::PanelProperty,
+    state::LapceFocus, state::LapceUIState, state::LAPCE_APP_STATE,
+    theme::LapceTheme,
 };
 
-pub const ICONS_DIR: Dir = include_dir!("../icons");
+const ICONS_DIR: Dir = include_dir!("../icons");
 
 #[derive(Clone)]
 pub struct FileExplorerState {
@@ -437,19 +437,6 @@ impl FileExplorerState {
                             "cc" => "cpp",
                             _ => exten,
                         };
-                        if let Some((svg, svg_tree)) = file_svg(exten) {
-                            let svg_size = svg_tree_size(&svg_tree);
-                            let scale = 13.0 / svg_size.height;
-                            let affine = Affine::new([
-                                scale,
-                                0.0,
-                                0.0,
-                                scale,
-                                1.0 + 18.0 + padding,
-                                svg_y + 2.0,
-                            ]);
-                            svg.to_piet(affine, ctx);
-                        }
                     }
                 }
             }

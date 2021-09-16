@@ -1,18 +1,26 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use druid::{Rect, Selector, Size, WidgetId};
-use lsp_types::{Location, TextEdit};
+use druid::{Point, Rect, Selector, Size, WidgetId};
+use lsp_types::{
+    CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
+    PublishDiagnosticsParams, Range, TextEdit,
+};
 use serde_json::Value;
 use strum;
 use strum_macros::{Display, EnumProperty, EnumString};
+use tree_sitter::Tree;
 use tree_sitter_highlight::Highlight;
+use xi_rope::spans::Spans;
 
 use crate::{
     buffer::BufferId,
-    buffer::InvalLines,
-    editor::{EditorLocation, HighlightTextLayout},
+    buffer::{InvalLines, Style},
+    data::EditorKind,
+    editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
+    palette::{NewPaletteItem, PaletteType},
     split::SplitMoveDirection,
+    state::LapceWorkspace,
 };
 
 pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.command");
@@ -29,6 +37,8 @@ pub enum LapceCommand {
     SourceControl,
     #[strum(serialize = "source_control.cancel")]
     SourceControlCancel,
+    #[strum(serialize = "code_actions.cancel")]
+    CodeActionsCancel,
     #[strum(serialize = "palette.line")]
     PaletteLine,
     #[strum(serialize = "palette")]
@@ -67,6 +77,8 @@ pub enum LapceCommand {
     ScrollUp,
     #[strum(serialize = "scroll_down")]
     ScrollDown,
+    #[strum(serialize = "list.expand")]
+    ListExpand,
     #[strum(serialize = "list.select")]
     ListSelect,
     #[strum(serialize = "list.next")]
@@ -85,6 +97,10 @@ pub enum LapceCommand {
     SplitRight,
     #[strum(serialize = "split_left")]
     SplitLeft,
+    #[strum(serialize = "split_up")]
+    SplitUp,
+    #[strum(serialize = "split_down")]
+    SplitDown,
     #[strum(serialize = "close_tab")]
     CloseTab,
     #[strum(serialize = "new_tab")]
@@ -139,6 +155,8 @@ pub enum LapceCommand {
     Yank,
     #[strum(serialize = "paste")]
     Paste,
+    #[strum(serialize = "clipboard_copy")]
+    ClipboardCopy,
     #[strum(serialize = "clipboard_paste")]
     ClipboardPaste,
     #[strum(serialize = "undo")]
@@ -167,6 +185,10 @@ pub enum LapceCommand {
     MatchPairs,
     #[strum(serialize = "next_unmatched_right_bracket")]
     NextUnmatchedRightBracket,
+    #[strum(serialize = "jump_to_next_snippet_placeholder")]
+    JumpToNextSnippetPlaceholder,
+    #[strum(serialize = "jump_to_prev_snippet_placeholder")]
+    JumpToPrevSnippetPlaceholder,
     #[strum(serialize = "previous_unmatched_left_bracket")]
     PreviousUnmatchedLeftBracket,
     #[strum(serialize = "next_unmatched_right_curly_bracket")]
@@ -193,13 +215,38 @@ pub enum EnsureVisiblePosition {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
-    LoadBuffer { id: BufferId, content: String },
-    OpenFile(String),
-    FillTextLayouts,
+    LoadBuffer {
+        path: PathBuf,
+        content: String,
+    },
+    LoadBufferAndGoToPosition {
+        path: PathBuf,
+        content: String,
+        editor_view_id: WidgetId,
+        location: EditorLocationNew,
+    },
+    SetWorkspace(LapceWorkspace),
+    OpenFile(PathBuf),
+    CancelCompletion(usize),
+    ResolveCompletion(BufferId, u64, usize, CompletionItem),
+    UpdateCompletion(usize, String, CompletionResponse),
+    UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
+    CancelPalette,
+    ShowCodeActions,
+    CancelCodeActions,
+    Focus,
+    FocusSourceControl,
+    FocusEditor,
+    RunPalette(Option<PaletteType>),
+    RunPaletteReferences(Vec<EditorLocationNew>),
+    UpdatePaletteItems(String, Vec<NewPaletteItem>),
+    FilterPaletteItems(String, String, Vec<NewPaletteItem>),
+    UpdateWindowOrigin,
     UpdateSize,
     RequestLayout,
     RequestPaint,
     ResetFade,
+    FocusTab,
     CloseTab,
     NewTab,
     NextTab,
@@ -209,12 +256,32 @@ pub enum LapceUICommand {
     RequestPaintRect(Rect),
     ApplyEdits(usize, u64, Vec<TextEdit>),
     ApplyEditsAndSave(usize, u64, Result<Value>),
+    DocumentFormatAndSave(PathBuf, u64, Result<Value>),
+    BufferSave(PathBuf, u64),
+    UpdateSemanticTokens(BufferId, PathBuf, u64, Vec<(usize, usize, String)>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
+    UpdateStyle {
+        id: BufferId,
+        path: PathBuf,
+        rev: u64,
+        highlights: Spans<Style>,
+        semantic_tokens: bool,
+    },
+    UpdateSyntaxTree {
+        id: BufferId,
+        path: PathBuf,
+        rev: u64,
+        tree: Tree,
+    },
     CenterOfWindow,
     UpdateLineChanges(BufferId),
+    PublishDiagnostics(PublishDiagnosticsParams),
+    UpdateDiffFiles(Vec<PathBuf>),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
-    EnsureCursorVisible,
+    EnsureRectVisible(Rect),
+    EnsureCursorVisible(Option<EnsureVisiblePosition>),
+    EnsureCursorCenter,
     EditorViewSize(Size),
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
@@ -227,5 +294,12 @@ pub enum LapceUICommand {
     SplitExchange,
     SplitClose,
     SplitMove(SplitMoveDirection),
+    JumpToPosition(EditorKind, Position),
+    JumpToLine(EditorKind, usize),
+    JumpToLocation(EditorKind, EditorLocationNew),
+    GoToLocationNew(WidgetId, EditorLocationNew),
+    GotoReference(usize, EditorLocationNew),
+    GotoDefinition(usize, EditorLocationNew),
+    PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
 }
