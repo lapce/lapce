@@ -3205,6 +3205,7 @@ dependencies = [
  "font-kit",
  "futures",
  "glam",
+ "include_dir",
  "linked-hash-map",
  "lyon",
  "pathfinder_geometry",
@@ -3212,6 +3213,7 @@ dependencies = [
  "raw-window-handle",
  "rustc-hash",
  "sha2 0.9.8",
+ "unicode-width",
  "usvg",
  "wgpu",
 ]

@@ -65,6 +65,7 @@ use std::thread;
 use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
 use std::{str::FromStr, time::Duration};
+use unicode_width::UnicodeWidthStr;
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{Interval, RopeDelta};
 
@@ -1193,13 +1194,23 @@ impl LapceEditor {
 
                 if active {
                     let cursor_x = col as f64 * width;
+                    let next = data.buffer.next_grapheme_offset(
+                        *offset,
+                        1,
+                        data.buffer.len(),
+                    );
+                    let char = data.buffer.slice_to_cow(*offset..next).to_string();
+                    let char_width = UnicodeWidthStr::width(char.as_str()).max(1);
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(
                                 cursor_x,
                                 line as f64 * line_height,
                             ))
-                            .with_size(Size::new(width, line_height)),
+                            .with_size(Size::new(
+                                width * char_width as f64,
+                                line_height,
+                            )),
                         &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
                     );
                 }
@@ -1272,13 +1283,20 @@ impl LapceEditor {
 
                     let (line, col) = data.buffer.offset_to_line_col(*end);
                     let cursor_x = col as f64 * width;
+                    let next =
+                        data.buffer.next_grapheme_offset(*end, 1, data.buffer.len());
+                    let char = data.buffer.slice_to_cow(*end..next).to_string();
+                    let char_width = UnicodeWidthStr::width(char.as_str()).max(1);
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(
                                 cursor_x,
                                 line as f64 * line_height,
                             ))
-                            .with_size(Size::new(width, line_height)),
+                            .with_size(Size::new(
+                                width * char_width as f64,
+                                line_height,
+                            )),
                         &env.get(LapceTheme::EDITOR_CURSOR_COLOR),
                     );
                 }
