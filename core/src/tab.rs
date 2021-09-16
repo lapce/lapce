@@ -346,32 +346,26 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateSemanticTokens(id, rev, tokens) => {
-                        for (_, buffer) in data.main_split.open_files.iter() {
-                            if &buffer.id == id {
-                                if buffer.rev == *rev {
-                                    if let Some(language) = buffer.language.as_ref()
-                                    {
-                                        data.update_sender.send(
-                                            UpdateEvent::SemanticTokens(
-                                                BufferUpdate {
-                                                    id: buffer.id,
-                                                    path: buffer.path.clone(),
-                                                    rope: buffer.rope.clone(),
-                                                    rev: *rev,
-                                                    language: *language,
-                                                    highlights: buffer
-                                                        .styles
-                                                        .clone(),
-                                                    semantic_tokens: true,
-                                                },
-                                                tokens.to_owned(),
-                                            ),
-                                        );
-                                    }
-                                }
+                    LapceUICommand::UpdateSemanticTokens(id, path, rev, tokens) => {
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        if buffer.rev == *rev {
+                            if let Some(language) = buffer.language.as_ref() {
+                                data.update_sender.send(
+                                    UpdateEvent::SemanticTokens(
+                                        BufferUpdate {
+                                            id: buffer.id,
+                                            path: buffer.path.clone(),
+                                            rope: buffer.rope.clone(),
+                                            rev: *rev,
+                                            language: *language,
+                                            highlights: buffer.styles.clone(),
+                                            semantic_tokens: true,
+                                        },
+                                        tokens.to_owned(),
+                                    ),
+                                );
                             }
-                            break;
                         }
                         ctx.set_handled();
                     }

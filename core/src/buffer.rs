@@ -447,27 +447,6 @@ impl BufferNew {
         self.rope.len()
     }
 
-    pub fn update_new_line_layouts(
-        &self,
-        ctx: &mut PaintCtx,
-        line: usize,
-        theme: &Arc<HashMap<String, Color>>,
-        env: &Env,
-    ) {
-        let mut text_layouts = self.text_layouts.borrow_mut();
-        if line >= text_layouts.len() {
-            return;
-        }
-        let styles = self.get_line_styles(line);
-        if text_layouts[line].is_none()
-            || !text_layouts[line].as_ref().unwrap().styles.same(&styles)
-        {
-            let text_layout = self.get_text_layout(ctx, line, theme, env);
-            text_layouts[line] = Some(Arc::new(text_layout));
-            return;
-        }
-    }
-
     fn get_line_styles(&self, line: usize) -> Arc<Vec<(usize, usize, Style)>> {
         if let Some(line_styles) = self.line_styles.borrow()[line].as_ref() {
             return line_styles.clone();
@@ -529,79 +508,6 @@ impl BufferNew {
             }
         }
         layout_builder.build_with_bounds(bounds)
-    }
-
-    pub fn get_range_text_layout(
-        &self,
-        ctx: &mut PaintCtx,
-        line: usize,
-        range: std::ops::Range<usize>,
-        theme: &Arc<HashMap<String, Color>>,
-        env: &Env,
-    ) -> PietTextLayout {
-        let line_content = self.line_content(line);
-        let line_content = line_content.replace('\t', "    ");
-        if range.start > line_content.len() {
-            return ctx.text().new_text_layout("").build().unwrap();
-        }
-        let range = range.start..range.end.min(line_content.len());
-        let styles = self.get_line_styles(line);
-        let mut layout_builder = ctx
-            .text()
-            .new_text_layout(line_content[range.clone()].to_string())
-            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-        for (start, end, style) in styles.iter() {
-            if let Some(fg_color) = style.fg_color.as_ref() {
-                if let Some(fg_color) = theme.get(fg_color) {
-                    if end > &range.start {
-                        let start = if start < &range.start {
-                            0
-                        } else {
-                            start - range.start
-                        };
-                        let end = end - range.start;
-                        layout_builder = layout_builder.range_attribute(
-                            start..end,
-                            TextAttribute::TextColor(fg_color.clone()),
-                        );
-                    }
-                }
-            }
-        }
-        layout_builder.build().unwrap()
-    }
-
-    pub fn get_text_layout(
-        &self,
-        ctx: &mut PaintCtx,
-        line: usize,
-        theme: &Arc<HashMap<String, Color>>,
-        env: &Env,
-    ) -> StyledTextLayout {
-        let line_content = self.line_content(line);
-        let styles = self.get_line_styles(line);
-        let mut layout_builder = ctx
-            .text()
-            .new_text_layout(line_content.replace('\t', "    "))
-            .font(env.get(LapceTheme::EDITOR_FONT).family, 13.0)
-            .text_color(env.get(LapceTheme::EDITOR_FOREGROUND));
-        for (start, end, style) in styles.iter() {
-            if let Some(fg_color) = style.fg_color.as_ref() {
-                if let Some(fg_color) = theme.get(fg_color) {
-                    layout_builder = layout_builder.range_attribute(
-                        start..end,
-                        TextAttribute::TextColor(fg_color.clone()),
-                    );
-                }
-            }
-        }
-        let layout = layout_builder.build().unwrap();
-        StyledTextLayout {
-            layout,
-            text: line_content,
-            styles,
-        }
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {

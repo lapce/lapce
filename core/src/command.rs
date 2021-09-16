@@ -258,7 +258,7 @@ pub enum LapceUICommand {
     ApplyEditsAndSave(usize, u64, Result<Value>),
     DocumentFormatAndSave(PathBuf, u64, Result<Value>),
     BufferSave(PathBuf, u64),
-    UpdateSemanticTokens(BufferId, u64, Vec<(usize, usize, String)>),
+    UpdateSemanticTokens(BufferId, PathBuf, u64, Vec<(usize, usize, String)>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
     UpdateStyle {
         id: BufferId,

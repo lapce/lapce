@@ -321,6 +321,7 @@ pub enum Notification {
     SemanticTokens {
         rev: u64,
         buffer_id: BufferId,
+        path: PathBuf,
         tokens: Vec<(usize, usize, String)>,
     },
     UpdateGit {
@@ -365,6 +366,7 @@ impl Handler for ProxyHandler {
             Notification::SemanticTokens {
                 rev,
                 buffer_id,
+                path,
                 tokens,
             } => {
                 let state =
@@ -555,11 +557,14 @@ impl Handler for ProxyHandlerNew {
             Notification::SemanticTokens {
                 rev,
                 buffer_id,
+                path,
                 tokens,
             } => {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSemanticTokens(buffer_id, rev, tokens),
+                    LapceUICommand::UpdateSemanticTokens(
+                        buffer_id, path, rev, tokens,
+                    ),
                     Target::Widget(self.tab_id),
                 );
             }

@@ -106,6 +106,7 @@ impl LspCatalog {
 
     pub fn get_semantic_tokens(&self, buffer: &Buffer) {
         let buffer_id = buffer.id;
+        let path = buffer.path.clone();
         let rev = buffer.rev;
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let uri = client.get_uri(buffer);
@@ -131,6 +132,7 @@ impl LspCatalog {
                             json!({
                                 "rev": rev,
                                 "buffer_id": buffer_id,
+                                "path": path,
                                 "tokens": tokens,
                             }),
                         )
