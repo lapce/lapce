@@ -396,7 +396,7 @@ impl BufferNew {
     pub fn offset_of_line(&self, line: usize) -> usize {
         let last_line = self.last_line();
         let line = if line > last_line + 1 {
-            last_line
+            last_line + 1
         } else {
             line
         };
