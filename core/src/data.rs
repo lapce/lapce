@@ -2399,6 +2399,19 @@ impl KeyPressFocus for LapceEditorViewData {
             LapceCommand::ClipboardCopy => {
                 let data = self.editor.cursor.yank(&self.buffer);
                 Application::global().clipboard().put_string(data.content);
+                match &self.editor.cursor.mode {
+                    CursorMode::Visual { start, end, mode } => {
+                        let offset = *start.min(end);
+                        let offset =
+                            self.buffer.offset_line_end(offset, false).min(offset);
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Normal(offset),
+                            None,
+                        ));
+                    }
+                    CursorMode::Normal(_) => {}
+                    CursorMode::Insert(_) => {}
+                }
             }
             LapceCommand::ClipboardPaste => {
                 if let Some(s) = Application::global().clipboard().get_string() {

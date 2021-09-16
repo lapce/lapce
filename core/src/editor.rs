@@ -287,7 +287,6 @@ impl Widget<LapceTabData> for LapceEditorView {
     ) {
         self.header.update(ctx, data, env);
         self.editor.update(ctx, data, env);
-        self.editor.update(ctx, data, env);
     }
 
     fn layout(
@@ -816,7 +815,6 @@ impl LapceEditorGutter {
         Self {
             view_id,
             container_id,
-            text_layouts: HashMap::new(),
             width: 0.0,
         }
     }
