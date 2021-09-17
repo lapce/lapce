@@ -8,19 +8,16 @@ Then one day I experienced VSCode's remote development feature, and it felt so "
 
 So the new architecture I came up with was like this: 
 
-          UI
-Reads file from Proxy
-Handle keyboard/mouse events and do the edits on the file buffer
-Send the file editing delta to the proxy to keep the file in sync
-          |
-	  |
-	  |
-	 Proxy
-Receive save event from UI and flush the file buffer to disk
-proxy the events between UI and the plugins
-          |
-	  |
-	Plugin
-Communicate with UI through proxy
+    UI
+Reads file from Proxy<br>
+Handle keyboard/mouse events and do the edits on the file buffer<br>
+Send the file editing delta to the proxy to keep the file in sync<br>
 
-UI sits locally. Proxy and Plugin will be in the remote box when doing remote development. With this architecture, I can make sure the editing experience is always the best, with other considerations like syntax highlighting is done in a different thread so nothing blocks the main thread at any time. I finally had a lighting-fast and powerful code editor. Lapce. (which can be beautiful as well)   
+	 Proxy
+Receive save event from UI and flush the file buffer to disk<br>
+proxy the events between UI and the plugins<br>
+
+	Plugin
+Communicate with UI through proxy<br>
+
+UI sits locally. Proxy and Plugin will be in the remote box when doing remote development. With this architecture, I can make sure the editing experience is always the best, with other considerations like syntax highlighting is done in a different thread so nothing blocks the main thread at any time. I finally had a lighting-fast and powerful code editor. (which can be beautiful as well)   
