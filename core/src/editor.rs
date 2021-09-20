@@ -477,7 +477,13 @@ impl LapceEditorContainer {
         );
         let scroll = self.editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
-        scroll.scroll_to_visible(rect, |d| ctx.request_timer(d), env);
+        if scroll.scroll_to_visible(rect, env) {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
     }
 
     pub fn ensure_rect_visible(
@@ -487,11 +493,18 @@ impl LapceEditorContainer {
         rect: Rect,
         env: &Env,
     ) {
-        self.editor.widget_mut().inner_mut().scroll_to_visible(
-            rect,
-            |d| ctx.request_timer(d),
-            env,
-        );
+        if self
+            .editor
+            .widget_mut()
+            .inner_mut()
+            .scroll_to_visible(rect, env)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
     }
 
     pub fn ensure_cursor_visible(
@@ -514,7 +527,12 @@ impl LapceEditorContainer {
         let scroll = self.editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
         let old_scroll_offset = scroll.offset();
-        if scroll.scroll_to_visible(rect, |d| ctx.request_timer(d), env) {
+        if scroll.scroll_to_visible(rect, env) {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
             if let Some(position) = position {
                 match position {
                     EnsureVisiblePosition::CenterOfWindow => {

@@ -466,11 +466,18 @@ impl CompletionContainer {
                 0.0,
                 data.completion.index as f64 * line_height,
             ));
-        self.completion.widget_mut().inner_mut().scroll_to_visible(
-            rect,
-            |d| ctx.request_timer(d),
-            env,
-        );
+        if self
+            .completion
+            .widget_mut()
+            .inner_mut()
+            .scroll_to_visible(rect, env)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.scroll_id),
+            ));
+        }
     }
 }
 

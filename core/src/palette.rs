@@ -47,7 +47,7 @@ use crate::{
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
     proxy::LapceProxy,
-    scroll::{LapceScroll, LapceScrollNew},
+    scroll::{LapceIdentityWrapper, LapceScroll, LapceScrollNew},
     state::LapceFocus,
     state::LapceWorkspace,
     state::LapceWorkspaceType,
@@ -346,6 +346,7 @@ impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
 #[derive(Clone)]
 pub struct PaletteData {
     pub widget_id: WidgetId,
+    pub scroll_id: WidgetId,
     status: PaletteStatus,
     proxy: Arc<LapceProxy>,
     palette_type: PaletteType,
@@ -415,9 +416,11 @@ impl PaletteData {
     pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let (sender, receiver) = unbounded();
         let widget_id = WidgetId::next();
+        let scroll_id = WidgetId::next();
         let preview_editor = WidgetId::next();
         Self {
             widget_id,
+            scroll_id,
             status: PaletteStatus::Inactive,
             proxy,
             palette_type: PaletteType::File,
@@ -1921,7 +1924,9 @@ pub struct PaletteContainer {
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     content: WidgetPod<
         LapceTabData,
-        LapceScrollNew<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+        LapceIdentityWrapper<
+            LapceScrollNew<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+        >,
     >,
     preview: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
@@ -1934,10 +1939,13 @@ impl PaletteContainer {
             .background(LapceTheme::EDITOR_BACKGROUND)
             .padding((padding, padding, padding, padding))
             .lens(PaletteViewLens);
-        let content = LapceScrollNew::new(
-            NewPaletteContent::new().lens(PaletteViewLens).boxed(),
-        )
-        .vertical();
+        let content = LapceIdentityWrapper::wrap(
+            LapceScrollNew::new(
+                NewPaletteContent::new().lens(PaletteViewLens).boxed(),
+            )
+            .vertical(),
+            data.scroll_id,
+        );
         let preview = LapceEditorView::new(preview_editor);
         Self {
             content_size: Size::ZERO,
@@ -1958,11 +1966,18 @@ impl PaletteContainer {
         let rect = Size::new(width, line_height)
             .to_rect()
             .with_origin(Point::new(0.0, palette.index as f64 * line_height));
-        self.content.widget_mut().scroll_to_visible(
-            rect,
-            |d| ctx.request_timer(d),
-            env,
-        );
+        if self
+            .content
+            .widget_mut()
+            .inner_mut()
+            .scroll_to_visible(rect, env)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(palette.scroll_id),
+            ));
+        }
     }
 }
 

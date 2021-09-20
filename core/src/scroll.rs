@@ -1414,20 +1414,24 @@ impl ScrollComponentNew {
 
         // Vertical bar
         if let Some(bounds) = self.calc_vertical_bar_bounds(port, env) {
-            let rect = (bounds - scroll_offset)
-                .inset(-edge_width / 2.0)
-                .to_rounded_rect(radius);
+            let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
             ctx.render_ctx.fill(rect, &brush);
             ctx.render_ctx.stroke(rect, &border_brush, edge_width);
         }
 
         // Horizontal bar
         if let Some(bounds) = self.calc_horizontal_bar_bounds(port, env) {
-            let rect = (bounds - scroll_offset)
-                .inset(-edge_width / 2.0)
-                .to_rounded_rect(radius);
-            ctx.render_ctx.fill(rect, &brush);
-            ctx.render_ctx.stroke(rect, &border_brush, edge_width);
+            let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
+            ctx.render_ctx.fill(
+                rect,
+                &env.get(theme::SCROLLBAR_COLOR).with_alpha(self.opacity),
+            );
+            ctx.render_ctx.stroke(
+                rect,
+                &env.get(theme::SCROLLBAR_BORDER_COLOR)
+                    .with_alpha(self.opacity),
+                edge_width,
+            );
         }
     }
 
@@ -1740,18 +1744,8 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     ///
     /// If the target region is larger than the viewport, we will display the
     /// portion that fits, prioritizing the portion closest to the origin.
-    pub fn scroll_to_visible<F>(
-        &mut self,
-        region: Rect,
-        request_timer: F,
-        env: &Env,
-    ) -> bool
-    where
-        F: FnOnce(Duration) -> TimerToken,
-    {
+    pub fn scroll_to_visible(&mut self, region: Rect, env: &Env) -> bool {
         if self.clip.pan_to_visible(region) {
-            self.scroll_component
-                .reset_scrollbar_fade(request_timer, env);
             true
         } else {
             false
