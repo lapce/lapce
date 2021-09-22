@@ -572,7 +572,17 @@ impl Handler for ProxyHandlerNew {
                 buffer_id,
                 line_changes,
                 rev,
-            } => {}
+            } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateBufferLineChanges(
+                        buffer_id,
+                        rev,
+                        line_changes,
+                    ),
+                    Target::Widget(self.tab_id),
+                );
+            }
             Notification::ReloadBuffer {
                 buffer_id,
                 new_content,

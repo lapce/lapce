@@ -274,6 +274,7 @@ pub enum LapceUICommand {
         tree: Tree,
     },
     CenterOfWindow,
+    UpdateBufferLineChanges(BufferId, u64, HashMap<usize, char>),
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     UpdateDiffFiles(Vec<PathBuf>),

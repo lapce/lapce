@@ -11,8 +11,8 @@ use druid::{
 use druid::{Env, PaintCtx};
 use git2::Repository;
 use language::{new_highlight_config, new_parser, LapceLanguage};
-use lsp_types::SemanticTokensLegend;
 use lsp_types::SemanticTokensServerCapabilities;
+use lsp_types::{CallHierarchyOptions, SemanticTokensLegend};
 use lsp_types::{
     CodeActionResponse, Position, Range, TextDocumentContentChangeEvent,
 };
@@ -200,6 +200,7 @@ pub struct BufferNew {
     pub loaded: bool,
     pub local: bool,
     update_sender: Arc<Sender<UpdateEvent>>,
+    pub line_changes: HashMap<usize, char>,
 
     revs: Vec<Revision>,
     cur_undo: usize,
@@ -241,6 +242,7 @@ impl BufferNew {
             dirty: false,
             update_sender,
             local: false,
+            line_changes: HashMap::new(),
 
             revs: vec![Revision {
                 max_undo_so_far: 0,

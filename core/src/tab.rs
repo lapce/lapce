@@ -346,6 +346,22 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateBufferLineChanges(
+                        id,
+                        rev,
+                        line_changes,
+                    ) => {
+                        for (_, buffer) in data.main_split.open_files.iter_mut() {
+                            if &buffer.id == id {
+                                if buffer.rev == *rev {
+                                    let buffer = Arc::make_mut(buffer);
+                                    buffer.line_changes = line_changes.to_owned();
+                                }
+                                break;
+                            }
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateSemanticTokens(id, path, rev, tokens) => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();

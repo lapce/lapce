@@ -854,7 +854,7 @@ impl LapceEditorGutter {
                 let height = 16.0;
                 let rect =
                     Size::new(width, height).to_rect().with_origin(Point::new(
-                        self.width + 5.0,
+                        self.width + 7.6171875 + 3.0,
                         (line_height - height) / 2.0 + line_height * line as f64
                             - data.editor.scroll_offset.y,
                     ));
@@ -930,7 +930,7 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
         let last_line = data.buffer.last_line() + 1;
         let width = 7.6171875;
         self.width = (width * last_line.to_string().len() as f64).ceil();
-        let width = self.width + 26.0;
+        let width = self.width + 16.0 + width * 2.0;
         Size::new(width, bc.max().height)
     }
 
@@ -974,6 +974,33 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
                 .build()
                 .unwrap();
             ctx.draw_text(&text_layout, pos);
+
+            if let Some(line_change) = data.buffer.line_changes.get(&line) {
+                let x = self.width + width;
+                let y = line as f64 * line_height - scroll_offset.y;
+                let origin = Point::new(x, y);
+                let size = Size::new(3.0, line_height);
+                let rect = Rect::ZERO.with_origin(origin).with_size(size);
+                match line_change {
+                    'm' => {
+                        ctx.fill(rect, &Color::rgba8(1, 132, 188, 180));
+                    }
+                    '+' => {
+                        ctx.fill(rect, &Color::rgba8(80, 161, 79, 180));
+                    }
+                    '-' => {
+                        let size = Size::new(3.0, 10.0);
+                        let x = self.width + width;
+                        let y = line as f64 * line_height
+                            - size.height / 2.0
+                            - scroll_offset.y;
+                        let origin = Point::new(x, y);
+                        let rect = Rect::ZERO.with_origin(origin).with_size(size);
+                        ctx.fill(rect, &Color::rgba8(228, 86, 73, 180));
+                    }
+                    _ => {}
+                }
+            }
         }
 
         if *data.main_split.active == self.view_id {
