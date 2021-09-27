@@ -1025,7 +1025,6 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#e121a48816c6b9b742d6fb941a8da0abf10123e3"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1049,7 +1048,6 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid#e121a48816c6b9b742d6fb941a8da0abf10123e3"
 dependencies = [
  "proc-macro2 1.0.29",
  "quote 1.0.9",
@@ -1059,7 +1057,6 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#e121a48816c6b9b742d6fb941a8da0abf10123e3"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -2149,7 +2146,7 @@ dependencies = [
  "serde_json",
  "strum 0.19.5",
  "strum_macros 0.19.4",
- "toml",
+ "toml 0.5.8",
  "tree-sitter",
  "tree-sitter-highlight",
  "tree-sitter-rust",
@@ -2194,7 +2191,7 @@ dependencies = [
  "parking_lot 0.11.2",
  "serde",
  "serde_json",
- "toml",
+ "toml 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "xi-core-lib",
  "xi-rope 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "xi-rpc",
@@ -3260,7 +3257,7 @@ version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d6ea3c4595b96363c13943497db34af4460fb474a95c43f4446ad341b8c9785"
 dependencies = [
- "toml",
+ "toml 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3270,7 +3267,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41fdbd1df62156fbc5945f4762632564d7d038153091c3fcf1067f6aef7cff92"
 dependencies = [
  "thiserror",
- "toml",
+ "toml 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4114,7 +4111,7 @@ dependencies = [
  "strum 0.21.0",
  "strum_macros 0.21.1",
  "thiserror",
- "toml",
+ "toml 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "version-compare",
 ]
 
@@ -4253,6 +4250,13 @@ name = "tinyvec_macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
+
+[[package]]
+name = "toml"
+version = "0.5.8"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "toml"
@@ -5033,7 +5037,7 @@ dependencies = [
  "sha2 0.8.2",
  "syntect",
  "time 0.1.43",
- "toml",
+ "toml 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "xi-rope 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "xi-rpc",
  "xi-trace",

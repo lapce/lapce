@@ -21,7 +21,7 @@ include_dir = "0.6.0"
 tree-sitter = "=0.19.2"
 tree-sitter-rust = "0.19.0"
 tree-sitter-highlight = "0.19.2"
-toml = "0.5.6"
+toml = { path = "../../toml-rs" }
 anyhow = "1.0.32"
 strum = "0.19"
 strum_macros = "0.19"
@@ -37,7 +37,7 @@ fzyr = "0.1.2"
 fuzzy-matcher = "0.3.7"
 uuid = { version = "0.7.4", features = ["v4"] }
 lsp-types = { version = "0.89.2", features = ["proposed"] }
-druid = { git = "https://github.com/lapce/druid", features = ["svg", "im"] }
+druid = { path = "../../druid/druid", features = ["svg", "im"] }
 lapce-proxy = { path = "../proxy" }
 
 [build-dependencies]

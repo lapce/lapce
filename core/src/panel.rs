@@ -7,12 +7,8 @@ use druid::{
 use parking_lot::Mutex;
 
 use crate::{
-    command::LapceUICommand,
-    command::LAPCE_UI_COMMAND,
-    explorer::FileExplorerState,
+    command::LapceUICommand, command::LAPCE_UI_COMMAND, explorer::FileExplorerState,
     outline::OutlineState,
-    source_control::SourceControlState,
-    state::{LapceUIState, LAPCE_APP_STATE},
 };
 
 pub enum PanelResizePosition {
@@ -35,7 +31,6 @@ pub trait PanelProperty: Send {
     fn position(&self) -> &PanelPosition;
     fn active(&self) -> usize;
     fn size(&self) -> (f64, f64);
-    fn paint(&self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env);
 }
 
 pub struct PanelState {
@@ -185,71 +180,5 @@ impl LapcePanel {
             tab_id,
             position,
         }
-    }
-}
-
-impl Widget<LapceUIState> for LapcePanel {
-    fn event(
-        &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceUIState,
-        env: &Env,
-    ) {
-        match event {
-            Event::Command(cmd) => match cmd {
-                _ if cmd.is(LAPCE_UI_COMMAND) => {
-                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                    match command {
-                        LapceUICommand::RequestPaint => {
-                            ctx.request_paint();
-                        }
-                        _ => (),
-                    }
-                }
-                _ => (),
-            },
-            _ => (),
-        }
-    }
-
-    fn lifecycle(
-        &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceUIState,
-        env: &Env,
-    ) {
-    }
-
-    fn update(
-        &mut self,
-        ctx: &mut druid::UpdateCtx,
-        old_data: &LapceUIState,
-        data: &LapceUIState,
-        env: &druid::Env,
-    ) {
-    }
-
-    fn layout(
-        &mut self,
-        ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        data: &LapceUIState,
-        env: &Env,
-    ) -> Size {
-        bc.max()
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceUIState, env: &Env) {
-        let state = LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-        let panel = state.panel.lock();
-        if let Some(panel_state) = panel.get(&self.position) {
-            panel_state.lock().paint(ctx, data, env);
-        }
-    }
-
-    fn id(&self) -> Option<WidgetId> {
-        Some(self.widget_id)
     }
 }

@@ -26,7 +26,6 @@ use xi_rpc::RpcPeer;
 use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
-use crate::state::LAPCE_APP_STATE;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 #[derive(Clone)]
@@ -368,100 +367,20 @@ impl Handler for ProxyHandler {
                 buffer_id,
                 path,
                 tokens,
-            } => {
-                let state =
-                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                let mut editor_split = state.editor_split.lock();
-                let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
-                if buffer.rev != rev {
-                    return;
-                }
-                buffer.semantic_tokens = Some(tokens);
-                buffer.line_highlights = HashMap::new();
-            }
+            } => {}
             Notification::UpdateGit {
                 buffer_id,
                 line_changes,
                 rev,
-            } => {
-                let state =
-                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                let mut editor_split = state.editor_split.lock();
-                let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
-                if buffer.rev != rev {
-                    return;
-                }
-                buffer.line_changes = line_changes;
-                LAPCE_APP_STATE.submit_ui_command(
-                    LapceUICommand::UpdateLineChanges(buffer_id),
-                    self.tab_id,
-                );
-            }
+            } => {}
             Notification::ReloadBuffer {
                 buffer_id,
                 new_content,
                 rev,
-            } => {
-                let state =
-                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                let mut editor_split = state.editor_split.lock();
-                let buffer = editor_split.buffers.get_mut(&buffer_id).unwrap();
-                if buffer.rev + 1 != rev {
-                    return;
-                }
-            }
-            Notification::ListDir { mut items } => {
-                items.sort();
-                let state =
-                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                let mut file_explorer = state.file_explorer.lock();
-                file_explorer.items = items;
-                file_explorer.update_count();
-                LAPCE_APP_STATE.submit_ui_command(
-                    LapceUICommand::RequestPaint,
-                    file_explorer.widget_id,
-                );
-            }
-            Notification::DiffFiles { files } => {
-                println!("get diff files {:?}", files);
-                let window_id = self.window_id;
-                let tab_id = self.tab_id;
-                std::thread::spawn(move || {
-                    let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-                    let mut source_control = state.source_control.lock();
-                    source_control.diff_files = files;
-                    LAPCE_APP_STATE.submit_ui_command(
-                        LapceUICommand::RequestPaint,
-                        source_control.widget_id,
-                    );
-                });
-            }
-            Notification::PublishDiagnostics { diagnostics } => {
-                let state =
-                    LAPCE_APP_STATE.get_tab_state(&self.window_id, &self.tab_id);
-                let mut editor_split = state.editor_split.lock();
-                let path = diagnostics.uri.path().to_string();
-                editor_split
-                    .diagnostics
-                    .insert(path.clone(), diagnostics.diagnostics);
-
-                LAPCE_APP_STATE.submit_ui_command(
-                    LapceUICommand::RequestPaint,
-                    state.status_id,
-                );
-                for (_, editor) in editor_split.editors.iter() {
-                    if let Some(buffer_id) = editor.buffer_id.as_ref() {
-                        if let Some(buffer) = editor_split.buffers.get(buffer_id) {
-                            if buffer.path == path {
-                                LAPCE_APP_STATE.submit_ui_command(
-                                    LapceUICommand::RequestPaint,
-                                    editor.view_id,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
+            } => {}
+            Notification::ListDir { mut items } => {}
+            Notification::DiffFiles { files } => {}
+            Notification::PublishDiagnostics { diagnostics } => {}
         }
     }
 
@@ -514,19 +433,6 @@ pub fn start_proxy_process(
         {
             *proxy.initiated.lock() = true;
             proxy.cond.notify_one();
-        }
-        {
-            let state = LAPCE_APP_STATE.get_tab_state(&window_id, &tab_id);
-            let mut proxy_state = state.proxy.lock();
-            let old_proxy = proxy_state.take();
-            *proxy_state = Some(proxy);
-            if let Some(old_proxy) = old_proxy {
-                let mut process = old_proxy.process.lock();
-                let old_process = process.take();
-                if let Some(mut old) = old_process {
-                    old.kill();
-                }
-            }
         }
 
         let mut handler = ProxyHandler { window_id, tab_id };

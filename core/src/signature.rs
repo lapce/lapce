@@ -3,7 +3,6 @@ use lsp_types::SignatureHelp;
 use tree_sitter::Node;
 
 use crate::command::LapceUICommand;
-use crate::state::{LapceTabState, LAPCE_APP_STATE};
 
 #[derive(Clone)]
 pub struct SignatureState {

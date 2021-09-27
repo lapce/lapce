@@ -18,7 +18,7 @@ use crate::{
     movement::{Movement, Selection},
     proxy::LapceProxy,
     state::Mode,
-    theme::LapceTheme,
+    theme::OldLapceTheme,
 };
 
 pub struct CodeAction {}
@@ -261,7 +261,7 @@ impl Widget<LapceTabData> for CodeAction {
         let blur_color = Color::grey8(180);
         let shadow_width = 5.0;
         ctx.blurred_rect(rect, shadow_width, &blur_color);
-        ctx.fill(rect, &env.get(LapceTheme::EDITOR_SELECTION_COLOR));
+        ctx.fill(rect, &env.get(OldLapceTheme::EDITOR_SELECTION_COLOR));
 
         let editor = data.main_split.active_editor();
         let buffer = data.main_split.open_files.get(&editor.buffer).unwrap();
@@ -284,13 +284,13 @@ impl Widget<LapceTabData> for CodeAction {
                 text_layout.set_font(
                     FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
                 );
-                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                text_layout.set_text_color(OldLapceTheme::EDITOR_FOREGROUND);
                 text_layout.rebuild_if_needed(ctx.text(), env);
                 text_layout
             })
             .collect();
 
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_height = data.config.editor.line_height as f64;
 
         let line_rect = Rect::ZERO
             .with_origin(Point::new(
@@ -298,7 +298,7 @@ impl Widget<LapceTabData> for CodeAction {
                 data.main_split.current_code_actions as f64 * line_height,
             ))
             .with_size(Size::new(ctx.size().width, line_height));
-        ctx.fill(line_rect, &env.get(LapceTheme::EDITOR_BACKGROUND));
+        ctx.fill(line_rect, &env.get(OldLapceTheme::EDITOR_BACKGROUND));
 
         for (i, text_layout) in action_text_layouts.iter().enumerate() {
             text_layout.draw(ctx, Point::new(5.0, i as f64 * line_height + 5.0));

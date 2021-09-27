@@ -3,6 +3,7 @@ pub mod buffer;
 pub mod code_action;
 pub mod command;
 pub mod completion;
+pub mod config;
 pub mod container;
 mod data;
 pub mod editor;

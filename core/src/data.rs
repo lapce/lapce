@@ -1,9 +1,11 @@
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fs::File,
     io::{BufReader, Read},
     path::PathBuf,
     process::{self, Stdio},
+    rc::Rc,
     str::FromStr,
     sync::Arc,
     thread,
@@ -28,6 +30,7 @@ use lsp_types::{
     Location, Position, TextEdit, WorkspaceClientCapabilities,
 };
 use parking_lot::Mutex;
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 use tree_sitter::{Node, Parser};
 use tree_sitter_highlight::{
@@ -42,14 +45,14 @@ use xi_rpc::{RpcLoop, RpcPeer};
 use crate::{
     buffer::{
         get_word_property, has_unmatched_pair, matching_char,
-        matching_pair_direction, previous_has_unmatched_pair, Buffer, BufferId,
-        BufferNew, BufferState, BufferUpdate, EditType, Style, UpdateEvent,
-        WordProperty,
+        matching_pair_direction, previous_has_unmatched_pair, BufferId, BufferNew,
+        BufferState, BufferUpdate, EditType, Style, UpdateEvent, WordProperty,
     },
     command::{
         EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
     completion::{CompletionData, CompletionStatus, Snippet},
+    config::Config,
     editor::EditorLocationNew,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -61,7 +64,7 @@ use crate::{
     source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
-    theme::LapceTheme,
+    theme::OldLapceTheme,
 };
 
 #[derive(Clone, Data)]
@@ -101,68 +104,7 @@ impl LapceData {
         Ok(theme)
     }
 
-    pub fn reload_env(&self, env: &mut Env) {
-        let changed = match env.try_get(&LapceTheme::CHANGED) {
-            Ok(changed) => changed,
-            Err(e) => true,
-        };
-        if !changed {
-            return;
-        }
-        env.set(theme::SCROLLBAR_RADIUS, 0.0);
-        env.set(theme::SCROLLBAR_EDGE_WIDTH, 0.0);
-        env.set(theme::SCROLLBAR_WIDTH, 10.0);
-        env.set(theme::SCROLLBAR_PAD, 0.0);
-        env.set(
-            theme::SCROLLBAR_COLOR,
-            Color::from_hex_str("#949494").unwrap(),
-        );
-
-        env.set(LapceTheme::CHANGED, false);
-        let theme = &self.theme;
-        if let Some(line_highlight) = theme.get("line_highlight") {
-            env.set(
-                LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-                line_highlight.clone(),
-            );
-        };
-        if let Some(caret) = theme.get("caret") {
-            env.set(LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
-        };
-        if let Some(foreground) = theme.get("foreground") {
-            env.set(LapceTheme::EDITOR_FOREGROUND, foreground.clone());
-        };
-        if let Some(background) = theme.get("background") {
-            env.set(LapceTheme::EDITOR_BACKGROUND, background.clone());
-        };
-        if let Some(selection) = theme.get("selection") {
-            env.set(LapceTheme::EDITOR_SELECTION_COLOR, selection.clone());
-        };
-        if let Some(color) = theme.get("comment") {
-            env.set(LapceTheme::EDITOR_COMMENT, color.clone());
-        };
-        if let Some(color) = theme.get("error") {
-            env.set(LapceTheme::EDITOR_ERROR, color.clone());
-        };
-        if let Some(color) = theme.get("warn") {
-            env.set(LapceTheme::EDITOR_WARN, color.clone());
-        };
-        env.set(LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
-        env.set(LapceTheme::PALETTE_BACKGROUND, Color::rgb8(125, 125, 125));
-        env.set(LapceTheme::PALETTE_INPUT_FOREROUND, Color::rgb8(0, 0, 0));
-        env.set(
-            LapceTheme::PALETTE_INPUT_BACKGROUND,
-            Color::rgb8(255, 255, 255),
-        );
-        env.set(LapceTheme::PALETTE_INPUT_BORDER, Color::rgb8(0, 0, 0));
-        env.set(
-            LapceTheme::EDITOR_FONT,
-            FontDescriptor::new(FontFamily::new_unchecked("Cascadia Code"))
-                .with_size(13.0),
-        );
-        env.set(LapceTheme::LIST_BACKGROUND, Color::rgb8(234, 234, 235));
-        env.set(LapceTheme::LIST_CURRENT, Color::rgb8(219, 219, 220));
-    }
+    pub fn reload_env(&self, env: &mut Env) {}
 }
 
 #[derive(Clone)]
@@ -244,6 +186,7 @@ pub struct LapceTabData {
     pub window_origin: Point,
     pub panels: im::HashMap<PanelPosition, Arc<PanelData>>,
     pub panel_size: PanelSize,
+    pub config: Arc<Config>,
 }
 
 impl Data for LapceTabData {
@@ -256,6 +199,7 @@ impl Data for LapceTabData {
             && self.panels.same(&other.panels)
             && self.panel_size.same(&other.panel_size)
             && self.window_origin.same(&other.window_origin)
+            && self.config.same(&other.config)
     }
 }
 
@@ -291,6 +235,7 @@ impl LapceTabData {
                 shown: true,
             }),
         );
+        let config = Arc::new(Config::load(None));
         let mut tab = Self {
             id: tab_id,
             workspace: None,
@@ -313,6 +258,7 @@ impl LapceTabData {
                 right: 300.0,
                 right_split: 0.5,
             },
+            config,
         };
         if let Some(event_sink) = event_sink {
             tab.start_update_process(event_sink);
@@ -352,7 +298,8 @@ impl LapceTabData {
         self.main_split.diagnostics.clear();
         self.main_split.error_count = 0;
         self.main_split.warning_count = 0;
-        self.proxy.start(workspace, event_sink.clone());
+        self.proxy.start(workspace.clone(), event_sink.clone());
+        self.config = Arc::new(Config::load(Some(workspace)));
     }
 
     pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
@@ -377,7 +324,7 @@ impl LapceTabData {
                 text_layout.set_font(
                     FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
                 );
-                text_layout.set_text_color(LapceTheme::EDITOR_FOREGROUND);
+                text_layout.set_text_color(OldLapceTheme::EDITOR_FOREGROUND);
                 text_layout.rebuild_if_needed(text, env);
                 text_layout
             })
@@ -390,12 +337,12 @@ impl LapceTabData {
                 width = line_width;
             }
         }
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_height = self.config.editor.line_height as f64;
         Size::new(width, code_actions.len() as f64 * line_height)
     }
 
     pub fn code_action_origin(&self, tab_size: Size, env: &Env) -> Point {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_height = self.config.editor.line_height as f64;
         let editor = self.main_split.active_editor();
         let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
         let offset = editor.cursor.offset();
@@ -409,7 +356,7 @@ impl LapceTabData {
     }
 
     pub fn completion_origin(&self, tab_size: Size, env: &Env) -> Point {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_height = self.config.editor.line_height as f64;
 
         let editor = self.main_split.active_editor();
         let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
@@ -446,6 +393,7 @@ impl LapceTabData {
             workspace: self.workspace.clone(),
             main_split: self.main_split.clone(),
             keypress: self.keypress.clone(),
+            config: self.config.clone(),
         }
     }
 
@@ -1111,6 +1059,7 @@ pub struct LapceEditorViewData {
     pub completion: Arc<CompletionData>,
     pub palette: Arc<WidgetId>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
+    pub config: Arc<Config>,
 }
 
 impl LapceEditorViewData {
@@ -1397,7 +1346,7 @@ impl LapceEditorViewData {
     }
 
     fn scroll(&mut self, ctx: &mut EventCtx, down: bool, count: usize, env: &Env) {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_height = self.config.editor.line_height as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
 
@@ -1434,7 +1383,7 @@ impl LapceEditorViewData {
     }
 
     fn page_move(&mut self, ctx: &mut EventCtx, down: bool, env: &Env) {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_height = self.config.editor.line_height as f64;
         let lines = (self.editor.size.height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
         self.do_move(if down { &Movement::Down } else { &Movement::Up }, lines);
@@ -1599,8 +1548,8 @@ impl LapceEditorViewData {
         }
     }
 
-    pub fn cusor_region(&self, env: &Env) -> Rect {
-        self.editor.cursor.region(&self.buffer, env)
+    pub fn cusor_region(&self, config: &Config) -> Rect {
+        self.editor.cursor.region(&self.buffer, config)
     }
 
     pub fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
@@ -1675,7 +1624,7 @@ impl LapceEditorViewData {
     }
 
     pub fn offset_of_mouse(&self, pos: Point, env: &Env) -> usize {
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_height = self.config.editor.line_height as f64;
         let line = (pos.y / line_height).floor() as usize;
         let last_line = self.buffer.last_line();
         let (line, col) = if line > last_line {
@@ -2039,6 +1988,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             palette: Arc::new(data.palette.widget_id),
             theme: data.theme.clone(),
             proxy: data.proxy.clone(),
+            config: data.config.clone(),
         };
         f(&editor_view)
     }
@@ -2069,6 +2019,7 @@ impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
             palette: Arc::new(data.palette.widget_id),
             theme: data.theme.clone(),
             proxy: data.proxy.clone(),
+            config: data.config.clone(),
         };
         let result = f(&mut editor_view);
 

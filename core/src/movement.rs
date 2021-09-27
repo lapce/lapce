@@ -3,10 +3,11 @@ use xi_core_lib::selection::InsertDrift;
 use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
-    buffer::{Buffer, BufferNew},
+    buffer::BufferNew,
+    config::Config,
     data::RegisterData,
     state::{Mode, VisualMode},
-    theme::LapceTheme,
+    theme::OldLapceTheme,
 };
 use std::cmp::{max, min};
 
@@ -91,12 +92,12 @@ impl Cursor {
         }
     }
 
-    pub fn region(&self, buffer: &BufferNew, env: &Env) -> Rect {
+    pub fn region(&self, buffer: &BufferNew, config: &Config) -> Rect {
         let offset = self.offset();
         let (line, col) = buffer.offset_to_line_col(offset);
         let width = 7.6171875;
         let cursor_x = col as f64 * width - width;
-        let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
+        let line_height = config.editor.line_height as f64;
         let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
         let line = if line > 1 { line - 1 } else { 0 };
         Rect::ZERO
@@ -637,23 +638,6 @@ impl Movement {
         }
     }
 
-    pub fn update_selection(
-        &self,
-        selection: &Selection,
-        buffer: &Buffer,
-        count: usize,
-        include_newline: bool,
-        modify: bool,
-    ) -> Selection {
-        let mut new_selection = Selection::new();
-        for region in &selection.regions {
-            let region =
-                self.update_region(region, buffer, count, include_newline, modify);
-            new_selection.add_region(region);
-        }
-        buffer.fill_horiz(&new_selection)
-    }
-
     pub fn update_index(
         &self,
         index: usize,
@@ -677,185 +661,6 @@ impl Movement {
                 LinePosition::Last => len - 1,
             },
             _ => index,
-        }
-    }
-
-    pub fn update_region(
-        &self,
-        region: &SelRegion,
-        buffer: &Buffer,
-        count: usize,
-        include_newline: bool,
-        modify: bool,
-    ) -> SelRegion {
-        let horiz = if let Some(horiz) = region.horiz {
-            horiz
-        } else {
-            let (_, col) = buffer.offset_to_line_col(region.end);
-            ColPosition::Col(col)
-        };
-        let (end, horiz) = match self {
-            Movement::Left => {
-                let end = region.end;
-                let line = buffer.line_of_offset(end);
-                let line_start_offset = buffer.offset_of_line(line);
-                let new_end = if end < count {
-                    0
-                } else if end - count > line_start_offset {
-                    end - count
-                } else {
-                    line_start_offset
-                };
-                let (_, col) = buffer.offset_to_line_col(new_end);
-
-                (new_end, ColPosition::Col(col))
-            }
-            Movement::Right => {
-                let end = region.end;
-                let line_end = buffer.line_end_offset(end, include_newline);
-
-                let mut new_end = end + count;
-                if new_end > buffer.len() {
-                    new_end = buffer.len()
-                }
-                if new_end > line_end {
-                    new_end = line_end;
-                }
-
-                let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, ColPosition::Col(col))
-            }
-            Movement::Up => {
-                let line = buffer.line_of_offset(region.end);
-                let line = if line > count { line - count } else { 0 };
-                let max_col = buffer.line_max_col(line, include_newline);
-                let col = match horiz {
-                    ColPosition::End => max_col,
-                    ColPosition::Col(n) => match max_col > n {
-                        true => n,
-                        false => max_col,
-                    },
-                    _ => 0,
-                };
-                let new_end = buffer.offset_of_line(line) + col;
-                (new_end, horiz)
-            }
-            Movement::Down => {
-                let last_line = buffer.last_line();
-                let line = buffer.line_of_offset(region.end) + count;
-                let line = if line > last_line { last_line } else { line };
-                let col = buffer.line_horiz_col(line, &horiz, include_newline);
-                let new_end = buffer.offset_of_line(line) + col;
-                (new_end, horiz)
-            }
-            Movement::FirstNonBlank => {
-                let line = buffer.line_of_offset(region.end);
-                let new_end = buffer.offset_of_line(line);
-                (new_end, ColPosition::Start)
-            }
-            Movement::StartOfLine => {
-                let line = buffer.line_of_offset(region.end);
-                let new_end = buffer.offset_of_line(line);
-                (new_end, ColPosition::Start)
-            }
-            Movement::EndOfLine => {
-                let new_end = buffer.line_end_offset(region.end, include_newline);
-                (new_end, ColPosition::End)
-            }
-            Movement::Line(position) => {
-                let line = match position {
-                    LinePosition::Line(line) => {
-                        let line = line - 1;
-                        let last_line = buffer.last_line();
-                        match line {
-                            n if n > last_line => last_line,
-                            n => n,
-                        }
-                    }
-                    LinePosition::First => 0,
-                    LinePosition::Last => buffer.last_line(),
-                };
-                let col = buffer.line_horiz_col(line, &horiz, include_newline);
-                let new_end = buffer.offset_of_line(line) + col;
-                (new_end, horiz)
-            }
-            Movement::Offset(offset) => {
-                let new_end = *offset;
-                let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, ColPosition::Col(col))
-            }
-            Movement::WordForward => {
-                let mut new_end = region.end;
-                for i in 0..count {
-                    new_end = buffer.word_forward(new_end);
-                }
-                let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, ColPosition::Col(col))
-            }
-            Movement::WordEndForward => {
-                let mut new_end = region.end;
-                for i in 0..count {
-                    new_end = buffer.word_end_forward(new_end);
-                }
-                let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, ColPosition::Col(col))
-            }
-            Movement::WordBackward => {
-                let mut new_end = region.end;
-                for i in 0..count {
-                    new_end = buffer.word_backword(new_end);
-                }
-                let line_end_offset =
-                    buffer.line_end_offset(new_end, include_newline);
-                if new_end > line_end_offset {
-                    new_end = line_end_offset;
-                }
-                let (_, col) = buffer.offset_to_line_col(new_end);
-                (new_end, ColPosition::Col(col))
-            }
-            Movement::NextUnmatched(c) => {
-                let mut end = region.end;
-                for i in 0..count {
-                    if let Some(new) = buffer.next_unmmatched(end + 1, *c) {
-                        end = new - 1;
-                    } else {
-                        break;
-                    }
-                }
-                let (_, col) = buffer.offset_to_line_col(end);
-                (end, ColPosition::Col(col))
-            }
-            Movement::PreviousUnmatched(c) => {
-                let mut end = region.end;
-                for i in 0..count {
-                    if let Some(new) = buffer.previous_unmmatched(end, *c) {
-                        end = new;
-                    } else {
-                        break;
-                    }
-                }
-                let (_, col) = buffer.offset_to_line_col(end);
-                (end, ColPosition::Col(col))
-            }
-            Movement::MatchPairs => {
-                let mut end = region.end;
-                if let Some(new) = buffer.match_pairs(end) {
-                    end = new;
-                }
-                let (_, col) = buffer.offset_to_line_col(end);
-                (end, ColPosition::Col(col))
-            }
-        };
-
-        let start = match modify {
-            true => region.start,
-            false => end,
-        };
-
-        SelRegion {
-            start,
-            end,
-            horiz: Some(horiz),
         }
     }
 }
