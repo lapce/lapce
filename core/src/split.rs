@@ -1,5 +1,6 @@
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::{Config, LapceTheme},
     data::{EditorType, LapceEditorData, LapceEditorLens, LapceTabData},
     editor::{EditorLocation, LapceEditorView},
     scroll::LapceScroll,
@@ -123,7 +124,7 @@ impl LapceSplitNew {
         }
     }
 
-    fn paint_bar(&mut self, ctx: &mut PaintCtx, env: &Env) {
+    fn paint_bar(&mut self, ctx: &mut PaintCtx, config: &Config) {
         let children_len = self.children.len();
         if children_len <= 1 {
             return;
@@ -140,8 +141,11 @@ impl LapceSplitNew {
                 let line = Line::new(Point::new(0.0, y), Point::new(size.width, y));
                 line
             };
-            let color = env.get(theme::BORDER_LIGHT);
-            ctx.stroke(line, &color, 1.0);
+            ctx.stroke(
+                line,
+                config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
         }
     }
 
@@ -460,7 +464,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
             child.widget.paint(ctx, data, env);
         }
         if self.show_border {
-            self.paint_bar(ctx, env);
+            self.paint_bar(ctx, &data.config);
         }
     }
 }

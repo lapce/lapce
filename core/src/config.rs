@@ -20,6 +20,7 @@ impl LapceTheme {
     pub const LAPCE_ACTIVE_TAB: &'static str = "lapce.active_tab";
     pub const LAPCE_INACTIVE_TAB: &'static str = "lapce.inactive_tab";
     pub const LAPCE_DROPDOWN_SHADOW: &'static str = "lapce.dropdown_shadow";
+    pub const LAPCE_BORDER: &'static str = "lapce.border";
 
     pub const EDITOR_BACKGROUND: &'static str = "editor.background";
     pub const EDITOR_FOREGROUND: &'static str = "editor.foreground";

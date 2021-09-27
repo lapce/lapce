@@ -488,7 +488,6 @@ impl BufferNew {
         line: usize,
         line_content: &str,
         bounds: [f64; 2],
-        theme: &Arc<HashMap<String, Color>>,
         config: &Config,
     ) -> PietTextLayout {
         let line_content = line_content.replace('\t', "    ");
@@ -504,7 +503,9 @@ impl BufferNew {
             );
         for (start, end, style) in styles.iter() {
             if let Some(fg_color) = style.fg_color.as_ref() {
-                if let Some(fg_color) = theme.get(fg_color) {
+                if let Some(fg_color) =
+                    config.get_color(&("style.".to_string() + fg_color))
+                {
                     layout_builder = layout_builder.range_attribute(
                         start..end,
                         TextAttribute::TextColor(fg_color.clone()),

@@ -1763,7 +1763,6 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                 line,
                 line_content,
                 [rect.x0, rect.x1],
-                &data.theme,
                 &data.config,
             );
             ctx.draw_text(

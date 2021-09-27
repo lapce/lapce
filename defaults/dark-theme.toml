@@ -1,23 +1,26 @@
 white = "#ABB2BF"
 black = "#282C34"
 grey = "#3E4451"
-light_grey = "#f2f2f2"
+light_grey = "#2c313c"
 blue = "#61AFEF"
 red = "#E06C75"
-yellow = "#D19A66"
+yellow = "#e5c07b"
+orange = "#D19A66"
 green = "#98C379"
 purple = "#C678DD"
+cyan = "#56b6c2"
 
 "lapce.active_tab" = "$white"
 "lapce.inactive_tab" = "$grey"
 "lapce.error" = "$red"
 "lapce.warn" = "$yellow"
 "lapce.dropdown_shadow" = "#000000"
+"lapce.border" = "#000000"
 
 "editor.background" = "$black"
 "editor.foreground" = "$white"
 "editor.dim" = "#A0A1A7"
-"editor.caret" = "$blue"
+"editor.caret" = "#528bff"
 "editor.selection" = "$grey"
 "editor.current_line" = "$light_grey"
 
@@ -31,3 +34,27 @@ purple = "#C678DD"
 "panel.current" = "#dbdbdc"
 
 "status.background" = "#21252B"
+
+"style.constant" = "$yellow"
+"style.type" = "$yellow"
+"style.number" = "$yellow"
+"style.enum" = "$yellow"
+"style.struct" = "$yellow"
+"style.structure" = "$yellow"
+"style.interface" = "$yellow"
+
+"style.function" = "$blue"
+"style.method" = "$blue"
+"style.function.method" = "$blue"
+
+"style.keyword" = "$purple"
+"style.selfKeyword" = "$purple"
+
+"style.field" = "$red"
+"style.property" = "$red"
+"style.enumMember" = "$red"
+"style.enum-member" = "$red"
+
+"style.string" = "$green"
+
+"style.type.builtin" = "$cyan"
