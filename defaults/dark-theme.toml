@@ -1,0 +1,33 @@
+white = "#ABB2BF"
+black = "#282C34"
+grey = "#3E4451"
+light_grey = "#f2f2f2"
+blue = "#61AFEF"
+red = "#E06C75"
+yellow = "#D19A66"
+green = "#98C379"
+purple = "#C678DD"
+
+"lapce.active_tab" = "$white"
+"lapce.inactive_tab" = "$grey"
+"lapce.error" = "$red"
+"lapce.warn" = "$yellow"
+"lapce.dropdown_shadow" = "#000000"
+
+"editor.background" = "$black"
+"editor.foreground" = "$white"
+"editor.dim" = "#A0A1A7"
+"editor.caret" = "$blue"
+"editor.selection" = "$grey"
+"editor.current_line" = "$light_grey"
+
+"palette.background" = "#21252B"
+"palette.current" = "#2C313A"
+
+"completion.background" = "#21252B"
+"completion.current" = "#2C313A"
+
+"panel.background" = "#21252B"
+"panel.current" = "#dbdbdc"
+
+"status.background" = "#21252B"

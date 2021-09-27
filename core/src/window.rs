@@ -1,6 +1,7 @@
 use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
+    config::LapceTheme,
     data::{LapceTabData, LapceTabLens, LapceWindowData},
     editor::EditorUIState,
     explorer::{FileExplorer, FileExplorerState},
@@ -242,15 +243,13 @@ impl Widget<LapceWindowData> for LapceWindowNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
-        let rect = ctx.size().to_rect();
-        ctx.fill(rect, &env.get(OldLapceTheme::EDITOR_BACKGROUND));
-
         let tab_height = 25.0;
         let size = ctx.size();
         if self.tabs.len() > 1 {
             ctx.fill(
                 Size::new(size.width, tab_height).to_rect(),
-                &env.get(OldLapceTheme::EDITOR_SELECTION_COLOR),
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_INACTIVE_TAB),
             );
             let color = env.get(theme::BORDER_LIGHT);
             let num = self.tabs.len();
@@ -262,7 +261,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         Rect::ZERO
                             .with_origin(Point::new(section * i as f64, 0.0))
                             .with_size(Size::new(section, tab_height)),
-                        &env.get(OldLapceTheme::EDITOR_BACKGROUND),
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
                     );
                 }
                 let tab = data.tabs.get(&tab_id).unwrap();
@@ -284,7 +284,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     .text()
                     .new_text_layout(dir)
                     .font(FontFamily::SYSTEM_UI, 13.0)
-                    .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+                    .text_color(
+                        tab.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
                     .build()
                     .unwrap();
 
@@ -309,7 +313,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 Rect::ZERO
                     .with_origin(Point::new(section * data.active as f64, 0.0))
                     .with_size(Size::new(section, tab_height)),
-                &env.get(OldLapceTheme::EDITOR_BACKGROUND),
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
             );
 
             let tab = data.tabs.get(&self.tabs[data.active].id()).unwrap();
@@ -331,7 +336,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 .text()
                 .new_text_layout(dir)
                 .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+                .text_color(
+                    tab.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
                 .build()
                 .unwrap();
             let text_width = text_layout.size().width;

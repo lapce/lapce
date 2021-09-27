@@ -1,3 +1,4 @@
+use crate::config::LapceTheme;
 use crate::data::{EditorType, LapceEditorData, LapceEditorLens, LapceTabData};
 use crate::find::Find;
 use crate::scroll::LapceIdentityWrapper;
@@ -308,7 +309,11 @@ impl Widget<LapceTabData> for LapceEditorView {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let rects = ctx.region().rects().to_vec();
         for rect in &rects {
-            ctx.fill(rect, &env.get(OldLapceTheme::EDITOR_BACKGROUND));
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
         }
         let start = std::time::SystemTime::now();
         self.editor.paint(ctx, data, env);
@@ -677,7 +682,11 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
             ctx.is_focused();
         let rects = ctx.region().rects().to_vec();
         for rect in &rects {
-            ctx.fill(rect, &env.get(OldLapceTheme::EDITOR_BACKGROUND));
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
         }
         self.editor.paint(ctx, data, env);
         if self.display_gutter {
@@ -749,11 +758,19 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
         if !self.display {
             return;
         }
-        let blur_color = Color::grey8(180);
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
-        ctx.blurred_rect(rect, shadow_width, &blur_color);
-        ctx.fill(rect, &env.get(OldLapceTheme::EDITOR_BACKGROUND));
+        ctx.blurred_rect(
+            rect,
+            shadow_width,
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        );
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
 
         let mut path = data.editor.buffer.clone();
         let svg = file_svg_new(
@@ -787,7 +804,11 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
             .text()
             .new_text_layout(file_name)
             .font(FontFamily::SYSTEM_UI, 13.0)
-            .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
             .build()
             .unwrap();
         ctx.draw_text(&text_layout, Point::new(30.0, 7.0));
@@ -810,7 +831,11 @@ impl Widget<LapceEditorViewData> for LapceEditorHeader {
                 .text()
                 .new_text_layout(folder)
                 .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(env.get(OldLapceTheme::EDITOR_COMMENT))
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone(),
+                )
                 .build()
                 .unwrap();
             ctx.draw_text(&text_layout, Point::new(30.0 + x + 5.0, 7.0));
@@ -853,8 +878,11 @@ impl LapceEditorGutter {
                         (line_height - height) / 2.0 + line_height * line as f64
                             - data.editor.scroll_offset.y,
                     ));
-                let color = env.get(OldLapceTheme::EDITOR_WARN);
-                ctx.draw_svg(&svg, rect, Some(&color));
+                ctx.draw_svg(
+                    &svg,
+                    rect,
+                    Some(data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)),
+                );
             }
         }
     }
@@ -930,7 +958,11 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceEditorViewData, env: &Env) {
         let rect = ctx.size().to_rect();
-        ctx.fill(rect, &env.get(OldLapceTheme::EDITOR_BACKGROUND));
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
         let line_height = data.config.editor.line_height as f64;
         let scroll_offset = data.editor.scroll_offset;
         let start_line = (scroll_offset.y / line_height).floor() as usize;
@@ -963,8 +995,15 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
             let text_layout = ctx
                 .text()
                 .new_text_layout(content)
-                .font(env.get(OldLapceTheme::EDITOR_FONT).family, 13.0)
-                .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+                .font(
+                    data.config.editor.font_family(),
+                    data.config.editor.font_size as f64,
+                )
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
                 .build()
                 .unwrap();
             ctx.draw_text(&text_layout, pos);
@@ -1043,7 +1082,8 @@ impl LapceEditor {
             Rect::ZERO
                 .with_origin(Point::new(0.0, line as f64 * line_height))
                 .with_size(Size::new(size.width, line_height)),
-            &env.get(OldLapceTheme::EDITOR_CURRENT_LINE_BACKGROUND),
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
         );
     }
 
@@ -1107,14 +1147,14 @@ impl LapceEditor {
                         .unwrap_or(&DiagnosticSeverity::Information);
                     let color = match severity {
                         DiagnosticSeverity::Error => {
-                            env.get(OldLapceTheme::EDITOR_ERROR)
+                            data.config.get_color_unchecked(LapceTheme::LAPCE_ERROR)
                         }
                         DiagnosticSeverity::Warning => {
-                            env.get(OldLapceTheme::EDITOR_WARN)
+                            data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)
                         }
-                        _ => env.get(OldLapceTheme::EDITOR_WARN),
+                        _ => data.config.get_color_unchecked(LapceTheme::LAPCE_WARN),
                     };
-                    ctx.fill(Rect::new(x0, y0, x1, y1), &color);
+                    ctx.fill(Rect::new(x0, y0, x1, y1), color);
                 }
             }
         }
@@ -1125,7 +1165,11 @@ impl LapceEditor {
                     .text()
                     .new_text_layout(diagnostic.diagnositc.message.clone())
                     .font(FontFamily::SYSTEM_UI, 14.0)
-                    .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
                     .build()
                     .unwrap();
                 let text_size = text_layout.size();
@@ -1137,7 +1181,11 @@ impl LapceEditor {
                         (start.line + 1) as f64 * line_height,
                     ))
                     .with_size(Size::new(size.width, text_size.height + 20.0));
-                ctx.fill(rect, &env.get(OldLapceTheme::EDITOR_SELECTION_COLOR));
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                );
 
                 let severity = diagnostic
                     .diagnositc
@@ -1146,14 +1194,14 @@ impl LapceEditor {
                     .unwrap_or(&DiagnosticSeverity::Information);
                 let color = match severity {
                     DiagnosticSeverity::Error => {
-                        env.get(OldLapceTheme::EDITOR_ERROR)
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_ERROR)
                     }
                     DiagnosticSeverity::Warning => {
-                        env.get(OldLapceTheme::EDITOR_WARN)
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)
                     }
-                    _ => env.get(OldLapceTheme::EDITOR_WARN),
+                    _ => data.config.get_color_unchecked(LapceTheme::LAPCE_WARN),
                 };
-                ctx.stroke(rect, &color, 1.0);
+                ctx.stroke(rect, color, 1.0);
                 ctx.draw_text(
                     &text_layout,
                     Point::new(10.0, (start.line + 1) as f64 * line_height + 10.0),
@@ -1207,7 +1255,8 @@ impl LapceEditor {
                         let y1 = y0 + line_height;
                         ctx.stroke(
                             Rect::new(x0, y0, x1, y1).inflate(1.0, -0.5),
-                            &env.get(OldLapceTheme::EDITOR_FOREGROUND),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
                             1.0,
                         );
                     }
@@ -1254,7 +1303,7 @@ impl LapceEditor {
                                 width * char_width as f64,
                                 line_height,
                             )),
-                        &env.get(OldLapceTheme::EDITOR_CURSOR_COLOR),
+                        data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
                     );
                 }
             }
@@ -1320,7 +1369,8 @@ impl LapceEditor {
                         let y1 = y0 + line_height;
                         ctx.fill(
                             Rect::new(x0, y0, x1, y1),
-                            &env.get(OldLapceTheme::EDITOR_SELECTION_COLOR),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
                         );
                     }
 
@@ -1340,7 +1390,7 @@ impl LapceEditor {
                                 width * char_width as f64,
                                 line_height,
                             )),
-                        &env.get(OldLapceTheme::EDITOR_CURSOR_COLOR),
+                        data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
                     );
                 }
             }
@@ -1397,8 +1447,8 @@ impl LapceEditor {
                                     let y1 = y0 + line_height;
                                     ctx.fill(
                                         Rect::new(x0, y0, x1, y1),
-                                        &env.get(
-                                            OldLapceTheme::EDITOR_SELECTION_COLOR,
+                                        data.config.get_color_unchecked(
+                                            LapceTheme::EDITOR_SELECTION,
                                         ),
                                     );
                                 }
@@ -1414,7 +1464,8 @@ impl LapceEditor {
                                 Point::new(x, y),
                                 Point::new(x, y + line_height),
                             ),
-                            &env.get(OldLapceTheme::EDITOR_CURSOR_COLOR),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET),
                             2.0,
                         )
                     }
@@ -1713,7 +1764,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                 line_content,
                 [rect.x0, rect.x1],
                 &data.theme,
-                env,
+                &data.config,
             );
             ctx.draw_text(
                 &text_layout,
@@ -1729,7 +1780,11 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                     .text()
                     .new_text_layout(placeholder.to_string())
                     .font(FontFamily::SYSTEM_UI, 13.0)
-                    .text_color(env.get(OldLapceTheme::EDITOR_COMMENT))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    )
                     .build()
                     .unwrap();
                 ctx.draw_text(&text_layout, Point::new(0.0, 5.0));

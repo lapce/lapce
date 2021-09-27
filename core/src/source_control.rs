@@ -16,6 +16,7 @@ use druid::{
 
 use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceTheme,
     data::{LapceEditorLens, LapceTabData},
     editor::{LapceEditorContainer, LapceEditorView},
     keypress::KeyPressFocus,
@@ -260,8 +261,17 @@ impl Widget<LapceTabData> for SourceControlNew {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let rect = ctx.size().to_rect();
-        ctx.blurred_rect(rect, 5.0, &Color::grey8(180));
-        ctx.fill(rect, &env.get(OldLapceTheme::LIST_BACKGROUND));
+        ctx.blurred_rect(
+            rect,
+            5.0,
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        );
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+        );
         self.split.paint(ctx, data, env);
     }
 }
@@ -409,19 +419,31 @@ impl Widget<LapceTabData> for SourceControlFileList {
         let line_height = data.config.editor.line_height as f64;
 
         {
-            let blur_color = Color::grey8(180);
             let shadow_width = 5.0;
             let rect = Size::new(ctx.size().width, line_height)
                 .to_rect()
                 .with_origin(Point::new(0.0, 5.0));
-            ctx.blurred_rect(rect, shadow_width, &blur_color);
-            ctx.fill(rect, &env.get(OldLapceTheme::LIST_BACKGROUND));
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+            );
 
             let text_layout = ctx
                 .text()
                 .new_text_layout("Changes")
                 .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
                 .build()
                 .unwrap();
             ctx.draw_text(&text_layout, Point::new(5.0, 5.0 + 4.0));
@@ -437,7 +459,10 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     (data.source_control.file_list_index + 1) as f64 * line_height
                         + 10.0,
                 ));
-            ctx.fill(rect, &env.get(OldLapceTheme::LIST_CURRENT));
+            ctx.fill(
+                rect,
+                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+            );
         }
 
         let rect = ctx.region().bounding_box();
@@ -500,7 +525,11 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .text()
                 .new_text_layout(file_name)
                 .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
                 .build()
                 .unwrap();
             ctx.draw_text(&text_layout, Point::new(line_height * 2.0, y + 4.0));
@@ -516,7 +545,11 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     .text()
                     .new_text_layout(folder)
                     .font(FontFamily::SYSTEM_UI, 13.0)
-                    .text_color(env.get(OldLapceTheme::EDITOR_COMMENT))
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    )
                     .build()
                     .unwrap();
                 ctx.draw_text(

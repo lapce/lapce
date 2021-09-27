@@ -11,6 +11,7 @@ use druid::{
 use lsp_types::DiagnosticSeverity;
 
 use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
+use crate::config::LapceTheme;
 use crate::data::LapceTabData;
 use crate::state::Mode;
 use crate::theme::OldLapceTheme;
@@ -83,8 +84,17 @@ impl Widget<LapceTabData> for LapceStatusNew {
     ) {
         let size = ctx.size();
         let rect = size.to_rect();
-        ctx.blurred_rect(rect, 5.0, &Color::grey8(180));
-        ctx.fill(rect, &env.get(OldLapceTheme::LIST_BACKGROUND));
+        ctx.blurred_rect(
+            rect,
+            5.0,
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        );
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::STATUS_BACKGROUND),
+        );
 
         let mut left = 0.0;
         let (mode, color) = match data.main_split.active_editor().cursor.get_mode() {
@@ -97,7 +107,11 @@ impl Widget<LapceTabData> for LapceStatusNew {
             .text()
             .new_text_layout(mode)
             .font(FontFamily::SYSTEM_UI, 13.0)
-            .text_color(env.get(OldLapceTheme::EDITOR_BACKGROUND))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                    .clone(),
+            )
             .build()
             .unwrap();
         let text_size = text_layout.size();
@@ -113,7 +127,11 @@ impl Widget<LapceTabData> for LapceStatusNew {
                 data.main_split.error_count, data.main_split.warning_count
             ))
             .font(FontFamily::SYSTEM_UI, 13.0)
-            .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
             .build()
             .unwrap();
         ctx.draw_text(&text_layout, Point::new(left + 10.0, 4.0));

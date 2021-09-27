@@ -1,18 +1,43 @@
 use std::collections::HashMap;
 
+use anyhow::Result;
 use druid::{theme, Color, Env, FontDescriptor, FontFamily, Key};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{data::hex_to_color, state::LapceWorkspace};
 
 const default_settings: &'static str = include_str!("../../defaults/settings.toml");
-const default_theme: &'static str = include_str!("../../defaults/light-theme.toml");
+const default_light_theme: &'static str =
+    include_str!("../../defaults/light-theme.toml");
+const default_dark_theme: &'static str =
+    include_str!("../../defaults/dark-theme.toml");
 
 pub struct LapceTheme {}
 
 impl LapceTheme {
+    pub const LAPCE_WARN: &'static str = "lapce.warn";
+    pub const LAPCE_ERROR: &'static str = "lapce.error";
+    pub const LAPCE_ACTIVE_TAB: &'static str = "lapce.active_tab";
+    pub const LAPCE_INACTIVE_TAB: &'static str = "lapce.inactive_tab";
+    pub const LAPCE_DROPDOWN_SHADOW: &'static str = "lapce.dropdown_shadow";
+
     pub const EDITOR_BACKGROUND: &'static str = "editor.background";
     pub const EDITOR_FOREGROUND: &'static str = "editor.foreground";
+    pub const EDITOR_DIM: &'static str = "editor.dim";
+    pub const EDITOR_CARET: &'static str = "editor.caret";
+    pub const EDITOR_SELECTION: &'static str = "editor.selection";
+    pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
+
+    pub const PALETTE_BACKGROUND: &'static str = "palette.background";
+    pub const PALETTE_CURRENT: &'static str = "palette.current";
+
+    pub const COMPLETION_BACKGROUND: &'static str = "completion.background";
+    pub const COMPLETION_CURRENT: &'static str = "completion.current";
+
+    pub const PANEL_BACKGROUND: &'static str = "panel.background";
+    pub const PANEL_CURRENT: &'static str = "panel.current";
+
+    pub const STATUS_BACKGROUND: &'static str = "status.background";
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -30,6 +55,12 @@ pub struct EditorConfig {
     pub line_height: usize,
 }
 
+impl EditorConfig {
+    pub fn font_family(&self) -> FontFamily {
+        FontFamily::new_unchecked(self.font_family.clone())
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub lapce: LapceConfig,
@@ -43,7 +74,7 @@ pub struct Config {
 impl Config {
     pub fn load(workspace: Option<LapceWorkspace>) -> Self {
         let mut settings_string = default_settings.to_string();
-        let mut files = vec!["/Users/Lulu/.lapce/settings.toml".to_string()];
+        let mut files = vec![];
         if let Some(workspace) = workspace {
             match workspace.kind {
                 crate::state::LapceWorkspaceType::Local => {
@@ -65,27 +96,17 @@ impl Config {
         let config: toml::Value = toml::from_str(&settings_string).unwrap();
         let mut config: Config = config.try_into().unwrap();
 
-        let theme_colors: HashMap<String, String> =
-            toml::from_str(&default_theme).unwrap();
-        let mut theme = HashMap::new();
-        for (k, v) in theme_colors.iter() {
-            if v.starts_with("$") {
-                let var_name = &v[1..];
-                if let Some(hex) = theme_colors.get(var_name) {
-                    if let Ok(color) = hex_to_color(hex) {
-                        theme.insert(k.clone(), color);
-                    }
-                }
-            } else {
-                if let Ok(color) = hex_to_color(v) {
-                    theme.insert(k.clone(), color);
-                }
-            }
-        }
+        config.theme = get_theme(default_light_theme).unwrap();
 
-        config.theme = theme;
-
-        let themes = HashMap::new();
+        let mut themes = HashMap::new();
+        themes.insert(
+            "Lapce Light".to_string(),
+            get_theme(default_light_theme).unwrap(),
+        );
+        themes.insert(
+            "Lapce Dark".to_string(),
+            get_theme(default_dark_theme).unwrap(),
+        );
         config.themes = themes;
 
         println!("{:?}", config);
@@ -160,4 +181,24 @@ impl Config {
         //  env.set(LapceTheme::LIST_BACKGROUND, Color::rgb8(234, 234, 235));
         //  env.set(LapceTheme::LIST_CURRENT, Color::rgb8(219, 219, 220));
     }
+}
+
+fn get_theme(content: &str) -> Result<HashMap<String, Color>> {
+    let theme_colors: HashMap<String, String> = toml::from_str(content)?;
+    let mut theme = HashMap::new();
+    for (k, v) in theme_colors.iter() {
+        if v.starts_with("$") {
+            let var_name = &v[1..];
+            if let Some(hex) = theme_colors.get(var_name) {
+                if let Ok(color) = hex_to_color(hex) {
+                    theme.insert(k.clone(), color);
+                }
+            }
+        } else {
+            if let Ok(color) = hex_to_color(v) {
+                theme.insert(k.clone(), color);
+            }
+        }
+    }
+    Ok(theme)
 }

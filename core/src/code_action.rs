@@ -13,6 +13,7 @@ use lsp_types::{
 use crate::{
     buffer::EditType,
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceTheme,
     data::{LapceMainSplitData, LapceTabData},
     keypress::{KeyPressData, KeyPressFocus},
     movement::{Movement, Selection},
@@ -261,7 +262,11 @@ impl Widget<LapceTabData> for CodeAction {
         let blur_color = Color::grey8(180);
         let shadow_width = 5.0;
         ctx.blurred_rect(rect, shadow_width, &blur_color);
-        ctx.fill(rect, &env.get(OldLapceTheme::EDITOR_SELECTION_COLOR));
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+        );
 
         let editor = data.main_split.active_editor();
         let buffer = data.main_split.open_files.get(&editor.buffer).unwrap();
@@ -284,7 +289,11 @@ impl Widget<LapceTabData> for CodeAction {
                 text_layout.set_font(
                     FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
                 );
-                text_layout.set_text_color(OldLapceTheme::EDITOR_FOREGROUND);
+                text_layout.set_text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                );
                 text_layout.rebuild_if_needed(ctx.text(), env);
                 text_layout
             })
@@ -298,7 +307,11 @@ impl Widget<LapceTabData> for CodeAction {
                 data.main_split.current_code_actions as f64 * line_height,
             ))
             .with_size(Size::new(ctx.size().width, line_height));
-        ctx.fill(line_rect, &env.get(OldLapceTheme::EDITOR_BACKGROUND));
+        ctx.fill(
+            line_rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
 
         for (i, text_layout) in action_text_layouts.iter().enumerate() {
             text_layout.draw(ctx, Point::new(5.0, i as f64 * line_height + 5.0));

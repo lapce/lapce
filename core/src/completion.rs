@@ -8,9 +8,9 @@ use druid::{
     theme,
     widget::SvgData,
     Affine, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
-    ExtEventSink, FontWeight, Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
-    Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget,
-    WidgetExt, WidgetId, WidgetPod, WindowId,
+    ExtEventSink, FontFamily, FontWeight, Insets, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout,
+    UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
@@ -21,6 +21,7 @@ use std::str::FromStr;
 use crate::{
     buffer::BufferId,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceTheme,
     data::LapceTabData,
     movement::Movement,
     proxy::LapceProxy,
@@ -601,10 +602,14 @@ impl Widget<LapceTabData> for CompletionContainer {
         if data.completion.status != CompletionStatus::Inactive
             && data.completion.len() > 0
         {
-            let blur_color = Color::grey8(180);
             let shadow_width = 5.0;
             let rect = self.content_size.to_rect();
-            ctx.blurred_rect(rect, shadow_width, &blur_color);
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
             self.completion.paint(ctx, data, env);
         }
     }
@@ -667,7 +672,11 @@ impl Widget<LapceTabData> for CompletionNew {
         let input = &data.completion.input;
         let items: &Vec<ScoredCompletionItem> = data.completion.current_items();
 
-        ctx.fill(rect, &env.get(OldLapceTheme::LIST_BACKGROUND));
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::COMPLETION_BACKGROUND),
+        );
 
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
@@ -682,7 +691,8 @@ impl Widget<LapceTabData> for CompletionNew {
                     Rect::ZERO
                         .with_origin(Point::new(0.0, line as f64 * line_height))
                         .with_size(Size::new(size.width, line_height)),
-                    &env.get(OldLapceTheme::LIST_CURRENT),
+                    data.config
+                        .get_color_unchecked(LapceTheme::COMPLETION_CURRENT),
                 );
             }
 
@@ -693,8 +703,11 @@ impl Widget<LapceTabData> for CompletionNew {
             if let Some((svg, color)) =
                 completion_svg(item.item.kind, data.theme.clone())
             {
-                let color =
-                    color.unwrap_or(env.get(OldLapceTheme::EDITOR_FOREGROUND));
+                let color = color.unwrap_or(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                );
                 let rect = Size::new(line_height, line_height)
                     .to_rect()
                     .with_origin(Point::new(0.0, line_height * line as f64));
@@ -717,8 +730,17 @@ impl Widget<LapceTabData> for CompletionNew {
             let mut text_layout = ctx
                 .text()
                 .new_text_layout(content.to_string())
-                .font(env.get(OldLapceTheme::EDITOR_FONT).family, 13.0)
-                .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND));
+                .font(
+                    FontFamily::new_unchecked(
+                        data.config.editor.font_family.clone(),
+                    ),
+                    data.config.editor.font_size as f64,
+                )
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                );
             for i in &item.indices {
                 let i = *i;
                 text_layout = text_layout.range_attribute(

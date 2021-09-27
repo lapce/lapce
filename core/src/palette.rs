@@ -1138,7 +1138,6 @@ impl PaletteContainer {
         let padding = 6.0;
         let input = NewPaletteInput::new()
             .padding((padding, padding, padding, padding * 2.0))
-            .background(OldLapceTheme::EDITOR_BACKGROUND)
             .padding((padding, padding, padding, padding))
             .lens(PaletteViewLens);
         let content = LapceIdentityWrapper::wrap(
@@ -1280,11 +1279,19 @@ impl Widget<LapceTabData> for PaletteContainer {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let blur_color = Color::grey8(180);
         let shadow_width = 5.0;
         let rect = self.content_size.to_rect();
-        ctx.blurred_rect(rect, shadow_width, &blur_color);
-        ctx.fill(rect, &env.get(OldLapceTheme::LIST_BACKGROUND));
+        ctx.blurred_rect(
+            rect,
+            shadow_width,
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        );
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::PALETTE_BACKGROUND),
+        );
 
         self.input.paint(ctx, data, env);
         self.content.paint(ctx, data, env);
@@ -1362,11 +1369,20 @@ impl Widget<PaletteViewData> for NewPaletteInput {
             .text()
             .new_text_layout(text)
             .font(FontFamily::SYSTEM_UI, 14.0)
-            .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
             .build()
             .unwrap();
         let line = text_layout.cursor_line_for_text_position(cursor);
-        ctx.stroke(line, &env.get(OldLapceTheme::EDITOR_FOREGROUND), 1.0);
+        ctx.stroke(
+            line,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+            1.0,
+        );
         ctx.draw_text(&text_layout, Point::new(0.0, 0.0));
     }
 }
@@ -1463,7 +1479,7 @@ impl Widget<PaletteViewData> for NewPaletteContent {
                     Rect::ZERO
                         .with_origin(Point::new(0.0, line as f64 * line_height))
                         .with_size(Size::new(size.width, line_height)),
-                    &env.get(OldLapceTheme::LIST_CURRENT),
+                    data.config.get_color_unchecked(LapceTheme::PALETTE_CURRENT),
                 );
             }
 

@@ -52,7 +52,7 @@ use crate::{
         EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
     completion::{CompletionData, CompletionStatus, Snippet},
-    config::Config,
+    config::{Config, LapceTheme},
     editor::EditorLocationNew,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -114,6 +114,7 @@ pub struct LapceWindowData {
     pub active_id: WidgetId,
     pub keypress: Arc<KeyPressData>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
+    pub config: Arc<Config>,
 }
 
 impl Data for LapceWindowData {
@@ -131,12 +132,14 @@ impl LapceWindowData {
         let tab_id = WidgetId::next();
         let tab = LapceTabData::new(tab_id, keypress.clone(), theme.clone(), None);
         tabs.insert(tab_id, tab);
+        let config = Arc::new(Config::load(None));
         Self {
             tabs,
             active: 0,
             active_id: tab_id,
             keypress,
             theme,
+            config,
         }
     }
 }
@@ -324,7 +327,6 @@ impl LapceTabData {
                 text_layout.set_font(
                     FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
                 );
-                text_layout.set_text_color(OldLapceTheme::EDITOR_FOREGROUND);
                 text_layout.rebuild_if_needed(text, env);
                 text_layout
             })

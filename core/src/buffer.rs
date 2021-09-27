@@ -8,7 +8,7 @@ use druid::{
     Color, Command, Data, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId,
     WindowId,
 };
-use druid::{Env, PaintCtx};
+use druid::{Env, FontFamily, PaintCtx};
 use git2::Repository;
 use language::{new_highlight_config, new_parser, LapceLanguage};
 use lsp_types::SemanticTokensServerCapabilities;
@@ -50,6 +50,7 @@ use xi_rope::{
     Transformer,
 };
 
+use crate::config::{Config, LapceTheme};
 use crate::data::EditorKind;
 use crate::editor::EditorLocationNew;
 use crate::theme::OldLapceTheme;
@@ -488,15 +489,19 @@ impl BufferNew {
         line_content: &str,
         bounds: [f64; 2],
         theme: &Arc<HashMap<String, Color>>,
-        env: &Env,
+        config: &Config,
     ) -> PietTextLayout {
         let line_content = line_content.replace('\t', "    ");
         let styles = self.get_line_styles(line);
         let mut layout_builder = ctx
             .text()
             .new_text_layout(line_content)
-            .font(env.get(OldLapceTheme::EDITOR_FONT).family, 13.0)
-            .text_color(env.get(OldLapceTheme::EDITOR_FOREGROUND));
+            .font(config.editor.font_family(), config.editor.font_size as f64)
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            );
         for (start, end, style) in styles.iter() {
             if let Some(fg_color) = style.fg_color.as_ref() {
                 if let Some(fg_color) = theme.get(fg_color) {
