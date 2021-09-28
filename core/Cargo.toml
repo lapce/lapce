@@ -21,7 +21,7 @@ include_dir = "0.6.0"
 tree-sitter = "=0.19.2"
 tree-sitter-rust = "0.19.0"
 tree-sitter-highlight = "0.19.2"
-toml = { path = "../../toml-rs" }
+toml = { git = "https://github.com/lapce/toml-rs" }
 anyhow = "1.0.32"
 strum = "0.19"
 strum_macros = "0.19"
