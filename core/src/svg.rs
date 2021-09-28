@@ -13,6 +13,8 @@ use lsp_types::{CompletionItemKind, SymbolKind};
 use parking_lot::Mutex;
 use usvg;
 
+use crate::config::Config;
+
 pub const ICONS_DIR: Dir = include_dir!("../icons");
 lazy_static! {
     static ref SVG_STORE: SvgStore = SvgStore::new();
@@ -85,7 +87,7 @@ pub fn symbol_svg_new(kind: &SymbolKind) -> Option<Svg> {
 
 pub fn completion_svg(
     kind: Option<CompletionItemKind>,
-    theme: Arc<HashMap<String, Color>>,
+    config: &Config,
 ) -> Option<(Svg, Option<Color>)> {
     let kind = kind?;
     let kind_str = match kind {
@@ -113,6 +115,8 @@ pub fn completion_svg(
 
     Some((
         get_svg(&format!("symbol-{}.svg", kind_str))?,
-        theme.get(theme_str).map(|c| c.clone()),
+        config
+            .get_color(&("style.".to_string() + theme_str))
+            .map(|c| c.clone()),
     ))
 }

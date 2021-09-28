@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc, thread};
 use druid::{
     theme, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
     Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext,
-    Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
+    Size, Target, Widget, WidgetExt, WidgetId, WidgetPod, WindowConfig,
 };
 use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 
@@ -388,6 +388,24 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::ShowCodeActions
                     | LapceUICommand::CancelCodeActions => {
                         self.code_action.event(ctx, event, data, env);
+                    }
+                    LapceUICommand::FocusTab => {
+                        let dir = data
+                            .workspace
+                            .as_ref()
+                            .map(|w| {
+                                let dir =
+                                    w.path.file_name().unwrap().to_str().unwrap();
+                                let dir = match &w.kind {
+                                    LapceWorkspaceType::Local => dir.to_string(),
+                                    LapceWorkspaceType::RemoteSSH(user, host) => {
+                                        format!("{} [{}@{}]", dir, user, host)
+                                    }
+                                };
+                                dir
+                            })
+                            .unwrap_or("Lapce".to_string());
+                        ctx.configure_window(WindowConfig::default().set_title(dir));
                     }
                     LapceUICommand::UpdateStyle {
                         id,

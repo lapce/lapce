@@ -259,9 +259,13 @@ impl Widget<LapceTabData> for CodeAction {
         }
 
         let rect = ctx.size().to_rect();
-        let blur_color = Color::grey8(180);
         let shadow_width = 5.0;
-        ctx.blurred_rect(rect, shadow_width, &blur_color);
+        ctx.blurred_rect(
+            rect,
+            shadow_width,
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        );
         ctx.fill(
             rect,
             data.config

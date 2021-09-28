@@ -79,7 +79,9 @@ impl PaletteType {
 
     fn has_preview(&self) -> bool {
         match &self {
-            PaletteType::File | PaletteType::Workspace => false,
+            PaletteType::File | PaletteType::Workspace | PaletteType::Command => {
+                false
+            }
             _ => true,
         }
     }
@@ -111,6 +113,7 @@ pub enum PaletteItemContent {
     },
     ReferenceLocation(PathBuf, EditorLocationNew),
     Workspace(LapceWorkspace),
+    Command(LapceCommand),
 }
 
 impl PaletteItemContent {
@@ -175,6 +178,35 @@ impl PaletteItemContent {
                     ));
                 }
             }
+            PaletteItemContent::Command(command) => {
+                if !preview {
+                    match command {
+                        LapceCommand::OpenFolder => {
+                            let event_sink = ctx.get_external_handle();
+                            thread::spawn(move || {
+                                if let Some(folder) =
+                                    tinyfiledialogs::select_folder_dialog(
+                                        "Open folder",
+                                        "./",
+                                    )
+                                {
+                                    event_sink.submit_command(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::SetWorkspace(
+                                            LapceWorkspace {
+                                                kind: LapceWorkspaceType::Local,
+                                                path: PathBuf::from(folder),
+                                            },
+                                        ),
+                                        Target::Auto,
+                                    );
+                                }
+                            });
+                        }
+                        _ => (),
+                    }
+                }
+            }
         }
     }
 
@@ -236,6 +268,13 @@ impl PaletteItemContent {
                 };
                 (None, text, indices.to_vec(), "".to_string(), vec![])
             }
+            PaletteItemContent::Command(command) => (
+                None,
+                command.to_string(),
+                indices.to_vec(),
+                "".to_string(),
+                vec![],
+            ),
         };
 
         if let Some(svg) = svg.as_ref() {
@@ -564,6 +603,9 @@ impl PaletteViewData {
                 self.get_workspaces(ctx);
             }
             &PaletteType::Reference => {}
+            &PaletteType::Command => {
+                self.get_commands(ctx);
+            }
             _ => self.get_files(ctx),
         }
     }
@@ -772,6 +814,16 @@ impl PaletteViewData {
                 }
             })
             .collect();
+    }
+
+    fn get_commands(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.items = vec![NewPaletteItem {
+            content: PaletteItemContent::Command(LapceCommand::OpenFolder),
+            filter_text: "Open Folder".to_string(),
+            score: 0,
+            indices: vec![],
+        }];
     }
 
     fn get_lines(&mut self, ctx: &mut EventCtx) {

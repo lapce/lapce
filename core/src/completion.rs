@@ -700,8 +700,7 @@ impl Widget<LapceTabData> for CompletionNew {
 
             let y = line_height * line as f64 + 5.0;
 
-            if let Some((svg, color)) =
-                completion_svg(item.item.kind, data.theme.clone())
+            if let Some((svg, color)) = completion_svg(item.item.kind, &data.config)
             {
                 let color = color.unwrap_or(
                     data.config
