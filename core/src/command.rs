@@ -8,7 +8,7 @@ use lsp_types::{
 };
 use serde_json::Value;
 use strum;
-use strum_macros::{Display, EnumProperty, EnumString};
+use strum_macros::{Display, EnumIter, EnumMessage, EnumProperty, EnumString};
 use tree_sitter::Tree;
 use tree_sitter_highlight::Highlight;
 use xi_rope::spans::Spans;
@@ -27,7 +27,7 @@ pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.command")
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
 
-#[derive(Display, EnumString, Clone, PartialEq, Debug)]
+#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
 pub enum LapceCommand {
     #[strum(serialize = "file_explorer")]
     FileExplorer,
@@ -47,6 +47,8 @@ pub enum LapceCommand {
     PaletteCancel,
     #[strum(serialize = "palette.symbol")]
     PaletteSymbol,
+    #[strum(serialize = "palette.command")]
+    PaletteCommand,
     #[strum(serialize = "delete_backward")]
     DeleteBackward,
     #[strum(serialize = "delete_foreward")]
@@ -196,7 +198,11 @@ pub enum LapceCommand {
     #[strum(serialize = "previous_unmatched_left_curly_bracket")]
     PreviousUnmatchedLeftCurlyBracket,
     #[strum(serialize = "open_folder")]
+    #[strum(message = "Open Folder")]
     OpenFolder,
+    #[strum(serialize = "change_theme")]
+    #[strum(message = "Change Theme")]
+    ChangeTheme,
     #[strum(serialize = "join_lines")]
     JoinLines,
     #[strum(serialize = "search_whole_word_forward")]
@@ -226,6 +232,7 @@ pub enum LapceUICommand {
         location: EditorLocationNew,
     },
     SetWorkspace(LapceWorkspace),
+    SetTheme(String),
     OpenFile(PathBuf),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, CompletionItem),

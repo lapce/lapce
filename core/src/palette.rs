@@ -29,6 +29,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use strum::{EnumMessage, IntoEnumIterator};
 use usvg;
 use uuid::Uuid;
 
@@ -63,6 +64,7 @@ pub enum PaletteType {
     Workspace,
     Command,
     Reference,
+    Theme,
 }
 
 impl PaletteType {
@@ -74,6 +76,7 @@ impl PaletteType {
             PaletteType::Workspace => ">".to_string(),
             PaletteType::Command => ":".to_string(),
             PaletteType::Reference => "".to_string(),
+            PaletteType::Theme => "".to_string(),
         }
     }
 
@@ -114,10 +117,11 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocationNew),
     Workspace(LapceWorkspace),
     Command(LapceCommand),
+    Theme(String),
 }
 
 impl PaletteItemContent {
-    fn select(&self, ctx: &mut EventCtx, preview: bool) {
+    fn select(&self, ctx: &mut EventCtx, preview: bool) -> Option<PaletteType> {
         match &self {
             PaletteItemContent::File(_, full_path) => {
                 if !preview {
@@ -178,36 +182,45 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            PaletteItemContent::Command(command) => {
-                if !preview {
-                    match command {
-                        LapceCommand::OpenFolder => {
-                            let event_sink = ctx.get_external_handle();
-                            thread::spawn(move || {
-                                if let Some(folder) =
-                                    tinyfiledialogs::select_folder_dialog(
-                                        "Open folder",
-                                        "./",
-                                    )
-                                {
-                                    event_sink.submit_command(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::SetWorkspace(
-                                            LapceWorkspace {
-                                                kind: LapceWorkspaceType::Local,
-                                                path: PathBuf::from(folder),
-                                            },
-                                        ),
-                                        Target::Auto,
-                                    );
-                                }
-                            });
-                        }
-                        _ => (),
+            PaletteItemContent::Theme(theme) => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetTheme(theme.to_string()),
+                    Target::Auto,
+                ));
+            }
+            PaletteItemContent::Command(command) => match command {
+                LapceCommand::ChangeTheme => {
+                    if !preview {
+                        return Some(PaletteType::Theme);
                     }
                 }
-            }
+                LapceCommand::OpenFolder => {
+                    if !preview {
+                        let event_sink = ctx.get_external_handle();
+                        thread::spawn(move || {
+                            if let Some(folder) =
+                                tinyfiledialogs::select_folder_dialog(
+                                    "Open folder",
+                                    "./",
+                                )
+                            {
+                                event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::SetWorkspace(LapceWorkspace {
+                                        kind: LapceWorkspaceType::Local,
+                                        path: PathBuf::from(folder),
+                                    }),
+                                    Target::Auto,
+                                );
+                            }
+                        });
+                    }
+                }
+                _ => (),
+            },
         }
+        None
     }
 
     fn paint(
@@ -270,7 +283,17 @@ impl PaletteItemContent {
             }
             PaletteItemContent::Command(command) => (
                 None,
-                command.to_string(),
+                command
+                    .get_message()
+                    .map(|m| m.to_string())
+                    .unwrap_or("".to_string()),
+                indices.to_vec(),
+                "".to_string(),
+                vec![],
+            ),
+            PaletteItemContent::Theme(theme) => (
+                None,
+                theme.to_string(),
                 indices.to_vec(),
                 "".to_string(),
                 vec![],
@@ -519,6 +542,7 @@ impl PaletteData {
         match &self.palette_type {
             PaletteType::File => &self.input,
             PaletteType::Reference => &self.input,
+            PaletteType::Theme => &self.input,
             PaletteType::Line => &self.input[1..],
             PaletteType::DocumentSymbol => &self.input[1..],
             PaletteType::Workspace => &self.input[1..],
@@ -585,6 +609,7 @@ impl PaletteViewData {
         palette.filtered_items = Vec::new();
         palette.run_id = Uuid::new_v4().to_string();
         palette.cursor = palette.input.len();
+        palette.index = 0;
 
         let active_path = self.main_split.active_editor().buffer.clone();
         self.main_split
@@ -592,6 +617,9 @@ impl PaletteViewData {
             .buffer = active_path;
 
         match &palette.palette_type {
+            &PaletteType::File => {
+                self.get_files(ctx);
+            }
             &PaletteType::Line => {
                 self.get_lines(ctx);
                 self.palette.preview(ctx);
@@ -606,7 +634,10 @@ impl PaletteViewData {
             &PaletteType::Command => {
                 self.get_commands(ctx);
             }
-            _ => self.get_files(ctx),
+            &PaletteType::Theme => {
+                let config = self.config.clone();
+                self.get_themes(ctx, &config);
+            }
         }
     }
 
@@ -630,6 +661,7 @@ impl PaletteViewData {
         let start = match &palette.palette_type {
             &PaletteType::File => 0,
             &PaletteType::Reference => 0,
+            &PaletteType::Theme => 0,
             &PaletteType::Line => 1,
             &PaletteType::DocumentSymbol => 1,
             &PaletteType::Workspace => 1,
@@ -663,13 +695,12 @@ impl PaletteViewData {
     pub fn select(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {
-            item.content.select(ctx, false);
+            if let Some(palette_type) = item.content.select(ctx, false) {
+                self.run(ctx, Some(palette_type));
+            } else {
+                self.cancel(ctx);
+            }
         }
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::CancelPalette,
-            Target::Widget(palette.widget_id),
-        ));
     }
 
     fn update_palette(&mut self, ctx: &mut EventCtx) {
@@ -816,14 +847,32 @@ impl PaletteViewData {
             .collect();
     }
 
+    fn get_themes(&mut self, ctx: &mut EventCtx, config: &Config) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.items = config
+            .themes
+            .keys()
+            .map(|n| NewPaletteItem {
+                content: PaletteItemContent::Theme(n.to_string()),
+                filter_text: n.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+    }
+
     fn get_commands(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = vec![NewPaletteItem {
-            content: PaletteItemContent::Command(LapceCommand::OpenFolder),
-            filter_text: "Open Folder".to_string(),
-            score: 0,
-            indices: vec![],
-        }];
+        palette.items = LapceCommand::iter()
+            .filter_map(|c| {
+                c.get_message().map(|m| NewPaletteItem {
+                    content: PaletteItemContent::Command(c.clone()),
+                    filter_text: m.to_string(),
+                    score: 0,
+                    indices: vec![],
+                })
+            })
+            .collect();
     }
 
     fn get_lines(&mut self, ctx: &mut EventCtx) {
@@ -1053,6 +1102,7 @@ impl Widget<LapceTabData> for NewPalette {
                 match command {
                     LapceUICommand::RunPalette(palette_type) => {
                         ctx.request_focus();
+                        ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run(ctx, palette_type.to_owned());
                         data.palette = palette_data.palette.clone();
@@ -1585,9 +1635,10 @@ impl Widget<PaletteViewData> for PalettePreview {
         env: &Env,
     ) -> Size {
         match data.palette.palette_type {
-            PaletteType::File | PaletteType::Command | PaletteType::Workspace => {
-                Size::ZERO
-            }
+            PaletteType::File
+            | PaletteType::Command
+            | PaletteType::Workspace
+            | PaletteType::Theme => Size::ZERO,
             PaletteType::DocumentSymbol
             | PaletteType::Line
             | PaletteType::Reference => bc.max(),

@@ -2766,6 +2766,15 @@ impl KeyPressFocus for LapceEditorViewData {
                     ));
                 }
             }
+            LapceCommand::PaletteCommand => {
+                if self.editor.editor_type == EditorType::Normal {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RunPalette(Some(PaletteType::Command)),
+                        Target::Widget(*self.palette),
+                    ));
+                }
+            }
             LapceCommand::PaletteLine => {
                 if self.editor.editor_type == EditorType::Normal {
                     ctx.submit_command(Command::new(
