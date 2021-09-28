@@ -203,6 +203,9 @@ pub enum LapceCommand {
     #[strum(serialize = "change_theme")]
     #[strum(message = "Change Theme")]
     ChangeTheme,
+    #[strum(serialize = "open_settings")]
+    #[strum(message = "Open Settings")]
+    OpenSettings,
     #[strum(serialize = "join_lines")]
     JoinLines,
     #[strum(serialize = "search_whole_word_forward")]

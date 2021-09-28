@@ -15,6 +15,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
 use crossbeam_utils::sync::WaitGroup;
+use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text},
     theme,
@@ -2638,6 +2639,19 @@ impl KeyPressFocus for LapceEditorViewData {
                     );
                 } else {
                     self.apply_completion_item(ctx, &item);
+                }
+            }
+            LapceCommand::OpenSettings => {
+                if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
+                    std::fs::create_dir_all(proj_dirs.config_dir());
+                    let path = proj_dirs.config_dir().join("settings.toml");
+                    {
+                        std::fs::OpenOptions::new()
+                            .create_new(true)
+                            .write(true)
+                            .open(&path);
+                    }
+                    self.main_split.open_file(ctx, &path);
                 }
             }
             LapceCommand::NormalMode => {

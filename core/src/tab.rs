@@ -126,6 +126,15 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         match event {
+            Event::WindowConnected => {
+                data.proxy.start(
+                    data.workspace
+                        .clone()
+                        .map(|w| (*w).clone())
+                        .unwrap_or(LapceWorkspace::default()),
+                    ctx.get_external_handle(),
+                );
+            }
             Event::MouseDown(mouse) => {
                 if mouse.button.is_left() {
                     if let Some(position) = self.bar_hit_test(data, mouse.pos) {

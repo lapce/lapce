@@ -55,9 +55,6 @@ impl LapceWindowNew {
             data.theme.clone(),
             Some(ctx.get_external_handle()),
         );
-        if let Some(workspace) = workspace {
-            tab_data.set_workspace(workspace, ctx.get_external_handle());
-        }
         let tab = LapceTabNew::new(&tab_data).lens(LapceTabLens(tab_id));
         data.tabs.insert(tab_id, tab_data);
         if replace_current {

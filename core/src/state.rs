@@ -89,6 +89,18 @@ pub struct LapceWorkspace {
     pub path: PathBuf,
 }
 
+impl Default for LapceWorkspace {
+    fn default() -> Self {
+        Self {
+            kind: LapceWorkspaceType::Local,
+            path: directories::UserDirs::new()
+                .unwrap()
+                .home_dir()
+                .to_path_buf(),
+        }
+    }
+}
+
 pub struct Counter(AtomicU64);
 
 impl Counter {
