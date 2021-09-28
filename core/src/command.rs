@@ -224,6 +224,7 @@ pub enum EnsureVisiblePosition {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
+    ReloadConfig,
     LoadBuffer {
         path: PathBuf,
         content: String,

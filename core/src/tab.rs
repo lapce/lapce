@@ -12,6 +12,7 @@ use crate::{
     code_action::CodeAction,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
+    config::Config,
     data::{
         EditorDiagnostic, EditorKind, LapceEditorLens, LapceMainSplitData,
         LapceTabData,
@@ -126,15 +127,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         match event {
-            Event::WindowConnected => {
-                data.proxy.start(
-                    data.workspace
-                        .clone()
-                        .map(|w| (*w).clone())
-                        .unwrap_or(LapceWorkspace::default()),
-                    ctx.get_external_handle(),
-                );
-            }
             Event::MouseDown(mouse) => {
                 if mouse.button.is_left() {
                     if let Some(position) = self.bar_hit_test(data, mouse.pos) {
@@ -501,6 +493,19 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        match event {
+            LifeCycle::WidgetAdded => {
+                data.proxy.start(
+                    data.workspace
+                        .clone()
+                        .map(|w| (*w).clone())
+                        .unwrap_or(LapceWorkspace::default()),
+                    ctx.get_external_handle(),
+                );
+            }
+            _ => {}
+        }
+
         self.palette.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);
         self.code_action.lifecycle(ctx, event, data, env);
@@ -520,6 +525,10 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         if !old_data.panels.same(&data.panels) {
+            ctx.request_layout();
+        }
+
+        if !old_data.config.same(&data.config) {
             ctx.request_layout();
         }
 
@@ -655,12 +664,14 @@ impl Widget<LapceTabData> for LapceTabNew {
             Point::new(panel_left_width, 0.0),
         );
 
-        let completion_origin = data.completion_origin(self_size.clone(), env);
+        let completion_origin =
+            data.completion_origin(ctx.text(), self_size.clone(), &data.config);
         self.completion.layout(ctx, bc, data, env);
         self.completion
             .set_origin(ctx, data, env, completion_origin);
 
-        let code_action_origin = data.code_action_origin(self_size.clone(), env);
+        let code_action_origin =
+            data.code_action_origin(ctx.text(), self_size.clone(), &data.config);
         self.code_action.layout(ctx, bc, data, env);
         self.code_action
             .set_origin(ctx, data, env, code_action_origin);

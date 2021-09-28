@@ -37,7 +37,10 @@ use tree_sitter::{Node, Parser};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
-use xi_core_lib::selection::InsertDrift;
+use xi_core_lib::{
+    selection::InsertDrift,
+    watcher::{FileWatcher, Notify, WatchToken},
+};
 use xi_rope::{
     spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta, Transformer,
 };
@@ -172,6 +175,35 @@ pub struct PanelSize {
     pub bottom_split: f64,
     pub right: f64,
     pub right_split: f64,
+}
+
+struct ConfigNotify {
+    event_sink: ExtEventSink,
+}
+
+impl Notify for ConfigNotify {
+    fn notify(&self) {
+        println!("receive config file watcher notify");
+        self.event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::ReloadConfig,
+            Target::Auto,
+        );
+    }
+}
+
+pub fn watch_settings(event_sink: ExtEventSink) {
+    thread::spawn(move || {
+        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
+            let mut watcher = FileWatcher::new(ConfigNotify { event_sink });
+            let path = proj_dirs.config_dir().join("settings.toml");
+            println!("start to watch path {:?}", path);
+            watcher.watch(&path, false, WatchToken(0));
+            loop {
+                thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+    });
 }
 
 #[derive(Clone, Lens)]
@@ -344,13 +376,18 @@ impl LapceTabData {
         Size::new(width, code_actions.len() as f64 * line_height)
     }
 
-    pub fn code_action_origin(&self, tab_size: Size, env: &Env) -> Point {
+    pub fn code_action_origin(
+        &self,
+        text: &mut PietText,
+        tab_size: Size,
+        config: &Config,
+    ) -> Point {
         let line_height = self.config.editor.line_height as f64;
         let editor = self.main_split.active_editor();
         let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
         let offset = editor.cursor.offset();
         let (line, col) = buffer.offset_to_line_col(offset);
-        let width = 7.6171875;
+        let width = config.editor_text_width(text, "W");
         let x = col as f64 * width;
         let y = (line + 1) as f64 * line_height;
         let origin =
@@ -358,14 +395,19 @@ impl LapceTabData {
         origin
     }
 
-    pub fn completion_origin(&self, tab_size: Size, env: &Env) -> Point {
+    pub fn completion_origin(
+        &self,
+        text: &mut PietText,
+        tab_size: Size,
+        config: &Config,
+    ) -> Point {
         let line_height = self.config.editor.line_height as f64;
 
         let editor = self.main_split.active_editor();
         let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
         let offset = self.completion.offset;
         let (line, col) = buffer.offset_to_line_col(offset);
-        let width = 7.6171875;
+        let width = config.editor_text_width(text, "W");
         let x = col as f64 * width - line_height - 5.0;
         let y = (line + 1) as f64 * line_height;
         let mut origin =
@@ -1626,7 +1668,12 @@ impl LapceEditorViewData {
         }
     }
 
-    pub fn offset_of_mouse(&self, pos: Point, env: &Env) -> usize {
+    pub fn offset_of_mouse(
+        &self,
+        text: &mut PietText,
+        pos: Point,
+        config: &Config,
+    ) -> usize {
         let line_height = self.config.editor.line_height as f64;
         let line = (pos.y / line_height).floor() as usize;
         let last_line = self.buffer.last_line();
@@ -1636,7 +1683,7 @@ impl LapceEditorViewData {
             let line_end = self
                 .buffer
                 .line_end_col(line, !self.editor.cursor.is_normal());
-            let width = 7.6171875;
+            let width = config.editor_text_width(text, "W");
 
             let col = (if self.editor.cursor.is_insert() {
                 (pos.x / width).round() as usize

@@ -1,7 +1,7 @@
 use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
-    config::LapceTheme,
+    config::{Config, LapceTheme},
     data::{LapceTabData, LapceTabLens, LapceWindowData},
     editor::EditorUIState,
     explorer::{FileExplorer, FileExplorerState},
@@ -55,6 +55,7 @@ impl LapceWindowNew {
             data.theme.clone(),
             Some(ctx.get_external_handle()),
         );
+        tab_data.workspace = workspace.map(|w| Arc::new(w));
         let tab = LapceTabNew::new(&tab_data).lens(LapceTabLens(tab_id));
         data.tabs.insert(tab_id, tab_data);
         if replace_current {
@@ -118,6 +119,15 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::ReloadConfig => {
+                        data.config = Arc::new(Config::load(None));
+                        for (_, tab) in data.tabs.iter_mut() {
+                            tab.config = Arc::new(Config::load(
+                                tab.workspace.clone().map(|w| (*w).clone()),
+                            ));
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::SetWorkspace(workspace) => {
                         self.new_tab(ctx, data, Some(workspace.clone()), true);
                         return;

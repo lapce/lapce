@@ -459,7 +459,7 @@ impl LapceEditorContainer {
         let line_height = data.config.editor.line_height as f64;
         let offset = data.editor.cursor.offset();
         let (line, col) = data.buffer.offset_to_line_col(offset);
-        let width = 7.6171875;
+        let width = data.config.editor_text_width(ctx.text(), "W");
         let cursor_x = col as f64 * width - width;
         let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
         let rect = Rect::ZERO
@@ -516,7 +516,7 @@ impl LapceEditorContainer {
         env: &Env,
     ) {
         let line_height = data.config.editor.line_height as f64;
-        let width = 7.6171875;
+        let width = data.config.editor_text_width(ctx.text(), "W");
         let size = Size::new(
             (width * data.buffer.max_len as f64).max(data.editor.size.width),
             line_height * data.buffer.text_layouts.borrow().len() as f64
@@ -872,9 +872,10 @@ impl LapceEditorGutter {
                 let svg = get_svg("lightbulb.svg").unwrap();
                 let width = 16.0;
                 let height = 16.0;
+                let char_width = data.config.editor_text_width(ctx.text(), "W");
                 let rect =
                     Size::new(width, height).to_rect().with_origin(Point::new(
-                        self.width + 7.6171875 + 3.0,
+                        self.width + char_width + 3.0,
                         (line_height - height) / 2.0 + line_height * line as f64
                             - data.editor.scroll_offset.y,
                     ));
@@ -950,7 +951,7 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
         env: &Env,
     ) -> Size {
         let last_line = data.buffer.last_line() + 1;
-        let width = 7.6171875;
+        let width = data.config.editor_text_width(ctx.text(), "W");
         self.width = (width * last_line.to_string().len() as f64).ceil();
         let width = self.width + 16.0 + width * 2.0;
         Size::new(width, bc.max().height)
@@ -984,7 +985,7 @@ impl Widget<LapceEditorViewData> for LapceEditorGutter {
                     current_line - line
                 }
             };
-            let width = 7.6171875;
+            let width = data.config.editor_text_width(ctx.text(), "W");
             let x = ((last_line + 1).to_string().len() - content.to_string().len())
                 as f64
                 * width;
@@ -1100,7 +1101,7 @@ impl LapceEditor {
             / line_height)
             .ceil() as usize;
 
-        let width = 7.6171875;
+        let width = data.config.editor_text_width(ctx.text(), "W");
         let mut current = None;
         let cursor_offset = data.editor.cursor.offset();
         for diagnostic in data.diagnostics.iter() {
@@ -1222,7 +1223,7 @@ impl LapceEditor {
         let end_line = ((data.editor.size.height + data.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
-        let width = 7.6171875;
+        let width = data.config.editor_text_width(ctx.text(), "W");
         if let Some(snippet) = data.editor.snippet.as_ref() {
             for (_, (start, end)) in snippet {
                 let paint_start_line = start_line;
@@ -1278,7 +1279,7 @@ impl LapceEditor {
         let end_line = ((data.editor.size.height + data.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
-        let width = 7.6171875;
+        let width = data.config.editor_text_width(ctx.text(), "W");
         match &data.editor.cursor.mode {
             CursorMode::Normal(offset) => {
                 let (line, col) = data.buffer.offset_to_line_col(*offset);
@@ -1491,7 +1492,11 @@ impl Widget<LapceEditorViewData> for LapceEditor {
             Event::MouseMove(mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::IBeam);
                 if ctx.is_active() {
-                    let new_offset = data.offset_of_mouse(mouse_event.pos, env);
+                    let new_offset = data.offset_of_mouse(
+                        ctx.text(),
+                        mouse_event.pos,
+                        &data.config,
+                    );
                     match data.editor.cursor.mode.clone() {
                         CursorMode::Normal(offset) => {
                             if new_offset != offset {
@@ -1555,7 +1560,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                     let line_end = data
                         .buffer
                         .line_end_col(line, !data.editor.cursor.is_normal());
-                    let width = 7.6171875;
+                    let width = data.config.editor_text_width(ctx.text(), "W");
 
                     let col = (if data.editor.cursor.is_insert() {
                         (mouse_event.pos.x / width).round() as usize
@@ -1733,7 +1738,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         ));
 
         let line_height = data.config.editor.line_height as f64;
-        let width = 7.6171875;
+        let width = data.config.editor_text_width(ctx.text(), "W");
         Size::new(
             (width * data.buffer.max_len as f64).max(bc.max().width),
             line_height * data.buffer.text_layouts.borrow().len() as f64
@@ -1748,6 +1753,17 @@ impl Widget<LapceEditorViewData> for LapceEditor {
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout("W")
+            .font(
+                data.config.editor.font_family(),
+                data.config.editor.font_size as f64,
+            )
+            .build()
+            .unwrap();
+        let y_shift = (line_height - text_layout.size().height) / 2.0;
 
         let start_offset = data.buffer.offset_of_line(start_line);
         let end_offset = data.buffer.offset_of_line(end_line + 1);
@@ -1767,7 +1783,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
             );
             ctx.draw_text(
                 &text_layout,
-                Point::new(0.0, line_height * line as f64 + 5.0),
+                Point::new(0.0, line_height * line as f64 + y_shift),
             );
         }
 
@@ -1786,7 +1802,7 @@ impl Widget<LapceEditorViewData> for LapceEditor {
                     )
                     .build()
                     .unwrap();
-                ctx.draw_text(&text_layout, Point::new(0.0, 5.0));
+                ctx.draw_text(&text_layout, Point::new(0.0, y_shift));
             }
         }
     }

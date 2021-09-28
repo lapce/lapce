@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use druid::{theme, Color, Env, FontDescriptor, FontFamily, Key};
+use directories::ProjectDirs;
+use druid::{
+    piet::{PietText, Text, TextLayout, TextLayoutBuilder},
+    theme, Color, Env, FontDescriptor, FontFamily, Key,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{data::hex_to_color, state::LapceWorkspace};
@@ -76,12 +80,17 @@ impl Config {
     pub fn load(workspace: Option<LapceWorkspace>) -> Self {
         let mut settings_string = default_settings.to_string();
         let mut files = vec![];
+
+        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
+            let path = proj_dirs.config_dir().join("settings.toml");
+            files.push(path);
+        }
+
         if let Some(workspace) = workspace {
             match workspace.kind {
                 crate::state::LapceWorkspaceType::Local => {
-                    let mut path = workspace.path.clone();
-                    path.push("./.lapce/settings.toml");
-                    files.push(path.to_str().unwrap().to_string());
+                    let path = workspace.path.join("./.lapce/settings.toml");
+                    files.push(path);
                 }
                 crate::state::LapceWorkspaceType::RemoteSSH(_, _) => {}
             }
@@ -110,8 +119,6 @@ impl Config {
         );
         config.themes = themes;
 
-        println!("{:?}", config);
-
         config
     }
 
@@ -129,6 +136,15 @@ impl Config {
             .get(&self.lapce.color_theme)
             .unwrap_or(&self.theme);
         theme.get(name)
+    }
+
+    pub fn editor_text_width(&self, text: &mut PietText, c: &str) -> f64 {
+        let text_layout = text
+            .new_text_layout(c.to_string())
+            .font(self.editor.font_family(), self.editor.font_size as f64)
+            .build()
+            .unwrap();
+        text_layout.size().width
     }
 
     pub fn reload_env(&self, env: &mut Env) {

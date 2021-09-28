@@ -3,7 +3,7 @@ use druid::{
 };
 
 use crate::{
-    data::{LapceData, LapceWindowLens},
+    data::{watch_settings, LapceData, LapceWindowLens},
     window::LapceWindowNew,
 };
 
@@ -32,6 +32,7 @@ pub fn lanuch() {
             tab.start_update_process(launcher.get_external_handle());
         }
     }
+    watch_settings(launcher.get_external_handle());
     launcher
         .use_simple_logger()
         .launch(data)
