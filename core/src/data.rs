@@ -246,6 +246,8 @@ impl LapceTabData {
         theme: Arc<std::collections::HashMap<String, Color>>,
         event_sink: Option<ExtEventSink>,
     ) -> Self {
+        let config = Arc::new(Config::load(None));
+
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let proxy = Arc::new(LapceProxy::new(tab_id));
@@ -256,10 +258,12 @@ impl LapceTabData {
             palette.preview_editor,
             update_sender.clone(),
             proxy.clone(),
+            &config,
         );
         main_split.add_source_control_editor(
             source_control.editor_view_id,
             source_control.split_id,
+            &config,
         );
 
         let mut panels = im::HashMap::new();
@@ -271,7 +275,6 @@ impl LapceTabData {
                 shown: true,
             }),
         );
-        let config = Arc::new(Config::load(None));
         let mut tab = Self {
             id: tab_id,
             workspace: None,
@@ -809,6 +812,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         kind: &EditorKind,
         position: Position,
+        config: &Config,
     ) {
         let editor = self.editor_kind_mut(kind);
         let location = EditorLocationNew {
@@ -816,7 +820,7 @@ impl LapceMainSplitData {
             position,
             scroll_offset: None,
         };
-        self.jump_to_location(ctx, kind, location);
+        self.jump_to_location(ctx, kind, location, config);
     }
 
     pub fn jump_to_location(
@@ -824,13 +828,14 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         kind: &EditorKind,
         location: EditorLocationNew,
+        config: &Config,
     ) {
         let path = self.editor_kind(kind).buffer.clone();
         let buffer = self.open_files.get(&path).unwrap().clone();
         let editor = self.editor_kind_mut(kind);
         editor.save_jump_location(&buffer);
         let editor_view_id = editor.view_id;
-        self.go_to_location(ctx, editor_view_id, location);
+        self.go_to_location(ctx, editor_view_id, location, config);
     }
 
     pub fn go_to_location(
@@ -838,6 +843,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         editor_view_id: WidgetId,
         location: EditorLocationNew,
+        config: &Config,
     ) {
         let editor = Arc::make_mut(self.editors.get_mut(&editor_view_id).unwrap());
         let new_buffer = editor.buffer != location.path;
@@ -857,7 +863,11 @@ impl LapceMainSplitData {
             let buffer = self.open_files.get(&path).unwrap();
             let offset = buffer.offset_of_position(&location.position);
             editor.buffer = path.clone();
-            editor.cursor = Cursor::new(CursorMode::Normal(offset), None);
+            editor.cursor = if config.lapce.modal {
+                Cursor::new(CursorMode::Normal(offset), None)
+            } else {
+                Cursor::new(CursorMode::Insert(Selection::caret(offset)), None)
+            };
 
             if let Some(scroll_offset) = location.scroll_offset {
                 ctx.submit_command(Command::new(
@@ -890,6 +900,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         kind: &EditorKind,
         line: usize,
+        config: &Config,
     ) {
         let buffer = self.open_files.get(&self.editor_kind(kind).buffer).unwrap();
         let offset = buffer.first_non_blank_character_on_line(if line > 0 {
@@ -898,10 +909,15 @@ impl LapceMainSplitData {
             0
         });
         let position = buffer.offset_to_position(offset);
-        self.jump_to_position(ctx, kind, position);
+        self.jump_to_position(ctx, kind, position, config);
     }
 
-    pub fn open_file(&mut self, ctx: &mut EventCtx, path: &PathBuf) {
+    pub fn open_file(
+        &mut self,
+        ctx: &mut EventCtx,
+        path: &PathBuf,
+        config: &Config,
+    ) {
         let (cursor_offset, scroll_offset) = if let Some(buffer) =
             self.open_files.get(path)
         {
@@ -916,7 +932,11 @@ impl LapceMainSplitData {
 
         let editor = self.active_editor_mut();
         editor.buffer = path.clone();
-        editor.cursor = Cursor::new(CursorMode::Normal(cursor_offset), None);
+        editor.cursor = if config.lapce.modal {
+            Cursor::new(CursorMode::Normal(cursor_offset), None)
+        } else {
+            Cursor::new(CursorMode::Insert(Selection::caret(cursor_offset)), None)
+        };
 
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
@@ -931,6 +951,7 @@ impl LapceMainSplitData {
         palette_preview_editor: WidgetId,
         update_sender: Arc<Sender<UpdateEvent>>,
         proxy: Arc<LapceProxy>,
+        config: &Config,
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
@@ -940,6 +961,7 @@ impl LapceMainSplitData {
             Some(*split_id),
             path.clone(),
             EditorType::Normal,
+            config,
         );
         let view_id = editor.view_id;
         editors.insert(editor.view_id, Arc::new(editor));
@@ -953,6 +975,7 @@ impl LapceMainSplitData {
             None,
             path.clone(),
             EditorType::Palette,
+            config,
         );
         editors.insert(editor.view_id, Arc::new(editor));
         let mut buffer = BufferNew::new(path.clone(), update_sender.clone());
@@ -981,6 +1004,7 @@ impl LapceMainSplitData {
         &mut self,
         view_id: WidgetId,
         split_id: WidgetId,
+        config: &Config,
     ) {
         let path = PathBuf::from(SOURCE_CONTROL_BUFFER);
         let mut buffer =
@@ -992,6 +1016,7 @@ impl LapceMainSplitData {
             Some(split_id),
             path.clone(),
             EditorType::SourceControl,
+            config,
         );
         self.editors.insert(editor.view_id, Arc::new(editor));
     }
@@ -1034,6 +1059,7 @@ impl LapceEditorData {
         split_id: Option<WidgetId>,
         buffer: PathBuf,
         editor_type: EditorType,
+        config: &Config,
     ) -> Self {
         Self {
             split_id,
@@ -1043,7 +1069,11 @@ impl LapceEditorData {
             editor_type,
             buffer,
             scroll_offset: Vec2::ZERO,
-            cursor: Cursor::default(),
+            cursor: if config.lapce.modal {
+                Cursor::new(CursorMode::Normal(0), None)
+            } else {
+                Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
+            },
             size: Size::ZERO,
             window_origin: Point::ZERO,
             snippet: None,
@@ -1255,6 +1285,10 @@ impl LapceEditorViewData {
     }
 
     fn toggle_visual(&mut self, visual_mode: VisualMode) {
+        if !self.config.lapce.modal {
+            return;
+        }
+
         let cursor = &mut Arc::make_mut(&mut self.editor).cursor;
 
         match &cursor.mode {
@@ -2698,10 +2732,14 @@ impl KeyPressFocus for LapceEditorViewData {
                             .write(true)
                             .open(&path);
                     }
-                    self.main_split.open_file(ctx, &path);
+                    self.main_split.open_file(ctx, &path, &self.config);
                 }
             }
             LapceCommand::NormalMode => {
+                if !self.config.lapce.modal {
+                    return;
+                }
+
                 let offset = match &self.editor.cursor.mode {
                     CursorMode::Insert(selection) => {
                         self.buffer

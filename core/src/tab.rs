@@ -250,11 +250,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                             ctx,
                             *editor_view_id,
                             location.clone(),
+                            &data.config,
                         );
                         ctx.set_handled();
                     }
                     LapceUICommand::OpenFile(path) => {
-                        data.main_split.open_file(ctx, path);
+                        data.main_split.open_file(ctx, path, &data.config);
                         ctx.set_handled();
                     }
                     LapceUICommand::GoToLocationNew(editor_view_id, location) => {
@@ -262,11 +263,17 @@ impl Widget<LapceTabData> for LapceTabNew {
                             ctx,
                             *editor_view_id,
                             location.clone(),
+                            &data.config,
                         );
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToPosition(kind, position) => {
-                        data.main_split.jump_to_position(ctx, kind, *position);
+                        data.main_split.jump_to_position(
+                            ctx,
+                            kind,
+                            *position,
+                            &data.config,
+                        );
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToLocation(kind, location) => {
@@ -274,11 +281,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                             ctx,
                             kind,
                             location.clone(),
+                            &data.config,
                         );
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToLine(kind, line) => {
-                        data.main_split.jump_to_line(ctx, kind, *line);
+                        data.main_split.jump_to_line(ctx, kind, *line, &data.config);
                         ctx.set_handled();
                     }
                     LapceUICommand::GotoDefinition(offset, location) => {
@@ -288,6 +296,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 ctx,
                                 &EditorKind::SplitActive,
                                 location.clone(),
+                                &data.config,
                             );
                         }
                         ctx.set_handled();
@@ -299,6 +308,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 ctx,
                                 &EditorKind::SplitActive,
                                 location.clone(),
+                                &data.config,
                             );
                         }
                         ctx.set_handled();

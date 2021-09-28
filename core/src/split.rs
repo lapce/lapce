@@ -297,6 +297,7 @@ impl LapceSplitNew {
             Some(self.split_id),
             from_editor.buffer.clone(),
             EditorType::Normal,
+            &data.config,
         );
         editor_data.cursor = from_editor.cursor.clone();
         editor_data.locations = from_editor.locations.clone();

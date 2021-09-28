@@ -11,7 +11,7 @@ use crate::{
 };
 use std::cmp::{max, min};
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Cursor {
     pub mode: CursorMode,
     pub horiz: Option<ColPosition>,
@@ -251,12 +251,6 @@ impl Cursor {
             }
         }
         self.horiz = None;
-    }
-}
-
-impl Default for CursorMode {
-    fn default() -> Self {
-        CursorMode::Normal(0)
     }
 }
 

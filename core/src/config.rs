@@ -48,6 +48,7 @@ impl LapceTheme {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
+    pub modal: bool,
     pub color_theme: String,
     pub icon_theme: String,
 }
