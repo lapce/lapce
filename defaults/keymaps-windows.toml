@@ -1,11 +1,11 @@
 # --------------------------------- General --------------------------------------------
 
 [[keymaps]]
-key = "meta+p"
+key = "ctrl+p"
 command = "palette"
 
 [[keymaps]]
-key = "shift+meta+p"
+key = "shift+ctrl+p"
 command = "palette.command"
 
 [[keymaps]]
@@ -18,18 +18,18 @@ command = "palette.command"
 mode = "n"
 
 [[keymaps]]
-key = "meta+,"
+key = "ctrl+,"
 command = "open_settings"
 
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
-key = "meta+x"
+key = "ctrl+x"
 command = "cut"
 mode = "i"
 
 [[keymaps]]
-key = "meta+c"
+key = "ctrl+c"
 command = "copy"
 mode = "i"
 
@@ -46,7 +46,7 @@ mode = "i"
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
-key = "alt+meta+up"
+key = "alt+ctrl+up"
 command = "insert_cursor_above"
 mode = "i"
 
@@ -111,11 +111,11 @@ command = "palette.line"
 mode = "n"
 
 [[keymaps]]
-key = "meta+o"
+key = "alt+o"
 command = "palette.symbol"
 
 [[keymaps]]
-key = "meta+s"
+key = "ctrl+s"
 command = "save"
 
 [[keymaps]]
