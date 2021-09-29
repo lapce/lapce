@@ -53,7 +53,8 @@ use crate::{
         BufferState, BufferUpdate, EditType, Style, UpdateEvent, WordProperty,
     },
     command::{
-        EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+        EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_COMMAND,
+        LAPCE_UI_COMMAND,
     },
     completion::{CompletionData, CompletionStatus, Snippet},
     config::{Config, LapceTheme},
@@ -136,7 +137,7 @@ impl LapceWindowData {
         let tab_id = WidgetId::next();
         let tab = LapceTabData::new(tab_id, keypress.clone(), theme.clone(), None);
         tabs.insert(tab_id, tab);
-        let config = Arc::new(Config::load(None));
+        let config = Arc::new(Config::load(None).unwrap_or_default());
         Self {
             tabs,
             active: 0,
@@ -246,7 +247,7 @@ impl LapceTabData {
         theme: Arc<std::collections::HashMap<String, Color>>,
         event_sink: Option<ExtEventSink>,
     ) -> Self {
-        let config = Arc::new(Config::load(None));
+        let config = Arc::new(Config::load(None).unwrap_or_default());
 
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
@@ -338,7 +339,7 @@ impl LapceTabData {
         self.main_split.error_count = 0;
         self.main_split.warning_count = 0;
         self.proxy.start(workspace.clone(), event_sink.clone());
-        self.config = Arc::new(Config::load(Some(workspace)));
+        self.config = Arc::new(Config::load(Some(workspace)).unwrap_or_default());
     }
 
     pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
@@ -2722,19 +2723,6 @@ impl KeyPressFocus for LapceEditorViewData {
                     self.apply_completion_item(ctx, &item);
                 }
             }
-            LapceCommand::OpenSettings => {
-                if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
-                    std::fs::create_dir_all(proj_dirs.config_dir());
-                    let path = proj_dirs.config_dir().join("settings.toml");
-                    {
-                        std::fs::OpenOptions::new()
-                            .create_new(true)
-                            .write(true)
-                            .open(&path);
-                    }
-                    self.main_split.open_file(ctx, &path, &self.config);
-                }
-            }
             LapceCommand::NormalMode => {
                 if !self.config.lapce.modal {
                     return;
@@ -3008,7 +2996,13 @@ impl KeyPressFocus for LapceEditorViewData {
                     );
                 });
             }
-            _ => (),
+            _ => {
+                ctx.submit_command(Command::new(
+                    LAPCE_COMMAND,
+                    cmd.clone(),
+                    Target::Auto,
+                ));
+            }
         }
     }
 

@@ -13,7 +13,7 @@ key = "F1"
 command = "palette.command"
 
 [[keymaps]]
-key = ":"
+key = "shift+;"
 command = "palette.command"
 mode = "n"
 

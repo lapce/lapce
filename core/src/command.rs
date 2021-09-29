@@ -206,6 +206,9 @@ pub enum LapceCommand {
     #[strum(serialize = "open_settings")]
     #[strum(message = "Open Settings")]
     OpenSettings,
+    #[strum(serialize = "open_keyboard_shortcuts")]
+    #[strum(message = "Open Keyboard Shortcuts")]
+    OpenKeyboardShortcuts,
     #[strum(serialize = "join_lines")]
     JoinLines,
     #[strum(serialize = "search_whole_word_forward")]

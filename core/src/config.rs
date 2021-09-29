@@ -45,7 +45,7 @@ impl LapceTheme {
     pub const STATUS_BACKGROUND: &'static str = "status.background";
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
     pub modal: bool,
@@ -53,7 +53,7 @@ pub struct LapceConfig {
     pub icon_theme: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct EditorConfig {
     pub font_family: String,
@@ -67,7 +67,7 @@ impl EditorConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
@@ -78,7 +78,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(workspace: Option<LapceWorkspace>) -> Self {
+    pub fn load(workspace: Option<LapceWorkspace>) -> Result<Self> {
         let mut settings_string = default_settings.to_string();
         let mut files = vec![];
 
@@ -99,28 +99,26 @@ impl Config {
         for f in files {
             if let Ok(content) = std::fs::read_to_string(f) {
                 if content != "" {
-                    settings_string += &content;
+                    let result: Result<toml::Value, toml::de::Error> =
+                        toml::from_str(&content);
+                    if result.is_ok() {
+                        settings_string += &content;
+                    }
                 }
             }
         }
 
-        let config: toml::Value = toml::from_str(&settings_string).unwrap();
-        let mut config: Config = config.try_into().unwrap();
+        let config: toml::Value = toml::from_str(&settings_string)?;
+        let mut config: Config = config.try_into()?;
 
-        config.theme = get_theme(default_light_theme).unwrap();
+        config.theme = get_theme(default_light_theme)?;
 
         let mut themes = HashMap::new();
-        themes.insert(
-            "Lapce Light".to_string(),
-            get_theme(default_light_theme).unwrap(),
-        );
-        themes.insert(
-            "Lapce Dark".to_string(),
-            get_theme(default_dark_theme).unwrap(),
-        );
+        themes.insert("Lapce Light".to_string(), get_theme(default_light_theme)?);
+        themes.insert("Lapce Dark".to_string(), get_theme(default_dark_theme)?);
         config.themes = themes;
 
-        config
+        Ok(config)
     }
 
     pub fn get_color_unchecked(&self, name: &str) -> &Color {

@@ -3,6 +3,7 @@ use std::{collections::HashMap, io::Read};
 use std::{fs::File, sync::Arc};
 
 use anyhow::{anyhow, Result};
+use directories::ProjectDirs;
 use druid::KbKey;
 use druid::{
     Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId,
@@ -71,6 +72,12 @@ impl KeyPressData {
             pending_keypress: Vec::new(),
             keymaps: Self::get_keymaps().unwrap_or(im::HashMap::new()),
             count: None,
+        }
+    }
+
+    pub fn update_keymaps(&mut self) {
+        if let Ok(new_keymaps) = Self::get_keymaps() {
+            self.keymaps = new_keymaps;
         }
     }
 
@@ -328,14 +335,29 @@ impl KeyPressData {
     fn get_keymaps() -> Result<
         im::HashMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>,
     > {
-        let keymaps_str = if std::env::consts::OS == "macos" {
+        let mut keymaps_str = if std::env::consts::OS == "macos" {
             default_keymaps_macos
         } else if std::env::consts::OS == "linux" {
             default_keymaps_linux
         } else {
             default_keymaps_windows
-        };
-        Self::keymaps_from_str(keymaps_str)
+        }
+        .to_string();
+
+        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
+            let path = proj_dirs.config_dir().join("keymaps.toml");
+            if let Ok(content) = std::fs::read_to_string(path) {
+                if content != "" {
+                    let result: Result<toml::Value, toml::de::Error> =
+                        toml::from_str(&content);
+                    if result.is_ok() {
+                        keymaps_str += &content;
+                    }
+                }
+            }
+        }
+
+        Self::keymaps_from_str(&keymaps_str)
     }
 
     fn get_keypress(key: &str) -> Vec<(Modifiers, druid::keyboard_types::Code)> {

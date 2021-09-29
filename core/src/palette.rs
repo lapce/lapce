@@ -217,7 +217,15 @@ impl PaletteItemContent {
                         });
                     }
                 }
-                _ => (),
+                _ => {
+                    if !preview {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            command.clone(),
+                            Target::Auto,
+                        ));
+                    }
+                }
             },
         }
         None

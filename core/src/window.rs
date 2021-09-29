@@ -120,12 +120,17 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::ReloadConfig => {
-                        data.config = Arc::new(Config::load(None));
+                        data.config =
+                            Arc::new(Config::load(None).unwrap_or_default());
                         for (_, tab) in data.tabs.iter_mut() {
-                            tab.config = Arc::new(Config::load(
-                                tab.workspace.clone().map(|w| (*w).clone()),
-                            ));
+                            tab.config = Arc::new(
+                                Config::load(
+                                    tab.workspace.clone().map(|w| (*w).clone()),
+                                )
+                                .unwrap_or_default(),
+                            );
                         }
+                        Arc::make_mut(&mut data.keypress).update_keymaps();
                         ctx.set_handled();
                     }
                     LapceUICommand::SetWorkspace(workspace) => {

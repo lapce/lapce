@@ -1,5 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, thread};
 
+use directories::ProjectDirs;
 use druid::{
     theme, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
     Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext,
@@ -10,7 +11,7 @@ use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 use crate::{
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
     code_action::CodeAction,
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::Config,
     data::{
@@ -157,6 +158,39 @@ impl Widget<LapceTabData> for LapceTabNew {
                         None => ctx.clear_cursor(),
                     }
                 }
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_COMMAND);
+                match command {
+                    LapceCommand::OpenSettings => {
+                        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
+                            std::fs::create_dir_all(proj_dirs.config_dir());
+                            let path = proj_dirs.config_dir().join("settings.toml");
+                            {
+                                std::fs::OpenOptions::new()
+                                    .create_new(true)
+                                    .write(true)
+                                    .open(&path);
+                            }
+                            data.main_split.open_file(ctx, &path, &data.config);
+                        }
+                    }
+                    LapceCommand::OpenKeyboardShortcuts => {
+                        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
+                            std::fs::create_dir_all(proj_dirs.config_dir());
+                            let path = proj_dirs.config_dir().join("keymaps.toml");
+                            {
+                                std::fs::OpenOptions::new()
+                                    .create_new(true)
+                                    .write(true)
+                                    .open(&path);
+                            }
+                            data.main_split.open_file(ctx, &path, &data.config);
+                        }
+                    }
+                    _ => (),
+                }
+                ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
