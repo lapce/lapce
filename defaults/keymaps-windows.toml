@@ -1,6 +1,63 @@
+# --------------------------------- General --------------------------------------------
+
 [[keymaps]]
-key = "Ctrl+Shift+p"
+key = "meta+p"
+command = "palette"
+
+[[keymaps]]
+key = "shift+meta+p"
+command = "palette.command"
+
+[[keymaps]]
+key = "F1"
+command = "palette.command"
+
+[[keymaps]]
+key = ":"
+command = "palette.command"
+mode = "n"
+
+[[keymaps]]
+key = "meta+,"
 command = "open_settings"
+
+# --------------------------------- Basic editing ---------------------------------------
+
+[[keymaps]]
+key = "meta+x"
+command = "cut"
+mode = "i"
+
+[[keymaps]]
+key = "meta+c"
+command = "copy"
+mode = "i"
+
+[[keymaps]]
+key = "alt+up"
+command = "move_line_up"
+mode = "i"
+
+[[keymaps]]
+key = "alt+down"
+command = "move_line_down"
+mode = "i"
+
+# ------------------------------------ Multi cursor -------------------------------------
+
+[[keymaps]]
+key = "alt+meta+up"
+command = "insert_cursor_above"
+mode = "i"
+
+
+
+
+
+
+
+
+
 
 [[keymaps]]
 key = "ctrl+m"
@@ -54,17 +111,8 @@ command = "palette.line"
 mode = "n"
 
 [[keymaps]]
-key = ":"
-command = "palette.command"
-mode = "n"
-
-[[keymaps]]
 key = "meta+o"
 command = "palette.symbol"
-
-[[keymaps]]
-key = "meta+p"
-command = "palette"
 
 [[keymaps]]
 key = "meta+s"
@@ -91,19 +139,19 @@ command = "right"
 mode = "i"
 
 [[keymaps]]
-key = "ArrowRight"
+key = "right"
 command = "right"
 
 [[keymaps]]
-key = "ArrowLeft"
+key = "left"
 command = "left"
 
 [[keymaps]]
-key = "ArrowUp"
+key = "up"
 command = "up"
 
 [[keymaps]]
-key = "ArrowDown"
+key = "down"
 command = "down"
 
 [[keymaps]]
@@ -165,7 +213,7 @@ mode = "i"
 when = "in_snippet"
 
 [[keymaps]]
-key = "G"
+key = "shift+g"
 command = "go_to_line_deault_last"
 mode = "nv"
 
@@ -200,7 +248,7 @@ command = "append"
 mode = "n"
 
 [[keymaps]]
-key = "A"
+key = "shift+a"
 command = "append_end_of_line"
 mode = "n"
 
@@ -270,7 +318,7 @@ command = "paste"
 mode = "nv"
 
 [[keymaps]]
-key = "J"
+key = "shift+j"
 command = "join_lines"
 mode = "n"
 
@@ -290,7 +338,7 @@ command = "delete_foreward_and_insert"
 mode = "nv"
 
 [[keymaps]]
-key = "I"
+key = "shift+i"
 command = "insert_first_non_blank"
 mode = "nv"
 
@@ -305,7 +353,7 @@ command = "line_start"
 mode = "nv"
 
 [[keymaps]]
-key = "$"
+key = "shift+4"
 command = "line_end"
 mode = "nv"
 
@@ -325,7 +373,7 @@ command = "word_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "O"
+key = "shift+o"
 command = "new_line_above"
 mode = "nv"
 
@@ -380,32 +428,32 @@ command = "search_forward"
 mode = "nv"
 
 [[keymaps]]
-key = "N"
+key = "shift+n"
 command = "search_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "%"
+key = "shift+5"
 command = "match_pairs"
 mode = "nv"
 
 [[keymaps]]
-key = "] )"
+key = "] shift+0"
 command = "next_unmatched_right_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "[ ("
+key = "[ shift+9"
 command = "previous_unmatched_left_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "] "
+key = "] shift+]"
 command = "next_unmatched_right_curly_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "[ {"
+key = "[ shift+["
 command = "previous_unmatched_left_curly_bracket"
 mode = "nv"
 
@@ -415,7 +463,7 @@ command = "toggle_visual_mode"
 mode = "nv"
 
 [[keymaps]]
-key = "V"
+key = "shift+v"
 command = "toggle_linewise_visual_mode"
 mode = "nv"
 
