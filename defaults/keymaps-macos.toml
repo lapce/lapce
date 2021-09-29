@@ -1,0 +1,568 @@
+# --------------------------------- General --------------------------------------------
+
+[[keymaps]]
+key = "meta+p"
+command = "palette"
+
+[[keymaps]]
+key = "shift+meta+p"
+command = "palette.command"
+
+[[keymaps]]
+key = "F1"
+command = "palette.command"
+
+[[keymaps]]
+key = ":"
+command = "palette.command"
+mode = "n"
+
+[[keymaps]]
+key = "meta+,"
+command = "open_settings"
+
+# --------------------------------- Basic editing ---------------------------------------
+
+[[keymaps]]
+key = "meta+x"
+command = "cut"
+mode = "i"
+
+[[keymaps]]
+key = "meta+c"
+command = "copy"
+mode = "i"
+
+[[keymaps]]
+key = "alt+up"
+command = "move_line_up"
+mode = "i"
+
+[[keymaps]]
+key = "alt+down"
+command = "move_line_down"
+mode = "i"
+
+# ------------------------------------ Multi cursor -------------------------------------
+
+[[keymaps]]
+key = "alt+meta+up"
+command = "insert_cursor_above"
+mode = "i"
+
+
+
+
+
+
+
+
+
+
+[[keymaps]]
+key = "ctrl+m"
+command = "list.select"
+when = "list_focus"
+
+[[keymaps]]
+key = "enter"
+command = "list.select"
+when = "list_focus"
+
+[[keymaps]]
+key = "ctrl+p"
+command = "list.previous"
+when = "list_focus"
+
+[[keymaps]]
+key = "ctrl+n"
+command = "list.next"
+when = "list_focus"
+
+[[keymaps]]
+key = "o"
+command = "list.expand"
+when = "list_focus"
+mode = "n"
+
+[[keymaps]]
+key = "meta+e"
+command = "file_explorer"
+mode = "n"
+
+[[keymaps]]
+key = "meta+l"
+command = "file_explorer.cancel"
+when = "file_explorer_focus"
+
+[[keymaps]]
+key = "meta+i"
+command = "source_control"
+mode = "n"
+
+[[keymaps]]
+key = "meta+l"
+command = "source_control.cancel"
+when = "source_control_focus"
+
+[[keymaps]]
+key = "/"
+command = "palette.line"
+mode = "n"
+
+[[keymaps]]
+key = "meta+o"
+command = "palette.symbol"
+
+[[keymaps]]
+key = "meta+s"
+command = "save"
+
+[[keymaps]]
+key = "esc"
+command = "palette.cancel"
+when = "palette_focus"
+
+[[keymaps]]
+key = "esc"
+command = "code_actions.cancel"
+when = "code_actions_focus"
+
+[[keymaps]]
+key = "ctrl+b"
+command = "left"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+f"
+command = "right"
+mode = "i"
+
+[[keymaps]]
+key = "right"
+command = "right"
+
+[[keymaps]]
+key = "left"
+command = "left"
+
+[[keymaps]]
+key = "up"
+command = "up"
+
+[[keymaps]]
+key = "down"
+command = "down"
+
+[[keymaps]]
+key = "ctrl+u"
+command = "delete_to_beginning_of_line"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+h"
+command = "delete_backward"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+w"
+command = "delete_word_backward"
+mode = "i"
+
+[[keymaps]]
+key = "backspace"
+command = "delete_backward"
+mode = "i"
+
+[[keymaps]]
+key = "esc"
+command = "normal_mode"
+mode = "iv"
+
+[[keymaps]]
+key = "meta+j"
+command = "normal_mode"
+mode = "iv"
+
+[[keymaps]]
+key = "enter"
+command = "insert_new_line"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+m"
+command = "insert_new_line"
+mode = "i"
+when = "!list_focus"
+
+[[keymaps]]
+key = "ctrl+x"
+command = "get_completion"
+mode = "i"
+
+[[keymaps]]
+key = "tab"
+command = "jump_to_next_snippet_placeholder"
+mode = "i"
+when = "in_snippet"
+
+[[keymaps]]
+key = "shift+tab"
+command = "jump_to_prev_snippet_placeholder"
+mode = "i"
+when = "in_snippet"
+
+[[keymaps]]
+key = "shift+g"
+command = "go_to_line_deault_last"
+mode = "nv"
+
+[[keymaps]]
+key = "g g"
+command = "go_to_line_deault_first"
+mode = "nv"
+
+[[keymaps]]
+key = "h"
+command = "left"
+mode = "nv"
+
+[[keymaps]]
+key = "j"
+command = "down"
+mode = "nv"
+
+[[keymaps]]
+key = "k"
+command = "up"
+mode = "nv"
+
+[[keymaps]]
+key = "l"
+command = "right"
+mode = "nv"
+
+[[keymaps]]
+key = "a"
+command = "append"
+mode = "n"
+
+[[keymaps]]
+key = "shift+a"
+command = "append_end_of_line"
+mode = "n"
+
+[[keymaps]]
+key = "i"
+command = "insert_mode"
+mode = "n"
+
+[[keymaps]]
+key = "u"
+command = "undo"
+mode = "n"
+
+[[keymaps]]
+key = "meta+z"
+command = "undo"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+k"
+command = "previous_error"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+j"
+command = "next_error"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+r"
+command = "redo"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+i"
+command = "jump_location_forward"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+o"
+command = "jump_location_backward"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+n"
+command = "goto_definition"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+p"
+command = "get_references"
+mode = "n"
+
+[[keymaps]]
+key = "meta+c"
+command = "clipboard_copy"
+mode = "inv"
+
+[[keymaps]]
+key = "meta+v"
+command = "clipboard_paste"
+mode = "inv"
+
+[[keymaps]]
+key = "p"
+command = "paste"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+j"
+command = "join_lines"
+mode = "n"
+
+[[keymaps]]
+key = "y"
+command = "yank"
+mode = "v"
+
+[[keymaps]]
+key = "x"
+command = "delete_foreward"
+mode = "nv"
+
+[[keymaps]]
+key = "s"
+command = "delete_foreward_and_insert"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+i"
+command = "insert_first_non_blank"
+mode = "nv"
+
+[[keymaps]]
+key = "o"
+command = "new_line_below"
+mode = "nv"
+
+[[keymaps]]
+key = "0"
+command = "line_start"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+4"
+command = "line_end"
+mode = "nv"
+
+[[keymaps]]
+key = "w"
+command = "word_foward"
+mode = "nv"
+
+[[keymaps]]
+key = "e"
+command = "word_end_forward"
+mode = "nv"
+
+[[keymaps]]
+key = "b"
+command = "word_backward"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+o"
+command = "new_line_above"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+e"
+command = "scroll_down"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+y"
+command = "scroll_up"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+u"
+command = "page_up"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+d"
+command = "page_down"
+mode = "nv"
+
+[[keymaps]]
+key = "z z"
+command = "center_of_window"
+mode = "nv"
+
+[[keymaps]]
+key = "d"
+command = "delete_visual"
+mode = "v"
+
+[[keymaps]]
+key = "d"
+command = "delete_operator"
+mode = "n"
+
+[[keymaps]]
+key = "d d"
+command = "delete_line"
+mode = "n"
+
+[[keymaps]]
+key = "*"
+command = "search_whole_word_forward"
+mode = "nv"
+
+[[keymaps]]
+key = "n"
+command = "search_forward"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+n"
+command = "search_backward"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+5"
+command = "match_pairs"
+mode = "nv"
+
+[[keymaps]]
+key = "] shift+0"
+command = "next_unmatched_right_bracket"
+mode = "nv"
+
+[[keymaps]]
+key = "[ shift+9"
+command = "previous_unmatched_left_bracket"
+mode = "nv"
+
+[[keymaps]]
+key = "] shift+]"
+command = "next_unmatched_right_curly_bracket"
+mode = "nv"
+
+[[keymaps]]
+key = "[ shift+["
+command = "previous_unmatched_left_curly_bracket"
+mode = "nv"
+
+[[keymaps]]
+key = "v"
+command = "toggle_visual_mode"
+mode = "nv"
+
+[[keymaps]]
+key = "shift+v"
+command = "toggle_linewise_visual_mode"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+v"
+command = "toggle_blockwise_visual_mode"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+/"
+command = "toggle_comment"
+mode = "nv"
+
+[[keymaps]]
+key = "meta+f"
+command = "document_formatting"
+mode = "n"
+
+[[keymaps]]
+key = "meta+;"
+command = "split_vertical"
+mode = "n"
+
+[[keymaps]]
+key = "meta+g"
+command = "split_horizontal"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w l"
+command = "split_right"
+mode = "n"
+
+[[keymaps]]
+key = "meta+l"
+command = "split_right"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w h"
+command = "split_left"
+mode = "n"
+
+[[keymaps]]
+key = "meta+j"
+command = "split_down"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w j"
+command = "split_down"
+mode = "n"
+
+[[keymaps]]
+key = "meta+k"
+command = "split_up"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w k"
+command = "split_up"
+mode = "n"
+
+[[keymaps]]
+key = "meta+h"
+command = "split_left"
+mode = "n"
+
+[[keymaps]]
+key = "meta+x"
+command = "split_exchange"
+mode = "n"
+
+[[keymaps]]
+key = "meta+w"
+command = "split_close"
+mode = "n"
+
+[[keymaps]]
+key = "meta+t"
+command = "new_tab"
+mode = "n"
+
+[[keymaps]]
+key = "meta+m"
+command = "next_tab"
+mode = "n"
+
+[[keymaps]]
+key = "meta+n"
+command = "previous_tab"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+."
+command = "show_code_actions"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+meta+c"
+command = "close_tab"
+mode = "n"

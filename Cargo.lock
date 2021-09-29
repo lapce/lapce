@@ -507,7 +507,7 @@ dependencies = [
  "clicolors-control",
  "lazy_static 1.4.0",
  "libc",
- "parking_lot 0.11.2",
+ "parking_lot 0.6.4",
  "regex",
  "termios",
  "unicode-width",
@@ -1045,7 +1045,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#fa80c9289a64857d492d619a40158cb116cfb9f3"
+source = "git+https://github.com/lapce/druid#94bd283278f641bb698bf44f9343f3c8b3ffe2c5"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1069,7 +1069,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid#fa80c9289a64857d492d619a40158cb116cfb9f3"
+source = "git+https://github.com/lapce/druid#94bd283278f641bb698bf44f9343f3c8b3ffe2c5"
 dependencies = [
  "proc-macro2 1.0.29",
  "quote 1.0.9",
@@ -1079,7 +1079,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#fa80c9289a64857d492d619a40158cb116cfb9f3"
+source = "git+https://github.com/lapce/druid#94bd283278f641bb698bf44f9343f3c8b3ffe2c5"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -3225,7 +3225,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu#b08acfa39b23c7677ccf785a3b0bac13a22da7f5"
+source = "git+https://github.com/lapce/piet-wgpu#bcfe3f0d034993cec7d5218aec4d7ba2df43ee2a"
 dependencies = [
  "bytemuck",
  "font-kit",
