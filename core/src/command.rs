@@ -313,8 +313,8 @@ pub enum LapceUICommand {
     JumpToLine(EditorKind, usize),
     JumpToLocation(EditorKind, EditorLocationNew),
     GoToLocationNew(WidgetId, EditorLocationNew),
-    GotoReference(usize, EditorLocationNew),
-    GotoDefinition(usize, EditorLocationNew),
+    GotoReference(WidgetId, usize, EditorLocationNew),
+    GotoDefinition(WidgetId, usize, EditorLocationNew),
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
 }

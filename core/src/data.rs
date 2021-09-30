@@ -811,31 +811,29 @@ impl LapceMainSplitData {
     pub fn jump_to_position(
         &mut self,
         ctx: &mut EventCtx,
-        kind: &EditorKind,
+        editor_view_id: WidgetId,
         position: Position,
         config: &Config,
     ) {
-        let editor = self.editor_kind_mut(kind);
+        let editor = self.editors.get(&editor_view_id).unwrap();
         let location = EditorLocationNew {
             path: editor.buffer.clone(),
-            position,
+            position: Some(position),
             scroll_offset: None,
         };
-        self.jump_to_location(ctx, kind, location, config);
+        self.jump_to_location(ctx, editor_view_id, location, config);
     }
 
     pub fn jump_to_location(
         &mut self,
         ctx: &mut EventCtx,
-        kind: &EditorKind,
+        editor_view_id: WidgetId,
         location: EditorLocationNew,
         config: &Config,
     ) {
-        let path = self.editor_kind(kind).buffer.clone();
-        let buffer = self.open_files.get(&path).unwrap().clone();
-        let editor = self.editor_kind_mut(kind);
+        let editor = Arc::make_mut(self.editors.get_mut(&editor_view_id).unwrap());
+        let buffer = self.open_files.get(&editor.buffer).unwrap().clone();
         editor.save_jump_location(&buffer);
-        let editor_view_id = editor.view_id;
         self.go_to_location(ctx, editor_view_id, location, config);
     }
 
@@ -862,7 +860,15 @@ impl LapceMainSplitData {
             );
         } else {
             let buffer = self.open_files.get(&path).unwrap();
-            let offset = buffer.offset_of_position(&location.position);
+
+            let (offset, scroll_offset) = match &location.position {
+                Some(position) => (
+                    buffer.offset_of_position(position),
+                    location.scroll_offset.as_ref(),
+                ),
+                None => (buffer.cursor_offset, Some(&buffer.scroll_offset)),
+            };
+
             editor.buffer = path.clone();
             editor.cursor = if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(offset), None)
@@ -870,7 +876,7 @@ impl LapceMainSplitData {
                 Cursor::new(CursorMode::Insert(Selection::caret(offset)), None)
             };
 
-            if let Some(scroll_offset) = location.scroll_offset {
+            if let Some(scroll_offset) = scroll_offset {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ForceScrollTo(scroll_offset.x, scroll_offset.y),
@@ -899,51 +905,19 @@ impl LapceMainSplitData {
     pub fn jump_to_line(
         &mut self,
         ctx: &mut EventCtx,
-        kind: &EditorKind,
+        editor_view_id: WidgetId,
         line: usize,
         config: &Config,
     ) {
-        let buffer = self.open_files.get(&self.editor_kind(kind).buffer).unwrap();
+        let editor = self.editors.get(&editor_view_id).unwrap();
+        let buffer = self.open_files.get(&editor.buffer).unwrap();
         let offset = buffer.first_non_blank_character_on_line(if line > 0 {
             line - 1
         } else {
             0
         });
         let position = buffer.offset_to_position(offset);
-        self.jump_to_position(ctx, kind, position, config);
-    }
-
-    pub fn open_file(
-        &mut self,
-        ctx: &mut EventCtx,
-        path: &PathBuf,
-        config: &Config,
-    ) {
-        let (cursor_offset, scroll_offset) = if let Some(buffer) =
-            self.open_files.get(path)
-        {
-            (buffer.cursor_offset, buffer.scroll_offset)
-        } else {
-            let buffer =
-                Arc::new(BufferNew::new(path.clone(), self.update_sender.clone()));
-            self.open_files.insert(path.clone(), buffer.clone());
-            buffer.retrieve_file(self.proxy.clone(), ctx.get_external_handle());
-            (0, Vec2::new(0.0, 0.0))
-        };
-
-        let editor = self.active_editor_mut();
-        editor.buffer = path.clone();
-        editor.cursor = if config.lapce.modal {
-            Cursor::new(CursorMode::Normal(cursor_offset), None)
-        } else {
-            Cursor::new(CursorMode::Insert(Selection::caret(cursor_offset)), None)
-        };
-
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::ForceScrollTo(scroll_offset.x, scroll_offset.y),
-            Target::Widget(editor.container_id),
-        ));
+        self.jump_to_position(ctx, editor_view_id, position, config);
     }
 }
 
@@ -1114,7 +1088,7 @@ impl LapceEditorData {
     pub fn save_jump_location(&mut self, buffer: &BufferNew) {
         let location = EditorLocationNew {
             path: buffer.path.clone(),
-            position: buffer.offset_to_position(self.cursor.offset()),
+            position: Some(buffer.offset_to_position(self.cursor.offset())),
             scroll_offset: Some(self.scroll_offset.clone()),
         };
         self.locations.push(location);
@@ -1521,7 +1495,7 @@ impl LapceEditorViewData {
         );
         let location = EditorLocationNew {
             path,
-            position,
+            position: Some(position),
             scroll_offset: None,
         };
         ctx.submit_command(Command::new(
@@ -1970,10 +1944,13 @@ impl LapceEditorViewData {
             .buffer
             .slice_to_cow(start_offset..end_offset)
             .to_string();
-        let char = self
-            .buffer
-            .slice_to_cow(start_offset - 1..start_offset)
-            .to_string();
+        let char = if start_offset == 0 {
+            "".to_string()
+        } else {
+            self.buffer
+                .slice_to_cow(start_offset - 1..start_offset)
+                .to_string()
+        };
         let completion = Arc::make_mut(&mut self.completion);
         if input == "" && char != "." && char != ":" {
             completion.cancel();
@@ -2760,6 +2737,7 @@ impl KeyPressFocus for LapceEditorViewData {
                 let buffer_id = self.buffer.id;
                 let position = self.buffer.offset_to_position(offset);
                 let proxy = self.proxy.clone();
+                let editor_view_id = self.editor.view_id;
                 self.proxy.get_definition(
                     offset,
                     buffer_id,
@@ -2790,7 +2768,10 @@ impl KeyPressFocus for LapceEditorViewData {
                                             position,
                                             Box::new(move |result| {
                                                 process_get_references(
-                                                    offset, result, event_sink,
+                                                    editor_view_id,
+                                                    offset,
+                                                    result,
+                                                    event_sink,
                                                 );
                                             }),
                                         );
@@ -2798,12 +2779,15 @@ impl KeyPressFocus for LapceEditorViewData {
                                         event_sink.submit_command(
                                             LAPCE_UI_COMMAND,
                                             LapceUICommand::GotoDefinition(
+                                                editor_view_id,
                                                 offset,
                                                 EditorLocationNew {
                                                     path: PathBuf::from(
                                                         location.uri.path(),
                                                     ),
-                                                    position: location.range.start,
+                                                    position: Some(
+                                                        location.range.start,
+                                                    ),
                                                     scroll_offset: None,
                                                 },
                                             ),
@@ -3108,6 +3092,7 @@ fn next_in_file_errors_offset(
 }
 
 fn process_get_references(
+    editor_view_id: WidgetId,
     offset: usize,
     result: Result<Value, xi_rpc::Error>,
     event_sink: ExtEventSink,
@@ -3122,10 +3107,11 @@ fn process_get_references(
         event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::GotoReference(
+                editor_view_id,
                 offset,
                 EditorLocationNew {
                     path: PathBuf::from(location.uri.path()),
-                    position: location.range.start.clone(),
+                    position: Some(location.range.start.clone()),
                     scroll_offset: None,
                 },
             ),

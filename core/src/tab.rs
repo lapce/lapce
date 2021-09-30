@@ -172,7 +172,18 @@ impl Widget<LapceTabData> for LapceTabNew {
                                     .write(true)
                                     .open(&path);
                             }
-                            data.main_split.open_file(ctx, &path, &data.config);
+
+                            let editor_view_id = data.main_split.active.clone();
+                            data.main_split.jump_to_location(
+                                ctx,
+                                *editor_view_id,
+                                EditorLocationNew {
+                                    path: path.clone(),
+                                    position: None,
+                                    scroll_offset: None,
+                                },
+                                &data.config,
+                            );
                         }
                     }
                     LapceCommand::OpenKeyboardShortcuts => {
@@ -185,7 +196,18 @@ impl Widget<LapceTabData> for LapceTabNew {
                                     .write(true)
                                     .open(&path);
                             }
-                            data.main_split.open_file(ctx, &path, &data.config);
+
+                            let editor_view_id = data.main_split.active.clone();
+                            data.main_split.jump_to_location(
+                                ctx,
+                                *editor_view_id,
+                                EditorLocationNew {
+                                    path: path.clone(),
+                                    position: None,
+                                    scroll_offset: None,
+                                },
+                                &data.config,
+                            );
                         }
                     }
                     _ => (),
@@ -289,7 +311,17 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::OpenFile(path) => {
-                        data.main_split.open_file(ctx, path, &data.config);
+                        let editor_view_id = data.main_split.active.clone();
+                        data.main_split.jump_to_location(
+                            ctx,
+                            *editor_view_id,
+                            EditorLocationNew {
+                                path: path.clone(),
+                                position: None,
+                                scroll_offset: None,
+                            },
+                            &data.config,
+                        );
                         ctx.set_handled();
                     }
                     LapceUICommand::GoToLocationNew(editor_view_id, location) => {
@@ -302,45 +334,64 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToPosition(kind, position) => {
+                        let editor_view_id =
+                            data.main_split.editor_kind(kind).view_id;
                         data.main_split.jump_to_position(
                             ctx,
-                            kind,
+                            editor_view_id,
                             *position,
                             &data.config,
                         );
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToLocation(kind, location) => {
+                        let editor_view_id =
+                            data.main_split.editor_kind(kind).view_id;
                         data.main_split.jump_to_location(
                             ctx,
-                            kind,
+                            editor_view_id,
                             location.clone(),
                             &data.config,
                         );
                         ctx.set_handled();
                     }
                     LapceUICommand::JumpToLine(kind, line) => {
-                        data.main_split.jump_to_line(ctx, kind, *line, &data.config);
+                        let editor_view_id =
+                            data.main_split.editor_kind(kind).view_id;
+                        data.main_split.jump_to_line(
+                            ctx,
+                            editor_view_id,
+                            *line,
+                            &data.config,
+                        );
                         ctx.set_handled();
                     }
-                    LapceUICommand::GotoDefinition(offset, location) => {
+                    LapceUICommand::GotoDefinition(
+                        editor_view_id,
+                        offset,
+                        location,
+                    ) => {
                         if *offset == data.main_split.active_editor().cursor.offset()
                         {
                             data.main_split.jump_to_location(
                                 ctx,
-                                &EditorKind::SplitActive,
+                                *editor_view_id,
                                 location.clone(),
                                 &data.config,
                             );
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::GotoReference(offset, location) => {
+                    LapceUICommand::GotoReference(
+                        editor_view_id,
+                        offset,
+                        location,
+                    ) => {
                         if *offset == data.main_split.active_editor().cursor.offset()
                         {
                             data.main_split.jump_to_location(
                                 ctx,
-                                &EditorKind::SplitActive,
+                                *editor_view_id,
                                 location.clone(),
                                 &data.config,
                             );
@@ -365,7 +416,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 .iter()
                                 .map(|l| EditorLocationNew {
                                     path: PathBuf::from(l.uri.path()),
-                                    position: l.range.start.clone(),
+                                    position: Some(l.range.start.clone()),
                                     scroll_offset: None,
                                 })
                                 .collect();

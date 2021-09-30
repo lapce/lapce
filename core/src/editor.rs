@@ -115,7 +115,7 @@ pub struct EditorState {
 #[derive(Clone, Debug)]
 pub struct EditorLocationNew {
     pub path: PathBuf,
-    pub position: Position,
+    pub position: Option<Position>,
     pub scroll_offset: Option<Vec2>,
 }
 
@@ -568,6 +568,16 @@ impl Widget<LapceEditorViewData> for LapceEditorContainer {
                 if *data.main_split.active == self.view_id {
                     ctx.request_focus();
                 }
+                data.main_split.go_to_location(
+                    ctx,
+                    self.view_id,
+                    EditorLocationNew {
+                        path: data.editor.buffer.clone(),
+                        position: None,
+                        scroll_offset: None,
+                    },
+                    &data.config,
+                );
             }
             Event::KeyDown(key_event) => {
                 if data.key_down(ctx, key_event, env) {

@@ -297,15 +297,20 @@ impl BufferNew {
 
     pub fn load_content(&mut self, content: &str) {
         self.reset_revs();
-        let delta = Delta::simple_edit(Interval::new(0, 0), Rope::from(content), 0);
-        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
-            self.mk_new_rev(0, delta.clone());
-        self.revs.push(new_rev);
-        self.rope = new_text.clone();
-        self.tombstones = new_tombstones;
-        self.deletes_from_union = new_deletes_from_union;
-        self.code_actions.clear();
 
+        if content != "" {
+            let delta =
+                Delta::simple_edit(Interval::new(0, 0), Rope::from(content), 0);
+            println!("{:?}", delta);
+            let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+                self.mk_new_rev(0, delta.clone());
+            self.revs.push(new_rev);
+            self.rope = new_text.clone();
+            self.tombstones = new_tombstones;
+            self.deletes_from_union = new_deletes_from_union;
+        }
+
+        self.code_actions.clear();
         let (max_len, max_len_line) = self.get_max_line_len();
         self.max_len = max_len;
         self.max_len_line = max_len_line;
@@ -1144,6 +1149,7 @@ impl BufferNew {
         new_deletes_from_union: Subset,
     ) {
         if !self.loaded {
+            println!("not loaded");
             return;
         }
         self.rev += 1;
@@ -1210,8 +1216,13 @@ impl BufferNew {
         self.this_edit_type = edit_type;
         let undo_group = self.calculate_undo_group();
         self.last_edit_type = self.this_edit_type;
+
+        println!("{} {:?} {:?}", undo_group, delta, self.rope);
+
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
+
+        println!("{} {:?} {:?}", undo_group, delta, new_text);
 
         self.apply_edit(
             proxy,
