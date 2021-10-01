@@ -8,7 +8,7 @@ use druid::{
     Color, Command, Data, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId,
     WindowId,
 };
-use druid::{Env, FontFamily, PaintCtx};
+use druid::{Env, FontFamily, PaintCtx, Point};
 use git2::Repository;
 use language::{new_highlight_config, new_parser, LapceLanguage};
 use lsp_types::SemanticTokensServerCapabilities;
@@ -542,6 +542,33 @@ impl BufferNew {
 
     pub fn offset_of_position(&self, pos: &Position) -> usize {
         self.offset_of_line_col(pos.line as usize, pos.character as usize)
+    }
+
+    pub fn offset_of_mouse(
+        &self,
+        text: &mut PietText,
+        pos: Point,
+        mode: Mode,
+        config: &Config,
+    ) -> usize {
+        let line_height = config.editor.line_height as f64;
+        let line = (pos.y / line_height).floor() as usize;
+        let last_line = self.last_line();
+        let (line, col) = if line > last_line {
+            (last_line, 0)
+        } else {
+            let line_end = self.line_end_col(line, mode != Mode::Normal);
+            let width = config.editor_text_width(text, "W");
+
+            let col = (if mode == Mode::Insert {
+                (pos.x / width).round() as usize
+            } else {
+                (pos.x / width).floor() as usize
+            })
+            .min(line_end);
+            (line, col)
+        };
+        self.offset_of_line_col(line, col)
     }
 
     pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {

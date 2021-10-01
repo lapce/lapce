@@ -545,8 +545,7 @@ impl Widget<LapceTabData> for CompletionContainer {
                 || old_editor.scroll_offset != editor.scroll_offset
             {
                 println!("completion request layout");
-                ctx.request_local_layout();
-                ctx.request_paint();
+                ctx.request_layout();
             }
         }
 
@@ -562,8 +561,8 @@ impl Widget<LapceTabData> for CompletionContainer {
                 .filtered_items
                 .same(&data.completion.filtered_items)
         {
-            ctx.request_local_layout();
-            ctx.request_paint();
+            println!("completion request layout");
+            ctx.request_layout();
         }
 
         if (old_completion.status == CompletionStatus::Inactive

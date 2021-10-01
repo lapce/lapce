@@ -274,6 +274,11 @@ impl LapceSplitNew {
                 LapceUICommand::Focus,
                 Target::Widget(self.children_ids[new_index]),
             ));
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::EnsureCursorVisible(None),
+                Target::Widget(self.children_ids[new_index]),
+            ));
         }
     }
 

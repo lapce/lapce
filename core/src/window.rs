@@ -255,7 +255,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateWindowOrigin,
-            Target::Widget(data.active_id),
+            Target::Auto,
         ));
 
         self_size

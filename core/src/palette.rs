@@ -619,10 +619,10 @@ impl PaletteViewData {
         palette.cursor = palette.input.len();
         palette.index = 0;
 
-        // let active_path = self.main_split.active_editor().buffer.clone();
-        // self.main_split
-        //     .editor_kind_mut(&EditorKind::PalettePreview)
-        //     .buffer = active_path;
+        let active_content = self.main_split.active_editor().content.clone();
+        self.main_split
+            .editor_kind_mut(&EditorKind::PalettePreview)
+            .content = active_content;
 
         match &palette.palette_type {
             &PaletteType::File => {
