@@ -213,6 +213,46 @@ impl LapceEditorBufferData {
         Arc::make_mut(&mut self.buffer)
     }
 
+    fn get_code_actions(&mut self, ctx: &mut EventCtx) {
+        if !self.buffer.loaded {
+            return;
+        }
+        if self.buffer.local {
+            return;
+        }
+        let offset = self.editor.cursor.offset();
+        let prev_offset = self.buffer.prev_code_boundary(offset);
+        if self.buffer.code_actions.get(&prev_offset).is_none() {
+            let buffer_id = self.buffer.id;
+            let position = self.buffer.offset_to_position(prev_offset);
+            let path = self.buffer.path.clone();
+            let rev = self.buffer.rev;
+            let event_sink = ctx.get_external_handle();
+            self.proxy.get_code_actions(
+                buffer_id,
+                position,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        if let Ok(resp) =
+                            serde_json::from_value::<CodeActionResponse>(res)
+                        {
+                            event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdateCodeActions(
+                                    path,
+                                    rev,
+                                    prev_offset,
+                                    resp,
+                                ),
+                                Target::Auto,
+                            );
+                        }
+                    }
+                }),
+            );
+        }
+    }
+
     fn do_move(&mut self, movement: &Movement, count: usize) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
@@ -1633,6 +1673,8 @@ impl LapceEditorBufferData {
 
         if let Some(diagnostic) = current {
             if self.editor.cursor.is_normal() {
+                println!("{:?}", diagnostic.diagnositc);
+
                 let text_layout = ctx
                     .text()
                     .new_text_layout(diagnostic.diagnositc.message.clone())
@@ -1646,14 +1688,48 @@ impl LapceEditorBufferData {
                     .build()
                     .unwrap();
                 let text_size = text_layout.size();
-                let size = ctx.size();
+                let mut text_height = text_size.height;
+
+                let related = diagnostic
+                    .diagnositc
+                    .related_information
+                    .map(|related| {
+                        related
+                            .iter()
+                            .map(|i| {
+                                let text_layout = ctx
+                                    .text()
+                                    .new_text_layout(i.message.clone())
+                                    .font(FontFamily::SYSTEM_UI, 14.0)
+                                    .text_color(
+                                        self.config
+                                            .get_color_unchecked(
+                                                LapceTheme::EDITOR_FOREGROUND,
+                                            )
+                                            .clone(),
+                                    )
+                                    .max_width(
+                                        self.editor.size.borrow().width - 20.0,
+                                    )
+                                    .build()
+                                    .unwrap();
+                                text_height += 10.0 + text_layout.size().height;
+                                text_layout
+                            })
+                            .collect::<Vec<PietTextLayout>>()
+                    })
+                    .unwrap_or(Vec::new());
+
                 let start = diagnostic.diagnositc.range.start;
                 let rect = Rect::ZERO
                     .with_origin(Point::new(
                         0.0,
                         (start.line + 1) as f64 * line_height,
                     ))
-                    .with_size(Size::new(size.width, text_size.height + 20.0));
+                    .with_size(Size::new(
+                        self.editor.size.borrow().width,
+                        text_height + 20.0,
+                    ));
                 ctx.fill(
                     rect,
                     self.config
@@ -1682,6 +1758,21 @@ impl LapceEditorBufferData {
                         (start.line + 1) as f64 * line_height + 10.0,
                     ),
                 );
+                let mut text_height = text_size.height;
+
+                for text in related {
+                    text_height += 10.0;
+                    ctx.draw_text(
+                        &text,
+                        Point::new(
+                            10.0 + self.editor.scroll_offset.x,
+                            (start.line + 1) as f64 * line_height
+                                + 10.0
+                                + text_height,
+                        ),
+                    );
+                    text_height += text.size().height;
+                }
             }
         }
     }
@@ -2886,6 +2977,10 @@ impl Widget<LapceTabData> for LapceEditorView {
                                 env,
                             );
                         }
+                        // editor_data.sync_buffer_position(
+                        //     self.editor.widget().inner().offset(),
+                        // );
+                        editor_data.get_code_actions(ctx);
 
                         data.keypress = keypress.clone();
                         data.main_split = editor_data.main_split.clone();
