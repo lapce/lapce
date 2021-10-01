@@ -1642,6 +1642,7 @@ impl LapceEditorBufferData {
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                             .clone(),
                     )
+                    .max_width(self.editor.size.borrow().width - 20.0)
                     .build()
                     .unwrap();
                 let text_size = text_layout.size();
@@ -1676,7 +1677,10 @@ impl LapceEditorBufferData {
                 ctx.stroke(rect, color, 1.0);
                 ctx.draw_text(
                     &text_layout,
-                    Point::new(10.0, (start.line + 1) as f64 * line_height + 10.0),
+                    Point::new(
+                        10.0 + self.editor.scroll_offset.x,
+                        (start.line + 1) as f64 * line_height + 10.0,
+                    ),
                 );
             }
         }
@@ -3370,7 +3374,7 @@ impl Widget<LapceTabData> for LapceEditorContainer {
             .get(&self.view_id)
             .unwrap()
             .size
-            .borrow_mut() = self_size.clone();
+            .borrow_mut() = editor_size.clone();
         self_size
     }
 

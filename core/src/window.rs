@@ -216,14 +216,14 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         }
         self.tabs[data.active].update(ctx, data, env);
 
-        println!(
-            "update took {}",
-            std::time::SystemTime::now()
-                .duration_since(start)
-                .unwrap()
-                .as_micros() as f64
-                / 1000.0
-        );
+        // println!(
+        //     "update took {}",
+        //     std::time::SystemTime::now()
+        //         .duration_since(start)
+        //         .unwrap()
+        //         .as_micros() as f64
+        //         / 1000.0
+        // );
     }
 
     fn layout(
@@ -251,7 +251,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         tab.set_origin(ctx, data, env, tab_origin);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        println!("layout took {}", duration as f64 / 1000.0);
+        // println!("layout took {}", duration as f64 / 1000.0);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateWindowOrigin,
