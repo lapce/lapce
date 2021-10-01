@@ -301,7 +301,6 @@ impl BufferNew {
         if content != "" {
             let delta =
                 Delta::simple_edit(Interval::new(0, 0), Rope::from(content), 0);
-            println!("{:?}", delta);
             let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
                 self.mk_new_rev(0, delta.clone());
             self.revs.push(new_rev);
@@ -1217,12 +1216,8 @@ impl BufferNew {
         let undo_group = self.calculate_undo_group();
         self.last_edit_type = self.this_edit_type;
 
-        println!("{} {:?} {:?}", undo_group, delta, self.rope);
-
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
-
-        println!("{} {:?} {:?}", undo_group, delta, new_text);
 
         self.apply_edit(
             proxy,
@@ -1274,7 +1269,6 @@ impl BufferNew {
         groups: BTreeSet<usize>,
         proxy: Arc<LapceProxy>,
     ) -> RopeDelta {
-        println!("undo {:?}", groups);
         let (new_rev, new_deletes_from_union) = self.compute_undo(&groups);
         let delta = Delta::synthesize(
             &self.tombstones,
@@ -1369,9 +1363,7 @@ impl BufferNew {
             .symmetric_difference(&groups)
             .cloned()
             .collect();
-        println!("toggled groups {:?}", &toggled_groups);
         let first_candidate = self.find_first_undo_candidate_index(&toggled_groups);
-        println!("first candidate {}", first_candidate);
         // the `false` below: don't invert undos since our first_candidate is based on the current undo set, not past
         let mut deletes_from_union = self
             .deletes_from_union_before_index(first_candidate, false)

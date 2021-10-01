@@ -488,6 +488,10 @@ impl LapceEditorBufferData {
         }
     }
 
+    fn cursor_region(&self) -> Rect {
+        self.editor.cursor.region(&self.buffer, &self.config)
+    }
+
     fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
         let line = self.buffer.line_of_offset(offset);
         let line_start = self.buffer.offset_of_line(line);
@@ -866,7 +870,8 @@ impl LapceEditorBufferData {
 
     fn page_move(&mut self, ctx: &mut EventCtx, down: bool, env: &Env) {
         let line_height = self.config.editor.line_height as f64;
-        let lines = (self.editor.size.height / line_height / 2.0).round() as usize;
+        let lines =
+            (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
         self.do_move(if down { &Movement::Down } else { &Movement::Up }, lines);
         let rect = Rect::ZERO
@@ -874,11 +879,11 @@ impl LapceEditorBufferData {
                 self.editor.scroll_offset.to_point()
                     + Vec2::new(0.0, if down { distance } else { -distance }),
             )
-            .with_size(self.editor.size.clone());
+            .with_size(self.editor.size.borrow().clone());
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::EnsureRectVisible(rect),
-            Target::Widget(self.editor.container_id),
+            Target::Widget(self.editor.view_id),
         ));
     }
 
@@ -890,7 +895,7 @@ impl LapceEditorBufferData {
         let offset = self.editor.cursor.offset();
         let (line, col) = self.buffer.offset_to_line_col(offset);
         let top = self.editor.scroll_offset.y + diff;
-        let bottom = top + self.editor.size.height;
+        let bottom = top + self.editor.size.borrow().height;
 
         let line = if (line + 1) as f64 * line_height + line_height > bottom {
             let line = (bottom / line_height).floor() as usize;
@@ -915,7 +920,7 @@ impl LapceEditorBufferData {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ScrollTo((self.editor.scroll_offset.x, top)),
-            Target::Widget(self.editor.container_id),
+            Target::Widget(self.editor.view_id),
         ));
     }
 
@@ -1274,7 +1279,8 @@ impl LapceEditorBufferData {
         let line_height = self.config.editor.line_height as f64;
         let start_line =
             (self.editor.scroll_offset.y / line_height).floor() as usize;
-        let end_line = ((self.editor.size.height + self.editor.scroll_offset.y)
+        let end_line = ((self.editor.size.borrow().height
+            + self.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
         let width = self.config.editor_text_width(ctx.text(), "W");
@@ -1503,7 +1509,8 @@ impl LapceEditorBufferData {
         let line_height = self.config.editor.line_height as f64;
         let start_line =
             (self.editor.scroll_offset.y / line_height).floor() as usize;
-        let end_line = ((self.editor.size.height + self.editor.scroll_offset.y)
+        let end_line = ((self.editor.size.borrow().height
+            + self.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
         let width = self.config.editor_text_width(ctx.text(), "W");
@@ -1553,7 +1560,8 @@ impl LapceEditorBufferData {
         let line_height = self.config.editor.line_height as f64;
         let start_line =
             (self.editor.scroll_offset.y / line_height).floor() as usize;
-        let end_line = ((self.editor.size.height + self.editor.scroll_offset.y)
+        let end_line = ((self.editor.size.borrow().height
+            + self.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
 
@@ -1753,7 +1761,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SplitEditorMove(
                             SplitMoveDirection::Left,
-                            self.editor.container_id,
+                            self.editor.view_id,
                         ),
                         Target::Widget(split_id),
                     ));
@@ -1765,7 +1773,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SplitEditorMove(
                             SplitMoveDirection::Right,
-                            self.editor.container_id,
+                            self.editor.view_id,
                         ),
                         Target::Widget(split_id),
                     ));
@@ -1777,7 +1785,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SplitEditorMove(
                             SplitMoveDirection::Up,
-                            self.editor.container_id,
+                            self.editor.view_id,
                         ),
                         Target::Widget(split_id),
                     ));
@@ -1789,7 +1797,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SplitEditorMove(
                             SplitMoveDirection::Down,
-                            self.editor.container_id,
+                            self.editor.view_id,
                         ),
                         Target::Widget(split_id),
                     ));
@@ -1800,9 +1808,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     if self.editor.editor_type == EditorType::Normal {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::SplitEditorExchange(
-                                self.editor.container_id,
-                            ),
+                            LapceUICommand::SplitEditorExchange(self.editor.view_id),
                             Target::Widget(split_id),
                         ));
                     }
@@ -1813,10 +1819,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     if self.editor.editor_type == EditorType::Normal {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::SplitEditor(
-                                true,
-                                self.editor.container_id,
-                            ),
+                            LapceUICommand::SplitEditor(true, self.editor.view_id),
                             Target::Widget(split_id),
                         ));
                     }
@@ -1827,9 +1830,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     if self.editor.editor_type == EditorType::Normal {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::SplitEditorClose(
-                                self.editor.container_id,
-                            ),
+                            LapceUICommand::SplitEditorClose(self.editor.view_id),
                             Target::Widget(split_id),
                         ));
                     }
@@ -2154,7 +2155,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::EnsureCursorCenter,
-                    Target::Widget(self.editor.container_id),
+                    Target::Widget(self.editor.view_id),
                 ));
             }
             LapceCommand::ScrollDown => {
@@ -2260,7 +2261,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let item = self.completion.current_item().to_owned();
                 self.cancel_completion();
                 if item.data.is_some() {
-                    let container_id = self.editor.container_id;
+                    let view_id = self.editor.view_id;
                     let buffer_id = self.buffer.id;
                     let rev = self.buffer.rev;
                     let offset = self.editor.cursor.offset();
@@ -2283,7 +2284,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                 LapceUICommand::ResolveCompletion(
                                     buffer_id, rev, offset, item,
                                 ),
-                                Target::Widget(container_id),
+                                Target::Widget(view_id),
                             );
                         }),
                     );
@@ -2418,34 +2419,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                         ));
                     }
                 }
-            }
-            LapceCommand::NewTab => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::NewTab,
-                    Target::Auto,
-                ));
-            }
-            LapceCommand::CloseTab => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::CloseTab,
-                    Target::Auto,
-                ));
-            }
-            LapceCommand::NextTab => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::NextTab,
-                    Target::Auto,
-                ));
-            }
-            LapceCommand::PreviousTab => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::PreviousTab,
-                    Target::Auto,
-                ));
             }
             LapceCommand::SearchWholeWordForward => {
                 let offset = self.editor.cursor.offset();
@@ -2624,11 +2597,7 @@ pub struct LapceEditorView {
 impl LapceEditorView {
     pub fn new(data: &LapceEditorData) -> LapceEditorView {
         let header = LapceEditorHeader::new(data.view_id);
-        let editor = LapceEditorContainer::new(
-            data.view_id,
-            data.container_id,
-            data.editor_id,
-        );
+        let editor = LapceEditorContainer::new(data.view_id);
         Self {
             view_id: data.view_id,
             header: WidgetPod::new(header),
@@ -2656,6 +2625,183 @@ impl LapceEditorView {
             .placeholder = Some(placehoder);
         self
     }
+
+    pub fn handle_lapce_ui_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        cmd: &LapceUICommand,
+        data: &mut LapceEditorBufferData,
+        env: &Env,
+    ) {
+        match cmd {
+            LapceUICommand::EnsureCursorVisible(position) => {
+                self.ensure_cursor_visible(ctx, data, position.as_ref(), env);
+            }
+            LapceUICommand::EnsureCursorCenter => {
+                self.ensure_cursor_center(ctx, data, env);
+            }
+            LapceUICommand::EnsureRectVisible(rect) => {
+                self.ensure_rect_visible(ctx, data, *rect, env);
+            }
+            LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
+                if data.buffer.id != *buffer_id {
+                    return;
+                }
+                if data.buffer.rev != *rev {
+                    return;
+                }
+                if data.editor.cursor.offset() != *offset {
+                    return;
+                }
+                data.apply_completion_item(ctx, item);
+            }
+            LapceUICommand::Scroll((x, y)) => {
+                self.editor
+                    .widget_mut()
+                    .editor
+                    .widget_mut()
+                    .inner_mut()
+                    .scroll_by(Vec2::new(*x, *y));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ResetFade,
+                    Target::Widget(self.editor.widget().scroll_id),
+                ));
+            }
+            LapceUICommand::ForceScrollTo(x, y) => {
+                self.editor
+                    .widget_mut()
+                    .editor
+                    .widget_mut()
+                    .inner_mut()
+                    .force_scroll_to(Point::new(*x, *y));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ResetFade,
+                    Target::Widget(self.editor.widget().scroll_id),
+                ));
+            }
+            LapceUICommand::ScrollTo((x, y)) => {
+                self.editor
+                    .widget_mut()
+                    .editor
+                    .widget_mut()
+                    .inner_mut()
+                    .scroll_to(Point::new(*x, *y));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ResetFade,
+                    Target::Widget(self.editor.widget().scroll_id),
+                ));
+            }
+            _ => (),
+        }
+    }
+
+    fn ensure_rect_visible(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorBufferData,
+        rect: Rect,
+        env: &Env,
+    ) {
+        if self
+            .editor
+            .widget_mut()
+            .editor
+            .widget_mut()
+            .inner_mut()
+            .scroll_to_visible(rect, env)
+        {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.editor.widget().scroll_id),
+            ));
+        }
+    }
+
+    pub fn ensure_cursor_center(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorBufferData,
+        env: &Env,
+    ) {
+        let line_height = data.config.editor.line_height as f64;
+        let offset = data.editor.cursor.offset();
+        let (line, col) = data.buffer.offset_to_line_col(offset);
+        let width = data.config.editor_text_width(ctx.text(), "W");
+        let cursor_x = col as f64 * width - width;
+        let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
+        let rect = Rect::ZERO
+            .with_origin(Point::new(
+                cursor_x.floor(),
+                line as f64 * line_height + line_height / 2.0,
+            ))
+            .with_size(Size::new((width * 3.0).ceil(), 0.0))
+            .inflate(0.0, (data.editor.size.borrow().height / 2.0).ceil());
+
+        let size = Size::new(
+            (width * data.buffer.max_len as f64)
+                .max(data.editor.size.borrow().width),
+            line_height * data.buffer.text_layouts.borrow().len() as f64
+                + data.editor.size.borrow().height
+                - line_height,
+        );
+        let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
+        scroll.set_child_size(size);
+        if scroll.scroll_to_visible(rect, env) {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(self.editor.widget().scroll_id),
+            ));
+        }
+    }
+
+    fn ensure_cursor_visible(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &LapceEditorBufferData,
+        position: Option<&EnsureVisiblePosition>,
+        env: &Env,
+    ) {
+        let line_height = data.config.editor.line_height as f64;
+        let width = data.config.editor_text_width(ctx.text(), "W");
+        let size = Size::new(
+            (width * data.buffer.max_len as f64)
+                .max(data.editor.size.borrow().width),
+            line_height * data.buffer.text_layouts.borrow().len() as f64
+                + data.editor.size.borrow().height
+                - line_height,
+        );
+
+        let rect = data.cursor_region();
+        let scroll_id = self.editor.widget().scroll_id;
+        let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
+        scroll.set_child_size(size);
+        let old_scroll_offset = scroll.offset();
+        if scroll.scroll_to_visible(rect, env) {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ResetFade,
+                Target::Widget(scroll_id),
+            ));
+            if let Some(position) = position {
+                match position {
+                    EnsureVisiblePosition::CenterOfWindow => {
+                        self.ensure_cursor_center(ctx, data, env);
+                    }
+                }
+            } else {
+                let scroll_offset = scroll.offset();
+                if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
+                {
+                    self.ensure_cursor_center(ctx, data, env);
+                }
+            }
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorView {
@@ -2680,6 +2826,24 @@ impl Widget<LapceTabData> for LapceEditorView {
             Event::MouseDown(mouse_event) => {
                 ctx.request_focus();
                 data.focus = self.view_id;
+                data.main_split.active = Arc::new(self.view_id);
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::Focus => {
+                        ctx.request_focus();
+                        data.focus = self.view_id;
+                        data.main_split.active = Arc::new(self.view_id);
+                    }
+                    LapceUICommand::FocusTab => {
+                        if *data.main_split.active == self.view_id {
+                            ctx.request_focus();
+                            data.focus = self.view_id;
+                        }
+                    }
+                    _ => (),
+                }
             }
             _ => (),
         }
@@ -2702,13 +2866,20 @@ impl Widget<LapceTabData> for LapceEditorView {
                 match event {
                     Event::KeyDown(key_event) => {
                         let mut keypress = data.keypress.clone();
-                        Arc::make_mut(&mut keypress).key_down(
+                        if Arc::make_mut(&mut keypress).key_down(
                             ctx,
                             key_event,
                             data,
                             &mut editor_data,
                             env,
-                        );
+                        ) {
+                            self.ensure_cursor_visible(
+                                ctx,
+                                &mut editor_data,
+                                None,
+                                env,
+                            );
+                        }
 
                         data.keypress = keypress.clone();
                         data.main_split = editor_data.main_split.clone();
@@ -2723,6 +2894,15 @@ impl Widget<LapceTabData> for LapceEditorView {
                                 .open_files
                                 .insert(buffer.path.clone(), editor_data.buffer);
                         }
+                    }
+                    Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                        let cmd = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                        self.handle_lapce_ui_command(
+                            ctx,
+                            cmd,
+                            &mut editor_data,
+                            env,
+                        );
                     }
                     _ => (),
                 }
@@ -2743,36 +2923,14 @@ impl Widget<LapceTabData> for LapceEditorView {
             },
         };
 
-        let content = data.editor_view_content(self.view_id);
-        match content {
-            LapceEditorViewContent::Buffer(mut editor_data) => match event {
-                Event::KeyDown(key_event) => {
-                    let mut keypress = data.keypress.clone();
-                    let keypress = Arc::make_mut(&mut keypress);
-                    keypress.key_down(ctx, key_event, data, &mut editor_data, env);
-
-                    //    if editor_data.buffer.same(other)
-                }
-                _ => (),
-            },
-            LapceEditorViewContent::None => match event {
-                Event::KeyDown(key_event) => {
-                    let mut keypress = data.keypress.clone();
-                    let keypress = Arc::make_mut(&mut keypress);
-                    keypress.key_down(
-                        ctx,
-                        key_event,
-                        data,
-                        &mut LapceEditorEmptyContent {},
-                        env,
-                    );
-                }
-                _ => (),
-            },
-        }
-
         self.header.event(ctx, event, data, env);
         self.editor.event(ctx, event, data, env);
+
+        let offset = self.editor.widget().editor.widget().inner().offset();
+        if editor.scroll_offset != offset {
+            Arc::make_mut(data.main_split.editors.get_mut(&self.view_id).unwrap())
+                .scroll_offset = offset;
+        }
     }
 
     fn lifecycle(
@@ -2793,14 +2951,6 @@ impl Widget<LapceTabData> for LapceEditorView {
         data: &LapceTabData,
         env: &Env,
     ) {
-        if (*old_data.main_split.active == self.view_id
-            && *data.main_split.active != self.view_id)
-            || (*old_data.main_split.active != self.view_id
-                && *data.main_split.active == self.view_id)
-        {
-            ctx.request_paint();
-        }
-
         match (
             old_data.editor_view_content(self.view_id),
             data.editor_view_content(self.view_id),
@@ -2810,9 +2960,34 @@ impl Widget<LapceTabData> for LapceEditorView {
                 LapceEditorViewContent::Buffer(data),
             ) => {
                 if data.buffer.path != old_data.buffer.path {
-                    ctx.request_paint();
+                    ctx.request_layout();
                 }
                 if data.buffer.dirty != old_data.buffer.dirty {
+                    ctx.request_paint();
+                }
+                if data.editor.cursor != old_data.editor.cursor {
+                    ctx.request_paint();
+                }
+
+                let buffer = &data.buffer;
+                let old_buffer = &old_data.buffer;
+                if buffer.max_len != old_buffer.max_len
+                    || buffer.num_lines != old_buffer.num_lines
+                {
+                    ctx.request_layout();
+                }
+
+                if !buffer.styles.same(&old_buffer.styles) {
+                    ctx.request_paint();
+                }
+
+                if buffer.rev != old_buffer.rev {
+                    ctx.request_paint();
+                }
+
+                if old_data.current_code_actions().is_some()
+                    != data.current_code_actions().is_some()
+                {
                     ctx.request_paint();
                 }
             }
@@ -2824,8 +2999,8 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             (LapceEditorViewContent::None, LapceEditorViewContent::None) => {}
         }
-        self.header.update(ctx, data, env);
-        self.editor.update(ctx, data, env);
+        // self.header.update(ctx, data, env);
+        // self.editor.update(ctx, data, env);
     }
 
     fn layout(
@@ -2867,8 +3042,6 @@ impl Widget<LapceTabData> for LapceEditorView {
 
 pub struct LapceEditorContainer {
     pub view_id: WidgetId,
-    pub container_id: WidgetId,
-    pub editor_id: WidgetId,
     pub scroll_id: WidgetId,
     pub display_gutter: bool,
     pub gutter:
@@ -2880,23 +3053,17 @@ pub struct LapceEditorContainer {
 }
 
 impl LapceEditorContainer {
-    pub fn new(
-        view_id: WidgetId,
-        container_id: WidgetId,
-        editor_id: WidgetId,
-    ) -> Self {
+    pub fn new(view_id: WidgetId) -> Self {
         let scroll_id = WidgetId::next();
-        let gutter = LapceEditorGutter::new(view_id, container_id);
+        let gutter = LapceEditorGutter::new(view_id);
         let gutter = LapcePadding::new((10.0, 0.0, 0.0, 0.0), gutter);
-        let editor = LapceEditor::new(view_id, container_id, editor_id);
+        let editor = LapceEditor::new(view_id);
         let editor = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(editor).vertical().horizontal(),
             scroll_id,
         );
         Self {
             view_id,
-            container_id,
-            editor_id,
             scroll_id,
             display_gutter: true,
             gutter: WidgetPod::new(gutter),
@@ -2931,9 +3098,6 @@ impl LapceEditorContainer {
             }
             LapceUICommand::EnsureRectVisible(rect) => {
                 self.ensure_rect_visible(ctx, data, *rect, env);
-            }
-            LapceUICommand::UpdateSize => {
-                Arc::make_mut(&mut data.editor).size = ctx.size();
             }
             LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
                 if data.buffer.id != *buffer_id {
@@ -3007,12 +3171,13 @@ impl LapceEditorContainer {
                 line as f64 * line_height + line_height / 2.0,
             ))
             .with_size(Size::new((width * 3.0).ceil(), 0.0))
-            .inflate(0.0, (data.editor.size.height / 2.0).ceil());
+            .inflate(0.0, (data.editor.size.borrow().height / 2.0).ceil());
 
         let size = Size::new(
-            (width * data.buffer.max_len as f64).max(data.editor.size.width),
+            (width * data.buffer.max_len as f64)
+                .max(data.editor.size.borrow().width),
             line_height * data.buffer.text_layouts.borrow().len() as f64
-                + data.editor.size.height
+                + data.editor.size.borrow().height
                 - line_height,
         );
         let scroll = self.editor.widget_mut().inner_mut();
@@ -3057,9 +3222,10 @@ impl LapceEditorContainer {
         let line_height = data.config.editor.line_height as f64;
         let width = data.config.editor_text_width(ctx.text(), "W");
         let size = Size::new(
-            (width * data.buffer.max_len as f64).max(data.editor.size.width),
+            (width * data.buffer.max_len as f64)
+                .max(data.editor.size.borrow().width),
             line_height * data.buffer.text_layouts.borrow().len() as f64
-                + data.editor.size.height
+                + data.editor.size.borrow().height
                 - line_height,
         );
 
@@ -3091,10 +3257,6 @@ impl LapceEditorContainer {
 }
 
 impl Widget<LapceTabData> for LapceEditorContainer {
-    fn id(&self) -> Option<WidgetId> {
-        Some(self.container_id)
-    }
-
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -3143,19 +3305,6 @@ impl Widget<LapceTabData> for LapceEditorContainer {
         data: &LapceTabData,
         env: &Env,
     ) {
-        match event {
-            LifeCycle::FocusChanged(_) => {
-                ctx.request_paint();
-            }
-            LifeCycle::Size(size) => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSize,
-                    Target::Widget(self.container_id),
-                ));
-            }
-            _ => (),
-        }
         self.gutter.lifecycle(ctx, event, data, env);
         self.editor.lifecycle(ctx, event, data, env);
     }
@@ -3213,12 +3362,17 @@ impl Widget<LapceTabData> for LapceEditorContainer {
                 0.0,
             ),
         );
+        *data
+            .main_split
+            .editors
+            .get(&self.view_id)
+            .unwrap()
+            .size
+            .borrow_mut() = self_size.clone();
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        self.editor.widget_mut().inner_mut().child_mut().is_focused =
-            ctx.is_focused();
         let rects = ctx.region().rects().to_vec();
         for rect in &rects {
             ctx.fill(
@@ -3329,15 +3483,13 @@ impl Widget<LapceTabData> for LapceEditorHeader {
 
 pub struct LapceEditorGutter {
     view_id: WidgetId,
-    container_id: WidgetId,
     width: f64,
 }
 
 impl LapceEditorGutter {
-    pub fn new(view_id: WidgetId, container_id: WidgetId) -> Self {
+    pub fn new(view_id: WidgetId) -> Self {
         Self {
             view_id,
-            container_id,
             width: 0.0,
         }
     }
@@ -3427,34 +3579,20 @@ impl Widget<LapceTabData> for LapceEditorGutter {
 }
 
 pub struct LapceEditor {
-    editor_id: WidgetId,
     view_id: WidgetId,
-    container_id: WidgetId,
     placeholder: Option<String>,
-    is_focused: bool,
 }
 
 impl LapceEditor {
-    pub fn new(
-        view_id: WidgetId,
-        container_id: WidgetId,
-        editor_id: WidgetId,
-    ) -> Self {
+    pub fn new(view_id: WidgetId) -> Self {
         Self {
-            editor_id,
             view_id,
-            container_id,
             placeholder: None,
-            is_focused: false,
         }
     }
 }
 
 impl Widget<LapceTabData> for LapceEditor {
-    fn id(&self) -> Option<WidgetId> {
-        Some(self.editor_id)
-    }
-
     fn event(
         &mut self,
         ctx: &mut EventCtx,
@@ -3603,11 +3741,6 @@ impl Widget<LapceTabData> for LapceEditor {
                 //          }
                 //      }
                 //  }
-                //  ctx.submit_command(Command::new(
-                //      LAPCE_UI_COMMAND,
-                //      LapceUICommand::Focus,
-                //      Target::Widget(self.container_id),
-                //  ));
                 //  ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {

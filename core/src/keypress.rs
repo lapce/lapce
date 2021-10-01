@@ -154,8 +154,6 @@ impl KeyPressData {
             mods: key_event.mods.clone(),
         };
 
-        println!("{:?}", keypress);
-
         let mode = focus.get_mode();
         if self.handle_count(&mode, &keypress) {
             return false;

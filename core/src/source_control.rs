@@ -138,7 +138,6 @@ impl KeyPressFocus for SourceControlData {
 pub struct SourceControlNew {
     widget_id: WidgetId,
     editor_view_id: WidgetId,
-    editor_container_id: WidgetId,
     split: WidgetPod<LapceTabData, LapceSplitNew>,
 }
 
@@ -162,12 +161,11 @@ impl SourceControlNew {
         let split = LapceSplitNew::new(data.source_control.split_id)
             .horizontal()
             .hide_border()
-            .with_child(editor.boxed(), Some(editor_data.container_id), 200.0)
+            .with_child(editor.boxed(), Some(editor_data.view_id), 200.0)
             .with_flex_child(file_list.boxed(), Some(file_list_id), 0.5);
         Self {
             widget_id: data.source_control.widget_id,
             editor_view_id: data.source_control.editor_view_id,
-            editor_container_id: editor_data.container_id,
             split: WidgetPod::new(split),
         }
     }
@@ -194,7 +192,7 @@ impl Widget<LapceTabData> for SourceControlNew {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::Focus,
-                                Target::Widget(self.editor_container_id),
+                                Target::Widget(self.editor_view_id),
                             ));
                             ctx.set_handled();
                         }

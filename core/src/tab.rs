@@ -43,7 +43,7 @@ impl LapceTabNew {
         let main_split = LapceSplitNew::new(*data.main_split.split_id)
             .with_flex_child(
                 LapceEditorView::new(editor).boxed(),
-                Some(editor.container_id),
+                Some(editor.view_id),
                 1.0,
             );
         let completion = CompletionContainer::new(&data.completion);
@@ -616,6 +616,18 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if old_data.focus != data.focus {
+            ctx.request_paint();
+        }
+
+        if old_data
+            .main_split
+            .diagnostics
+            .same(&data.main_split.diagnostics)
+        {
+            ctx.request_paint();
+        }
+
         if !old_data.panels.same(&data.panels) {
             ctx.request_layout();
         }

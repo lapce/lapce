@@ -89,6 +89,22 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Keyboard Shortcuts")]
     OpenKeyboardShortcuts,
 
+    #[strum(serialize = "close_tab")]
+    #[strum(message = "Close Current Tab")]
+    CloseTab,
+
+    #[strum(serialize = "new_tab")]
+    #[strum(message = "Create New Tab")]
+    NewTab,
+
+    #[strum(serialize = "next_tab")]
+    #[strum(message = "Go To Next Tab")]
+    NextTab,
+
+    #[strum(serialize = "previous_tab")]
+    #[strum(message = "Go To Previous Tab")]
+    PreviousTab,
+
     #[strum(serialize = "palette.line")]
     PaletteLine,
 
@@ -170,14 +186,6 @@ pub enum LapceCommand {
     SplitUp,
     #[strum(serialize = "split_down")]
     SplitDown,
-    #[strum(serialize = "close_tab")]
-    CloseTab,
-    #[strum(serialize = "new_tab")]
-    NewTab,
-    #[strum(serialize = "next_tab")]
-    NextTab,
-    #[strum(serialize = "previous_tab")]
-    PreviousTab,
     #[strum(serialize = "insert_mode")]
     InsertMode,
     #[strum(serialize = "insert_first_non_blank")]
@@ -323,7 +331,6 @@ pub enum LapceUICommand {
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateWindowOrigin,
-    UpdateSize,
     RequestLayout,
     RequestPaint,
     ResetFade,

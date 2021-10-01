@@ -176,7 +176,8 @@ impl LapceSplitNew {
         let new_view_id = self.children[new_index].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
         data.main_split.active = Arc::new(new_editor.view_id);
-        ctx.set_focus(new_editor.container_id);
+        data.focus = new_editor.view_id;
+        ctx.set_focus(new_editor.view_id);
         data.main_split.editors.remove(&view_id);
         self.children.remove(index);
         self.children_ids.remove(index);
@@ -209,7 +210,8 @@ impl LapceSplitNew {
         let new_view_id = self.children[index + 1].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
         data.main_split.active = Arc::new(new_editor.view_id);
-        ctx.set_focus(new_editor.container_id);
+        data.focus = new_editor.view_id;
+        ctx.set_focus(new_editor.view_id);
 
         self.children.swap(index, index + 1);
         self.children_ids.swap(index, index + 1);
@@ -307,14 +309,14 @@ impl LapceSplitNew {
                 from_editor.scroll_offset.x,
                 from_editor.scroll_offset.y,
             ),
-            Target::Widget(editor_data.container_id),
+            Target::Widget(editor_data.view_id),
         ));
 
         let editor = LapceEditorView::new(&editor_data);
         self.insert_flex_child(
             index + 1,
             editor.boxed(),
-            Some(editor_data.container_id),
+            Some(editor_data.view_id),
             1.0,
         );
         self.even_flex_children();

@@ -204,6 +204,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) {
+        let start = std::time::SystemTime::now();
+
         if old_data.active != data.active {
             ctx.request_layout();
         }
@@ -212,11 +214,16 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         if old_tab.workspace != tab.workspace {
             ctx.request_layout();
         }
-        let start = std::time::SystemTime::now();
         self.tabs[data.active].update(ctx, data, env);
-        let end = std::time::SystemTime::now();
-        let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("update took {}", duration);
+
+        println!(
+            "update took {}",
+            std::time::SystemTime::now()
+                .duration_since(start)
+                .unwrap()
+                .as_micros() as f64
+                / 1000.0
+        );
     }
 
     fn layout(
@@ -244,7 +251,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         tab.set_origin(ctx, data, env, tab_origin);
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("layout took {}", duration);
+        println!("layout took {}", duration as f64 / 1000.0);
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateWindowOrigin,
@@ -255,6 +262,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
+        let start = std::time::SystemTime::now();
+
         let tab_height = 25.0;
         let size = ctx.size();
         if self.tabs.len() > 1 {
@@ -366,5 +375,13 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             let color = env.get(theme::BORDER_LIGHT);
             ctx.stroke(line, &color, 1.0);
         }
+        // println!(
+        //     "paint took {}",
+        //     std::time::SystemTime::now()
+        //         .duration_since(start)
+        //         .unwrap()
+        //         .as_micros() as f64
+        //         / 1000.0
+        // );
     }
 }
