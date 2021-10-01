@@ -53,12 +53,13 @@ use crate::{
         BufferState, BufferUpdate, EditType, Style, UpdateEvent, WordProperty,
     },
     command::{
-        EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_COMMAND,
+        CommandTarget, EnsureVisiblePosition, LapceCommand, LapceCommandNew,
+        LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_NEW_COMMAND,
         LAPCE_UI_COMMAND,
     },
     completion::{CompletionData, CompletionStatus, Snippet},
     config::{Config, LapceTheme},
-    editor::EditorLocationNew,
+    editor::{EditorLocationNew, LapceEditorBufferData, LapceEditorViewContent},
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     language::{new_highlight_config, new_parser, LapceLanguage},
@@ -224,6 +225,7 @@ pub struct LapceTabData {
     pub panels: im::HashMap<PanelPosition, Arc<PanelData>>,
     pub panel_size: PanelSize,
     pub config: Arc<Config>,
+    pub focus: WidgetId,
 }
 
 impl Data for LapceTabData {
@@ -299,6 +301,7 @@ impl LapceTabData {
                 right_split: 0.5,
             },
             config,
+            focus: tab_id,
         };
         if let Some(event_sink) = event_sink {
             tab.start_update_process(event_sink);
@@ -326,6 +329,27 @@ impl LapceTabData {
                 PaletteViewData::update_process(receiver, widget_id, event_sink);
                 println!("palette update process stopped");
             });
+        }
+    }
+
+    pub fn editor_view_content(
+        &self,
+        editor_view_id: WidgetId,
+    ) -> LapceEditorViewContent {
+        let editor = self.main_split.editors.get(&editor_view_id).unwrap();
+        match &editor.content {
+            EditorContent::Buffer(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap().clone();
+                LapceEditorViewContent::Buffer(LapceEditorBufferData {
+                    view_id: editor_view_id,
+                    main_split: self.main_split.clone(),
+                    buffer,
+                    editor: editor.clone(),
+                    config: self.config.clone(),
+                    workspace: self.workspace.clone(),
+                })
+            }
+            EditorContent::None => LapceEditorViewContent::None,
         }
     }
 
@@ -443,6 +467,71 @@ impl LapceTabData {
             main_split: self.main_split.clone(),
             keypress: self.keypress.clone(),
             config: self.config.clone(),
+        }
+    }
+
+    pub fn run_workbench_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceWorkbenchCommand,
+        count: Option<usize>,
+        env: &Env,
+    ) {
+        match command {
+            LapceWorkbenchCommand::OpenFolder => {}
+            LapceWorkbenchCommand::ChangeTheme => {}
+            LapceWorkbenchCommand::OpenSettings => {}
+            LapceWorkbenchCommand::OpenKeyboardShortcuts => {}
+            LapceWorkbenchCommand::Palette => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(None),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
+            LapceWorkbenchCommand::PaletteLine => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::Line)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
+            LapceWorkbenchCommand::PaletteSymbol => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::DocumentSymbol)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
+            LapceWorkbenchCommand::PaletteCommand => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::Command)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
+        }
+    }
+
+    pub fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommandNew,
+        count: Option<usize>,
+        env: &Env,
+    ) {
+        match command.target {
+            CommandTarget::Workbench => {
+                if let Ok(cmd) = LapceWorkbenchCommand::from_str(&command.cmd) {
+                    self.run_workbench_command(ctx, &cmd, count, env);
+                }
+            }
+            CommandTarget::Plugin(_) => {}
+            CommandTarget::Focus => ctx.submit_command(Command::new(
+                LAPCE_NEW_COMMAND,
+                command.clone(),
+                Target::Widget(self.focus),
+            )),
         }
     }
 
@@ -1011,13 +1100,19 @@ pub enum LapceEditorContainerKind {
 }
 
 #[derive(Clone, Debug)]
+pub enum EditorContent {
+    Buffer(PathBuf),
+    None,
+}
+
+#[derive(Clone, Debug)]
 pub struct LapceEditorData {
     pub split_id: Option<WidgetId>,
     pub view_id: WidgetId,
     pub container_id: WidgetId,
     pub editor_id: WidgetId,
     pub editor_type: EditorType,
-    pub buffer: PathBuf,
+    pub content: EditorContent,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
     pub size: Size,
@@ -1043,6 +1138,7 @@ impl LapceEditorData {
             editor_id: WidgetId::next(),
             editor_type,
             buffer,
+            content: EditorContent::None,
             scroll_offset: Vec2::ZERO,
             cursor: if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(0), None)
@@ -1113,18 +1209,18 @@ pub struct LapceEditorViewData {
 }
 
 impl LapceEditorViewData {
-    pub fn key_down(
-        &mut self,
-        ctx: &mut EventCtx,
-        key_event: &KeyEvent,
-        env: &Env,
-    ) -> bool {
-        let mut keypress = self.keypress.clone();
-        let k = Arc::make_mut(&mut keypress);
-        let executed = k.key_down(ctx, key_event, self, env);
-        self.keypress = keypress;
-        executed
-    }
+    // pub fn key_down(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     key_event: &KeyEvent,
+    //     env: &Env,
+    // ) -> bool {
+    //     let mut keypress = self.keypress.clone();
+    //     let k = Arc::make_mut(&mut keypress);
+    //     let executed = k.key_down(ctx, key_event, self, env);
+    //     self.keypress = keypress;
+    //     executed
+    // }
 
     pub fn buffer_mut(&mut self) -> &mut BufferNew {
         Arc::make_mut(&mut self.buffer)
@@ -2815,44 +2911,6 @@ impl KeyPressFocus for LapceEditorViewData {
                         Target::Auto,
                     ));
                     println!("source control cancel");
-                }
-            }
-            LapceCommand::Palette => {
-                if self.editor.editor_type == EditorType::Normal {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::RunPalette(None),
-                        Target::Widget(*self.palette),
-                    ));
-                }
-            }
-            LapceCommand::PaletteSymbol => {
-                if self.editor.editor_type == EditorType::Normal {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::RunPalette(Some(
-                            PaletteType::DocumentSymbol,
-                        )),
-                        Target::Widget(*self.palette),
-                    ));
-                }
-            }
-            LapceCommand::PaletteCommand => {
-                if self.editor.editor_type == EditorType::Normal {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::RunPalette(Some(PaletteType::Command)),
-                        Target::Widget(*self.palette),
-                    ));
-                }
-            }
-            LapceCommand::PaletteLine => {
-                if self.editor.editor_type == EditorType::Normal {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::RunPalette(Some(PaletteType::Line)),
-                        Target::Widget(*self.palette),
-                    ));
                 }
             }
             LapceCommand::ShowCodeActions => {

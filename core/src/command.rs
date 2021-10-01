@@ -7,7 +7,7 @@ use lsp_types::{
     PublishDiagnosticsParams, Range, TextEdit,
 };
 use serde_json::Value;
-use strum;
+use strum::{self, EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumProperty, EnumString};
 use tree_sitter::Tree;
 use tree_sitter_highlight::Highlight;
@@ -23,9 +23,84 @@ use crate::{
     state::LapceWorkspace,
 };
 
+pub const LAPCE_NEW_COMMAND: Selector<LapceCommandNew> =
+    Selector::new("lapce.new-command");
 pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.command");
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
+
+#[derive(Clone, Debug)]
+pub struct LapceCommandNew {
+    pub cmd: String,
+    pub palette_desc: Option<String>,
+    pub target: CommandTarget,
+}
+
+impl LapceCommandNew {
+    pub const PALETTE: &'static str = "palette";
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum CommandTarget {
+    Workbench,
+    Focus,
+    Plugin(String),
+}
+
+pub fn lapce_internal_commands() -> HashMap<String, LapceCommandNew> {
+    let mut commands = HashMap::new();
+
+    for c in LapceWorkbenchCommand::iter() {
+        let command = LapceCommandNew {
+            cmd: c.to_string(),
+            palette_desc: c.get_message().map(|m| m.to_string()),
+            target: CommandTarget::Workbench,
+        };
+        commands.insert(command.cmd.clone(), command);
+    }
+
+    for c in LapceCommand::iter() {
+        let command = LapceCommandNew {
+            cmd: c.to_string(),
+            palette_desc: c.get_message().map(|m| m.to_string()),
+            target: CommandTarget::Focus,
+        };
+        commands.insert(command.cmd.clone(), command);
+    }
+
+    commands
+}
+
+#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+pub enum LapceWorkbenchCommand {
+    #[strum(serialize = "open_folder")]
+    #[strum(message = "Open Folder")]
+    OpenFolder,
+
+    #[strum(serialize = "change_theme")]
+    #[strum(message = "Change Theme")]
+    ChangeTheme,
+
+    #[strum(serialize = "open_settings")]
+    #[strum(message = "Open Settings")]
+    OpenSettings,
+
+    #[strum(serialize = "open_keyboard_shortcuts")]
+    #[strum(message = "Open Keyboard Shortcuts")]
+    OpenKeyboardShortcuts,
+
+    #[strum(serialize = "palette.line")]
+    PaletteLine,
+
+    #[strum(serialize = "palette")]
+    Palette,
+
+    #[strum(serialize = "palette.symbol")]
+    PaletteSymbol,
+
+    #[strum(serialize = "palette.command")]
+    PaletteCommand,
+}
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
 pub enum LapceCommand {
@@ -39,16 +114,8 @@ pub enum LapceCommand {
     SourceControlCancel,
     #[strum(serialize = "code_actions.cancel")]
     CodeActionsCancel,
-    #[strum(serialize = "palette.line")]
-    PaletteLine,
-    #[strum(serialize = "palette")]
-    Palette,
     #[strum(serialize = "palette.cancel")]
     PaletteCancel,
-    #[strum(serialize = "palette.symbol")]
-    PaletteSymbol,
-    #[strum(serialize = "palette.command")]
-    PaletteCommand,
     #[strum(serialize = "delete_backward")]
     DeleteBackward,
     #[strum(serialize = "delete_foreward")]

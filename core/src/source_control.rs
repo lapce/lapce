@@ -15,7 +15,7 @@ use druid::{
 };
 
 use crate::{
-    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{CommandTarget, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{LapceEditorLens, LapceTabData},
     editor::{LapceEditorContainer, LapceEditorView},
@@ -348,14 +348,17 @@ impl Widget<LapceTabData> for SourceControlFileList {
             }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
-                let mut_keypress = Arc::make_mut(&mut keypress);
-                mut_keypress.key_down(
+                let mut source_control = data.source_control.clone();
+                Arc::make_mut(&mut keypress).key_down(
                     ctx,
                     key_event,
-                    Arc::make_mut(&mut data.source_control),
+                    data,
+                    Arc::make_mut(&mut source_control),
                     env,
                 );
-                data.keypress = keypress;
+
+                data.keypress = keypress.clone();
+                data.source_control = source_control.clone();
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {

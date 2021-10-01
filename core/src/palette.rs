@@ -34,10 +34,10 @@ use usvg;
 use uuid::Uuid;
 
 use crate::{
-    command::LapceCommand,
     command::LapceUICommand,
     command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND,
+    command::{CommandTarget, LapceCommand},
     config::{Config, LapceTheme},
     data::{
         EditorKind, LapceEditorData, LapceEditorLens, LapceEditorViewData,
@@ -1098,7 +1098,7 @@ impl Widget<LapceTabData> for NewPalette {
                 let mut keypress = data.keypress.clone();
                 let mut_keypress = Arc::make_mut(&mut keypress);
                 let mut palette_data = data.palette_view_data();
-                mut_keypress.key_down(ctx, key_event, &mut palette_data, env);
+                mut_keypress.key_down(ctx, key_event, data, &mut palette_data, env);
                 data.palette = palette_data.palette.clone();
                 data.keypress = keypress;
                 data.workspace = palette_data.workspace.clone();
