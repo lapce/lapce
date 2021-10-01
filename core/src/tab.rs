@@ -14,10 +14,7 @@ use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::Config,
-    data::{
-        EditorDiagnostic, EditorKind, LapceEditorLens, LapceMainSplitData,
-        LapceTabData,
-    },
+    data::{EditorDiagnostic, EditorKind, LapceMainSplitData, LapceTabData},
     editor::{EditorLocationNew, LapceEditorView},
     palette::{NewPalette, PaletteViewLens},
     panel::{PanelPosition, PanelResizePosition},

@@ -343,6 +343,8 @@ impl LapceTabData {
                 LapceEditorViewContent::Buffer(LapceEditorBufferData {
                     view_id: editor_view_id,
                     main_split: self.main_split.clone(),
+                    completion: self.completion.clone(),
+                    proxy: self.proxy.clone(),
                     buffer,
                     editor: editor.clone(),
                     config: self.config.clone(),
@@ -368,40 +370,49 @@ impl LapceTabData {
 
     pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
         let editor = self.main_split.active_editor();
-        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let offset = editor.cursor.offset();
-        let prev_offset = buffer.prev_code_boundary(offset);
-        let empty_vec = Vec::new();
-        let code_actions =
-            buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        match &editor.content {
+            EditorContent::None => Size::ZERO,
+            EditorContent::Buffer(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap();
+                let offset = editor.cursor.offset();
+                let prev_offset = buffer.prev_code_boundary(offset);
+                let empty_vec = Vec::new();
+                let code_actions =
+                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-        let action_text_layouts: Vec<TextLayout<String>> = code_actions
-            .iter()
-            .map(|code_action| {
-                let title = match code_action {
-                    CodeActionOrCommand::Command(cmd) => cmd.title.to_string(),
-                    CodeActionOrCommand::CodeAction(action) => {
-                        action.title.to_string()
+                let action_text_layouts: Vec<TextLayout<String>> = code_actions
+                    .iter()
+                    .map(|code_action| {
+                        let title = match code_action {
+                            CodeActionOrCommand::Command(cmd) => {
+                                cmd.title.to_string()
+                            }
+                            CodeActionOrCommand::CodeAction(action) => {
+                                action.title.to_string()
+                            }
+                        };
+                        let mut text_layout =
+                            TextLayout::<String>::from_text(title.clone());
+                        text_layout.set_font(
+                            FontDescriptor::new(FontFamily::SYSTEM_UI)
+                                .with_size(14.0),
+                        );
+                        text_layout.rebuild_if_needed(text, env);
+                        text_layout
+                    })
+                    .collect();
+
+                let mut width = 0.0;
+                for text_layout in &action_text_layouts {
+                    let line_width = text_layout.size().width + 10.0;
+                    if line_width > width {
+                        width = line_width;
                     }
-                };
-                let mut text_layout = TextLayout::<String>::from_text(title.clone());
-                text_layout.set_font(
-                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
-                );
-                text_layout.rebuild_if_needed(text, env);
-                text_layout
-            })
-            .collect();
-
-        let mut width = 0.0;
-        for text_layout in &action_text_layouts {
-            let line_width = text_layout.size().width + 10.0;
-            if line_width > width {
-                width = line_width;
+                }
+                let line_height = self.config.editor.line_height as f64;
+                Size::new(width, code_actions.len() as f64 * line_height)
             }
         }
-        let line_height = self.config.editor.line_height as f64;
-        Size::new(width, code_actions.len() as f64 * line_height)
     }
 
     pub fn code_action_origin(
@@ -412,15 +423,22 @@ impl LapceTabData {
     ) -> Point {
         let line_height = self.config.editor.line_height as f64;
         let editor = self.main_split.active_editor();
-        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let offset = editor.cursor.offset();
-        let (line, col) = buffer.offset_to_line_col(offset);
-        let width = config.editor_text_width(text, "W");
-        let x = col as f64 * width;
-        let y = (line + 1) as f64 * line_height;
-        let origin =
-            editor.window_origin - self.window_origin.to_vec2() + Vec2::new(x, y);
-        origin
+        match &editor.content {
+            EditorContent::None => {
+                editor.window_origin - self.window_origin.to_vec2()
+            }
+            EditorContent::Buffer(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap();
+                let offset = editor.cursor.offset();
+                let (line, col) = buffer.offset_to_line_col(offset);
+                let width = config.editor_text_width(text, "W");
+                let x = col as f64 * width;
+                let y = (line + 1) as f64 * line_height;
+                let origin = editor.window_origin - self.window_origin.to_vec2()
+                    + Vec2::new(x, y);
+                origin
+            }
+        }
     }
 
     pub fn completion_origin(
@@ -432,32 +450,39 @@ impl LapceTabData {
         let line_height = self.config.editor.line_height as f64;
 
         let editor = self.main_split.active_editor();
-        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let offset = self.completion.offset;
-        let (line, col) = buffer.offset_to_line_col(offset);
-        let width = config.editor_text_width(text, "W");
-        let x = col as f64 * width - line_height - 5.0;
-        let y = (line + 1) as f64 * line_height;
-        let mut origin =
-            editor.window_origin - self.window_origin.to_vec2() + Vec2::new(x, y);
-        if origin.y + self.completion.size.height + 1.0 > tab_size.height {
-            let height = self
-                .completion
-                .size
-                .height
-                .min(self.completion.len() as f64 * line_height);
-            origin.y = editor.window_origin.y - self.window_origin.y
-                + line as f64 * line_height
-                - height;
-        }
-        if origin.x + self.completion.size.width + 1.0 > tab_size.width {
-            origin.x = tab_size.width - self.completion.size.width - 1.0;
-        }
-        if origin.x <= 0.0 {
-            origin.x = 0.0;
-        }
+        match &editor.content {
+            EditorContent::None => {
+                editor.window_origin - self.window_origin.to_vec2()
+            }
+            EditorContent::Buffer(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap();
+                let offset = self.completion.offset;
+                let (line, col) = buffer.offset_to_line_col(offset);
+                let width = config.editor_text_width(text, "W");
+                let x = col as f64 * width - line_height - 5.0;
+                let y = (line + 1) as f64 * line_height;
+                let mut origin = editor.window_origin - self.window_origin.to_vec2()
+                    + Vec2::new(x, y);
+                if origin.y + self.completion.size.height + 1.0 > tab_size.height {
+                    let height = self
+                        .completion
+                        .size
+                        .height
+                        .min(self.completion.len() as f64 * line_height);
+                    origin.y = editor.window_origin.y - self.window_origin.y
+                        + line as f64 * line_height
+                        - height;
+                }
+                if origin.x + self.completion.size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - self.completion.size.width - 1.0;
+                }
+                if origin.x <= 0.0 {
+                    origin.x = 0.0;
+                }
 
-        origin
+                origin
+            }
+        }
     }
 
     pub fn palette_view_data(&self) -> PaletteViewData {
@@ -698,7 +723,7 @@ pub struct RegisterData {
 
 #[derive(Clone, Default)]
 pub struct Register {
-    unamed: RegisterData,
+    pub unamed: RegisterData,
     last_yank: RegisterData,
     last_deletes: [RegisterData; 10],
     newest_delete: usize,
@@ -874,8 +899,13 @@ impl LapceMainSplitData {
 
     fn cursor_apply_delta(&mut self, path: &PathBuf, delta: &RopeDelta) {
         for (view_id, editor) in self.editors.iter_mut() {
-            if &editor.buffer == path {
-                Arc::make_mut(editor).cursor.apply_delta(delta);
+            match &editor.content {
+                EditorContent::Buffer(current_path) => {
+                    if current_path == path {
+                        Arc::make_mut(editor).cursor.apply_delta(delta);
+                    }
+                }
+                EditorContent::None => {}
             }
         }
     }
@@ -905,12 +935,17 @@ impl LapceMainSplitData {
         config: &Config,
     ) {
         let editor = self.editors.get(&editor_view_id).unwrap();
-        let location = EditorLocationNew {
-            path: editor.buffer.clone(),
-            position: Some(position),
-            scroll_offset: None,
-        };
-        self.jump_to_location(ctx, editor_view_id, location, config);
+        match &editor.content {
+            EditorContent::Buffer(path) => {
+                let location = EditorLocationNew {
+                    path: path.clone(),
+                    position: Some(position),
+                    scroll_offset: None,
+                };
+                self.jump_to_location(ctx, editor_view_id, location, config);
+            }
+            EditorContent::None => {}
+        }
     }
 
     pub fn jump_to_location(
@@ -921,8 +956,13 @@ impl LapceMainSplitData {
         config: &Config,
     ) {
         let editor = Arc::make_mut(self.editors.get_mut(&editor_view_id).unwrap());
-        let buffer = self.open_files.get(&editor.buffer).unwrap().clone();
-        editor.save_jump_location(&buffer);
+        match &editor.content {
+            EditorContent::Buffer(path) => {
+                let buffer = self.open_files.get(path).unwrap().clone();
+                editor.save_jump_location(&buffer);
+            }
+            EditorContent::None => {}
+        }
         self.go_to_location(ctx, editor_view_id, location, config);
     }
 
@@ -934,7 +974,10 @@ impl LapceMainSplitData {
         config: &Config,
     ) {
         let editor = Arc::make_mut(self.editors.get_mut(&editor_view_id).unwrap());
-        let new_buffer = editor.buffer != location.path;
+        let new_buffer = match &editor.content {
+            EditorContent::Buffer(path) => path != &location.path,
+            EditorContent::None => true,
+        };
         let path = location.path.clone();
         let buffer_exists = self.open_files.contains_key(&path);
         if !buffer_exists {
@@ -958,7 +1001,7 @@ impl LapceMainSplitData {
                 None => (buffer.cursor_offset, Some(&buffer.scroll_offset)),
             };
 
-            editor.buffer = path.clone();
+            editor.content = EditorContent::Buffer(path.clone());
             editor.cursor = if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(offset), None)
             } else {
@@ -999,14 +1042,19 @@ impl LapceMainSplitData {
         config: &Config,
     ) {
         let editor = self.editors.get(&editor_view_id).unwrap();
-        let buffer = self.open_files.get(&editor.buffer).unwrap();
-        let offset = buffer.first_non_blank_character_on_line(if line > 0 {
-            line - 1
-        } else {
-            0
-        });
-        let position = buffer.offset_to_position(offset);
-        self.jump_to_position(ctx, editor_view_id, position, config);
+        match &editor.content {
+            EditorContent::Buffer(path) => {
+                let buffer = self.open_files.get(path).unwrap();
+                let offset = buffer.first_non_blank_character_on_line(if line > 0 {
+                    line - 1
+                } else {
+                    0
+                });
+                let position = buffer.offset_to_position(offset);
+                self.jump_to_position(ctx, editor_view_id, position, config);
+            }
+            EditorContent::None => {}
+        }
     }
 }
 
@@ -1019,25 +1067,22 @@ impl LapceMainSplitData {
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
         let mut editors = im::HashMap::new();
-        let path = PathBuf::from("[UNAMED]");
         let editor = LapceEditorData::new(
             None,
             Some(*split_id),
-            path.clone(),
+            EditorContent::None,
             EditorType::Normal,
             config,
         );
         let view_id = editor.view_id;
         editors.insert(editor.view_id, Arc::new(editor));
-        let buffer = BufferNew::new(path.clone(), update_sender.clone());
         let mut open_files = im::HashMap::new();
-        open_files.insert(path.clone(), Arc::new(buffer));
 
         let path = PathBuf::from("[Palette Preview Editor]");
         let editor = LapceEditorData::new(
             Some(palette_preview_editor),
             None,
-            path.clone(),
+            EditorContent::Buffer(path.clone()),
             EditorType::Palette,
             config,
         );
@@ -1078,7 +1123,7 @@ impl LapceMainSplitData {
         let editor = LapceEditorData::new(
             Some(view_id),
             Some(split_id),
-            path.clone(),
+            EditorContent::Buffer(path.clone()),
             EditorType::SourceControl,
             config,
         );
@@ -1120,14 +1165,14 @@ pub struct LapceEditorData {
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
     pub locations: Vec<EditorLocationNew>,
     pub current_location: usize,
-    last_movement: Movement,
+    pub last_movement: Movement,
 }
 
 impl LapceEditorData {
     pub fn new(
         view_id: Option<WidgetId>,
         split_id: Option<WidgetId>,
-        buffer: PathBuf,
+        content: EditorContent,
         editor_type: EditorType,
         config: &Config,
     ) -> Self {
@@ -1137,8 +1182,7 @@ impl LapceEditorData {
             container_id: WidgetId::next(),
             editor_id: WidgetId::next(),
             editor_type,
-            buffer,
-            content: EditorContent::None,
+            content,
             scroll_offset: Vec2::ZERO,
             cursor: if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(0), None)
@@ -2011,8 +2055,16 @@ impl LapceEditorViewData {
     fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
         for (view_id, editor) in self.main_split.editors.iter_mut() {
             if view_id != &self.editor.view_id {
-                if self.editor.buffer == editor.buffer {
-                    Arc::make_mut(editor).cursor.apply_delta(delta);
+                match (&self.editor.content, &editor.content) {
+                    (
+                        EditorContent::Buffer(current_path),
+                        EditorContent::Buffer(path),
+                    ) => {
+                        if current_path == path {
+                            Arc::make_mut(editor).cursor.apply_delta(delta);
+                        }
+                    }
+                    _ => (),
                 }
             }
         }
@@ -2118,93 +2170,93 @@ impl LapceEditorViewData {
     }
 }
 
-pub struct LapceEditorLens(pub WidgetId);
-
-impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
-    fn with<V, F: FnOnce(&LapceEditorViewData) -> V>(
-        &self,
-        data: &LapceTabData,
-        f: F,
-    ) -> V {
-        let main_split = &data.main_split;
-        let editor = main_split.editors.get(&self.0).unwrap();
-        let diagnostics = data
-            .main_split
-            .diagnostics
-            .get(&editor.buffer)
-            .unwrap_or(&Arc::new(vec![]))
-            .clone();
-        let editor_view = LapceEditorViewData {
-            buffer: main_split.open_files.get(&editor.buffer).unwrap().clone(),
-            workspace: data.workspace.clone(),
-            editor: editor.clone(),
-            main_split: main_split.clone(),
-            diagnostics,
-            all_diagnostics: data.main_split.diagnostics.clone(),
-            keypress: data.keypress.clone(),
-            completion: data.completion.clone(),
-            palette: Arc::new(data.palette.widget_id),
-            theme: data.theme.clone(),
-            proxy: data.proxy.clone(),
-            config: data.config.clone(),
-        };
-        f(&editor_view)
-    }
-
-    fn with_mut<V, F: FnOnce(&mut LapceEditorViewData) -> V>(
-        &self,
-        data: &mut LapceTabData,
-        f: F,
-    ) -> V {
-        let main_split = &data.main_split;
-        let editor = main_split.editors.get(&self.0).unwrap().clone();
-        let buffer = main_split.open_files.get(&editor.buffer).unwrap().clone();
-        let diagnostics = data
-            .main_split
-            .diagnostics
-            .get(&editor.buffer)
-            .unwrap_or(&Arc::new(vec![]))
-            .clone();
-        let mut editor_view = LapceEditorViewData {
-            buffer: buffer.clone(),
-            workspace: data.workspace.clone(),
-            editor: editor.clone(),
-            diagnostics: diagnostics.clone(),
-            all_diagnostics: data.main_split.diagnostics.clone(),
-            main_split: data.main_split.clone(),
-            keypress: data.keypress.clone(),
-            completion: data.completion.clone(),
-            palette: Arc::new(data.palette.widget_id),
-            theme: data.theme.clone(),
-            proxy: data.proxy.clone(),
-            config: data.config.clone(),
-        };
-        let result = f(&mut editor_view);
-
-        data.keypress = editor_view.keypress.clone();
-        data.completion = editor_view.completion.clone();
-        data.main_split = editor_view.main_split.clone();
-        if !diagnostics.same(&editor_view.diagnostics) {
-            data.main_split.diagnostics.insert(
-                editor_view.buffer.path.clone(),
-                editor_view.diagnostics.clone(),
-            );
-        }
-        data.theme = editor_view.theme.clone();
-        if !editor.same(&editor_view.editor) {
-            data.main_split
-                .editors
-                .insert(self.0, editor_view.editor.clone());
-        }
-        if !buffer.same(&editor_view.buffer) {
-            data.main_split
-                .open_files
-                .insert(editor_view.buffer.path.clone(), editor_view.buffer.clone());
-        }
-
-        result
-    }
-}
+// pub struct LapceEditorLens(pub WidgetId);
+//
+// impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
+//     fn with<V, F: FnOnce(&LapceEditorViewData) -> V>(
+//         &self,
+//         data: &LapceTabData,
+//         f: F,
+//     ) -> V {
+//         let main_split = &data.main_split;
+//         let editor = main_split.editors.get(&self.0).unwrap();
+//         let diagnostics = data
+//             .main_split
+//             .diagnostics
+//             .get(&editor.buffer)
+//             .unwrap_or(&Arc::new(vec![]))
+//             .clone();
+//         let editor_view = LapceEditorViewData {
+//             buffer: main_split.open_files.get(&editor.buffer).unwrap().clone(),
+//             workspace: data.workspace.clone(),
+//             editor: editor.clone(),
+//             main_split: main_split.clone(),
+//             diagnostics,
+//             all_diagnostics: data.main_split.diagnostics.clone(),
+//             keypress: data.keypress.clone(),
+//             completion: data.completion.clone(),
+//             palette: Arc::new(data.palette.widget_id),
+//             theme: data.theme.clone(),
+//             proxy: data.proxy.clone(),
+//             config: data.config.clone(),
+//         };
+//         f(&editor_view)
+//     }
+//
+//     fn with_mut<V, F: FnOnce(&mut LapceEditorViewData) -> V>(
+//         &self,
+//         data: &mut LapceTabData,
+//         f: F,
+//     ) -> V {
+//         let main_split = &data.main_split;
+//         let editor = main_split.editors.get(&self.0).unwrap().clone();
+//         let buffer = main_split.open_files.get(&editor.buffer).unwrap().clone();
+//         let diagnostics = data
+//             .main_split
+//             .diagnostics
+//             .get(&editor.buffer)
+//             .unwrap_or(&Arc::new(vec![]))
+//             .clone();
+//         let mut editor_view = LapceEditorViewData {
+//             buffer: buffer.clone(),
+//             workspace: data.workspace.clone(),
+//             editor: editor.clone(),
+//             diagnostics: diagnostics.clone(),
+//             all_diagnostics: data.main_split.diagnostics.clone(),
+//             main_split: data.main_split.clone(),
+//             keypress: data.keypress.clone(),
+//             completion: data.completion.clone(),
+//             palette: Arc::new(data.palette.widget_id),
+//             theme: data.theme.clone(),
+//             proxy: data.proxy.clone(),
+//             config: data.config.clone(),
+//         };
+//         let result = f(&mut editor_view);
+//
+//         data.keypress = editor_view.keypress.clone();
+//         data.completion = editor_view.completion.clone();
+//         data.main_split = editor_view.main_split.clone();
+//         if !diagnostics.same(&editor_view.diagnostics) {
+//             data.main_split.diagnostics.insert(
+//                 editor_view.buffer.path.clone(),
+//                 editor_view.diagnostics.clone(),
+//             );
+//         }
+//         data.theme = editor_view.theme.clone();
+//         if !editor.same(&editor_view.editor) {
+//             data.main_split
+//                 .editors
+//                 .insert(self.0, editor_view.editor.clone());
+//         }
+//         if !buffer.same(&editor_view.buffer) {
+//             data.main_split
+//                 .open_files
+//                 .insert(editor_view.buffer.path.clone(), editor_view.buffer.clone());
+//         }
+//
+//         result
+//     }
+// }
 
 impl KeyPressFocus for LapceEditorViewData {
     fn get_mode(&self) -> Mode {

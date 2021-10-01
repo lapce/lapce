@@ -14,7 +14,7 @@ use crate::{
     buffer::EditType,
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{LapceMainSplitData, LapceTabData},
+    data::{EditorContent, LapceMainSplitData, LapceTabData},
     keypress::{KeyPressData, KeyPressFocus},
     movement::{Movement, Selection},
     proxy::LapceProxy,
@@ -82,80 +82,105 @@ impl KeyPressFocus for CodeActionData {
 impl CodeActionData {
     pub fn next(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
-        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let offset = editor.cursor.offset();
-        let prev_offset = buffer.prev_code_boundary(offset);
-        let empty_vec = Vec::new();
-        let code_actions =
-            buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        match &editor.content {
+            EditorContent::Buffer(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap();
+                let offset = editor.cursor.offset();
+                let prev_offset = buffer.prev_code_boundary(offset);
+                let empty_vec = Vec::new();
+                let code_actions =
+                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-        self.main_split.current_code_actions = Movement::Down.update_index(
-            self.main_split.current_code_actions,
-            code_actions.len(),
-            1,
-            true,
-        );
+                self.main_split.current_code_actions = Movement::Down.update_index(
+                    self.main_split.current_code_actions,
+                    code_actions.len(),
+                    1,
+                    true,
+                );
+            }
+            EditorContent::None => {}
+        }
     }
 
     pub fn select(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
-        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let offset = editor.cursor.offset();
-        let prev_offset = buffer.prev_code_boundary(offset);
-        let empty_vec = Vec::new();
-        let code_actions =
-            buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        match &editor.content {
+            EditorContent::Buffer(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap();
+                let offset = editor.cursor.offset();
+                let prev_offset = buffer.prev_code_boundary(offset);
+                let empty_vec = Vec::new();
+                let code_actions =
+                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-        let action = &code_actions[self.main_split.current_code_actions];
-        match action {
-            CodeActionOrCommand::Command(cmd) => {}
-            CodeActionOrCommand::CodeAction(action) => {
-                if let Some(edit) = action.edit.as_ref() {
-                    if let Some(edits) = workspce_edits(edit) {
-                        if let Some(edits) =
-                            edits.get(&Url::from_file_path(&editor.buffer).unwrap())
-                        {
-                            let path = editor.buffer.clone();
-                            let buffer =
-                                self.main_split.open_files.get_mut(&path).unwrap();
-                            let edits: Vec<(Selection, String)> = edits
-                                .iter()
-                                .map(|edit| {
-                                    let selection = Selection::region(
-                                        buffer.offset_of_position(&edit.range.start),
-                                        buffer.offset_of_position(&edit.range.end),
+                let action = &code_actions[self.main_split.current_code_actions];
+                match action {
+                    CodeActionOrCommand::Command(cmd) => {}
+                    CodeActionOrCommand::CodeAction(action) => {
+                        if let Some(edit) = action.edit.as_ref() {
+                            if let Some(edits) = workspce_edits(edit) {
+                                if let Some(edits) =
+                                    edits.get(&Url::from_file_path(&path).unwrap())
+                                {
+                                    let path = path.clone();
+                                    let buffer = self
+                                        .main_split
+                                        .open_files
+                                        .get_mut(&path)
+                                        .unwrap();
+                                    let edits: Vec<(Selection, String)> = edits
+                                        .iter()
+                                        .map(|edit| {
+                                            let selection = Selection::region(
+                                                buffer.offset_of_position(
+                                                    &edit.range.start,
+                                                ),
+                                                buffer.offset_of_position(
+                                                    &edit.range.end,
+                                                ),
+                                            );
+                                            (selection, edit.new_text.clone())
+                                        })
+                                        .collect();
+                                    self.main_split.edit(
+                                        ctx,
+                                        &path,
+                                        edits
+                                            .iter()
+                                            .map(|(s, c)| (s, c.as_ref()))
+                                            .collect(),
+                                        EditType::Other,
                                     );
-                                    (selection, edit.new_text.clone())
-                                })
-                                .collect();
-                            self.main_split.edit(
-                                ctx,
-                                &path,
-                                edits.iter().map(|(s, c)| (s, c.as_ref())).collect(),
-                                EditType::Other,
-                            );
+                                }
+                            }
                         }
                     }
                 }
             }
+            EditorContent::None => {}
         }
     }
 
     pub fn previous(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
-        let buffer = self.main_split.open_files.get(&editor.buffer).unwrap();
-        let offset = editor.cursor.offset();
-        let prev_offset = buffer.prev_code_boundary(offset);
-        let empty_vec = Vec::new();
-        let code_actions =
-            buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        match &editor.content {
+            EditorContent::Buffer(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap();
+                let offset = editor.cursor.offset();
+                let prev_offset = buffer.prev_code_boundary(offset);
+                let empty_vec = Vec::new();
+                let code_actions =
+                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-        self.main_split.current_code_actions = Movement::Up.update_index(
-            self.main_split.current_code_actions,
-            code_actions.len(),
-            1,
-            true,
-        );
+                self.main_split.current_code_actions = Movement::Up.update_index(
+                    self.main_split.current_code_actions,
+                    code_actions.len(),
+                    1,
+                    true,
+                );
+            }
+            EditorContent::None => {}
+        }
     }
 }
 
@@ -279,52 +304,62 @@ impl Widget<LapceTabData> for CodeAction {
         );
 
         let editor = data.main_split.active_editor();
-        let buffer = data.main_split.open_files.get(&editor.buffer).unwrap();
-        let offset = editor.cursor.offset();
-        let prev_offset = buffer.prev_code_boundary(offset);
-        let empty_vec = Vec::new();
-        let code_actions =
-            buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        match &editor.content {
+            EditorContent::None => {}
+            EditorContent::Buffer(path) => {
+                let buffer = data.main_split.open_files.get(path).unwrap();
+                let offset = editor.cursor.offset();
+                let prev_offset = buffer.prev_code_boundary(offset);
+                let empty_vec = Vec::new();
+                let code_actions =
+                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-        let action_text_layouts: Vec<TextLayout<String>> = code_actions
-            .iter()
-            .map(|code_action| {
-                let title = match code_action {
-                    CodeActionOrCommand::Command(cmd) => cmd.title.to_string(),
-                    CodeActionOrCommand::CodeAction(action) => {
-                        action.title.to_string()
-                    }
-                };
-                let mut text_layout = TextLayout::<String>::from_text(title.clone());
-                text_layout.set_font(
-                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
-                );
-                text_layout.set_text_color(
+                let action_text_layouts: Vec<TextLayout<String>> = code_actions
+                    .iter()
+                    .map(|code_action| {
+                        let title = match code_action {
+                            CodeActionOrCommand::Command(cmd) => {
+                                cmd.title.to_string()
+                            }
+                            CodeActionOrCommand::CodeAction(action) => {
+                                action.title.to_string()
+                            }
+                        };
+                        let mut text_layout =
+                            TextLayout::<String>::from_text(title.clone());
+                        text_layout.set_font(
+                            FontDescriptor::new(FontFamily::SYSTEM_UI)
+                                .with_size(14.0),
+                        );
+                        text_layout.set_text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        );
+                        text_layout.rebuild_if_needed(ctx.text(), env);
+                        text_layout
+                    })
+                    .collect();
+
+                let line_height = data.config.editor.line_height as f64;
+
+                let line_rect = Rect::ZERO
+                    .with_origin(Point::new(
+                        0.0,
+                        data.main_split.current_code_actions as f64 * line_height,
+                    ))
+                    .with_size(Size::new(ctx.size().width, line_height));
+                ctx.fill(
+                    line_rect,
                     data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
                 );
-                text_layout.rebuild_if_needed(ctx.text(), env);
-                text_layout
-            })
-            .collect();
 
-        let line_height = data.config.editor.line_height as f64;
-
-        let line_rect = Rect::ZERO
-            .with_origin(Point::new(
-                0.0,
-                data.main_split.current_code_actions as f64 * line_height,
-            ))
-            .with_size(Size::new(ctx.size().width, line_height));
-        ctx.fill(
-            line_rect,
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-        );
-
-        for (i, text_layout) in action_text_layouts.iter().enumerate() {
-            text_layout.draw(ctx, Point::new(5.0, i as f64 * line_height + 5.0));
+                for (i, text_layout) in action_text_layouts.iter().enumerate() {
+                    text_layout
+                        .draw(ctx, Point::new(5.0, i as f64 * line_height + 5.0));
+                }
+            }
         }
     }
 }

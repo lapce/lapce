@@ -17,7 +17,7 @@ use druid::{
 use crate::{
     command::{CommandTarget, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{LapceEditorLens, LapceTabData},
+    data::LapceTabData,
     editor::{LapceEditorContainer, LapceEditorView},
     keypress::KeyPressFocus,
     movement::Movement,

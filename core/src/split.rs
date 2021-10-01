@@ -1,7 +1,7 @@
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::{EditorType, LapceEditorData, LapceEditorLens, LapceTabData},
+    data::{EditorType, LapceEditorData, LapceTabData},
     editor::{EditorLocation, LapceEditorView},
     scroll::LapceScroll,
 };
@@ -295,7 +295,7 @@ impl LapceSplitNew {
         let mut editor_data = LapceEditorData::new(
             None,
             Some(self.split_id),
-            from_editor.buffer.clone(),
+            from_editor.content.clone(),
             EditorType::Normal,
             &data.config,
         );
