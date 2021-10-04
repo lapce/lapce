@@ -418,7 +418,7 @@ command = "delete_line"
 mode = "n"
 
 [[keymaps]]
-key = "*"
+key = "shift+8"
 command = "search_whole_word_forward"
 mode = "nv"
 

@@ -1,4 +1,4 @@
-use druid::{Env, Point, Rect, Size};
+use druid::{piet::PietText, Env, Point, Rect, Size};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{RopeDelta, Transformer};
 
@@ -90,19 +90,6 @@ impl Cursor {
                 buffer.line_of_offset(selection.max_offset()),
             ),
         }
-    }
-
-    pub fn region(&self, buffer: &BufferNew, config: &Config) -> Rect {
-        let offset = self.offset();
-        let (line, col) = buffer.offset_to_line_col(offset);
-        let width = 7.6171875;
-        let cursor_x = col as f64 * width - width;
-        let line_height = config.editor.line_height as f64;
-        let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
-        let line = if line > 1 { line - 1 } else { 0 };
-        Rect::ZERO
-            .with_origin(Point::new(cursor_x.floor(), line as f64 * line_height))
-            .with_size(Size::new((width * 3.0).ceil(), line_height * 3.0))
     }
 
     pub fn yank(&self, buffer: &BufferNew) -> RegisterData {

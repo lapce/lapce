@@ -1836,9 +1836,9 @@ impl LapceEditorViewData {
         }
     }
 
-    pub fn cusor_region(&self, config: &Config) -> Rect {
-        self.editor.cursor.region(&self.buffer, config)
-    }
+    // pub fn cusor_region(&self, config: &Config) -> Rect {
+    //     self.editor.cursor.region(&self.buffer, config)
+    // }
 
     pub fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
         let line = self.buffer.line_of_offset(offset);

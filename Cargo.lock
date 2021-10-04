@@ -3226,7 +3226,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu#ac45014119a54851b0aef971cd8a32117d008d40"
+source = "git+https://github.com/lapce/piet-wgpu#21971bbecaf728e53a44343a13eb3d715c3999e2"
 dependencies = [
  "bytemuck",
  "font-kit",

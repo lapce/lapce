@@ -1246,6 +1246,7 @@ impl Widget<LapceTabData> for NewPalette {
 }
 
 pub struct PaletteContainer {
+    input_size: Size,
     content_size: Size,
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     content: WidgetPod<
@@ -1261,7 +1262,7 @@ impl PaletteContainer {
     pub fn new(data: &PaletteData, preview_editor: &LapceEditorData) -> Self {
         let padding = 6.0;
         let input = NewPaletteInput::new()
-            .padding((padding, padding, padding, padding * 2.0))
+            .padding((padding, padding, padding, padding))
             .padding((padding, padding, padding, padding))
             .lens(PaletteViewLens);
         let content = LapceIdentityWrapper::wrap(
@@ -1273,6 +1274,7 @@ impl PaletteContainer {
         );
         let preview = LapceEditorView::new(preview_editor);
         Self {
+            input_size: Size::ZERO,
             content_size: Size::ZERO,
             input: WidgetPod::new(input.boxed()),
             content: WidgetPod::new(content),
@@ -1361,10 +1363,11 @@ impl Widget<LapceTabData> for PaletteContainer {
         let bc = BoxConstraints::tight(Size::new(width, bc.max().height));
         let input_size = self.input.layout(ctx, &bc, data, env);
         self.input.set_origin(ctx, data, env, Point::ZERO);
+        self.input_size = input_size;
 
         let max_items = 15;
         let height = max_items.min(data.palette.len());
-        let line_height = data.config.editor.line_height as f64;
+        let line_height = 25.0;
         let height = line_height * height as f64;
         let bc = BoxConstraints::tight(Size::new(width, height));
         let content_size = self.content.layout(ctx, &bc, data, env);
@@ -1415,6 +1418,11 @@ impl Widget<LapceTabData> for PaletteContainer {
             rect,
             data.config
                 .get_color_unchecked(LapceTheme::PALETTE_BACKGROUND),
+        );
+        ctx.fill(
+            self.input_size.to_rect().inflate(-6.0, -6.0),
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
         );
 
         self.input.paint(ctx, data, env);
@@ -1482,7 +1490,7 @@ impl Widget<PaletteViewData> for NewPaletteInput {
         data: &PaletteViewData,
         env: &Env,
     ) -> Size {
-        Size::new(bc.max().width, 13.0)
+        Size::new(bc.max().width, 14.0)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {

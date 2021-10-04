@@ -540,8 +540,17 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn cursor_region(&self) -> Rect {
-        self.editor.cursor.region(&self.buffer, &self.config)
+    fn cursor_region(&self, text: &mut PietText, config: &Config) -> Rect {
+        let offset = self.editor.cursor.offset();
+        let (line, col) = self.buffer.offset_to_line_col(offset);
+        let width = config.editor_text_width(text, "W");
+        let cursor_x = col as f64 * width - width;
+        let line_height = config.editor.line_height as f64;
+        let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
+        let line = if line > 1 { line - 1 } else { 0 };
+        Rect::ZERO
+            .with_origin(Point::new(cursor_x.floor(), line as f64 * line_height))
+            .with_size(Size::new((width * 3.0).ceil(), line_height * 3.0))
     }
 
     fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
@@ -1660,7 +1669,7 @@ impl LapceEditorBufferData {
                                 * width
                         };
                         let y1 = (line + 1) as f64 * line_height;
-                        let y0 = (line + 1) as f64 * line_height - 2.0;
+                        let y0 = (line + 1) as f64 * line_height - 4.0;
 
                         let severity = diagnostic
                             .diagnositc
@@ -1686,8 +1695,6 @@ impl LapceEditorBufferData {
 
         if let Some(diagnostic) = current {
             if self.editor.cursor.is_normal() {
-                println!("{:?}", diagnostic.diagnositc);
-
                 let text_layout = ctx
                     .text()
                     .new_text_layout(diagnostic.diagnositc.message.clone())
@@ -2886,7 +2893,7 @@ impl LapceEditorView {
                 - line_height,
         );
 
-        let rect = data.cursor_region();
+        let rect = data.cursor_region(ctx.text(), &data.config);
         let scroll_id = self.editor.widget().scroll_id;
         let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
@@ -3186,80 +3193,80 @@ impl LapceEditorContainer {
         ctx.request_focus();
     }
 
-    pub fn handle_lapce_ui_command(
-        &mut self,
-        ctx: &mut EventCtx,
-        cmd: &LapceUICommand,
-        data: &mut LapceEditorViewData,
-        env: &Env,
-    ) {
-        match cmd {
-            LapceUICommand::Focus => {
-                self.set_focus(ctx, data);
-                ctx.set_handled();
-            }
-            LapceUICommand::EnsureCursorVisible(position) => {
-                self.ensure_cursor_visible(ctx, data, position.as_ref(), env);
-            }
-            LapceUICommand::EnsureCursorCenter => {
-                self.ensure_cursor_center(ctx, data, env);
-            }
-            LapceUICommand::EnsureRectVisible(rect) => {
-                self.ensure_rect_visible(ctx, data, *rect, env);
-            }
-            LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
-                if data.buffer.id != *buffer_id {
-                    return;
-                }
-                if data.buffer.rev != *rev {
-                    return;
-                }
-                if data.editor.cursor.offset() != *offset {
-                    return;
-                }
-                data.apply_completion_item(ctx, item);
-            }
-            LapceUICommand::Scroll((x, y)) => {
-                self.editor
-                    .widget_mut()
-                    .inner_mut()
-                    .scroll_by(Vec2::new(*x, *y));
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ResetFade,
-                    Target::Widget(self.scroll_id),
-                ));
-            }
-            LapceUICommand::ForceScrollTo(x, y) => {
-                self.editor
-                    .widget_mut()
-                    .inner_mut()
-                    .force_scroll_to(Point::new(*x, *y));
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ResetFade,
-                    Target::Widget(self.scroll_id),
-                ));
-            }
-            LapceUICommand::ScrollTo((x, y)) => {
-                self.editor
-                    .widget_mut()
-                    .inner_mut()
-                    .scroll_to(Point::new(*x, *y));
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ResetFade,
-                    Target::Widget(self.scroll_id),
-                ));
-            }
-            LapceUICommand::FocusTab => {
-                if *data.main_split.active == self.view_id {
-                    ctx.request_focus();
-                }
-            }
-            _ => (),
-        }
-    }
+    // pub fn handle_lapce_ui_command(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     cmd: &LapceUICommand,
+    //     data: &mut LapceEditorViewData,
+    //     env: &Env,
+    // ) {
+    //     match cmd {
+    //         LapceUICommand::Focus => {
+    //             self.set_focus(ctx, data);
+    //             ctx.set_handled();
+    //         }
+    //         LapceUICommand::EnsureCursorVisible(position) => {
+    //             self.ensure_cursor_visible(ctx, data, position.as_ref(), env);
+    //         }
+    //         LapceUICommand::EnsureCursorCenter => {
+    //             self.ensure_cursor_center(ctx, data, env);
+    //         }
+    //         LapceUICommand::EnsureRectVisible(rect) => {
+    //             self.ensure_rect_visible(ctx, data, *rect, env);
+    //         }
+    //         LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
+    //             if data.buffer.id != *buffer_id {
+    //                 return;
+    //             }
+    //             if data.buffer.rev != *rev {
+    //                 return;
+    //             }
+    //             if data.editor.cursor.offset() != *offset {
+    //                 return;
+    //             }
+    //             data.apply_completion_item(ctx, item);
+    //         }
+    //         LapceUICommand::Scroll((x, y)) => {
+    //             self.editor
+    //                 .widget_mut()
+    //                 .inner_mut()
+    //                 .scroll_by(Vec2::new(*x, *y));
+    //             ctx.submit_command(Command::new(
+    //                 LAPCE_UI_COMMAND,
+    //                 LapceUICommand::ResetFade,
+    //                 Target::Widget(self.scroll_id),
+    //             ));
+    //         }
+    //         LapceUICommand::ForceScrollTo(x, y) => {
+    //             self.editor
+    //                 .widget_mut()
+    //                 .inner_mut()
+    //                 .force_scroll_to(Point::new(*x, *y));
+    //             ctx.submit_command(Command::new(
+    //                 LAPCE_UI_COMMAND,
+    //                 LapceUICommand::ResetFade,
+    //                 Target::Widget(self.scroll_id),
+    //             ));
+    //         }
+    //         LapceUICommand::ScrollTo((x, y)) => {
+    //             self.editor
+    //                 .widget_mut()
+    //                 .inner_mut()
+    //                 .scroll_to(Point::new(*x, *y));
+    //             ctx.submit_command(Command::new(
+    //                 LAPCE_UI_COMMAND,
+    //                 LapceUICommand::ResetFade,
+    //                 Target::Widget(self.scroll_id),
+    //             ));
+    //         }
+    //         LapceUICommand::FocusTab => {
+    //             if *data.main_split.active == self.view_id {
+    //                 ctx.request_focus();
+    //             }
+    //         }
+    //         _ => (),
+    //     }
+    // }
 
     pub fn ensure_cursor_center(
         &mut self,
@@ -3320,48 +3327,48 @@ impl LapceEditorContainer {
         }
     }
 
-    pub fn ensure_cursor_visible(
-        &mut self,
-        ctx: &mut EventCtx,
-        data: &LapceEditorViewData,
-        position: Option<&EnsureVisiblePosition>,
-        env: &Env,
-    ) {
-        let line_height = data.config.editor.line_height as f64;
-        let width = data.config.editor_text_width(ctx.text(), "W");
-        let size = Size::new(
-            (width * data.buffer.max_len as f64)
-                .max(data.editor.size.borrow().width),
-            line_height * data.buffer.text_layouts.borrow().len() as f64
-                + data.editor.size.borrow().height
-                - line_height,
-        );
+    // pub fn ensure_cursor_visible(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     data: &LapceEditorViewData,
+    //     position: Option<&EnsureVisiblePosition>,
+    //     env: &Env,
+    // ) {
+    //     let line_height = data.config.editor.line_height as f64;
+    //     let width = data.config.editor_text_width(ctx.text(), "W");
+    //     let size = Size::new(
+    //         (width * data.buffer.max_len as f64)
+    //             .max(data.editor.size.borrow().width),
+    //         line_height * data.buffer.text_layouts.borrow().len() as f64
+    //             + data.editor.size.borrow().height
+    //             - line_height,
+    //     );
 
-        let rect = data.cusor_region(&data.config);
-        let scroll = self.editor.widget_mut().inner_mut();
-        scroll.set_child_size(size);
-        let old_scroll_offset = scroll.offset();
-        if scroll.scroll_to_visible(rect, env) {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ResetFade,
-                Target::Widget(self.scroll_id),
-            ));
-            if let Some(position) = position {
-                match position {
-                    EnsureVisiblePosition::CenterOfWindow => {
-                        self.ensure_cursor_center(ctx, data, env);
-                    }
-                }
-            } else {
-                let scroll_offset = scroll.offset();
-                if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
-                {
-                    self.ensure_cursor_center(ctx, data, env);
-                }
-            }
-        }
-    }
+    //     let rect = data.cusor_region(&data.config);
+    //     let scroll = self.editor.widget_mut().inner_mut();
+    //     scroll.set_child_size(size);
+    //     let old_scroll_offset = scroll.offset();
+    //     if scroll.scroll_to_visible(rect, env) {
+    //         ctx.submit_command(Command::new(
+    //             LAPCE_UI_COMMAND,
+    //             LapceUICommand::ResetFade,
+    //             Target::Widget(self.scroll_id),
+    //         ));
+    //         if let Some(position) = position {
+    //             match position {
+    //                 EnsureVisiblePosition::CenterOfWindow => {
+    //                     self.ensure_cursor_center(ctx, data, env);
+    //                 }
+    //             }
+    //         } else {
+    //             let scroll_offset = scroll.offset();
+    //             if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
+    //             {
+    //                 self.ensure_cursor_center(ctx, data, env);
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 impl Widget<LapceTabData> for LapceEditorContainer {
@@ -4153,5 +4160,5 @@ fn paint_wave_line(
         x += width;
         direction *= -1.0;
     }
-    ctx.stroke(path, color, 1.2);
+    ctx.stroke(path, color, 1.4);
 }
