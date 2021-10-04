@@ -11,7 +11,10 @@ use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 use crate::{
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
     code_action::CodeAction,
-    command::{LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
+    command::{
+        LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_NEW_COMMAND,
+        LAPCE_UI_COMMAND,
+    },
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::Config,
     data::{EditorDiagnostic, EditorKind, LapceMainSplitData, LapceTabData},
@@ -156,59 +159,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                 }
             }
-            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_COMMAND);
-                match command {
-                    LapceCommand::OpenSettings => {
-                        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
-                            std::fs::create_dir_all(proj_dirs.config_dir());
-                            let path = proj_dirs.config_dir().join("settings.toml");
-                            {
-                                std::fs::OpenOptions::new()
-                                    .create_new(true)
-                                    .write(true)
-                                    .open(&path);
-                            }
-
-                            let editor_view_id = data.main_split.active.clone();
-                            data.main_split.jump_to_location(
-                                ctx,
-                                *editor_view_id,
-                                EditorLocationNew {
-                                    path: path.clone(),
-                                    position: None,
-                                    scroll_offset: None,
-                                },
-                                &data.config,
-                            );
-                        }
-                    }
-                    LapceCommand::OpenKeyboardShortcuts => {
-                        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
-                            std::fs::create_dir_all(proj_dirs.config_dir());
-                            let path = proj_dirs.config_dir().join("keymaps.toml");
-                            {
-                                std::fs::OpenOptions::new()
-                                    .create_new(true)
-                                    .write(true)
-                                    .open(&path);
-                            }
-
-                            let editor_view_id = data.main_split.active.clone();
-                            data.main_split.jump_to_location(
-                                ctx,
-                                *editor_view_id,
-                                EditorLocationNew {
-                                    path: path.clone(),
-                                    position: None,
-                                    scroll_offset: None,
-                                },
-                                &data.config,
-                            );
-                        }
-                    }
-                    _ => (),
-                }
+            Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
+                data.run_command(ctx, command, None, env);
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {

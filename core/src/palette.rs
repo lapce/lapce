@@ -34,10 +34,10 @@ use usvg;
 use uuid::Uuid;
 
 use crate::{
-    command::LapceUICommand,
     command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND,
-    command::{CommandTarget, LapceCommand},
+    command::{CommandTarget, LapceCommand, LAPCE_NEW_COMMAND},
+    command::{LapceCommandNew, LapceUICommand},
     config::{Config, LapceTheme},
     data::{
         EditorContent, EditorKind, LapceEditorData, LapceEditorViewData,
@@ -82,10 +82,10 @@ impl PaletteType {
 
     fn has_preview(&self) -> bool {
         match &self {
-            PaletteType::File | PaletteType::Workspace | PaletteType::Command => {
-                false
-            }
-            _ => true,
+            PaletteType::Line
+            | PaletteType::DocumentSymbol
+            | PaletteType::Reference => true,
+            _ => false,
         }
     }
 }
@@ -116,7 +116,7 @@ pub enum PaletteItemContent {
     },
     ReferenceLocation(PathBuf, EditorLocationNew),
     Workspace(LapceWorkspace),
-    Command(LapceCommand),
+    Command(LapceCommandNew),
     Theme(String),
 }
 
@@ -189,44 +189,29 @@ impl PaletteItemContent {
                     Target::Auto,
                 ));
             }
-            PaletteItemContent::Command(command) => match command {
-                LapceCommand::ChangeTheme => {
-                    if !preview {
-                        return Some(PaletteType::Theme);
-                    }
+            PaletteItemContent::Command(command) => {
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_NEW_COMMAND,
+                        command.clone(),
+                        Target::Auto,
+                    ));
                 }
-                LapceCommand::OpenFolder => {
-                    if !preview {
-                        let event_sink = ctx.get_external_handle();
-                        thread::spawn(move || {
-                            if let Some(folder) =
-                                tinyfiledialogs::select_folder_dialog(
-                                    "Open folder",
-                                    "./",
-                                )
-                            {
-                                event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::SetWorkspace(LapceWorkspace {
-                                        kind: LapceWorkspaceType::Local,
-                                        path: PathBuf::from(folder),
-                                    }),
-                                    Target::Auto,
-                                );
-                            }
-                        });
-                    }
-                }
-                _ => {
-                    if !preview {
-                        ctx.submit_command(Command::new(
-                            LAPCE_COMMAND,
-                            command.clone(),
-                            Target::Auto,
-                        ));
-                    }
-                }
-            },
+                // LapceCommand::ChangeTheme => {
+                //     if !preview {
+                //         return Some(PaletteType::Theme);
+                //     }
+                // }
+                // _ => {
+                //     if !preview {
+                //         ctx.submit_command(Command::new(
+                //             LAPCE_NEW_COMMAND,
+                //             command.clone(),
+                //             Target::Auto,
+                //         ));
+                //     }
+                // }
+            }
         }
         None
     }
@@ -292,7 +277,8 @@ impl PaletteItemContent {
             PaletteItemContent::Command(command) => (
                 None,
                 command
-                    .get_message()
+                    .palette_desc
+                    .as_ref()
                     .map(|m| m.to_string())
                     .unwrap_or("".to_string()),
                 indices.to_vec(),
@@ -871,9 +857,12 @@ impl PaletteViewData {
 
     fn get_commands(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = LapceCommand::iter()
-            .filter_map(|c| {
-                c.get_message().map(|m| NewPaletteItem {
+        palette.items = self
+            .keypress
+            .commands
+            .iter()
+            .filter_map(|(_, c)| {
+                c.palette_desc.as_ref().map(|m| NewPaletteItem {
                     content: PaletteItemContent::Command(c.clone()),
                     filter_text: m.to_string(),
                     score: 0,
@@ -1123,7 +1112,7 @@ impl Widget<LapceTabData> for NewPalette {
                 let mut keypress = data.keypress.clone();
                 let mut_keypress = Arc::make_mut(&mut keypress);
                 let mut palette_data = data.palette_view_data();
-                mut_keypress.key_down(ctx, key_event, data, &mut palette_data, env);
+                mut_keypress.key_down(ctx, key_event, &mut palette_data, env);
                 data.palette = palette_data.palette.clone();
                 data.keypress = keypress;
                 data.workspace = palette_data.workspace.clone();

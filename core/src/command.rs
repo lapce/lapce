@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
+use indexmap::IndexMap;
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
     PublishDiagnosticsParams, Range, TextEdit,
@@ -47,8 +48,8 @@ pub enum CommandTarget {
     Plugin(String),
 }
 
-pub fn lapce_internal_commands() -> HashMap<String, LapceCommandNew> {
-    let mut commands = HashMap::new();
+pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
+    let mut commands = IndexMap::new();
 
     for c in LapceWorkbenchCommand::iter() {
         let command = LapceCommandNew {
@@ -272,18 +273,6 @@ pub enum LapceCommand {
     NextUnmatchedRightCurlyBracket,
     #[strum(serialize = "previous_unmatched_left_curly_bracket")]
     PreviousUnmatchedLeftCurlyBracket,
-    #[strum(serialize = "open_folder")]
-    #[strum(message = "Open Folder")]
-    OpenFolder,
-    #[strum(serialize = "change_theme")]
-    #[strum(message = "Change Theme")]
-    ChangeTheme,
-    #[strum(serialize = "open_settings")]
-    #[strum(message = "Open Settings")]
-    OpenSettings,
-    #[strum(serialize = "open_keyboard_shortcuts")]
-    #[strum(message = "Open Keyboard Shortcuts")]
-    OpenKeyboardShortcuts,
     #[strum(serialize = "join_lines")]
     JoinLines,
     #[strum(serialize = "search_whole_word_forward")]

@@ -2159,6 +2159,7 @@ dependencies = [
  "git2",
  "im",
  "include_dir",
+ "indexmap",
  "itertools 0.10.1",
  "jsonrpc-lite",
  "lapce-proxy",

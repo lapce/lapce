@@ -350,7 +350,6 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 Arc::make_mut(&mut keypress).key_down(
                     ctx,
                     key_event,
-                    data,
                     Arc::make_mut(&mut source_control),
                     env,
                 );

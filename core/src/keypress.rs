@@ -4,14 +4,17 @@ use std::{fs::File, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
-use druid::KbKey;
 use druid::{
     Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId,
     WindowId,
 };
+use druid::{Command, KbKey};
+use indexmap::IndexMap;
 use toml;
 
-use crate::command::{lapce_internal_commands, CommandTarget, LapceCommandNew};
+use crate::command::{
+    lapce_internal_commands, CommandTarget, LapceCommandNew, LAPCE_NEW_COMMAND,
+};
 use crate::data::LapceTabData;
 use crate::{
     command::LapceCommand,
@@ -65,7 +68,7 @@ pub trait KeyPressFocus {
 pub struct KeyPressData {
     pending_keypress: Vec<KeyPress>,
     keymaps: im::HashMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>,
-    commands: Arc<HashMap<String, LapceCommandNew>>,
+    pub commands: Arc<IndexMap<String, LapceCommandNew>>,
     count: Option<usize>,
 }
 
@@ -90,7 +93,6 @@ impl KeyPressData {
         ctx: &mut EventCtx,
         command: &str,
         count: Option<usize>,
-        data: &mut LapceTabData,
         focus: &mut T,
         env: &Env,
     ) -> Result<()> {
@@ -99,7 +101,11 @@ impl KeyPressData {
                 let cmd = LapceCommand::from_str(command)?;
                 focus.run_command(ctx, &cmd, count, env);
             } else {
-                data.run_command(ctx, cmd, count, env);
+                ctx.submit_command(Command::new(
+                    LAPCE_NEW_COMMAND,
+                    cmd.clone(),
+                    Target::Auto,
+                ));
             }
         }
         Ok(())
@@ -129,7 +135,6 @@ impl KeyPressData {
         &mut self,
         ctx: &mut EventCtx,
         key_event: &KeyEvent,
-        data: &mut LapceTabData,
         focus: &mut T,
         env: &Env,
     ) -> bool {
@@ -183,14 +188,14 @@ impl KeyPressData {
         match keymatch {
             KeymapMatch::Full(command) => {
                 let count = self.count.take();
-                self.run_command(ctx, &command, count, data, focus, env);
+                self.run_command(ctx, &command, count, focus, env);
                 self.pending_keypress = Vec::new();
                 return true;
             }
             KeymapMatch::Multiple(commands) => {
                 let count = self.count.take();
                 for command in commands {
-                    self.run_command(ctx, &command, count, data, focus, env);
+                    self.run_command(ctx, &command, count, focus, env);
                 }
                 self.pending_keypress = Vec::new();
                 return true;

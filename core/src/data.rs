@@ -504,8 +504,30 @@ impl LapceTabData {
         env: &Env,
     ) {
         match command {
-            LapceWorkbenchCommand::OpenFolder => {}
-            LapceWorkbenchCommand::ChangeTheme => {}
+            LapceWorkbenchCommand::OpenFolder => {
+                let event_sink = ctx.get_external_handle();
+                thread::spawn(move || {
+                    if let Some(folder) =
+                        tinyfiledialogs::select_folder_dialog("Open folder", "./")
+                    {
+                        event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::SetWorkspace(LapceWorkspace {
+                                kind: LapceWorkspaceType::Local,
+                                path: PathBuf::from(folder),
+                            }),
+                            Target::Auto,
+                        );
+                    }
+                });
+            }
+            LapceWorkbenchCommand::ChangeTheme => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::Theme)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
             LapceWorkbenchCommand::OpenSettings => {
                 if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
                     std::fs::create_dir_all(proj_dirs.config_dir());
@@ -530,7 +552,30 @@ impl LapceTabData {
                     );
                 }
             }
-            LapceWorkbenchCommand::OpenKeyboardShortcuts => {}
+            LapceWorkbenchCommand::OpenKeyboardShortcuts => {
+                if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
+                    std::fs::create_dir_all(proj_dirs.config_dir());
+                    let path = proj_dirs.config_dir().join("keymaps.toml");
+                    {
+                        std::fs::OpenOptions::new()
+                            .create_new(true)
+                            .write(true)
+                            .open(&path);
+                    }
+
+                    let editor_view_id = self.main_split.active.clone();
+                    self.main_split.jump_to_location(
+                        ctx,
+                        *editor_view_id,
+                        EditorLocationNew {
+                            path: path.clone(),
+                            position: None,
+                            scroll_offset: None,
+                        },
+                        &self.config,
+                    );
+                }
+            }
             LapceWorkbenchCommand::Palette => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,

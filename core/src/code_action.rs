@@ -206,13 +206,7 @@ impl Widget<LapceTabData> for CodeAction {
                     main_split: data.main_split.clone(),
                     proxy: data.proxy.clone(),
                 };
-                mut_keypress.key_down(
-                    ctx,
-                    key_event,
-                    data,
-                    &mut code_action_data,
-                    env,
-                );
+                mut_keypress.key_down(ctx, key_event, &mut code_action_data, env);
                 data.keypress = keypress;
                 data.main_split = code_action_data.main_split.clone();
                 ctx.set_handled();

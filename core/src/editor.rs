@@ -42,6 +42,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
 use crossbeam_channel::{self, bounded};
+use druid::kurbo::BezPath;
 use druid::widget::{LensWrap, WidgetWrapper};
 use druid::{
     kurbo::Line, piet::PietText, theme, widget::Flex, widget::IdentityWrapper,
@@ -213,7 +214,18 @@ impl LapceEditorBufferData {
         Arc::make_mut(&mut self.buffer)
     }
 
-    fn get_code_actions(&mut self, ctx: &mut EventCtx) {
+    fn sync_buffer_position(&mut self, scroll_offset: Vec2) {
+        let cursor_offset = self.editor.cursor.offset();
+        if self.buffer.cursor_offset != cursor_offset
+            || self.buffer.scroll_offset != scroll_offset
+        {
+            let buffer = self.buffer_mut();
+            buffer.cursor_offset = cursor_offset;
+            buffer.scroll_offset = scroll_offset;
+        }
+    }
+
+    fn get_code_actions(&self, ctx: &mut EventCtx) {
         if !self.buffer.loaded {
             return;
         }
@@ -1644,7 +1656,8 @@ impl LapceEditorBufferData {
                         let x1 = if line == end.line as usize {
                             end.character as f64 * width
                         } else {
-                            self.buffer.line_len(line) as f64 * width
+                            (self.buffer.line_end_col(line, false) + 1) as f64
+                                * width
                         };
                         let y1 = (line + 1) as f64 * line_height;
                         let y0 = (line + 1) as f64 * line_height - 2.0;
@@ -1665,7 +1678,7 @@ impl LapceEditorBufferData {
                                 .config
                                 .get_color_unchecked(LapceTheme::LAPCE_WARN),
                         };
-                        ctx.fill(Rect::new(x0, y0, x1, y1), color);
+                        paint_wave_line(ctx, Point::new(x0, y0), x1 - x0, &color);
                     }
                 }
             }
@@ -2962,24 +2975,19 @@ impl Widget<LapceTabData> for LapceEditorView {
 
                 match event {
                     Event::KeyDown(key_event) => {
+                        ctx.set_handled();
                         let mut keypress = data.keypress.clone();
                         if Arc::make_mut(&mut keypress).key_down(
                             ctx,
                             key_event,
-                            data,
                             &mut editor_data,
                             env,
                         ) {
-                            self.ensure_cursor_visible(
-                                ctx,
-                                &mut editor_data,
-                                None,
-                                env,
-                            );
+                            self.ensure_cursor_visible(ctx, &editor_data, None, env);
                         }
-                        // editor_data.sync_buffer_position(
-                        //     self.editor.widget().inner().offset(),
-                        // );
+                        editor_data.sync_buffer_position(
+                            self.editor.widget().editor.widget().inner().offset(),
+                        );
                         editor_data.get_code_actions(ctx);
 
                         data.keypress = keypress.clone();
@@ -3014,7 +3022,6 @@ impl Widget<LapceTabData> for LapceEditorView {
                     Arc::make_mut(&mut keypress).key_down(
                         ctx,
                         key_event,
-                        data,
                         &mut LapceEditorEmptyContent {},
                         env,
                     );
@@ -4124,4 +4131,27 @@ fn process_get_references(
         Target::Auto,
     );
     Ok(())
+}
+
+fn paint_wave_line(
+    ctx: &mut PaintCtx,
+    origin: Point,
+    max_width: f64,
+    color: &Color,
+) {
+    let mut path = BezPath::new();
+    let mut x = 0.0;
+    let width = 3.5;
+    let height = 4.0;
+    path.move_to(origin + (0.0, height / 2.0));
+    let mut direction = 1.0;
+    while x < max_width {
+        let point = origin + (x, height / 2.0);
+        let p1 = point + (width / 2.0, -height / 2.0 * direction);
+        let p2 = point + (width, 0.0);
+        path.quad_to(p1, p2);
+        x += width;
+        direction *= -1.0;
+    }
+    ctx.stroke(path, color, 1.2);
 }
