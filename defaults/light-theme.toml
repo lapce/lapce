@@ -38,11 +38,13 @@ cyan = "#0184bc"
 
 "style.constant" = "$yellow"
 "style.type" = "$yellow"
+"style.typeAlias" = "$yellow"
 "style.number" = "$yellow"
 "style.enum" = "$yellow"
 "style.struct" = "$yellow"
 "style.structure" = "$yellow"
 "style.interface" = "$yellow"
+"style.attribute" = "$yellow"
 
 "style.function" = "$blue"
 "style.method" = "$blue"
@@ -59,3 +61,4 @@ cyan = "#0184bc"
 "style.string" = "$green"
 
 "style.type.builtin" = "$cyan"
+"style.builtinType" = "$cyan"

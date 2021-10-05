@@ -186,7 +186,6 @@ pub struct BufferNew {
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
-    pub text_layouts: Rc<RefCell<Vec<Option<Arc<StyledTextLayout>>>>>,
     pub line_styles: Rc<RefCell<Vec<Option<Arc<Vec<(usize, usize, Style)>>>>>>,
     pub styles: Arc<Spans<Style>>,
     pub semantic_tokens: bool,
@@ -229,7 +228,6 @@ impl BufferNew {
             rope,
             language,
             path,
-            text_layouts: Rc::new(RefCell::new(Vec::new())),
             styles: Arc::new(SpansBuilder::new(0).build()),
             line_styles: Rc::new(RefCell::new(Vec::new())),
             semantic_tokens: false,
@@ -268,7 +266,6 @@ impl BufferNew {
             syntax_tree: None,
         };
         *buffer.line_styles.borrow_mut() = vec![None; buffer.num_lines()];
-        *buffer.text_layouts.borrow_mut() = vec![None; buffer.num_lines()];
         buffer
     }
 
@@ -314,7 +311,6 @@ impl BufferNew {
         self.max_len = max_len;
         self.max_len_line = max_len_line;
         self.num_lines = self.num_lines();
-        *self.text_layouts.borrow_mut() = vec![None; self.num_lines()];
         *self.line_styles.borrow_mut() = vec![None; self.num_lines()];
         self.loaded = true;
         self.notify_update();
@@ -436,7 +432,7 @@ impl BufferNew {
         let mut pre_offset = 0;
         let mut max_len = 0;
         let mut max_len_line = 0;
-        for line in 0..self.num_lines() {
+        for line in 0..self.num_lines() + 1 {
             let offset = self.rope.offset_of_line(line);
             let line_len = offset - pre_offset;
             pre_offset = offset;
@@ -1086,16 +1082,6 @@ impl BufferNew {
         line_styles.extend_from_slice(right);
     }
 
-    fn update_text_layouts(&mut self, inval_lines: &InvalLines) {
-        let mut text_layouts = self.text_layouts.borrow_mut();
-        let mut right = text_layouts.split_off(inval_lines.start_line);
-        let right = &right[inval_lines.inval_count..];
-
-        let mut new = vec![None; inval_lines.new_count];
-        text_layouts.append(&mut new);
-        text_layouts.extend_from_slice(right);
-    }
-
     fn mk_new_rev(
         &self,
         undo_group: usize,
@@ -1206,7 +1192,6 @@ impl BufferNew {
             new_count: new_hard_count,
         };
         self.update_size(&inval_lines);
-        self.update_text_layouts(&inval_lines);
         self.update_line_styles(&delta, &inval_lines);
         self.notify_update();
     }

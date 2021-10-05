@@ -544,7 +544,6 @@ impl Widget<LapceTabData> for CompletionContainer {
             if old_editor.window_origin != editor.window_origin
                 || old_editor.scroll_offset != editor.scroll_offset
             {
-                println!("completion request layout");
                 ctx.request_layout();
             }
         }
@@ -561,7 +560,6 @@ impl Widget<LapceTabData> for CompletionContainer {
                 .filtered_items
                 .same(&data.completion.filtered_items)
         {
-            println!("completion request layout");
             ctx.request_layout();
         }
 

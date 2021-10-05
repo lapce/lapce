@@ -58,3 +58,4 @@ cyan = "#56b6c2"
 "style.string" = "$green"
 
 "style.type.builtin" = "$cyan"
+"style.builtinType" = "$cyan"

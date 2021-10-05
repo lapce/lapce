@@ -2861,7 +2861,7 @@ impl LapceEditorView {
         let size = Size::new(
             (width * data.buffer.max_len as f64)
                 .max(data.editor.size.borrow().width),
-            line_height * data.buffer.text_layouts.borrow().len() as f64
+            line_height * data.buffer.num_lines as f64
                 + data.editor.size.borrow().height
                 - line_height,
         );
@@ -2888,7 +2888,7 @@ impl LapceEditorView {
         let size = Size::new(
             (width * data.buffer.max_len as f64)
                 .max(data.editor.size.borrow().width),
-            line_height * data.buffer.text_layouts.borrow().len() as f64
+            line_height * data.buffer.num_lines as f64
                 + data.editor.size.borrow().height
                 - line_height,
         );
@@ -3291,7 +3291,7 @@ impl LapceEditorContainer {
         let size = Size::new(
             (width * data.buffer.max_len as f64)
                 .max(data.editor.size.borrow().width),
-            line_height * data.buffer.text_layouts.borrow().len() as f64
+            line_height * data.buffer.num_lines as f64
                 + data.editor.size.borrow().height
                 - line_height,
         );
@@ -3973,8 +3973,7 @@ impl Widget<LapceTabData> for LapceEditor {
                 let width = data.config.editor_text_width(ctx.text(), "W");
                 Size::new(
                     (width * data.buffer.max_len as f64).max(bc.max().width),
-                    line_height * data.buffer.text_layouts.borrow().len() as f64
-                        + bc.max().height
+                    line_height * data.buffer.num_lines as f64 + bc.max().height
                         - line_height,
                 )
             }
