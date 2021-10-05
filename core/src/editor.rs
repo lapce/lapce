@@ -1,5 +1,7 @@
 use crate::buffer::{has_unmatched_pair, EditType};
-use crate::command::LAPCE_COMMAND;
+use crate::command::{
+    CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme};
 use crate::data::{
@@ -3673,6 +3675,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
 pub struct LapceEditor {
     view_id: WidgetId,
     placeholder: Option<String>,
+    commands: Vec<(LapceCommandNew, PietTextLayout, Rect)>,
 }
 
 impl LapceEditor {
@@ -3680,6 +3683,7 @@ impl LapceEditor {
         Self {
             view_id,
             placeholder: None,
+            commands: vec![],
         }
     }
 }
@@ -3694,113 +3698,38 @@ impl Widget<LapceTabData> for LapceEditor {
     ) {
         let editor = data.main_split.editors.get_mut(&self.view_id).unwrap();
         match event {
-            Event::MouseMove(mouse_event) => {
-                ctx.set_cursor(&druid::Cursor::IBeam);
-                ctx.set_handled();
-                if ctx.is_active() {
-                    match &editor.content {
-                        EditorContent::None => {}
-                        EditorContent::Buffer(path) => {
-                            let buffer = data
-                                .main_split
-                                .open_files
-                                .get(path)
-                                .unwrap()
-                                .clone();
-                            let new_offset = buffer.offset_of_mouse(
-                                ctx.text(),
-                                mouse_event.pos,
-                                editor.cursor.get_mode(),
-                                &data.config,
-                            );
-                            let editor = Arc::make_mut(editor);
-                            match editor.cursor.mode.clone() {
-                                CursorMode::Normal(offset) => {
-                                    if new_offset != offset {
-                                        editor.cursor = Cursor::new(
-                                            CursorMode::Visual {
-                                                start: offset,
-                                                end: new_offset,
-                                                mode: VisualMode::Normal,
-                                            },
-                                            None,
-                                        );
-                                    }
-                                }
-                                CursorMode::Visual { start, end, mode } => {
-                                    let mode = mode.clone();
-                                    editor.cursor.mode = CursorMode::Visual {
-                                        start,
-                                        end: new_offset,
-                                        mode,
-                                    };
-                                    editor.cursor.horiz = None;
-                                }
-                                CursorMode::Insert(selection) => {
-                                    let mut new_selection = Selection::new();
-                                    if let Some(region) = selection.first() {
-                                        let new_regoin = SelRegion::new(
-                                            region.start(),
-                                            new_offset,
-                                            None,
-                                        );
-                                        new_selection.add_region(new_regoin);
-                                    } else {
-                                        new_selection.add_region(SelRegion::new(
-                                            new_offset, new_offset, None,
-                                        ));
-                                    }
-                                    editor.cursor = Cursor::new(
-                                        CursorMode::Insert(new_selection),
-                                        None,
-                                    );
-                                }
-                            }
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::EnsureCursorVisible(None),
-                                Target::Widget(self.view_id),
-                            ));
+            Event::MouseMove(mouse_event) => match &editor.content {
+                EditorContent::None => {
+                    ctx.set_handled();
+                    let mut on_command = false;
+                    for (_, _, rect) in &self.commands {
+                        if rect.contains(mouse_event.pos) {
+                            on_command = true;
+                            break;
                         }
                     }
+                    if on_command {
+                        ctx.set_cursor(&druid::Cursor::Pointer);
+                    } else {
+                        ctx.set_cursor(&druid::Cursor::Arrow);
+                    }
                 }
-            }
-            Event::MouseUp(mouse_event) => {
-                ctx.set_active(false);
-                ctx.set_handled();
-            }
-            Event::MouseDown(mouse_event) => {
-                ctx.set_active(true);
-                ctx.set_handled();
-                match &editor.content {
-                    EditorContent::Buffer(path) => {
+                EditorContent::Buffer(path) => {
+                    ctx.set_cursor(&druid::Cursor::IBeam);
+                    ctx.set_handled();
+                    if ctx.is_active() {
                         let buffer =
                             data.main_split.open_files.get(path).unwrap().clone();
-                        let line_height = data.config.editor.line_height as f64;
-                        let line =
-                            (mouse_event.pos.y / line_height).floor() as usize;
-                        let last_line = buffer.last_line();
-                        let (line, col) = if line > last_line {
-                            (last_line, 0)
-                        } else {
-                            let line_end = buffer
-                                .line_end_col(line, !editor.cursor.is_normal());
-                            let width =
-                                data.config.editor_text_width(ctx.text(), "W");
-
-                            let col = (if editor.cursor.is_insert() {
-                                (mouse_event.pos.x / width).round() as usize
-                            } else {
-                                (mouse_event.pos.x / width).floor() as usize
-                            })
-                            .min(line_end);
-                            (line, col)
-                        };
-                        let new_offset = buffer.offset_of_line_col(line, col);
+                        let new_offset = buffer.offset_of_mouse(
+                            ctx.text(),
+                            mouse_event.pos,
+                            editor.cursor.get_mode(),
+                            &data.config,
+                        );
                         let editor = Arc::make_mut(editor);
                         match editor.cursor.mode.clone() {
                             CursorMode::Normal(offset) => {
-                                if mouse_event.mods.shift() {
+                                if new_offset != offset {
                                     editor.cursor = Cursor::new(
                                         CursorMode::Visual {
                                             start: offset,
@@ -3809,62 +3738,150 @@ impl Widget<LapceTabData> for LapceEditor {
                                         },
                                         None,
                                     );
-                                } else {
-                                    editor.cursor.mode =
-                                        CursorMode::Normal(new_offset);
-                                    editor.cursor.horiz = None;
                                 }
                             }
                             CursorMode::Visual { start, end, mode } => {
-                                if mouse_event.mods.shift() {
-                                    editor.cursor = Cursor::new(
-                                        CursorMode::Visual {
-                                            start,
-                                            end: new_offset,
-                                            mode: VisualMode::Normal,
-                                        },
-                                        None,
-                                    );
-                                } else {
-                                    editor.cursor = Cursor::new(
-                                        CursorMode::Normal(new_offset),
-                                        None,
-                                    );
-                                }
+                                let mode = mode.clone();
+                                editor.cursor.mode = CursorMode::Visual {
+                                    start,
+                                    end: new_offset,
+                                    mode,
+                                };
+                                editor.cursor.horiz = None;
                             }
                             CursorMode::Insert(selection) => {
-                                if mouse_event.mods.shift() {
-                                    let mut new_selection = Selection::new();
-                                    if let Some(region) = selection.first() {
-                                        let new_regoin = SelRegion::new(
-                                            region.start(),
-                                            new_offset,
-                                            None,
-                                        );
-                                        new_selection.add_region(new_regoin);
-                                    } else {
-                                        new_selection.add_region(SelRegion::new(
-                                            new_offset, new_offset, None,
-                                        ));
-                                    }
-                                    editor.cursor = Cursor::new(
-                                        CursorMode::Insert(new_selection),
+                                let mut new_selection = Selection::new();
+                                if let Some(region) = selection.first() {
+                                    let new_regoin = SelRegion::new(
+                                        region.start(),
+                                        new_offset,
                                         None,
                                     );
+                                    new_selection.add_region(new_regoin);
                                 } else {
-                                    editor.cursor = Cursor::new(
-                                        CursorMode::Insert(Selection::caret(
-                                            new_offset,
-                                        )),
+                                    new_selection.add_region(SelRegion::new(
+                                        new_offset, new_offset, None,
+                                    ));
+                                }
+                                editor.cursor = Cursor::new(
+                                    CursorMode::Insert(new_selection),
+                                    None,
+                                );
+                            }
+                        }
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::EnsureCursorVisible(None),
+                            Target::Widget(self.view_id),
+                        ));
+                    }
+                }
+            },
+            Event::MouseUp(mouse_event) => {
+                ctx.set_active(false);
+                ctx.set_handled();
+            }
+            Event::MouseDown(mouse_event) => match &editor.content {
+                EditorContent::None => {
+                    ctx.set_handled();
+                    for (cmd, _, rect) in &self.commands {
+                        if rect.contains(mouse_event.pos) {
+                            ctx.submit_command(Command::new(
+                                LAPCE_NEW_COMMAND,
+                                cmd.clone(),
+                                Target::Auto,
+                            ));
+                            return;
+                        }
+                    }
+                }
+                EditorContent::Buffer(path) => {
+                    ctx.set_handled();
+                    ctx.set_active(true);
+                    let buffer =
+                        data.main_split.open_files.get(path).unwrap().clone();
+                    let line_height = data.config.editor.line_height as f64;
+                    let line = (mouse_event.pos.y / line_height).floor() as usize;
+                    let last_line = buffer.last_line();
+                    let (line, col) = if line > last_line {
+                        (last_line, 0)
+                    } else {
+                        let line_end =
+                            buffer.line_end_col(line, !editor.cursor.is_normal());
+                        let width = data.config.editor_text_width(ctx.text(), "W");
+
+                        let col = (if editor.cursor.is_insert() {
+                            (mouse_event.pos.x / width).round() as usize
+                        } else {
+                            (mouse_event.pos.x / width).floor() as usize
+                        })
+                        .min(line_end);
+                        (line, col)
+                    };
+                    let new_offset = buffer.offset_of_line_col(line, col);
+                    let editor = Arc::make_mut(editor);
+                    match editor.cursor.mode.clone() {
+                        CursorMode::Normal(offset) => {
+                            if mouse_event.mods.shift() {
+                                editor.cursor = Cursor::new(
+                                    CursorMode::Visual {
+                                        start: offset,
+                                        end: new_offset,
+                                        mode: VisualMode::Normal,
+                                    },
+                                    None,
+                                );
+                            } else {
+                                editor.cursor.mode = CursorMode::Normal(new_offset);
+                                editor.cursor.horiz = None;
+                            }
+                        }
+                        CursorMode::Visual { start, end, mode } => {
+                            if mouse_event.mods.shift() {
+                                editor.cursor = Cursor::new(
+                                    CursorMode::Visual {
+                                        start,
+                                        end: new_offset,
+                                        mode: VisualMode::Normal,
+                                    },
+                                    None,
+                                );
+                            } else {
+                                editor.cursor = Cursor::new(
+                                    CursorMode::Normal(new_offset),
+                                    None,
+                                );
+                            }
+                        }
+                        CursorMode::Insert(selection) => {
+                            if mouse_event.mods.shift() {
+                                let mut new_selection = Selection::new();
+                                if let Some(region) = selection.first() {
+                                    let new_regoin = SelRegion::new(
+                                        region.start(),
+                                        new_offset,
                                         None,
                                     );
+                                    new_selection.add_region(new_regoin);
+                                } else {
+                                    new_selection.add_region(SelRegion::new(
+                                        new_offset, new_offset, None,
+                                    ));
                                 }
+                                editor.cursor = Cursor::new(
+                                    CursorMode::Insert(new_selection),
+                                    None,
+                                );
+                            } else {
+                                editor.cursor = Cursor::new(
+                                    CursorMode::Insert(Selection::caret(new_offset)),
+                                    None,
+                                );
                             }
                         }
                     }
-                    EditorContent::None => {}
                 }
-            }
+            },
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
@@ -3961,12 +3978,6 @@ impl Widget<LapceTabData> for LapceEditor {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        //  ctx.submit_command(Command::new(
-        //      LAPCE_UI_COMMAND,
-        //      LapceUICommand::UpdateWindowOrigin,
-        //      Target::Widget(self.editor_id),
-        //  ));
-
         match data.editor_view_content(self.view_id) {
             LapceEditorViewContent::Buffer(data) => {
                 let line_height = data.config.editor.line_height as f64;
@@ -3977,7 +3988,37 @@ impl Widget<LapceTabData> for LapceEditor {
                         - line_height,
                 )
             }
-            LapceEditorViewContent::None => bc.max(),
+            LapceEditorViewContent::None => {
+                let size = bc.max();
+                let origin = Point::new(size.width / 2.0, size.height / 2.0);
+                let line_height = 30.0;
+
+                self.commands = empty_editor_commands()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, cmd)| {
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(
+                                cmd.palette_desc.as_ref().unwrap().to_string(),
+                            )
+                            .font(FontFamily::SYSTEM_UI, 14.0)
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        let point = origin
+                            - (text_layout.size().width, -line_height * i as f64);
+                        let rect = text_layout.size().to_rect().with_origin(point);
+                        (cmd.clone(), text_layout, rect)
+                    })
+                    .collect();
+
+                size
+            }
         }
     }
 
@@ -3987,7 +4028,11 @@ impl Widget<LapceTabData> for LapceEditor {
             LapceEditorViewContent::Buffer(data) => {
                 data.paint_content(ctx, is_focused, self.placeholder.as_ref());
             }
-            LapceEditorViewContent::None => {}
+            LapceEditorViewContent::None => {
+                for (cmd, text, rect) in &self.commands {
+                    ctx.draw_text(text, rect.origin());
+                }
+            }
         }
     }
 }
@@ -4160,4 +4205,24 @@ fn paint_wave_line(
         direction *= -1.0;
     }
     ctx.stroke(path, color, 1.4);
+}
+
+fn empty_editor_commands() -> Vec<LapceCommandNew> {
+    vec![
+        LapceCommandNew {
+            cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+            palette_desc: Some("Show All Commands".to_string()),
+            target: CommandTarget::Workbench,
+        },
+        LapceCommandNew {
+            cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+            palette_desc: Some("Open Folder".to_string()),
+            target: CommandTarget::Workbench,
+        },
+        LapceCommandNew {
+            cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+            palette_desc: Some("Open Recent".to_string()),
+            target: CommandTarget::Workbench,
+        },
+    ]
 }

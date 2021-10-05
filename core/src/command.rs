@@ -117,6 +117,9 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "palette.command")]
     PaletteCommand,
+
+    #[strum(serialize = "palette.workspace")]
+    PaletteWorkspace,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
