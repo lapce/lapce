@@ -55,12 +55,16 @@ impl LapceProxy {
         let tab_id = self.tab_id;
         thread::spawn(move || {
             let mut child = match workspace.kind {
-                LapceWorkspaceType::Local => {
-                    Command::new("/Users/Lulu/.lapce/lapce-proxy")
-                        .stdin(Stdio::piped())
-                        .stdout(Stdio::piped())
-                        .spawn()
-                }
+                LapceWorkspaceType::Local => Command::new(
+                    std::env::current_exe()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .join("lapce-proxy"),
+                )
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn(),
                 LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
                     .arg(format!("{}@{}", user, host))
                     .arg("/tmp/proxy/target/release/lapce-proxy")
