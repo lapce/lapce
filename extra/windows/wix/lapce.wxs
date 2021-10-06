@@ -11,6 +11,7 @@
 
         <Feature Id="ProductFeature" Title="ConsoleApp" Level="1">
             <ComponentRef Id="LapceExe"/>
+            <ComponentRef Id="LapceProxyExe"/>
             <ComponentRef Id="LapceShortcut"/>
             <ComponentRef Id="ModifyPathEnv"/>
             <ComponentRef Id="ContextMenu"/>
