@@ -20,18 +20,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build
         run: cargo build --release
-      - name: Rename
-        run: |
-          cp ./target/release/lapce.exe ./target/release/Lapce-portable.exe
-      - name: Upload portable executable
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./target/release/Lapce-portable.exe
-          file_glob: true
-          tag: ${{ github.ref }}
-          overwrite: true
-          
       - name: Install WiX
         run: nuget install WiX
       - name: Crate msi installer
