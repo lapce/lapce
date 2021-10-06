@@ -9,6 +9,47 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  windows:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --release
+      - name: Rename
+        run: |
+          cp ./target/release/lapce.exe ./Lapce.exe
+      - name: Upload portable executable
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./target/release/Lapce.exe
+          file_glob: true
+          tag: ${{ github.ref }}
+          overwrite: true
+          
+      - name: Install WiX
+        run: nuget install WiX
+      - name: Crate msi installer
+        run: |
+          ./WiX.*/tools/candle.exe -nologo -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
+            -out "./lapce.wixobj" "extra/windows/wix/lapce.wxs"
+          ./WiX.*/tools/light.exe -nologo -ext WixUIExtension -ext WixUtilExtension \
+            -out "./Lapce-installer.msi" -sice:ICE61 -sice:ICE91 \
+            "./lapce.wixobj"
+      - name: Upload msi installer
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./Lapce-installer.msi
+          file_glob: true
+          tag: ${{ github.ref }}
+          overwrite: true
+
   macos:
     runs-on: macos-11
 
