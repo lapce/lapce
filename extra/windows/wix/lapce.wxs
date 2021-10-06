@@ -3,9 +3,9 @@
     <Product Name="Lapce" Id="*" UpgradeCode="87c21c74-dbd5-4584-89d5-46d9cd0c40a7" Language="1033" Codepage="1252" Version="0.0.1" Manufacturer="Lapce">
         <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
         <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
-        <Icon Id="LapceIco" SourceFile=".\extra\windows\lapce.ico"/>
+        <Icon Id="lapce.exe" SourceFile=".\extra\windows\lapce.ico"/>
         <WixVariable Id="WixUILicenseRtf" Value=".\extra\windows\wix\license.rtf"/>
-        <Property Id="ARPPRODUCTICON" Value="LapceIco"/>
+        <Property Id="ARPPRODUCTICON" Value="lapce.exe"/>
         <MediaTemplate EmbedCab="yes"/>
         <UIRef Id="WixUI_Minimal"/>
 
@@ -40,7 +40,7 @@
         <DirectoryRef Id="LapceProgramMenu">
             <!-- Application shortcut -->
             <Component Id="LapceShortcut" Guid="aa36e61a-23cd-4383-b744-2f78e912f0dc">
-                <Shortcut Id="LapceShortcutFile" Name="Lapce" Description="Lightning-fast and Powerful Code Editor" Target="[LapceProgramFiles]lapce.exe"/>
+                <Shortcut Id="LapceShortcutFile" Icon="lapce.exe" Name="Lapce" Description="Lightning-fast and Powerful Code Editor" Target="[LapceProgramFiles]lapce.exe"/>
                 <RemoveFolder Id="LapceProgramMenu" On="uninstall"/>
                 <RegistryValue Root="HKCU" Key="Software\Microsoft\Lapce" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
             </Component>
