@@ -3,13 +3,13 @@ use crate::command::{
     CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
 };
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
-use crate::config::{Config, LapceTheme};
+use crate::config::{Config, LapceTheme, LOGO};
 use crate::data::{
     EditorContent, EditorDiagnostic, EditorKind, EditorType, LapceEditorData,
     LapceMainSplitData, LapceTabData, RegisterData,
 };
 use crate::find::Find;
-use crate::keypress::KeyPressFocus;
+use crate::keypress::{KeyMap, KeyPressFocus};
 use crate::proxy::LapceProxy;
 use crate::scroll::LapceIdentityWrapper;
 use crate::signature::SignatureState;
@@ -45,6 +45,7 @@ use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
 use crossbeam_channel::{self, bounded};
 use druid::kurbo::BezPath;
+use druid::piet::Svg;
 use druid::widget::{LensWrap, WidgetWrapper};
 use druid::{
     kurbo::Line, piet::PietText, theme, widget::Flex, widget::IdentityWrapper,
@@ -54,7 +55,7 @@ use druid::{
     RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt,
     WidgetId, WidgetPod, WindowId,
 };
-use druid::{menu, Application, ExtEventSink, FileDialogOptions, Menu};
+use druid::{menu, Application, ExtEventSink, FileDialogOptions, Menu, Modifiers};
 use druid::{
     piet::{
         PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
@@ -3675,7 +3676,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
 pub struct LapceEditor {
     view_id: WidgetId,
     placeholder: Option<String>,
-    commands: Vec<(LapceCommandNew, PietTextLayout, Rect)>,
+    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
 }
 
 impl LapceEditor {
@@ -3702,7 +3703,7 @@ impl Widget<LapceTabData> for LapceEditor {
                 EditorContent::None => {
                     ctx.set_handled();
                     let mut on_command = false;
-                    for (_, _, rect) in &self.commands {
+                    for (_, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
                             on_command = true;
                             break;
@@ -3784,7 +3785,7 @@ impl Widget<LapceTabData> for LapceEditor {
             Event::MouseDown(mouse_event) => match &editor.content {
                 EditorContent::None => {
                     ctx.set_handled();
-                    for (cmd, _, rect) in &self.commands {
+                    for (cmd, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
                             ctx.submit_command(Command::new(
                                 LAPCE_NEW_COMMAND,
@@ -3990,10 +3991,10 @@ impl Widget<LapceTabData> for LapceEditor {
             }
             LapceEditorViewContent::None => {
                 let size = bc.max();
-                let origin = Point::new(size.width / 2.0, size.height / 2.0);
+                let origin = Point::new(size.width / 2.0, size.height / 2.0 + 40.0);
                 let line_height = 30.0;
 
-                self.commands = empty_editor_commands()
+                self.commands = empty_editor_commands(data.workspace.is_some())
                     .iter()
                     .enumerate()
                     .map(|(i, cmd)| {
@@ -4013,7 +4014,49 @@ impl Widget<LapceTabData> for LapceEditor {
                         let point = origin
                             - (text_layout.size().width, -line_height * i as f64);
                         let rect = text_layout.size().to_rect().with_origin(point);
-                        (cmd.clone(), text_layout, rect)
+                        let mut key = None;
+                        for (_, keymaps) in data.keypress.keymaps.iter() {
+                            for keymap in keymaps {
+                                if keymap.command == cmd.cmd {
+                                    let mut keymap_str = "".to_string();
+                                    for (mods, key) in &keymap.key {
+                                        if keymap_str != "" {
+                                            keymap_str += " "
+                                        }
+                                        if mods.ctrl() {
+                                            keymap_str += "Ctrl+";
+                                        }
+                                        if mods.shift() {
+                                            keymap_str += "Shift+";
+                                        }
+                                        if mods.alt() {
+                                            keymap_str += "Alt+";
+                                        }
+                                        if mods.meta() {
+                                            keymap_str += "Meta+";
+                                        }
+                                        keymap_str += &key.to_string();
+                                    }
+                                    key = Some(keymap_str);
+                                    break;
+                                }
+                            }
+                            if key.is_some() {
+                                break;
+                            }
+                        }
+                        let key_text_layout = ctx
+                            .text()
+                            .new_text_layout(key.unwrap_or("Unbound".to_string()))
+                            .font(FontFamily::SYSTEM_UI, 14.0)
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        (cmd.clone(), text_layout, rect, key_text_layout)
                     })
                     .collect();
 
@@ -4029,8 +4072,33 @@ impl Widget<LapceTabData> for LapceEditor {
                 data.paint_content(ctx, is_focused, self.placeholder.as_ref());
             }
             LapceEditorViewContent::None => {
-                for (cmd, text, rect) in &self.commands {
+                let svg = Svg::from_str(LOGO).unwrap();
+                let size = ctx.size();
+                let svg_size = 100.0;
+                let rect = Size::ZERO
+                    .to_rect()
+                    .with_origin(
+                        Point::new(size.width / 2.0, size.height / 2.0)
+                            + (0.0, -svg_size),
+                    )
+                    .inflate(svg_size, svg_size);
+                ctx.draw_svg(
+                    &svg,
+                    rect,
+                    Some(
+                        &data
+                            .config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone()
+                            .with_alpha(0.5),
+                    ),
+                );
+                for (cmd, text, rect, keymap) in &self.commands {
                     ctx.draw_text(text, rect.origin());
+                    ctx.draw_text(
+                        keymap,
+                        rect.origin() + (20.0 + rect.width(), 0.0),
+                    );
                 }
             }
         }
@@ -4207,22 +4275,37 @@ fn paint_wave_line(
     ctx.stroke(path, color, 1.4);
 }
 
-fn empty_editor_commands() -> Vec<LapceCommandNew> {
-    vec![
-        LapceCommandNew {
-            cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
-            palette_desc: Some("Show All Commands".to_string()),
-            target: CommandTarget::Workbench,
-        },
-        LapceCommandNew {
-            cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
-            palette_desc: Some("Open Folder".to_string()),
-            target: CommandTarget::Workbench,
-        },
-        LapceCommandNew {
-            cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
-            palette_desc: Some("Open Recent".to_string()),
-            target: CommandTarget::Workbench,
-        },
-    ]
+fn empty_editor_commands(has_workspace: bool) -> Vec<LapceCommandNew> {
+    if !has_workspace {
+        vec![
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                palette_desc: Some("Show All Commands".to_string()),
+                target: CommandTarget::Workbench,
+            },
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+                palette_desc: Some("Open Folder".to_string()),
+                target: CommandTarget::Workbench,
+            },
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+                palette_desc: Some("Open Recent".to_string()),
+                target: CommandTarget::Workbench,
+            },
+        ]
+    } else {
+        vec![
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                palette_desc: Some("Show All Commands".to_string()),
+                target: CommandTarget::Workbench,
+            },
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::Palette.to_string(),
+                palette_desc: Some("Go To File".to_string()),
+                target: CommandTarget::Workbench,
+            },
+        ]
+    }
 }

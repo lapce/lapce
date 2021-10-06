@@ -67,7 +67,8 @@ pub trait KeyPressFocus {
 #[derive(Clone, Debug)]
 pub struct KeyPressData {
     pending_keypress: Vec<KeyPress>,
-    keymaps: im::HashMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>,
+    pub keymaps:
+        Arc<IndexMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>>,
     pub commands: Arc<IndexMap<String, LapceCommandNew>>,
     count: Option<usize>,
 }
@@ -76,7 +77,7 @@ impl KeyPressData {
     pub fn new() -> Self {
         Self {
             pending_keypress: Vec::new(),
-            keymaps: Self::get_keymaps().unwrap_or(im::HashMap::new()),
+            keymaps: Arc::new(Self::get_keymaps().unwrap_or(IndexMap::new())),
             commands: Arc::new(lapce_internal_commands()),
             count: None,
         }
@@ -84,7 +85,7 @@ impl KeyPressData {
 
     pub fn update_keymaps(&mut self) {
         if let Ok(new_keymaps) = Self::get_keymaps() {
-            self.keymaps = new_keymaps;
+            self.keymaps = Arc::new(new_keymaps);
         }
     }
 
@@ -317,19 +318,18 @@ impl KeyPressData {
 
     fn keymaps_from_str(
         s: &str,
-    ) -> Result<
-        im::HashMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>,
-    > {
+    ) -> Result<IndexMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>>
+    {
         let toml_keymaps: toml::Value = toml::from_str(s)?;
         let toml_keymaps = toml_keymaps
             .get("keymaps")
             .and_then(|v| v.as_array())
             .ok_or(anyhow!("no keymaps"))?;
 
-        let mut keymaps: im::HashMap<
+        let mut keymaps: IndexMap<
             Vec<(Modifiers, druid::keyboard_types::Code)>,
             Vec<KeyMap>,
-        > = im::HashMap::new();
+        > = IndexMap::new();
         for toml_keymap in toml_keymaps {
             if let Ok(keymap) = Self::get_keymap(toml_keymap) {
                 for i in 1..keymap.key.len() + 1 {
@@ -347,9 +347,9 @@ impl KeyPressData {
         Ok(keymaps)
     }
 
-    fn get_keymaps() -> Result<
-        im::HashMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>,
-    > {
+    fn get_keymaps(
+    ) -> Result<IndexMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>>
+    {
         let mut keymaps_str = if std::env::consts::OS == "macos" {
             default_keymaps_macos
         } else if std::env::consts::OS == "linux" {

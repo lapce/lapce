@@ -15,6 +15,7 @@ const default_light_theme: &'static str =
     include_str!("../../defaults/light-theme.toml");
 const default_dark_theme: &'static str =
     include_str!("../../defaults/dark-theme.toml");
+pub const LOGO: &'static str = include_str!("../../extra/images/logo.svg");
 
 pub struct LapceTheme {}
 
