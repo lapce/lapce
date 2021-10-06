@@ -4,6 +4,7 @@
         <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
         <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
         <Icon Id="LapceIco" SourceFile=".\extra\windows\lapce.ico"/>
+        <WixVariable Id="WixUILicenseRtf" Value=".\extra\windows\wix\license.rtf"/>
         <Property Id="ARPPRODUCTICON" Value="LapceIco"/>
         <MediaTemplate EmbedCab="yes"/>
         <UIRef Id="WixUI_Minimal"/>

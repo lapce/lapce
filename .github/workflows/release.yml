@@ -22,12 +22,12 @@ jobs:
         run: cargo build --release
       - name: Rename
         run: |
-          cp ./target/release/lapce.exe ./Lapce.exe
+          cp ./target/release/lapce.exe ./Lapce-portable.exe
       - name: Upload portable executable
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./target/release/Lapce.exe
+          file: ./target/release/Lapce-portable.exe
           file_glob: true
           tag: ${{ github.ref }}
           overwrite: true
@@ -36,9 +36,9 @@ jobs:
         run: nuget install WiX
       - name: Crate msi installer
         run: |
-          ./WiX.*/tools/candle.exe -nologo -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
+          ./WiX.*/tools/candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
             -out "./lapce.wixobj" "extra/windows/wix/lapce.wxs"
-          ./WiX.*/tools/light.exe -nologo -ext WixUIExtension -ext WixUtilExtension \
+          ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
             -out "./Lapce-installer.msi" -sice:ICE61 -sice:ICE91 \
             "./lapce.wixobj"
       - name: Upload msi installer
@@ -59,11 +59,14 @@ jobs:
         run: rustup update && rustup target add aarch64-apple-darwin
       - name: Make DMG
         run: make dmg-universal
+      - name: Rename
+        run: |
+          cp ./target/release/macos/Lapce.dmg ./target/release/macos/Lapce-macos.dmg
       - name: Upload Application
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./target/release/macos/Lapce.dmg
+          file: ./target/release/macos/Lapce-macos.dmg
           file_glob: true
           tag: ${{ github.ref }}
           overwrite: true
