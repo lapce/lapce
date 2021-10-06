@@ -7,6 +7,15 @@ resolver = "2"
 
 [dependencies]
 lapce-core = { path = "./core" }
+lapce-proxy = { path = "./proxy" }
+
+[[bin]]
+name = "lapce"
+path = "core/src/bin/lapce.rs"
+
+[[bin]]
+name = "lapce-proxy"
+path = "proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
 members = ["lsp", "core", "proxy", "rpc"]

@@ -31,6 +31,9 @@
             <Component Id="LapceExe" Guid="*">
                 <File Id="LapceExeFile" Source=".\target\release\lapce.exe" Name="lapce.exe" KeyPath="yes"/>
             </Component>
+            <Component Id="LapceProxyExe" Guid="*">
+                <File Id="LapceProxyExeFile" Source=".\target\release\lapce-proxy.exe" Name="lapce-proxy.exe" KeyPath="yes"/>
+            </Component>
         </DirectoryRef>
 
         <DirectoryRef Id="LapceProgramMenu">

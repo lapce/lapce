@@ -22,7 +22,7 @@ jobs:
         run: cargo build --release
       - name: Rename
         run: |
-          cp ./target/release/lapce.exe ./Lapce-portable.exe
+          cp ./target/release/lapce.exe ./target/release/Lapce-portable.exe
       - name: Upload portable executable
         uses: svenstaro/upload-release-action@v2
         with:
