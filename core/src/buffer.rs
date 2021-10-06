@@ -9,7 +9,6 @@ use druid::{
     WindowId,
 };
 use druid::{Env, FontFamily, PaintCtx, Point};
-use git2::Repository;
 use language::{new_highlight_config, new_parser, LapceLanguage};
 use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{CallHierarchyOptions, SemanticTokensLegend};
@@ -1896,78 +1895,78 @@ pub struct DiffHunk {
     pub header: String,
 }
 
-fn get_git_diff(
-    workspace_path: &PathBuf,
-    path: &PathBuf,
-    content: &str,
-) -> Option<(Vec<DiffHunk>, HashMap<usize, char>)> {
-    let repo = Repository::open(workspace_path.to_str()?).ok()?;
-    let head = repo.head().ok()?;
-    let tree = head.peel_to_tree().ok()?;
-    let tree_entry = tree
-        .get_path(path.strip_prefix(workspace_path).ok()?)
-        .ok()?;
-    let blob = repo.find_blob(tree_entry.id()).ok()?;
-    let mut patch = git2::Patch::from_blob_and_buffer(
-        &blob,
-        None,
-        content.as_bytes(),
-        None,
-        None,
-    )
-    .ok()?;
-    let mut line_changes = HashMap::new();
-    Some((
-        (0..patch.num_hunks())
-            .into_iter()
-            .filter_map(|i| {
-                let hunk = patch.hunk(i).ok()?;
-                let hunk = DiffHunk {
-                    old_start: hunk.0.old_start(),
-                    old_lines: hunk.0.old_lines(),
-                    new_start: hunk.0.new_start(),
-                    new_lines: hunk.0.new_lines(),
-                    header: String::from_utf8(hunk.0.header().to_vec()).ok()?,
-                };
-                let mut line_diff = 0;
-                for line in 0..hunk.old_lines + hunk.new_lines {
-                    if let Ok(diff_line) = patch.line_in_hunk(i, line as usize) {
-                        match diff_line.origin() {
-                            ' ' => {
-                                let new_line = diff_line.new_lineno().unwrap();
-                                let old_line = diff_line.old_lineno().unwrap();
-                                line_diff = new_line as i32 - old_line as i32;
-                            }
-                            '-' => {
-                                let old_line = diff_line.old_lineno().unwrap() - 1;
-                                let new_line =
-                                    (old_line as i32 + line_diff) as usize;
-                                line_changes.insert(new_line, '-');
-                                line_diff -= 1;
-                            }
-                            '+' => {
-                                let new_line =
-                                    diff_line.new_lineno().unwrap() as usize - 1;
-                                if let Some(c) = line_changes.get(&new_line) {
-                                    if c == &'-' {
-                                        line_changes.insert(new_line, 'm');
-                                    }
-                                } else {
-                                    line_changes.insert(new_line, '+');
-                                }
-                                line_diff += 1;
-                            }
-                            _ => continue,
-                        }
-                        diff_line.origin();
-                    }
-                }
-                Some(hunk)
-            })
-            .collect(),
-        line_changes,
-    ))
-}
+// fn get_git_diff(
+//     workspace_path: &PathBuf,
+//     path: &PathBuf,
+//     content: &str,
+// ) -> Option<(Vec<DiffHunk>, HashMap<usize, char>)> {
+//     let repo = Repository::open(workspace_path.to_str()?).ok()?;
+//     let head = repo.head().ok()?;
+//     let tree = head.peel_to_tree().ok()?;
+//     let tree_entry = tree
+//         .get_path(path.strip_prefix(workspace_path).ok()?)
+//         .ok()?;
+//     let blob = repo.find_blob(tree_entry.id()).ok()?;
+//     let mut patch = git2::Patch::from_blob_and_buffer(
+//         &blob,
+//         None,
+//         content.as_bytes(),
+//         None,
+//         None,
+//     )
+//     .ok()?;
+//     let mut line_changes = HashMap::new();
+//     Some((
+//         (0..patch.num_hunks())
+//             .into_iter()
+//             .filter_map(|i| {
+//                 let hunk = patch.hunk(i).ok()?;
+//                 let hunk = DiffHunk {
+//                     old_start: hunk.0.old_start(),
+//                     old_lines: hunk.0.old_lines(),
+//                     new_start: hunk.0.new_start(),
+//                     new_lines: hunk.0.new_lines(),
+//                     header: String::from_utf8(hunk.0.header().to_vec()).ok()?,
+//                 };
+//                 let mut line_diff = 0;
+//                 for line in 0..hunk.old_lines + hunk.new_lines {
+//                     if let Ok(diff_line) = patch.line_in_hunk(i, line as usize) {
+//                         match diff_line.origin() {
+//                             ' ' => {
+//                                 let new_line = diff_line.new_lineno().unwrap();
+//                                 let old_line = diff_line.old_lineno().unwrap();
+//                                 line_diff = new_line as i32 - old_line as i32;
+//                             }
+//                             '-' => {
+//                                 let old_line = diff_line.old_lineno().unwrap() - 1;
+//                                 let new_line =
+//                                     (old_line as i32 + line_diff) as usize;
+//                                 line_changes.insert(new_line, '-');
+//                                 line_diff -= 1;
+//                             }
+//                             '+' => {
+//                                 let new_line =
+//                                     diff_line.new_lineno().unwrap() as usize - 1;
+//                                 if let Some(c) = line_changes.get(&new_line) {
+//                                     if c == &'-' {
+//                                         line_changes.insert(new_line, 'm');
+//                                     }
+//                                 } else {
+//                                     line_changes.insert(new_line, '+');
+//                                 }
+//                                 line_diff += 1;
+//                             }
+//                             _ => continue,
+//                         }
+//                         diff_line.origin();
+//                     }
+//                 }
+//                 Some(hunk)
+//             })
+//             .collect(),
+//         line_changes,
+//     ))
+// }
 
 //fn highlights_process(
 //    language_id: String,

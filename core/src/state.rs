@@ -4,8 +4,6 @@ use druid::{
     widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Lens,
     Modifiers, Target, WidgetId, WindowId,
 };
-use git2::Oid;
-use git2::Repository;
 use im;
 use lapce_proxy::dispatch::NewBufferResponse;
 use lazy_static::lazy_static;

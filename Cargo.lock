@@ -2156,7 +2156,6 @@ dependencies = [
  "druid",
  "fuzzy-matcher",
  "fzyr",
- "git2",
  "im",
  "include_dir",
  "indexmap",
