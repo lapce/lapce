@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install ARM target
         run: rustup update && rustup target add aarch64-apple-darwin
+      - name: Install OpenSSL
+        run: brew install openssl@1.1
       # - name: Test
       #   run: cargo test --release
       # - name: Test ARM
