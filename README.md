@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="extra/images/logo.png"/><br>
+  <img src="extra/images/logo.png" width=200 height=200/><br>
   Lapce
 </h1>
 
