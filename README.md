@@ -1,4 +1,9 @@
-<h1 align="center">Lapce</h1>
+<h1 align="center">
+  <img src="extra/images/logo.png"/><br>
+  <p></p>
+  Lapce
+</h1>
+
 <h4 align="center">Lightning-fast and Powerful Code Editor written in Rust</h4>
 
 ![](https://github.com/lapce/lapce/blob/master/extra/images/screenshot.png?raw=true)
