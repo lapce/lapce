@@ -28,5 +28,5 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ./target/release/osx/Lapce.dmg
           file_glob: true
-          tag: ${{ GITHUB_REF##*/ }}
+          tag: ${{ github.ref }}
           overwrite: true
