@@ -531,6 +531,16 @@ impl LapceTabData {
                     }
                 });
             }
+            LapceWorkbenchCommand::EnableModal => {
+                let config = Arc::make_mut(&mut self.config);
+                config.lapce.modal = true;
+                Config::update_file("lapce.modal", toml::Value::Boolean(true));
+            }
+            LapceWorkbenchCommand::DisableModal => {
+                let config = Arc::make_mut(&mut self.config);
+                config.lapce.modal = false;
+                Config::update_file("lapce.modal", toml::Value::Boolean(false));
+            }
             LapceWorkbenchCommand::ChangeTheme => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,

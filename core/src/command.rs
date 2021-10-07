@@ -74,6 +74,14 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
 pub enum LapceWorkbenchCommand {
+    #[strum(serialize = "enable_modal_editing")]
+    #[strum(message = "Enable Modal Editing")]
+    EnableModal,
+
+    #[strum(serialize = "disable_modal_editing")]
+    #[strum(message = "Disable Modal Editing")]
+    DisableModal,
+
     #[strum(serialize = "open_folder")]
     #[strum(message = "Open Folder")]
     OpenFolder,

@@ -120,7 +120,7 @@ impl Config {
             .map(|d| d.config_dir().join("settings.toml"))
     }
 
-    pub fn update_file(key: &str, value: &str) -> Option<()> {
+    pub fn update_file(key: &str, value: toml::Value) -> Option<()> {
         let path = Config::settings_file()?;
         let content = std::fs::read(&path).ok()?;
         let mut toml_value: toml::Value = toml::from_slice(&content)
@@ -131,8 +131,7 @@ impl Config {
         let n = parts.len();
         for (i, key) in parts.into_iter().enumerate() {
             if i == n - 1 {
-                table
-                    .insert(key.to_string(), toml::Value::String(value.to_string()));
+                table.insert(key.to_string(), value.clone());
             } else {
                 if !table.contains_key(key) {
                     table.insert(
@@ -151,7 +150,10 @@ impl Config {
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> Option<()> {
         self.lapce.color_theme = theme.to_string();
         if !preview {
-            Config::update_file("lapce.color-theme", theme)?;
+            Config::update_file(
+                "lapce.color-theme",
+                toml::Value::String(theme.to_string()),
+            )?;
         }
         None
     }
