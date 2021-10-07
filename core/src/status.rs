@@ -97,28 +97,32 @@ impl Widget<LapceTabData> for LapceStatusNew {
         );
 
         let mut left = 0.0;
-        let (mode, color) = match data.main_split.active_editor().cursor.get_mode() {
-            Mode::Normal => ("Normal", Color::rgb8(64, 120, 242)),
-            Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
-            Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
-        };
 
-        let text_layout = ctx
-            .text()
-            .new_text_layout(mode)
-            .font(FontFamily::SYSTEM_UI, 13.0)
-            .text_color(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        let text_size = text_layout.size();
-        let fill_size = Size::new(text_size.width + 10.0, size.height);
-        ctx.fill(fill_size.to_rect(), &color);
-        ctx.draw_text(&text_layout, Point::new(5.0, 4.0));
-        left += text_size.width + 10.0;
+        if data.config.lapce.modal {
+            let (mode, color) =
+                match data.main_split.active_editor().cursor.get_mode() {
+                    Mode::Normal => ("Normal", Color::rgb8(64, 120, 242)),
+                    Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
+                    Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
+                };
+
+            let text_layout = ctx
+                .text()
+                .new_text_layout(mode)
+                .font(FontFamily::SYSTEM_UI, 13.0)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let text_size = text_layout.size();
+            let fill_size = Size::new(text_size.width + 10.0, size.height);
+            ctx.fill(fill_size.to_rect(), &color);
+            ctx.draw_text(&text_layout, Point::new(5.0, 4.0));
+            left += text_size.width + 10.0;
+        }
 
         let text_layout = ctx
             .text()

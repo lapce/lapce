@@ -416,6 +416,26 @@ impl LapceTabData {
         }
     }
 
+    pub fn update_from_editor_buffer_data(
+        &mut self,
+        editor_buffer_data: LapceEditorBufferData,
+        editor: &Arc<LapceEditorData>,
+        buffer: &Arc<BufferNew>,
+    ) {
+        self.completion = editor_buffer_data.completion.clone();
+        self.main_split = editor_buffer_data.main_split.clone();
+        if !editor_buffer_data.editor.same(editor) {
+            self.main_split
+                .editors
+                .insert(editor.view_id, editor_buffer_data.editor);
+        }
+        if !editor_buffer_data.buffer.same(&buffer) {
+            self.main_split
+                .open_files
+                .insert(buffer.path.clone(), editor_buffer_data.buffer);
+        }
+    }
+
     pub fn code_action_origin(
         &self,
         text: &mut PietText,
@@ -535,11 +555,33 @@ impl LapceTabData {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = true;
                 Config::update_file("lapce.modal", toml::Value::Boolean(true));
+                for (_, editor) in self.main_split.editors.iter() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_NEW_COMMAND,
+                        LapceCommandNew {
+                            cmd: LapceCommand::NormalMode.to_string(),
+                            palette_desc: None,
+                            target: CommandTarget::Focus,
+                        },
+                        Target::Widget(editor.view_id),
+                    ));
+                }
             }
             LapceWorkbenchCommand::DisableModal => {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = false;
                 Config::update_file("lapce.modal", toml::Value::Boolean(false));
+                for (_, editor) in self.main_split.editors.iter() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_NEW_COMMAND,
+                        LapceCommandNew {
+                            cmd: LapceCommand::InsertMode.to_string(),
+                            palette_desc: None,
+                            target: CommandTarget::Focus,
+                        },
+                        Target::Widget(editor.view_id),
+                    ));
+                }
             }
             LapceWorkbenchCommand::ChangeTheme => {
                 ctx.submit_command(Command::new(

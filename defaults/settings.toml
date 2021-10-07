@@ -1,5 +1,5 @@
 [lapce]
-modal = true
+modal = false
 color-theme = "Lapce Dark"
 icon-theme = ""
 

@@ -75,6 +75,7 @@ use std::thread;
 use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
 use std::{str::FromStr, time::Duration};
+use strum::EnumMessage;
 use unicode_width::UnicodeWidthStr;
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{Interval, RopeDelta, Transformer};
@@ -3001,17 +3002,21 @@ impl Widget<LapceTabData> for LapceEditorView {
                         editor_data.get_code_actions(ctx);
 
                         data.keypress = keypress.clone();
-                        data.main_split = editor_data.main_split.clone();
-                        data.completion = editor_data.completion.clone();
-                        if !editor_data.editor.same(&editor) {
-                            data.main_split
-                                .editors
-                                .insert(editor.view_id, editor_data.editor);
-                        }
-                        if !editor_data.buffer.same(&buffer) {
-                            data.main_split
-                                .open_files
-                                .insert(buffer.path.clone(), editor_data.buffer);
+                        data.update_from_editor_buffer_data(
+                            editor_data,
+                            &editor,
+                            &buffer,
+                        );
+                    }
+                    Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
+                        let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
+                        if let Ok(command) = LapceCommand::from_str(&command.cmd) {
+                            editor_data.run_command(ctx, &command, None, env);
+                            data.update_from_editor_buffer_data(
+                                editor_data,
+                                &editor,
+                                &buffer,
+                            );
                         }
                     }
                     Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -3994,71 +3999,62 @@ impl Widget<LapceTabData> for LapceEditor {
                 let origin = Point::new(size.width / 2.0, size.height / 2.0 + 40.0);
                 let line_height = 30.0;
 
-                self.commands = empty_editor_commands(data.workspace.is_some())
-                    .iter()
-                    .enumerate()
-                    .map(|(i, cmd)| {
-                        let text_layout = ctx
-                            .text()
-                            .new_text_layout(
-                                cmd.palette_desc.as_ref().unwrap().to_string(),
-                            )
-                            .font(FontFamily::SYSTEM_UI, 14.0)
-                            .text_color(
-                                data.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                                    .clone(),
-                            )
-                            .build()
-                            .unwrap();
-                        let point = origin
-                            - (text_layout.size().width, -line_height * i as f64);
-                        let rect = text_layout.size().to_rect().with_origin(point);
-                        let mut key = None;
-                        for (_, keymaps) in data.keypress.keymaps.iter() {
-                            for keymap in keymaps {
-                                if keymap.command == cmd.cmd {
-                                    let mut keymap_str = "".to_string();
-                                    for (mods, key) in &keymap.key {
-                                        if keymap_str != "" {
-                                            keymap_str += " "
-                                        }
-                                        if mods.ctrl() {
-                                            keymap_str += "Ctrl+";
-                                        }
-                                        if mods.shift() {
-                                            keymap_str += "Shift+";
-                                        }
-                                        if mods.alt() {
-                                            keymap_str += "Alt+";
-                                        }
-                                        if mods.meta() {
-                                            keymap_str += "Meta+";
-                                        }
-                                        keymap_str += &key.to_string();
+                self.commands = empty_editor_commands(
+                    data.config.lapce.modal,
+                    data.workspace.is_some(),
+                )
+                .iter()
+                .enumerate()
+                .map(|(i, cmd)| {
+                    let text_layout = ctx
+                        .text()
+                        .new_text_layout(
+                            cmd.palette_desc.as_ref().unwrap().to_string(),
+                        )
+                        .font(FontFamily::SYSTEM_UI, 14.0)
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    let point =
+                        origin - (text_layout.size().width, -line_height * i as f64);
+                    let rect = text_layout.size().to_rect().with_origin(point);
+                    let mut key = None;
+                    for (_, keymaps) in data.keypress.keymaps.iter() {
+                        for keymap in keymaps {
+                            if keymap.command == cmd.cmd {
+                                let mut keymap_str = "".to_string();
+                                for (mods, key) in &keymap.key {
+                                    if keymap_str != "" {
+                                        keymap_str += " "
                                     }
-                                    key = Some(keymap_str);
-                                    break;
+                                    keymap_str += &keybinding_to_string(mods, key);
                                 }
-                            }
-                            if key.is_some() {
+                                key = Some(keymap_str);
                                 break;
                             }
                         }
-                        let key_text_layout = ctx
-                            .text()
-                            .new_text_layout(key.unwrap_or("Unbound".to_string()))
-                            .font(FontFamily::SYSTEM_UI, 14.0)
-                            .text_color(
-                                data.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                                    .clone(),
-                            )
-                            .build()
-                            .unwrap();
-                        (cmd.clone(), text_layout, rect, key_text_layout)
-                    })
-                    .collect();
+                        if key.is_some() {
+                            break;
+                        }
+                    }
+                    let key_text_layout = ctx
+                        .text()
+                        .new_text_layout(key.unwrap_or("Unbound".to_string()))
+                        .font(FontFamily::SYSTEM_UI, 14.0)
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    (cmd.clone(), text_layout, rect, key_text_layout)
+                })
+                .collect();
 
                 size
             }
@@ -4275,13 +4271,30 @@ fn paint_wave_line(
     ctx.stroke(path, color, 1.4);
 }
 
-fn empty_editor_commands(has_workspace: bool) -> Vec<LapceCommandNew> {
+fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNew> {
     if !has_workspace {
         vec![
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
                 palette_desc: Some("Show All Commands".to_string()),
                 target: CommandTarget::Workbench,
+            },
+            if modal {
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                    palette_desc: LapceWorkbenchCommand::DisableModal
+                        .get_message()
+                        .map(|m| m.to_string()),
+                    target: CommandTarget::Workbench,
+                }
+            } else {
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                    palette_desc: LapceWorkbenchCommand::EnableModal
+                        .get_message()
+                        .map(|m| m.to_string()),
+                    target: CommandTarget::Workbench,
+                }
             },
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
@@ -4301,6 +4314,23 @@ fn empty_editor_commands(has_workspace: bool) -> Vec<LapceCommandNew> {
                 palette_desc: Some("Show All Commands".to_string()),
                 target: CommandTarget::Workbench,
             },
+            if modal {
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                    palette_desc: LapceWorkbenchCommand::DisableModal
+                        .get_message()
+                        .map(|m| m.to_string()),
+                    target: CommandTarget::Workbench,
+                }
+            } else {
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                    palette_desc: LapceWorkbenchCommand::EnableModal
+                        .get_message()
+                        .map(|m| m.to_string()),
+                    target: CommandTarget::Workbench,
+                }
+            },
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::Palette.to_string(),
                 palette_desc: Some("Go To File".to_string()),
@@ -4308,4 +4338,31 @@ fn empty_editor_commands(has_workspace: bool) -> Vec<LapceCommandNew> {
             },
         ]
     }
+}
+
+fn keybinding_to_string(
+    mods: &Modifiers,
+    code: &druid::keyboard_types::Code,
+) -> String {
+    let mut keymap_str = "".to_string();
+    if mods.ctrl() {
+        keymap_str += "Ctrl+";
+    }
+    if mods.alt() {
+        keymap_str += "Alt+";
+    }
+    if mods.meta() {
+        let keyname = match std::env::consts::OS {
+            "macos" => "Cmd",
+            "windows" => "Win",
+            _ => "Meta",
+        };
+        keymap_str += &keyname;
+        keymap_str += "+";
+    }
+    if mods.shift() {
+        keymap_str += "Shift+";
+    }
+    keymap_str += &code.to_string();
+    keymap_str
 }
