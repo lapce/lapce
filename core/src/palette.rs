@@ -778,48 +778,7 @@ impl PaletteViewData {
     }
 
     fn get_workspaces(&mut self, ctx: &mut EventCtx) {
-        let workspaces = vec![
-            LapceWorkspace {
-                kind: LapceWorkspaceType::Local,
-                path: PathBuf::from("/Users/Lulu/lapce"),
-            },
-            LapceWorkspace {
-                kind: LapceWorkspaceType::Local,
-                path: PathBuf::from("/Users/Lulu/piet-wgpu"),
-            },
-            LapceWorkspace {
-                kind: LapceWorkspaceType::Local,
-                path: PathBuf::from("/Users/Lulu/druid"),
-            },
-            LapceWorkspace {
-                kind: LapceWorkspaceType::RemoteSSH(
-                    "root".to_string(),
-                    "10.154.0.5".to_string(),
-                ),
-                path: PathBuf::from("/root/nebula"),
-            },
-            LapceWorkspace {
-                kind: LapceWorkspaceType::RemoteSSH(
-                    "dz".to_string(),
-                    "10.132.0.2".to_string(),
-                ),
-                path: PathBuf::from("/home/dz/go/src/galaxy"),
-            },
-            LapceWorkspace {
-                kind: LapceWorkspaceType::RemoteSSH(
-                    "dz".to_string(),
-                    "10.132.0.2".to_string(),
-                ),
-                path: PathBuf::from("/home/dz/go/src/tardis"),
-            },
-            LapceWorkspace {
-                kind: LapceWorkspaceType::RemoteSSH(
-                    "dz".to_string(),
-                    "10.132.0.2".to_string(),
-                ),
-                path: PathBuf::from("/home/dz/cosmos"),
-            },
-        ];
+        let workspaces = Config::recent_workspaces().unwrap_or(Vec::new());
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = workspaces
             .into_iter()

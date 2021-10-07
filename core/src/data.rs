@@ -15,7 +15,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
 use crossbeam_utils::sync::WaitGroup;
-use directories::ProjectDirs;
+use directories::{ProjectDirs, UserDirs};
 use druid::{
     piet::{PietText, Text},
     theme,
@@ -507,15 +507,36 @@ impl LapceTabData {
             LapceWorkbenchCommand::OpenFolder => {
                 let event_sink = ctx.get_external_handle();
                 thread::spawn(move || {
+                    let dir = UserDirs::new()
+                        .and_then(|u| u.home_dir().to_str().map(|s| s.to_string()))
+                        .unwrap_or(".".to_string());
                     if let Some(folder) =
-                        tinyfiledialogs::select_folder_dialog("Open folder", "./")
+                        tinyfiledialogs::select_folder_dialog("Open folder", &dir)
                     {
+                        let path = PathBuf::from(folder).canonicalize().unwrap();
+                        let workspace = LapceWorkspace {
+                            kind: LapceWorkspaceType::Local,
+                            path,
+                        };
+
+                        let mut workspaces =
+                            Config::recent_workspaces().unwrap_or(Vec::new());
+
+                        let mut exits = false;
+                        for w in &workspaces {
+                            if w == &workspace {
+                                exits = true;
+                                break;
+                            }
+                        }
+                        if !exits {
+                            workspaces.push(workspace.clone());
+                            Config::update_recent_workspaces(workspaces);
+                        }
+
                         event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::SetWorkspace(LapceWorkspace {
-                                kind: LapceWorkspaceType::Local,
-                                path: PathBuf::from(folder),
-                            }),
+                            LapceUICommand::SetWorkspace(workspace),
                             Target::Auto,
                         );
                     }

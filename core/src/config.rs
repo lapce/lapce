@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use anyhow::Result;
 use directories::ProjectDirs;
@@ -197,6 +197,75 @@ impl Config {
         //  env.set(LapceTheme::PALETTE_INPUT_BORDER, Color::rgb8(0, 0, 0));
         //  env.set(LapceTheme::LIST_BACKGROUND, Color::rgb8(234, 234, 235));
         //  env.set(LapceTheme::LIST_CURRENT, Color::rgb8(219, 219, 220));
+    }
+            let mut table = toml::value::Table::new();
+            table.insert(
+                "kind".to_string(),
+                toml::Value::String(match workspace.kind {
+                    LapceWorkspaceType::Local => "local".to_string(),
+                    LapceWorkspaceType::RemoteSSH(user, host) => {
+                        format!("ssh://{}@{}", user, host)
+                    }
+                }),
+            );
+            table.insert(
+                "path".to_string(),
+                toml::Value::String(workspace.path.to_str()?.to_string()),
+            );
+            array.push(toml::Value::Table(table));
+        }
+        let mut table = toml::value::Table::new();
+        table.insert("workspaces".to_string(), toml::Value::Array(array));
+        let content = toml::to_string(&table).ok()?;
+
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&path)
+            .ok()?;
+        file.write_all(content.as_bytes()).ok()?;
+        None
+    }
+
+    pub fn recent_workspaces() -> Option<Vec<LapceWorkspace>> {
+        let path = Self::recent_workspaces_file()?;
+        let content = std::fs::read_to_string(&path).ok()?;
+        let value: toml::Value = toml::from_str(&content).ok()?;
+        Some(
+            value
+                .get("workspaces")
+                .and_then(|v| v.as_array())?
+                .iter()
+                .filter_map(|value| {
+                    let path = PathBuf::from(value.get("path")?.as_str()?);
+                    let kind = value.get("kind")?.as_str()?;
+                    let kind = match kind {
+                        s if kind.starts_with("ssh://") => {
+                            let mut parts = s[6..].split("@");
+                            let user = parts.next()?.to_string();
+                            let host = parts.next()?.to_string();
+                            LapceWorkspaceType::RemoteSSH(user, host)
+                        }
+                        _ => LapceWorkspaceType::Local,
+                    };
+                    let workspace = LapceWorkspace { kind, path };
+                    Some(workspace)
+                })
+                .collect(),
+        )
+    }
+
+    pub fn recent_workspaces_file() -> Option<PathBuf> {
+        let proj_dirs = ProjectDirs::from("", "", "Lapce")?;
+        std::fs::create_dir_all(proj_dirs.config_dir());
+        let path = proj_dirs.config_dir().join("workspaces.toml");
+        {
+            std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path);
+        }
+        Some(path)
     }
 }
 
