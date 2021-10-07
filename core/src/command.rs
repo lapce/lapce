@@ -306,7 +306,7 @@ pub enum LapceUICommand {
         location: EditorLocationNew,
     },
     SetWorkspace(LapceWorkspace),
-    SetTheme(String),
+    SetTheme(String, bool),
     OpenFile(PathBuf),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, CompletionItem),

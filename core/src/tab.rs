@@ -392,9 +392,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::SetTheme(theme) => {
+                    LapceUICommand::SetTheme(theme, preview) => {
                         let config = Arc::make_mut(&mut data.config);
-                        config.lapce.color_theme = theme.to_string();
+                        config.set_theme(theme, *preview);
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateBufferLineChanges(

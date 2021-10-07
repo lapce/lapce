@@ -185,7 +185,7 @@ impl PaletteItemContent {
             PaletteItemContent::Theme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SetTheme(theme.to_string()),
+                    LapceUICommand::SetTheme(theme.to_string(), preview),
                     Target::Auto,
                 ));
             }
@@ -197,20 +197,6 @@ impl PaletteItemContent {
                         Target::Auto,
                     ));
                 }
-                // LapceCommand::ChangeTheme => {
-                //     if !preview {
-                //         return Some(PaletteType::Theme);
-                //     }
-                // }
-                // _ => {
-                //     if !preview {
-                //         ctx.submit_command(Command::new(
-                //             LAPCE_NEW_COMMAND,
-                //             command.clone(),
-                //             Target::Auto,
-                //         ));
-                //     }
-                // }
             }
         }
         None

@@ -83,37 +83,27 @@ pub struct Config {
 
 impl Config {
     pub fn load(workspace: Option<LapceWorkspace>) -> Result<Self> {
-        let mut settings_string = default_settings.to_string();
-        let mut files = vec![];
+        let mut settings = config::Config::default().with_merged(
+            config::File::from_str(default_settings, config::FileFormat::Toml),
+        )?;
 
         if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
             let path = proj_dirs.config_dir().join("settings.toml");
-            files.push(path);
+            settings.merge(config::File::from(path.as_path()).required(false));
         }
 
         if let Some(workspace) = workspace {
             match workspace.kind {
                 crate::state::LapceWorkspaceType::Local => {
                     let path = workspace.path.join("./.lapce/settings.toml");
-                    files.push(path);
+                    settings
+                        .merge(config::File::from(path.as_path()).required(false));
                 }
                 crate::state::LapceWorkspaceType::RemoteSSH(_, _) => {}
             }
         }
-        for f in files {
-            if let Ok(content) = std::fs::read_to_string(f) {
-                if content != "" {
-                    let result: Result<toml::Value, toml::de::Error> =
-                        toml::from_str(&content);
-                    if result.is_ok() {
-                        settings_string += &content;
-                    }
-                }
-            }
-        }
 
-        let config: toml::Value = toml::from_str(&settings_string)?;
-        let mut config: Config = config.try_into()?;
+        let mut config: Config = settings.try_into()?;
 
         config.theme = get_theme(default_light_theme)?;
 
@@ -123,6 +113,47 @@ impl Config {
         config.themes = themes;
 
         Ok(config)
+    }
+
+    pub fn settings_file() -> Option<PathBuf> {
+        ProjectDirs::from("", "", "Lapce")
+            .map(|d| d.config_dir().join("settings.toml"))
+    }
+
+    pub fn update_file(key: &str, value: &str) -> Option<()> {
+        let path = Config::settings_file()?;
+        let content = std::fs::read(&path).ok()?;
+        let mut toml_value: toml::Value = toml::from_slice(&content)
+            .unwrap_or(toml::Value::Table(toml::value::Table::new()));
+
+        let mut table = toml_value.as_table_mut()?;
+        let parts: Vec<&str> = key.split(".").collect();
+        let n = parts.len();
+        for (i, key) in parts.into_iter().enumerate() {
+            if i == n - 1 {
+                table
+                    .insert(key.to_string(), toml::Value::String(value.to_string()));
+            } else {
+                if !table.contains_key(key) {
+                    table.insert(
+                        key.to_string(),
+                        toml::Value::Table(toml::value::Table::new()),
+                    );
+                }
+                table = table.get_mut(key)?.as_table_mut()?;
+            }
+        }
+
+        std::fs::write(&path, toml::to_string(&toml_value).ok()?.as_bytes()).ok()?;
+        None
+    }
+
+    pub fn set_theme(&mut self, theme: &str, preview: bool) -> Option<()> {
+        self.lapce.color_theme = theme.to_string();
+        if !preview {
+            Config::update_file("lapce.color-theme", theme)?;
+        }
+        None
     }
 
     pub fn get_color_unchecked(&self, name: &str) -> &Color {

@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+config = "0.11"
 indexmap = "1.7.0"
 directories = "4.0.1"
 tinyfiledialogs = "3.8.3"
@@ -39,7 +40,7 @@ fuzzy-matcher = "0.3.7"
 uuid = { version = "0.7.4", features = ["v4"] }
 lsp-types = { version = "0.89.2", features = ["proposed"] }
 druid = { git = "https://github.com/lapce/druid", features = ["svg", "im"] }
-toml = { git = "https://github.com/lapce/toml-rs" }
+toml = { version = "0.5.8", features = ["preserve_order"] }
 lapce-proxy = { path = "../proxy" }
 
 [build-dependencies]
