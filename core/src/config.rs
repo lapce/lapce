@@ -8,7 +8,10 @@ use druid::{
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::{data::hex_to_color, state::LapceWorkspace};
+use crate::{
+    data::hex_to_color,
+    state::{LapceWorkspace, LapceWorkspaceType},
+};
 
 const default_settings: &'static str = include_str!("../../defaults/settings.toml");
 const default_light_theme: &'static str =
@@ -198,6 +201,11 @@ impl Config {
         //  env.set(LapceTheme::LIST_BACKGROUND, Color::rgb8(234, 234, 235));
         //  env.set(LapceTheme::LIST_CURRENT, Color::rgb8(219, 219, 220));
     }
+
+    pub fn update_recent_workspaces(workspaces: Vec<LapceWorkspace>) -> Option<()> {
+        let path = Self::recent_workspaces_file()?;
+        let mut array = toml::value::Array::new();
+        for workspace in workspaces {
             let mut table = toml::value::Table::new();
             table.insert(
                 "kind".to_string(),
