@@ -85,6 +85,7 @@ pub enum LapceWorkspaceType {
 pub struct LapceWorkspace {
     pub kind: LapceWorkspaceType,
     pub path: PathBuf,
+    pub last_open: u64,
 }
 
 impl Default for LapceWorkspace {
@@ -95,6 +96,10 @@ impl Default for LapceWorkspace {
                 .unwrap()
                 .home_dir()
                 .to_path_buf(),
+            last_open: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         }
     }
 }

@@ -517,22 +517,11 @@ impl LapceTabData {
                         let workspace = LapceWorkspace {
                             kind: LapceWorkspaceType::Local,
                             path,
+                            last_open: std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs(),
                         };
-
-                        let mut workspaces =
-                            Config::recent_workspaces().unwrap_or(Vec::new());
-
-                        let mut exits = false;
-                        for w in &workspaces {
-                            if w == &workspace {
-                                exits = true;
-                                break;
-                            }
-                        }
-                        if !exits {
-                            workspaces.push(workspace.clone());
-                            Config::update_recent_workspaces(workspaces);
-                        }
 
                         event_sink.submit_command(
                             LAPCE_UI_COMMAND,

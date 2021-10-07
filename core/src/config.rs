@@ -220,6 +220,10 @@ impl Config {
                 "path".to_string(),
                 toml::Value::String(workspace.path.to_str()?.to_string()),
             );
+            table.insert(
+                "last_open".to_string(),
+                toml::Value::Integer(workspace.last_open as i64),
+            );
             array.push(toml::Value::Table(table));
         }
         let mut table = toml::value::Table::new();
@@ -256,7 +260,15 @@ impl Config {
                         }
                         _ => LapceWorkspaceType::Local,
                     };
-                    let workspace = LapceWorkspace { kind, path };
+                    let last_open = value
+                        .get("last_open")
+                        .and_then(|v| v.as_integer())
+                        .unwrap_or(0) as u64;
+                    let workspace = LapceWorkspace {
+                        kind,
+                        path,
+                        last_open,
+                    };
                     Some(workspace)
                 })
                 .collect(),

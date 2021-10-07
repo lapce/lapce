@@ -134,6 +134,25 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::SetWorkspace(workspace) => {
+                        let mut workspaces =
+                            Config::recent_workspaces().unwrap_or(Vec::new());
+
+                        let mut exits = false;
+                        for w in workspaces.iter_mut() {
+                            if w.path == workspace.path && w.kind == workspace.kind {
+                                w.last_open = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap()
+                                    .as_secs();
+                                exits = true;
+                            }
+                        }
+                        if !exits {
+                            workspaces.push(workspace.clone());
+                        }
+                        workspaces.sort_by_key(|w| -(w.last_open as i64));
+                        Config::update_recent_workspaces(workspaces);
+
                         self.new_tab(ctx, data, Some(workspace.clone()), true);
                         return;
                     }
