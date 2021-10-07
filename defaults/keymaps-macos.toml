@@ -5,7 +5,7 @@ key = "meta+p"
 command = "palette"
 
 [[keymaps]]
-key = "shift+meta+p"
+key = "meta+P"
 command = "palette.command"
 
 [[keymaps]]
@@ -13,7 +13,7 @@ key = "F1"
 command = "palette.command"
 
 [[keymaps]]
-key = "shift+;"
+key = ":"
 command = "palette.command"
 mode = "n"
 
@@ -213,7 +213,7 @@ mode = "i"
 when = "in_snippet"
 
 [[keymaps]]
-key = "shift+g"
+key = "G"
 command = "go_to_line_deault_last"
 mode = "nv"
 
@@ -248,7 +248,7 @@ command = "append"
 mode = "n"
 
 [[keymaps]]
-key = "shift+a"
+key = "A"
 command = "append_end_of_line"
 mode = "n"
 
@@ -318,7 +318,7 @@ command = "paste"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+j"
+key = "J"
 command = "join_lines"
 mode = "n"
 
@@ -338,7 +338,7 @@ command = "delete_foreward_and_insert"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+i"
+key = "I"
 command = "insert_first_non_blank"
 mode = "nv"
 
@@ -353,7 +353,7 @@ command = "line_start"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+4"
+key = "$"
 command = "line_end"
 mode = "nv"
 
@@ -373,7 +373,7 @@ command = "word_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+o"
+key = "O"
 command = "new_line_above"
 mode = "nv"
 
@@ -418,7 +418,7 @@ command = "delete_line"
 mode = "n"
 
 [[keymaps]]
-key = "shift+8"
+key = "*"
 command = "search_whole_word_forward"
 mode = "nv"
 
@@ -428,32 +428,32 @@ command = "search_forward"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+n"
+key = "N"
 command = "search_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+5"
+key = "%"
 command = "match_pairs"
 mode = "nv"
 
 [[keymaps]]
-key = "] shift+0"
+key = "] )"
 command = "next_unmatched_right_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "[ shift+9"
+key = "[ ("
 command = "previous_unmatched_left_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "] shift+]"
+key = "] }"
 command = "next_unmatched_right_curly_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "[ shift+["
+key = "[ {"
 command = "previous_unmatched_left_curly_bracket"
 mode = "nv"
 
@@ -463,7 +463,7 @@ command = "toggle_visual_mode"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+v"
+key = "V"
 command = "toggle_linewise_visual_mode"
 mode = "nv"
 

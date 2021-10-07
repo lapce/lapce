@@ -36,16 +36,15 @@ enum KeymapMatch {
     None,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyPress {
-    pub code: druid::keyboard_types::Code,
     pub key: druid::keyboard_types::Key,
     pub mods: Modifiers,
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct KeyMap {
-    pub key: Vec<(Modifiers, druid::keyboard_types::Code)>,
+    pub key: Vec<KeyPress>,
     pub modes: Vec<Mode>,
     pub when: Option<String>,
     pub command: String,
@@ -67,8 +66,7 @@ pub trait KeyPressFocus {
 #[derive(Clone, Debug)]
 pub struct KeyPressData {
     pending_keypress: Vec<KeyPress>,
-    pub keymaps:
-        Arc<IndexMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>>,
+    pub keymaps: Arc<IndexMap<Vec<KeyPress>, Vec<KeyMap>>>,
     pub commands: Arc<IndexMap<String, LapceCommandNew>>,
     count: Option<usize>,
 }
@@ -139,25 +137,24 @@ impl KeyPressData {
         focus: &mut T,
         env: &Env,
     ) -> bool {
-        let code = match key_event.code {
-            druid::keyboard_types::Code::AltRight => {
-                druid::keyboard_types::Code::AltLeft
+        if key_event.key == druid::keyboard_types::Key::Shift {
+            let mut mods = key_event.mods.clone();
+            mods.set(Modifiers::SHIFT, false);
+            if mods.is_empty() {
+                return false;
             }
-            druid::keyboard_types::Code::ShiftRight => {
-                druid::keyboard_types::Code::ShiftLeft
+        }
+        let mut mods = key_event.mods.clone();
+        match &key_event.key {
+            druid::keyboard_types::Key::Character(c) => {
+                mods.set(Modifiers::SHIFT, false);
             }
-            druid::keyboard_types::Code::MetaRight => {
-                druid::keyboard_types::Code::MetaLeft
-            }
-            druid::keyboard_types::Code::ControlRight => {
-                druid::keyboard_types::Code::ControlLeft
-            }
-            _ => key_event.code,
-        };
+            _ => (),
+        }
+
         let keypress = KeyPress {
-            code,
             key: key_event.key.clone(),
-            mods: key_event.mods.clone(),
+            mods,
         };
 
         let mode = focus.get_mode();
@@ -165,12 +162,8 @@ impl KeyPressData {
             return false;
         }
 
-        let mut keypresses: Vec<(Modifiers, druid::keyboard_types::Code)> = self
-            .pending_keypress
-            .iter()
-            .map(|k| (k.mods.clone(), k.code.clone()))
-            .collect();
-        keypresses.push((keypress.mods.clone(), keypress.code.clone()));
+        let mut keypresses: Vec<KeyPress> = self.pending_keypress.clone();
+        keypresses.push(keypress.clone());
 
         let matches = self.match_keymap(&keypresses, focus);
         let keymatch = if matches.len() == 0 {
@@ -233,7 +226,7 @@ impl KeyPressData {
 
     fn match_keymap<T: KeyPressFocus>(
         &self,
-        keypresses: &Vec<(Modifiers, druid::keyboard_types::Code)>,
+        keypresses: &Vec<KeyPress>,
         check: &T,
     ) -> Vec<&KeyMap> {
         self.keymaps
@@ -316,20 +309,14 @@ impl KeyPressData {
         }
     }
 
-    fn keymaps_from_str(
-        s: &str,
-    ) -> Result<IndexMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>>
-    {
+    fn keymaps_from_str(s: &str) -> Result<IndexMap<Vec<KeyPress>, Vec<KeyMap>>> {
         let toml_keymaps: toml::Value = toml::from_str(s)?;
         let toml_keymaps = toml_keymaps
             .get("keymaps")
             .and_then(|v| v.as_array())
             .ok_or(anyhow!("no keymaps"))?;
 
-        let mut keymaps: IndexMap<
-            Vec<(Modifiers, druid::keyboard_types::Code)>,
-            Vec<KeyMap>,
-        > = IndexMap::new();
+        let mut keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>> = IndexMap::new();
         for toml_keymap in toml_keymaps {
             if let Ok(keymap) = Self::get_keymap(toml_keymap) {
                 for i in 1..keymap.key.len() + 1 {
@@ -347,9 +334,7 @@ impl KeyPressData {
         Ok(keymaps)
     }
 
-    fn get_keymaps(
-    ) -> Result<IndexMap<Vec<(Modifiers, druid::keyboard_types::Code)>, Vec<KeyMap>>>
-    {
+    fn get_keymaps() -> Result<IndexMap<Vec<KeyPress>, Vec<KeyMap>>> {
         let mut keymaps_str = if std::env::consts::OS == "macos" {
             default_keymaps_macos
         } else if std::env::consts::OS == "linux" {
@@ -375,7 +360,7 @@ impl KeyPressData {
         Self::keymaps_from_str(&keymaps_str)
     }
 
-    fn get_keypress(key: &str) -> Vec<(Modifiers, druid::keyboard_types::Code)> {
+    fn get_keypress(key: &str) -> Vec<KeyPress> {
         let mut keypresses = Vec::new();
         for k in key.split(" ") {
             let mut mods = Modifiers::default();
@@ -384,88 +369,26 @@ impl KeyPressData {
             if parts.len() == 0 {
                 continue;
             }
-            let code = match parts[parts.len() - 1].to_lowercase().as_ref() {
-                "escape" => druid::keyboard_types::Code::Escape,
-                "esc" => druid::keyboard_types::Code::Escape,
-                "backspace" => druid::keyboard_types::Code::Backspace,
-                "bs" => druid::keyboard_types::Code::Backspace,
-                "arrowup" => druid::keyboard_types::Code::ArrowUp,
-                "arrowdown" => druid::keyboard_types::Code::ArrowDown,
-                "arrowright" => druid::keyboard_types::Code::ArrowRight,
-                "arrowleft" => druid::keyboard_types::Code::ArrowLeft,
-                "up" => druid::keyboard_types::Code::ArrowUp,
-                "down" => druid::keyboard_types::Code::ArrowDown,
-                "right" => druid::keyboard_types::Code::ArrowRight,
-                "left" => druid::keyboard_types::Code::ArrowLeft,
-                "tab" => druid::keyboard_types::Code::Tab,
-                "enter" => druid::keyboard_types::Code::Enter,
-                "delete" => druid::keyboard_types::Code::Delete,
-                "del" => druid::keyboard_types::Code::Delete,
-                "ctrl" => druid::keyboard_types::Code::ControlLeft,
-                "meta" => druid::keyboard_types::Code::MetaLeft,
-                "shift" => druid::keyboard_types::Code::ShiftLeft,
-                "alt" => druid::keyboard_types::Code::AltLeft,
-                "f1" => druid::keyboard_types::Code::F1,
-                "f2" => druid::keyboard_types::Code::F2,
-                "f3" => druid::keyboard_types::Code::F3,
-                "f4" => druid::keyboard_types::Code::F4,
-                "f5" => druid::keyboard_types::Code::F5,
-                "f6" => druid::keyboard_types::Code::F6,
-                "f7" => druid::keyboard_types::Code::F7,
-                "f8" => druid::keyboard_types::Code::F8,
-                "f9" => druid::keyboard_types::Code::F9,
-                "f10" => druid::keyboard_types::Code::F10,
-                "f11" => druid::keyboard_types::Code::F11,
-                "f12" => druid::keyboard_types::Code::F12,
-                "a" => druid::keyboard_types::Code::KeyA,
-                "b" => druid::keyboard_types::Code::KeyB,
-                "c" => druid::keyboard_types::Code::KeyC,
-                "d" => druid::keyboard_types::Code::KeyD,
-                "e" => druid::keyboard_types::Code::KeyE,
-                "f" => druid::keyboard_types::Code::KeyF,
-                "g" => druid::keyboard_types::Code::KeyG,
-                "h" => druid::keyboard_types::Code::KeyH,
-                "i" => druid::keyboard_types::Code::KeyI,
-                "j" => druid::keyboard_types::Code::KeyJ,
-                "k" => druid::keyboard_types::Code::KeyK,
-                "l" => druid::keyboard_types::Code::KeyL,
-                "m" => druid::keyboard_types::Code::KeyM,
-                "n" => druid::keyboard_types::Code::KeyN,
-                "o" => druid::keyboard_types::Code::KeyO,
-                "p" => druid::keyboard_types::Code::KeyP,
-                "q" => druid::keyboard_types::Code::KeyQ,
-                "r" => druid::keyboard_types::Code::KeyR,
-                "s" => druid::keyboard_types::Code::KeyS,
-                "t" => druid::keyboard_types::Code::KeyT,
-                "u" => druid::keyboard_types::Code::KeyU,
-                "v" => druid::keyboard_types::Code::KeyV,
-                "w" => druid::keyboard_types::Code::KeyW,
-                "x" => druid::keyboard_types::Code::KeyX,
-                "y" => druid::keyboard_types::Code::KeyY,
-                "z" => druid::keyboard_types::Code::KeyZ,
-                "1" => druid::keyboard_types::Code::Digit1,
-                "2" => druid::keyboard_types::Code::Digit2,
-                "3" => druid::keyboard_types::Code::Digit3,
-                "4" => druid::keyboard_types::Code::Digit4,
-                "5" => druid::keyboard_types::Code::Digit5,
-                "6" => druid::keyboard_types::Code::Digit6,
-                "7" => druid::keyboard_types::Code::Digit7,
-                "8" => druid::keyboard_types::Code::Digit8,
-                "9" => druid::keyboard_types::Code::Digit9,
-                "0" => druid::keyboard_types::Code::Digit0,
-                "=" => druid::keyboard_types::Code::Equal,
-                "-" => druid::keyboard_types::Code::Minus,
-                "]" => druid::keyboard_types::Code::BracketRight,
-                "[" => druid::keyboard_types::Code::BracketLeft,
-                "'" => druid::keyboard_types::Code::Quote,
-                ";" => druid::keyboard_types::Code::Semicolon,
-                "\\" => druid::keyboard_types::Code::Backslash,
-                "," => druid::keyboard_types::Code::Comma,
-                "/" => druid::keyboard_types::Code::Slash,
-                "." => druid::keyboard_types::Code::Period,
-                "`" => druid::keyboard_types::Code::Backquote,
-
-                _ => druid::keyboard_types::Code::Unidentified,
+            let key = match parts[parts.len() - 1].to_lowercase().as_str() {
+                "escape" => druid::keyboard_types::Key::Escape,
+                "esc" => druid::keyboard_types::Key::Escape,
+                "backspace" => druid::keyboard_types::Key::Backspace,
+                "bs" => druid::keyboard_types::Key::Backspace,
+                "arrowup" => druid::keyboard_types::Key::ArrowUp,
+                "arrowdown" => druid::keyboard_types::Key::ArrowDown,
+                "arrowright" => druid::keyboard_types::Key::ArrowRight,
+                "arrowleft" => druid::keyboard_types::Key::ArrowLeft,
+                "up" => druid::keyboard_types::Key::ArrowUp,
+                "down" => druid::keyboard_types::Key::ArrowDown,
+                "right" => druid::keyboard_types::Key::ArrowRight,
+                "left" => druid::keyboard_types::Key::ArrowLeft,
+                "tab" => druid::keyboard_types::Key::Tab,
+                "enter" => druid::keyboard_types::Key::Enter,
+                "delete" => druid::keyboard_types::Key::Delete,
+                "del" => druid::keyboard_types::Key::Delete,
+                _ => druid::keyboard_types::Key::Character(
+                    parts[parts.len() - 1].to_string(),
+                ),
             };
             for part in &parts[..parts.len() - 1] {
                 match part.to_lowercase().as_ref() {
@@ -477,41 +400,8 @@ impl KeyPressData {
                 }
             }
 
-            keypresses.push((mods, code));
-            // for (i, part) in
-            //     k.split("+").collect::<Vec<&str>>().iter().rev().enumerate()
-            // {
-            //     if i == 0 {
-            //         keypress.key = match part.to_lowercase().as_ref() {
-            //             "escape" => druid::keyboard_types::Key::Escape,
-            //             "esc" => druid::keyboard_types::Key::Escape,
-            //             "backspace" => druid::keyboard_types::Key::Backspace,
-            //             "bs" => druid::keyboard_types::Key::Backspace,
-            //             "arrowup" => druid::keyboard_types::Key::ArrowUp,
-            //             "arrowdown" => druid::keyboard_types::Key::ArrowDown,
-            //             "arrowright" => druid::keyboard_types::Key::ArrowRight,
-            //             "arrowleft" => druid::keyboard_types::Key::ArrowLeft,
-            //             "up" => druid::keyboard_types::Key::ArrowUp,
-            //             "down" => druid::keyboard_types::Key::ArrowDown,
-            //             "right" => druid::keyboard_types::Key::ArrowRight,
-            //             "left" => druid::keyboard_types::Key::ArrowLeft,
-            //             "tab" => druid::keyboard_types::Key::Tab,
-            //             "enter" => druid::keyboard_types::Key::Enter,
-            //             "delete" => druid::keyboard_types::Key::Delete,
-            //             "del" => druid::keyboard_types::Key::Delete,
-            //             _ => druid::keyboard_types::Key::Character(part.to_string()),
-            //         }
-            //     } else {
-            //         match part.to_lowercase().as_ref() {
-            //             "ctrl" => keypress.mods.set(Modifiers::CONTROL, true),
-            //             "meta" => keypress.mods.set(Modifiers::META, true),
-            //             "shift" => keypress.mods.set(Modifiers::SHIFT, true),
-            //             "alt" => keypress.mods.set(Modifiers::ALT, true),
-            //             _ => (),
-            //         }
-            //     }
-            // }
-            // keypresses.push(keypress);
+            let keypress = KeyPress { mods, key };
+            keypresses.push(keypress);
         }
         keypresses
     }

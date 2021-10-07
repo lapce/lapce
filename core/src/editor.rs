@@ -9,7 +9,7 @@ use crate::data::{
     LapceMainSplitData, LapceTabData, RegisterData,
 };
 use crate::find::Find;
-use crate::keypress::{KeyMap, KeyPressFocus};
+use crate::keypress::{KeyMap, KeyPress, KeyPressFocus};
 use crate::proxy::LapceProxy;
 use crate::scroll::LapceIdentityWrapper;
 use crate::signature::SignatureState;
@@ -4027,11 +4027,11 @@ impl Widget<LapceTabData> for LapceEditor {
                         for keymap in keymaps {
                             if keymap.command == cmd.cmd {
                                 let mut keymap_str = "".to_string();
-                                for (mods, key) in &keymap.key {
+                                for keypress in &keymap.key {
                                     if keymap_str != "" {
                                         keymap_str += " "
                                     }
-                                    keymap_str += &keybinding_to_string(mods, key);
+                                    keymap_str += &keybinding_to_string(keypress);
                                 }
                                 key = Some(keymap_str);
                                 break;
@@ -4340,18 +4340,15 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
     }
 }
 
-fn keybinding_to_string(
-    mods: &Modifiers,
-    code: &druid::keyboard_types::Code,
-) -> String {
+fn keybinding_to_string(keypress: &KeyPress) -> String {
     let mut keymap_str = "".to_string();
-    if mods.ctrl() {
+    if keypress.mods.ctrl() {
         keymap_str += "Ctrl+";
     }
-    if mods.alt() {
+    if keypress.mods.alt() {
         keymap_str += "Alt+";
     }
-    if mods.meta() {
+    if keypress.mods.meta() {
         let keyname = match std::env::consts::OS {
             "macos" => "Cmd",
             "windows" => "Win",
@@ -4360,9 +4357,9 @@ fn keybinding_to_string(
         keymap_str += &keyname;
         keymap_str += "+";
     }
-    if mods.shift() {
+    if keypress.mods.shift() {
         keymap_str += "Shift+";
     }
-    keymap_str += &code.to_string();
+    keymap_str += &keypress.key.to_string();
     keymap_str
 }
