@@ -114,6 +114,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Go To Previous Tab")]
     PreviousTab,
 
+    #[strum(serialize = "reload_window")]
+    #[strum(message = "Reload Window")]
+    ReloadWindow,
+
     #[strum(serialize = "palette.line")]
     PaletteLine,
 
@@ -336,10 +340,13 @@ pub enum LapceUICommand {
     ResetFade,
     FocusTab,
     CloseTab,
+    CloseTabId(WidgetId),
+    FocusTabId(WidgetId),
     NewTab,
     NextTab,
     PreviousTab,
     FilterItems,
+    ReloadWindow,
     CloseBuffers(Vec<BufferId>),
     RequestPaintRect(Rect),
     ApplyEdits(usize, u64, Vec<TextEdit>),

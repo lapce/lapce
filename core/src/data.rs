@@ -701,6 +701,13 @@ impl LapceTabData {
                     Target::Auto,
                 ));
             }
+            LapceWorkbenchCommand::ReloadWindow => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ReloadWindow,
+                    Target::Auto,
+                ));
+            }
         }
     }
 

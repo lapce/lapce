@@ -2,9 +2,12 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc, thread};
 
 use directories::ProjectDirs;
 use druid::{
+    kurbo::Line,
+    piet::{Text, TextLayout, TextLayoutBuilder},
     theme, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
-    Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext,
-    Size, Target, Widget, WidgetExt, WidgetId, WidgetPod, WindowConfig,
+    FontFamily, Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
+    WindowConfig,
 };
 use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 
@@ -16,7 +19,7 @@ use crate::{
         LAPCE_UI_COMMAND,
     },
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
-    config::Config,
+    config::{Config, LapceTheme},
     data::{EditorDiagnostic, EditorKind, LapceMainSplitData, LapceTabData},
     editor::{EditorLocationNew, LapceEditorView},
     palette::{NewPalette, PaletteViewLens},
@@ -758,5 +761,176 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.completion.paint(ctx, data, env);
         self.code_action.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
+    }
+}
+
+pub struct LapceTabHeader {
+    drag_start: Option<Point>,
+    mouse_pos: Point,
+    cross_rect: Rect,
+}
+
+impl LapceTabHeader {
+    pub fn new() -> Self {
+        Self {
+            cross_rect: Rect::ZERO,
+            drag_start: None,
+            mouse_pos: Point::ZERO,
+        }
+    }
+}
+
+impl Widget<LapceTabData> for LapceTabHeader {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        match event {
+            Event::MouseMove(mouse_event) => {
+                if ctx.is_active() {
+                    if let Some(pos) = self.drag_start {
+                        if pos != mouse_event.pos {
+                            self.mouse_pos = mouse_event.pos;
+                            ctx.request_layout();
+                        }
+                    }
+                    return;
+                }
+                if self.cross_rect.contains(mouse_event.pos) {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                } else {
+                    ctx.set_cursor(&druid::Cursor::Arrow);
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                if self.cross_rect.contains(mouse_event.pos) {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::CloseTabId(data.id),
+                        Target::Auto,
+                    ));
+                } else {
+                    self.drag_start = Some(mouse_event.pos);
+                    ctx.set_active(true);
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::FocusTabId(data.id),
+                        Target::Auto,
+                    ));
+                }
+            }
+            Event::MouseUp(mouse_event) => {
+                ctx.set_active(false);
+                self.drag_start = None;
+            }
+            _ => {}
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        match event {
+            LifeCycle::HotChanged(is_hot) => {
+                ctx.request_paint();
+            }
+            _ => (),
+        }
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let size = bc.max();
+
+        let cross_size = 8.0;
+        let padding = (size.height - cross_size) / 2.0;
+        let origin = Point::new(size.width - padding - cross_size, padding);
+        self.cross_rect = Size::new(cross_size, cross_size)
+            .to_rect()
+            .with_origin(origin);
+
+        size
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let dir = data
+            .workspace
+            .as_ref()
+            .map(|w| {
+                let dir = w.path.file_name().unwrap().to_str().unwrap();
+                let dir = match &w.kind {
+                    LapceWorkspaceType::Local => dir.to_string(),
+                    LapceWorkspaceType::RemoteSSH(user, host) => {
+                        format!("{} [{}@{}]", dir, user, host)
+                    }
+                };
+                dir
+            })
+            .unwrap_or("Lapce".to_string());
+        let text_layout = ctx
+            .text()
+            .new_text_layout(dir)
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+
+        let size = ctx.size();
+        let text_size = text_layout.size();
+        let x = (size.width - text_size.width) / 2.0;
+        let y = (size.height - text_size.height) / 2.0;
+        ctx.draw_text(&text_layout, Point::new(x, y));
+
+        if ctx.is_hot() {
+            let line = Line::new(
+                Point::new(self.cross_rect.x0, self.cross_rect.y0),
+                Point::new(self.cross_rect.x1, self.cross_rect.y1),
+            );
+            ctx.stroke(
+                line,
+                &data
+                    .config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+                1.0,
+            );
+            let line = Line::new(
+                Point::new(self.cross_rect.x1, self.cross_rect.y0),
+                Point::new(self.cross_rect.x0, self.cross_rect.y1),
+            );
+            ctx.stroke(
+                line,
+                &data
+                    .config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+                1.0,
+            );
+        }
     }
 }
