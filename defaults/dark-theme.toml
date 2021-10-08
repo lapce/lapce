@@ -10,7 +10,7 @@ green = "#98C379"
 purple = "#C678DD"
 cyan = "#56b6c2"
 
-"lapce.active_tab" = "$white"
+"lapce.active_tab" = "$black"
 "lapce.inactive_tab" = "$grey"
 "lapce.error" = "$red"
 "lapce.warn" = "$yellow"

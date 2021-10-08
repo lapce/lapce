@@ -423,11 +423,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::SetTheme(theme, preview) => {
-                        let config = Arc::make_mut(&mut data.config);
-                        config.set_theme(theme, *preview);
-                        ctx.set_handled();
-                    }
                     LapceUICommand::UpdateBufferLineChanges(
                         id,
                         rev,

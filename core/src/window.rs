@@ -210,6 +210,17 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         self.new_tab(ctx, data, Some(workspace.clone()), true);
                         return;
                     }
+                    LapceUICommand::SetTheme(theme, preview) => {
+                        let config = Arc::make_mut(&mut data.config);
+                        config.set_theme(theme, *preview);
+                        if *preview {
+                            for (_, tab) in data.tabs.iter_mut() {
+                                Arc::make_mut(&mut tab.config)
+                                    .set_theme(theme, true);
+                            }
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::NewTab => {
                         self.new_tab(ctx, data, None, false);
                         return;
@@ -423,16 +434,16 @@ impl Widget<LapceWindowData> for LapceWindowNew {
 
         self.tabs[data.active].paint(ctx, data, env);
 
+        let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
         if self.tabs.len() > 1 {
             let num = self.tabs.len();
             let section = ctx.size().width / num as f64;
             for i in 1..num {
-                let color = env.get(theme::BORDER_LIGHT);
                 let line = Line::new(
                     Point::new(i as f64 * section, 0.0),
                     Point::new(i as f64 * section, tab_height),
                 );
-                ctx.stroke(line, &color, 1.0);
+                ctx.stroke(line, line_color, 1.0);
             }
 
             let rect = self.tab_headers[data.active].layout_rect();
@@ -457,8 +468,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 Point::new(0.0, tab_height - 0.5),
                 Point::new(size.width, tab_height - 0.5),
             );
-            let color = env.get(theme::BORDER_LIGHT);
-            ctx.stroke(line, &color, 1.0);
+            ctx.stroke(line, line_color, 1.0);
         }
     }
 }
