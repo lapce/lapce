@@ -20,8 +20,12 @@ use crate::{
     },
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::{Config, LapceTheme},
-    data::{EditorDiagnostic, EditorKind, LapceMainSplitData, LapceTabData},
+    data::{
+        EditorContent, EditorDiagnostic, EditorKind, LapceMainSplitData,
+        LapceTabData,
+    },
     editor::{EditorLocationNew, LapceEditorView},
+    movement::{self, CursorMode, Selection},
     palette::{NewPalette, PaletteViewLens},
     panel::{PanelPosition, PanelResizePosition},
     scroll::LapceScrollNew,
@@ -388,7 +392,31 @@ impl Widget<LapceTabData> for LapceTabNew {
                                     let buffer = Arc::make_mut(buffer);
                                     buffer.load_content(new_content);
                                     buffer.rev = *rev;
-                                    let path = buffer.path.clone();
+
+                                    for (_, editor) in
+                                        data.main_split.editors.iter_mut()
+                                    {
+                                        match &editor.content {
+                                            EditorContent::Buffer(path) => {
+                                                if path == &buffer.path {
+                                                    if editor.cursor.offset()
+                                                        >= buffer.len()
+                                                    {
+                                                        let editor =
+                                                            Arc::make_mut(editor);
+                                                        if data.config.lapce.modal {
+                                                            editor.cursor =
+                                                                movement::Cursor::new(CursorMode::Normal(buffer.len() - 1), None);
+                                                        } else {
+                                                            editor.cursor =
+                                                                movement::Cursor::new(CursorMode::Insert(Selection::caret(buffer.len() - 1)), None);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            EditorContent::None => {}
+                                        }
+                                    }
                                 }
                                 break;
                             }

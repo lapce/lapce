@@ -555,33 +555,11 @@ impl LapceTabData {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = true;
                 Config::update_file("lapce.modal", toml::Value::Boolean(true));
-                for (_, editor) in self.main_split.editors.iter() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
-                            cmd: LapceCommand::NormalMode.to_string(),
-                            palette_desc: None,
-                            target: CommandTarget::Focus,
-                        },
-                        Target::Widget(editor.view_id),
-                    ));
-                }
             }
             LapceWorkbenchCommand::DisableModal => {
                 let config = Arc::make_mut(&mut self.config);
                 config.lapce.modal = false;
                 Config::update_file("lapce.modal", toml::Value::Boolean(false));
-                for (_, editor) in self.main_split.editors.iter() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
-                            cmd: LapceCommand::InsertMode.to_string(),
-                            palette_desc: None,
-                            target: CommandTarget::Focus,
-                        },
-                        Target::Widget(editor.view_id),
-                    ));
-                }
             }
             LapceWorkbenchCommand::ChangeTheme => {
                 ctx.submit_command(Command::new(

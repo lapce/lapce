@@ -1302,9 +1302,10 @@ impl LapceEditorBufferData {
         ctx: &mut PaintCtx,
         is_focused: bool,
         placeholder: Option<&String>,
+        config: &Config,
     ) {
         let line_height = self.config.editor.line_height as f64;
-        self.paint_cursor(ctx, is_focused, placeholder);
+        self.paint_cursor(ctx, is_focused, placeholder, config);
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
@@ -1367,6 +1368,7 @@ impl LapceEditorBufferData {
         ctx: &mut PaintCtx,
         is_focused: bool,
         placeholder: Option<&String>,
+        config: &Config,
     ) {
         let line_height = self.config.editor.line_height as f64;
         let start_line =
@@ -3110,6 +3112,30 @@ impl Widget<LapceTabData> for LapceEditorView {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if old_data.config.lapce.modal != data.config.lapce.modal {
+            if !data.config.lapce.modal {
+                ctx.submit_command(Command::new(
+                    LAPCE_NEW_COMMAND,
+                    LapceCommandNew {
+                        cmd: LapceCommand::InsertMode.to_string(),
+                        palette_desc: None,
+                        target: CommandTarget::Focus,
+                    },
+                    Target::Widget(self.view_id),
+                ));
+            } else {
+                ctx.submit_command(Command::new(
+                    LAPCE_NEW_COMMAND,
+                    LapceCommandNew {
+                        cmd: LapceCommand::NormalMode.to_string(),
+                        palette_desc: None,
+                        target: CommandTarget::Focus,
+                    },
+                    Target::Widget(self.view_id),
+                ));
+            }
+        }
+
         match (
             old_data.editor_view_content(self.view_id),
             data.editor_view_content(self.view_id),
@@ -4132,7 +4158,12 @@ impl Widget<LapceTabData> for LapceEditor {
         let is_focused = data.focus == self.view_id;
         match data.editor_view_content(self.view_id) {
             LapceEditorViewContent::Buffer(data) => {
-                data.paint_content(ctx, is_focused, self.placeholder.as_ref());
+                data.paint_content(
+                    ctx,
+                    is_focused,
+                    self.placeholder.as_ref(),
+                    &data.config,
+                );
             }
             LapceEditorViewContent::None => {
                 let svg = Svg::from_str(LOGO).unwrap();

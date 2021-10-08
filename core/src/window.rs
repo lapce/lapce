@@ -380,6 +380,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
 
             (tab_size, tab_origin)
         } else {
+            for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
+                let bc = BoxConstraints::tight(Size::new(self_size.width, 0.0));
+                tab_header.layout(ctx, &bc, data, env);
+                tab_header.set_origin(ctx, data, env, Point::ZERO);
+            }
             (self_size.clone(), Point::ZERO)
         };
 
