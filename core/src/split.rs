@@ -1,7 +1,7 @@
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::{EditorType, LapceEditorData, LapceTabData},
+    data::{EditorContent, EditorType, LapceEditorData, LapceTabData},
     editor::{EditorLocation, LapceEditorView},
     scroll::LapceScroll,
 };
@@ -155,7 +155,14 @@ impl LapceSplitNew {
         data: &mut LapceTabData,
         widget_id: WidgetId,
     ) {
-        if self.children.len() <= 1 {
+        if self.children.len() == 0 {
+            return;
+        }
+
+        if self.children.len() == 1 {
+            let view_id = self.children[0].widget.id();
+            let editor = data.main_split.editors.get_mut(&view_id).unwrap();
+            Arc::make_mut(editor).content = EditorContent::None;
             return;
         }
 
@@ -175,9 +182,11 @@ impl LapceSplitNew {
         let view_id = self.children[index].widget.id();
         let new_view_id = self.children[new_index].widget.id();
         let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
-        data.main_split.active = Arc::new(new_editor.view_id);
-        data.focus = new_editor.view_id;
-        ctx.set_focus(new_editor.view_id);
+        if *data.main_split.active == view_id {
+            data.main_split.active = Arc::new(new_editor.view_id);
+            data.focus = new_editor.view_id;
+            ctx.set_focus(new_editor.view_id);
+        }
         data.main_split.editors.remove(&view_id);
         self.children.remove(index);
         self.children_ids.remove(index);

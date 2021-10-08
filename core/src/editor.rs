@@ -1076,7 +1076,7 @@ impl LapceEditorBufferData {
             .map(|d| Arc::make_mut(d))
     }
 
-    fn paint_header(&self, ctx: &mut PaintCtx) {
+    fn paint_header(&self, ctx: &mut PaintCtx, cross_rect: Rect, is_hot: bool) {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.blurred_rect(
@@ -1157,6 +1157,33 @@ impl LapceEditorBufferData {
                 .build()
                 .unwrap();
             ctx.draw_text(&text_layout, Point::new(30.0 + x + 5.0, 7.0));
+        }
+
+        if is_hot {
+            let line = Line::new(
+                Point::new(cross_rect.x0, cross_rect.y0),
+                Point::new(cross_rect.x1, cross_rect.y1),
+            );
+            ctx.stroke(
+                line,
+                &self
+                    .config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+                1.0,
+            );
+            let line = Line::new(
+                Point::new(cross_rect.x1, cross_rect.y0),
+                Point::new(cross_rect.x0, cross_rect.y1),
+            );
+            ctx.stroke(
+                line,
+                &self
+                    .config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+                1.0,
+            );
         }
     }
 
@@ -2945,9 +2972,11 @@ impl Widget<LapceTabData> for LapceEditorView {
                 }
             }
             Event::MouseDown(mouse_event) => {
-                ctx.request_focus();
-                data.focus = self.view_id;
-                data.main_split.active = Arc::new(self.view_id);
+                if !self.header.widget().cross_rect.contains(mouse_event.pos) {
+                    ctx.request_focus();
+                    data.focus = self.view_id;
+                    data.main_split.active = Arc::new(self.view_id);
+                }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -3063,6 +3092,13 @@ impl Widget<LapceTabData> for LapceEditorView {
         data: &LapceTabData,
         env: &Env,
     ) {
+        match event {
+            LifeCycle::HotChanged(is_hot) => {
+                self.header.widget_mut().view_is_hot = *is_hot;
+                ctx.request_paint();
+            }
+            _ => (),
+        }
         self.header.lifecycle(ctx, event, data, env);
         self.editor.lifecycle(ctx, event, data, env);
     }
@@ -3514,6 +3550,8 @@ impl Widget<LapceTabData> for LapceEditorContainer {
 pub struct LapceEditorHeader {
     view_id: WidgetId,
     pub display: bool,
+    cross_rect: Rect,
+    view_is_hot: bool,
 }
 
 impl LapceEditorHeader {
@@ -3521,6 +3559,8 @@ impl LapceEditorHeader {
         Self {
             display: true,
             view_id,
+            cross_rect: Rect::ZERO,
+            view_is_hot: false,
         }
     }
 }
@@ -3533,6 +3573,29 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::MouseMove(mouse_event) => {
+                if self.cross_rect.contains(mouse_event.pos) {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                } else {
+                    ctx.set_cursor(&druid::Cursor::Arrow);
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                if self.cross_rect.contains(mouse_event.pos) {
+                    ctx.submit_command(Command::new(
+                        LAPCE_NEW_COMMAND,
+                        LapceCommandNew {
+                            cmd: LapceCommand::SplitClose.to_string(),
+                            palette_desc: None,
+                            target: CommandTarget::Focus,
+                        },
+                        Target::Widget(self.view_id),
+                    ));
+                }
+            }
+            _ => {}
+        }
     }
 
     fn lifecycle(
@@ -3562,7 +3625,14 @@ impl Widget<LapceTabData> for LapceEditorHeader {
     ) -> Size {
         ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
         if self.display {
-            Size::new(bc.max().width, 30.0)
+            let size = Size::new(bc.max().width, 30.0);
+            let cross_size = 8.0;
+            let padding = (size.height - cross_size) / 2.0;
+            let origin = Point::new(size.width - padding - cross_size, padding);
+            self.cross_rect = Size::new(cross_size, cross_size)
+                .to_rect()
+                .with_origin(origin);
+            size
         } else {
             Size::new(bc.max().width, 0.0)
         }
@@ -3574,7 +3644,7 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         }
         match data.editor_view_content(self.view_id) {
             LapceEditorViewContent::Buffer(data) => {
-                data.paint_header(ctx);
+                data.paint_header(ctx, self.cross_rect, self.view_is_hot);
             }
             LapceEditorViewContent::None => {}
         }
@@ -3706,7 +3776,6 @@ impl Widget<LapceTabData> for LapceEditor {
         match event {
             Event::MouseMove(mouse_event) => match &editor.content {
                 EditorContent::None => {
-                    ctx.set_handled();
                     let mut on_command = false;
                     for (_, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
@@ -3722,7 +3791,6 @@ impl Widget<LapceTabData> for LapceEditor {
                 }
                 EditorContent::Buffer(path) => {
                     ctx.set_cursor(&druid::Cursor::IBeam);
-                    ctx.set_handled();
                     if ctx.is_active() {
                         let buffer =
                             data.main_split.open_files.get(path).unwrap().clone();

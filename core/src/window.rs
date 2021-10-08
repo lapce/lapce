@@ -25,6 +25,7 @@ use std::{collections::HashMap, ops::Index, sync::Arc};
 
 pub struct LapceWindowNew {
     pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
+    tab_params: Vec<(WidgetId, Rect, Rect)>,
 }
 
 impl LapceWindowNew {
@@ -38,7 +39,10 @@ impl LapceWindowNew {
                 WidgetPod::new(tab.boxed())
             })
             .collect();
-        Self { tabs }
+        Self {
+            tabs,
+            tab_params: Vec::new(),
+        }
     }
 
     pub fn new_tab(
@@ -81,29 +85,43 @@ impl LapceWindowNew {
         return;
     }
 
-    pub fn close_tab(&mut self, ctx: &mut EventCtx, data: &mut LapceWindowData) {
+    pub fn close_index_tab(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceWindowData,
+        index: usize,
+    ) {
         if data.tabs.len() == 1 {
             return;
         }
 
-        self.tabs.remove(data.active);
-        if let Some(tab) = data.tabs.remove(&data.active_id) {
+        let id = self.tabs[index].id();
+        self.tabs.remove(index);
+        if let Some(tab) = data.tabs.remove(&id) {
             tab.proxy.stop();
         }
 
-        if data.active >= self.tabs.len() {
-            data.active = self.tabs.len() - 1;
+        if data.active > index {
+            data.active -= 1;
+        } else if data.active == index {
+            if data.active >= self.tabs.len() {
+                data.active = self.tabs.len() - 1;
+            }
+            data.active_id = self.tabs[data.active].id();
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::FocusTab,
+                Target::Auto,
+            ));
         }
-        data.active_id = self.tabs[data.active].id();
 
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::FocusTab,
-            Target::Auto,
-        ));
         ctx.children_changed();
         ctx.set_handled();
         ctx.request_layout();
+    }
+
+    pub fn close_tab(&mut self, ctx: &mut EventCtx, data: &mut LapceWindowData) {
+        self.close_index_tab(ctx, data, data.active);
     }
 }
 
@@ -116,6 +134,25 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         env: &Env,
     ) {
         match event {
+            Event::MouseMove(mouse_event) => {
+                let mut on_cross = false;
+                for (tab_id, tab_rect, tab_cross_rect) in self.tab_params.iter() {
+                    if tab_cross_rect.contains(mouse_event.pos) {
+                        on_cross = true;
+                        break;
+                    }
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                for (i, (tab_id, tab_rect, tab_cross_rect)) in
+                    self.tab_params.iter().enumerate()
+                {
+                    if tab_cross_rect.contains(mouse_event.pos) {
+                        self.close_index_tab(ctx, data, i);
+                        break;
+                    }
+                }
+            }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
@@ -258,6 +295,31 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             let tab_height = 25.0;
             let tab_size = Size::new(self_size.width, self_size.height - tab_height);
             let tab_origin = Point::new(0.0, tab_height);
+
+            let cross_size = 8.0;
+            let padding = (tab_height - cross_size) / 2.0;
+            let num = self.tabs.len();
+            let section = self_size.width / num as f64;
+            self.tab_params = self
+                .tabs
+                .iter()
+                .enumerate()
+                .map(|(i, tab)| {
+                    let tab_id = tab.id();
+                    let rect = Rect::ZERO
+                        .with_origin(Point::new(section * i as f64, 0.0))
+                        .with_size(Size::new(section, tab_height));
+                    let cross_origin = Point::new(
+                        section * (i + 1) as f64 - padding - cross_size,
+                        padding,
+                    );
+                    let cross_rect = Size::new(cross_size, cross_size)
+                        .to_rect()
+                        .with_origin(cross_origin);
+                    (tab_id, rect, cross_rect)
+                })
+                .collect();
+
             (tab_size, tab_origin)
         } else {
             (self_size.clone(), Point::ZERO)
@@ -294,17 +356,17 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             let color = env.get(theme::BORDER_LIGHT);
             let num = self.tabs.len();
             let section = size.width / num as f64;
-            for (i, tab) in self.tabs.iter().enumerate() {
-                let tab_id = tab.id();
+            for (i, (tab_id, tab_rect, tab_cross_rect)) in
+                self.tab_params.iter().enumerate()
+            {
                 if i == data.active {
                     ctx.fill(
-                        Rect::ZERO
-                            .with_origin(Point::new(section * i as f64, 0.0))
-                            .with_size(Size::new(section, tab_height)),
+                        tab_rect,
                         data.config
                             .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
                     );
                 }
+
                 let tab = data.tabs.get(&tab_id).unwrap();
                 let dir = tab
                     .workspace
@@ -335,6 +397,29 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 let text_width = text_layout.size().width;
                 let x = (section - text_width) / 2.0 + section * i as f64;
                 ctx.draw_text(&text_layout, Point::new(x, 3.0));
+
+                let line = Line::new(
+                    Point::new(tab_cross_rect.x0, tab_cross_rect.y0),
+                    Point::new(tab_cross_rect.x1, tab_cross_rect.y1),
+                );
+                ctx.stroke(
+                    line,
+                    &tab.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                    1.0,
+                );
+                let line = Line::new(
+                    Point::new(tab_cross_rect.x1, tab_cross_rect.y0),
+                    Point::new(tab_cross_rect.x0, tab_cross_rect.y1),
+                );
+                ctx.stroke(
+                    line,
+                    &tab.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                    1.0,
+                );
             }
             for i in 1..num {
                 let line = Line::new(
@@ -346,46 +431,46 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         }
         self.tabs[data.active].paint(ctx, data, env);
         if self.tabs.len() > 1 {
-            let num = self.tabs.len();
-            let section = size.width / num as f64;
+            //  let num = self.tabs.len();
+            //  let section = size.width / num as f64;
 
-            ctx.fill(
-                Rect::ZERO
-                    .with_origin(Point::new(section * data.active as f64, 0.0))
-                    .with_size(Size::new(section, tab_height)),
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
-            );
+            //  ctx.fill(
+            //      Rect::ZERO
+            //          .with_origin(Point::new(section * data.active as f64, 0.0))
+            //          .with_size(Size::new(section, tab_height)),
+            //      data.config
+            //          .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
+            //  );
 
-            let tab = data.tabs.get(&self.tabs[data.active].id()).unwrap();
-            let dir = tab
-                .workspace
-                .as_ref()
-                .map(|w| {
-                    let dir = w.path.file_name().unwrap().to_str().unwrap();
-                    let dir = match &w.kind {
-                        LapceWorkspaceType::Local => dir.to_string(),
-                        LapceWorkspaceType::RemoteSSH(user, host) => {
-                            format!("{} [{}@{}]", dir, user, host)
-                        }
-                    };
-                    dir
-                })
-                .unwrap_or("Lapce".to_string());
-            let text_layout = ctx
-                .text()
-                .new_text_layout(dir)
-                .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(
-                    tab.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            let text_width = text_layout.size().width;
-            let x = (section - text_width) / 2.0 + section * data.active as f64;
-            ctx.draw_text(&text_layout, Point::new(x, 3.0));
+            //  let tab = data.tabs.get(&self.tabs[data.active].id()).unwrap();
+            //  let dir = tab
+            //      .workspace
+            //      .as_ref()
+            //      .map(|w| {
+            //          let dir = w.path.file_name().unwrap().to_str().unwrap();
+            //          let dir = match &w.kind {
+            //              LapceWorkspaceType::Local => dir.to_string(),
+            //              LapceWorkspaceType::RemoteSSH(user, host) => {
+            //                  format!("{} [{}@{}]", dir, user, host)
+            //              }
+            //          };
+            //          dir
+            //      })
+            //      .unwrap_or("Lapce".to_string());
+            //  let text_layout = ctx
+            //      .text()
+            //      .new_text_layout(dir)
+            //      .font(FontFamily::SYSTEM_UI, 13.0)
+            //      .text_color(
+            //          tab.config
+            //              .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+            //              .clone(),
+            //      )
+            //      .build()
+            //      .unwrap();
+            //  let text_width = text_layout.size().width;
+            //  let x = (section - text_width) / 2.0 + section * data.active as f64;
+            //  ctx.draw_text(&text_layout, Point::new(x, 3.0));
 
             let line = Line::new(
                 Point::new(0.0, tab_height - 0.5),
