@@ -6,7 +6,7 @@ use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
     theme, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
     FontFamily, Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
+    RenderContext, Size, Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
     WindowConfig,
 };
 use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
@@ -765,8 +765,8 @@ impl Widget<LapceTabData> for LapceTabNew {
 }
 
 pub struct LapceTabHeader {
-    drag_start: Option<Point>,
-    mouse_pos: Point,
+    pub drag_start: Option<(Point, Point)>,
+    pub mouse_pos: Point,
     cross_rect: Rect,
 }
 
@@ -777,6 +777,11 @@ impl LapceTabHeader {
             drag_start: None,
             mouse_pos: Point::ZERO,
         }
+    }
+
+    pub fn origin(&self) -> Option<Point> {
+        self.drag_start
+            .map(|(drag, origin)| origin + (self.mouse_pos - drag))
     }
 }
 
@@ -792,10 +797,8 @@ impl Widget<LapceTabData> for LapceTabHeader {
             Event::MouseMove(mouse_event) => {
                 if ctx.is_active() {
                     if let Some(pos) = self.drag_start {
-                        if pos != mouse_event.pos {
-                            self.mouse_pos = mouse_event.pos;
-                            ctx.request_layout();
-                        }
+                        self.mouse_pos = ctx.to_window(mouse_event.pos);
+                        ctx.request_layout();
                     }
                     return;
                 }
@@ -813,7 +816,9 @@ impl Widget<LapceTabData> for LapceTabHeader {
                         Target::Auto,
                     ));
                 } else {
-                    self.drag_start = Some(mouse_event.pos);
+                    self.drag_start =
+                        Some((ctx.to_window(mouse_event.pos), ctx.window_origin()));
+                    self.mouse_pos = ctx.to_window(mouse_event.pos);
                     ctx.set_active(true);
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,

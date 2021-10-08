@@ -239,6 +239,12 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         }
                         return;
                     }
+                    LapceUICommand::SwapTab(index) => {
+                        self.tabs.swap(data.active, *index);
+                        self.tab_headers.swap(data.active, *index);
+                        data.active = *index;
+                        return;
+                    }
                     LapceUICommand::NextTab => {
                         let new_index = if data.active >= self.tabs.len() - 1 {
                             0
@@ -343,12 +349,33 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             let num = self.tabs.len();
             let section = self_size.width / num as f64;
 
+            let mut drag = None;
             for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 let bc = BoxConstraints::tight(Size::new(section, tab_height));
                 tab_header.layout(ctx, &bc, data, env);
                 let mut origin = Point::new(section * i as f64, 0.0);
-                if let Some(drag_pos) = tab_header.widget_mut().lens_mut() {}
+                let header = tab_header.widget().child();
+                if let Some(o) = header.origin() {
+                    origin = Point::new(o.x, 0.0);
+                    drag = Some((i, header.mouse_pos));
+                }
                 tab_header.set_origin(ctx, data, env, origin);
+            }
+
+            if let Some((index, mouse_pos)) = drag {
+                for (i, tab_header) in self.tab_headers.iter().enumerate() {
+                    if i != index {
+                        let rect = tab_header.layout_rect();
+                        if rect.x0 <= mouse_pos.x && rect.x1 >= mouse_pos.x {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::SwapTab(i),
+                                Target::Auto,
+                            ));
+                            break;
+                        }
+                    }
+                }
             }
 
             (tab_size, tab_origin)
