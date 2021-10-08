@@ -3853,7 +3853,6 @@ impl Widget<LapceTabData> for LapceEditor {
             },
             Event::MouseUp(mouse_event) => {
                 ctx.set_active(false);
-                ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => match &editor.content {
                 EditorContent::None => {
