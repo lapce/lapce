@@ -419,25 +419,34 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         self.tabs[data.active].paint(ctx, data, env);
 
         if self.tabs.len() > 1 {
-            let rect = self.tab_headers[data.active].layout_rect();
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
-            );
-            self.tab_headers[data.active].paint(ctx, data, env);
-
-            for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
-                if i < self.tabs.len() - 1 {
-                    let rect = tab_header.layout_rect();
-                    let color = env.get(theme::BORDER_LIGHT);
-                    let line = Line::new(
-                        Point::new(rect.x1, rect.y0),
-                        Point::new(rect.x1, rect.y1),
-                    );
-                    ctx.stroke(line, &color, 1.0);
-                }
+            let num = self.tabs.len();
+            let section = ctx.size().width / num as f64;
+            for i in 1..num {
+                let color = env.get(theme::BORDER_LIGHT);
+                let line = Line::new(
+                    Point::new(i as f64 * section, 0.0),
+                    Point::new(i as f64 * section, tab_height),
+                );
+                ctx.stroke(line, &color, 1.0);
             }
+
+            let rect = self.tab_headers[data.active].layout_rect();
+            let clip_rect = Size::new(size.width, tab_height).to_rect();
+            ctx.with_save(|ctx| {
+                ctx.clip(clip_rect);
+                ctx.blurred_rect(
+                    rect,
+                    5.0,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ACTIVE_TAB),
+                );
+            });
+            self.tab_headers[data.active].paint(ctx, data, env);
 
             let line = Line::new(
                 Point::new(0.0, tab_height - 0.5),
