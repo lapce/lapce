@@ -46,7 +46,6 @@ $(APP_NAME)-%: $(TARGET)-%
 	@cp -fp $(APP_BINARY)-proxy $(APP_BINARY_DIR)
 	@touch -r "$(APP_BINARY)" "$(APP_DIR)/$(APP_NAME)"
 	@echo "Created '$(APP_NAME)' in '$(APP_DIR)'"
-	/usr/bin/codesign -s 003A0C1C0BEC5079DCC0C79F9168766FADF59FAE $(APP_DIR)/$(APP_NAME) -v
 
 dmg: $(DMG_NAME)-native ## Create an Alacritty.dmg
 dmg-universal: $(DMG_NAME)-universal ## Create a universal Alacritty.dmg
