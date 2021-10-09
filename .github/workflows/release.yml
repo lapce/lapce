@@ -61,6 +61,7 @@ jobs:
           product-path: "./target/release/macos/Lapce-macos.dmg"
           appstore-connect-username: ${{ secrets.NOTARIZE_USERNAME }}
           appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
+          primary-bundle-id: "io.lapce"
       - name: "Staple Release Build"
         uses: devbotsxyz/xcode-staple@v1
         with:
