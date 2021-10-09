@@ -31,12 +31,10 @@ $(TARGET)-native:
 $(TARGET)-universal:
 	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --release --target=x86_64-apple-darwin
 	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --release --target=aarch64-apple-darwin
-	/usr/bin/codesign --force -s FAC8FBEA99169DC1980731029648F110628D6A32 target/x86_64-apple-darwin/release/$(TARGET) -v
-	/usr/bin/codesign --force -s FAC8FBEA99169DC1980731029648F110628D6A32 target/aarch64-apple-darwin/release/$(TARGET) -v
-	/usr/bin/codesign --force -s FAC8FBEA99169DC1980731029648F110628D6A32 target/x86_64-apple-darwin/release/$(TARGET)-proxy -v
-	/usr/bin/codesign --force -s FAC8FBEA99169DC1980731029648F110628D6A32 target/aarch64-apple-darwin/release/$(TARGET)-proxy -v
 	@lipo target/{x86_64,aarch64}-apple-darwin/release/$(TARGET) -create -output $(APP_BINARY)
 	@lipo target/{x86_64,aarch64}-apple-darwin/release/$(TARGET)-proxy -create -output $(APP_BINARY)-proxy
+	/usr/bin/codesign --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_BINARY) -v
+	/usr/bin/codesign --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_BINARY)-proxy -v
 
 app: $(APP_NAME)-native ## Create an Alacritty.app
 app-universal: $(APP_NAME)-universal ## Create a universal Alacritty.app
@@ -48,6 +46,9 @@ $(APP_NAME)-%: $(TARGET)-%
 	@cp -fp $(APP_BINARY)-proxy $(APP_BINARY_DIR)
 	@touch -r "$(APP_BINARY)" "$(APP_DIR)/$(APP_NAME)"
 	@echo "Created '$(APP_NAME)' in '$(APP_DIR)'"
+	xattr -c $(APP_DIR)/$(APP_NAME)/Contents/Info.plist
+	xattr -c $(APP_DIR)/$(APP_NAME)/Contents/Resources/lapce.icns
+	/usr/bin/codesign --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_DIR)/$(APP_NAME) -v
 
 dmg: $(DMG_NAME)-native ## Create an Alacritty.dmg
 dmg-universal: $(DMG_NAME)-universal ## Create a universal Alacritty.dmg
@@ -60,6 +61,7 @@ $(DMG_NAME)-%: $(APP_NAME)-%
 		-srcfolder $(APP_DIR) \
 		-ov -format UDZO
 	@echo "Packed '$(APP_NAME)' in '$(APP_DIR)'"
+	/usr/bin/codesign --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(DMG_DIR)/$(DMG_NAME) -v
 
 install: $(INSTALL)-native ## Mount disk image
 install-universal: $(INSTALL)-native ## Mount universal disk image
