@@ -41,6 +41,10 @@ jobs:
   macos:
     runs-on: macos-11
 
+    env:
+      NOTARIZE_USERNAME: ${{ secrets.NOTARIZE_USERNAME }}
+      NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
+
     steps:
       - uses: actions/checkout@v2
       - name: Install ARM target
@@ -56,12 +60,8 @@ jobs:
         run: |
           cp ./target/release/macos/Lapce.dmg ./target/release/macos/Lapce-macos.dmg
       - name: "Notarize Release Build"
-        uses: devbotsxyz/xcode-notarize@v1
-        with:
-          product-path: "./target/release/macos/Lapce-macos.dmg"
-          appstore-connect-username: ${{ secrets.NOTARIZE_USERNAME }}
-          appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
-          primary-bundle-id: "io.lapce"
+        run: |
+          npx notarize-cli --file ./target/release/macos/Lapce-macos.dmg --bundle-id io.lapce
       - name: "Staple Release Build"
         uses: devbotsxyz/xcode-staple@v1
         with:
