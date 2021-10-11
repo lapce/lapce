@@ -4,6 +4,7 @@ use druid::{
 
 use crate::{
     data::{watch_settings, LapceData, LapceWindowLens},
+    terminal::Terminal,
     window::LapceWindowNew,
 };
 
@@ -19,6 +20,9 @@ fn build_window(data: &LapceData) -> impl Widget<LapceData> {
 }
 
 pub fn lanuch() {
+    let terminal = Terminal::new();
+    terminal.insert("ls\n");
+
     let mut data = LapceData::load();
     let root = build_window(&data);
     let window = WindowDesc::new(root)

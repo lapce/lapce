@@ -25,5 +25,6 @@ pub mod state;
 pub mod status;
 pub mod svg;
 mod tab;
+pub mod terminal;
 pub mod theme;
 pub mod window;
