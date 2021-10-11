@@ -61,7 +61,7 @@ jobs:
           cp ./target/release/macos/Lapce.dmg ./target/release/macos/Lapce-macos.dmg
       - name: "Notarize Release Build"
         run: |
-          npx notarize-cli --file ./target/release/macos/Lapce-macos.dmg --bundle-id io.lapce
+          npx notarize-cli --file ./target/release/macos/Lapce-macos.dmg --bundle-id io.lapce --asc-provider CYSGAZFR8D
       - name: "Staple Release Build"
         uses: devbotsxyz/xcode-staple@v1
         with:
