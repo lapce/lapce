@@ -15,7 +15,7 @@ use crate::scroll::LapceIdentityWrapper;
 use crate::signature::SignatureState;
 use crate::split::LapceSplitNew;
 use crate::state::LapceWorkspace;
-use crate::svg::{file_svg_new, get_svg};
+use crate::svg::{file_svg_new, get_svg, logo_svg};
 use crate::theme::OldLapceTheme;
 use crate::{buffer::get_word_property, state::LapceFocus};
 use crate::{buffer::matching_char, data::LapceEditorViewData};
@@ -4166,7 +4166,7 @@ impl Widget<LapceTabData> for LapceEditor {
                 );
             }
             LapceEditorViewContent::None => {
-                let svg = Svg::from_str(LOGO).unwrap();
+                let svg = logo_svg();
                 let size = ctx.size();
                 let svg_size = 100.0;
                 let rect = Size::ZERO

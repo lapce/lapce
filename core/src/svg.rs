@@ -13,7 +13,7 @@ use lsp_types::{CompletionItemKind, SymbolKind};
 use parking_lot::Mutex;
 use usvg;
 
-use crate::config::Config;
+use crate::config::{Config, LOGO};
 
 pub const ICONS_DIR: Dir = include_dir!("../icons");
 lazy_static! {
@@ -39,6 +39,16 @@ impl SvgStore {
         }
         svgs.get(name).map(|s| s.clone()).unwrap()
     }
+}
+
+pub fn logo_svg() -> Svg {
+    let name = "lapce_logo";
+    let mut svgs = SVG_STORE.svgs.lock();
+    if !svgs.contains_key(name) {
+        let svg = Svg::from_str(LOGO).ok();
+        svgs.insert(name.to_string(), svg);
+    }
+    svgs.get(name).map(|s| s.clone()).unwrap().unwrap()
 }
 
 pub fn get_svg(name: &str) -> Option<Svg> {
