@@ -3058,6 +3058,11 @@ impl Widget<LapceTabData> for LapceEditorView {
                             &mut editor_data,
                             env,
                         );
+                        data.update_from_editor_buffer_data(
+                            editor_data,
+                            &editor,
+                            &buffer,
+                        );
                     }
                     _ => (),
                 }
