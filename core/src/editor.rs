@@ -2803,7 +2803,23 @@ impl LapceEditorView {
                 if data.editor.cursor.offset() != *offset {
                     return;
                 }
+                let offset = data.editor.cursor.offset();
+                let line = data.buffer.line_of_offset(offset);
                 data.apply_completion_item(ctx, item);
+                let new_offset = data.editor.cursor.offset();
+                let new_line = data.buffer.line_of_offset(new_offset);
+                if line != new_line {
+                    self.editor
+                        .widget_mut()
+                        .editor
+                        .widget_mut()
+                        .inner_mut()
+                        .scroll_by(Vec2::new(
+                            0.0,
+                            (new_line as f64 - line as f64)
+                                * data.config.editor.line_height as f64,
+                        ));
+                }
             }
             LapceUICommand::Scroll((x, y)) => {
                 self.editor
