@@ -143,12 +143,25 @@ impl LapceProxy {
         return Ok(resp.content);
     }
 
-    pub fn new_terminal(&self, term_id: TermId) {
+    pub fn new_terminal(&self, term_id: TermId, width: usize, height: usize) {
         self.wait();
         self.peer.lock().as_ref().unwrap().send_rpc_notification(
             "new_terminal",
             &json!({
                 "term_id": term_id,
+                "width": width,
+                "height": height,
+            }),
+        )
+    }
+
+    pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
+            "terminal_resize",
+            &json!({
+                "term_id": term_id,
+                "width": width,
+                "height": height,
             }),
         )
     }

@@ -3049,21 +3049,11 @@ impl Widget<LapceTabData> for LapceEditorView {
                         editor_data.get_code_actions(ctx);
 
                         data.keypress = keypress.clone();
-                        data.update_from_editor_buffer_data(
-                            editor_data,
-                            &editor,
-                            &buffer,
-                        );
                     }
                     Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
                         let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
                         if let Ok(command) = LapceCommand::from_str(&command.cmd) {
                             editor_data.run_command(ctx, &command, None, env);
-                            data.update_from_editor_buffer_data(
-                                editor_data,
-                                &editor,
-                                &buffer,
-                            );
                         }
                     }
                     Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -3074,14 +3064,10 @@ impl Widget<LapceTabData> for LapceEditorView {
                             &mut editor_data,
                             env,
                         );
-                        data.update_from_editor_buffer_data(
-                            editor_data,
-                            &editor,
-                            &buffer,
-                        );
                     }
                     _ => (),
                 }
+                data.update_from_editor_buffer_data(editor_data, &editor, &buffer);
             }
             EditorContent::None => match event {
                 Event::KeyDown(key_event) => {

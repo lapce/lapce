@@ -115,6 +115,13 @@ pub enum Notification {
         rev: u64,
     },
     NewTerminal {
+        width: usize,
+        height: usize,
+        term_id: TermId,
+    },
+    TerminalResize {
+        width: usize,
+        height: usize,
         term_id: TermId,
     },
 }
@@ -406,8 +413,21 @@ impl Dispatcher {
                     self.lsp.lock().update(buffer, &content_change, buffer.rev);
                 }
             }
-            Notification::NewTerminal { term_id } => {
-                let (terminal, receiver) = Terminal::new();
+            Notification::TerminalResize {
+                term_id,
+                width,
+                height,
+            } => {
+                if let Some(terminal) = self.terminals.lock().get(&term_id) {
+                    terminal.resize(width, height);
+                }
+            }
+            Notification::NewTerminal {
+                term_id,
+                width,
+                height,
+            } => {
+                let (terminal, receiver) = Terminal::new(width, height);
                 self.terminals.lock().insert(term_id, terminal);
 
                 let local_proxy = self.clone();
@@ -415,14 +435,15 @@ impl Dispatcher {
                     loop {
                         let event = receiver.recv()?;
                         match event {
-                            TerminalEvent::UpdateContent(content) => local_proxy
-                                .send_notification(
+                            TerminalEvent::UpdateContent(content) => {
+                                local_proxy.send_notification(
                                     "terminal_update_content",
                                     json!({
                                         "id": term_id,
                                         "content": content,
                                     }),
-                                ),
+                                );
+                            }
                         }
                     }
                 });

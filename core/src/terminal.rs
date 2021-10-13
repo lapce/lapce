@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use druid::{
+    piet::{Text, TextLayoutBuilder},
     BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetId,
     WidgetPod,
@@ -47,7 +48,7 @@ impl LapceTerminalData {
     pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let id = TermId::next();
         std::thread::spawn(move || {
-            proxy.new_terminal(id);
+            proxy.new_terminal(id, 1, 1);
         });
         Self {
             id,
@@ -146,11 +147,17 @@ impl Widget<LapceTabData> for TerminalPanel {
 
 pub struct LapceTerminal {
     term_id: TermId,
+    width: f64,
+    height: f64,
 }
 
 impl LapceTerminal {
     pub fn new(term_id: TermId) -> Self {
-        Self { term_id }
+        Self {
+            term_id,
+            width: 0.0,
+            height: 0.0,
+        }
     }
 }
 
@@ -189,11 +196,37 @@ impl Widget<LapceTabData> for LapceTerminal {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        bc.max()
+        let size = bc.max();
+        if self.width != size.width || self.height != size.height {
+            self.width = size.width;
+            self.height = size.height;
+            let width = data.config.editor_text_width(ctx.text(), "W");
+            let line_height = data.config.editor.line_height as f64;
+            let width = (self.width / width).ceil() as usize;
+            let height = (self.height / line_height).ceil() as usize;
+            data.proxy.terminal_resize(self.term_id, width, height);
+        }
+        size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let width = data.config.editor_text_width(ctx.text(), "W");
+        let line_height = data.config.editor.line_height as f64;
+
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
-        println!("{:?}", terminal.content);
+        for (p, cell) in terminal.content.iter() {
+            let x = p.column.0 as f64 * width;
+            let y = p.line.0 as f64 * line_height;
+            let text_layout = ctx
+                .text()
+                .new_text_layout(cell.c.to_string())
+                .font(
+                    data.config.editor.font_family(),
+                    data.config.editor.font_size as f64,
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(&text_layout, Point::new(x, y));
+        }
     }
 }

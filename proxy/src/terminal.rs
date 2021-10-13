@@ -71,13 +71,14 @@ impl EventListener for EventProxy {
 }
 
 impl Terminal {
-    pub fn new() -> (Self, Receiver<TerminalEvent>) {
+    pub fn new(width: usize, height: usize) -> (Self, Receiver<TerminalEvent>) {
         let config = TermConfig::default();
         let (sender, receiver) = crossbeam_channel::unbounded();
         let event_proxy = EventProxy {
             sender: sender.clone(),
         };
-        let size = SizeInfo::new(10.0, 10.0, 1.0, 1.0, 0.0, 0.0, true);
+        let size =
+            SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
         let pty = tty::new(&config, &size, None);
         let terminal = Term::new(&config, size, event_proxy.clone());
         let terminal = Arc::new(FairMutex::new(terminal));
@@ -95,6 +96,18 @@ impl Terminal {
         };
         terminal.run(receiver, notifier);
         (terminal, host_receiver)
+    }
+
+    pub fn resize(&self, width: usize, height: usize) {
+        self.term.lock().resize(SizeInfo::new(
+            width as f32,
+            height as f32,
+            1.0,
+            1.0,
+            0.0,
+            0.0,
+            true,
+        ));
     }
 
     fn run(&self, receiver: Receiver<Event>, notifier: Notifier) {

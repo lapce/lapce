@@ -241,6 +241,7 @@ impl Data for LapceTabData {
             && self.panel_size.same(&other.panel_size)
             && self.window_origin.same(&other.window_origin)
             && self.config.same(&other.config)
+            && self.terminal.same(&other.terminal)
             && self.focus == other.focus
     }
 }
