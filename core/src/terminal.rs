@@ -1,13 +1,20 @@
 use std::sync::Arc;
 
 use druid::{
-    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, Size, UpdateCtx, Widget, WidgetId, WidgetPod,
+    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
+    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 use lapce_proxy::terminal::TermId;
 
-use crate::{data::LapceTabData, proxy::LapceProxy, split::LapceSplitNew};
+use crate::{
+    config::LapceTheme,
+    data::LapceTabData,
+    proxy::{LapceProxy, TerminalContent},
+    split::LapceSplitNew,
+};
 
+#[derive(Clone)]
 pub struct TerminalSplitData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
@@ -15,9 +22,12 @@ pub struct TerminalSplitData {
 }
 
 impl TerminalSplitData {
-    pub fn new() -> Self {
+    pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let split_id = WidgetId::next();
         let mut terminals = im::HashMap::new();
+
+        let terminal = LapceTerminalData::new(proxy);
+        terminals.insert(terminal.id, terminal);
 
         Self {
             widget_id: WidgetId::next(),
@@ -27,15 +37,22 @@ impl TerminalSplitData {
     }
 }
 
+#[derive(Clone)]
 pub struct LapceTerminalData {
     id: TermId,
+    pub content: TerminalContent,
 }
 
 impl LapceTerminalData {
     pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let id = TermId::next();
-        proxy.new_terminal(id);
-        Self { id }
+        std::thread::spawn(move || {
+            proxy.new_terminal(id);
+        });
+        Self {
+            id,
+            content: TerminalContent::new(),
+        }
     }
 }
 
@@ -46,7 +63,13 @@ pub struct TerminalPanel {
 
 impl TerminalPanel {
     pub fn new(data: &LapceTabData) -> Self {
-        let split = LapceSplitNew::new(data.terminal.split_id);
+        let (term_id, _) = data.terminal.terminals.iter().next().unwrap();
+        let terminal = LapceTerminal::new(*term_id);
+        let split = LapceSplitNew::new(data.terminal.split_id).with_flex_child(
+            terminal.boxed(),
+            None,
+            1.0,
+        );
         Self {
             widget_id: data.terminal.widget_id,
             split: WidgetPod::new(split),
@@ -86,6 +109,9 @@ impl Widget<LapceTabData> for TerminalPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if !data.terminal.same(&old_data.terminal) {
+            ctx.request_paint();
+        }
         self.split.update(ctx, data, env);
     }
 
@@ -102,6 +128,72 @@ impl Widget<LapceTabData> for TerminalPanel {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let rect = ctx.size().to_rect();
+        ctx.blurred_rect(
+            rect,
+            5.0,
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        );
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+        );
         self.split.paint(ctx, data, env);
+    }
+}
+
+pub struct LapceTerminal {
+    term_id: TermId,
+}
+
+impl LapceTerminal {
+    pub fn new(term_id: TermId) -> Self {
+        Self { term_id }
+    }
+}
+
+impl Widget<LapceTabData> for LapceTerminal {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
+        println!("{:?}", terminal.content);
     }
 }

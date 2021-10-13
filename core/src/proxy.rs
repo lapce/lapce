@@ -144,6 +144,7 @@ impl LapceProxy {
     }
 
     pub fn new_terminal(&self, term_id: TermId) {
+        self.wait();
         self.peer.lock().as_ref().unwrap().send_rpc_notification(
             "new_terminal",
             &json!({

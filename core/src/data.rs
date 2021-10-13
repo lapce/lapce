@@ -272,7 +272,7 @@ impl LapceTabData {
             &config,
         );
 
-        let terminal = Arc::new(TerminalSplitData::new());
+        let terminal = Arc::new(TerminalSplitData::new(proxy.clone()));
 
         let mut panels = im::HashMap::new();
         panels.insert(

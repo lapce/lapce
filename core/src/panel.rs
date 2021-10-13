@@ -14,6 +14,7 @@ use crate::{
 pub enum PanelResizePosition {
     Left,
     LeftSplit,
+    Bottom,
 }
 
 #[derive(Eq, PartialEq, Hash, Clone)]

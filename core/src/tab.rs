@@ -46,6 +46,9 @@ pub struct LapceTabNew {
     panels:
         HashMap<WidgetId, WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     current_bar_hover: Option<PanelResizePosition>,
+    height: f64,
+    main_split_height: f64,
+    status_height: f64,
 }
 
 impl LapceTabNew {
@@ -86,6 +89,9 @@ impl LapceTabNew {
             status: WidgetPod::new(status.boxed()),
             panels,
             current_bar_hover: None,
+            height: 0.0,
+            main_split_height: 0.0,
+            status_height: 0.0,
         }
     }
 
@@ -96,6 +102,11 @@ impl LapceTabNew {
                     data.panel_size.left = mouse_pos.x.round().max(50.0);
                 }
                 PanelResizePosition::LeftSplit => (),
+                PanelResizePosition::Bottom => {
+                    data.panel_size.bottom =
+                        (self.height - mouse_pos.y.round() - self.status_height)
+                            .max(50.0);
+                }
             }
         }
     }
@@ -115,12 +126,35 @@ impl LapceTabNew {
             .get(&PanelPosition::LeftBottom)
             .map(|p| p.is_shown())
             .unwrap_or(false);
-        if panel_left_bottom_shown || panel_left_top_shown {
+        let left = if panel_left_bottom_shown || panel_left_top_shown {
             let left = data.panel_size.left;
             if mouse_pos.x >= left - 3.0 && mouse_pos.x <= left + 3.0 {
                 return Some(PanelResizePosition::Left);
             }
+            left
+        } else {
+            0.0
+        };
+
+        let panel_bottom_left_shown = data
+            .panels
+            .get(&PanelPosition::BottomLeft)
+            .map(|p| p.is_shown())
+            .unwrap_or(false);
+        let panel_bottom_right_shown = data
+            .panels
+            .get(&PanelPosition::BottomRight)
+            .map(|p| p.is_shown())
+            .unwrap_or(false);
+        if panel_bottom_left_shown || panel_bottom_right_shown {
+            let bottom = data.panel_size.bottom;
+            let y = self.main_split_height;
+            if mouse_pos.x > left && mouse_pos.y >= y - 3.0 && mouse_pos.y <= y + 3.0
+            {
+                return Some(PanelResizePosition::Bottom);
+            }
         }
+
         None
     }
 }
@@ -165,6 +199,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                         Some(PanelResizePosition::LeftSplit) => {
                             ctx.set_cursor(&Cursor::ResizeUpDown)
                         }
+                        Some(PanelResizePosition::Bottom) => {
+                            ctx.set_cursor(&Cursor::ResizeUpDown)
+                        }
                         None => ctx.clear_cursor(),
                     }
                 }
@@ -189,7 +226,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         Arc::make_mut(buffer).load_content(content);
                         ctx.set_handled();
                     }
-                    LapceUICommand::TerminalUpdateContent(id, content) => {}
+                    LapceUICommand::TerminalUpdateContent(id, content) => {
+                        let terminal = Arc::make_mut(&mut data.terminal)
+                            .terminals
+                            .get_mut(id)
+                            .unwrap();
+                        terminal.content = content.to_owned();
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateDiffFiles(files) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
                         source_control.diff_files = files
@@ -643,6 +687,7 @@ impl Widget<LapceTabData> for LapceTabNew {
     ) -> Size {
         // ctx.set_paint_insets((0.0, 10.0, 0.0, 0.0));
         let self_size = bc.max();
+        self.height = self_size.height;
 
         let status_size = self.status.layout(ctx, bc, data, env);
         self.status.set_origin(
@@ -651,6 +696,7 @@ impl Widget<LapceTabData> for LapceTabNew {
             env,
             Point::new(0.0, self_size.height - status_size.height),
         );
+        self.status_height = status_size.height;
 
         let panel_left_top_shown = data
             .panels
@@ -738,9 +784,119 @@ impl Widget<LapceTabData> for LapceTabNew {
             0.0
         };
 
+        let panel_bottom_left_shown = data
+            .panels
+            .get(&PanelPosition::BottomLeft)
+            .map(|p| p.is_shown())
+            .unwrap_or(false);
+        let panel_bottom_right_shown = data
+            .panels
+            .get(&PanelPosition::BottomRight)
+            .map(|p| p.is_shown())
+            .unwrap_or(false);
+        let panel_bottom_height = if panel_bottom_left_shown
+            || panel_bottom_right_shown
+        {
+            let bottom_height = data.panel_size.bottom;
+            let panel_x = panel_left_width;
+            let panel_y = self_size.height - status_size.height - bottom_height;
+            let panel_width = self_size.width - panel_left_width;
+            if panel_bottom_left_shown && panel_bottom_right_shown {
+                let left_width = panel_width * data.panel_size.bottom_split;
+                let right_width = panel_width - left_width;
+
+                let panel_bottom_left = self
+                    .panels
+                    .get_mut(
+                        &data.panels.get(&PanelPosition::BottomLeft).unwrap().active,
+                    )
+                    .unwrap();
+                panel_bottom_left.layout(
+                    ctx,
+                    &BoxConstraints::tight(Size::new(left_width, bottom_height)),
+                    data,
+                    env,
+                );
+                panel_bottom_left.set_origin(
+                    ctx,
+                    data,
+                    env,
+                    Point::new(panel_left_width, panel_y),
+                );
+
+                let panel_bottom_right = self
+                    .panels
+                    .get_mut(
+                        &data
+                            .panels
+                            .get(&PanelPosition::BottomRight)
+                            .unwrap()
+                            .active,
+                    )
+                    .unwrap();
+                panel_bottom_right.layout(
+                    ctx,
+                    &BoxConstraints::tight(Size::new(right_width, bottom_height)),
+                    data,
+                    env,
+                );
+                panel_bottom_right.set_origin(
+                    ctx,
+                    data,
+                    env,
+                    Point::new(panel_left_width + left_width, panel_y),
+                );
+            } else if panel_bottom_left_shown {
+                let panel_bottom_left = self
+                    .panels
+                    .get_mut(
+                        &data.panels.get(&PanelPosition::BottomLeft).unwrap().active,
+                    )
+                    .unwrap();
+                panel_bottom_left.layout(
+                    ctx,
+                    &BoxConstraints::tight(Size::new(panel_width, bottom_height)),
+                    data,
+                    env,
+                );
+                panel_bottom_left.set_origin(
+                    ctx,
+                    data,
+                    env,
+                    Point::new(panel_x, panel_y),
+                );
+            } else if panel_bottom_right_shown {
+                let panel_bottom_right = self
+                    .panels
+                    .get_mut(
+                        &data
+                            .panels
+                            .get(&PanelPosition::BottomRight)
+                            .unwrap()
+                            .active,
+                    )
+                    .unwrap();
+                panel_bottom_right.layout(
+                    ctx,
+                    &BoxConstraints::tight(Size::new(panel_width, bottom_height)),
+                    data,
+                    env,
+                );
+                panel_bottom_right.set_origin(
+                    ctx,
+                    data,
+                    env,
+                    Point::new(panel_x, panel_y),
+                );
+            }
+            bottom_height
+        } else {
+            0.0
+        };
+
         let main_split_size = Size::new(
             self_size.width - panel_left_width,
-            self_size.height - status_size.height,
+            self_size.height - status_size.height - panel_bottom_height,
         );
         let main_split_bc = BoxConstraints::tight(main_split_size);
         self.main_split.layout(ctx, &main_split_bc, data, env);
@@ -750,6 +906,7 @@ impl Widget<LapceTabData> for LapceTabNew {
             env,
             Point::new(panel_left_width, 0.0),
         );
+        self.main_split_height = main_split_size.height;
 
         let completion_origin =
             data.completion_origin(ctx.text(), self_size.clone(), &data.config);
@@ -776,12 +933,21 @@ impl Widget<LapceTabData> for LapceTabNew {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.main_split.paint(ctx, data, env);
-        for (_, panel) in data.panels.iter() {
-            if panel.is_shown() {
-                self.panels
-                    .get_mut(&panel.active)
-                    .unwrap()
-                    .paint(ctx, data, env);
+        for pos in &[
+            PanelPosition::BottomLeft,
+            PanelPosition::BottomRight,
+            PanelPosition::LeftTop,
+            PanelPosition::LeftBottom,
+            PanelPosition::RightTop,
+            PanelPosition::RightBottom,
+        ] {
+            if let Some(panel) = data.panels.get(&pos) {
+                if panel.shown {
+                    self.panels
+                        .get_mut(&panel.active)
+                        .unwrap()
+                        .paint(ctx, data, env);
+                }
             }
         }
         self.status.paint(ctx, data, env);
