@@ -5,11 +5,13 @@ use std::process::Stdio;
 use std::thread;
 use std::{path::PathBuf, process::Child, sync::Arc};
 
+use alacritty_terminal::term::cell::Cell;
 use anyhow::{anyhow, Result};
 use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
+use lapce_proxy::terminal::TermId;
 use lsp_types::CompletionItem;
 use lsp_types::Position;
 use lsp_types::PublishDiagnosticsParams;
@@ -27,6 +29,8 @@ use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
+
+pub type TerminalContent = Vec<(alacritty_terminal::index::Point, Cell)>;
 
 #[derive(Clone)]
 pub struct LapceProxy {
@@ -137,6 +141,15 @@ impl LapceProxy {
 
         let resp: NewBufferResponse = serde_json::from_value(result)?;
         return Ok(resp.content);
+    }
+
+    pub fn new_terminal(&self, term_id: TermId) {
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
+            "new_terminal",
+            &json!({
+                "term_id": term_id,
+            }),
+        )
     }
 
     pub fn update(&self, buffer_id: BufferId, delta: &RopeDelta, rev: u64) {
@@ -343,6 +356,10 @@ pub enum Notification {
     ListDir {
         items: Vec<FileNodeItem>,
     },
+    TerminalUpdateContent {
+        id: TermId,
+        content: TerminalContent,
+    },
     DiffFiles {
         files: Vec<PathBuf>,
     },
@@ -385,6 +402,7 @@ impl Handler for ProxyHandler {
             Notification::ListDir { mut items } => {}
             Notification::DiffFiles { files } => {}
             Notification::PublishDiagnostics { diagnostics } => {}
+            Notification::TerminalUpdateContent { id, content } => {}
         }
     }
 
@@ -516,6 +534,13 @@ impl Handler for ProxyHandlerNew {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateDiffFiles(files),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            Notification::TerminalUpdateContent { id, content } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::TerminalUpdateContent(id, content),
                     Target::Widget(self.tab_id),
                 );
             }

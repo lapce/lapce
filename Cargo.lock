@@ -1990,6 +1990,7 @@ dependencies = [
 name = "lapce-proxy"
 version = "0.0.1"
 dependencies = [
+ "alacritty_terminal",
  "anyhow",
  "crossbeam-channel 0.5.1",
  "git2",

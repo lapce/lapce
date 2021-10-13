@@ -3,6 +3,7 @@ pub mod core_proxy;
 pub mod dispatch;
 pub mod lsp;
 pub mod plugin;
+pub mod terminal;
 
 use dispatch::Dispatcher;
 

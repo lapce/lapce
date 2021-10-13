@@ -3,6 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
 use indexmap::IndexMap;
+use lapce_proxy::terminal::TermId;
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
     PublishDiagnosticsParams, Range, TextEdit,
@@ -20,6 +21,7 @@ use crate::{
     data::EditorKind,
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
     palette::{NewPaletteItem, PaletteType},
+    proxy::TerminalContent,
     split::SplitMoveDirection,
     state::LapceWorkspace,
 };
@@ -374,6 +376,7 @@ pub enum LapceUICommand {
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     UpdateDiffFiles(Vec<PathBuf>),
+    TerminalUpdateContent(TermId, TerminalContent),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),

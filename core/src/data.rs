@@ -70,6 +70,7 @@ use crate::{
     source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
+    terminal::TerminalSplitData,
     theme::OldLapceTheme,
 };
 
@@ -214,6 +215,7 @@ pub struct LapceTabData {
     pub workspace: Option<Arc<LapceWorkspace>>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
+    pub terminal: Arc<TerminalSplitData>,
     pub palette: Arc<PaletteData>,
     pub source_control: Arc<SourceControlData>,
     pub proxy: Arc<LapceProxy>,
@@ -270,6 +272,8 @@ impl LapceTabData {
             &config,
         );
 
+        let terminal = Arc::new(TerminalSplitData::new());
+
         let mut panels = im::HashMap::new();
         panels.insert(
             PanelPosition::LeftTop,
@@ -279,11 +283,20 @@ impl LapceTabData {
                 shown: true,
             }),
         );
+        panels.insert(
+            PanelPosition::BottomLeft,
+            Arc::new(PanelData {
+                active: terminal.widget_id,
+                widgets: vec![terminal.widget_id],
+                shown: true,
+            }),
+        );
         let mut tab = Self {
             id: tab_id,
             workspace: None,
             main_split,
             completion,
+            terminal,
             source_control,
             palette,
             proxy,

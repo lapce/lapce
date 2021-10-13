@@ -33,6 +33,7 @@ use crate::{
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
     status::LapceStatusNew,
+    terminal::TerminalPanel,
 };
 
 pub struct LapceTabNew {
@@ -73,6 +74,8 @@ impl LapceTabNew {
             data.source_control.widget_id,
             WidgetPod::new(source_control.boxed()),
         );
+        let terminal = TerminalPanel::new(&data);
+        panels.insert(data.terminal.widget_id, WidgetPod::new(terminal.boxed()));
 
         Self {
             id: data.id,
@@ -186,6 +189,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         Arc::make_mut(buffer).load_content(content);
                         ctx.set_handled();
                     }
+                    LapceUICommand::TerminalUpdateContent(id, content) => {}
                     LapceUICommand::UpdateDiffFiles(files) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
                         source_control.diff_files = files
