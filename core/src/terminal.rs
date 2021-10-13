@@ -11,15 +11,17 @@ use lapce_proxy::terminal::TermId;
 use crate::{
     config::LapceTheme,
     data::LapceTabData,
+    keypress::KeyPressFocus,
     proxy::{LapceProxy, TerminalContent},
     split::LapceSplitNew,
+    state::Mode,
 };
 
 #[derive(Clone)]
 pub struct TerminalSplitData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
-    pub terminals: im::HashMap<TermId, LapceTerminalData>,
+    pub terminals: im::HashMap<TermId, Arc<LapceTerminalData>>,
 }
 
 impl TerminalSplitData {
@@ -27,7 +29,7 @@ impl TerminalSplitData {
         let split_id = WidgetId::next();
         let mut terminals = im::HashMap::new();
 
-        let terminal = LapceTerminalData::new(proxy);
+        let terminal = Arc::new(LapceTerminalData::new(proxy));
         terminals.insert(terminal.id, terminal);
 
         Self {
@@ -35,6 +37,34 @@ impl TerminalSplitData {
             split_id,
             terminals,
         }
+    }
+}
+
+pub struct LapceTerminalViewData {
+    terminal: Arc<LapceTerminalData>,
+    proxy: Arc<LapceProxy>,
+}
+
+impl KeyPressFocus for LapceTerminalViewData {
+    fn get_mode(&self) -> Mode {
+        Mode::Insert
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        false
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &crate::command::LapceCommand,
+        count: Option<usize>,
+        env: &Env,
+    ) {
+    }
+
+    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
+        self.proxy.terminal_insert(self.terminal.id, c);
     }
 }
 
@@ -48,7 +78,7 @@ impl LapceTerminalData {
     pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let id = TermId::next();
         std::thread::spawn(move || {
-            proxy.new_terminal(id, 1, 1);
+            proxy.new_terminal(id, 50, 20);
         });
         Self {
             id,
@@ -169,6 +199,33 @@ impl Widget<LapceTabData> for LapceTerminal {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        let old_terminal_data =
+            data.terminal.terminals.get(&self.term_id).unwrap().clone();
+        let mut term_data = LapceTerminalViewData {
+            terminal: old_terminal_data.clone(),
+            proxy: data.proxy.clone(),
+        };
+        match event {
+            Event::MouseDown(mouse_event) => {
+                ctx.request_focus();
+            }
+            Event::KeyDown(key_event) => {
+                let mut keypress = data.keypress.clone();
+                Arc::make_mut(&mut keypress).key_down(
+                    ctx,
+                    key_event,
+                    &mut term_data,
+                    env,
+                );
+                data.keypress = keypress.clone();
+            }
+            _ => (),
+        }
+        if !term_data.terminal.same(&old_terminal_data) {
+            Arc::make_mut(&mut data.terminal)
+                .terminals
+                .insert(term_data.terminal.id, term_data.terminal.clone());
+        }
     }
 
     fn lifecycle(

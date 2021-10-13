@@ -231,7 +231,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .terminals
                             .get_mut(id)
                             .unwrap();
-                        terminal.content = content.to_owned();
+                        Arc::make_mut(terminal).content = content.to_owned();
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateDiffFiles(files) => {

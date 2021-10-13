@@ -124,6 +124,7 @@ impl Terminal {
                     Event::ClipboardLoad(_, _) => {}
                     Event::ColorRequest(_, _) => {}
                     Event::PtyWrite(s) => {
+                        eprintln!("pty write {}", s);
                         notifier.notify(s.into_bytes());
                     }
                     Event::CursorBlinkingChange(_) => {}

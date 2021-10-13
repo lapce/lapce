@@ -124,6 +124,10 @@ pub enum Notification {
         height: usize,
         term_id: TermId,
     },
+    TerminalInsert {
+        term_id: TermId,
+        content: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -411,6 +415,11 @@ impl Dispatcher {
                 let buffer = buffers.get_mut(&buffer_id).unwrap();
                 if let Some(content_change) = buffer.update(&delta, rev) {
                     self.lsp.lock().update(buffer, &content_change, buffer.rev);
+                }
+            }
+            Notification::TerminalInsert { term_id, content } => {
+                if let Some(terminal) = self.terminals.lock().get(&term_id) {
+                    terminal.insert(content);
                 }
             }
             Notification::TerminalResize {
