@@ -27,7 +27,6 @@ use xi_rpc::RpcPeer;
 use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
-use crate::terminal::TermId;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 pub type TerminalContent = Vec<(alacritty_terminal::index::Point, Cell)>;

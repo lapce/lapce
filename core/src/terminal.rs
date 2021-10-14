@@ -38,7 +38,7 @@ const CTRL_CHARS: &'static [char] = &[
 pub struct TerminalSplitData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
-    pub terminals: im::HashMap<TermId, Arc<LapceTerminalData>>,
+    pub terminals: im::HashMap<WidgetId, Arc<LapceTerminalData>>,
 }
 
 impl TerminalSplitData {
@@ -47,7 +47,7 @@ impl TerminalSplitData {
         let mut terminals = im::HashMap::new();
 
         let terminal = Arc::new(LapceTerminalData::new(split_id, proxy));
-        terminals.insert(terminal.id, terminal);
+        terminals.insert(terminal.widget_id, terminal);
 
         Self {
             widget_id: WidgetId::next(),
@@ -124,7 +124,6 @@ impl KeyPressFocus for LapceTerminalViewData {
 
 #[derive(Clone)]
 pub struct LapceTerminalData {
-    pub id: TermId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub content: TerminalContent,
@@ -136,10 +135,8 @@ pub struct LapceTerminalData {
 
 impl LapceTerminalData {
     pub fn new(split_id: WidgetId, proxy: Arc<LapceProxy>) -> Self {
-        let id = TermId::next();
         let (terminal, receiver) = Terminal::new(50, 20);
         Self {
-            id,
             widget_id: WidgetId::next(),
             split_id,
             content: TerminalContent::new(),
@@ -241,7 +238,6 @@ impl Widget<LapceTabData> for TerminalPanel {
 }
 
 pub struct LapceTerminal {
-    term_id: TermId,
     widget_id: WidgetId,
     width: f64,
     height: f64,
@@ -250,7 +246,6 @@ pub struct LapceTerminal {
 impl LapceTerminal {
     pub fn new(data: &LapceTerminalData) -> Self {
         Self {
-            term_id: data.id,
             widget_id: data.widget_id,
             width: 0.0,
             height: 0.0,
@@ -270,8 +265,12 @@ impl Widget<LapceTabData> for LapceTerminal {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        let old_terminal_data =
-            data.terminal.terminals.get(&self.term_id).unwrap().clone();
+        let old_terminal_data = data
+            .terminal
+            .terminals
+            .get(&self.widget_id)
+            .unwrap()
+            .clone();
         let mut term_data = LapceTerminalViewData {
             terminal: old_terminal_data.clone(),
             proxy: data.proxy.clone(),
@@ -330,8 +329,9 @@ impl Widget<LapceTabData> for LapceTerminal {
                         if let Some(receiver) =
                             Arc::make_mut(&mut term_data.terminal).receiver.take()
                         {
-                            let term_id = term_data.terminal.id;
+                            let widget_id = term_data.terminal.widget_id;
                             let event_sink = ctx.get_external_handle();
+                            let split_id = term_data.terminal.split_id;
                             std::thread::spawn(move || -> Result<()> {
                                 loop {
                                     let event = receiver.recv()?;
@@ -343,13 +343,22 @@ impl Widget<LapceTabData> for LapceTerminal {
                                             event_sink.submit_command(
                                                     LAPCE_UI_COMMAND,
                                                     LapceUICommand::TerminalUpdateContent(
-                                                        term_id,
+                                                        widget_id,
                                                         content,
                                                         cursor.point,
                                                         cursor.shape,
                                                     ),
                                                     Target::Auto,
                                                 );
+                                        }
+                                        TerminalHostEvent::Exit => {
+                                            event_sink.submit_command(
+                                                LAPCE_UI_COMMAND,
+                                                LapceUICommand::SplitTerminalClose(
+                                                    widget_id,
+                                                ),
+                                                Target::Widget(split_id),
+                                            );
                                         }
                                     }
                                 }
@@ -364,7 +373,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         if !term_data.terminal.same(&old_terminal_data) {
             Arc::make_mut(&mut data.terminal)
                 .terminals
-                .insert(term_data.terminal.id, term_data.terminal.clone());
+                .insert(term_data.terminal.widget_id, term_data.terminal.clone());
         }
     }
 
@@ -414,7 +423,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             let line_height = data.config.editor.line_height as f64;
             let width = (self.width / width).floor() as usize;
             let height = (self.height / line_height).floor() as usize;
-            let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
+            let terminal = data.terminal.terminals.get(&self.widget_id).unwrap();
             terminal.terminal.resize(width, height);
         }
         size
@@ -426,7 +435,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         let line_height = data.config.editor.line_height as f64;
         let y_shift = (line_height - char_size.height) / 2.0;
 
-        let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
+        let terminal = data.terminal.terminals.get(&self.widget_id).unwrap();
 
         let rect =
             Size::new(char_width, line_height)
@@ -486,16 +495,6 @@ impl Widget<LapceTabData> for LapceTerminal {
     }
 }
 
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct TermId(pub u64);
-
-impl TermId {
-    pub fn next() -> Self {
-        static TERM_ID_COUNTER: Counter = Counter::new();
-        Self(TERM_ID_COUNTER.next())
-    }
-}
-
 pub enum TerminalEvent {
     resize(usize, usize),
     event(alacritty_terminal::event::Event),
@@ -506,6 +505,7 @@ pub enum TerminalHostEvent {
         cursor: RenderableCursor,
         content: Vec<(alacritty_terminal::index::Point, Cell)>,
     },
+    Exit,
 }
 
 #[derive(Clone)]
@@ -622,7 +622,9 @@ impl Terminal {
                             host_sender.send(event);
                         }
                         alacritty_terminal::event::Event::Bell => {}
-                        alacritty_terminal::event::Event::Exit => {}
+                        alacritty_terminal::event::Event::Exit => {
+                            host_sender.send(TerminalHostEvent::Exit);
+                        }
                     },
                 }
             }

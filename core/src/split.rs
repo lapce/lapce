@@ -312,7 +312,7 @@ impl LapceSplitNew {
         let terminal = LapcePadding::new(10.0, LapceTerminal::new(&terminal_data));
         Arc::make_mut(&mut data.terminal)
             .terminals
-            .insert(terminal_data.id, terminal_data.clone());
+            .insert(terminal_data.widget_id, terminal_data.clone());
 
         self.insert_flex_child(
             index + 1,
@@ -320,6 +320,55 @@ impl LapceSplitNew {
             Some(terminal_data.widget_id),
             1.0,
         );
+        self.even_flex_children();
+        ctx.children_changed();
+    }
+
+    pub fn split_terminal_close(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        widget_id: WidgetId,
+    ) {
+        if self.children.len() == 0 {
+            return;
+        }
+
+        if self.children.len() == 1 {
+            return;
+        }
+
+        let mut index = 0;
+        for (i, child_id) in self.children_ids.iter().enumerate() {
+            if child_id == &widget_id {
+                index = i;
+                break;
+            }
+        }
+
+        let new_index = if index >= self.children.len() - 1 {
+            index - 1
+        } else {
+            index + 1
+        };
+        let terminal_id = self.children[index].widget.id();
+        let new_terminal_id = self.children[new_index].widget.id();
+        // let new_terminal = data.terminal.terminals.get(&new_terminal_id).unwrap();
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(new_terminal_id),
+        ));
+        //  if *data.main_split.active == view_id {
+        //      data.main_split.active = Arc::new(new_editor.view_id);
+        //      data.focus = new_editor.view_id;
+        //      ctx.set_focus(new_editor.view_id);
+        //  }
+        data.main_split.editors.remove(&terminal_id);
+        self.children.remove(index);
+        self.children_ids.remove(index);
+
         self.even_flex_children();
         ctx.children_changed();
     }
@@ -407,6 +456,9 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     }
                     LapceUICommand::SplitTerminal(vertical, widget_id) => {
                         self.split_terminal(ctx, data, *vertical, *widget_id);
+                    }
+                    LapceUICommand::SplitTerminalClose(widget_id) => {
+                        self.split_terminal_close(ctx, data, *widget_id);
                     }
                     _ => (),
                 }

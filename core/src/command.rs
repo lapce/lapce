@@ -24,7 +24,6 @@ use crate::{
     proxy::TerminalContent,
     split::SplitMoveDirection,
     state::LapceWorkspace,
-    terminal::TermId,
 };
 
 pub const LAPCE_NEW_COMMAND: Selector<LapceCommandNew> =
@@ -379,7 +378,7 @@ pub enum LapceUICommand {
     PublishDiagnostics(PublishDiagnosticsParams),
     UpdateDiffFiles(Vec<PathBuf>),
     TerminalUpdateContent(
-        TermId,
+        WidgetId,
         TerminalContent,
         alacritty_terminal::index::Point,
         CursorShape,
@@ -394,6 +393,7 @@ pub enum LapceUICommand {
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
     SplitTerminal(bool, WidgetId),
+    SplitTerminalClose(WidgetId),
     SplitEditor(bool, WidgetId),
     SplitEditorMove(SplitMoveDirection, WidgetId),
     SplitEditorExchange(WidgetId),
