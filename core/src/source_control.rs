@@ -17,7 +17,7 @@ use druid::{
 use crate::{
     command::{CommandTarget, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::LapceTabData,
+    data::{FocusArea, LapceTabData},
     editor::{LapceEditorContainer, LapceEditorView},
     keypress::KeyPressFocus,
     movement::Movement,
@@ -340,8 +340,9 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         }
                     }
                 }
-                source_control.active = self.widget_id;
                 ctx.request_focus();
+                source_control.active = self.widget_id;
+                data.focus_area = FocusArea::SourceControl;
                 ctx.set_handled();
             }
             Event::KeyDown(key_event) => {
@@ -366,6 +367,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                             let source_control =
                                 Arc::make_mut(&mut data.source_control);
                             source_control.active = self.widget_id;
+                            data.focus_area = FocusArea::SourceControl;
                             ctx.request_focus();
                         }
                         ctx.set_handled();

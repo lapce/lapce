@@ -134,6 +134,12 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "palette.workspace")]
     PaletteWorkspace,
+
+    #[strum(serialize = "toggle_terminal")]
+    ToggleTerminal,
+
+    #[strum(serialize = "toggle_maximized_panel")]
+    ToggleMaximizedPanel,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
@@ -308,7 +314,7 @@ pub enum EnsureVisiblePosition {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
-    StartTerminal,
+    InitTerminalPanel,
     ReloadConfig,
     LoadBuffer {
         path: PathBuf,
@@ -392,8 +398,8 @@ pub enum LapceUICommand {
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
-    SplitTerminal(bool, WidgetId),
-    SplitTerminalClose(WidgetId),
+    SplitTerminal(bool, WidgetId, Option<WidgetId>),
+    SplitTerminalClose(WidgetId, Option<WidgetId>),
     SplitEditor(bool, WidgetId),
     SplitEditorMove(SplitMoveDirection, WidgetId),
     SplitEditorExchange(WidgetId),

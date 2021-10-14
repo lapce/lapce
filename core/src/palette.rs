@@ -40,7 +40,7 @@ use crate::{
     command::{LapceCommandNew, LapceUICommand},
     config::{Config, LapceTheme},
     data::{
-        EditorContent, EditorKind, LapceEditorData, LapceEditorViewData,
+        EditorContent, EditorKind, FocusArea, LapceEditorData, LapceEditorViewData,
         LapceMainSplitData, LapceTabData,
     },
     editor::{EditorLocationNew, LapceEditorContainer, LapceEditorView},
@@ -1069,6 +1069,7 @@ impl Widget<LapceTabData> for NewPalette {
                 match command {
                     LapceUICommand::RunPalette(palette_type) => {
                         ctx.request_focus();
+                        data.focus_area = FocusArea::Palette;
                         ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run(ctx, palette_type.to_owned());
@@ -1079,6 +1080,7 @@ impl Widget<LapceTabData> for NewPalette {
                     }
                     LapceUICommand::RunPaletteReferences(locations) => {
                         ctx.request_focus();
+                        data.focus_area = FocusArea::Palette;
                         let mut palette_data = data.palette_view_data();
                         palette_data.run_references(ctx, locations);
                         data.palette = palette_data.palette.clone();

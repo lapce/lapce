@@ -232,14 +232,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         cursor_point,
                         cursor_shape,
                     ) => {
-                        let terminal = Arc::make_mut(&mut data.terminal)
-                            .terminals
-                            .get_mut(id)
-                            .unwrap();
-                        let terminal = Arc::make_mut(terminal);
-                        terminal.content = content.to_owned();
-                        terminal.cursor_point = cursor_point.to_owned();
-                        terminal.cursor_shape = cursor_shape.to_owned();
+                        if let Some(terminal) =
+                            Arc::make_mut(&mut data.terminal).terminals.get_mut(id)
+                        {
+                            let terminal = Arc::make_mut(terminal);
+                            terminal.content = content.to_owned();
+                            terminal.cursor_point = cursor_point.to_owned();
+                            terminal.cursor_shape = cursor_shape.to_owned();
+                        }
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateDiffFiles(files) => {
@@ -792,20 +792,26 @@ impl Widget<LapceTabData> for LapceTabNew {
             0.0
         };
 
-        let panel_bottom_left_shown = data
+        let (panel_bottom_left_shown, panel_bottom_left_maximized) = data
             .panels
             .get(&PanelPosition::BottomLeft)
-            .map(|p| p.is_shown())
-            .unwrap_or(false);
-        let panel_bottom_right_shown = data
+            .map(|p| (p.is_shown(), p.is_maximized()))
+            .unwrap_or((false, false));
+        let (panel_bottom_right_shown, panel_bottom_right_maximized) = data
             .panels
             .get(&PanelPosition::BottomRight)
-            .map(|p| p.is_shown())
-            .unwrap_or(false);
+            .map(|p| (p.is_shown(), p.is_maximized()))
+            .unwrap_or((false, false));
         let panel_bottom_height = if panel_bottom_left_shown
             || panel_bottom_right_shown
         {
-            let bottom_height = data.panel_size.bottom;
+            let maximized =
+                panel_bottom_left_maximized || panel_bottom_right_maximized;
+            let bottom_height = if maximized {
+                self_size.height - status_size.height
+            } else {
+                data.panel_size.bottom
+            };
             let panel_x = panel_left_width;
             let panel_y = self_size.height - status_size.height - bottom_height;
             let panel_width = self_size.width - panel_left_width;

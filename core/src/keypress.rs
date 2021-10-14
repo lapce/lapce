@@ -118,6 +118,10 @@ impl KeyPressData {
             return false;
         }
 
+        if !keypress.mods.is_empty() {
+            return false;
+        }
+
         match &keypress.key {
             druid::keyboard_types::Key::Character(c) => {
                 if let Ok(n) = c.parse::<usize>() {

@@ -12,16 +12,16 @@ use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use druid::{
     piet::{Text, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, KbKey, LayoutCtx,
-    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, ExtEventSink, KbKey,
+    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
+    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::LapceTabData,
+    data::{FocusArea, LapceTabData},
     keypress::KeyPressFocus,
     proxy::{LapceProxy, TerminalContent},
     scroll::LapcePadding,
@@ -36,6 +36,7 @@ const CTRL_CHARS: &'static [char] = &[
 
 #[derive(Clone)]
 pub struct TerminalSplitData {
+    pub active: WidgetId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub terminals: im::HashMap<WidgetId, Arc<LapceTerminalData>>,
@@ -44,12 +45,10 @@ pub struct TerminalSplitData {
 impl TerminalSplitData {
     pub fn new(proxy: Arc<LapceProxy>) -> Self {
         let split_id = WidgetId::next();
-        let mut terminals = im::HashMap::new();
-
-        let terminal = Arc::new(LapceTerminalData::new(split_id, proxy));
-        terminals.insert(terminal.widget_id, terminal);
+        let terminals = im::HashMap::new();
 
         Self {
+            active: WidgetId::next(),
             widget_id: WidgetId::next(),
             split_id,
             terminals,
@@ -74,6 +73,7 @@ impl KeyPressFocus for LapceTerminalViewData {
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
             "terminal_focus" => true,
+            "panel_focus" => self.terminal.panel_widget_id.is_some(),
             _ => false,
         }
     }
@@ -89,7 +89,11 @@ impl KeyPressFocus for LapceTerminalViewData {
             LapceCommand::SplitVertical => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitTerminal(true, self.terminal.widget_id),
+                    LapceUICommand::SplitTerminal(
+                        true,
+                        self.terminal.widget_id,
+                        self.terminal.panel_widget_id.clone(),
+                    ),
                     Target::Widget(self.terminal.split_id),
                 ));
             }
@@ -126,24 +130,63 @@ impl KeyPressFocus for LapceTerminalViewData {
 pub struct LapceTerminalData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
+    pub panel_widget_id: Option<WidgetId>,
     pub content: TerminalContent,
     pub cursor_point: alacritty_terminal::index::Point,
     pub cursor_shape: CursorShape,
     pub terminal: Terminal,
-    pub receiver: Option<Receiver<TerminalHostEvent>>,
 }
 
 impl LapceTerminalData {
-    pub fn new(split_id: WidgetId, proxy: Arc<LapceProxy>) -> Self {
+    pub fn new(
+        split_id: WidgetId,
+        event_sink: ExtEventSink,
+        panel_widget_id: Option<WidgetId>,
+    ) -> Self {
         let (terminal, receiver) = Terminal::new(50, 20);
+        let widget_id = WidgetId::next();
+
+        let local_split_id = split_id;
+        let local_widget_id = widget_id;
+        let local_panel_widget_id = panel_widget_id.clone();
+        std::thread::spawn(move || -> Result<()> {
+            loop {
+                let event = receiver.recv()?;
+                match event {
+                    TerminalHostEvent::UpdateContent { cursor, content } => {
+                        event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::TerminalUpdateContent(
+                                widget_id,
+                                content,
+                                cursor.point,
+                                cursor.shape,
+                            ),
+                            Target::Auto,
+                        );
+                    }
+                    TerminalHostEvent::Exit => {
+                        event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::SplitTerminalClose(
+                                local_widget_id,
+                                local_panel_widget_id,
+                            ),
+                            Target::Widget(local_split_id),
+                        );
+                    }
+                }
+            }
+        });
+
         Self {
-            widget_id: WidgetId::next(),
+            widget_id,
             split_id,
+            panel_widget_id,
             content: TerminalContent::new(),
             cursor_point: alacritty_terminal::index::Point::default(),
             cursor_shape: CursorShape::Block,
             terminal,
-            receiver: Some(receiver),
         }
     }
 }
@@ -155,14 +198,7 @@ pub struct TerminalPanel {
 
 impl TerminalPanel {
     pub fn new(data: &LapceTabData) -> Self {
-        let (term_id, terminal_data) =
-            data.terminal.terminals.iter().next().unwrap();
-        let terminal = LapcePadding::new(10.0, LapceTerminal::new(terminal_data));
-        let split = LapceSplitNew::new(data.terminal.split_id).with_flex_child(
-            terminal.boxed(),
-            Some(terminal_data.widget_id),
-            1.0,
-        );
+        let split = LapceSplitNew::new(data.terminal.split_id);
         Self {
             widget_id: data.terminal.widget_id,
             split: WidgetPod::new(split),
@@ -202,6 +238,13 @@ impl Widget<LapceTabData> for TerminalPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if data.terminal.terminals.len() == 0 {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::InitTerminalPanel,
+                Target::Widget(data.terminal.split_id),
+            ));
+        }
         if !data.terminal.same(&old_data.terminal) {
             ctx.request_paint();
         }
@@ -251,6 +294,23 @@ impl LapceTerminal {
             height: 0.0,
         }
     }
+
+    pub fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        ctx.request_focus();
+        Arc::make_mut(&mut data.terminal).active = self.widget_id;
+        data.focus = self.widget_id;
+        data.focus_area = FocusArea::Terminal;
+        let terminal = data.terminal.terminals.get(&self.widget_id).unwrap();
+        if let Some(widget_panel_id) = terminal.panel_widget_id.as_ref() {
+            for (pos, panel) in data.panels.iter_mut() {
+                if panel.widgets.contains(widget_panel_id) {
+                    Arc::make_mut(panel).active = *widget_panel_id;
+                    data.panel_active = pos.clone();
+                    break;
+                }
+            }
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceTerminal {
@@ -277,7 +337,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         };
         match event {
             Event::MouseDown(mouse_event) => {
-                ctx.request_focus();
+                self.request_focus(ctx, data);
             }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
@@ -323,47 +383,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
-                        ctx.request_focus();
-                    }
-                    LapceUICommand::StartTerminal => {
-                        if let Some(receiver) =
-                            Arc::make_mut(&mut term_data.terminal).receiver.take()
-                        {
-                            let widget_id = term_data.terminal.widget_id;
-                            let event_sink = ctx.get_external_handle();
-                            let split_id = term_data.terminal.split_id;
-                            std::thread::spawn(move || -> Result<()> {
-                                loop {
-                                    let event = receiver.recv()?;
-                                    match event {
-                                        TerminalHostEvent::UpdateContent {
-                                            cursor,
-                                            content,
-                                        } => {
-                                            event_sink.submit_command(
-                                                    LAPCE_UI_COMMAND,
-                                                    LapceUICommand::TerminalUpdateContent(
-                                                        widget_id,
-                                                        content,
-                                                        cursor.point,
-                                                        cursor.shape,
-                                                    ),
-                                                    Target::Auto,
-                                                );
-                                        }
-                                        TerminalHostEvent::Exit => {
-                                            event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::SplitTerminalClose(
-                                                    widget_id,
-                                                ),
-                                                Target::Widget(split_id),
-                                            );
-                                        }
-                                    }
-                                }
-                            });
-                        }
+                        self.request_focus(ctx, data);
                     }
                     _ => (),
                 }
@@ -385,13 +405,6 @@ impl Widget<LapceTabData> for LapceTerminal {
         env: &Env,
     ) {
         match event {
-            LifeCycle::WidgetAdded => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::StartTerminal,
-                    Target::Widget(self.widget_id),
-                ));
-            }
             LifeCycle::FocusChanged(_) => {
                 ctx.request_paint();
             }

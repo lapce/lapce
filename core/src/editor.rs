@@ -5,8 +5,8 @@ use crate::command::{
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme, LOGO};
 use crate::data::{
-    EditorContent, EditorDiagnostic, EditorKind, EditorType, LapceEditorData,
-    LapceMainSplitData, LapceTabData, RegisterData,
+    EditorContent, EditorDiagnostic, EditorKind, EditorType, FocusArea,
+    LapceEditorData, LapceMainSplitData, LapceTabData, RegisterData,
 };
 use crate::find::Find;
 use crate::keypress::{KeyMap, KeyPress, KeyPressFocus};
@@ -2987,12 +2987,14 @@ impl Widget<LapceTabData> for LapceEditorView {
                 if *data.main_split.active == self.view_id {
                     ctx.request_focus();
                     data.focus = self.view_id;
+                    data.focus_area = FocusArea::Editor;
                 }
             }
             Event::MouseDown(mouse_event) => {
                 if !self.header.widget().cross_rect.contains(mouse_event.pos) {
                     ctx.request_focus();
                     data.focus = self.view_id;
+                    data.focus_area = FocusArea::Editor;
                     data.main_split.active = Arc::new(self.view_id);
                 }
             }
@@ -3002,11 +3004,13 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LapceUICommand::Focus => {
                         ctx.request_focus();
                         data.focus = self.view_id;
+                        data.focus_area = FocusArea::Editor;
                         data.main_split.active = Arc::new(self.view_id);
                     }
                     LapceUICommand::FocusTab => {
                         if *data.main_split.active == self.view_id {
                             ctx.request_focus();
+                            data.focus_area = FocusArea::Editor;
                             data.focus = self.view_id;
                         }
                     }

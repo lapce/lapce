@@ -162,11 +162,16 @@ pub struct PanelData {
     pub active: WidgetId,
     pub widgets: Vec<WidgetId>,
     pub shown: bool,
+    pub maximized: bool,
 }
 
 impl PanelData {
     pub fn is_shown(&self) -> bool {
         self.shown && self.widgets.len() > 0
+    }
+
+    pub fn is_maximized(&self) -> bool {
+        self.maximized && self.widgets.len() > 0
     }
 }
 
@@ -209,6 +214,14 @@ pub fn watch_settings(event_sink: ExtEventSink) {
     });
 }
 
+#[derive(Clone, PartialEq)]
+pub enum FocusArea {
+    Palette,
+    SourceControl,
+    Editor,
+    Terminal,
+}
+
 #[derive(Clone, Lens)]
 pub struct LapceTabData {
     pub id: WidgetId,
@@ -225,9 +238,11 @@ pub struct LapceTabData {
     pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub window_origin: Point,
     pub panels: im::HashMap<PanelPosition, Arc<PanelData>>,
+    pub panel_active: PanelPosition,
     pub panel_size: PanelSize,
     pub config: Arc<Config>,
     pub focus: WidgetId,
+    pub focus_area: FocusArea,
 }
 
 impl Data for LapceTabData {
@@ -243,6 +258,8 @@ impl Data for LapceTabData {
             && self.config.same(&other.config)
             && self.terminal.same(&other.terminal)
             && self.focus == other.focus
+            && self.focus_area == other.focus_area
+            && self.panel_active == other.panel_active
     }
 }
 
@@ -282,6 +299,7 @@ impl LapceTabData {
                 active: source_control.widget_id,
                 widgets: vec![source_control.widget_id],
                 shown: true,
+                maximized: false,
             }),
         );
         panels.insert(
@@ -290,6 +308,7 @@ impl LapceTabData {
                 active: terminal.widget_id,
                 widgets: vec![terminal.widget_id],
                 shown: true,
+                maximized: false,
             }),
         );
         let mut tab = Self {
@@ -315,8 +334,10 @@ impl LapceTabData {
                 right: 300.0,
                 right_split: 0.5,
             },
+            panel_active: PanelPosition::LeftTop,
             config,
             focus: tab_id,
+            focus_area: FocusArea::Editor,
         };
         if let Some(event_sink) = event_sink {
             tab.start_update_process(event_sink);
@@ -699,6 +720,41 @@ impl LapceTabData {
                     LapceUICommand::ReloadWindow,
                     Target::Auto,
                 ));
+            }
+            LapceWorkbenchCommand::ToggleTerminal => {
+                if self.focus_area == FocusArea::Terminal {
+                    for (_, panel) in self.panels.iter_mut() {
+                        if panel.widgets.contains(&self.terminal.widget_id) {
+                            let panel = Arc::make_mut(panel);
+                            panel.shown = false;
+                            break;
+                        }
+                    }
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(*self.main_split.active),
+                    ));
+                } else {
+                    for (_, panel) in self.panels.iter_mut() {
+                        if panel.widgets.contains(&self.terminal.widget_id) {
+                            let panel = Arc::make_mut(panel);
+                            panel.shown = true;
+                            panel.active = self.terminal.widget_id;
+                            break;
+                        }
+                    }
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(self.terminal.active),
+                    ));
+                }
+            }
+            LapceWorkbenchCommand::ToggleMaximizedPanel => {
+                let panel = self.panels.get_mut(&self.panel_active).unwrap();
+                let panel = Arc::make_mut(panel);
+                panel.maximized = !panel.maximized;
             }
         }
     }
