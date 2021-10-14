@@ -2,8 +2,6 @@ use crate::buffer::{get_mod_time, Buffer, BufferId};
 use crate::core_proxy::CoreProxy;
 use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
-use crate::terminal::{TermId, Terminal, TerminalHostEvent};
-use alacritty_terminal::ansi::CursorShape;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Oid, Repository};
@@ -33,7 +31,6 @@ pub struct Dispatcher {
     pub git_sender: Sender<(BufferId, u64)>,
     pub workspace: Arc<Mutex<PathBuf>>,
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
-    pub terminals: Arc<Mutex<HashMap<TermId, Terminal>>>,
     open_files: Arc<Mutex<HashMap<String, BufferId>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
@@ -114,20 +111,6 @@ pub enum Notification {
         buffer_id: BufferId,
         delta: RopeDelta,
         rev: u64,
-    },
-    NewTerminal {
-        width: usize,
-        height: usize,
-        term_id: TermId,
-    },
-    TerminalResize {
-        width: usize,
-        height: usize,
-        term_id: TermId,
-    },
-    TerminalInsert {
-        term_id: TermId,
-        content: String,
     },
 }
 
@@ -229,7 +212,6 @@ impl Dispatcher {
             git_sender,
             workspace: Arc::new(Mutex::new(PathBuf::new())),
             buffers: Arc::new(Mutex::new(HashMap::new())),
-            terminals: Arc::new(Mutex::new(HashMap::new())),
             open_files: Arc::new(Mutex::new(HashMap::new())),
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
@@ -417,55 +399,6 @@ impl Dispatcher {
                 if let Some(content_change) = buffer.update(&delta, rev) {
                     self.lsp.lock().update(buffer, &content_change, buffer.rev);
                 }
-            }
-            Notification::TerminalInsert { term_id, content } => {
-                if let Some(terminal) = self.terminals.lock().get(&term_id) {
-                    terminal.insert(content);
-                }
-            }
-            Notification::TerminalResize {
-                term_id,
-                width,
-                height,
-            } => {
-                if let Some(terminal) = self.terminals.lock().get(&term_id) {
-                    terminal.resize(width, height);
-                }
-            }
-            Notification::NewTerminal {
-                term_id,
-                width,
-                height,
-            } => {
-                let (terminal, receiver) = Terminal::new(width, height);
-                self.terminals.lock().insert(term_id, terminal);
-
-                let local_proxy = self.clone();
-                thread::spawn(move || -> Result<()> {
-                    loop {
-                        let event = receiver.recv()?;
-                        match event {
-                            TerminalHostEvent::UpdateContent { cursor, content } => {
-                                let shape = match cursor.shape {
-                                    CursorShape::Block => "Block",
-                                    CursorShape::Underline => "Underline",
-                                    CursorShape::Beam => "Beam",
-                                    CursorShape::HollowBlock => "HollowBlock",
-                                    CursorShape::Hidden => "Hidden",
-                                };
-                                local_proxy.send_notification(
-                                    "terminal_update_content",
-                                    json!({
-                                        "id": term_id,
-                                        "cursor_shape": shape,
-                                        "cursor_point": cursor.point,
-                                        "content": content,
-                                    }),
-                                );
-                            }
-                        }
-                    }
-                });
             }
         }
     }

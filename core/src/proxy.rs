@@ -11,7 +11,6 @@ use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
-use lapce_proxy::terminal::TermId;
 use lsp_types::CompletionItem;
 use lsp_types::Position;
 use lsp_types::PublishDiagnosticsParams;
@@ -28,6 +27,7 @@ use xi_rpc::RpcPeer;
 use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
+use crate::terminal::TermId;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 pub type TerminalContent = Vec<(alacritty_terminal::index::Point, Cell)>;
@@ -141,39 +141,6 @@ impl LapceProxy {
 
         let resp: NewBufferResponse = serde_json::from_value(result)?;
         return Ok(resp.content);
-    }
-
-    pub fn new_terminal(&self, term_id: TermId, width: usize, height: usize) {
-        self.wait();
-        self.peer.lock().as_ref().unwrap().send_rpc_notification(
-            "new_terminal",
-            &json!({
-                "term_id": term_id,
-                "width": width,
-                "height": height,
-            }),
-        )
-    }
-
-    pub fn terminal_insert(&self, term_id: TermId, s: &str) {
-        self.peer.lock().as_ref().unwrap().send_rpc_notification(
-            "terminal_insert",
-            &json!({
-                "term_id": term_id,
-                "content": s,
-            }),
-        )
-    }
-
-    pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
-        self.peer.lock().as_ref().unwrap().send_rpc_notification(
-            "terminal_resize",
-            &json!({
-                "term_id": term_id,
-                "width": width,
-                "height": height,
-            }),
-        )
     }
 
     pub fn update(&self, buffer_id: BufferId, delta: &RopeDelta, rev: u64) {
@@ -398,12 +365,6 @@ pub enum Notification {
     ListDir {
         items: Vec<FileNodeItem>,
     },
-    TerminalUpdateContent {
-        id: TermId,
-        content: TerminalContent,
-        cursor_shape: CursorShape,
-        cursor_point: alacritty_terminal::index::Point,
-    },
     DiffFiles {
         files: Vec<PathBuf>,
     },
@@ -446,7 +407,6 @@ impl Handler for ProxyHandler {
             Notification::ListDir { mut items } => {}
             Notification::DiffFiles { files } => {}
             Notification::PublishDiagnostics { diagnostics } => {}
-            Notification::TerminalUpdateContent { id, content, .. } => {}
         }
     }
 
@@ -578,23 +538,6 @@ impl Handler for ProxyHandlerNew {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateDiffFiles(files),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            Notification::TerminalUpdateContent {
-                id,
-                content,
-                cursor_shape,
-                cursor_point,
-            } => {
-                self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::TerminalUpdateContent(
-                        id,
-                        content,
-                        cursor_point,
-                        cursor_shape,
-                    ),
                     Target::Widget(self.tab_id),
                 );
             }

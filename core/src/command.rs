@@ -1,9 +1,9 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
+use alacritty_terminal::ansi::CursorShape;
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
 use indexmap::IndexMap;
-use lapce_proxy::terminal::TermId;
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
     PublishDiagnosticsParams, Range, TextEdit,
@@ -21,9 +21,10 @@ use crate::{
     data::EditorKind,
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
     palette::{NewPaletteItem, PaletteType},
-    proxy::{CursorShape, TerminalContent},
+    proxy::TerminalContent,
     split::SplitMoveDirection,
     state::LapceWorkspace,
+    terminal::TermId,
 };
 
 pub const LAPCE_NEW_COMMAND: Selector<LapceCommandNew> =
@@ -308,6 +309,7 @@ pub enum EnsureVisiblePosition {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
+    StartTerminal,
     ReloadConfig,
     LoadBuffer {
         path: PathBuf,
@@ -391,6 +393,7 @@ pub enum LapceUICommand {
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
+    SplitTerminal(bool, WidgetId),
     SplitEditor(bool, WidgetId),
     SplitEditorMove(SplitMoveDirection, WidgetId),
     SplitEditorExchange(WidgetId),

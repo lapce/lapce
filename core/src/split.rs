@@ -3,7 +3,8 @@ use crate::{
     config::{Config, LapceTheme},
     data::{EditorContent, EditorType, LapceEditorData, LapceTabData},
     editor::{EditorLocation, LapceEditorView},
-    scroll::LapceScroll,
+    scroll::{LapcePadding, LapceScroll},
+    terminal::{LapceTerminal, LapceTerminalData},
 };
 use std::{cmp::Ordering, sync::Arc};
 
@@ -291,6 +292,38 @@ impl LapceSplitNew {
         }
     }
 
+    pub fn split_terminal(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        vertical: bool,
+        widget_id: WidgetId,
+    ) {
+        let mut index = 0;
+        for (i, child_id) in self.children_ids.iter().enumerate() {
+            if child_id == &widget_id {
+                index = i;
+                break;
+            }
+        }
+
+        let terminal_data =
+            Arc::new(LapceTerminalData::new(self.split_id, data.proxy.clone()));
+        let terminal = LapcePadding::new(10.0, LapceTerminal::new(&terminal_data));
+        Arc::make_mut(&mut data.terminal)
+            .terminals
+            .insert(terminal_data.id, terminal_data.clone());
+
+        self.insert_flex_child(
+            index + 1,
+            terminal.boxed(),
+            Some(terminal_data.widget_id),
+            1.0,
+        );
+        self.even_flex_children();
+        ctx.children_changed();
+    }
+
     pub fn split_editor(
         &mut self,
         ctx: &mut EventCtx,
@@ -371,6 +404,9 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     }
                     LapceUICommand::SplitEditorClose(widget_id) => {
                         self.split_editor_close(ctx, data, *widget_id);
+                    }
+                    LapceUICommand::SplitTerminal(vertical, widget_id) => {
+                        self.split_terminal(ctx, data, *vertical, *widget_id);
                     }
                     _ => (),
                 }
