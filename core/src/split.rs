@@ -499,7 +499,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                             panel_widget_id.to_owned(),
                         );
                     }
-                    LapceUICommand::InitTerminalPanel => {
+                    LapceUICommand::InitTerminalPanel(focus) => {
                         if data.terminal.terminals.len() == 0 {
                             let terminal_data = Arc::new(LapceTerminalData::new(
                                 data.terminal.split_id,
@@ -516,11 +516,13 @@ impl Widget<LapceTabData> for LapceSplitNew {
                                 Some(terminal_data.widget_id),
                                 1.0,
                             );
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::Focus,
-                                Target::Widget(terminal_data.widget_id),
-                            ));
+                            if *focus {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(terminal_data.widget_id),
+                                ));
+                            }
                             let terminal_panel = Arc::make_mut(&mut data.terminal);
                             terminal_panel.active = terminal_panel.widget_id;
                             terminal_panel

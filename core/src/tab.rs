@@ -957,10 +957,30 @@ impl Widget<LapceTabData> for LapceTabNew {
         ] {
             if let Some(panel) = data.panels.get(&pos) {
                 if panel.shown {
-                    self.panels
-                        .get_mut(&panel.active)
-                        .unwrap()
-                        .paint(ctx, data, env);
+                    if let Some(panel) = self.panels.get_mut(&panel.active) {
+                        let bg = match pos {
+                            PanelPosition::LeftTop
+                            | PanelPosition::LeftBottom
+                            | PanelPosition::RightTop
+                            | PanelPosition::RightBottom => data
+                                .config
+                                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                            PanelPosition::BottomLeft
+                            | PanelPosition::BottomRight => data
+                                .config
+                                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                        };
+                        let rect = panel.layout_rect();
+                        ctx.blurred_rect(
+                            rect,
+                            5.0,
+                            data.config.get_color_unchecked(
+                                LapceTheme::LAPCE_DROPDOWN_SHADOW,
+                            ),
+                        );
+                        ctx.fill(rect, bg);
+                        panel.paint(ctx, data, env);
+                    }
                 }
             }
         }

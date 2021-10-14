@@ -241,7 +241,7 @@ impl Widget<LapceTabData> for TerminalPanel {
         if data.terminal.terminals.len() == 0 {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::InitTerminalPanel,
+                LapceUICommand::InitTerminalPanel(false),
                 Target::Widget(data.terminal.split_id),
             ));
         }
@@ -264,18 +264,6 @@ impl Widget<LapceTabData> for TerminalPanel {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let rect = ctx.size().to_rect();
-        ctx.blurred_rect(
-            rect,
-            5.0,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
-        ctx.fill(
-            rect,
-            data.config
-                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-        );
         self.split.paint(ctx, data, env);
     }
 }
@@ -483,7 +471,10 @@ impl Widget<LapceTabData> for LapceTerminal {
                         ansi::NamedColor::Background => {
                             LapceTheme::TERMINAL_BACKGROUND
                         }
-                        _ => LapceTheme::TERMINAL_FOREGROUND,
+                        _ => {
+                            println!("fg {:?}", color);
+                            LapceTheme::TERMINAL_FOREGROUND
+                        }
                     };
                     data.config.get_color_unchecked(color).clone()
                 }
@@ -493,6 +484,36 @@ impl Widget<LapceTabData> for LapceTerminal {
                     .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
                     .clone(),
             };
+            let bg = match cell.bg {
+                ansi::Color::Named(color) => {
+                    let color = match color {
+                        ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
+                        ansi::NamedColor::Foreground => {
+                            LapceTheme::TERMINAL_FOREGROUND
+                        }
+                        ansi::NamedColor::Background => {
+                            LapceTheme::TERMINAL_BACKGROUND
+                        }
+                        _ => {
+                            println!("bg {:?}", color);
+                            LapceTheme::TERMINAL_BACKGROUND
+                        }
+                    };
+                    if color == LapceTheme::TERMINAL_BACKGROUND {
+                        None
+                    } else {
+                        Some(data.config.get_color_unchecked(color).clone())
+                    }
+                }
+                ansi::Color::Spec(rgb) => Some(Color::rgb8(rgb.r, rgb.g, rgb.b)),
+                ansi::Color::Indexed(index) => None,
+            };
+            if let Some(bg) = bg {
+                let rect = Size::new(char_width, line_height)
+                    .to_rect()
+                    .with_origin(Point::new(x, y));
+                ctx.fill(rect, &bg);
+            }
             let text_layout = ctx
                 .text()
                 .new_text_layout(cell.c.to_string())

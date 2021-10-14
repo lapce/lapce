@@ -258,18 +258,6 @@ impl Widget<LapceTabData> for SourceControlNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let rect = ctx.size().to_rect();
-        ctx.blurred_rect(
-            rect,
-            5.0,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
-        ctx.fill(
-            rect,
-            data.config
-                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-        );
         self.split.paint(ctx, data, env);
     }
 }

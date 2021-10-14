@@ -314,7 +314,7 @@ pub enum EnsureVisiblePosition {
 
 #[derive(Debug)]
 pub enum LapceUICommand {
-    InitTerminalPanel,
+    InitTerminalPanel(bool),
     ReloadConfig,
     LoadBuffer {
         path: PathBuf,

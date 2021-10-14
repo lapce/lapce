@@ -744,11 +744,19 @@ impl LapceTabData {
                             break;
                         }
                     }
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(self.terminal.active),
-                    ));
+                    if self.terminal.terminals.len() == 0 {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::InitTerminalPanel(true),
+                            Target::Widget(self.terminal.split_id),
+                        ));
+                    } else {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(self.terminal.active),
+                        ));
+                    }
                 }
             }
             LapceWorkbenchCommand::ToggleMaximizedPanel => {
