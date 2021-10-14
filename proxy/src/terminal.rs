@@ -8,13 +8,14 @@ use std::{
 };
 
 use alacritty_terminal::{
+    ansi,
     config::Config,
-    event::{Event, EventListener, Notify},
-    event_loop::{EventLoop, Notifier},
+    event::{Event, EventListener, Notify, OnResize},
+    event_loop::{EventLoop, Msg, Notifier},
     grid::GridCell,
     index::Point,
     sync::FairMutex,
-    term::{cell::Cell, SizeInfo},
+    term::{cell::Cell, RenderableCursor, SizeInfo},
     tty, Term,
 };
 use anyhow::Result;
@@ -44,34 +45,42 @@ impl TermId {
     }
 }
 
+pub enum TerminalHostEvent {
+    UpdateContent {
+        cursor: RenderableCursor,
+        content: Vec<(Point, Cell)>,
+    },
+}
+
 pub enum TerminalEvent {
-    UpdateContent(Vec<(Point, Cell)>),
+    resize(SizeInfo),
+    event(Event),
 }
 
 #[derive(Clone)]
 pub struct Terminal {
     pub term: Arc<FairMutex<Term<EventProxy>>>,
-    sender: Sender<Event>,
-    host_sender: Sender<TerminalEvent>,
+    sender: Sender<TerminalEvent>,
+    host_sender: Sender<TerminalHostEvent>,
 }
 
 pub type TermConfig = Config<HashMap<String, String>>;
 
 #[derive(Clone)]
 pub struct EventProxy {
-    sender: Sender<Event>,
+    sender: Sender<TerminalEvent>,
 }
 
 impl EventProxy {}
 
 impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
-        self.sender.send(event);
+        self.sender.send(TerminalEvent::event(event));
     }
 }
 
 impl Terminal {
-    pub fn new(width: usize, height: usize) -> (Self, Receiver<TerminalEvent>) {
+    pub fn new(width: usize, height: usize) -> (Self, Receiver<TerminalHostEvent>) {
         let config = TermConfig::default();
         let (sender, receiver) = crossbeam_channel::unbounded();
         let event_proxy = EventProxy {
@@ -99,59 +108,69 @@ impl Terminal {
     }
 
     pub fn resize(&self, width: usize, height: usize) {
-        self.term.lock().resize(SizeInfo::new(
-            width as f32,
-            height as f32,
-            1.0,
-            1.0,
-            0.0,
-            0.0,
-            true,
-        ));
+        let size =
+            SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
+        self.sender.send(TerminalEvent::resize(size));
+        self.term.lock().resize(size.clone());
     }
 
-    fn run(&self, receiver: Receiver<Event>, notifier: Notifier) {
+    fn run(&self, receiver: Receiver<TerminalEvent>, mut notifier: Notifier) {
         let term = self.term.clone();
         let host_sender = self.host_sender.clone();
         std::thread::spawn(move || -> Result<()> {
             loop {
                 let event = receiver.recv()?;
                 match event {
-                    Event::MouseCursorDirty => {}
-                    Event::Title(_) => {}
-                    Event::ResetTitle => {}
-                    Event::ClipboardStore(_, _) => {}
-                    Event::ClipboardLoad(_, _) => {}
-                    Event::ColorRequest(_, _) => {}
-                    Event::PtyWrite(s) => {
-                        eprintln!("pty write {}", s);
-                        notifier.notify(s.into_bytes());
+                    TerminalEvent::resize(size) => {
+                        notifier.on_resize(&size);
                     }
-                    Event::CursorBlinkingChange(_) => {}
-                    Event::Wakeup => {
-                        let content = term
-                            .lock()
-                            .renderable_content()
-                            .display_iter
-                            .filter_map(|c| {
-                                if c.is_empty() {
-                                    None
-                                } else {
-                                    Some((c.point, c.cell.clone()))
-                                }
-                            })
-                            .collect::<Vec<(Point, Cell)>>();
-                        let event = TerminalEvent::UpdateContent(content);
-                        host_sender.send(event);
-                    }
-                    Event::Bell => {}
-                    Event::Exit => {}
+                    TerminalEvent::event(event) => match event {
+                        Event::MouseCursorDirty => {}
+                        Event::Title(_) => {}
+                        Event::ResetTitle => {}
+                        Event::ClipboardStore(_, _) => {}
+                        Event::ClipboardLoad(_, _) => {}
+                        Event::ColorRequest(_, _) => {}
+                        Event::PtyWrite(s) => {
+                            notifier.notify(s.into_bytes());
+                        }
+                        Event::CursorBlinkingChange(_) => {}
+                        Event::Wakeup => {
+                            let cursor =
+                                term.lock().renderable_content().cursor.clone();
+                            let content = term
+                                .lock()
+                                .renderable_content()
+                                .display_iter
+                                .filter_map(|c| {
+                                    if (c.c == ' ' || c.c == '\t')
+                                        && c.bg
+                                            == ansi::Color::Named(
+                                                ansi::NamedColor::Background,
+                                            )
+                                    {
+                                        None
+                                    } else {
+                                        Some((c.point, c.cell.clone()))
+                                    }
+                                })
+                                .collect::<Vec<(Point, Cell)>>();
+                            let event = TerminalHostEvent::UpdateContent {
+                                content: content,
+                                cursor: cursor,
+                            };
+                            host_sender.send(event);
+                        }
+                        Event::Bell => {}
+                        Event::Exit => {}
+                    },
                 }
             }
         });
     }
 
     pub fn insert<B: Into<String>>(&self, data: B) {
-        self.sender.send(Event::PtyWrite(data.into()));
+        self.sender
+            .send(TerminalEvent::event(Event::PtyWrite(data.into())));
     }
 }

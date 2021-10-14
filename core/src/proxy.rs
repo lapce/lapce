@@ -355,6 +355,24 @@ impl LapceProxy {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CursorShape {
+    /// Cursor is a block like `▒`.
+    Block,
+
+    /// Cursor is an underscore like `_`.
+    Underline,
+
+    /// Cursor is a vertical bar `⎸`.
+    Beam,
+
+    /// Cursor is a box like `☐`.
+    HollowBlock,
+
+    /// Invisible cursor.
+    Hidden,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum Notification {
@@ -383,6 +401,8 @@ pub enum Notification {
     TerminalUpdateContent {
         id: TermId,
         content: TerminalContent,
+        cursor_shape: CursorShape,
+        cursor_point: alacritty_terminal::index::Point,
     },
     DiffFiles {
         files: Vec<PathBuf>,
@@ -426,7 +446,7 @@ impl Handler for ProxyHandler {
             Notification::ListDir { mut items } => {}
             Notification::DiffFiles { files } => {}
             Notification::PublishDiagnostics { diagnostics } => {}
-            Notification::TerminalUpdateContent { id, content } => {}
+            Notification::TerminalUpdateContent { id, content, .. } => {}
         }
     }
 
@@ -561,10 +581,20 @@ impl Handler for ProxyHandlerNew {
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::TerminalUpdateContent { id, content } => {
+            Notification::TerminalUpdateContent {
+                id,
+                content,
+                cursor_shape,
+                cursor_point,
+            } => {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::TerminalUpdateContent(id, content),
+                    LapceUICommand::TerminalUpdateContent(
+                        id,
+                        content,
+                        cursor_point,
+                        cursor_shape,
+                    ),
                     Target::Widget(self.tab_id),
                 );
             }

@@ -53,6 +53,9 @@ pub struct KeyMap {
 pub trait KeyPressFocus {
     fn get_mode(&self) -> Mode;
     fn check_condition(&self, condition: &str) -> bool;
+    fn is_terminal(&self) -> bool {
+        false
+    }
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -236,7 +239,8 @@ impl KeyPressData {
                     .iter()
                     .filter(|keymap| {
                         if keymap.modes.len() > 0
-                            && !keymap.modes.contains(&check.get_mode())
+                            && (!keymap.modes.contains(&check.get_mode())
+                                || check.is_terminal())
                         {
                             return false;
                         }

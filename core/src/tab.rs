@@ -226,12 +226,20 @@ impl Widget<LapceTabData> for LapceTabNew {
                         Arc::make_mut(buffer).load_content(content);
                         ctx.set_handled();
                     }
-                    LapceUICommand::TerminalUpdateContent(id, content) => {
+                    LapceUICommand::TerminalUpdateContent(
+                        id,
+                        content,
+                        cursor_point,
+                        cursor_shape,
+                    ) => {
                         let terminal = Arc::make_mut(&mut data.terminal)
                             .terminals
                             .get_mut(id)
                             .unwrap();
-                        Arc::make_mut(terminal).content = content.to_owned();
+                        let terminal = Arc::make_mut(terminal);
+                        terminal.content = content.to_owned();
+                        terminal.cursor_point = cursor_point.to_owned();
+                        terminal.cursor_shape = cursor_shape.to_owned();
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateDiffFiles(files) => {

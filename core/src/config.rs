@@ -4,7 +4,7 @@ use anyhow::Result;
 use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
-    theme, Color, Env, FontDescriptor, FontFamily, Key,
+    theme, Color, Env, FontDescriptor, FontFamily, Key, Size,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -36,6 +36,10 @@ impl LapceTheme {
     pub const EDITOR_CARET: &'static str = "editor.caret";
     pub const EDITOR_SELECTION: &'static str = "editor.selection";
     pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
+
+    pub const TERMINAL_CURSOR: &'static str = "terminal.cursor";
+    pub const TERMINAL_BACKGROUND: &'static str = "terminal.background";
+    pub const TERMINAL_FOREGROUND: &'static str = "terminal.foreground";
 
     pub const PALETTE_BACKGROUND: &'static str = "palette.background";
     pub const PALETTE_CURRENT: &'static str = "palette.current";
@@ -181,6 +185,15 @@ impl Config {
             .build()
             .unwrap();
         text_layout.size().width
+    }
+
+    pub fn editor_text_size(&self, text: &mut PietText, c: &str) -> Size {
+        let text_layout = text
+            .new_text_layout(c.to_string())
+            .font(self.editor.font_family(), self.editor.font_size as f64)
+            .build()
+            .unwrap();
+        text_layout.size()
     }
 
     pub fn reload_env(&self, env: &mut Env) {

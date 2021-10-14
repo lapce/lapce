@@ -21,7 +21,7 @@ use crate::{
     data::EditorKind,
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
     palette::{NewPaletteItem, PaletteType},
-    proxy::TerminalContent,
+    proxy::{CursorShape, TerminalContent},
     split::SplitMoveDirection,
     state::LapceWorkspace,
 };
@@ -376,7 +376,12 @@ pub enum LapceUICommand {
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     UpdateDiffFiles(Vec<PathBuf>),
-    TerminalUpdateContent(TermId, TerminalContent),
+    TerminalUpdateContent(
+        TermId,
+        TerminalContent,
+        alacritty_terminal::index::Point,
+        CursorShape,
+    ),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),

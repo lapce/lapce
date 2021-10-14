@@ -488,6 +488,21 @@ command = "split_vertical"
 mode = "n"
 
 [[keymaps]]
+key = "meta+;"
+command = "split_vertical"
+when = "terminal_focus"
+
+[[keymaps]]
+key = "meta+l"
+command = "split_right"
+when = "terminal_focus"
+
+[[keymaps]]
+key = "meta+h"
+command = "split_left"
+when = "terminal_focus"
+
+[[keymaps]]
 key = "meta+g"
 command = "split_horizontal"
 mode = "n"

@@ -2,7 +2,8 @@ use crate::buffer::{get_mod_time, Buffer, BufferId};
 use crate::core_proxy::CoreProxy;
 use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
-use crate::terminal::{TermId, Terminal, TerminalEvent};
+use crate::terminal::{TermId, Terminal, TerminalHostEvent};
+use alacritty_terminal::ansi::CursorShape;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Oid, Repository};
@@ -444,11 +445,20 @@ impl Dispatcher {
                     loop {
                         let event = receiver.recv()?;
                         match event {
-                            TerminalEvent::UpdateContent(content) => {
+                            TerminalHostEvent::UpdateContent { cursor, content } => {
+                                let shape = match cursor.shape {
+                                    CursorShape::Block => "Block",
+                                    CursorShape::Underline => "Underline",
+                                    CursorShape::Beam => "Beam",
+                                    CursorShape::HollowBlock => "HollowBlock",
+                                    CursorShape::Hidden => "Hidden",
+                                };
                                 local_proxy.send_notification(
                                     "terminal_update_content",
                                     json!({
                                         "id": term_id,
+                                        "cursor_shape": shape,
+                                        "cursor_point": cursor.point,
                                         "content": content,
                                     }),
                                 );

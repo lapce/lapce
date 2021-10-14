@@ -16,6 +16,10 @@ cyan = "#0184bc"
 "lapce.dropdown_shadow" = "#b4b4b4"
 "lapce.border" = "#b4b4b4"
 
+"terminal.cursor" = "$black"
+"terminal.foreground" = "$black"
+"terminal.background" = "$white"
+
 "editor.background" = "$white"
 "editor.foreground" = "$black"
 "editor.dim" = "#A0A1A7"
