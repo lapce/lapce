@@ -1,13 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, ops::Index, path::PathBuf, sync::Arc};
 
-use alacritty_terminal::{
-    ansi::{self, CursorShape, Handler},
-    event::{EventListener, Notify, OnResize},
-    event_loop::{EventLoop, Notifier},
-    sync::FairMutex,
-    term::{cell::Cell, RenderableCursor, SizeInfo},
-    tty, Term,
-};
+use alacritty_terminal::{Term, ansi::{self, CursorShape, Handler}, config::Program, event::{EventListener, Notify, OnResize}, event_loop::{EventLoop, Notifier}, sync::FairMutex, term::{cell::Cell, RenderableCursor, SizeInfo}, tty};
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use druid::{
@@ -18,16 +11,7 @@ use druid::{
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::{
-    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
-    data::{FocusArea, LapceTabData},
-    keypress::KeyPressFocus,
-    proxy::{LapceProxy, TerminalContent},
-    scroll::LapcePadding,
-    split::{LapceSplitNew, SplitMoveDirection},
-    state::{Counter, Mode},
-};
+use crate::{command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND}, config::LapceTheme, data::{FocusArea, LapceTabData}, keypress::KeyPressFocus, proxy::{LapceProxy, TerminalContent}, scroll::LapcePadding, split::{LapceSplitNew, SplitMoveDirection}, state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode}};
 
 const CTRL_CHARS: &'static [char] = &[
     '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
@@ -139,11 +123,28 @@ pub struct LapceTerminalData {
 
 impl LapceTerminalData {
     pub fn new(
+        workspace: Option<Arc<LapceWorkspace>>,
         split_id: WidgetId,
         event_sink: ExtEventSink,
         panel_widget_id: Option<WidgetId>,
     ) -> Self {
-        let (terminal, receiver) = Terminal::new(50, 20);
+    let (shell, cwd) =    match workspace {
+            Some(workspace) => {
+                match &workspace.kind {
+                    LapceWorkspaceType::Local => {
+                        (None, Some(workspace.path.clone()))
+                    }
+                    LapceWorkspaceType::RemoteSSH(user, host) => {
+                        (Some(Program::WithArgs{
+                            program: "ssh".to_string(),
+                            args:vec![format!("{}@{}", user, host)],
+                        }), None)
+                    }
+                }
+            }
+            None => (None, None),
+        };
+        let (terminal, receiver) = Terminal::new(50, 20, shell, cwd);
         let widget_id = WidgetId::next();
 
         let local_split_id = split_id;
@@ -471,6 +472,15 @@ impl Widget<LapceTabData> for LapceTerminal {
                         ansi::NamedColor::Background => {
                             LapceTheme::TERMINAL_BACKGROUND
                         }
+                        ansi::NamedColor::Blue => {
+                            LapceTheme::TERMINAL_BLUE
+                        }
+                        ansi::NamedColor::Green => {
+                            LapceTheme::TERMINAL_GREEN
+                        }
+                        ansi::NamedColor::Yellow => {
+                            LapceTheme::TERMINAL_YELLOW
+                        }
                         _ => {
                             println!("fg {:?}", color);
                             LapceTheme::TERMINAL_FOREGROUND
@@ -494,6 +504,15 @@ impl Widget<LapceTabData> for LapceTerminal {
                         ansi::NamedColor::Background => {
                             LapceTheme::TERMINAL_BACKGROUND
                         }
+                        ansi::NamedColor::Blue => {
+                            LapceTheme::TERMINAL_BLUE
+                        }
+                        ansi::NamedColor::Green => {
+                            LapceTheme::TERMINAL_GREEN
+                        }
+                        ansi::NamedColor::Yellow => {
+                            LapceTheme::TERMINAL_YELLOW
+                        }
                         _ => {
                             println!("bg {:?}", color);
                             LapceTheme::TERMINAL_BACKGROUND
@@ -506,7 +525,10 @@ impl Widget<LapceTabData> for LapceTerminal {
                     }
                 }
                 ansi::Color::Spec(rgb) => Some(Color::rgb8(rgb.r, rgb.g, rgb.b)),
-                ansi::Color::Indexed(index) => None,
+                ansi::Color::Indexed(index) => {
+                    println!("bg color index {}", index);
+                    None
+                }
             };
             if let Some(bg) = bg {
                 let rect = Size::new(char_width, line_height)
@@ -565,8 +587,13 @@ impl EventListener for EventProxy {
 }
 
 impl Terminal {
-    pub fn new(width: usize, height: usize) -> (Self, Receiver<TerminalHostEvent>) {
-        let config = TermConfig::default();
+    pub fn new(width: usize, height: usize,
+    shell: Option<Program>,
+        cwd: Option<PathBuf>,
+        ) -> (Self, Receiver<TerminalHostEvent>) {
+        let mut config = TermConfig::default();
+        config.shell =shell;
+        config.working_directory =cwd;
         let (sender, receiver) = crossbeam_channel::unbounded();
         let event_proxy = EventProxy {
             sender: sender.clone(),
@@ -630,11 +657,12 @@ impl Terminal {
                             _,
                         ) => {}
                         alacritty_terminal::event::Event::Wakeup => {
-                            let cursor =
-                                term.lock().renderable_content().cursor.clone();
-                            let content = term
-                                .lock()
-                                .renderable_content()
+                            let term = term.lock();
+                            let renderable_content = term.renderable_content();
+                            let cursor = renderable_content.cursor.clone();
+                            let colors = renderable_content.colors.clone();
+                            let content = 
+                                renderable_content
                                 .display_iter
                                 .filter_map(|c| {
                                     if (c.c == ' ' || c.c == '\t')
@@ -645,7 +673,28 @@ impl Terminal {
                                     {
                                         None
                                     } else {
-                                        Some((c.point, c.cell.clone()))
+                                        let mut cell = c.cell.clone();
+                                     cell.fg=   match cell.fg {
+                                        ansi::Color::Named(_) => cell.fg,
+                                        ansi::Color::Spec(_) => cell.fg,
+                                        ansi::Color::Indexed(index) => {
+                 match                           colors.index(index as usize) {
+                    Some(rgb) => ansi::Color::Spec(*rgb),
+                    None => cell.fg,
+                }
+                                        }
+                                    };
+                                     cell.bg=   match cell.bg {
+                                        ansi::Color::Named(_) => cell.bg,
+                                        ansi::Color::Spec(_) => cell.bg,
+                                        ansi::Color::Indexed(index) => {
+                 match                           colors.index(index as usize) {
+                    Some(rgb) => ansi::Color::Spec(*rgb),
+                    None => cell.bg,
+                }
+                                        }
+                                    };
+                                        Some((c.point, cell))
                                     }
                                 })
                                 .collect::<Vec<(alacritty_terminal::index::Point, Cell)>>();

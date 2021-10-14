@@ -40,6 +40,9 @@ impl LapceTheme {
     pub const TERMINAL_CURSOR: &'static str = "terminal.cursor";
     pub const TERMINAL_BACKGROUND: &'static str = "terminal.background";
     pub const TERMINAL_FOREGROUND: &'static str = "terminal.foreground";
+    pub const TERMINAL_BLUE: &'static str = "terminal.blue";
+    pub const TERMINAL_GREEN: &'static str = "terminal.green";
+    pub const TERMINAL_YELLOW: &'static str = "terminal.yellow";
 
     pub const PALETTE_BACKGROUND: &'static str = "palette.background";
     pub const PALETTE_CURRENT: &'static str = "palette.current";

@@ -309,6 +309,7 @@ impl LapceSplitNew {
         }
 
         let terminal_data = Arc::new(LapceTerminalData::new(
+            data.workspace.clone(),
             self.split_id,
             ctx.get_external_handle(),
             panel_widget_id,
@@ -502,6 +503,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     LapceUICommand::InitTerminalPanel(focus) => {
                         if data.terminal.terminals.len() == 0 {
                             let terminal_data = Arc::new(LapceTerminalData::new(
+                                data.workspace.clone(),
                                 data.terminal.split_id,
                                 ctx.get_external_handle(),
                                 Some(data.terminal.widget_id),
