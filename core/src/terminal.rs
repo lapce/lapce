@@ -1,6 +1,6 @@
-use std::{collections::HashMap, ops::Index, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, io::Read, ops::Index, path::PathBuf, sync::Arc};
 
-use alacritty_terminal::{Term, ansi::{self, CursorShape, Handler}, config::Program, event::{EventListener, Notify, OnResize}, event_loop::{EventLoop, Notifier}, sync::FairMutex, term::{cell::Cell, RenderableCursor, SizeInfo}, tty};
+use alacritty_terminal::{Term, ansi::{self, CursorShape, Handler}, config::Program, event::{EventListener, Notify, OnResize}, event_loop::{EventLoop, Notifier}, sync::FairMutex, term::{cell::Cell, RenderableCursor, SizeInfo}, tty::{self, EventedReadWrite}};
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use druid::{
@@ -601,6 +601,21 @@ impl Terminal {
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
         let pty = tty::new(&config, &size, None);
+        
+       //  std::thread::spawn(move || {
+       //  let mut config = TermConfig::default();
+       //  let size =
+       //      SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
+       //  let mut pty = tty::new(&config, &size, None);
+       //  let mut buf = [0u8;0x10_0000];
+       //  loop {
+       //      
+       //   match   pty.reader().read(&mut buf) {
+       //      Ok(n) => {println!("got {} bytes", n);}
+       //      Err(e) => {println!("pty read error {}",e);}
+       //  }
+       //  }
+       //  });
         let terminal = Term::new(&config, size, event_proxy.clone());
         let terminal = Arc::new(FairMutex::new(terminal));
         let event_loop =
