@@ -7,10 +7,12 @@ use std::{path::PathBuf, process::Child, sync::Arc};
 
 use alacritty_terminal::term::cell::Cell;
 use anyhow::{anyhow, Result};
+use crossbeam_channel::Sender;
 use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
+use lapce_proxy::terminal::TermId;
 use lsp_types::CompletionItem;
 use lsp_types::Position;
 use lsp_types::PublishDiagnosticsParams;
@@ -27,6 +29,7 @@ use xi_rpc::RpcPeer;
 use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
+use crate::terminal::TerminalUpdateEvent;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 pub type TerminalContent = Vec<(alacritty_terminal::index::Point, Cell)>;
@@ -38,16 +41,18 @@ pub struct LapceProxy {
     initiated: Arc<Mutex<bool>>,
     cond: Arc<Condvar>,
     pub tab_id: WidgetId,
+    term_tx: Sender<TerminalUpdateEvent>,
 }
 
 impl LapceProxy {
-    pub fn new(tab_id: WidgetId) -> Self {
+    pub fn new(tab_id: WidgetId, term_tx: Sender<TerminalUpdateEvent>) -> Self {
         let proxy = Self {
             peer: Arc::new(Mutex::new(None)),
             process: Arc::new(Mutex::new(None)),
             initiated: Arc::new(Mutex::new(false)),
             cond: Arc::new(Condvar::new()),
             tab_id,
+            term_tx,
         };
         proxy
     }
@@ -56,6 +61,7 @@ impl LapceProxy {
         let proxy = self.clone();
         *proxy.initiated.lock() = false;
         let tab_id = self.tab_id;
+        let term_tx = self.term_tx.clone();
         thread::spawn(move || {
             let mut child = match workspace.kind {
                 LapceWorkspaceType::Local => Command::new(
@@ -99,7 +105,11 @@ impl LapceProxy {
                 proxy.cond.notify_one();
             }
 
-            let mut handler = ProxyHandlerNew { tab_id, event_sink };
+            let mut handler = ProxyHandlerNew {
+                tab_id,
+                term_tx,
+                event_sink,
+            };
             if let Err(e) =
                 looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
             {
@@ -121,6 +131,27 @@ impl LapceProxy {
             "initialize",
             &json!({
                 "workspace": workspace,
+            }),
+        )
+    }
+
+    pub fn terminal_write(&self, term_id: TermId, content: &str) {
+        self.wait();
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
+            "terminal_write",
+            &json!({
+                "term_id": term_id,
+                "content": content,
+            }),
+        )
+    }
+
+    pub fn new_terminal(&self, term_id: TermId) {
+        self.wait();
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
+            "new_terminal",
+            &json!({
+                "term_id": term_id,
             }),
         )
     }
@@ -367,111 +398,18 @@ pub enum Notification {
     DiffFiles {
         files: Vec<PathBuf>,
     },
+    UpdateTerminal {
+        term_id: TermId,
+        content: Vec<u8>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Request {}
 
-pub struct ProxyHandler {
-    window_id: WindowId,
-    tab_id: WidgetId,
-}
-
-impl Handler for ProxyHandler {
-    type Notification = Notification;
-    type Request = Request;
-
-    fn handle_notification(
-        &mut self,
-        ctx: &xi_rpc::RpcCtx,
-        rpc: Self::Notification,
-    ) {
-        match rpc {
-            Notification::SemanticTokens {
-                rev,
-                buffer_id,
-                path,
-                tokens,
-            } => {}
-            Notification::UpdateGit {
-                buffer_id,
-                line_changes,
-                rev,
-            } => {}
-            Notification::ReloadBuffer {
-                buffer_id,
-                new_content,
-                rev,
-            } => {}
-            Notification::ListDir { mut items } => {}
-            Notification::DiffFiles { files } => {}
-            Notification::PublishDiagnostics { diagnostics } => {}
-        }
-    }
-
-    fn handle_request(
-        &mut self,
-        ctx: &xi_rpc::RpcCtx,
-        rpc: Self::Request,
-    ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
-        Err(xi_rpc::RemoteError::InvalidRequest(None))
-    }
-}
-
-pub fn start_proxy_process(
-    window_id: WindowId,
-    tab_id: WidgetId,
-    workspace: LapceWorkspace,
-) {
-    thread::spawn(move || {
-        let mut child = match workspace.kind {
-            LapceWorkspaceType::Local => {
-                Command::new("/Users/Lulu/lapce/target/release/lapce-proxy")
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .spawn()
-            }
-            LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
-                .arg(format!("{}@{}", user, host))
-                .arg("/tmp/proxy/target/release/lapce-proxy")
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn(),
-        };
-        if child.is_err() {
-            println!("can't start proxy {:?}", child);
-            return;
-        }
-        let mut child = child.unwrap();
-        let child_stdin = child.stdin.take().unwrap();
-        let child_stdout = child.stdout.take().unwrap();
-        let mut looper = RpcLoop::new(child_stdin);
-        let peer: RpcPeer = Box::new(looper.get_raw_peer());
-        let proxy = LapceProxy {
-            peer: Arc::new(Mutex::new(Some(peer))),
-            process: Arc::new(Mutex::new(Some(child))),
-            cond: Arc::new(Condvar::new()),
-            initiated: Arc::new(Mutex::new(false)),
-            tab_id,
-        };
-        proxy.initialize(workspace.path.clone());
-        {
-            *proxy.initiated.lock() = true;
-            proxy.cond.notify_one();
-        }
-
-        let mut handler = ProxyHandler { window_id, tab_id };
-        if let Err(e) =
-            looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
-        {
-            println!("proxy main loop failed {:?}", e);
-        }
-        println!("proxy main loop exit");
-    });
-}
-
 pub struct ProxyHandlerNew {
     tab_id: WidgetId,
+    term_tx: Sender<TerminalUpdateEvent>,
     event_sink: ExtEventSink,
 }
 
@@ -539,6 +477,10 @@ impl Handler for ProxyHandlerNew {
                     LapceUICommand::UpdateDiffFiles(files),
                     Target::Widget(self.tab_id),
                 );
+            }
+            Notification::UpdateTerminal { term_id, content } => {
+                self.term_tx
+                    .send(TerminalUpdateEvent::UpdateContent(term_id, content));
             }
         }
     }

@@ -2,6 +2,8 @@ use crate::buffer::{get_mod_time, Buffer, BufferId};
 use crate::core_proxy::CoreProxy;
 use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
+use crate::terminal::{TermId, Terminal};
+use alacritty_terminal::event_loop::Msg;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Oid, Repository};
@@ -31,6 +33,7 @@ pub struct Dispatcher {
     pub git_sender: Sender<(BufferId, u64)>,
     pub workspace: Arc<Mutex<PathBuf>>,
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
+    pub terminals: Arc<Mutex<HashMap<TermId, mio::channel::Sender<Msg>>>>,
     open_files: Arc<Mutex<HashMap<String, BufferId>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
@@ -111,6 +114,13 @@ pub enum Notification {
         buffer_id: BufferId,
         delta: RopeDelta,
         rev: u64,
+    },
+    NewTerminal {
+        term_id: TermId,
+    },
+    TerminalWrite {
+        term_id: TermId,
+        content: String,
     },
 }
 
@@ -213,6 +223,7 @@ impl Dispatcher {
             workspace: Arc::new(Mutex::new(PathBuf::new())),
             buffers: Arc::new(Mutex::new(HashMap::new())),
             open_files: Arc::new(Mutex::new(HashMap::new())),
+            terminals: Arc::new(Mutex::new(HashMap::new())),
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
             watcher: Arc::new(Mutex::new(None)),
@@ -399,6 +410,21 @@ impl Dispatcher {
                 if let Some(content_change) = buffer.update(&delta, rev) {
                     self.lsp.lock().update(buffer, &content_change, buffer.rev);
                 }
+            }
+            Notification::NewTerminal { term_id } => {
+                let mut terminal = Terminal::new(term_id, 50, 10);
+                let tx = terminal.tx.clone();
+                self.terminals.lock().insert(term_id, tx);
+                let dispatcher = self.clone();
+                std::thread::spawn(move || {
+                    terminal.run(dispatcher);
+                });
+            }
+            Notification::TerminalWrite { term_id, content } => {
+                let terminals = self.terminals.lock();
+                let tx = terminals.get(&term_id).unwrap();
+                eprintln!("terminal write");
+                tx.send(Msg::Input(content.into_bytes().into()));
             }
         }
     }

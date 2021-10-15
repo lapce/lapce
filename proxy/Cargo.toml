@@ -5,6 +5,8 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+alacritty_terminal = "0.15.0"
+mio = "0.6.20"
 notify = "4.0.16"
 lapce-rpc = { path = "../rpc" }
 xi-core-lib = "0.3.0"

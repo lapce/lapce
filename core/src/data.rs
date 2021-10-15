@@ -70,7 +70,7 @@ use crate::{
     source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
-    terminal::TerminalSplitData,
+    terminal::{TerminalParser, TerminalSplitData, TerminalUpdateEvent},
     theme::OldLapceTheme,
 };
 
@@ -234,6 +234,7 @@ pub struct LapceTabData {
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
+    pub term_rx: Option<Receiver<TerminalUpdateEvent>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub window_origin: Point,
@@ -274,7 +275,8 @@ impl LapceTabData {
 
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
-        let proxy = Arc::new(LapceProxy::new(tab_id));
+        let (term_sender, term_receiver) = unbounded();
+        let proxy = Arc::new(LapceProxy::new(tab_id, term_sender));
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
@@ -318,6 +320,7 @@ impl LapceTabData {
             completion,
             terminal,
             source_control,
+            term_rx: Some(term_receiver),
             palette,
             proxy,
             keypress,
@@ -356,6 +359,19 @@ impl LapceTabData {
                     local_event_sink,
                 );
                 println!("buffer update process stopped");
+            });
+        }
+
+        if let Some(receiver) = self.term_rx.take() {
+            let tab_id = self.id;
+            let local_event_sink = event_sink.clone();
+            thread::spawn(move || {
+                LapceTabData::terminal_update_process(
+                    tab_id,
+                    receiver,
+                    local_event_sink,
+                );
+                println!("terminal update process stopped");
             });
         }
 
@@ -786,6 +802,29 @@ impl LapceTabData {
                 command.clone(),
                 Target::Widget(self.focus),
             )),
+        }
+    }
+
+    pub fn terminal_update_process(
+        tab_id: WidgetId,
+        receiver: Receiver<TerminalUpdateEvent>,
+        event_sink: ExtEventSink,
+    ) {
+        let mut terminals = HashMap::new();
+        loop {
+            if let Ok(event) = receiver.recv() {
+                match event {
+                    TerminalUpdateEvent::UpdateContent(term_id, content) => {
+                        if !terminals.contains_key(&term_id) {
+                            terminals.insert(term_id, TerminalParser::new());
+                        }
+                        let terminal = terminals.get_mut(&term_id).unwrap();
+                        terminal.update_content(&content);
+                    }
+                }
+            } else {
+                return;
+            }
         }
     }
 

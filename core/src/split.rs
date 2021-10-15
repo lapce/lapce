@@ -217,11 +217,12 @@ impl LapceSplitNew {
             return;
         }
 
-        let new_view_id = self.children[index + 1].widget.id();
-        let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
-        data.main_split.active = Arc::new(new_editor.view_id);
-        data.focus = new_editor.view_id;
-        ctx.set_focus(new_editor.view_id);
+        let new_child = self.children_ids[index + 1];
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(new_child),
+        ));
 
         self.children.swap(index, index + 1);
         self.children_ids.swap(index, index + 1);
@@ -313,6 +314,7 @@ impl LapceSplitNew {
             self.split_id,
             ctx.get_external_handle(),
             panel_widget_id,
+            data.proxy.clone(),
         ));
         let terminal = LapcePadding::new(10.0, LapceTerminal::new(&terminal_data));
         Arc::make_mut(&mut data.terminal)
@@ -507,6 +509,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                                 data.terminal.split_id,
                                 ctx.get_external_handle(),
                                 Some(data.terminal.widget_id),
+                                data.proxy.clone(),
                             ));
                             let terminal = LapcePadding::new(
                                 10.0,

@@ -30,6 +30,27 @@ key = "meta+u"
 command = "toggle_maximized_panel"
 when = "panel_focus"
 
+[[keymaps]]
+key = "meta+t"
+command = "new_tab"
+
+[[keymaps]]
+key = "meta+m"
+command = "next_tab"
+
+[[keymaps]]
+key = "meta+n"
+command = "previous_tab"
+
+[[keymaps]]
+key = "ctrl+meta+c"
+command = "close_tab"
+
+[[keymaps]]
+key = "ctrl+."
+command = "show_code_actions"
+mode = "n"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -512,6 +533,11 @@ command = "split_left"
 when = "terminal_focus"
 
 [[keymaps]]
+key = "meta+x"
+command = "split_exchange"
+when = "terminal_focus"
+
+[[keymaps]]
 key = "meta+g"
 command = "split_horizontal"
 mode = "n"
@@ -564,29 +590,4 @@ mode = "n"
 [[keymaps]]
 key = "meta+w"
 command = "split_close"
-mode = "n"
-
-[[keymaps]]
-key = "meta+t"
-command = "new_tab"
-mode = "n"
-
-[[keymaps]]
-key = "meta+m"
-command = "next_tab"
-mode = "n"
-
-[[keymaps]]
-key = "meta+n"
-command = "previous_tab"
-mode = "n"
-
-[[keymaps]]
-key = "ctrl+."
-command = "show_code_actions"
-mode = "n"
-
-[[keymaps]]
-key = "ctrl+meta+c"
-command = "close_tab"
 mode = "n"

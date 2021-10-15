@@ -9,6 +9,7 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_proxy::terminal::TermId;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND}, config::LapceTheme, data::{FocusArea, LapceTabData}, keypress::KeyPressFocus, proxy::{LapceProxy, TerminalContent}, scroll::LapcePadding, split::{LapceSplitNew, SplitMoveDirection}, state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode}};
@@ -17,6 +18,11 @@ const CTRL_CHARS: &'static [char] = &[
     '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
 ];
+
+pub enum TerminalUpdateEvent {
+    UpdateContent(TermId, Vec<u8>),
+}
+
 
 #[derive(Clone)]
 pub struct TerminalSplitData {
@@ -101,17 +107,26 @@ impl KeyPressFocus for LapceTerminalViewData {
                     Target::Widget(self.terminal.split_id),
                 ));
             }
+            LapceCommand::SplitExchange => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                            LapceUICommand::SplitEditorExchange(self.terminal.widget_id),
+                    Target::Widget(self.terminal.split_id),
+                ));
+            }
             _ => (),
         }
     }
 
     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
+        self.proxy.terminal_write(self.terminal.term_id, c);
         self.terminal.terminal.insert(c);
     }
 }
 
 #[derive(Clone)]
 pub struct LapceTerminalData {
+    pub term_id: TermId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub panel_widget_id: Option<WidgetId>,
@@ -127,6 +142,7 @@ impl LapceTerminalData {
         split_id: WidgetId,
         event_sink: ExtEventSink,
         panel_widget_id: Option<WidgetId>,
+        proxy: Arc<LapceProxy>,
     ) -> Self {
     let (shell, cwd) =    match workspace {
             Some(workspace) => {
@@ -144,9 +160,12 @@ impl LapceTerminalData {
             }
             None => (None, None),
         };
-        let (terminal, receiver) = Terminal::new(50, 20, shell, cwd);
+        let (terminal, receiver) = Terminal::new(50, 20, shell, cwd );
         let widget_id = WidgetId::next();
 
+        let term_id = TermId::next();
+        proxy.new_terminal(term_id);
+        
         let local_split_id = split_id;
         let local_widget_id = widget_id;
         let local_panel_widget_id = panel_widget_id.clone();
@@ -181,6 +200,7 @@ impl LapceTerminalData {
         });
 
         Self {
+            term_id,
             widget_id,
             split_id,
             panel_widget_id,
@@ -190,6 +210,146 @@ impl LapceTerminalData {
             terminal,
         }
     }
+}
+
+pub struct TerminalParser {
+    grid: TerminalGrid,
+    parser: ansi::Processor,
+}
+
+impl TerminalParser {
+    pub fn new() -> Self { Self { parser:ansi::Processor::new(), grid: TerminalGrid::new(), } }
+
+    pub fn update_content(&mut self, content: &[u8]) {
+        for byte in content {
+            self.parser.advance(&mut self.grid, *byte);
+        }
+        
+    }
+}
+
+pub struct TerminalGrid {}
+
+impl TerminalGrid {
+    pub fn new() -> Self { Self {  } }
+}
+
+impl ansi::Handler for TerminalGrid {
+    fn set_title(&mut self, _: Option<String>) {}
+
+    fn set_cursor_style(&mut self, _: Option<ansi::CursorStyle>) {}
+
+    fn set_cursor_shape(&mut self, _shape: CursorShape) {}
+
+    fn input(&mut self, c: char) {
+        println!("grid input {}",c);
+    }
+
+    fn goto(&mut self, _: alacritty_terminal::index::Line, _: alacritty_terminal::index::Column) {}
+
+    fn goto_line(&mut self, _: alacritty_terminal::index::Line) {}
+
+    fn goto_col(&mut self, _: alacritty_terminal::index::Column) {}
+
+    fn insert_blank(&mut self, _: usize) {}
+
+    fn move_up(&mut self, _: usize) {}
+
+    fn move_down(&mut self, _: usize) {}
+
+    fn identify_terminal(&mut self, _intermediate: Option<char>) {}
+
+    fn device_status(&mut self, _: usize) {}
+
+    fn move_forward(&mut self, _: alacritty_terminal::index::Column) {}
+
+    fn move_backward(&mut self, _: alacritty_terminal::index::Column) {}
+
+    fn move_down_and_cr(&mut self, _: usize) {}
+
+    fn move_up_and_cr(&mut self, _: usize) {}
+
+    fn put_tab(&mut self, _count: u16) {}
+
+    fn backspace(&mut self) {}
+
+    fn carriage_return(&mut self) {}
+
+    fn linefeed(&mut self) {}
+
+    fn bell(&mut self) {}
+
+    fn substitute(&mut self) {}
+
+    fn newline(&mut self) {}
+
+    fn set_horizontal_tabstop(&mut self) {}
+
+    fn scroll_up(&mut self, _: usize) {}
+
+    fn scroll_down(&mut self, _: usize) {}
+
+    fn insert_blank_lines(&mut self, _: usize) {}
+
+    fn delete_lines(&mut self, _: usize) {}
+
+    fn erase_chars(&mut self, _: alacritty_terminal::index::Column) {}
+
+    fn delete_chars(&mut self, _: usize) {}
+
+    fn move_backward_tabs(&mut self, _count: u16) {}
+
+    fn move_forward_tabs(&mut self, _count: u16) {}
+
+    fn save_cursor_position(&mut self) {}
+
+    fn restore_cursor_position(&mut self) {}
+
+    fn clear_line(&mut self, _mode: ansi::LineClearMode) {}
+
+    fn clear_screen(&mut self, _mode: ansi::ClearMode) {}
+
+    fn clear_tabs(&mut self, _mode: ansi::TabulationClearMode) {}
+
+    fn reset_state(&mut self) {}
+
+    fn reverse_index(&mut self) {}
+
+    fn terminal_attribute(&mut self, _attr: ansi::Attr) {}
+
+    fn set_mode(&mut self, _mode: ansi::Mode) {}
+
+    fn unset_mode(&mut self, _: ansi::Mode) {}
+
+    fn set_scrolling_region(&mut self, _top: usize, _bottom: Option<usize>) {}
+
+    fn set_keypad_application_mode(&mut self) {}
+
+    fn unset_keypad_application_mode(&mut self) {}
+
+    fn set_active_charset(&mut self, _: ansi::CharsetIndex) {}
+
+    fn configure_charset(&mut self, _: ansi::CharsetIndex, _: ansi::StandardCharset) {}
+
+    fn set_color(&mut self, _: usize, _: alacritty_terminal::term::color::Rgb) {}
+
+    fn dynamic_color_sequence(&mut self, _: u8, _: usize, _: &str) {}
+
+    fn reset_color(&mut self, _: usize) {}
+
+    fn clipboard_store(&mut self, _: u8, _: &[u8]) {}
+
+    fn clipboard_load(&mut self, _: u8, _: &str) {}
+
+    fn decaln(&mut self) {}
+
+    fn push_title(&mut self) {}
+
+    fn pop_title(&mut self) {}
+
+    fn text_area_size_pixels(&mut self) {}
+
+    fn text_area_size_chars(&mut self) {}
 }
 
 pub struct TerminalPanel {
@@ -328,6 +488,11 @@ impl Widget<LapceTabData> for LapceTerminal {
             Event::MouseDown(mouse_event) => {
                 self.request_focus(ctx, data);
             }
+            Event::Wheel(wheel_event)=> {
+                println!("wheel {}", wheel_event.wheel_delta.y);
+let scroll=                alacritty_terminal::grid::Scroll::Delta(wheel_event.wheel_delta.y as i32);
+                term_data.terminal.terminal.term.lock().scroll_display(scroll);
+            }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
                 if !Arc::make_mut(&mut keypress).key_down(
@@ -363,6 +528,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                         _ => "".to_string(),
                     };
                     if s != "" {
+                            data.proxy.terminal_write(term_data.terminal.term_id, &s);
                         term_data.terminal.terminal.insert(s);
                     }
                 }
@@ -616,6 +782,7 @@ impl Terminal {
        //  }
        //  }
        //  });
+        
         let terminal = Term::new(&config, size, event_proxy.clone());
         let terminal = Arc::new(FairMutex::new(terminal));
         let event_loop =
