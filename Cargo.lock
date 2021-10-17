@@ -1932,6 +1932,7 @@ version = "0.0.1"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
+ "base64 0.13.0",
  "bit-vec 0.5.1",
  "cc",
  "config",
@@ -1992,6 +1993,7 @@ version = "0.0.1"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
+ "base64 0.13.0",
  "crossbeam-channel 0.5.1",
  "git2",
  "home",

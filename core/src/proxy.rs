@@ -411,7 +411,7 @@ pub enum Notification {
     },
     UpdateTerminal {
         term_id: TermId,
-        content: Vec<u8>,
+        content: String,
     },
 }
 

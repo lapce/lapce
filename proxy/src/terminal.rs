@@ -121,7 +121,7 @@ impl Terminal {
                                         "update_terminal",
                                         json!({
                                             "term_id": self.term_id,
-                                            "content": buf[..n],
+                                            "content": base64::encode(&buf[..n]),
                                         }),
                                     );
                                 }

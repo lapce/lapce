@@ -143,7 +143,7 @@ pub struct LapceTerminalData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub panel_widget_id: Option<WidgetId>,
-    pub content: TerminalContent,
+    pub content: Arc<TerminalContent>,
 }
 
 impl LapceTerminalData {
@@ -208,7 +208,7 @@ impl LapceTerminalData {
             widget_id,
             split_id,
             panel_widget_id,
-            content: TerminalContent::new(),
+            content: Arc::new(TerminalContent::new()),
         }
     }
 }
@@ -282,9 +282,9 @@ impl TerminalParser {
                     }
                     alacritty_terminal::event::Event::CursorBlinkingChange(_) => {}
                     alacritty_terminal::event::Event::Wakeup => {
-                        let content = TerminalContent {
+                        let content = Arc::new(TerminalContent {
                             grid: self.term.grid().clone(),
-                        };
+                        });
                         self.event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::TerminalUpdateContent(
@@ -298,7 +298,7 @@ impl TerminalParser {
                     alacritty_terminal::event::Event::Exit => {}
                 },
                 TerminalEvent::UpdateContent(content) => {
-                    self.update_content(&content);
+                    self.update_content(content);
                     self.sender.send(TerminalEvent::Event(
                         alacritty_terminal::event::Event::Wakeup,
                     ));
@@ -307,9 +307,11 @@ impl TerminalParser {
         }
     }
 
-    pub fn update_content(&mut self, content: &[u8]) {
-        for byte in content {
-            self.parser.advance(&mut self.term, *byte);
+    pub fn update_content(&mut self, content: String) {
+        if let Ok(content) = base64::decode(content) {
+            for byte in content {
+                self.parser.advance(&mut self.term, byte);
+            }
         }
     }
 }
@@ -694,7 +696,7 @@ impl Widget<LapceTabData> for LapceTerminal {
 pub enum TerminalEvent {
     Resize(usize, usize),
     Event(alacritty_terminal::event::Event),
-    UpdateContent(Vec<u8>),
+    UpdateContent(String),
 }
 
 pub enum TerminalHostEvent {
@@ -705,7 +707,7 @@ pub enum TerminalHostEvent {
     Exit,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TerminalContent {
     grid: Grid<Cell>,
 }
