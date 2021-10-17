@@ -4,6 +4,7 @@ use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
 use crate::terminal::{TermId, Terminal};
 use alacritty_terminal::event_loop::Msg;
+use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Oid, Repository};
@@ -121,6 +122,11 @@ pub enum Notification {
     TerminalWrite {
         term_id: TermId,
         content: String,
+    },
+    TerminalResize {
+        term_id: TermId,
+        width: usize,
+        height: usize,
     },
 }
 
@@ -423,8 +429,25 @@ impl Dispatcher {
             Notification::TerminalWrite { term_id, content } => {
                 let terminals = self.terminals.lock();
                 let tx = terminals.get(&term_id).unwrap();
-                eprintln!("terminal write");
                 tx.send(Msg::Input(content.into_bytes().into()));
+            }
+            Notification::TerminalResize {
+                term_id,
+                width,
+                height,
+            } => {
+                let terminals = self.terminals.lock();
+                let tx = terminals.get(&term_id).unwrap();
+                let size = SizeInfo::new(
+                    width as f32,
+                    height as f32,
+                    1.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    true,
+                );
+                tx.send(Msg::Resize(size));
             }
         }
     }

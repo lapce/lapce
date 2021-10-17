@@ -1,6 +1,15 @@
 use std::{collections::HashMap, io::Read, ops::Index, path::PathBuf, sync::Arc};
 
-use alacritty_terminal::{Term, ansi::{self, CursorShape, Handler}, config::Program, event::{EventListener, Notify, OnResize}, event_loop::{EventLoop, Notifier}, sync::FairMutex, term::{cell::Cell, RenderableCursor, SizeInfo}, tty::{self, EventedReadWrite}};
+use alacritty_terminal::{
+    ansi::{self, CursorShape, Handler},
+    config::Program,
+    event::{EventListener, Notify, OnResize},
+    event_loop::{EventLoop, Notifier},
+    sync::FairMutex,
+    term::{cell::Cell, RenderableCursor, SizeInfo},
+    tty::{self, EventedReadWrite},
+    Grid, Term,
+};
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use druid::{
@@ -11,25 +20,30 @@ use druid::{
 };
 use lapce_proxy::terminal::TermId;
 use serde::{Deserialize, Deserializer, Serialize};
+use unicode_width::UnicodeWidthChar;
 
-use crate::{command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND}, config::LapceTheme, data::{FocusArea, LapceTabData}, keypress::KeyPressFocus, proxy::{LapceProxy, TerminalContent}, scroll::LapcePadding, split::{LapceSplitNew, SplitMoveDirection}, state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode}};
+use crate::{
+    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceTheme,
+    data::{FocusArea, LapceTabData},
+    keypress::KeyPressFocus,
+    proxy::LapceProxy,
+    scroll::LapcePadding,
+    split::{LapceSplitNew, SplitMoveDirection},
+    state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode},
+};
 
 const CTRL_CHARS: &'static [char] = &[
     '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
 ];
 
-pub enum TerminalUpdateEvent {
-    UpdateContent(TermId, Vec<u8>),
-}
-
-
 #[derive(Clone)]
 pub struct TerminalSplitData {
     pub active: WidgetId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
-    pub terminals: im::HashMap<WidgetId, Arc<LapceTerminalData>>,
+    pub terminals: im::HashMap<TermId, Arc<LapceTerminalData>>,
 }
 
 impl TerminalSplitData {
@@ -110,7 +124,7 @@ impl KeyPressFocus for LapceTerminalViewData {
             LapceCommand::SplitExchange => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                            LapceUICommand::SplitEditorExchange(self.terminal.widget_id),
+                    LapceUICommand::SplitEditorExchange(self.terminal.widget_id),
                     Target::Widget(self.terminal.split_id),
                 ));
             }
@@ -120,7 +134,6 @@ impl KeyPressFocus for LapceTerminalViewData {
 
     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
         self.proxy.terminal_write(self.terminal.term_id, c);
-        self.terminal.terminal.insert(c);
     }
 }
 
@@ -131,9 +144,6 @@ pub struct LapceTerminalData {
     pub split_id: WidgetId,
     pub panel_widget_id: Option<WidgetId>,
     pub content: TerminalContent,
-    pub cursor_point: alacritty_terminal::index::Point,
-    pub cursor_shape: CursorShape,
-    pub terminal: Terminal,
 }
 
 impl LapceTerminalData {
@@ -144,60 +154,54 @@ impl LapceTerminalData {
         panel_widget_id: Option<WidgetId>,
         proxy: Arc<LapceProxy>,
     ) -> Self {
-    let (shell, cwd) =    match workspace {
-            Some(workspace) => {
-                match &workspace.kind {
-                    LapceWorkspaceType::Local => {
-                        (None, Some(workspace.path.clone()))
-                    }
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        (Some(Program::WithArgs{
-                            program: "ssh".to_string(),
-                            args:vec![format!("{}@{}", user, host)],
-                        }), None)
-                    }
-                }
-            }
-            None => (None, None),
-        };
-        let (terminal, receiver) = Terminal::new(50, 20, shell, cwd );
+        // let (shell, cwd) = match workspace {
+        //     Some(workspace) => match &workspace.kind {
+        //         LapceWorkspaceType::Local => (None, Some(workspace.path.clone())),
+        //         LapceWorkspaceType::RemoteSSH(user, host) => (
+        //             Some(Program::WithArgs {
+        //                 program: "ssh".to_string(),
+        //                 args: vec![format!("{}@{}", user, host)],
+        //             }),
+        //             None,
+        //         ),
+        //     },
+        //     None => (None, None),
+        // };
+        // let (terminal, receiver) = Terminal::new(50, 20, shell, cwd);
         let widget_id = WidgetId::next();
 
         let term_id = TermId::next();
         proxy.new_terminal(term_id);
-        
+
         let local_split_id = split_id;
         let local_widget_id = widget_id;
         let local_panel_widget_id = panel_widget_id.clone();
-        std::thread::spawn(move || -> Result<()> {
-            loop {
-                let event = receiver.recv()?;
-                match event {
-                    TerminalHostEvent::UpdateContent { cursor, content } => {
-                        event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::TerminalUpdateContent(
-                                widget_id,
-                                content,
-                                cursor.point,
-                                cursor.shape,
-                            ),
-                            Target::Auto,
-                        );
-                    }
-                    TerminalHostEvent::Exit => {
-                        event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::SplitTerminalClose(
-                                local_widget_id,
-                                local_panel_widget_id,
-                            ),
-                            Target::Widget(local_split_id),
-                        );
-                    }
-                }
-            }
-        });
+        //       std::thread::spawn(move || -> Result<()> {
+        //    loop {
+        //        let event = receiver.recv()?;
+        //        match event {
+        //            TerminalHostEvent::UpdateContent { cursor, content } => {
+        //                event_sink.submit_command(
+        //                    LAPCE_UI_COMMAND,
+        //                    LapceUICommand::TerminalUpdateContent(
+        //                        widget_id, content,
+        //                    ),
+        //                    Target::Auto,
+        //                );
+        //            }
+        //            TerminalHostEvent::Exit => {
+        //                event_sink.submit_command(
+        //                    LAPCE_UI_COMMAND,
+        //                    LapceUICommand::SplitTerminalClose(
+        //                        local_widget_id,
+        //                        local_panel_widget_id,
+        //                    ),
+        //                    Target::Widget(local_split_id),
+        //                );
+        //            }
+        //        }
+        //    }
+        //      });
 
         Self {
             term_id,
@@ -205,151 +209,109 @@ impl LapceTerminalData {
             split_id,
             panel_widget_id,
             content: TerminalContent::new(),
-            cursor_point: alacritty_terminal::index::Point::default(),
-            cursor_shape: CursorShape::Block,
-            terminal,
         }
     }
 }
 
 pub struct TerminalParser {
-    grid: TerminalGrid,
+    term_id: TermId,
+    term: Term<EventProxy>,
+    sender: Sender<TerminalEvent>,
     parser: ansi::Processor,
+    event_sink: ExtEventSink,
+    proxy: Arc<LapceProxy>,
 }
 
 impl TerminalParser {
-    pub fn new() -> Self { Self { parser:ansi::Processor::new(), grid: TerminalGrid::new(), } }
+    pub fn new(
+        term_id: TermId,
+        event_sink: ExtEventSink,
+        proxy: Arc<LapceProxy>,
+    ) -> Sender<TerminalEvent> {
+        let mut config = TermConfig::default();
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let event_proxy = EventProxy {
+            sender: sender.clone(),
+        };
+        let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
+
+        let term = Term::new(&config, size, event_proxy.clone());
+
+        let mut parser = TerminalParser {
+            term_id,
+            term,
+            sender: sender.clone(),
+            parser: ansi::Processor::new(),
+            event_sink,
+            proxy,
+        };
+
+        std::thread::spawn(move || {
+            parser.run(receiver);
+        });
+
+        sender
+    }
+
+    pub fn run(&mut self, receiver: Receiver<TerminalEvent>) -> Result<()> {
+        loop {
+            let event = receiver.recv()?;
+            match event {
+                TerminalEvent::Resize(width, height) => {
+                    let size = SizeInfo::new(
+                        width as f32,
+                        height as f32,
+                        1.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        true,
+                    );
+                    self.term.resize(size);
+                    self.proxy.terminal_resize(self.term_id, width, height);
+                }
+                TerminalEvent::Event(event) => match event {
+                    alacritty_terminal::event::Event::MouseCursorDirty => {}
+                    alacritty_terminal::event::Event::Title(_) => {}
+                    alacritty_terminal::event::Event::ResetTitle => {}
+                    alacritty_terminal::event::Event::ClipboardStore(_, _) => {}
+                    alacritty_terminal::event::Event::ClipboardLoad(_, _) => {}
+                    alacritty_terminal::event::Event::ColorRequest(_, _) => {}
+                    alacritty_terminal::event::Event::PtyWrite(s) => {
+                        self.proxy.terminal_write(self.term_id, &s);
+                    }
+                    alacritty_terminal::event::Event::CursorBlinkingChange(_) => {}
+                    alacritty_terminal::event::Event::Wakeup => {
+                        let content = TerminalContent {
+                            grid: self.term.grid().clone(),
+                        };
+                        self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::TerminalUpdateContent(
+                                self.term_id,
+                                content,
+                            ),
+                            Target::Auto,
+                        );
+                    }
+                    alacritty_terminal::event::Event::Bell => {}
+                    alacritty_terminal::event::Event::Exit => {}
+                },
+                TerminalEvent::UpdateContent(content) => {
+                    self.update_content(&content);
+                    self.sender.send(TerminalEvent::Event(
+                        alacritty_terminal::event::Event::Wakeup,
+                    ));
+                }
+            }
+        }
+    }
 
     pub fn update_content(&mut self, content: &[u8]) {
         for byte in content {
-            self.parser.advance(&mut self.grid, *byte);
+            self.parser.advance(&mut self.term, *byte);
         }
-        
     }
-}
-
-pub struct TerminalGrid {}
-
-impl TerminalGrid {
-    pub fn new() -> Self { Self {  } }
-}
-
-impl ansi::Handler for TerminalGrid {
-    fn set_title(&mut self, _: Option<String>) {}
-
-    fn set_cursor_style(&mut self, _: Option<ansi::CursorStyle>) {}
-
-    fn set_cursor_shape(&mut self, _shape: CursorShape) {}
-
-    fn input(&mut self, c: char) {
-        println!("grid input {}",c);
-    }
-
-    fn goto(&mut self, _: alacritty_terminal::index::Line, _: alacritty_terminal::index::Column) {}
-
-    fn goto_line(&mut self, _: alacritty_terminal::index::Line) {}
-
-    fn goto_col(&mut self, _: alacritty_terminal::index::Column) {}
-
-    fn insert_blank(&mut self, _: usize) {}
-
-    fn move_up(&mut self, _: usize) {}
-
-    fn move_down(&mut self, _: usize) {}
-
-    fn identify_terminal(&mut self, _intermediate: Option<char>) {}
-
-    fn device_status(&mut self, _: usize) {}
-
-    fn move_forward(&mut self, _: alacritty_terminal::index::Column) {}
-
-    fn move_backward(&mut self, _: alacritty_terminal::index::Column) {}
-
-    fn move_down_and_cr(&mut self, _: usize) {}
-
-    fn move_up_and_cr(&mut self, _: usize) {}
-
-    fn put_tab(&mut self, _count: u16) {}
-
-    fn backspace(&mut self) {}
-
-    fn carriage_return(&mut self) {}
-
-    fn linefeed(&mut self) {}
-
-    fn bell(&mut self) {}
-
-    fn substitute(&mut self) {}
-
-    fn newline(&mut self) {}
-
-    fn set_horizontal_tabstop(&mut self) {}
-
-    fn scroll_up(&mut self, _: usize) {}
-
-    fn scroll_down(&mut self, _: usize) {}
-
-    fn insert_blank_lines(&mut self, _: usize) {}
-
-    fn delete_lines(&mut self, _: usize) {}
-
-    fn erase_chars(&mut self, _: alacritty_terminal::index::Column) {}
-
-    fn delete_chars(&mut self, _: usize) {}
-
-    fn move_backward_tabs(&mut self, _count: u16) {}
-
-    fn move_forward_tabs(&mut self, _count: u16) {}
-
-    fn save_cursor_position(&mut self) {}
-
-    fn restore_cursor_position(&mut self) {}
-
-    fn clear_line(&mut self, _mode: ansi::LineClearMode) {}
-
-    fn clear_screen(&mut self, _mode: ansi::ClearMode) {}
-
-    fn clear_tabs(&mut self, _mode: ansi::TabulationClearMode) {}
-
-    fn reset_state(&mut self) {}
-
-    fn reverse_index(&mut self) {}
-
-    fn terminal_attribute(&mut self, _attr: ansi::Attr) {}
-
-    fn set_mode(&mut self, _mode: ansi::Mode) {}
-
-    fn unset_mode(&mut self, _: ansi::Mode) {}
-
-    fn set_scrolling_region(&mut self, _top: usize, _bottom: Option<usize>) {}
-
-    fn set_keypad_application_mode(&mut self) {}
-
-    fn unset_keypad_application_mode(&mut self) {}
-
-    fn set_active_charset(&mut self, _: ansi::CharsetIndex) {}
-
-    fn configure_charset(&mut self, _: ansi::CharsetIndex, _: ansi::StandardCharset) {}
-
-    fn set_color(&mut self, _: usize, _: alacritty_terminal::term::color::Rgb) {}
-
-    fn dynamic_color_sequence(&mut self, _: u8, _: usize, _: &str) {}
-
-    fn reset_color(&mut self, _: usize) {}
-
-    fn clipboard_store(&mut self, _: u8, _: &[u8]) {}
-
-    fn clipboard_load(&mut self, _: u8, _: &str) {}
-
-    fn decaln(&mut self) {}
-
-    fn push_title(&mut self) {}
-
-    fn pop_title(&mut self) {}
-
-    fn text_area_size_pixels(&mut self) {}
-
-    fn text_area_size_chars(&mut self) {}
 }
 
 pub struct TerminalPanel {
@@ -430,6 +392,7 @@ impl Widget<LapceTabData> for TerminalPanel {
 }
 
 pub struct LapceTerminal {
+    term_id: TermId,
     widget_id: WidgetId,
     width: f64,
     height: f64,
@@ -438,6 +401,7 @@ pub struct LapceTerminal {
 impl LapceTerminal {
     pub fn new(data: &LapceTerminalData) -> Self {
         Self {
+            term_id: data.term_id,
             widget_id: data.widget_id,
             width: 0.0,
             height: 0.0,
@@ -449,7 +413,7 @@ impl LapceTerminal {
         Arc::make_mut(&mut data.terminal).active = self.widget_id;
         data.focus = self.widget_id;
         data.focus_area = FocusArea::Terminal;
-        let terminal = data.terminal.terminals.get(&self.widget_id).unwrap();
+        let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
         if let Some(widget_panel_id) = terminal.panel_widget_id.as_ref() {
             for (pos, panel) in data.panels.iter_mut() {
                 if panel.widgets.contains(widget_panel_id) {
@@ -474,12 +438,8 @@ impl Widget<LapceTabData> for LapceTerminal {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        let old_terminal_data = data
-            .terminal
-            .terminals
-            .get(&self.widget_id)
-            .unwrap()
-            .clone();
+        let old_terminal_data =
+            data.terminal.terminals.get(&self.term_id).unwrap().clone();
         let mut term_data = LapceTerminalViewData {
             terminal: old_terminal_data.clone(),
             proxy: data.proxy.clone(),
@@ -488,10 +448,17 @@ impl Widget<LapceTabData> for LapceTerminal {
             Event::MouseDown(mouse_event) => {
                 self.request_focus(ctx, data);
             }
-            Event::Wheel(wheel_event)=> {
-                println!("wheel {}", wheel_event.wheel_delta.y);
-let scroll=                alacritty_terminal::grid::Scroll::Delta(wheel_event.wheel_delta.y as i32);
-                term_data.terminal.terminal.term.lock().scroll_display(scroll);
+            Event::Wheel(wheel_event) => {
+                // println!("wheel {}", wheel_event.wheel_delta.y);
+                // let scroll = alacritty_terminal::grid::Scroll::Delta(
+                //     wheel_event.wheel_delta.y as i32,
+                // );
+                // term_data
+                //     .terminal
+                //     .terminal
+                //     .term
+                //     .lock()
+                //     .scroll_display(scroll);
             }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
@@ -528,8 +495,7 @@ let scroll=                alacritty_terminal::grid::Scroll::Delta(wheel_event.w
                         _ => "".to_string(),
                     };
                     if s != "" {
-                            data.proxy.terminal_write(term_data.terminal.term_id, &s);
-                        term_data.terminal.terminal.insert(s);
+                        data.proxy.terminal_write(term_data.terminal.term_id, &s);
                     }
                 }
                 data.keypress = keypress.clone();
@@ -548,7 +514,7 @@ let scroll=                alacritty_terminal::grid::Scroll::Delta(wheel_event.w
         if !term_data.terminal.same(&old_terminal_data) {
             Arc::make_mut(&mut data.terminal)
                 .terminals
-                .insert(term_data.terminal.widget_id, term_data.terminal.clone());
+                .insert(term_data.terminal.term_id, term_data.terminal.clone());
         }
     }
 
@@ -591,8 +557,8 @@ let scroll=                alacritty_terminal::grid::Scroll::Delta(wheel_event.w
             let line_height = data.config.editor.line_height as f64;
             let width = (self.width / width).floor() as usize;
             let height = (self.height / line_height).floor() as usize;
-            let terminal = data.terminal.terminals.get(&self.widget_id).unwrap();
-            terminal.terminal.resize(width, height);
+            data.term_tx
+                .send((self.term_id, TerminalEvent::Resize(width, height)));
         }
         size
     }
@@ -603,14 +569,15 @@ let scroll=                alacritty_terminal::grid::Scroll::Delta(wheel_event.w
         let line_height = data.config.editor.line_height as f64;
         let y_shift = (line_height - char_size.height) / 2.0;
 
-        let terminal = data.terminal.terminals.get(&self.widget_id).unwrap();
+        let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
 
+        let cursor_point = &terminal.content.grid.cursor.point;
         let rect =
             Size::new(char_width, line_height)
                 .to_rect()
                 .with_origin(Point::new(
-                    terminal.cursor_point.column.0 as f64 * char_width,
-                    terminal.cursor_point.line.0 as f64 * line_height,
+                    cursor_point.column.0 as f64 * char_width,
+                    cursor_point.line.0 as f64 * line_height,
                 ));
         if ctx.is_focused() {
             ctx.fill(
@@ -625,83 +592,9 @@ let scroll=                alacritty_terminal::grid::Scroll::Delta(wheel_event.w
             );
         }
 
-        for (p, cell) in terminal.content.iter() {
-            let x = p.column.0 as f64 * char_width;
-            let y = p.line.0 as f64 * line_height + y_shift;
-            let fg = match cell.fg {
-                ansi::Color::Named(color) => {
-                    let color = match color {
-                        ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
-                        ansi::NamedColor::Foreground => {
-                            LapceTheme::TERMINAL_FOREGROUND
-                        }
-                        ansi::NamedColor::Background => {
-                            LapceTheme::TERMINAL_BACKGROUND
-                        }
-                        ansi::NamedColor::Blue => {
-                            LapceTheme::TERMINAL_BLUE
-                        }
-                        ansi::NamedColor::Green => {
-                            LapceTheme::TERMINAL_GREEN
-                        }
-                        ansi::NamedColor::Yellow => {
-                            LapceTheme::TERMINAL_YELLOW
-                        }
-                        _ => {
-                            println!("fg {:?}", color);
-                            LapceTheme::TERMINAL_FOREGROUND
-                        }
-                    };
-                    data.config.get_color_unchecked(color).clone()
-                }
-                ansi::Color::Spec(rgb) => Color::rgb8(rgb.r, rgb.g, rgb.b),
-                ansi::Color::Indexed(index) => data
-                    .config
-                    .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
-                    .clone(),
-            };
-            let bg = match cell.bg {
-                ansi::Color::Named(color) => {
-                    let color = match color {
-                        ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
-                        ansi::NamedColor::Foreground => {
-                            LapceTheme::TERMINAL_FOREGROUND
-                        }
-                        ansi::NamedColor::Background => {
-                            LapceTheme::TERMINAL_BACKGROUND
-                        }
-                        ansi::NamedColor::Blue => {
-                            LapceTheme::TERMINAL_BLUE
-                        }
-                        ansi::NamedColor::Green => {
-                            LapceTheme::TERMINAL_GREEN
-                        }
-                        ansi::NamedColor::Yellow => {
-                            LapceTheme::TERMINAL_YELLOW
-                        }
-                        _ => {
-                            println!("bg {:?}", color);
-                            LapceTheme::TERMINAL_BACKGROUND
-                        }
-                    };
-                    if color == LapceTheme::TERMINAL_BACKGROUND {
-                        None
-                    } else {
-                        Some(data.config.get_color_unchecked(color).clone())
-                    }
-                }
-                ansi::Color::Spec(rgb) => Some(Color::rgb8(rgb.r, rgb.g, rgb.b)),
-                ansi::Color::Indexed(index) => {
-                    println!("bg color index {}", index);
-                    None
-                }
-            };
-            if let Some(bg) = bg {
-                let rect = Size::new(char_width, line_height)
-                    .to_rect()
-                    .with_origin(Point::new(x, y));
-                ctx.fill(rect, &bg);
-            }
+        for cell in terminal.content.grid.display_iter() {
+            let x = cell.point.column.0 as f64 * char_width;
+            let y = cell.point.line.0 as f64 * line_height + y_shift;
             let text_layout = ctx
                 .text()
                 .new_text_layout(cell.c.to_string())
@@ -709,17 +602,99 @@ let scroll=                alacritty_terminal::grid::Scroll::Delta(wheel_event.w
                     data.config.editor.font_family(),
                     data.config.editor.font_size as f64,
                 )
-                .text_color(fg)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
+                        .clone(),
+                )
                 .build()
                 .unwrap();
             ctx.draw_text(&text_layout, Point::new(x, y));
         }
+        //for (p, cell) in terminal.content.iter() {
+        //    let x = p.column.0 as f64 * char_width;
+        //    let y = p.line.0 as f64 * line_height + y_shift;
+        //    let fg = match cell.fg {
+        //        ansi::Color::Named(color) => {
+        //            let color = match color {
+        //                ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
+        //                ansi::NamedColor::Foreground => {
+        //                    LapceTheme::TERMINAL_FOREGROUND
+        //                }
+        //                ansi::NamedColor::Background => {
+        //                    LapceTheme::TERMINAL_BACKGROUND
+        //                }
+        //                ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
+        //                ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
+        //                ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
+        //                _ => {
+        //                    println!("fg {:?}", color);
+        //                    LapceTheme::TERMINAL_FOREGROUND
+        //                }
+        //            };
+        //            data.config.get_color_unchecked(color).clone()
+        //        }
+        //        ansi::Color::Spec(rgb) => Color::rgb8(rgb.r, rgb.g, rgb.b),
+        //        ansi::Color::Indexed(index) => data
+        //            .config
+        //            .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
+        //            .clone(),
+        //    };
+        //    let bg = match cell.bg {
+        //        ansi::Color::Named(color) => {
+        //            let color = match color {
+        //                ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
+        //                ansi::NamedColor::Foreground => {
+        //                    LapceTheme::TERMINAL_FOREGROUND
+        //                }
+        //                ansi::NamedColor::Background => {
+        //                    LapceTheme::TERMINAL_BACKGROUND
+        //                }
+        //                ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
+        //                ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
+        //                ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
+        //                _ => {
+        //                    println!("bg {:?}", color);
+        //                    LapceTheme::TERMINAL_BACKGROUND
+        //                }
+        //            };
+        //            if color == LapceTheme::TERMINAL_BACKGROUND {
+        //                None
+        //            } else {
+        //                Some(data.config.get_color_unchecked(color).clone())
+        //            }
+        //        }
+        //        ansi::Color::Spec(rgb) => Some(Color::rgb8(rgb.r, rgb.g, rgb.b)),
+        //        ansi::Color::Indexed(index) => {
+        //            println!("bg color index {}", index);
+        //            None
+        //        }
+        //    };
+        //    if let Some(bg) = bg {
+        //        let rect = Size::new(char_width, line_height)
+        //            .to_rect()
+        //            .with_origin(Point::new(x, y));
+        //        ctx.fill(rect, &bg);
+        //    }
+        //    let text_layout = ctx
+        //        .text()
+        //        .new_text_layout(cell.c.to_string())
+        //        .font(
+        //            data.config.editor.font_family(),
+        //            data.config.editor.font_size as f64,
+        //        )
+        //        .text_color(fg)
+        //        .build()
+        //        .unwrap();
+        //    ctx.draw_text(&text_layout, Point::new(x, y));
+        //}
     }
 }
 
 pub enum TerminalEvent {
-    resize(usize, usize),
-    event(alacritty_terminal::event::Event),
+    Resize(usize, usize),
+    Event(alacritty_terminal::event::Event),
+    UpdateContent(Vec<u8>),
 }
 
 pub enum TerminalHostEvent {
@@ -730,11 +705,17 @@ pub enum TerminalHostEvent {
     Exit,
 }
 
-#[derive(Clone)]
-pub struct Terminal {
-    pub term: Arc<FairMutex<Term<EventProxy>>>,
-    sender: Sender<TerminalEvent>,
-    host_sender: Sender<TerminalHostEvent>,
+#[derive(Clone, Debug)]
+pub struct TerminalContent {
+    grid: Grid<Cell>,
+}
+
+impl TerminalContent {
+    pub fn new() -> Self {
+        Self {
+            grid: Grid::new(1, 1, 0),
+        }
+    }
 }
 
 pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>>;
@@ -748,157 +729,6 @@ impl EventProxy {}
 
 impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
-        self.sender.send(TerminalEvent::event(event));
-    }
-}
-
-impl Terminal {
-    pub fn new(width: usize, height: usize,
-    shell: Option<Program>,
-        cwd: Option<PathBuf>,
-        ) -> (Self, Receiver<TerminalHostEvent>) {
-        let mut config = TermConfig::default();
-        config.shell =shell;
-        config.working_directory =cwd;
-        let (sender, receiver) = crossbeam_channel::unbounded();
-        let event_proxy = EventProxy {
-            sender: sender.clone(),
-        };
-        let size =
-            SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-        let pty = tty::new(&config, &size, None);
-        
-       //  std::thread::spawn(move || {
-       //  let mut config = TermConfig::default();
-       //  let size =
-       //      SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-       //  let mut pty = tty::new(&config, &size, None);
-       //  let mut buf = [0u8;0x10_0000];
-       //  loop {
-       //      
-       //   match   pty.reader().read(&mut buf) {
-       //      Ok(n) => {println!("got {} bytes", n);}
-       //      Err(e) => {println!("pty read error {}",e);}
-       //  }
-       //  }
-       //  });
-        
-        let terminal = Term::new(&config, size, event_proxy.clone());
-        let terminal = Arc::new(FairMutex::new(terminal));
-        let event_loop =
-            EventLoop::new(terminal.clone(), event_proxy, pty, false, false);
-        let loop_tx = event_loop.channel();
-        let notifier = Notifier(loop_tx.clone());
-        event_loop.spawn();
-
-        let (host_sender, host_receiver) = crossbeam_channel::unbounded();
-        let terminal = Terminal {
-            term: terminal,
-            sender,
-            host_sender,
-        };
-        terminal.run(receiver, notifier);
-        (terminal, host_receiver)
-    }
-
-    pub fn resize(&self, width: usize, height: usize) {
-        self.sender.send(TerminalEvent::resize(width, height));
-    }
-
-    fn run(&self, receiver: Receiver<TerminalEvent>, mut notifier: Notifier) {
-        let term = self.term.clone();
-        let host_sender = self.host_sender.clone();
-        std::thread::spawn(move || -> Result<()> {
-            loop {
-                let event = receiver.recv()?;
-                match event {
-                    TerminalEvent::resize(width, height) => {
-                        let size = SizeInfo::new(
-                            width as f32,
-                            height as f32,
-                            1.0,
-                            1.0,
-                            0.0,
-                            0.0,
-                            true,
-                        );
-                        term.lock().resize(size.clone());
-                        notifier.on_resize(&size);
-                    }
-                    TerminalEvent::event(event) => match event {
-                        alacritty_terminal::event::Event::MouseCursorDirty => {}
-                        alacritty_terminal::event::Event::Title(_) => {}
-                        alacritty_terminal::event::Event::ResetTitle => {}
-                        alacritty_terminal::event::Event::ClipboardStore(_, _) => {}
-                        alacritty_terminal::event::Event::ClipboardLoad(_, _) => {}
-                        alacritty_terminal::event::Event::ColorRequest(_, _) => {}
-                        alacritty_terminal::event::Event::PtyWrite(s) => {
-                            notifier.notify(s.into_bytes());
-                        }
-                        alacritty_terminal::event::Event::CursorBlinkingChange(
-                            _,
-                        ) => {}
-                        alacritty_terminal::event::Event::Wakeup => {
-                            let term = term.lock();
-                            let renderable_content = term.renderable_content();
-                            let cursor = renderable_content.cursor.clone();
-                            let colors = renderable_content.colors.clone();
-                            let content = 
-                                renderable_content
-                                .display_iter
-                                .filter_map(|c| {
-                                    if (c.c == ' ' || c.c == '\t')
-                                        && c.bg
-                                            == ansi::Color::Named(
-                                                ansi::NamedColor::Background,
-                                            )
-                                    {
-                                        None
-                                    } else {
-                                        let mut cell = c.cell.clone();
-                                     cell.fg=   match cell.fg {
-                                        ansi::Color::Named(_) => cell.fg,
-                                        ansi::Color::Spec(_) => cell.fg,
-                                        ansi::Color::Indexed(index) => {
-                 match                           colors.index(index as usize) {
-                    Some(rgb) => ansi::Color::Spec(*rgb),
-                    None => cell.fg,
-                }
-                                        }
-                                    };
-                                     cell.bg=   match cell.bg {
-                                        ansi::Color::Named(_) => cell.bg,
-                                        ansi::Color::Spec(_) => cell.bg,
-                                        ansi::Color::Indexed(index) => {
-                 match                           colors.index(index as usize) {
-                    Some(rgb) => ansi::Color::Spec(*rgb),
-                    None => cell.bg,
-                }
-                                        }
-                                    };
-                                        Some((c.point, cell))
-                                    }
-                                })
-                                .collect::<Vec<(alacritty_terminal::index::Point, Cell)>>();
-                            let event = TerminalHostEvent::UpdateContent {
-                                content: content,
-                                cursor: cursor,
-                            };
-                            host_sender.send(event);
-                        }
-                        alacritty_terminal::event::Event::Bell => {}
-                        alacritty_terminal::event::Event::Exit => {
-                            host_sender.send(TerminalHostEvent::Exit);
-                        }
-                    },
-                }
-            }
-        });
-    }
-
-    pub fn insert<B: Into<String>>(&self, data: B) {
-        self.sender.send(TerminalEvent::event(
-            alacritty_terminal::event::Event::PtyWrite(data.into()),
-        ));
+        self.sender.send(TerminalEvent::Event(event));
     }
 }

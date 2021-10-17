@@ -4,6 +4,7 @@ use alacritty_terminal::ansi::CursorShape;
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
 use indexmap::IndexMap;
+use lapce_proxy::terminal::TermId;
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
     PublishDiagnosticsParams, Range, TextEdit,
@@ -21,9 +22,9 @@ use crate::{
     data::EditorKind,
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
     palette::{NewPaletteItem, PaletteType},
-    proxy::TerminalContent,
     split::SplitMoveDirection,
     state::LapceWorkspace,
+    terminal::TerminalContent,
 };
 
 pub const LAPCE_NEW_COMMAND: Selector<LapceCommandNew> =
@@ -383,12 +384,7 @@ pub enum LapceUICommand {
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     UpdateDiffFiles(Vec<PathBuf>),
-    TerminalUpdateContent(
-        WidgetId,
-        TerminalContent,
-        alacritty_terminal::index::Point,
-        CursorShape,
-    ),
+    TerminalUpdateContent(TermId, TerminalContent),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),
@@ -399,7 +395,7 @@ pub enum LapceUICommand {
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
     SplitTerminal(bool, WidgetId, Option<WidgetId>),
-    SplitTerminalClose(WidgetId, Option<WidgetId>),
+    SplitTerminalClose(TermId, WidgetId, Option<WidgetId>),
     SplitEditor(bool, WidgetId),
     SplitEditorMove(SplitMoveDirection, WidgetId),
     SplitEditorExchange(WidgetId),

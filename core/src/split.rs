@@ -18,6 +18,7 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
     WidgetExt, WidgetPod,
 };
+use lapce_proxy::terminal::TermId;
 
 #[derive(Debug)]
 pub enum SplitMoveDirection {
@@ -319,7 +320,7 @@ impl LapceSplitNew {
         let terminal = LapcePadding::new(10.0, LapceTerminal::new(&terminal_data));
         Arc::make_mut(&mut data.terminal)
             .terminals
-            .insert(terminal_data.widget_id, terminal_data.clone());
+            .insert(terminal_data.term_id, terminal_data.clone());
 
         self.insert_flex_child(
             index + 1,
@@ -335,6 +336,7 @@ impl LapceSplitNew {
         &mut self,
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
+        term_id: TermId,
         widget_id: WidgetId,
         panel_widget_id: Option<WidgetId>,
     ) {
@@ -343,9 +345,7 @@ impl LapceSplitNew {
         }
 
         if self.children.len() == 1 {
-            Arc::make_mut(&mut data.terminal)
-                .terminals
-                .remove(&widget_id);
+            Arc::make_mut(&mut data.terminal).terminals.remove(&term_id);
             self.children.remove(0);
             self.children_ids.remove(0);
 
@@ -387,9 +387,7 @@ impl LapceSplitNew {
             Target::Widget(new_terminal_id),
         ));
 
-        Arc::make_mut(&mut data.terminal)
-            .terminals
-            .remove(&terminal_id);
+        Arc::make_mut(&mut data.terminal).terminals.remove(&term_id);
         self.children.remove(index);
         self.children_ids.remove(index);
 
@@ -492,12 +490,14 @@ impl Widget<LapceTabData> for LapceSplitNew {
                         );
                     }
                     LapceUICommand::SplitTerminalClose(
+                        term_id,
                         widget_id,
                         panel_widget_id,
                     ) => {
                         self.split_terminal_close(
                             ctx,
                             data,
+                            *term_id,
                             *widget_id,
                             panel_widget_id.to_owned(),
                         );
@@ -532,7 +532,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                             terminal_panel.active = terminal_panel.widget_id;
                             terminal_panel
                                 .terminals
-                                .insert(terminal_data.widget_id, terminal_data);
+                                .insert(terminal_data.term_id, terminal_data);
                             ctx.children_changed();
                         }
                     }

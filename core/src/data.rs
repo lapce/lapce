@@ -25,6 +25,7 @@ use druid::{
     Rect, Size, Target, TextLayout, Vec2, WidgetId, WindowId,
 };
 use im::{self, hashmap};
+use lapce_proxy::terminal::TermId;
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
@@ -70,7 +71,7 @@ use crate::{
     source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
-    terminal::{TerminalParser, TerminalSplitData, TerminalUpdateEvent},
+    terminal::{TerminalEvent, TerminalParser, TerminalSplitData},
     theme::OldLapceTheme,
 };
 
@@ -234,7 +235,8 @@ pub struct LapceTabData {
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
-    pub term_rx: Option<Receiver<TerminalUpdateEvent>>,
+    pub term_tx: Sender<(TermId, TerminalEvent)>,
+    pub term_rx: Option<Receiver<(TermId, TerminalEvent)>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub window_origin: Point,
@@ -276,7 +278,7 @@ impl LapceTabData {
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let (term_sender, term_receiver) = unbounded();
-        let proxy = Arc::new(LapceProxy::new(tab_id, term_sender));
+        let proxy = Arc::new(LapceProxy::new(tab_id, term_sender.clone()));
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
@@ -321,6 +323,7 @@ impl LapceTabData {
             terminal,
             source_control,
             term_rx: Some(term_receiver),
+            term_tx: term_sender,
             palette,
             proxy,
             keypress,
@@ -365,11 +368,13 @@ impl LapceTabData {
         if let Some(receiver) = self.term_rx.take() {
             let tab_id = self.id;
             let local_event_sink = event_sink.clone();
+            let proxy = self.proxy.clone();
             thread::spawn(move || {
                 LapceTabData::terminal_update_process(
                     tab_id,
                     receiver,
                     local_event_sink,
+                    proxy,
                 );
                 println!("terminal update process stopped");
             });
@@ -807,21 +812,25 @@ impl LapceTabData {
 
     pub fn terminal_update_process(
         tab_id: WidgetId,
-        receiver: Receiver<TerminalUpdateEvent>,
+        receiver: Receiver<(TermId, TerminalEvent)>,
         event_sink: ExtEventSink,
+        proxy: Arc<LapceProxy>,
     ) {
         let mut terminals = HashMap::new();
         loop {
-            if let Ok(event) = receiver.recv() {
-                match event {
-                    TerminalUpdateEvent::UpdateContent(term_id, content) => {
-                        if !terminals.contains_key(&term_id) {
-                            terminals.insert(term_id, TerminalParser::new());
-                        }
-                        let terminal = terminals.get_mut(&term_id).unwrap();
-                        terminal.update_content(&content);
-                    }
+            if let Ok((term_id, event)) = receiver.recv() {
+                if !terminals.contains_key(&term_id) {
+                    terminals.insert(
+                        term_id,
+                        TerminalParser::new(
+                            term_id,
+                            event_sink.clone(),
+                            proxy.clone(),
+                        ),
+                    );
                 }
+                let sender = terminals.get(&term_id).unwrap();
+                sender.send(event);
             } else {
                 return;
             }

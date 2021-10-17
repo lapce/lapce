@@ -29,10 +29,9 @@ use xi_rpc::RpcPeer;
 use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
-use crate::terminal::TerminalUpdateEvent;
+use crate::terminal::TerminalEvent;
+use crate::terminal::TerminalParser;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
-
-pub type TerminalContent = Vec<(alacritty_terminal::index::Point, Cell)>;
 
 #[derive(Clone)]
 pub struct LapceProxy {
@@ -41,11 +40,11 @@ pub struct LapceProxy {
     initiated: Arc<Mutex<bool>>,
     cond: Arc<Condvar>,
     pub tab_id: WidgetId,
-    term_tx: Sender<TerminalUpdateEvent>,
+    term_tx: Sender<(TermId, TerminalEvent)>,
 }
 
 impl LapceProxy {
-    pub fn new(tab_id: WidgetId, term_tx: Sender<TerminalUpdateEvent>) -> Self {
+    pub fn new(tab_id: WidgetId, term_tx: Sender<(TermId, TerminalEvent)>) -> Self {
         let proxy = Self {
             peer: Arc::new(Mutex::new(None)),
             process: Arc::new(Mutex::new(None)),
@@ -131,6 +130,18 @@ impl LapceProxy {
             "initialize",
             &json!({
                 "workspace": workspace,
+            }),
+        )
+    }
+
+    pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
+        self.wait();
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
+            "terminal_resize",
+            &json!({
+                "term_id": term_id,
+                "width": width,
+                "height": height,
             }),
         )
     }
@@ -409,7 +420,7 @@ pub enum Request {}
 
 pub struct ProxyHandlerNew {
     tab_id: WidgetId,
-    term_tx: Sender<TerminalUpdateEvent>,
+    term_tx: Sender<(TermId, TerminalEvent)>,
     event_sink: ExtEventSink,
 }
 
@@ -480,7 +491,7 @@ impl Handler for ProxyHandlerNew {
             }
             Notification::UpdateTerminal { term_id, content } => {
                 self.term_tx
-                    .send(TerminalUpdateEvent::UpdateContent(term_id, content));
+                    .send((term_id, TerminalEvent::UpdateContent(content)));
             }
         }
     }
