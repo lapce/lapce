@@ -282,8 +282,22 @@ impl TerminalParser {
                     }
                     alacritty_terminal::event::Event::CursorBlinkingChange(_) => {}
                     alacritty_terminal::event::Event::Wakeup => {
+                        let mut cells = Vec::new();
+                        for cell in self.term.grid().display_iter() {
+                            let c = cell.cell.c;
+                            if c != ' '
+                                && c != '\t'
+                                && cell.bg
+                                    == ansi::Color::Named(
+                                        ansi::NamedColor::Background,
+                                    )
+                            {
+                                cells.push((cell.point.clone(), cell.cell.clone()));
+                            }
+                        }
                         let content = Arc::new(TerminalContent {
-                            grid: self.term.grid().clone(),
+                            cells,
+                            cursor_point: self.term.grid().cursor.point,
                         });
                         self.event_sink.submit_command(
                             LAPCE_UI_COMMAND,
@@ -573,7 +587,7 @@ impl Widget<LapceTabData> for LapceTerminal {
 
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
 
-        let cursor_point = &terminal.content.grid.cursor.point;
+        let cursor_point = &terminal.content.cursor_point;
         let rect =
             Size::new(char_width, line_height)
                 .to_rect()
@@ -594,9 +608,9 @@ impl Widget<LapceTabData> for LapceTerminal {
             );
         }
 
-        for cell in terminal.content.grid.display_iter() {
-            let x = cell.point.column.0 as f64 * char_width;
-            let y = cell.point.line.0 as f64 * line_height + y_shift;
+        for (point, cell) in &terminal.content.cells {
+            let x = point.column.0 as f64 * char_width;
+            let y = point.line.0 as f64 * line_height + y_shift;
             let text_layout = ctx
                 .text()
                 .new_text_layout(cell.c.to_string())
@@ -709,13 +723,15 @@ pub enum TerminalHostEvent {
 
 #[derive(Debug)]
 pub struct TerminalContent {
-    grid: Grid<Cell>,
+    cells: Vec<(alacritty_terminal::index::Point, Cell)>,
+    cursor_point: alacritty_terminal::index::Point,
 }
 
 impl TerminalContent {
     pub fn new() -> Self {
         Self {
-            grid: Grid::new(1, 1, 0),
+            cells: Vec::new(),
+            cursor_point: alacritty_terminal::index::Point::default(),
         }
     }
 }
