@@ -295,9 +295,11 @@ impl TerminalParser {
                                 cells.push((cell.point.clone(), cell.cell.clone()));
                             }
                         }
+                        let display_offset = self.term.grid().display_offset();
                         let content = Arc::new(TerminalContent {
                             cells,
                             cursor_point: self.term.grid().cursor.point,
+                            display_offset,
                         });
                         self.event_sink.submit_command(
                             LAPCE_UI_COMMAND,
@@ -311,6 +313,13 @@ impl TerminalParser {
                     alacritty_terminal::event::Event::Bell => {}
                     alacritty_terminal::event::Event::Exit => {}
                 },
+                TerminalEvent::Scroll(delta) => {
+                    let scroll = alacritty_terminal::grid::Scroll::Delta(-delta);
+                    self.term.scroll_display(scroll);
+                    self.sender.send(TerminalEvent::Event(
+                        alacritty_terminal::event::Event::Wakeup,
+                    ));
+                }
                 TerminalEvent::UpdateContent(content) => {
                     self.update_content(content);
                     self.sender.send(TerminalEvent::Event(
@@ -465,16 +474,11 @@ impl Widget<LapceTabData> for LapceTerminal {
                 self.request_focus(ctx, data);
             }
             Event::Wheel(wheel_event) => {
-                // println!("wheel {}", wheel_event.wheel_delta.y);
-                // let scroll = alacritty_terminal::grid::Scroll::Delta(
-                //     wheel_event.wheel_delta.y as i32,
-                // );
-                // term_data
-                //     .terminal
-                //     .terminal
-                //     .term
-                //     .lock()
-                //     .scroll_display(scroll);
+                let line_height = data.config.editor.line_height as f64;
+                data.term_tx.send((
+                    self.term_id,
+                    TerminalEvent::Scroll((wheel_event.wheel_delta.y / 5.0) as i32),
+                ));
             }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
@@ -593,7 +597,9 @@ impl Widget<LapceTabData> for LapceTerminal {
                 .to_rect()
                 .with_origin(Point::new(
                     cursor_point.column.0 as f64 * char_width,
-                    cursor_point.line.0 as f64 * line_height,
+                    (cursor_point.line.0 as f64
+                        + terminal.content.display_offset as f64)
+                        * line_height,
                 ));
         if ctx.is_focused() {
             ctx.fill(
@@ -610,7 +616,9 @@ impl Widget<LapceTabData> for LapceTerminal {
 
         for (point, cell) in &terminal.content.cells {
             let x = point.column.0 as f64 * char_width;
-            let y = point.line.0 as f64 * line_height + y_shift;
+            let y = (point.line.0 as f64 + terminal.content.display_offset as f64)
+                * line_height
+                + y_shift;
             let text_layout = ctx
                 .text()
                 .new_text_layout(cell.c.to_string())
@@ -711,6 +719,7 @@ pub enum TerminalEvent {
     Resize(usize, usize),
     Event(alacritty_terminal::event::Event),
     UpdateContent(String),
+    Scroll(i32),
 }
 
 pub enum TerminalHostEvent {
@@ -725,6 +734,7 @@ pub enum TerminalHostEvent {
 pub struct TerminalContent {
     cells: Vec<(alacritty_terminal::index::Point, Cell)>,
     cursor_point: alacritty_terminal::index::Point,
+    display_offset: usize,
 }
 
 impl TerminalContent {
@@ -732,6 +742,7 @@ impl TerminalContent {
         Self {
             cells: Vec::new(),
             cursor_point: alacritty_terminal::index::Point::default(),
+            display_offset: 0,
         }
     }
 }
