@@ -765,7 +765,7 @@ impl Widget<LapceTabData> for LapceTerminal {
 
         let term_bg = data
             .config
-            .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
+            .get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND)
             .clone();
         for (point, cell) in &terminal.content.cells {
             let x = point.column.0 as f64 * char_width;
@@ -794,83 +794,6 @@ impl Widget<LapceTabData> for LapceTerminal {
                 .unwrap();
             ctx.draw_text(&text_layout, Point::new(x, y + y_shift));
         }
-        //for (p, cell) in terminal.content.iter() {
-        //    let x = p.column.0 as f64 * char_width;
-        //    let y = p.line.0 as f64 * line_height + y_shift;
-        //    let fg = match cell.fg {
-        //        ansi::Color::Named(color) => {
-        //            let color = match color {
-        //                ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
-        //                ansi::NamedColor::Foreground => {
-        //                    LapceTheme::TERMINAL_FOREGROUND
-        //                }
-        //                ansi::NamedColor::Background => {
-        //                    LapceTheme::TERMINAL_BACKGROUND
-        //                }
-        //                ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
-        //                ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
-        //                ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
-        //                _ => {
-        //                    println!("fg {:?}", color);
-        //                    LapceTheme::TERMINAL_FOREGROUND
-        //                }
-        //            };
-        //            data.config.get_color_unchecked(color).clone()
-        //        }
-        //        ansi::Color::Spec(rgb) => Color::rgb8(rgb.r, rgb.g, rgb.b),
-        //        ansi::Color::Indexed(index) => data
-        //            .config
-        //            .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
-        //            .clone(),
-        //    };
-        //    let bg = match cell.bg {
-        //        ansi::Color::Named(color) => {
-        //            let color = match color {
-        //                ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
-        //                ansi::NamedColor::Foreground => {
-        //                    LapceTheme::TERMINAL_FOREGROUND
-        //                }
-        //                ansi::NamedColor::Background => {
-        //                    LapceTheme::TERMINAL_BACKGROUND
-        //                }
-        //                ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
-        //                ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
-        //                ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
-        //                _ => {
-        //                    println!("bg {:?}", color);
-        //                    LapceTheme::TERMINAL_BACKGROUND
-        //                }
-        //            };
-        //            if color == LapceTheme::TERMINAL_BACKGROUND {
-        //                None
-        //            } else {
-        //                Some(data.config.get_color_unchecked(color).clone())
-        //            }
-        //        }
-        //        ansi::Color::Spec(rgb) => Some(Color::rgb8(rgb.r, rgb.g, rgb.b)),
-        //        ansi::Color::Indexed(index) => {
-        //            println!("bg color index {}", index);
-        //            None
-        //        }
-        //    };
-        //    if let Some(bg) = bg {
-        //        let rect = Size::new(char_width, line_height)
-        //            .to_rect()
-        //            .with_origin(Point::new(x, y));
-        //        ctx.fill(rect, &bg);
-        //    }
-        //    let text_layout = ctx
-        //        .text()
-        //        .new_text_layout(cell.c.to_string())
-        //        .font(
-        //            data.config.editor.font_family(),
-        //            data.config.editor.font_size as f64,
-        //        )
-        //        .text_color(fg)
-        //        .build()
-        //        .unwrap();
-        //    ctx.draw_text(&text_layout, Point::new(x, y));
-        //}
     }
 }
 
