@@ -9,10 +9,11 @@ use std::{
 
 use alacritty_terminal::{
     ansi,
+    config::Program,
     event::OnResize,
     event_loop::Msg,
     term::SizeInfo,
-    tty::{self, EventedPty, EventedReadWrite},
+    tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
 use mio::{
     channel::{channel, Receiver, Sender},
@@ -68,6 +69,11 @@ impl Terminal {
         let poll = mio::Poll::new().unwrap();
         let mut config = TermConfig::default();
         config.working_directory = cwd;
+        config.shell = std::env::var("SHELL").ok().map(|shell| Program::WithArgs {
+            program: shell.to_string(),
+            args: vec!["-l".to_string()],
+        });
+        setup_env(&config);
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
         let mut pty = alacritty_terminal::tty::new(&config, &size, None);
