@@ -3008,7 +3008,9 @@ impl Widget<LapceTabData> for LapceEditorView {
                         data.main_split.active = Arc::new(self.view_id);
                     }
                     LapceUICommand::FocusTab => {
-                        if *data.main_split.active == self.view_id {
+                        if data.focus_area == FocusArea::Editor
+                            && *data.main_split.active == self.view_id
+                        {
                             ctx.request_focus();
                             data.focus_area = FocusArea::Editor;
                             data.focus = self.view_id;
