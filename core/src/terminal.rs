@@ -44,6 +44,7 @@ pub struct TerminalSplitData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub terminals: im::HashMap<TermId, Arc<LapceTerminalData>>,
+    pub indexed_colors: Arc<HashMap<u8, Color>>,
 }
 
 impl TerminalSplitData {
@@ -56,13 +57,46 @@ impl TerminalSplitData {
             widget_id: WidgetId::next(),
             split_id,
             terminals,
+            indexed_colors: Arc::new(Self::get_indexed_colors()),
         }
+    }
+
+    pub fn get_indexed_colors() -> HashMap<u8, Color> {
+        let mut indexed_colors = HashMap::new();
+        let mut index: u8 = 16;
+        // Build colors.
+        for r in 0..6 {
+            for g in 0..6 {
+                for b in 0..6 {
+                    // Override colors 16..232 with the config (if present).
+                    indexed_colors.insert(
+                        index,
+                        Color::rgb8(
+                            if r == 0 { 0 } else { r * 40 + 55 },
+                            if b == 0 { 0 } else { b * 40 + 55 },
+                            if g == 0 { 0 } else { g * 40 + 55 },
+                        ),
+                    );
+                    index += 1;
+                }
+            }
+        }
+
+        let index: u8 = 232;
+
+        for i in 0..24 {
+            // Override colors 232..256 with the config (if present).
+
+            let value = i * 10 + 8;
+            indexed_colors.insert(index + i, Color::rgb8(value, value, value));
+        }
+        indexed_colors
     }
 }
 
 pub struct LapceTerminalViewData {
     terminal: Arc<LapceTerminalData>,
-    proxy: Arc<LapceProxy>,
+    term_tx: Sender<(TermId, TerminalEvent)>,
 }
 
 impl KeyPressFocus for LapceTerminalViewData {
@@ -133,7 +167,12 @@ impl KeyPressFocus for LapceTerminalViewData {
     }
 
     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
-        self.proxy.terminal_write(self.terminal.term_id, c);
+        self.term_tx.send((
+            self.terminal.term_id,
+            TerminalEvent::Event(alacritty_terminal::event::Event::PtyWrite(
+                c.to_string(),
+            )),
+        ));
     }
 }
 
@@ -216,10 +255,12 @@ impl LapceTerminalData {
 pub struct TerminalParser {
     term_id: TermId,
     term: Term<EventProxy>,
+    scroll_delta: f64,
     sender: Sender<TerminalEvent>,
     parser: ansi::Processor,
     event_sink: ExtEventSink,
     proxy: Arc<LapceProxy>,
+    indexed_colors: HashMap<u8, Color>,
 }
 
 impl TerminalParser {
@@ -240,10 +281,12 @@ impl TerminalParser {
         let mut parser = TerminalParser {
             term_id,
             term,
+            scroll_delta: 0.0,
             sender: sender.clone(),
             parser: ansi::Processor::new(),
             event_sink,
             proxy,
+            indexed_colors: HashMap::new(),
         };
 
         std::thread::spawn(move || {
@@ -251,6 +294,40 @@ impl TerminalParser {
         });
 
         sender
+    }
+
+    pub fn fill_cube(&mut self) {
+        let mut index: u8 = 16;
+        // Build colors.
+        for r in 0..6 {
+            for g in 0..6 {
+                for b in 0..6 {
+                    // Override colors 16..232 with the config (if present).
+                    self.indexed_colors.insert(
+                        index,
+                        Color::rgb8(
+                            if r == 0 { 0 } else { r * 40 + 55 },
+                            if b == 0 { 0 } else { b * 40 + 55 },
+                            if g == 0 { 0 } else { g * 40 + 55 },
+                        ),
+                    );
+                    index += 1;
+                }
+            }
+        }
+    }
+
+    pub fn fill_gray_ramp(&mut self) {
+        let mut index: u8 = 232;
+
+        for i in 0..24 {
+            // Override colors 232..256 with the config (if present).
+
+            let value = i * 10 + 8;
+            self.indexed_colors
+                .insert(index, Color::rgb8(value, value, value));
+            index += 1;
+        }
     }
 
     pub fn run(&mut self, receiver: Receiver<TerminalEvent>) -> Result<()> {
@@ -279,16 +356,17 @@ impl TerminalParser {
                     alacritty_terminal::event::Event::ColorRequest(_, _) => {}
                     alacritty_terminal::event::Event::PtyWrite(s) => {
                         self.proxy.terminal_write(self.term_id, &s);
+                        let scroll = alacritty_terminal::grid::Scroll::Bottom;
+                        self.term.scroll_display(scroll);
                     }
                     alacritty_terminal::event::Event::CursorBlinkingChange(_) => {}
                     alacritty_terminal::event::Event::Wakeup => {
                         let mut cells = Vec::new();
                         for cell in self.term.grid().display_iter() {
                             let c = cell.cell.c;
-                            if c != ' '
-                                && c != '\t'
-                                && cell.bg
-                                    == ansi::Color::Named(
+                            if (c != ' ' && c != '\t')
+                                || cell.bg
+                                    != ansi::Color::Named(
                                         ansi::NamedColor::Background,
                                     )
                             {
@@ -314,11 +392,17 @@ impl TerminalParser {
                     alacritty_terminal::event::Event::Exit => {}
                 },
                 TerminalEvent::Scroll(delta) => {
-                    let scroll = alacritty_terminal::grid::Scroll::Delta(-delta);
-                    self.term.scroll_display(scroll);
-                    self.sender.send(TerminalEvent::Event(
-                        alacritty_terminal::event::Event::Wakeup,
-                    ));
+                    let step = 25.0;
+                    self.scroll_delta -= delta;
+                    let delta = (self.scroll_delta / step) as i32;
+                    self.scroll_delta -= delta as f64 * step;
+                    if delta != 0 {
+                        let scroll = alacritty_terminal::grid::Scroll::Delta(delta);
+                        self.term.scroll_display(scroll);
+                        self.sender.send(TerminalEvent::Event(
+                            alacritty_terminal::event::Event::Wakeup,
+                        ));
+                    }
                 }
                 TerminalEvent::UpdateContent(content) => {
                     self.update_content(content);
@@ -467,17 +551,16 @@ impl Widget<LapceTabData> for LapceTerminal {
             data.terminal.terminals.get(&self.term_id).unwrap().clone();
         let mut term_data = LapceTerminalViewData {
             terminal: old_terminal_data.clone(),
-            proxy: data.proxy.clone(),
+            term_tx: data.term_tx.clone(),
         };
         match event {
             Event::MouseDown(mouse_event) => {
                 self.request_focus(ctx, data);
             }
             Event::Wheel(wheel_event) => {
-                let line_height = data.config.editor.line_height as f64;
                 data.term_tx.send((
                     self.term_id,
-                    TerminalEvent::Scroll((wheel_event.wheel_delta.y / 5.0) as i32),
+                    TerminalEvent::Scroll(wheel_event.wheel_delta.y),
                 ));
             }
             Event::KeyDown(key_event) => {
@@ -515,7 +598,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                         _ => "".to_string(),
                     };
                     if s != "" {
-                        data.proxy.terminal_write(term_data.terminal.term_id, &s);
+                        term_data.insert(ctx, &s);
                     }
                 }
                 data.keypress = keypress.clone();
@@ -617,8 +700,77 @@ impl Widget<LapceTabData> for LapceTerminal {
         for (point, cell) in &terminal.content.cells {
             let x = point.column.0 as f64 * char_width;
             let y = (point.line.0 as f64 + terminal.content.display_offset as f64)
-                * line_height
-                + y_shift;
+                * line_height;
+
+            let bg = match cell.bg {
+                ansi::Color::Named(color) => {
+                    let color = match color {
+                        ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
+                        ansi::NamedColor::Foreground => {
+                            LapceTheme::TERMINAL_FOREGROUND
+                        }
+                        ansi::NamedColor::Background => {
+                            LapceTheme::TERMINAL_BACKGROUND
+                        }
+                        ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
+                        ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
+                        ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
+                        _ => {
+                            println!("bg {:?}", color);
+                            LapceTheme::TERMINAL_BACKGROUND
+                        }
+                    };
+                    if color == LapceTheme::TERMINAL_BACKGROUND {
+                        None
+                    } else {
+                        Some(data.config.get_color_unchecked(color).clone())
+                    }
+                }
+                ansi::Color::Spec(rgb) => Some(Color::rgb8(rgb.r, rgb.g, rgb.b)),
+                ansi::Color::Indexed(index) => {
+                    data.terminal.indexed_colors.get(&index).map(|c| c.clone())
+                }
+            };
+            if let Some(bg) = bg {
+                let rect = Size::new(char_width, line_height)
+                    .to_rect()
+                    .with_origin(Point::new(x, y));
+                ctx.fill(rect, &bg);
+            }
+
+            let fg = match cell.fg {
+                ansi::Color::Named(color) => {
+                    let color = match color {
+                        ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
+                        ansi::NamedColor::Foreground => {
+                            LapceTheme::TERMINAL_FOREGROUND
+                        }
+                        ansi::NamedColor::Background => {
+                            LapceTheme::TERMINAL_BACKGROUND
+                        }
+                        ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
+                        ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
+                        ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
+                        _ => {
+                            println!("fg {:?}", color);
+                            LapceTheme::TERMINAL_FOREGROUND
+                        }
+                    };
+                    data.config.get_color_unchecked(color).clone()
+                }
+                ansi::Color::Spec(rgb) => Color::rgb8(rgb.r, rgb.g, rgb.b),
+                ansi::Color::Indexed(index) => data
+                    .terminal
+                    .indexed_colors
+                    .get(&index)
+                    .map(|c| c.clone())
+                    .unwrap_or(
+                        data.config
+                            .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
+                            .clone(),
+                    ),
+            };
+
             let text_layout = ctx
                 .text()
                 .new_text_layout(cell.c.to_string())
@@ -626,14 +778,10 @@ impl Widget<LapceTabData> for LapceTerminal {
                     data.config.editor.font_family(),
                     data.config.editor.font_size as f64,
                 )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
-                        .clone(),
-                )
+                .text_color(fg)
                 .build()
                 .unwrap();
-            ctx.draw_text(&text_layout, Point::new(x, y));
+            ctx.draw_text(&text_layout, Point::new(x, y + y_shift));
         }
         //for (p, cell) in terminal.content.iter() {
         //    let x = p.column.0 as f64 * char_width;
@@ -719,7 +867,7 @@ pub enum TerminalEvent {
     Resize(usize, usize),
     Event(alacritty_terminal::event::Event),
     UpdateContent(String),
-    Scroll(i32),
+    Scroll(f64),
 }
 
 pub enum TerminalHostEvent {

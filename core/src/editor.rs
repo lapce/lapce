@@ -3209,13 +3209,19 @@ impl Widget<LapceTabData> for LapceEditorView {
         let self_size = bc.max();
         let header_size = self.header.layout(ctx, bc, data, env);
         self.header.set_origin(ctx, data, env, Point::ZERO);
-        let editor_size =
-            Size::new(self_size.width, self_size.height - header_size.height);
-        let editor_bc = BoxConstraints::new(Size::ZERO, editor_size);
-        self.editor.layout(ctx, &editor_bc, data, env);
-        self.editor
-            .set_origin(ctx, data, env, Point::new(0.0, header_size.height));
-        bc.max()
+        if self_size.height > header_size.height {
+            let editor_size =
+                Size::new(self_size.width, self_size.height - header_size.height);
+            let editor_bc = BoxConstraints::new(Size::ZERO, editor_size);
+            self.editor.layout(ctx, &editor_bc, data, env);
+            self.editor.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new(0.0, header_size.height),
+            );
+        }
+        self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
