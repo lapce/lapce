@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, VecDeque},
     fs::File,
     io::{self, ErrorKind, Read, Write},
+    path::PathBuf,
     sync::atomic::{self, AtomicU64},
 };
 
@@ -58,9 +59,15 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(term_id: TermId, width: usize, height: usize) -> Terminal {
+    pub fn new(
+        term_id: TermId,
+        cwd: Option<PathBuf>,
+        width: usize,
+        height: usize,
+    ) -> Terminal {
         let poll = mio::Poll::new().unwrap();
-        let config = TermConfig::default();
+        let mut config = TermConfig::default();
+        config.working_directory = cwd;
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
         let mut pty = alacritty_terminal::tty::new(&config, &size, None);

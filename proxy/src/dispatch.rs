@@ -118,6 +118,7 @@ pub enum Notification {
     },
     NewTerminal {
         term_id: TermId,
+        cwd: Option<PathBuf>,
     },
     TerminalWrite {
         term_id: TermId,
@@ -417,8 +418,8 @@ impl Dispatcher {
                     self.lsp.lock().update(buffer, &content_change, buffer.rev);
                 }
             }
-            Notification::NewTerminal { term_id } => {
-                let mut terminal = Terminal::new(term_id, 50, 10);
+            Notification::NewTerminal { term_id, cwd } => {
+                let mut terminal = Terminal::new(term_id, cwd, 50, 10);
                 let tx = terminal.tx.clone();
                 self.terminals.lock().insert(term_id, tx);
                 let dispatcher = self.clone();

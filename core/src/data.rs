@@ -369,11 +369,13 @@ impl LapceTabData {
             let tab_id = self.id;
             let local_event_sink = event_sink.clone();
             let proxy = self.proxy.clone();
+            let workspace = self.workspace.clone();
             thread::spawn(move || {
                 LapceTabData::terminal_update_process(
                     tab_id,
                     receiver,
                     local_event_sink,
+                    workspace,
                     proxy,
                 );
                 println!("terminal update process stopped");
@@ -412,18 +414,18 @@ impl LapceTabData {
         }
     }
 
-    pub fn set_workspace(
-        &mut self,
-        workspace: LapceWorkspace,
-        event_sink: ExtEventSink,
-    ) {
-        self.workspace = Some(Arc::new(workspace.clone()));
-        self.main_split.diagnostics.clear();
-        self.main_split.error_count = 0;
-        self.main_split.warning_count = 0;
-        self.proxy.start(workspace.clone(), event_sink.clone());
-        self.config = Arc::new(Config::load(Some(workspace)).unwrap_or_default());
-    }
+    // pub fn set_workspace(
+    //     &mut self,
+    //     workspace: LapceWorkspace,
+    //     event_sink: ExtEventSink,
+    // ) {
+    //     self.workspace = Some(Arc::new(workspace.clone()));
+    //     self.main_split.diagnostics.clear();
+    //     self.main_split.error_count = 0;
+    //     self.main_split.warning_count = 0;
+    //     self.proxy.start(workspace.clone(), event_sink.clone());
+    //     self.config = Arc::new(Config::load(Some(workspace)).unwrap_or_default());
+    // }
 
     pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
         let editor = self.main_split.active_editor();
@@ -814,6 +816,7 @@ impl LapceTabData {
         tab_id: WidgetId,
         receiver: Receiver<(TermId, TerminalEvent)>,
         event_sink: ExtEventSink,
+        workspace: Option<Arc<LapceWorkspace>>,
         proxy: Arc<LapceProxy>,
     ) {
         let mut terminals = HashMap::new();
@@ -825,6 +828,7 @@ impl LapceTabData {
                         TerminalParser::new(
                             term_id,
                             event_sink.clone(),
+                            workspace.clone(),
                             proxy.clone(),
                         ),
                     );

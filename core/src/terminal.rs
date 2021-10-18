@@ -193,24 +193,12 @@ impl LapceTerminalData {
         panel_widget_id: Option<WidgetId>,
         proxy: Arc<LapceProxy>,
     ) -> Self {
-        // let (shell, cwd) = match workspace {
-        //     Some(workspace) => match &workspace.kind {
-        //         LapceWorkspaceType::Local => (None, Some(workspace.path.clone())),
-        //         LapceWorkspaceType::RemoteSSH(user, host) => (
-        //             Some(Program::WithArgs {
-        //                 program: "ssh".to_string(),
-        //                 args: vec![format!("{}@{}", user, host)],
-        //             }),
-        //             None,
-        //         ),
-        //     },
-        //     None => (None, None),
-        // };
+        let cwd = workspace.map(|w| w.path.clone());
         // let (terminal, receiver) = Terminal::new(50, 20, shell, cwd);
         let widget_id = WidgetId::next();
 
         let term_id = TermId::next();
-        proxy.new_terminal(term_id);
+        proxy.new_terminal(term_id, cwd);
 
         let local_split_id = split_id;
         let local_widget_id = widget_id;
@@ -267,6 +255,7 @@ impl TerminalParser {
     pub fn new(
         term_id: TermId,
         event_sink: ExtEventSink,
+        workspace: Option<Arc<LapceWorkspace>>,
         proxy: Arc<LapceProxy>,
     ) -> Sender<TerminalEvent> {
         let mut config = TermConfig::default();

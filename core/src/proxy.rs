@@ -157,12 +157,13 @@ impl LapceProxy {
         )
     }
 
-    pub fn new_terminal(&self, term_id: TermId) {
+    pub fn new_terminal(&self, term_id: TermId, cwd: Option<PathBuf>) {
         self.wait();
         self.peer.lock().as_ref().unwrap().send_rpc_notification(
             "new_terminal",
             &json!({
                 "term_id": term_id,
+                "cwd": cwd,
             }),
         )
     }
