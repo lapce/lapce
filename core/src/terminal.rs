@@ -9,17 +9,21 @@ use alacritty_terminal::{
     event::{EventListener, Notify, OnResize},
     event_loop::{EventLoop, Notifier},
     sync::FairMutex,
-    term::{cell::Cell, RenderableCursor, SizeInfo},
+    term::{
+        cell::{Cell, Flags},
+        RenderableCursor, SizeInfo,
+    },
     tty::{self, EventedReadWrite},
     Grid, Term,
 };
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use druid::{
-    piet::{Text, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, ExtEventSink, KbKey,
-    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext,
-    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    piet::{Text, TextAttribute, TextLayoutBuilder},
+    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, ExtEventSink,
+    FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx,
+    Point, RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 use lapce_proxy::terminal::TermId;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -781,17 +785,21 @@ impl Widget<LapceTabData> for LapceTerminal {
             }
 
             let fg = data.terminal.get_color(&cell.fg, &data.config);
+            let bold = cell.flags.contains(Flags::BOLD);
 
-            let text_layout = ctx
+            let mut builder = ctx
                 .text()
                 .new_text_layout(cell.c.to_string())
                 .font(
                     data.config.editor.font_family(),
                     data.config.editor.font_size as f64,
                 )
-                .text_color(fg)
-                .build()
-                .unwrap();
+                .text_color(fg);
+            if bold {
+                builder = builder
+                    .default_attribute(TextAttribute::Weight(FontWeight::BOLD));
+            }
+            let text_layout = builder.build().unwrap();
             ctx.draw_text(&text_layout, Point::new(x, y + y_shift));
         }
     }
