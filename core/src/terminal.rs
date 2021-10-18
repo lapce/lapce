@@ -70,21 +70,18 @@ impl TerminalSplitData {
 
     pub fn get_indexed_colors() -> HashMap<u8, Color> {
         let mut indexed_colors = HashMap::new();
-        let mut index: u8 = 16;
         // Build colors.
         for r in 0..6 {
             for g in 0..6 {
                 for b in 0..6 {
                     // Override colors 16..232 with the config (if present).
-                    indexed_colors.insert(
-                        index,
-                        Color::rgb8(
-                            if r == 0 { 0 } else { r * 40 + 55 },
-                            if b == 0 { 0 } else { b * 40 + 55 },
-                            if g == 0 { 0 } else { g * 40 + 55 },
-                        ),
+                    let index = 16 + r * 36 + g * 6 + b;
+                    let color = Color::rgb8(
+                        if r == 0 { 0 } else { r * 40 + 55 },
+                        if g == 0 { 0 } else { g * 40 + 55 },
+                        if b == 0 { 0 } else { b * 40 + 55 },
                     );
-                    index += 1;
+                    indexed_colors.insert(index, color);
                 }
             }
         }
