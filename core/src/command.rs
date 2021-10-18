@@ -394,6 +394,7 @@ pub enum LapceUICommand {
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
+    CloseTerminal(TermId),
     SplitTerminal(bool, WidgetId, Option<WidgetId>),
     SplitTerminalClose(TermId, WidgetId, Option<WidgetId>),
     SplitEditor(bool, WidgetId),

@@ -389,7 +389,13 @@ impl TerminalParser {
                         );
                     }
                     alacritty_terminal::event::Event::Bell => {}
-                    alacritty_terminal::event::Event::Exit => {}
+                    alacritty_terminal::event::Event::Exit => {
+                        self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::CloseTerminal(self.term_id),
+                            Target::Auto,
+                        );
+                    }
                 },
                 TerminalEvent::Scroll(delta) => {
                     let step = 25.0;

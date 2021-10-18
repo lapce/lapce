@@ -235,6 +235,22 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::CloseTerminal(id) => {
+                        let terminal_panel = Arc::make_mut(&mut data.terminal);
+                        if let Some(terminal) = terminal_panel.terminals.get_mut(id)
+                        {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::SplitTerminalClose(
+                                    terminal.term_id,
+                                    terminal.widget_id,
+                                    terminal.panel_widget_id.clone(),
+                                ),
+                                Target::Widget(terminal.split_id),
+                            ));
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateDiffFiles(files) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
                         source_control.diff_files = files

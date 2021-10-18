@@ -413,6 +413,9 @@ pub enum Notification {
         term_id: TermId,
         content: String,
     },
+    CloseTerminal {
+        term_id: TermId,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -492,6 +495,12 @@ impl Handler for ProxyHandlerNew {
             Notification::UpdateTerminal { term_id, content } => {
                 self.term_tx
                     .send((term_id, TerminalEvent::UpdateContent(content)));
+            }
+            Notification::CloseTerminal { term_id } => {
+                self.term_tx.send((
+                    term_id,
+                    TerminalEvent::Event(alacritty_terminal::event::Event::Exit),
+                ));
             }
         }
     }

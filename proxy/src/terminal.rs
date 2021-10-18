@@ -11,7 +11,7 @@ use alacritty_terminal::{
     event::OnResize,
     event_loop::Msg,
     term::SizeInfo,
-    tty::{EventedPty, EventedReadWrite},
+    tty::{self, EventedPty, EventedReadWrite},
 };
 use mio::{
     channel::{channel, Receiver, Sender},
@@ -103,7 +103,19 @@ impl Terminal {
                         }
                     }
 
-                    token if token == self.pty.child_event_token() => {}
+                    token if token == self.pty.child_event_token() => {
+                        if let Some(tty::ChildEvent::Exited) =
+                            self.pty.next_child_event()
+                        {
+                            dispatcher.send_notification(
+                                "close_terminal",
+                                json!({
+                                    "term_id": self.term_id,
+                                }),
+                            );
+                            break 'event_loop;
+                        }
+                    }
                     token
                         if token == self.pty.read_token()
                             || token == self.pty.write_token() =>
