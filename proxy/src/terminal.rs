@@ -75,6 +75,10 @@ impl Terminal {
             args: vec!["-l".to_string()],
         });
         setup_env(&config);
+        
+        #[cfg(target_os = "macos")]
+        set_locale_environment();
+        
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
         let mut pty = alacritty_terminal::tty::new(&config, &size, None);
@@ -307,4 +311,9 @@ impl State {
     fn set_current(&mut self, new: Option<Writing>) {
         self.writing = new;
     }
+}
+
+fn set_locale_environment() {
+    let locale = locale_config::Locale::global_default().to_string().replace("-", "_");
+    std::env::set_var("LC_ALL", locale + ".UTF-8");
 }

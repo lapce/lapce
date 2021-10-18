@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+locale_config = "0.3.0"
 base64 = "0.13.0"
 alacritty_terminal = "0.15.0"
 mio = "0.6.20"

@@ -498,7 +498,7 @@ dependencies = [
  "clicolors-control",
  "lazy_static 1.4.0",
  "libc",
- "parking_lot 0.6.4",
+ "parking_lot 0.11.2",
  "regex",
  "termios",
  "unicode-width",
@@ -1999,6 +1999,7 @@ dependencies = [
  "home",
  "jsonrpc-lite",
  "lapce-rpc",
+ "locale_config",
  "lsp-types",
  "mio 0.6.23",
  "notify",
@@ -2139,6 +2140,19 @@ name = "linked-hash-map"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fb9b38af92608140b86b693604b9ffcc5824240a484d1ecd4795bacb2fe88f3"
+
+[[package]]
+name = "locale_config"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08d2c35b16f4483f6c26f0e4e9550717a2f6575bcd6f12a53ff0c490a94a6934"
+dependencies = [
+ "lazy_static 1.4.0",
+ "objc",
+ "objc-foundation",
+ "regex",
+ "winapi 0.3.9",
+]
 
 [[package]]
 name = "lock_api"
