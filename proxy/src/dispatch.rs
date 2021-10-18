@@ -575,24 +575,31 @@ impl Dispatcher {
                     let mut dirs = Vec::new();
                     dirs.push(workspace.clone());
                     while let Some(dir) = dirs.pop() {
-                        for entry in fs::read_dir(dir).unwrap() {
-                            let entry = entry.unwrap();
-                            let path = entry.path();
-                            if entry.file_name().to_str().unwrap().starts_with(".") {
-                                continue;
-                            }
-                            if path.is_dir() {
-                                if !path
-                                    .as_path()
+                        if let Ok(readdir) = fs::read_dir(dir) {
+                            for entry in readdir {
+                                let entry = entry.unwrap();
+                                let path = entry.path();
+                                if entry
+                                    .file_name()
                                     .to_str()
                                     .unwrap()
-                                    .to_string()
-                                    .ends_with("target")
+                                    .starts_with(".")
                                 {
-                                    dirs.push(path);
+                                    continue;
                                 }
-                            } else {
-                                items.push(path.to_str().unwrap().to_string());
+                                if path.is_dir() {
+                                    if !path
+                                        .as_path()
+                                        .to_str()
+                                        .unwrap()
+                                        .to_string()
+                                        .ends_with("target")
+                                    {
+                                        dirs.push(path);
+                                    }
+                                } else {
+                                    items.push(path.to_str().unwrap().to_string());
+                                }
                             }
                         }
                     }
