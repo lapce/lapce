@@ -1,4 +1,6 @@
-use std::{collections::HashMap, io::Read, ops::Index, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap, fmt::Debug, io::Read, ops::Index, path::PathBuf, sync::Arc,
+};
 
 use alacritty_terminal::{
     ansi::{self, CursorShape, Handler},
@@ -367,6 +369,7 @@ impl TerminalParser {
                             cells,
                             cursor_point: self.term.grid().cursor.point,
                             display_offset,
+                            colors: self.term.renderable_content().colors.clone(),
                         });
                         self.event_sink.submit_command(
                             LAPCE_UI_COMMAND,
@@ -729,9 +732,14 @@ impl Widget<LapceTabData> for LapceTerminal {
                     }
                 }
                 ansi::Color::Spec(rgb) => Some(Color::rgb8(rgb.r, rgb.g, rgb.b)),
-                ansi::Color::Indexed(index) => {
-                    data.terminal.indexed_colors.get(&index).map(|c| c.clone())
-                }
+                ansi::Color::Indexed(index) => terminal
+                    .content
+                    .colors
+                    .index(index as usize)
+                    .map(|c| Color::rgb8(c.r, c.g, c.b))
+                    .or_else(|| {
+                        data.terminal.indexed_colors.get(&index).map(|c| c.clone())
+                    }),
             };
             if let Some(bg) = bg {
                 let rect = Size::new(char_width, line_height)
@@ -761,16 +769,19 @@ impl Widget<LapceTabData> for LapceTerminal {
                     data.config.get_color_unchecked(color).clone()
                 }
                 ansi::Color::Spec(rgb) => Color::rgb8(rgb.r, rgb.g, rgb.b),
-                ansi::Color::Indexed(index) => data
-                    .terminal
-                    .indexed_colors
-                    .get(&index)
-                    .map(|c| c.clone())
-                    .unwrap_or(
+                ansi::Color::Indexed(index) => terminal
+                    .content
+                    .colors
+                    .index(index as usize)
+                    .map(|c| Color::rgb8(c.r, c.g, c.b))
+                    .or_else(|| {
+                        data.terminal.indexed_colors.get(&index).map(|c| c.clone())
+                    })
+                    .unwrap_or_else(|| {
                         data.config
                             .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
-                            .clone(),
-                    ),
+                            .clone()
+                    }),
             };
 
             let text_layout = ctx
@@ -880,11 +891,20 @@ pub enum TerminalHostEvent {
     Exit,
 }
 
-#[derive(Debug)]
 pub struct TerminalContent {
     cells: Vec<(alacritty_terminal::index::Point, Cell)>,
     cursor_point: alacritty_terminal::index::Point,
     display_offset: usize,
+    colors: alacritty_terminal::term::color::Colors,
+}
+
+impl Debug for TerminalContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{:?}", self.cells))?;
+        f.write_str(&format!("{:?}", self.cursor_point))?;
+        f.write_str(&format!("{:?}", self.display_offset))?;
+        Ok(())
+    }
 }
 
 impl TerminalContent {
@@ -893,6 +913,7 @@ impl TerminalContent {
             cells: Vec::new(),
             cursor_point: alacritty_terminal::index::Point::default(),
             display_offset: 0,
+            colors: alacritty_terminal::term::color::Colors::default(),
         }
     }
 }
