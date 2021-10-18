@@ -144,6 +144,9 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "focus_editor")]
     FocusEditor,
+
+    #[strum(serialize = "focus_terminal")]
+    FocusTerminal,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]

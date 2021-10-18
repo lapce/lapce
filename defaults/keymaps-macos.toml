@@ -56,6 +56,11 @@ key = "meta+k"
 command = "focus_editor"
 when = "panel_focus"
 
+[[keymaps]]
+key = "meta+j"
+command = "focus_terminal"
+when = "editor_focus"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]

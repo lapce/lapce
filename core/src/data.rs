@@ -794,6 +794,13 @@ impl LapceTabData {
                     Target::Widget(*self.main_split.active),
                 ));
             }
+            LapceWorkbenchCommand::FocusTerminal => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(self.terminal.active),
+                ));
+            }
         }
     }
 
