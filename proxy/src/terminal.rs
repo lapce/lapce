@@ -68,7 +68,8 @@ impl Terminal {
     ) -> Terminal {
         let poll = mio::Poll::new().unwrap();
         let mut config = TermConfig::default();
-        config.working_directory = cwd;
+        config.working_directory =
+            cwd.or_else(|| std::env::var("HOME").ok().map(|h| PathBuf::from(h)));
         config.shell = std::env::var("SHELL").ok().map(|shell| Program::WithArgs {
             program: shell.to_string(),
             args: vec!["-l".to_string()],
