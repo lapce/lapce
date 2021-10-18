@@ -141,6 +141,9 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "toggle_maximized_panel")]
     ToggleMaximizedPanel,
+
+    #[strum(serialize = "focus_editor")]
+    FocusEditor,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]

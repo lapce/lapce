@@ -787,6 +787,13 @@ impl LapceTabData {
                 let panel = Arc::make_mut(panel);
                 panel.maximized = !panel.maximized;
             }
+            LapceWorkbenchCommand::FocusEditor => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(*self.main_split.active),
+                ));
+            }
         }
     }
 

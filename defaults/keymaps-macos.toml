@@ -51,6 +51,11 @@ key = "ctrl+."
 command = "show_code_actions"
 mode = "n"
 
+[[keymaps]]
+key = "meta+k"
+command = "focus_editor"
+when = "panel_focus"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
