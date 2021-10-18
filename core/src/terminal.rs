@@ -607,13 +607,6 @@ impl Widget<LapceTabData> for LapceTerminal {
                     LapceUICommand::Focus => {
                         self.request_focus(ctx, data);
                     }
-                    LapceUICommand::FocusTab => {
-                        if data.focus_area == FocusArea::Terminal
-                            && data.terminal.active == self.widget_id
-                        {
-                            self.request_focus(ctx, data);
-                        }
-                    }
                     _ => (),
                 }
             }

@@ -318,6 +318,7 @@ impl LapceTabData {
         let mut tab = Self {
             id: tab_id,
             workspace: None,
+            focus: *main_split.active,
             main_split,
             completion,
             terminal,
@@ -342,7 +343,6 @@ impl LapceTabData {
             },
             panel_active: PanelPosition::LeftTop,
             config,
-            focus: tab_id,
             focus_area: FocusArea::Editor,
         };
         if let Some(event_sink) = event_sink {
