@@ -1,5 +1,6 @@
 use std::{
-    collections::HashMap, fmt::Debug, io::Read, ops::Index, path::PathBuf, sync::Arc,
+    collections::HashMap, convert::TryFrom, fmt::Debug, io::Read, ops::Index,
+    path::PathBuf, sync::Arc,
 };
 
 use alacritty_terminal::{
@@ -26,7 +27,7 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData},
     keypress::KeyPressFocus,
     proxy::LapceProxy,
@@ -93,6 +94,73 @@ impl TerminalSplitData {
             indexed_colors.insert(index + i, Color::rgb8(value, value, value));
         }
         indexed_colors
+    }
+
+    fn get_color(&self, color: &ansi::Color, config: &Config) -> Color {
+        match color {
+            ansi::Color::Named(color) => self.get_named_color(color, config),
+            ansi::Color::Spec(rgb) => Color::rgb8(rgb.r, rgb.g, rgb.b),
+            ansi::Color::Indexed(index) => {
+                const named_colors: [ansi::NamedColor; 16] = [
+                    ansi::NamedColor::Black,
+                    ansi::NamedColor::Red,
+                    ansi::NamedColor::Green,
+                    ansi::NamedColor::Yellow,
+                    ansi::NamedColor::Blue,
+                    ansi::NamedColor::Magenta,
+                    ansi::NamedColor::Cyan,
+                    ansi::NamedColor::White,
+                    ansi::NamedColor::BrightBlack,
+                    ansi::NamedColor::BrightRed,
+                    ansi::NamedColor::BrightGreen,
+                    ansi::NamedColor::BrightYellow,
+                    ansi::NamedColor::BrightBlue,
+                    ansi::NamedColor::BrightMagenta,
+                    ansi::NamedColor::BrightCyan,
+                    ansi::NamedColor::BrightWhite,
+                ];
+                if (*index as usize) < named_colors.len() {
+                    self.get_named_color(&named_colors[*index as usize], config)
+                } else {
+                    self.indexed_colors.get(index).map(|c| c.clone()).unwrap()
+                }
+            }
+        }
+    }
+
+    fn get_named_color(&self, color: &ansi::NamedColor, config: &Config) -> Color {
+        let color = match color {
+            ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
+            ansi::NamedColor::Foreground => LapceTheme::TERMINAL_FOREGROUND,
+            ansi::NamedColor::Background => LapceTheme::TERMINAL_BACKGROUND,
+            ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
+            ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
+            ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
+            ansi::NamedColor::Red => LapceTheme::TERMINAL_RED,
+            ansi::NamedColor::White => LapceTheme::TERMINAL_WHITE,
+            ansi::NamedColor::Black => LapceTheme::TERMINAL_BLACK,
+            ansi::NamedColor::Cyan => LapceTheme::TERMINAL_CYAN,
+            ansi::NamedColor::Magenta => LapceTheme::TERMINAL_MAGENTA,
+            ansi::NamedColor::BrightBlue => LapceTheme::TERMINAL_BRIGHT_BLUE,
+            ansi::NamedColor::BrightGreen => LapceTheme::TERMINAL_BRIGHT_GREEN,
+            ansi::NamedColor::BrightYellow => LapceTheme::TERMINAL_BRIGHT_YELLOW,
+            ansi::NamedColor::BrightRed => LapceTheme::TERMINAL_BRIGHT_RED,
+            ansi::NamedColor::BrightWhite => LapceTheme::TERMINAL_BRIGHT_WHITE,
+            ansi::NamedColor::BrightBlack => LapceTheme::TERMINAL_BRIGHT_BLACK,
+            ansi::NamedColor::BrightCyan => LapceTheme::TERMINAL_BRIGHT_CYAN,
+            ansi::NamedColor::BrightMagenta => LapceTheme::TERMINAL_BRIGHT_MAGENTA,
+            ansi::NamedColor::DimBlack => LapceTheme::TERMINAL_BLACK,
+            ansi::NamedColor::DimRed => LapceTheme::TERMINAL_RED,
+            ansi::NamedColor::DimGreen => LapceTheme::TERMINAL_GREEN,
+            ansi::NamedColor::DimYellow => LapceTheme::TERMINAL_YELLOW,
+            ansi::NamedColor::DimBlue => LapceTheme::TERMINAL_BLUE,
+            ansi::NamedColor::DimMagenta => LapceTheme::TERMINAL_MAGENTA,
+            ansi::NamedColor::DimCyan => LapceTheme::TERMINAL_CYAN,
+            ansi::NamedColor::DimWhite => LapceTheme::TERMINAL_WHITE,
+            ansi::NamedColor::BrightForeground => LapceTheme::TERMINAL_FOREGROUND,
+            ansi::NamedColor::DimForeground => LapceTheme::TERMINAL_FOREGROUND,
+        };
+        config.get_color_unchecked(color).clone()
     }
 }
 
@@ -695,87 +763,24 @@ impl Widget<LapceTabData> for LapceTerminal {
             );
         }
 
+        let term_bg = data
+            .config
+            .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
+            .clone();
         for (point, cell) in &terminal.content.cells {
             let x = point.column.0 as f64 * char_width;
             let y = (point.line.0 as f64 + terminal.content.display_offset as f64)
                 * line_height;
 
-            let bg = match cell.bg {
-                ansi::Color::Named(color) => {
-                    let color = match color {
-                        ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
-                        ansi::NamedColor::Foreground => {
-                            LapceTheme::TERMINAL_FOREGROUND
-                        }
-                        ansi::NamedColor::Background => {
-                            LapceTheme::TERMINAL_BACKGROUND
-                        }
-                        ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
-                        ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
-                        ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
-                        _ => {
-                            println!("bg {:?}", color);
-                            LapceTheme::TERMINAL_BACKGROUND
-                        }
-                    };
-                    if color == LapceTheme::TERMINAL_BACKGROUND {
-                        None
-                    } else {
-                        Some(data.config.get_color_unchecked(color).clone())
-                    }
-                }
-                ansi::Color::Spec(rgb) => Some(Color::rgb8(rgb.r, rgb.g, rgb.b)),
-                ansi::Color::Indexed(index) => terminal
-                    .content
-                    .colors
-                    .index(index as usize)
-                    .map(|c| Color::rgb8(c.r, c.g, c.b))
-                    .or_else(|| {
-                        data.terminal.indexed_colors.get(&index).map(|c| c.clone())
-                    }),
-            };
-            if let Some(bg) = bg {
+            let bg = data.terminal.get_color(&cell.bg, &data.config);
+            if term_bg != bg {
                 let rect = Size::new(char_width, line_height)
                     .to_rect()
                     .with_origin(Point::new(x, y));
                 ctx.fill(rect, &bg);
             }
 
-            let fg = match cell.fg {
-                ansi::Color::Named(color) => {
-                    let color = match color {
-                        ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
-                        ansi::NamedColor::Foreground => {
-                            LapceTheme::TERMINAL_FOREGROUND
-                        }
-                        ansi::NamedColor::Background => {
-                            LapceTheme::TERMINAL_BACKGROUND
-                        }
-                        ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
-                        ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
-                        ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
-                        _ => {
-                            println!("fg {:?}", color);
-                            LapceTheme::TERMINAL_FOREGROUND
-                        }
-                    };
-                    data.config.get_color_unchecked(color).clone()
-                }
-                ansi::Color::Spec(rgb) => Color::rgb8(rgb.r, rgb.g, rgb.b),
-                ansi::Color::Indexed(index) => terminal
-                    .content
-                    .colors
-                    .index(index as usize)
-                    .map(|c| Color::rgb8(c.r, c.g, c.b))
-                    .or_else(|| {
-                        data.terminal.indexed_colors.get(&index).map(|c| c.clone())
-                    })
-                    .unwrap_or_else(|| {
-                        data.config
-                            .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
-                            .clone()
-                    }),
-            };
+            let fg = data.terminal.get_color(&cell.fg, &data.config);
 
             let text_layout = ctx
                 .text()

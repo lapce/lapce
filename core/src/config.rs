@@ -40,9 +40,23 @@ impl LapceTheme {
     pub const TERMINAL_CURSOR: &'static str = "terminal.cursor";
     pub const TERMINAL_BACKGROUND: &'static str = "terminal.background";
     pub const TERMINAL_FOREGROUND: &'static str = "terminal.foreground";
+    pub const TERMINAL_RED: &'static str = "terminal.red";
     pub const TERMINAL_BLUE: &'static str = "terminal.blue";
     pub const TERMINAL_GREEN: &'static str = "terminal.green";
     pub const TERMINAL_YELLOW: &'static str = "terminal.yellow";
+    pub const TERMINAL_BLACK: &'static str = "terminal.black";
+    pub const TERMINAL_WHITE: &'static str = "terminal.white";
+    pub const TERMINAL_CYAN: &'static str = "terminal.cyan";
+    pub const TERMINAL_MAGENTA: &'static str = "terminal.magenta";
+
+    pub const TERMINAL_BRIGHT_RED: &'static str = "terminal.bright_red";
+    pub const TERMINAL_BRIGHT_BLUE: &'static str = "terminal.bright_blue";
+    pub const TERMINAL_BRIGHT_GREEN: &'static str = "terminal.bright_green";
+    pub const TERMINAL_BRIGHT_YELLOW: &'static str = "terminal.bright_yellow";
+    pub const TERMINAL_BRIGHT_BLACK: &'static str = "terminal.bright_black";
+    pub const TERMINAL_BRIGHT_WHITE: &'static str = "terminal.bright_white";
+    pub const TERMINAL_BRIGHT_CYAN: &'static str = "terminal.bright_cyan";
+    pub const TERMINAL_BRIGHT_MAGENTA: &'static str = "terminal.bright_magenta";
 
     pub const PALETTE_BACKGROUND: &'static str = "palette.background";
     pub const PALETTE_CURRENT: &'static str = "palette.current";
