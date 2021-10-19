@@ -104,6 +104,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
                     Mode::Normal => ("Normal", Color::rgb8(64, 120, 242)),
                     Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
                     Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
+                    Mode::Terminal => ("Terminal", Color::rgb8(64, 120, 242)),
                 };
 
             let text_layout = ctx

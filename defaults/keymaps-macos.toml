@@ -526,27 +526,7 @@ mode = "n"
 [[keymaps]]
 key = "meta+;"
 command = "split_vertical"
-mode = "n"
-
-[[keymaps]]
-key = "meta+;"
-command = "split_vertical"
-when = "terminal_focus"
-
-[[keymaps]]
-key = "meta+l"
-command = "split_right"
-when = "terminal_focus"
-
-[[keymaps]]
-key = "meta+h"
-command = "split_left"
-when = "terminal_focus"
-
-[[keymaps]]
-key = "meta+x"
-command = "split_exchange"
-when = "terminal_focus"
+mode = "nt"
 
 [[keymaps]]
 key = "meta+g"
@@ -561,7 +541,7 @@ mode = "n"
 [[keymaps]]
 key = "meta+l"
 command = "split_right"
-mode = "n"
+mode = "nt"
 
 [[keymaps]]
 key = "ctrl+w h"
@@ -591,12 +571,12 @@ mode = "n"
 [[keymaps]]
 key = "meta+h"
 command = "split_left"
-mode = "n"
+mode = "nt"
 
 [[keymaps]]
 key = "meta+x"
 command = "split_exchange"
-mode = "n"
+mode = "nt"
 
 [[keymaps]]
 key = "meta+w"

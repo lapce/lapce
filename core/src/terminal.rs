@@ -97,11 +97,19 @@ impl TerminalSplitData {
         indexed_colors
     }
 
-    fn get_color(&self, color: &ansi::Color, config: &Config) -> Color {
+    fn get_color(
+        &self,
+        color: &ansi::Color,
+        colors: &alacritty_terminal::term::color::Colors,
+        config: &Config,
+    ) -> Color {
         match color {
             ansi::Color::Named(color) => self.get_named_color(color, config),
             ansi::Color::Spec(rgb) => Color::rgb8(rgb.r, rgb.g, rgb.b),
             ansi::Color::Indexed(index) => {
+                if let Some(rgb) = colors[*index as usize] {
+                    return Color::rgb8(rgb.r, rgb.g, rgb.b);
+                }
                 const named_colors: [ansi::NamedColor; 16] = [
                     ansi::NamedColor::Black,
                     ansi::NamedColor::Red,
@@ -171,12 +179,8 @@ pub struct LapceTerminalViewData {
 }
 
 impl KeyPressFocus for LapceTerminalViewData {
-    fn is_terminal(&self) -> bool {
-        true
-    }
-
     fn get_mode(&self) -> Mode {
-        Mode::Insert
+        Mode::Terminal
     }
 
     fn check_condition(&self, condition: &str) -> bool {
@@ -423,12 +427,19 @@ impl TerminalParser {
                     alacritty_terminal::event::Event::Wakeup => {
                         let mut cells = Vec::new();
                         for cell in self.term.grid().display_iter() {
+                            let inverse = cell.flags.contains(Flags::INVERSE);
                             let c = cell.cell.c;
                             if (c != ' ' && c != '\t')
-                                || cell.bg
-                                    != ansi::Color::Named(
+                                || (cell.bg
+                                    == ansi::Color::Named(
                                         ansi::NamedColor::Background,
                                     )
+                                    && inverse)
+                                || (!inverse
+                                    && cell.bg
+                                        != ansi::Color::Named(
+                                            ansi::NamedColor::Background,
+                                        ))
                             {
                                 cells.push((cell.point.clone(), cell.cell.clone()));
                             }
@@ -768,12 +779,33 @@ impl Widget<LapceTabData> for LapceTerminal {
             .config
             .get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND)
             .clone();
+        let term_fg = data
+            .config
+            .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
+            .clone();
         for (point, cell) in &terminal.content.cells {
             let x = point.column.0 as f64 * char_width;
             let y = (point.line.0 as f64 + terminal.content.display_offset as f64)
                 * line_height;
 
-            let bg = data.terminal.get_color(&cell.bg, &data.config);
+            let mut bg = data.terminal.get_color(
+                &cell.bg,
+                &terminal.content.colors,
+                &data.config,
+            );
+            let mut fg = data.terminal.get_color(
+                &cell.fg,
+                &terminal.content.colors,
+                &data.config,
+            );
+
+            let inverse = cell.flags.contains(Flags::INVERSE);
+            if inverse {
+                let fg_clone = fg.clone();
+                fg = bg;
+                bg = fg_clone;
+            }
+
             if term_bg != bg {
                 let rect = Size::new(char_width, line_height)
                     .to_rect()
@@ -781,8 +813,11 @@ impl Widget<LapceTabData> for LapceTerminal {
                 ctx.fill(rect, &bg);
             }
 
-            let fg = data.terminal.get_color(&cell.fg, &data.config);
             let bold = cell.flags.contains(Flags::BOLD);
+
+            if point == cursor_point {
+                fg = term_bg.clone();
+            }
 
             let mut builder = ctx
                 .text()

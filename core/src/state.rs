@@ -56,9 +56,10 @@ impl Default for VisualMode {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Copy)]
 pub enum Mode {
+    Normal,
     Insert,
     Visual,
-    Normal,
+    Terminal,
 }
 
 #[derive(PartialEq, Eq, Hash, Default, Clone)]

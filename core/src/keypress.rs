@@ -53,9 +53,6 @@ pub struct KeyMap {
 pub trait KeyPressFocus {
     fn get_mode(&self) -> Mode;
     fn check_condition(&self, condition: &str) -> bool;
-    fn is_terminal(&self) -> bool {
-        false
-    }
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -114,7 +111,7 @@ impl KeyPressData {
     }
 
     fn handle_count(&mut self, mode: &Mode, keypress: &KeyPress) -> bool {
-        if mode == &Mode::Insert {
+        if mode == &Mode::Insert || mode == &Mode::Terminal {
             return false;
         }
 
@@ -210,7 +207,7 @@ impl KeyPressData {
             }
         }
 
-        if mode != Mode::Insert {
+        if mode != Mode::Insert && mode != Mode::Terminal {
             self.handle_count(&mode, &keypress);
             return false;
         }
@@ -243,8 +240,7 @@ impl KeyPressData {
                     .iter()
                     .filter(|keymap| {
                         if keymap.modes.len() > 0
-                            && (!keymap.modes.contains(&check.get_mode())
-                                || check.is_terminal())
+                            && !keymap.modes.contains(&check.get_mode())
                         {
                             return false;
                         }
@@ -445,6 +441,7 @@ impl KeyPressData {
                         "i" => Some(Mode::Insert),
                         "n" => Some(Mode::Normal),
                         "v" => Some(Mode::Visual),
+                        "t" => Some(Mode::Terminal),
                         _ => None,
                     })
                     .collect()
