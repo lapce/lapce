@@ -12,6 +12,7 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
 use crate::config::LapceTheme;
+use crate::data::FocusArea;
 use crate::data::LapceTabData;
 use crate::state::Mode;
 use crate::theme::OldLapceTheme;
@@ -99,13 +100,23 @@ impl Widget<LapceTabData> for LapceStatusNew {
         let mut left = 0.0;
 
         if data.config.lapce.modal {
-            let (mode, color) =
-                match data.main_split.active_editor().cursor.get_mode() {
+            let (mode, color) = {
+                let mode = if data.focus_area == FocusArea::Terminal {
+                    data.terminal
+                        .terminals
+                        .get(&data.terminal.active_term_id)
+                        .unwrap()
+                        .mode
+                } else {
+                    data.main_split.active_editor().cursor.get_mode()
+                };
+                match mode {
                     Mode::Normal => ("Normal", Color::rgb8(64, 120, 242)),
                     Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
                     Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
-                    Mode::Terminal => ("Terminal", Color::rgb8(64, 120, 242)),
-                };
+                    Mode::Terminal => ("Terminal", Color::rgb8(228, 86, 73)),
+                }
+            };
 
             let text_layout = ctx
                 .text()

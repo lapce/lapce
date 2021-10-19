@@ -51,6 +51,7 @@ const CTRL_CHARS: &'static [char] = &[
 #[derive(Clone)]
 pub struct TerminalSplitData {
     pub active: WidgetId,
+    pub active_term_id: TermId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub terminals: im::HashMap<TermId, Arc<LapceTerminalData>>,
@@ -63,6 +64,7 @@ impl TerminalSplitData {
         let terminals = im::HashMap::new();
 
         Self {
+            active_term_id: TermId::next(),
             active: WidgetId::next(),
             widget_id: WidgetId::next(),
             split_id,
@@ -690,6 +692,7 @@ impl LapceTerminal {
     pub fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         ctx.request_focus();
         Arc::make_mut(&mut data.terminal).active = self.widget_id;
+        Arc::make_mut(&mut data.terminal).active_term_id = self.term_id;
         data.focus = self.widget_id;
         data.focus_area = FocusArea::Terminal;
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();

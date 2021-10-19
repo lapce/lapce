@@ -529,7 +529,8 @@ impl Widget<LapceTabData> for LapceSplitNew {
                                 ));
                             }
                             let terminal_panel = Arc::make_mut(&mut data.terminal);
-                            terminal_panel.active = terminal_panel.widget_id;
+                            terminal_panel.active = terminal_data.widget_id;
+                            terminal_panel.active_term_id = terminal_data.term_id;
                             terminal_panel
                                 .terminals
                                 .insert(terminal_data.term_id, terminal_data);
