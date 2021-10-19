@@ -1886,7 +1886,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         count: Option<usize>,
         env: &Env,
     ) {
-        if let Some(movement) = self.move_command(count, cmd) {
+        if let Some(movement) = cmd.move_command(count) {
             self.do_move(&movement, count.unwrap_or(1));
             if let Some(snippet) = self.editor.snippet.as_ref() {
                 let offset = self.editor.cursor.offset();

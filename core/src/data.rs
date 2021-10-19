@@ -840,6 +840,7 @@ impl LapceTabData {
                     terminals.insert(
                         term_id,
                         TerminalParser::new(
+                            tab_id,
                             term_id,
                             event_sink.clone(),
                             workspace.clone(),

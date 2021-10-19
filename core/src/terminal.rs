@@ -8,12 +8,14 @@ use alacritty_terminal::{
     config::Program,
     event::{EventListener, Notify, OnResize},
     event_loop::{EventLoop, Notifier},
+    grid::Dimensions,
     sync::FairMutex,
     term::{
         cell::{Cell, Flags},
-        RenderableCursor, SizeInfo,
+        RenderableCursor, SizeInfo, TermMode,
     },
     tty::{self, EventedReadWrite},
+    vi_mode::ViMotion,
     Grid, Term,
 };
 use anyhow::Result;
@@ -34,6 +36,7 @@ use crate::{
     config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData},
     keypress::KeyPressFocus,
+    movement::{LinePosition, Movement},
     proxy::LapceProxy,
     scroll::LapcePadding,
     split::{LapceSplitNew, SplitMoveDirection},
@@ -176,11 +179,22 @@ impl TerminalSplitData {
 pub struct LapceTerminalViewData {
     terminal: Arc<LapceTerminalData>,
     term_tx: Sender<(TermId, TerminalEvent)>,
+    config: Arc<Config>,
+}
+
+impl LapceTerminalViewData {
+    fn send_event(&self, event: TerminalEvent) {
+        self.term_tx.send((self.terminal.term_id, event));
+    }
+
+    fn terminal_mut(&mut self) -> &mut LapceTerminalData {
+        Arc::make_mut(&mut self.terminal)
+    }
 }
 
 impl KeyPressFocus for LapceTerminalViewData {
     fn get_mode(&self) -> Mode {
-        Mode::Terminal
+        self.terminal.mode
     }
 
     fn check_condition(&self, condition: &str) -> bool {
@@ -198,7 +212,28 @@ impl KeyPressFocus for LapceTerminalViewData {
         count: Option<usize>,
         env: &Env,
     ) {
+        if let Some(movement) = command.move_command(count) {
+            self.send_event(TerminalEvent::ViMovement(movement));
+            return;
+        }
         match command {
+            LapceCommand::NormalMode => {
+                if !self.config.lapce.modal {
+                    return;
+                }
+                self.terminal_mut().mode = Mode::Normal;
+                self.send_event(TerminalEvent::ViMode);
+            }
+            LapceCommand::InsertMode => {
+                self.terminal_mut().mode = Mode::Terminal;
+                self.send_event(TerminalEvent::ViMode);
+            }
+            LapceCommand::PageUp => {
+                self.send_event(TerminalEvent::ScrollHalfPageUp);
+            }
+            LapceCommand::PageDown => {
+                self.send_event(TerminalEvent::ScrollHalfPageDown);
+            }
             LapceCommand::SplitVertical => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
@@ -258,6 +293,7 @@ pub struct LapceTerminalData {
     pub split_id: WidgetId,
     pub panel_widget_id: Option<WidgetId>,
     pub content: Arc<TerminalContent>,
+    pub mode: Mode,
 }
 
 impl LapceTerminalData {
@@ -311,11 +347,13 @@ impl LapceTerminalData {
             split_id,
             panel_widget_id,
             content: Arc::new(TerminalContent::new()),
+            mode: Mode::Terminal,
         }
     }
 }
 
 pub struct TerminalParser {
+    tab_id: WidgetId,
     term_id: TermId,
     term: Term<EventProxy>,
     scroll_delta: f64,
@@ -328,6 +366,7 @@ pub struct TerminalParser {
 
 impl TerminalParser {
     pub fn new(
+        tab_id: WidgetId,
         term_id: TermId,
         event_sink: ExtEventSink,
         workspace: Option<Arc<LapceWorkspace>>,
@@ -343,6 +382,7 @@ impl TerminalParser {
         let term = Term::new(&config, size, event_proxy.clone());
 
         let mut parser = TerminalParser {
+            tab_id,
             term_id,
             term,
             scroll_delta: 0.0,
@@ -394,10 +434,83 @@ impl TerminalParser {
         }
     }
 
+    pub fn update_terminal(&self) {
+        let mut cells = Vec::new();
+        for cell in self.term.grid().display_iter() {
+            let inverse = cell.flags.contains(Flags::INVERSE);
+            let c = cell.cell.c;
+            if (c != ' ' && c != '\t')
+                || (cell.bg == ansi::Color::Named(ansi::NamedColor::Background)
+                    && inverse)
+                || (!inverse
+                    && cell.bg != ansi::Color::Named(ansi::NamedColor::Background))
+            {
+                cells.push((cell.point.clone(), cell.cell.clone()));
+            }
+        }
+        let display_offset = self.term.grid().display_offset();
+        let renderable_content = self.term.renderable_content();
+        let content = Arc::new(TerminalContent {
+            cells,
+            cursor_point: renderable_content.cursor.point,
+            display_offset,
+            colors: self.term.renderable_content().colors.clone(),
+        });
+        self.event_sink.submit_command(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::TerminalUpdateContent(self.term_id, content),
+            Target::Widget(self.tab_id),
+        );
+    }
+
     pub fn run(&mut self, receiver: Receiver<TerminalEvent>) -> Result<()> {
         loop {
             let event = receiver.recv()?;
             match event {
+                TerminalEvent::ViMode => {
+                    self.term.toggle_vi_mode();
+                    if !self.term.mode().contains(TermMode::VI) {
+                        let scroll = alacritty_terminal::grid::Scroll::Bottom;
+                        self.term.scroll_display(scroll);
+                    }
+                }
+                TerminalEvent::ViMovement(movement) => {
+                    match movement {
+                        Movement::Left => {
+                            self.term.vi_motion(ViMotion::Left);
+                        }
+                        Movement::Right => {
+                            self.term.vi_motion(ViMotion::Right);
+                        }
+                        Movement::Up => {
+                            self.term.vi_motion(ViMotion::Up);
+                        }
+                        Movement::Down => {
+                            self.term.vi_motion(ViMotion::Down);
+                        }
+                        Movement::FirstNonBlank => {
+                            self.term.vi_motion(ViMotion::FirstOccupied);
+                        }
+                        Movement::StartOfLine => {
+                            self.term.vi_motion(ViMotion::First);
+                        }
+                        Movement::EndOfLine => {
+                            self.term.vi_motion(ViMotion::Last);
+                        }
+                        Movement::Line(line) => {
+                            match line {
+                                LinePosition::First => {
+                                    self.term.vi_motion(ViMotion::High);
+                                }
+                                LinePosition::Last => {
+                                    self.term.vi_motion(ViMotion::Low);
+                                }
+                                LinePosition::Line(_) => {}
+                            };
+                        }
+                        _ => (),
+                    };
+                }
                 TerminalEvent::Resize(width, height) => {
                     let size = SizeInfo::new(
                         width as f32,
@@ -424,48 +537,13 @@ impl TerminalParser {
                         self.term.scroll_display(scroll);
                     }
                     alacritty_terminal::event::Event::CursorBlinkingChange(_) => {}
-                    alacritty_terminal::event::Event::Wakeup => {
-                        let mut cells = Vec::new();
-                        for cell in self.term.grid().display_iter() {
-                            let inverse = cell.flags.contains(Flags::INVERSE);
-                            let c = cell.cell.c;
-                            if (c != ' ' && c != '\t')
-                                || (cell.bg
-                                    == ansi::Color::Named(
-                                        ansi::NamedColor::Background,
-                                    )
-                                    && inverse)
-                                || (!inverse
-                                    && cell.bg
-                                        != ansi::Color::Named(
-                                            ansi::NamedColor::Background,
-                                        ))
-                            {
-                                cells.push((cell.point.clone(), cell.cell.clone()));
-                            }
-                        }
-                        let display_offset = self.term.grid().display_offset();
-                        let content = Arc::new(TerminalContent {
-                            cells,
-                            cursor_point: self.term.grid().cursor.point,
-                            display_offset,
-                            colors: self.term.renderable_content().colors.clone(),
-                        });
-                        self.event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::TerminalUpdateContent(
-                                self.term_id,
-                                content,
-                            ),
-                            Target::Auto,
-                        );
-                    }
+                    alacritty_terminal::event::Event::Wakeup => {}
                     alacritty_terminal::event::Event::Bell => {}
                     alacritty_terminal::event::Event::Exit => {
                         self.event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::CloseTerminal(self.term_id),
-                            Target::Auto,
+                            Target::Widget(self.tab_id),
                         );
                     }
                 },
@@ -477,18 +555,32 @@ impl TerminalParser {
                     if delta != 0 {
                         let scroll = alacritty_terminal::grid::Scroll::Delta(delta);
                         self.term.scroll_display(scroll);
-                        self.sender.send(TerminalEvent::Event(
-                            alacritty_terminal::event::Event::Wakeup,
-                        ));
                     }
                 }
                 TerminalEvent::UpdateContent(content) => {
                     self.update_content(content);
-                    self.sender.send(TerminalEvent::Event(
-                        alacritty_terminal::event::Event::Wakeup,
-                    ));
+                }
+                TerminalEvent::ScrollHalfPageUp => {
+                    let scroll_lines = self.term.screen_lines() as i32 / 2;
+                    self.term.vi_mode_cursor =
+                        self.term.vi_mode_cursor.scroll(&self.term, scroll_lines);
+
+                    self.term.scroll_display(
+                        alacritty_terminal::grid::Scroll::Delta(scroll_lines),
+                    );
+                    self.update_terminal();
+                }
+                TerminalEvent::ScrollHalfPageDown => {
+                    let scroll_lines = -(self.term.screen_lines() as i32 / 2);
+                    self.term.vi_mode_cursor =
+                        self.term.vi_mode_cursor.scroll(&self.term, scroll_lines);
+
+                    self.term.scroll_display(
+                        alacritty_terminal::grid::Scroll::Delta(scroll_lines),
+                    );
                 }
             }
+            self.update_terminal();
         }
     }
 
@@ -630,6 +722,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         let mut term_data = LapceTerminalViewData {
             terminal: old_terminal_data.clone(),
             term_tx: data.term_tx.clone(),
+            config: data.config.clone(),
         };
         match event {
             Event::MouseDown(mouse_event) => {
@@ -842,6 +935,10 @@ pub enum TerminalEvent {
     Event(alacritty_terminal::event::Event),
     UpdateContent(String),
     Scroll(f64),
+    ViMode,
+    ViMovement(Movement),
+    ScrollHalfPageUp,
+    ScrollHalfPageDown,
 }
 
 pub enum TerminalHostEvent {

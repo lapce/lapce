@@ -21,6 +21,7 @@ use crate::{
     buffer::{InvalLines, Style},
     data::EditorKind,
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
+    movement::{LinePosition, Movement},
     palette::{NewPaletteItem, PaletteType},
     split::SplitMoveDirection,
     state::LapceWorkspace,
@@ -312,6 +313,44 @@ pub enum LapceCommand {
     #[strum(serialize = "search_backward")]
     SearchBackward,
     Insert(String),
+}
+
+impl LapceCommand {
+    pub fn move_command(&self, count: Option<usize>) -> Option<Movement> {
+        match self {
+            LapceCommand::Left => Some(Movement::Left),
+            LapceCommand::Right => Some(Movement::Right),
+            LapceCommand::Up => Some(Movement::Up),
+            LapceCommand::Down => Some(Movement::Down),
+            LapceCommand::LineStart => Some(Movement::StartOfLine),
+            LapceCommand::LineEnd => Some(Movement::EndOfLine),
+            LapceCommand::GotoLineDefaultFirst => Some(match count {
+                Some(n) => Movement::Line(LinePosition::Line(n)),
+                None => Movement::Line(LinePosition::First),
+            }),
+            LapceCommand::GotoLineDefaultLast => Some(match count {
+                Some(n) => Movement::Line(LinePosition::Line(n)),
+                None => Movement::Line(LinePosition::Last),
+            }),
+            LapceCommand::WordBackward => Some(Movement::WordBackward),
+            LapceCommand::WordFoward => Some(Movement::WordForward),
+            LapceCommand::WordEndForward => Some(Movement::WordEndForward),
+            LapceCommand::MatchPairs => Some(Movement::MatchPairs),
+            LapceCommand::NextUnmatchedRightBracket => {
+                Some(Movement::NextUnmatched(')'))
+            }
+            LapceCommand::PreviousUnmatchedLeftBracket => {
+                Some(Movement::PreviousUnmatched('('))
+            }
+            LapceCommand::NextUnmatchedRightCurlyBracket => {
+                Some(Movement::NextUnmatched('}'))
+            }
+            LapceCommand::PreviousUnmatchedLeftCurlyBracket => {
+                Some(Movement::PreviousUnmatched('{'))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]

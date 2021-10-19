@@ -223,7 +223,7 @@ mode = "iv"
 [[keymaps]]
 key = "meta+j"
 command = "normal_mode"
-mode = "iv"
+mode = "ivt"
 
 [[keymaps]]
 key = "enter"
