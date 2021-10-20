@@ -346,12 +346,10 @@ mode = "n"
 [[keymaps]]
 key = "meta+c"
 command = "clipboard_copy"
-mode = "inv"
 
 [[keymaps]]
 key = "meta+v"
 command = "clipboard_paste"
-mode = "inv"
 
 [[keymaps]]
 key = "p"

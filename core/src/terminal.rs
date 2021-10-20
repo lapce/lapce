@@ -8,7 +8,8 @@ use alacritty_terminal::{
     config::Program,
     event::{EventListener, Notify, OnResize},
     event_loop::{EventLoop, Notifier},
-    grid::Dimensions,
+    grid::{Dimensions, Scroll},
+    selection::{Selection, SelectionRange, SelectionType},
     sync::FairMutex,
     term::{
         cell::{Cell, Flags},
@@ -22,10 +23,10 @@ use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, ExtEventSink,
-    FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx,
-    Point, RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
-    WidgetPod,
+    Application, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
+    ExtEventSink, FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers,
+    PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
+    WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_proxy::terminal::TermId;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -40,7 +41,7 @@ use crate::{
     proxy::LapceProxy,
     scroll::LapcePadding,
     split::{LapceSplitNew, SplitMoveDirection},
-    state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode},
+    state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
 };
 
 const CTRL_CHARS: &'static [char] = &[
@@ -192,6 +193,28 @@ impl LapceTerminalViewData {
     fn terminal_mut(&mut self) -> &mut LapceTerminalData {
         Arc::make_mut(&mut self.terminal)
     }
+
+    fn toggle_visual(&mut self, visual_mode: VisualMode) {
+        if !self.config.lapce.modal {
+            return;
+        }
+        self.send_event(TerminalEvent::ToggleVisual(visual_mode.clone()));
+        let terminal = self.terminal_mut();
+        match terminal.mode {
+            Mode::Normal => {
+                terminal.mode = Mode::Visual;
+                terminal.visual_mode = visual_mode;
+            }
+            Mode::Visual => {
+                if terminal.visual_mode == visual_mode {
+                    terminal.mode = Mode::Normal;
+                } else {
+                    terminal.visual_mode = visual_mode;
+                }
+            }
+            _ => (),
+        }
+    }
 }
 
 impl KeyPressFocus for LapceTerminalViewData {
@@ -226,9 +249,18 @@ impl KeyPressFocus for LapceTerminalViewData {
                 self.terminal_mut().mode = Mode::Normal;
                 self.send_event(TerminalEvent::ViMode);
             }
+            LapceCommand::ToggleVisualMode => {
+                self.toggle_visual(VisualMode::Normal);
+            }
+            LapceCommand::ToggleLinewiseVisualMode => {
+                self.toggle_visual(VisualMode::Linewise);
+            }
+            LapceCommand::ToggleBlockwiseVisualMode => {
+                self.toggle_visual(VisualMode::Blockwise);
+            }
             LapceCommand::InsertMode => {
                 self.terminal_mut().mode = Mode::Terminal;
-                self.send_event(TerminalEvent::ViMode);
+                self.send_event(TerminalEvent::TerminalMode);
             }
             LapceCommand::PageUp => {
                 self.send_event(TerminalEvent::ScrollHalfPageUp);
@@ -274,11 +306,23 @@ impl KeyPressFocus for LapceTerminalViewData {
                     Target::Widget(self.terminal.split_id),
                 ));
             }
+            LapceCommand::ClipboardCopy => {
+                self.send_event(TerminalEvent::ClipyboardCopy);
+                if self.terminal.mode == Mode::Visual {
+                    self.terminal_mut().mode = Mode::Normal;
+                }
+            }
+            LapceCommand::ClipboardPaste => {
+                if let Some(s) = Application::global().clipboard().get_string() {
+                    self.insert(ctx, &s);
+                }
+            }
             _ => (),
         }
     }
 
     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
+        Arc::make_mut(&mut self.terminal).mode = Mode::Terminal;
         self.term_tx.send((
             self.terminal.term_id,
             TerminalEvent::Event(alacritty_terminal::event::Event::PtyWrite(
@@ -296,6 +340,7 @@ pub struct LapceTerminalData {
     pub panel_widget_id: Option<WidgetId>,
     pub content: Arc<TerminalContent>,
     pub mode: Mode,
+    pub visual_mode: VisualMode,
 }
 
 impl LapceTerminalData {
@@ -307,41 +352,10 @@ impl LapceTerminalData {
         proxy: Arc<LapceProxy>,
     ) -> Self {
         let cwd = workspace.map(|w| w.path.clone());
-        // let (terminal, receiver) = Terminal::new(50, 20, shell, cwd);
         let widget_id = WidgetId::next();
 
         let term_id = TermId::next();
         proxy.new_terminal(term_id, cwd);
-
-        let local_split_id = split_id;
-        let local_widget_id = widget_id;
-        let local_panel_widget_id = panel_widget_id.clone();
-        //       std::thread::spawn(move || -> Result<()> {
-        //    loop {
-        //        let event = receiver.recv()?;
-        //        match event {
-        //            TerminalHostEvent::UpdateContent { cursor, content } => {
-        //                event_sink.submit_command(
-        //                    LAPCE_UI_COMMAND,
-        //                    LapceUICommand::TerminalUpdateContent(
-        //                        widget_id, content,
-        //                    ),
-        //                    Target::Auto,
-        //                );
-        //            }
-        //            TerminalHostEvent::Exit => {
-        //                event_sink.submit_command(
-        //                    LAPCE_UI_COMMAND,
-        //                    LapceUICommand::SplitTerminalClose(
-        //                        local_widget_id,
-        //                        local_panel_widget_id,
-        //                    ),
-        //                    Target::Widget(local_split_id),
-        //                );
-        //            }
-        //        }
-        //    }
-        //      });
 
         Self {
             term_id,
@@ -350,6 +364,7 @@ impl LapceTerminalData {
             panel_widget_id,
             content: Arc::new(TerminalContent::new()),
             mode: Mode::Terminal,
+            visual_mode: VisualMode::Normal,
         }
     }
 }
@@ -459,6 +474,8 @@ impl TerminalParser {
             cursor_point,
             display_offset: renderable_content.display_offset,
             colors: renderable_content.colors.clone(),
+            selection: renderable_content.selection.clone(),
+            last_col: self.term.last_column().0 as usize,
         });
         self.event_sink.submit_command(
             LAPCE_UI_COMMAND,
@@ -467,16 +484,82 @@ impl TerminalParser {
         );
     }
 
+    fn clear_selection(&mut self) {
+        self.term.selection = None;
+    }
+
+    fn start_selection(
+        &mut self,
+        ty: SelectionType,
+        point: alacritty_terminal::index::Point,
+        side: alacritty_terminal::index::Side,
+    ) {
+        self.term.selection = Some(Selection::new(ty, point, side));
+    }
+
+    fn toggle_selection(
+        &mut self,
+        ty: SelectionType,
+        point: alacritty_terminal::index::Point,
+        side: alacritty_terminal::index::Side,
+    ) {
+        match &mut self.term.selection {
+            Some(selection) if selection.ty == ty && !selection.is_empty() => {
+                self.clear_selection();
+            }
+            Some(selection) if !selection.is_empty() => {
+                selection.ty = ty;
+            }
+            _ => self.start_selection(ty, point, side),
+        }
+    }
+
     pub fn run(&mut self, receiver: Receiver<TerminalEvent>) -> Result<()> {
         loop {
             let event = receiver.recv()?;
             match event {
                 TerminalEvent::ViMode => {
-                    self.term.toggle_vi_mode();
                     if !self.term.mode().contains(TermMode::VI) {
-                        let scroll = alacritty_terminal::grid::Scroll::Bottom;
-                        self.term.scroll_display(scroll);
+                        self.term.toggle_vi_mode();
                     }
+                    self.clear_selection();
+                }
+                TerminalEvent::TerminalMode => {
+                    if self.term.mode().contains(TermMode::VI) {
+                        self.term.toggle_vi_mode();
+                    }
+                    let scroll = alacritty_terminal::grid::Scroll::Bottom;
+                    self.term.scroll_display(scroll);
+                    self.clear_selection();
+                }
+                TerminalEvent::ToggleVisual(visual_mode) => {
+                    if !self.term.mode().contains(TermMode::VI) {
+                        self.term.toggle_vi_mode();
+                    }
+                    let ty = match visual_mode {
+                        VisualMode::Normal => SelectionType::Simple,
+                        VisualMode::Linewise => SelectionType::Lines,
+                        VisualMode::Blockwise => SelectionType::Block,
+                    };
+                    let point = self.term.renderable_content().cursor.point;
+                    self.toggle_selection(
+                        ty,
+                        point,
+                        alacritty_terminal::index::Side::Left,
+                    );
+                    if let Some(selection) = self.term.selection.as_mut() {
+                        selection.include_all();
+                    }
+                }
+                TerminalEvent::ClipyboardCopy => {
+                    if let Some(content) = self.term.selection_to_string() {
+                        self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateClipboard(content),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                    self.clear_selection();
                 }
                 TerminalEvent::ViMovement(movement) => {
                     match movement {
@@ -501,13 +584,26 @@ impl TerminalParser {
                         Movement::EndOfLine => {
                             self.term.vi_motion(ViMotion::Last);
                         }
+                        Movement::WordForward => {
+                            self.term.vi_motion(ViMotion::SemanticRight);
+                        }
+                        Movement::WordEndForward => {
+                            self.term.vi_motion(ViMotion::SemanticRightEnd);
+                        }
+                        Movement::WordBackward => {
+                            self.term.vi_motion(ViMotion::SemanticLeft);
+                        }
                         Movement::Line(line) => {
                             match line {
                                 LinePosition::First => {
-                                    self.term.vi_motion(ViMotion::High);
+                                    self.term.scroll_display(Scroll::Top);
+                                    self.term.vi_mode_cursor.point.line =
+                                        self.term.topmost_line();
                                 }
                                 LinePosition::Last => {
-                                    self.term.vi_motion(ViMotion::Low);
+                                    self.term.scroll_display(Scroll::Bottom);
+                                    self.term.vi_mode_cursor.point.line =
+                                        self.term.bottommost_line();
                                 }
                                 LinePosition::Line(_) => {}
                             };
@@ -539,6 +635,9 @@ impl TerminalParser {
                         self.proxy.terminal_write(self.term_id, &s);
                         let scroll = alacritty_terminal::grid::Scroll::Bottom;
                         self.term.scroll_display(scroll);
+                        if self.term.mode().contains(TermMode::VI) {
+                            self.term.toggle_vi_mode();
+                        }
                     }
                     alacritty_terminal::event::Event::CursorBlinkingChange(_) => {}
                     alacritty_terminal::event::Event::Wakeup => {}
@@ -769,11 +868,11 @@ impl Widget<LapceTabData> for LapceTerminal {
                         }
                         KbKey::Backspace => "\x08".to_string(),
                         KbKey::Tab => "\x09".to_string(),
-                        KbKey::Enter => "\x0a".to_string(),
+                        KbKey::Enter => "\n".to_string(),
                         KbKey::Escape => "\x1b".to_string(),
                         _ => "".to_string(),
                     };
-                    if s != "" {
+                    if term_data.terminal.mode == Mode::Terminal && s != "" {
                         term_data.insert(ctx, &s);
                     }
                 }
@@ -849,6 +948,52 @@ impl Widget<LapceTabData> for LapceTerminal {
         let y_shift = (line_height - char_size.height) / 2.0;
 
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
+
+        if let Some(selection) = terminal.content.selection.as_ref() {
+            let start_line =
+                selection.start.line.0 + terminal.content.display_offset as i32;
+            let start_line = if start_line < 0 {
+                0
+            } else {
+                start_line as usize
+            };
+            let start_col = selection.start.column.0;
+
+            let end_line =
+                selection.end.line.0 + terminal.content.display_offset as i32;
+            let end_line = if end_line < 0 { 0 } else { end_line as usize };
+            let end_col = selection.end.column.0;
+
+            for line in start_line..end_line + 1 {
+                let left_col = if selection.is_block {
+                    start_col
+                } else {
+                    if line == start_line {
+                        start_col
+                    } else {
+                        0
+                    }
+                };
+                let right_col = if selection.is_block {
+                    end_col + 1
+                } else {
+                    if line == end_line {
+                        end_col + 1
+                    } else {
+                        terminal.content.last_col
+                    }
+                };
+                let x0 = left_col as f64 * char_width;
+                let x1 = right_col as f64 * char_width;
+                let y0 = line as f64 * line_height;
+                let y1 = y0 + line_height;
+                ctx.fill(
+                    Rect::new(x0, y0, x1, y1),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                );
+            }
+        }
 
         let cursor_point = &terminal.content.cursor_point;
 
@@ -944,9 +1089,12 @@ pub enum TerminalEvent {
     UpdateContent(String),
     Scroll(f64),
     ViMode,
+    TerminalMode,
+    ToggleVisual(VisualMode),
     ViMovement(Movement),
     ScrollHalfPageUp,
     ScrollHalfPageDown,
+    ClipyboardCopy,
 }
 
 pub enum TerminalHostEvent {
@@ -962,6 +1110,8 @@ pub struct TerminalContent {
     cursor_point: alacritty_terminal::index::Point,
     display_offset: usize,
     colors: alacritty_terminal::term::color::Colors,
+    selection: Option<SelectionRange>,
+    last_col: usize,
 }
 
 impl Debug for TerminalContent {
@@ -980,6 +1130,8 @@ impl TerminalContent {
             cursor_point: alacritty_terminal::index::Point::default(),
             display_offset: 0,
             colors: alacritty_terminal::term::color::Colors::default(),
+            selection: None,
+            last_col: 0,
         }
     }
 }

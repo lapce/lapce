@@ -4,10 +4,10 @@ use directories::ProjectDirs;
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder},
-    theme, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
-    FontFamily, Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
-    WindowConfig,
+    theme, Application, BoxConstraints, Color, Command, Cursor, Data, Env, Event,
+    EventCtx, FontFamily, Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
+    Point, Rect, RenderContext, Size, Target, Vec2, Widget, WidgetExt, WidgetId,
+    WidgetPod, WindowConfig,
 };
 use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 
@@ -266,6 +266,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 (path.clone(), checked)
                             })
                             .collect();
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::UpdateClipboard(content) => {
+                        Application::global().clipboard().put_string(content);
                         ctx.set_handled();
                     }
                     LapceUICommand::PublishDiagnostics(diagnostics) => {
