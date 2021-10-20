@@ -486,6 +486,7 @@ impl BufferNew {
         ctx: &mut PaintCtx,
         line: usize,
         line_content: &str,
+        cursor_index: Option<usize>,
         bounds: [f64; 2],
         config: &Config,
     ) -> PietTextLayout {
@@ -500,6 +501,18 @@ impl BufferNew {
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                     .clone(),
             );
+
+        if let Some(index) = cursor_index {
+            layout_builder = layout_builder.range_attribute(
+                index..index + 1,
+                TextAttribute::TextColor(
+                    config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                        .clone(),
+                ),
+            );
+        }
+
         for (start, end, style) in styles.iter() {
             if let Some(fg_color) = style.fg_color.as_ref() {
                 if let Some(fg_color) =

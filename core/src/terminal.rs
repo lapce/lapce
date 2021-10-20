@@ -437,11 +437,15 @@ impl TerminalParser {
     }
 
     pub fn update_terminal(&self) {
+        let renderable_content = self.term.renderable_content();
+        let cursor_point = renderable_content.cursor.point;
+
         let mut cells = Vec::new();
-        for cell in self.term.grid().display_iter() {
+        for cell in renderable_content.display_iter {
             let inverse = cell.flags.contains(Flags::INVERSE);
             let c = cell.cell.c;
-            if (c != ' ' && c != '\t')
+            if cursor_point == cell.point
+                || (c != ' ' && c != '\t')
                 || (cell.bg == ansi::Color::Named(ansi::NamedColor::Background)
                     && inverse)
                 || (!inverse
@@ -450,13 +454,11 @@ impl TerminalParser {
                 cells.push((cell.point.clone(), cell.cell.clone()));
             }
         }
-        let display_offset = self.term.grid().display_offset();
-        let renderable_content = self.term.renderable_content();
         let content = Arc::new(TerminalContent {
             cells,
-            cursor_point: renderable_content.cursor.point,
-            display_offset,
-            colors: self.term.renderable_content().colors.clone(),
+            cursor_point,
+            display_offset: renderable_content.display_offset,
+            colors: renderable_content.colors.clone(),
         });
         self.event_sink.submit_command(
             LAPCE_UI_COMMAND,
@@ -849,27 +851,6 @@ impl Widget<LapceTabData> for LapceTerminal {
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
 
         let cursor_point = &terminal.content.cursor_point;
-        let rect =
-            Size::new(char_width, line_height)
-                .to_rect()
-                .with_origin(Point::new(
-                    cursor_point.column.0 as f64 * char_width,
-                    (cursor_point.line.0 as f64
-                        + terminal.content.display_offset as f64)
-                        * line_height,
-                ));
-        if ctx.is_focused() {
-            ctx.fill(
-                rect,
-                data.config.get_color_unchecked(LapceTheme::TERMINAL_CURSOR),
-            );
-        } else {
-            ctx.stroke(
-                rect,
-                data.config.get_color_unchecked(LapceTheme::TERMINAL_CURSOR),
-                1.0,
-            );
-        }
 
         let term_bg = data
             .config
@@ -880,6 +861,30 @@ impl Widget<LapceTabData> for LapceTerminal {
             .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
             .clone();
         for (point, cell) in &terminal.content.cells {
+            if cursor_point == point {
+                let rect = Size::new(
+                    char_width * cell.c.width().unwrap_or(1) as f64,
+                    line_height,
+                )
+                .to_rect()
+                .with_origin(Point::new(
+                    cursor_point.column.0 as f64 * char_width,
+                    (cursor_point.line.0 as f64
+                        + terminal.content.display_offset as f64)
+                        * line_height,
+                ));
+                let cursor_color = if terminal.mode == Mode::Terminal {
+                    data.config.get_color_unchecked(LapceTheme::TERMINAL_CURSOR)
+                } else {
+                    data.config.get_color_unchecked(LapceTheme::EDITOR_CARET)
+                };
+                if ctx.is_focused() {
+                    ctx.fill(rect, cursor_color);
+                } else {
+                    ctx.stroke(rect, cursor_color, 1.0);
+                }
+            }
+
             let x = point.column.0 as f64 * char_width;
             let y = (point.line.0 as f64 + terminal.content.display_offset as f64)
                 * line_height;
@@ -911,7 +916,7 @@ impl Widget<LapceTabData> for LapceTerminal {
 
             let bold = cell.flags.contains(Flags::BOLD);
 
-            if point == cursor_point {
+            if point == cursor_point && ctx.is_focused() {
                 fg = term_bg.clone();
             }
 

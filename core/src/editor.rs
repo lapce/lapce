@@ -1321,8 +1321,11 @@ impl LapceEditorBufferData {
             .unwrap();
         let y_shift = (line_height - text_layout.size().height) / 2.0;
 
+        let cursor_offset = self.editor.cursor.offset();
+        let cursor_line = self.buffer.line_of_offset(cursor_offset);
         let start_offset = self.buffer.offset_of_line(start_line);
         let end_offset = self.buffer.offset_of_line(end_line + 1);
+        let mode = self.editor.cursor.get_mode();
         for (i, line_content) in self
             .buffer
             .slice_to_cow(start_offset..end_offset)
@@ -1330,10 +1333,22 @@ impl LapceEditorBufferData {
             .enumerate()
         {
             let line = i + start_line;
+            let cursor_index = if mode != Mode::Insert && line == cursor_line {
+                let cursor_line_start = self.buffer.offset_of_line(cursor_line);
+                let index = self
+                    .buffer
+                    .slice_to_cow(cursor_line_start..cursor_offset)
+                    .chars()
+                    .count();
+                Some(index)
+            } else {
+                None
+            };
             let text_layout = self.buffer.new_text_layout(
                 ctx,
                 line,
                 line_content,
+                cursor_index,
                 [rect.x0, rect.x1],
                 &self.config,
             );
