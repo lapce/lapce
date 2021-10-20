@@ -1208,6 +1208,10 @@ impl BufferNew {
         self.notify_update();
     }
 
+    pub fn update_edit_type(&mut self) {
+        self.last_edit_type = EditType::Other;
+    }
+
     pub fn edit_multiple(
         &mut self,
         ctx: &mut EventCtx,
@@ -1430,11 +1434,6 @@ impl BufferNew {
             },
             deletes_from_union,
         )
-    }
-
-    pub fn update_edit_type(&mut self) {
-        self.last_edit_type = self.this_edit_type;
-        self.this_edit_type = EditType::Other
     }
 }
 
