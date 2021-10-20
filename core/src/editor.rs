@@ -1333,17 +1333,18 @@ impl LapceEditorBufferData {
             .enumerate()
         {
             let line = i + start_line;
-            let cursor_index = if mode != Mode::Insert && line == cursor_line {
-                let cursor_line_start = self.buffer.offset_of_line(cursor_line);
-                let index = self
-                    .buffer
-                    .slice_to_cow(cursor_line_start..cursor_offset)
-                    .chars()
-                    .count();
-                Some(index)
-            } else {
-                None
-            };
+            let cursor_index =
+                if is_focused && mode != Mode::Insert && line == cursor_line {
+                    let cursor_line_start = self.buffer.offset_of_line(cursor_line);
+                    let index = self
+                        .buffer
+                        .slice_to_cow(cursor_line_start..cursor_offset)
+                        .chars()
+                        .count();
+                    Some(index)
+                } else {
+                    None
+                };
             let text_layout = self.buffer.new_text_layout(
                 ctx,
                 line,
