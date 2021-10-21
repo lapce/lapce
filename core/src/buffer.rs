@@ -373,7 +373,12 @@ impl BufferNew {
         *self.find_progress.borrow_mut() = FindProgress::Started;
     }
 
-    pub fn update_find(&self, current_find: &Find, start_line: usize) {
+    pub fn update_find(
+        &self,
+        current_find: &Find,
+        start_line: usize,
+        end_line: usize,
+    ) {
         self.reset_find(current_find);
 
         let mut find_progress = self.find_progress.borrow_mut();
@@ -381,47 +386,36 @@ impl BufferNew {
             FindProgress::Started => {
                 // start incremental find on visible region
                 let start = self.offset_of_line(start_line);
-                let end = self.len().min(start + FIND_BATCH_SIZE);
+                let end = self.offset_of_line(end_line + 1);
                 *find_progress =
-                    FindProgress::InProgress(std::ops::Range { start, end });
+                    FindProgress::InProgress(Selection::region(start, end));
                 Some((start, end))
             }
             FindProgress::InProgress(searched_range) => {
-                if searched_range.start == 0 && searched_range.end >= self.len() {
+                if searched_range.min_offset() == 0
+                    && searched_range.max_offset() >= self.len()
+                {
                     // the entire text has been searched
                     // end find by executing multi-line regex queries on entire text
                     // stop incremental find
                     *find_progress = FindProgress::Ready;
                     Some((0, self.len()))
                 } else {
-                    // expand find to un-searched regions
-                    let start_off = self.offset_of_line(start_line);
-
-                    // If there is unsearched text before the visible region, we want to include it in this search operation
-                    let search_preceding_range = start_off
-                        .saturating_sub(searched_range.start)
-                        < searched_range.end.saturating_sub(start_off)
-                        && searched_range.start > 0;
-
-                    if search_preceding_range || searched_range.end >= self.len() {
-                        let start =
-                            searched_range.start.saturating_sub(FIND_BATCH_SIZE);
-                        *find_progress = FindProgress::InProgress(std::ops::Range {
-                            start,
-                            end: searched_range.end,
-                        });
-                        Some((start, searched_range.start))
-                    } else if searched_range.end < self.len() {
-                        let end =
-                            self.len().min(searched_range.end + FIND_BATCH_SIZE);
-                        *find_progress = FindProgress::InProgress(std::ops::Range {
-                            start: searched_range.start,
-                            end,
-                        });
-                        Some((searched_range.end, end))
-                    } else {
-                        None
+                    let start = self.offset_of_line(start_line);
+                    let end = self.offset_of_line(end_line + 1);
+                    let mut range = Some((start, end));
+                    for region in searched_range.regions() {
+                        if region.min() <= start && region.max() >= end {
+                            range = None;
+                            break;
+                        }
                     }
+                    if range.is_some() {
+                        let mut new_range = searched_range.clone();
+                        new_range.add_region(SelRegion::new(start, end, None));
+                        *find_progress = FindProgress::InProgress(new_range);
+                    }
+                    range
                 }
             }
             _ => None,
@@ -1312,7 +1306,8 @@ impl BufferNew {
         };
         self.update_size(&inval_lines);
         self.update_line_styles(&delta, &inval_lines);
-        self.find.borrow_mut().update_highlights(&self.rope, delta);
+        self.find.borrow_mut().unset();
+        *self.find_progress.borrow_mut() = FindProgress::Started;
         self.notify_update();
     }
 

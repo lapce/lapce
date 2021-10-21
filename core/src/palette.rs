@@ -22,13 +22,13 @@ use fuzzy_matcher::FuzzyMatcher;
 use fzyr::{has_match, locate, Score};
 use lsp_types::{DocumentSymbolResponse, Location, Position, Range, SymbolKind};
 use serde_json::{self, json, Value};
-use std::cmp::Ordering;
 use std::fs::{self, DirEntry};
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::{cmp::Ordering, mem::size_of_val};
 use strum::{EnumMessage, IntoEnumIterator};
 use usvg;
 use uuid::Uuid;
@@ -61,6 +61,7 @@ use crate::{
 pub enum PaletteType {
     File,
     Line,
+    GlobalSearch,
     DocumentSymbol,
     Workspace,
     Command,
@@ -74,6 +75,7 @@ impl PaletteType {
             PaletteType::File => "".to_string(),
             PaletteType::Line => "/".to_string(),
             PaletteType::DocumentSymbol => "@".to_string(),
+            PaletteType::GlobalSearch => "?".to_string(),
             PaletteType::Workspace => ">".to_string(),
             PaletteType::Command => ":".to_string(),
             PaletteType::Reference => "".to_string(),
@@ -85,6 +87,7 @@ impl PaletteType {
         match &self {
             PaletteType::Line
             | PaletteType::DocumentSymbol
+            | PaletteType::GlobalSearch
             | PaletteType::Reference => true,
             _ => false,
         }
@@ -530,6 +533,7 @@ impl PaletteData {
             PaletteType::DocumentSymbol => &self.input[1..],
             PaletteType::Workspace => &self.input[1..],
             PaletteType::Command => &self.input[1..],
+            PaletteType::GlobalSearch => &self.input[1..],
         }
     }
 }
@@ -614,6 +618,9 @@ impl PaletteViewData {
                 self.get_workspaces(ctx);
             }
             &PaletteType::Reference => {}
+            &PaletteType::GlobalSearch => {
+                self.get_global_search(ctx);
+            }
             &PaletteType::Command => {
                 self.get_commands(ctx);
             }
@@ -649,6 +656,7 @@ impl PaletteViewData {
             &PaletteType::DocumentSymbol => 1,
             &PaletteType::Workspace => 1,
             &PaletteType::Command => 1,
+            &PaletteType::GlobalSearch => 1,
         };
 
         if palette.cursor == start {
@@ -691,6 +699,8 @@ impl PaletteViewData {
             } else {
                 self.cancel(ctx);
             }
+        } else {
+            self.cancel(ctx);
         }
     }
 
@@ -867,6 +877,8 @@ impl PaletteViewData {
             EditorContent::None => {}
         }
     }
+
+    fn get_global_search(&mut self, ctx: &mut EventCtx) {}
 
     fn get_document_symbols(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
@@ -1623,14 +1635,10 @@ impl Widget<PaletteViewData> for PalettePreview {
         data: &PaletteViewData,
         env: &Env,
     ) -> Size {
-        match data.palette.palette_type {
-            PaletteType::File
-            | PaletteType::Command
-            | PaletteType::Workspace
-            | PaletteType::Theme => Size::ZERO,
-            PaletteType::DocumentSymbol
-            | PaletteType::Line
-            | PaletteType::Reference => bc.max(),
+        if data.palette.palette_type.has_preview() {
+            bc.max()
+        } else {
+            Size::ZERO
         }
     }
 

@@ -9,10 +9,12 @@ use alacritty_terminal::{
     event::{EventListener, Notify, OnResize},
     event_loop::{EventLoop, Notifier},
     grid::{Dimensions, Scroll},
+    index::{Direction, Side},
     selection::{Selection, SelectionRange, SelectionType},
     sync::FairMutex,
     term::{
         cell::{Cell, Flags},
+        search::RegexSearch,
         RenderableCursor, SizeInfo, TermMode,
     },
     tty::{self, EventedReadWrite},
@@ -36,6 +38,7 @@ use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData},
+    find::Find,
     keypress::KeyPressFocus,
     movement::{LinePosition, Movement},
     proxy::LapceProxy,
@@ -197,6 +200,7 @@ pub struct LapceTerminalViewData {
     terminal: Arc<LapceTerminalData>,
     term_tx: Sender<(TermId, TerminalEvent)>,
     config: Arc<Config>,
+    find: Arc<Find>,
 }
 
 impl LapceTerminalViewData {
@@ -329,6 +333,22 @@ impl KeyPressFocus for LapceTerminalViewData {
             LapceCommand::ClipboardPaste => {
                 if let Some(s) = Application::global().clipboard().get_string() {
                     self.insert(ctx, &s);
+                }
+            }
+            LapceCommand::SearchForward => {
+                if let Some(search_string) = self.find.search_string.as_ref() {
+                    self.send_event(TerminalEvent::SearchNext(
+                        search_string.to_string(),
+                        Direction::Right,
+                    ));
+                }
+            }
+            LapceCommand::SearchBackward => {
+                if let Some(search_string) = self.find.search_string.as_ref() {
+                    self.send_event(TerminalEvent::SearchNext(
+                        search_string.to_string(),
+                        Direction::Left,
+                    ));
                 }
             }
             _ => (),
@@ -563,6 +583,19 @@ impl TerminalParser {
                     );
                     if let Some(selection) = self.term.selection.as_mut() {
                         selection.include_all();
+                    }
+                }
+                TerminalEvent::SearchNext(search_string, direction) => {
+                    if let Ok(dfas) = RegexSearch::new(&search_string) {
+                        if let Some(m) = self.term.search_next(
+                            &dfas,
+                            self.term.renderable_content().cursor.point,
+                            direction,
+                            Side::Left,
+                            None,
+                        ) {
+                            self.term.vi_goto_point(*m.start());
+                        }
                     }
                 }
                 TerminalEvent::ClipyboardCopy => {
@@ -841,6 +874,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             terminal: old_terminal_data.clone(),
             term_tx: data.term_tx.clone(),
             config: data.config.clone(),
+            find: data.find.clone(),
         };
         match event {
             Event::MouseDown(mouse_event) => {
@@ -1109,6 +1143,7 @@ pub enum TerminalEvent {
     UpdateContent(String),
     Scroll(f64),
     ViMode,
+    SearchNext(String, Direction),
     TerminalMode,
     ToggleVisual(VisualMode),
     ViMovement(Movement),

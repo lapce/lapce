@@ -1631,7 +1631,7 @@ impl LapceEditorBufferData {
         let start_offset = self.buffer.offset_of_line(start_line);
         let end_offset = self.buffer.offset_of_line(end_line + 1);
 
-        self.buffer.update_find(&self.find, start_line);
+        self.buffer.update_find(&self.find, start_line, end_line);
         if self.find.search_string.is_some() {
             for region in self
                 .buffer

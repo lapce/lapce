@@ -25,7 +25,7 @@ pub enum FindProgress {
     Started,
 
     /// Incremental find is in progress. Keeps tracked of already searched range.
-    InProgress(std::ops::Range<usize>),
+    InProgress(Selection),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
