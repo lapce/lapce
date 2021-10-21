@@ -457,6 +457,11 @@ command = "delete_line"
 mode = "n"
 
 [[keymaps]]
+key = "ctrl+/"
+command = "clear_search"
+mode = "n"
+
+[[keymaps]]
 key = "*"
 command = "search_whole_word_forward"
 mode = "nv"

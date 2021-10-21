@@ -231,6 +231,7 @@ pub struct LapceTabData {
     pub completion: Arc<CompletionData>,
     pub terminal: Arc<TerminalSplitData>,
     pub palette: Arc<PaletteData>,
+    pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
@@ -263,6 +264,7 @@ impl Data for LapceTabData {
             && self.focus == other.focus
             && self.focus_area == other.focus_area
             && self.panel_active == other.panel_active
+            && self.find.same(&other.find)
     }
 }
 
@@ -322,6 +324,7 @@ impl LapceTabData {
             main_split,
             completion,
             terminal,
+            find: Arc::new(Find::new(0)),
             source_control,
             term_rx: Some(term_receiver),
             term_tx: term_sender,
@@ -404,6 +407,7 @@ impl LapceTabData {
                     main_split: self.main_split.clone(),
                     completion: self.completion.clone(),
                     proxy: self.proxy.clone(),
+                    find: self.find.clone(),
                     buffer,
                     editor: editor.clone(),
                     config: self.config.clone(),
@@ -482,6 +486,7 @@ impl LapceTabData {
     ) {
         self.completion = editor_buffer_data.completion.clone();
         self.main_split = editor_buffer_data.main_split.clone();
+        self.find = editor_buffer_data.find.clone();
         if !editor_buffer_data.editor.same(editor) {
             self.main_split
                 .editors
@@ -571,6 +576,7 @@ impl LapceTabData {
             main_split: self.main_split.clone(),
             keypress: self.keypress.clone(),
             config: self.config.clone(),
+            find: self.find.clone(),
         }
     }
 
@@ -1052,7 +1058,6 @@ pub struct LapceMainSplitData {
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
     pub palette_preview_editor: Arc<WidgetId>,
-    pub find: Arc<Find>,
     pub show_code_actions: bool,
     pub current_code_actions: usize,
     pub diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
@@ -1394,7 +1399,6 @@ impl LapceMainSplitData {
             active: Arc::new(view_id),
             update_sender,
             register: Arc::new(Register::default()),
-            find: Arc::new(Find::new(0)),
             proxy,
             palette_preview_editor: Arc::new(palette_preview_editor),
             show_code_actions: false,

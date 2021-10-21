@@ -44,6 +44,7 @@ use crate::{
         LapceMainSplitData, LapceTabData,
     },
     editor::{EditorLocationNew, LapceEditorContainer, LapceEditorView},
+    find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
     proxy::LapceProxy,
@@ -368,6 +369,7 @@ pub struct PaletteViewLens;
 #[derive(Clone, Data)]
 pub struct PaletteViewData {
     pub palette: Arc<PaletteData>,
+    pub find: Arc<Find>,
     pub workspace: Option<Arc<LapceWorkspace>>,
     pub main_split: LapceMainSplitData,
     pub keypress: Arc<KeyPressData>,
@@ -395,6 +397,7 @@ impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
         data.workspace = palette_view.workspace.clone();
         data.keypress = palette_view.keypress.clone();
         data.main_split = palette_view.main_split.clone();
+        data.find = palette_view.find.clone();
         result
     }
 }
@@ -673,6 +676,14 @@ impl PaletteViewData {
     }
 
     pub fn select(&mut self, ctx: &mut EventCtx) {
+        if self.palette.palette_type == PaletteType::Line {
+            Arc::make_mut(&mut self.find).set_find(
+                self.palette.get_input(),
+                false,
+                false,
+                false,
+            );
+        }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {
             if let Some(palette_type) = item.content.select(ctx, false) {
@@ -1062,6 +1073,7 @@ impl Widget<LapceTabData> for NewPalette {
                 data.keypress = keypress;
                 data.workspace = palette_data.workspace.clone();
                 data.main_split = palette_data.main_split.clone();
+                data.find = palette_data.find.clone();
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {

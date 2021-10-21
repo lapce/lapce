@@ -1,9 +1,11 @@
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::cmp::{max, min};
+use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
+    delta::DeltaRegion,
     find::{find, is_multiline_regex, CaseMatching},
-    Cursor, Interval, Rope, RopeDelta,
+    Cursor, Interval, LinesMetric, Metric, Rope, RopeDelta,
 };
 
 use crate::{
@@ -12,6 +14,19 @@ use crate::{
 };
 
 const REGEX_SIZE_LIMIT: usize = 1000000;
+
+/// Indicates what changed in the find state.
+#[derive(PartialEq, Debug, Clone)]
+pub enum FindProgress {
+    /// Incremental find is done/not running.
+    Ready,
+
+    /// The find process just started.
+    Started,
+
+    /// Incremental find is in progress. Keeps tracked of already searched range.
+    InProgress(std::ops::Range<usize>),
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FindStatus {
@@ -46,16 +61,16 @@ pub struct Find {
     hls_dirty: bool,
 
     /// The currently active search string.
-    search_string: Option<String>,
+    pub search_string: Option<String>,
 
     /// The case matching setting for the currently active search.
-    case_matching: CaseMatching,
+    pub case_matching: CaseMatching,
 
     /// The search query should be considered as regular expression.
-    regex: Option<Regex>,
+    pub regex: Option<Regex>,
 
     /// Query matches only whole words.
-    whole_words: bool,
+    pub whole_words: bool,
 
     /// The set of all known find occurrences (highlights).
     occurrences: Selection,
@@ -350,6 +365,71 @@ impl Find {
         }
 
         self.hls_dirty = true;
+    }
+
+    pub fn update_highlights(&mut self, text: &Rope, delta: &RopeDelta) {
+        // update search highlights for changed regions
+        if self.search_string.is_some() {
+            // invalidate occurrences around deletion positions
+            for DeltaRegion {
+                old_offset, len, ..
+            } in delta.iter_deletions()
+            {
+                self.occurrences
+                    .delete_range(old_offset, old_offset + len, false);
+            }
+
+            self.occurrences =
+                self.occurrences
+                    .apply_delta(delta, false, InsertDrift::Default);
+
+            // invalidate occurrences around insert positions
+            for DeltaRegion {
+                new_offset, len, ..
+            } in delta.iter_inserts()
+            {
+                // also invalidate previous occurrence since it might expand after insertion
+                // eg. for regex .* every insertion after match will be part of match
+                self.occurrences.delete_range(
+                    new_offset.saturating_sub(1),
+                    new_offset + len,
+                    false,
+                );
+            }
+
+            // update find for the whole delta and everything after
+            let (iv, new_len) = delta.summary();
+
+            // get last valid occurrence that was unaffected by the delta
+            let start = match self.occurrences.regions_in_range(0, iv.start()).last()
+            {
+                Some(reg) => reg.end(),
+                None => 0,
+            };
+
+            // invalidate all search results from the point of the last valid search result until ...
+            let is_multiline =
+                LinesMetric::next(self.search_string.as_ref().unwrap(), 0).is_some();
+
+            if is_multiline || self.is_multiline_regex() {
+                // ... the end of the file
+                self.occurrences.delete_range(iv.start(), text.len(), false);
+                self.update_find(text, start, text.len(), false);
+            } else {
+                // ... the end of the line including line break
+                let mut cursor = Cursor::new(&text, iv.end() + new_len);
+
+                let end_of_line = match cursor.next::<LinesMetric>() {
+                    Some(end) => end,
+                    None if cursor.pos() == text.len() => cursor.pos(),
+                    _ => return,
+                };
+
+                self.occurrences
+                    .delete_range(iv.start(), end_of_line, false);
+                self.update_find(text, start, end_of_line, false);
+            }
+        }
     }
 
     /// Return the occurrence closest to the provided selection `sel`. If searched is reversed then

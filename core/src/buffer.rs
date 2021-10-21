@@ -52,6 +52,7 @@ use xi_rope::{
 use crate::config::{Config, LapceTheme};
 use crate::data::EditorKind;
 use crate::editor::EditorLocationNew;
+use crate::find::FindProgress;
 use crate::theme::OldLapceTheme;
 use crate::{
     command::LapceUICommand,
@@ -65,6 +66,8 @@ use crate::{
     state::LapceWorkspaceType,
     state::{Counter, Mode},
 };
+
+const FIND_BATCH_SIZE: usize = 500000;
 
 #[derive(Debug, Clone)]
 pub struct InvalLines {
@@ -199,6 +202,9 @@ pub struct BufferNew {
     update_sender: Arc<Sender<UpdateEvent>>,
     pub line_changes: HashMap<usize, char>,
 
+    pub find: Rc<RefCell<Find>>,
+    pub find_progress: Rc<RefCell<FindProgress>>,
+
     revs: Vec<Revision>,
     cur_undo: usize,
     undos: BTreeSet<usize>,
@@ -229,6 +235,8 @@ impl BufferNew {
             path,
             styles: Arc::new(SpansBuilder::new(0).build()),
             line_styles: Rc::new(RefCell::new(Vec::new())),
+            find: Rc::new(RefCell::new(Find::new(0))),
+            find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             semantic_tokens: false,
             max_len: 0,
             max_len_line: 0,
@@ -341,6 +349,105 @@ impl BufferNew {
                 Target::Auto,
             );
         });
+    }
+
+    pub fn reset_find(&self, current_find: &Find) {
+        {
+            let find = self.find.borrow();
+            if find.search_string == current_find.search_string
+                && find.case_matching == current_find.case_matching
+                && find.regex.as_ref().map(|r| r.as_str())
+                    == current_find.regex.as_ref().map(|r| r.as_str())
+                && find.whole_words == current_find.whole_words
+            {
+                return;
+            }
+        }
+
+        let mut find = self.find.borrow_mut();
+        find.unset();
+        find.search_string = current_find.search_string.clone();
+        find.case_matching = current_find.case_matching.clone();
+        find.regex = current_find.regex.clone();
+        find.whole_words = current_find.whole_words;
+        *self.find_progress.borrow_mut() = FindProgress::Started;
+    }
+
+    pub fn update_find(&self, current_find: &Find, start_line: usize) {
+        self.reset_find(current_find);
+
+        let mut find_progress = self.find_progress.borrow_mut();
+        let search_range = match &find_progress.clone() {
+            FindProgress::Started => {
+                // start incremental find on visible region
+                let start = self.offset_of_line(start_line);
+                let end = self.len().min(start + FIND_BATCH_SIZE);
+                *find_progress =
+                    FindProgress::InProgress(std::ops::Range { start, end });
+                Some((start, end))
+            }
+            FindProgress::InProgress(searched_range) => {
+                if searched_range.start == 0 && searched_range.end >= self.len() {
+                    // the entire text has been searched
+                    // end find by executing multi-line regex queries on entire text
+                    // stop incremental find
+                    *find_progress = FindProgress::Ready;
+                    Some((0, self.len()))
+                } else {
+                    // expand find to un-searched regions
+                    let start_off = self.offset_of_line(start_line);
+
+                    // If there is unsearched text before the visible region, we want to include it in this search operation
+                    let search_preceding_range = start_off
+                        .saturating_sub(searched_range.start)
+                        < searched_range.end.saturating_sub(start_off)
+                        && searched_range.start > 0;
+
+                    if search_preceding_range || searched_range.end >= self.len() {
+                        let start =
+                            searched_range.start.saturating_sub(FIND_BATCH_SIZE);
+                        *find_progress = FindProgress::InProgress(std::ops::Range {
+                            start,
+                            end: searched_range.end,
+                        });
+                        Some((start, searched_range.start))
+                    } else if searched_range.end < self.len() {
+                        let end =
+                            self.len().min(searched_range.end + FIND_BATCH_SIZE);
+                        *find_progress = FindProgress::InProgress(std::ops::Range {
+                            start: searched_range.start,
+                            end,
+                        });
+                        Some((searched_range.end, end))
+                    } else {
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+
+        let mut find = self.find.borrow_mut();
+        if let Some((search_range_start, search_range_end)) = search_range {
+            if !find.is_multiline_regex() {
+                find.update_find(
+                    &self.rope,
+                    search_range_start,
+                    search_range_end,
+                    true,
+                );
+            } else {
+                // only execute multi-line regex queries if we are searching the entire text (last step)
+                if search_range_start == 0 && search_range_end == self.len() {
+                    find.update_find(
+                        &self.rope,
+                        search_range_start,
+                        search_range_end,
+                        true,
+                    );
+                }
+            }
+        }
     }
 
     pub fn retrieve_file_and_go_to_location(
@@ -1205,6 +1312,7 @@ impl BufferNew {
         };
         self.update_size(&inval_lines);
         self.update_line_styles(&delta, &inval_lines);
+        self.find.borrow_mut().update_highlights(&self.rope, delta);
         self.notify_update();
     }
 

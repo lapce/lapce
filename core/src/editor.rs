@@ -209,6 +209,7 @@ pub struct LapceEditorBufferData {
     pub completion: Arc<CompletionData>,
     pub workspace: Option<Arc<LapceWorkspace>>,
     pub main_split: LapceMainSplitData,
+    pub find: Arc<Find>,
     pub proxy: Arc<LapceProxy>,
     pub config: Arc<Config>,
 }
@@ -1306,6 +1307,7 @@ impl LapceEditorBufferData {
     ) {
         let line_height = self.config.editor.line_height as f64;
         self.paint_cursor(ctx, is_focused, placeholder, config);
+        self.paint_find(ctx);
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
@@ -1615,6 +1617,53 @@ impl LapceEditorBufferData {
             self.config
                 .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
         );
+    }
+
+    fn paint_find(&self, ctx: &mut PaintCtx) {
+        let line_height = self.config.editor.line_height as f64;
+        let start_line =
+            (self.editor.scroll_offset.y / line_height).floor() as usize;
+        let end_line = ((self.editor.size.borrow().height
+            + self.editor.scroll_offset.y)
+            / line_height)
+            .ceil() as usize;
+        let width = self.config.editor_text_width(ctx.text(), "W");
+        let start_offset = self.buffer.offset_of_line(start_line);
+        let end_offset = self.buffer.offset_of_line(end_line + 1);
+
+        self.buffer.update_find(&self.find, start_line);
+        if self.find.search_string.is_some() {
+            for region in self
+                .buffer
+                .find
+                .borrow()
+                .occurrences()
+                .regions_in_range(start_offset, end_offset)
+            {
+                let start = region.min();
+                let end = region.max();
+                let (start_line, start_col) = self.buffer.offset_to_line_col(start);
+                let (end_line, end_col) = self.buffer.offset_to_line_col(end);
+                for line in start_line..end_line + 1 {
+                    let left_col = if line == start_line { start_col } else { 0 };
+                    let right_col = if line == end_line {
+                        end_col
+                    } else {
+                        self.buffer.line_end_col(line, true) + 1
+                    };
+                    let x0 = left_col as f64 * width;
+                    let x1 = right_col as f64 * width;
+                    let y0 = line as f64 * line_height;
+                    let y1 = y0 + line_height;
+                    ctx.stroke(
+                        Rect::new(x0, y0, x1, y1),
+                        self.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        1.0,
+                    );
+                }
+            }
+        }
     }
 
     fn paint_snippet(&self, ctx: &mut PaintCtx) {
@@ -2590,39 +2639,28 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let offset = self.editor.cursor.offset();
                 let (start, end) = self.buffer.select_word(offset);
                 let word = self.buffer.slice_to_cow(start..end).to_string();
-                Arc::make_mut(&mut self.main_split.find)
-                    .set_find(&word, false, false, true);
-                let next = self.main_split.find.next(
-                    &self.buffer.rope,
-                    offset,
-                    false,
-                    true,
-                );
+                Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
+                let next = self.find.next(&self.buffer.rope, offset, false, true);
                 if let Some((start, end)) = next {
                     self.do_move(&Movement::Offset(start), 1);
                 }
             }
             LapceCommand::SearchForward => {
                 let offset = self.editor.cursor.offset();
-                let next = self.main_split.find.next(
-                    &self.buffer.rope,
-                    offset,
-                    false,
-                    true,
-                );
+                let next = self.find.next(&self.buffer.rope, offset, false, true);
                 if let Some((start, end)) = next {
                     self.do_move(&Movement::Offset(start), 1);
                 }
             }
             LapceCommand::SearchBackward => {
                 let offset = self.editor.cursor.offset();
-                let next =
-                    self.main_split
-                        .find
-                        .next(&self.buffer.rope, offset, true, true);
+                let next = self.find.next(&self.buffer.rope, offset, true, true);
                 if let Some((start, end)) = next {
                     self.do_move(&Movement::Offset(start), 1);
                 }
+            }
+            LapceCommand::ClearSearch => {
+                Arc::make_mut(&mut self.find).unset();
             }
             LapceCommand::JoinLines => {
                 let offset = self.editor.cursor.offset();
@@ -3038,6 +3076,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     main_split: data.main_split.clone(),
                     completion: data.completion.clone(),
                     proxy: data.proxy.clone(),
+                    find: data.find.clone(),
                     buffer: buffer.clone(),
                     editor: editor.clone(),
                     config: data.config.clone(),
