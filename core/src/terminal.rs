@@ -144,38 +144,52 @@ impl TerminalSplitData {
     }
 
     fn get_named_color(&self, color: &ansi::NamedColor, config: &Config) -> Color {
-        let color = match color {
-            ansi::NamedColor::Cursor => LapceTheme::TERMINAL_CURSOR,
-            ansi::NamedColor::Foreground => LapceTheme::TERMINAL_FOREGROUND,
-            ansi::NamedColor::Background => LapceTheme::TERMINAL_BACKGROUND,
-            ansi::NamedColor::Blue => LapceTheme::TERMINAL_BLUE,
-            ansi::NamedColor::Green => LapceTheme::TERMINAL_GREEN,
-            ansi::NamedColor::Yellow => LapceTheme::TERMINAL_YELLOW,
-            ansi::NamedColor::Red => LapceTheme::TERMINAL_RED,
-            ansi::NamedColor::White => LapceTheme::TERMINAL_WHITE,
-            ansi::NamedColor::Black => LapceTheme::TERMINAL_BLACK,
-            ansi::NamedColor::Cyan => LapceTheme::TERMINAL_CYAN,
-            ansi::NamedColor::Magenta => LapceTheme::TERMINAL_MAGENTA,
-            ansi::NamedColor::BrightBlue => LapceTheme::TERMINAL_BRIGHT_BLUE,
-            ansi::NamedColor::BrightGreen => LapceTheme::TERMINAL_BRIGHT_GREEN,
-            ansi::NamedColor::BrightYellow => LapceTheme::TERMINAL_BRIGHT_YELLOW,
-            ansi::NamedColor::BrightRed => LapceTheme::TERMINAL_BRIGHT_RED,
-            ansi::NamedColor::BrightWhite => LapceTheme::TERMINAL_BRIGHT_WHITE,
-            ansi::NamedColor::BrightBlack => LapceTheme::TERMINAL_BRIGHT_BLACK,
-            ansi::NamedColor::BrightCyan => LapceTheme::TERMINAL_BRIGHT_CYAN,
-            ansi::NamedColor::BrightMagenta => LapceTheme::TERMINAL_BRIGHT_MAGENTA,
-            ansi::NamedColor::DimBlack => LapceTheme::TERMINAL_BLACK,
-            ansi::NamedColor::DimRed => LapceTheme::TERMINAL_RED,
-            ansi::NamedColor::DimGreen => LapceTheme::TERMINAL_GREEN,
-            ansi::NamedColor::DimYellow => LapceTheme::TERMINAL_YELLOW,
-            ansi::NamedColor::DimBlue => LapceTheme::TERMINAL_BLUE,
-            ansi::NamedColor::DimMagenta => LapceTheme::TERMINAL_MAGENTA,
-            ansi::NamedColor::DimCyan => LapceTheme::TERMINAL_CYAN,
-            ansi::NamedColor::DimWhite => LapceTheme::TERMINAL_WHITE,
-            ansi::NamedColor::BrightForeground => LapceTheme::TERMINAL_FOREGROUND,
-            ansi::NamedColor::DimForeground => LapceTheme::TERMINAL_FOREGROUND,
+        let (color, alpha) = match color {
+            ansi::NamedColor::Cursor => (LapceTheme::TERMINAL_CURSOR, 1.0),
+            ansi::NamedColor::Foreground => (LapceTheme::TERMINAL_FOREGROUND, 1.0),
+            ansi::NamedColor::Background => (LapceTheme::TERMINAL_BACKGROUND, 1.0),
+            ansi::NamedColor::Blue => (LapceTheme::TERMINAL_BLUE, 1.0),
+            ansi::NamedColor::Green => (LapceTheme::TERMINAL_GREEN, 1.0),
+            ansi::NamedColor::Yellow => (LapceTheme::TERMINAL_YELLOW, 1.0),
+            ansi::NamedColor::Red => (LapceTheme::TERMINAL_RED, 1.0),
+            ansi::NamedColor::White => (LapceTheme::TERMINAL_WHITE, 1.0),
+            ansi::NamedColor::Black => (LapceTheme::TERMINAL_BLACK, 1.0),
+            ansi::NamedColor::Cyan => (LapceTheme::TERMINAL_CYAN, 1.0),
+            ansi::NamedColor::Magenta => (LapceTheme::TERMINAL_MAGENTA, 1.0),
+            ansi::NamedColor::BrightBlue => (LapceTheme::TERMINAL_BRIGHT_BLUE, 1.0),
+            ansi::NamedColor::BrightGreen => {
+                (LapceTheme::TERMINAL_BRIGHT_GREEN, 1.0)
+            }
+            ansi::NamedColor::BrightYellow => {
+                (LapceTheme::TERMINAL_BRIGHT_YELLOW, 1.0)
+            }
+            ansi::NamedColor::BrightRed => (LapceTheme::TERMINAL_BRIGHT_RED, 1.0),
+            ansi::NamedColor::BrightWhite => {
+                (LapceTheme::TERMINAL_BRIGHT_WHITE, 1.0)
+            }
+            ansi::NamedColor::BrightBlack => {
+                (LapceTheme::TERMINAL_BRIGHT_BLACK, 1.0)
+            }
+            ansi::NamedColor::BrightCyan => (LapceTheme::TERMINAL_BRIGHT_CYAN, 1.0),
+            ansi::NamedColor::BrightMagenta => {
+                (LapceTheme::TERMINAL_BRIGHT_MAGENTA, 1.0)
+            }
+            ansi::NamedColor::BrightForeground => {
+                (LapceTheme::TERMINAL_FOREGROUND, 1.0)
+            }
+            ansi::NamedColor::DimBlack => (LapceTheme::TERMINAL_BLACK, 0.66),
+            ansi::NamedColor::DimRed => (LapceTheme::TERMINAL_RED, 0.66),
+            ansi::NamedColor::DimGreen => (LapceTheme::TERMINAL_GREEN, 0.66),
+            ansi::NamedColor::DimYellow => (LapceTheme::TERMINAL_YELLOW, 0.66),
+            ansi::NamedColor::DimBlue => (LapceTheme::TERMINAL_BLUE, 0.66),
+            ansi::NamedColor::DimMagenta => (LapceTheme::TERMINAL_MAGENTA, 0.66),
+            ansi::NamedColor::DimCyan => (LapceTheme::TERMINAL_CYAN, 0.66),
+            ansi::NamedColor::DimWhite => (LapceTheme::TERMINAL_WHITE, 0.66),
+            ansi::NamedColor::DimForeground => {
+                (LapceTheme::TERMINAL_FOREGROUND, 0.66)
+            }
         };
-        config.get_color_unchecked(color).clone()
+        config.get_color_unchecked(color).clone().with_alpha(alpha)
     }
 }
 
@@ -1044,6 +1058,11 @@ impl Widget<LapceTabData> for LapceTerminal {
                 &terminal.content.colors,
                 &data.config,
             );
+            if cell.flags.contains(Flags::DIM)
+                || cell.flags.contains(Flags::DIM_BOLD)
+            {
+                fg = fg.with_alpha(0.66);
+            }
 
             let inverse = cell.flags.contains(Flags::INVERSE);
             if inverse {
@@ -1059,7 +1078,8 @@ impl Widget<LapceTabData> for LapceTerminal {
                 ctx.fill(rect, &bg);
             }
 
-            let bold = cell.flags.contains(Flags::BOLD);
+            let bold = cell.flags.contains(Flags::BOLD)
+                || cell.flags.contains(Flags::DIM_BOLD);
 
             if point == cursor_point && ctx.is_focused() {
                 fg = term_bg.clone();
