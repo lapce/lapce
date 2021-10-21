@@ -587,9 +587,29 @@ impl TerminalParser {
                 }
                 TerminalEvent::SearchNext(search_string, direction) => {
                     if let Ok(dfas) = RegexSearch::new(&search_string) {
+                        let mut point = self.term.renderable_content().cursor.point;
+                        if direction == Direction::Right {
+                            if point.column.0 < self.term.last_column() {
+                                point.column.0 += 1;
+                            } else {
+                                if point.line.0 < self.term.bottommost_line() {
+                                    point.column.0 = 0;
+                                    point.line.0 += 1;
+                                }
+                            }
+                        } else {
+                            if point.column.0 > 0 {
+                                point.column.0 -= 1;
+                            } else {
+                                if point.line.0 > self.term.topmost_line() {
+                                    point.column.0 = self.term.last_column().0;
+                                    point.line.0 -= 1;
+                                }
+                            }
+                        }
                         if let Some(m) = self.term.search_next(
                             &dfas,
-                            self.term.renderable_content().cursor.point,
+                            point,
                             direction,
                             Side::Left,
                             None,
