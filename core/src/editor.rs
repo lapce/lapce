@@ -963,7 +963,7 @@ impl LapceEditorBufferData {
         let top = self.editor.scroll_offset.y + diff;
         let bottom = top + self.editor.size.borrow().height;
 
-        let line = if (line + 1) as f64 * line_height + line_height > bottom {
+        let new_line = if (line + 1) as f64 * line_height + line_height > bottom {
             let line = (bottom / line_height).floor() as usize;
             if line > 2 {
                 line - 2
@@ -977,12 +977,11 @@ impl LapceEditorBufferData {
             line
         };
 
-        let offset = self.buffer.offset_of_line(line)
-            + col.min(self.buffer.line_end_col(line, false));
-        self.set_cursor(Cursor::new(
-            CursorMode::Normal(offset),
-            self.editor.cursor.horiz.clone(),
-        ));
+        if new_line > line {
+            self.do_move(&Movement::Down, new_line - line);
+        } else if new_line < line {
+            self.do_move(&Movement::Up, line - new_line);
+        }
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ScrollTo((self.editor.scroll_offset.x, top)),
