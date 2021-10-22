@@ -494,9 +494,9 @@ impl LapceTerminalData {
         proxy.new_terminal(term_id, cwd);
 
         let mut config = TermConfig::default();
-        let (sender, receiver) = crossbeam_channel::unbounded();
         let event_proxy = EventProxy {
-            sender: sender.clone(),
+            proxy: proxy.clone(),
+            term_id,
         };
         let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
 
@@ -638,7 +638,8 @@ impl TerminalParser {
         let mut config = TermConfig::default();
         let (sender, receiver) = crossbeam_channel::unbounded();
         let event_proxy = EventProxy {
-            sender: sender.clone(),
+            term_id,
+            proxy: proxy.clone(),
         };
         let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
 
@@ -1312,7 +1313,8 @@ pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>
 
 #[derive(Clone)]
 pub struct EventProxy {
-    sender: Sender<TerminalEvent>,
+    term_id: TermId,
+    proxy: Arc<LapceProxy>,
 }
 
 impl EventProxy {}
@@ -1320,6 +1322,12 @@ impl EventProxy {}
 impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
         println!("terminal event proxy got event {:?}", event);
-        self.sender.send(TerminalEvent::Event(event));
+        match event {
+            alacritty_terminal::event::Event::PtyWrite(s) => {
+                println!("pyt write {}", s);
+                self.proxy.terminal_write(self.term_id, &s);
+            }
+            _ => (),
+        }
     }
 }
