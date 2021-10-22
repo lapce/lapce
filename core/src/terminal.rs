@@ -1074,30 +1074,6 @@ impl Widget<LapceTabData> for LapceTerminal {
             .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
             .clone();
         for (point, cell) in &terminal.content.cells {
-            if cursor_point == point {
-                let rect = Size::new(
-                    char_width * cell.c.width().unwrap_or(1) as f64,
-                    line_height,
-                )
-                .to_rect()
-                .with_origin(Point::new(
-                    cursor_point.column.0 as f64 * char_width,
-                    (cursor_point.line.0 as f64
-                        + terminal.content.display_offset as f64)
-                        * line_height,
-                ));
-                let cursor_color = if terminal.mode == Mode::Terminal {
-                    data.config.get_color_unchecked(LapceTheme::TERMINAL_CURSOR)
-                } else {
-                    data.config.get_color_unchecked(LapceTheme::EDITOR_CARET)
-                };
-                if ctx.is_focused() {
-                    ctx.fill(rect, cursor_color);
-                } else {
-                    ctx.stroke(rect, cursor_color, 1.0);
-                }
-            }
-
             let x = point.column.0 as f64 * char_width;
             let y = (point.line.0 as f64 + terminal.content.display_offset as f64)
                 * line_height;
@@ -1130,6 +1106,30 @@ impl Widget<LapceTabData> for LapceTerminal {
                     .to_rect()
                     .with_origin(Point::new(x, y));
                 ctx.fill(rect, &bg);
+            }
+
+            if cursor_point == point {
+                let rect = Size::new(
+                    char_width * cell.c.width().unwrap_or(1) as f64,
+                    line_height,
+                )
+                .to_rect()
+                .with_origin(Point::new(
+                    cursor_point.column.0 as f64 * char_width,
+                    (cursor_point.line.0 as f64
+                        + terminal.content.display_offset as f64)
+                        * line_height,
+                ));
+                let cursor_color = if terminal.mode == Mode::Terminal {
+                    data.config.get_color_unchecked(LapceTheme::TERMINAL_CURSOR)
+                } else {
+                    data.config.get_color_unchecked(LapceTheme::EDITOR_CARET)
+                };
+                if ctx.is_focused() {
+                    ctx.fill(rect, cursor_color);
+                } else {
+                    ctx.stroke(rect, cursor_color, 1.0);
+                }
             }
 
             let bold = cell.flags.contains(Flags::BOLD)
