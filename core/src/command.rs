@@ -182,6 +182,8 @@ pub enum LapceCommand {
     InlineFindRight,
     #[strum(serialize = "inline_find_left")]
     InlineFindLeft,
+    #[strum(serialize = "repeat_last_inline_find")]
+    RepeatLastInlineFind,
     #[strum(serialize = "down")]
     Down,
     #[strum(serialize = "up")]

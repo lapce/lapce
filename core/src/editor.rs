@@ -6,7 +6,8 @@ use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme, LOGO};
 use crate::data::{
     EditorContent, EditorDiagnostic, EditorKind, EditorType, FocusArea,
-    LapceEditorData, LapceMainSplitData, LapceTabData, RegisterData,
+    InlineFindDirection, LapceEditorData, LapceMainSplitData, LapceTabData,
+    RegisterData,
 };
 use crate::find::Find;
 use crate::keypress::{KeyMap, KeyPress, KeyPressFocus};
@@ -227,6 +228,33 @@ impl LapceEditorBufferData {
             let buffer = self.buffer_mut();
             buffer.cursor_offset = cursor_offset;
             buffer.scroll_offset = scroll_offset;
+        }
+    }
+
+    fn inline_find(&mut self, direction: InlineFindDirection, c: &str) {
+        let offset = self.editor.cursor.offset();
+        let line = self.buffer.line_of_offset(offset);
+        let line_content = self.buffer.line_content(line);
+        let line_start_offset = self.buffer.offset_of_line(line);
+        let index = offset - line_start_offset;
+        if let Some(new_index) = match direction {
+            InlineFindDirection::Left => line_content[..index].rfind(c),
+            InlineFindDirection::Right => {
+                if index + 1 >= line_content.len() {
+                    None
+                } else {
+                    let index = index
+                        + self.buffer.next_grapheme_offset(
+                            offset,
+                            1,
+                            self.buffer.offset_line_end(offset, false),
+                        )
+                        - offset;
+                    line_content[index..].find(c).map(|i| i + index)
+                }
+            }
+        } {
+            self.do_move(&Movement::Offset(new_index + line_start_offset), 1);
         }
     }
 
@@ -1928,6 +1956,10 @@ impl KeyPressFocus for LapceEditorBufferData {
         self.editor.cursor.get_mode()
     }
 
+    fn expect_char(&self) -> bool {
+        self.editor.inline_find.is_some()
+    }
+
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
             "editor_focus" => true,
@@ -2529,10 +2561,12 @@ impl KeyPressFocus for LapceEditorBufferData {
                     CursorMode::Normal(offset) => *offset,
                 };
                 self.buffer_mut().update_edit_type();
-                let mut cursor = &mut Arc::make_mut(&mut self.editor).cursor;
-                cursor.mode = CursorMode::Normal(offset);
-                cursor.horiz = None;
-                Arc::make_mut(&mut self.editor).snippet = None;
+
+                let editor = Arc::make_mut(&mut self.editor);
+                editor.cursor.mode = CursorMode::Normal(offset);
+                editor.cursor.horiz = None;
+                editor.snippet = None;
+                editor.inline_find = None;
                 self.cancel_completion();
             }
             LapceCommand::GotoDefinition => {
@@ -2661,8 +2695,19 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::ClearSearch => {
                 Arc::make_mut(&mut self.find).unset();
             }
-            LapceCommand::InlineFindLeft => {}
-            LapceCommand::InlineFindRight => {}
+            LapceCommand::RepeatLastInlineFind => {
+                if let Some((direction, c)) = self.editor.last_inline_find.clone() {
+                    self.inline_find(direction, &c);
+                }
+            }
+            LapceCommand::InlineFindLeft => {
+                Arc::make_mut(&mut self.editor).inline_find =
+                    Some(InlineFindDirection::Left);
+            }
+            LapceCommand::InlineFindRight => {
+                Arc::make_mut(&mut self.editor).inline_find =
+                    Some(InlineFindDirection::Right);
+            }
             LapceCommand::JoinLines => {
                 let offset = self.editor.cursor.offset();
                 let (line, col) = self.buffer.offset_to_line_col(offset);
@@ -2789,6 +2834,13 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             self.update_completion(ctx);
+        } else {
+            if let Some(direction) = self.editor.inline_find.clone() {
+                self.inline_find(direction.clone(), c);
+                let editor = Arc::make_mut(&mut self.editor);
+                editor.last_inline_find = Some((direction.clone(), c.to_string()));
+                editor.inline_find = None;
+            }
         }
     }
 }

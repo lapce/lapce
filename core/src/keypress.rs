@@ -42,6 +42,22 @@ pub struct KeyPress {
     pub mods: Modifiers,
 }
 
+impl KeyPress {
+    pub fn is_char(&self) -> bool {
+        let mut mods = self.mods.clone();
+        mods.set(Modifiers::SHIFT, false);
+        if mods.is_empty() {
+            match &self.key {
+                druid::keyboard_types::Key::Character(c) => {
+                    return true;
+                }
+                _ => (),
+            }
+        }
+        false
+    }
+}
+
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct KeyMap {
     pub key: Vec<KeyPress>,
@@ -60,6 +76,9 @@ pub trait KeyPressFocus {
         count: Option<usize>,
         env: &Env,
     );
+    fn expect_char(&self) -> bool {
+        false
+    }
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str);
 }
 
@@ -240,6 +259,12 @@ impl KeyPressData {
                 keymaps
                     .iter()
                     .filter(|keymap| {
+                        if check.expect_char()
+                            && keypresses.len() == 1
+                            && keypresses[0].is_char()
+                        {
+                            return false;
+                        }
                         if keymap.modes.len() > 0
                             && !keymap.modes.contains(&check.get_mode())
                         {

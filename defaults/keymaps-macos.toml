@@ -454,12 +454,17 @@ mode = "n"
 [[keymaps]]
 key = "f"
 command = "inline_find_right"
-mode = "n"
+mode = "nv"
 
 [[keymaps]]
 key = "F"
 command = "inline_find_left"
-mode = "n"
+mode = "nv"
+
+[[keymaps]]
+key = ";"
+command = "repeat_last_inline_find"
+mode = "nv"
 
 [[keymaps]]
 key = "d d"
