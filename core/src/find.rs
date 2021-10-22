@@ -290,8 +290,6 @@ impl Find {
             return;
         }
 
-        self.occurrences = Selection::new();
-
         // extend the search by twice the string length (twice, because case matching may increase
         // the length of an occurrence)
         let slop = if include_slop {

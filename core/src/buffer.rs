@@ -392,7 +392,8 @@ impl BufferNew {
                 Some((start, end))
             }
             FindProgress::InProgress(searched_range) => {
-                if searched_range.min_offset() == 0
+                if searched_range.regions().len() == 1
+                    && searched_range.min_offset() == 0
                     && searched_range.max_offset() >= self.len()
                 {
                     // the entire text has been searched
