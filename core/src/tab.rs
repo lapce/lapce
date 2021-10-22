@@ -226,14 +226,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                         Arc::make_mut(buffer).load_content(content);
                         ctx.set_handled();
                     }
-                    LapceUICommand::TerminalUpdateContent(id, content) => {
-                        if let Some(terminal) =
-                            Arc::make_mut(&mut data.terminal).terminals.get_mut(id)
+                    LapceUICommand::TerminalTtyUpdate(term_id, content) => {
+                        if let Some(terminal) = data.terminal.terminals.get(term_id)
                         {
-                            let terminal = Arc::make_mut(terminal);
-                            terminal.content = content.to_owned();
+                            terminal.tty_update(content);
+                            ctx.request_paint();
                         }
-                        ctx.set_handled();
                     }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
@@ -266,10 +264,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 (path.clone(), checked)
                             })
                             .collect();
-                        ctx.set_handled();
-                    }
-                    LapceUICommand::UpdateClipboard(content) => {
-                        Application::global().clipboard().put_string(content);
                         ctx.set_handled();
                     }
                     LapceUICommand::PublishDiagnostics(diagnostics) => {

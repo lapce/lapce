@@ -217,6 +217,7 @@ pub fn watch_settings(event_sink: ExtEventSink) {
 
 #[derive(Clone, PartialEq, Data)]
 pub enum FocusArea {
+    Palette,
     SourceControl,
     Editor,
     Terminal,
@@ -279,7 +280,7 @@ impl LapceTabData {
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let (term_sender, term_receiver) = unbounded();
-        let proxy = Arc::new(LapceProxy::new(tab_id, term_sender.clone()));
+        let proxy = Arc::new(LapceProxy::new(tab_id));
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());

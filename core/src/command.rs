@@ -419,7 +419,6 @@ pub enum LapceUICommand {
     BufferSave(PathBuf, u64),
     UpdateSemanticTokens(BufferId, PathBuf, u64, Vec<(usize, usize, String)>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
-    UpdateClipboard(String),
     UpdateStyle {
         id: BufferId,
         path: PathBuf,
@@ -438,7 +437,7 @@ pub enum LapceUICommand {
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     UpdateDiffFiles(Vec<PathBuf>),
-    TerminalUpdateContent(TermId, Arc<TerminalContent>),
+    TerminalTtyUpdate(TermId, Vec<u8>),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),

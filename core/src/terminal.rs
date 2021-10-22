@@ -1,6 +1,6 @@
 use std::{
-    collections::HashMap, convert::TryFrom, fmt::Debug, io::Read, ops::Index,
-    path::PathBuf, sync::Arc,
+    cell::RefCell, collections::HashMap, convert::TryFrom, fmt::Debug, io::Read,
+    ops::Index, path::PathBuf, rc::Rc, sync::Arc,
 };
 
 use alacritty_terminal::{
@@ -218,7 +218,7 @@ impl LapceTerminalViewData {
         if !self.config.lapce.modal {
             return;
         }
-        self.send_event(TerminalEvent::ToggleVisual(visual_mode.clone()));
+
         let terminal = self.terminal_mut();
         match terminal.mode {
             Mode::Normal => {
@@ -233,6 +233,27 @@ impl LapceTerminalViewData {
                 }
             }
             _ => (),
+        }
+
+        let mut term = self.terminal.term.borrow_mut();
+        if !term.mode().contains(TermMode::VI) {
+            term.toggle_vi_mode();
+        }
+        term.selection = None;
+        let ty = match visual_mode {
+            VisualMode::Normal => SelectionType::Simple,
+            VisualMode::Linewise => SelectionType::Lines,
+            VisualMode::Blockwise => SelectionType::Block,
+        };
+        let point = term.renderable_content().cursor.point;
+        self.terminal.toggle_selection(
+            &mut term,
+            ty,
+            point,
+            alacritty_terminal::index::Side::Left,
+        );
+        if let Some(selection) = term.selection.as_mut() {
+            selection.include_all();
         }
     }
 }
@@ -257,8 +278,55 @@ impl KeyPressFocus for LapceTerminalViewData {
         count: Option<usize>,
         env: &Env,
     ) {
+        ctx.request_paint();
         if let Some(movement) = command.move_command(count) {
-            self.send_event(TerminalEvent::ViMovement(movement));
+            let mut term = self.terminal.term.borrow_mut();
+            match movement {
+                Movement::Left => {
+                    term.vi_motion(ViMotion::Left);
+                }
+                Movement::Right => {
+                    term.vi_motion(ViMotion::Right);
+                }
+                Movement::Up => {
+                    term.vi_motion(ViMotion::Up);
+                }
+                Movement::Down => {
+                    term.vi_motion(ViMotion::Down);
+                }
+                Movement::FirstNonBlank => {
+                    term.vi_motion(ViMotion::FirstOccupied);
+                }
+                Movement::StartOfLine => {
+                    term.vi_motion(ViMotion::First);
+                }
+                Movement::EndOfLine => {
+                    term.vi_motion(ViMotion::Last);
+                }
+                Movement::WordForward => {
+                    term.vi_motion(ViMotion::SemanticRight);
+                }
+                Movement::WordEndForward => {
+                    term.vi_motion(ViMotion::SemanticRightEnd);
+                }
+                Movement::WordBackward => {
+                    term.vi_motion(ViMotion::SemanticLeft);
+                }
+                Movement::Line(line) => {
+                    match line {
+                        LinePosition::First => {
+                            term.scroll_display(Scroll::Top);
+                            term.vi_mode_cursor.point.line = term.topmost_line();
+                        }
+                        LinePosition::Last => {
+                            term.scroll_display(Scroll::Bottom);
+                            term.vi_mode_cursor.point.line = term.bottommost_line();
+                        }
+                        LinePosition::Line(_) => {}
+                    };
+                }
+                _ => (),
+            };
             return;
         }
         match command {
@@ -267,7 +335,11 @@ impl KeyPressFocus for LapceTerminalViewData {
                     return;
                 }
                 self.terminal_mut().mode = Mode::Normal;
-                self.send_event(TerminalEvent::ViMode);
+                let mut term = self.terminal.term.borrow_mut();
+                if !term.mode().contains(TermMode::VI) {
+                    term.toggle_vi_mode();
+                }
+                self.terminal.clear_selection(&mut term);
             }
             LapceCommand::ToggleVisualMode => {
                 self.toggle_visual(VisualMode::Normal);
@@ -280,13 +352,33 @@ impl KeyPressFocus for LapceTerminalViewData {
             }
             LapceCommand::InsertMode => {
                 self.terminal_mut().mode = Mode::Terminal;
-                self.send_event(TerminalEvent::TerminalMode);
+                let mut term = self.terminal.term.borrow_mut();
+                if term.mode().contains(TermMode::VI) {
+                    term.toggle_vi_mode();
+                }
+                let scroll = alacritty_terminal::grid::Scroll::Bottom;
+                term.scroll_display(scroll);
+                self.terminal.clear_selection(&mut term);
             }
             LapceCommand::PageUp => {
-                self.send_event(TerminalEvent::ScrollHalfPageUp);
+                let mut term = self.terminal.term.borrow_mut();
+                let scroll_lines = term.screen_lines() as i32 / 2;
+                term.vi_mode_cursor =
+                    term.vi_mode_cursor.scroll(&term, scroll_lines);
+
+                term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
+                    scroll_lines,
+                ));
             }
             LapceCommand::PageDown => {
-                self.send_event(TerminalEvent::ScrollHalfPageDown);
+                let mut term = self.terminal.term.borrow_mut();
+                let scroll_lines = -(term.screen_lines() as i32 / 2);
+                term.vi_mode_cursor =
+                    term.vi_mode_cursor.scroll(&term, scroll_lines);
+
+                term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
+                    scroll_lines,
+                ));
             }
             LapceCommand::SplitVertical => {
                 ctx.submit_command(Command::new(
@@ -327,10 +419,14 @@ impl KeyPressFocus for LapceTerminalViewData {
                 ));
             }
             LapceCommand::ClipboardCopy => {
-                self.send_event(TerminalEvent::ClipyboardCopy);
                 if self.terminal.mode == Mode::Visual {
                     self.terminal_mut().mode = Mode::Normal;
                 }
+                let mut term = self.terminal.term.borrow_mut();
+                if let Some(content) = term.selection_to_string() {
+                    Application::global().clipboard().put_string(content);
+                }
+                self.terminal.clear_selection(&mut term);
             }
             LapceCommand::ClipboardPaste => {
                 if let Some(s) = Application::global().clipboard().get_string() {
@@ -339,18 +435,22 @@ impl KeyPressFocus for LapceTerminalViewData {
             }
             LapceCommand::SearchForward => {
                 if let Some(search_string) = self.find.search_string.as_ref() {
-                    self.send_event(TerminalEvent::SearchNext(
-                        search_string.to_string(),
+                    let mut term = self.terminal.term.borrow_mut();
+                    self.terminal.search_next(
+                        &mut term,
+                        search_string,
                         Direction::Right,
-                    ));
+                    );
                 }
             }
             LapceCommand::SearchBackward => {
                 if let Some(search_string) = self.find.search_string.as_ref() {
-                    self.send_event(TerminalEvent::SearchNext(
-                        search_string.to_string(),
+                    let mut term = self.terminal.term.borrow_mut();
+                    self.terminal.search_next(
+                        &mut term,
+                        search_string,
                         Direction::Left,
-                    ));
+                    );
                 }
             }
             _ => (),
@@ -358,13 +458,9 @@ impl KeyPressFocus for LapceTerminalViewData {
     }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
-        Arc::make_mut(&mut self.terminal).mode = Mode::Terminal;
-        self.term_tx.send((
-            self.terminal.term_id,
-            TerminalEvent::Event(alacritty_terminal::event::Event::PtyWrite(
-                c.to_string(),
-            )),
-        ));
+        if self.terminal.mode == Mode::Terminal {
+            self.terminal.proxy.terminal_write(self.terminal.term_id, c);
+        }
     }
 }
 
@@ -374,9 +470,13 @@ pub struct LapceTerminalData {
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub panel_widget_id: Option<WidgetId>,
-    pub content: Arc<TerminalContent>,
+    // pub content: Arc<TerminalContent>,
     pub mode: Mode,
     pub visual_mode: VisualMode,
+    parser: Rc<RefCell<ansi::Processor>>,
+    term: Rc<RefCell<Term<EventProxy>>>,
+    scroll_delta: Rc<RefCell<f64>>,
+    pub proxy: Arc<LapceProxy>,
 }
 
 impl LapceTerminalData {
@@ -393,14 +493,122 @@ impl LapceTerminalData {
         let term_id = TermId::next();
         proxy.new_terminal(term_id, cwd);
 
+        let mut config = TermConfig::default();
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let event_proxy = EventProxy {
+            sender: sender.clone(),
+        };
+        let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
+
+        let term =
+            Rc::new(RefCell::new(Term::new(&config, size, event_proxy.clone())));
+        let parser = Rc::new(RefCell::new(ansi::Processor::new()));
+
         Self {
             term_id,
             widget_id,
             split_id,
             panel_widget_id,
-            content: Arc::new(TerminalContent::new()),
+            // content: Arc::new(TerminalContent::new()),
             mode: Mode::Terminal,
             visual_mode: VisualMode::Normal,
+            term,
+            parser,
+            proxy,
+            scroll_delta: Rc::new(RefCell::new(0.0)),
+        }
+    }
+
+    pub fn tty_update(&self, content: &[u8]) {
+        let mut term = self.term.borrow_mut();
+        for byte in content {
+            self.parser.borrow_mut().advance(&mut *term, *byte);
+        }
+    }
+
+    pub fn resize(&self, width: usize, height: usize) {
+        let size =
+            SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
+        self.term.borrow_mut().resize(size);
+        self.proxy.terminal_resize(self.term_id, width, height);
+    }
+
+    pub fn wheel_scroll(&self, delta: f64) {
+        let step = 25.0;
+        let mut scroll_delta = self.scroll_delta.borrow_mut();
+        *scroll_delta -= delta;
+        let delta = (*scroll_delta / step) as i32;
+        *scroll_delta -= delta as f64 * step;
+        if delta != 0 {
+            let scroll = alacritty_terminal::grid::Scroll::Delta(delta);
+            self.term.borrow_mut().scroll_display(scroll);
+        }
+    }
+
+    fn search_next(
+        &self,
+        term: &mut Term<EventProxy>,
+        search_string: &str,
+        direction: Direction,
+    ) {
+        if let Ok(dfas) = RegexSearch::new(&search_string) {
+            let mut point = term.renderable_content().cursor.point;
+            if direction == Direction::Right {
+                if point.column.0 < term.last_column() {
+                    point.column.0 += 1;
+                } else {
+                    if point.line.0 < term.bottommost_line() {
+                        point.column.0 = 0;
+                        point.line.0 += 1;
+                    }
+                }
+            } else {
+                if point.column.0 > 0 {
+                    point.column.0 -= 1;
+                } else {
+                    if point.line.0 > term.topmost_line() {
+                        point.column.0 = term.last_column().0;
+                        point.line.0 -= 1;
+                    }
+                }
+            }
+            if let Some(m) =
+                term.search_next(&dfas, point, direction, Side::Left, None)
+            {
+                term.vi_goto_point(*m.start());
+            }
+        }
+    }
+
+    fn clear_selection(&self, term: &mut Term<EventProxy>) {
+        term.selection = None;
+    }
+
+    fn start_selection(
+        &self,
+        term: &mut Term<EventProxy>,
+        ty: SelectionType,
+        point: alacritty_terminal::index::Point,
+        side: alacritty_terminal::index::Side,
+    ) {
+        term.selection = Some(Selection::new(ty, point, side));
+    }
+
+    fn toggle_selection(
+        &self,
+        term: &mut Term<EventProxy>,
+        ty: SelectionType,
+        point: alacritty_terminal::index::Point,
+        side: alacritty_terminal::index::Side,
+    ) {
+        match &mut term.selection {
+            Some(selection) if selection.ty == ty && !selection.is_empty() => {
+                self.clear_selection(term);
+            }
+            Some(selection) if !selection.is_empty() => {
+                selection.ty = ty;
+            }
+            _ => self.start_selection(term, ty, point, side),
         }
     }
 }
@@ -516,11 +724,6 @@ impl TerminalParser {
             selection: renderable_content.selection.clone(),
             last_col: self.term.last_column().0 as usize,
         });
-        self.event_sink.submit_command(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::TerminalUpdateContent(self.term_id, content),
-            Target::Widget(self.tab_id),
-        );
     }
 
     fn clear_selection(&mut self) {
@@ -608,145 +811,6 @@ impl TerminalParser {
                         Target::Widget(self.palette_widget_id),
                     );
                 }
-                TerminalEvent::ViMode => {
-                    if !self.term.mode().contains(TermMode::VI) {
-                        self.term.toggle_vi_mode();
-                    }
-                    self.clear_selection();
-                }
-                TerminalEvent::TerminalMode => {
-                    if self.term.mode().contains(TermMode::VI) {
-                        self.term.toggle_vi_mode();
-                    }
-                    let scroll = alacritty_terminal::grid::Scroll::Bottom;
-                    self.term.scroll_display(scroll);
-                    self.clear_selection();
-                }
-                TerminalEvent::ToggleVisual(visual_mode) => {
-                    if !self.term.mode().contains(TermMode::VI) {
-                        self.term.toggle_vi_mode();
-                    }
-                    let ty = match visual_mode {
-                        VisualMode::Normal => SelectionType::Simple,
-                        VisualMode::Linewise => SelectionType::Lines,
-                        VisualMode::Blockwise => SelectionType::Block,
-                    };
-                    let point = self.term.renderable_content().cursor.point;
-                    self.toggle_selection(
-                        ty,
-                        point,
-                        alacritty_terminal::index::Side::Left,
-                    );
-                    if let Some(selection) = self.term.selection.as_mut() {
-                        selection.include_all();
-                    }
-                }
-                TerminalEvent::SearchNext(search_string, direction) => {
-                    if let Ok(dfas) = RegexSearch::new(&search_string) {
-                        let mut point = self.term.renderable_content().cursor.point;
-                        if direction == Direction::Right {
-                            if point.column.0 < self.term.last_column() {
-                                point.column.0 += 1;
-                            } else {
-                                if point.line.0 < self.term.bottommost_line() {
-                                    point.column.0 = 0;
-                                    point.line.0 += 1;
-                                }
-                            }
-                        } else {
-                            if point.column.0 > 0 {
-                                point.column.0 -= 1;
-                            } else {
-                                if point.line.0 > self.term.topmost_line() {
-                                    point.column.0 = self.term.last_column().0;
-                                    point.line.0 -= 1;
-                                }
-                            }
-                        }
-                        if let Some(m) = self.term.search_next(
-                            &dfas,
-                            point,
-                            direction,
-                            Side::Left,
-                            None,
-                        ) {
-                            self.term.vi_goto_point(*m.start());
-                        }
-                    }
-                }
-                TerminalEvent::ClipyboardCopy => {
-                    if let Some(content) = self.term.selection_to_string() {
-                        self.event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateClipboard(content),
-                            Target::Widget(self.tab_id),
-                        );
-                    }
-                    self.clear_selection();
-                }
-                TerminalEvent::ViMovement(movement) => {
-                    match movement {
-                        Movement::Left => {
-                            self.term.vi_motion(ViMotion::Left);
-                        }
-                        Movement::Right => {
-                            self.term.vi_motion(ViMotion::Right);
-                        }
-                        Movement::Up => {
-                            self.term.vi_motion(ViMotion::Up);
-                        }
-                        Movement::Down => {
-                            self.term.vi_motion(ViMotion::Down);
-                        }
-                        Movement::FirstNonBlank => {
-                            self.term.vi_motion(ViMotion::FirstOccupied);
-                        }
-                        Movement::StartOfLine => {
-                            self.term.vi_motion(ViMotion::First);
-                        }
-                        Movement::EndOfLine => {
-                            self.term.vi_motion(ViMotion::Last);
-                        }
-                        Movement::WordForward => {
-                            self.term.vi_motion(ViMotion::SemanticRight);
-                        }
-                        Movement::WordEndForward => {
-                            self.term.vi_motion(ViMotion::SemanticRightEnd);
-                        }
-                        Movement::WordBackward => {
-                            self.term.vi_motion(ViMotion::SemanticLeft);
-                        }
-                        Movement::Line(line) => {
-                            match line {
-                                LinePosition::First => {
-                                    self.term.scroll_display(Scroll::Top);
-                                    self.term.vi_mode_cursor.point.line =
-                                        self.term.topmost_line();
-                                }
-                                LinePosition::Last => {
-                                    self.term.scroll_display(Scroll::Bottom);
-                                    self.term.vi_mode_cursor.point.line =
-                                        self.term.bottommost_line();
-                                }
-                                LinePosition::Line(_) => {}
-                            };
-                        }
-                        _ => (),
-                    };
-                }
-                TerminalEvent::Resize(width, height) => {
-                    let size = SizeInfo::new(
-                        width as f32,
-                        height as f32,
-                        1.0,
-                        1.0,
-                        0.0,
-                        0.0,
-                        true,
-                    );
-                    self.term.resize(size);
-                    self.proxy.terminal_resize(self.term_id, width, height);
-                }
                 TerminalEvent::Event(event) => match event {
                     alacritty_terminal::event::Event::MouseCursorDirty => {}
                     alacritty_terminal::event::Event::Title(_) => {}
@@ -773,37 +837,8 @@ impl TerminalParser {
                         );
                     }
                 },
-                TerminalEvent::Scroll(delta) => {
-                    let step = 25.0;
-                    self.scroll_delta -= delta;
-                    let delta = (self.scroll_delta / step) as i32;
-                    self.scroll_delta -= delta as f64 * step;
-                    if delta != 0 {
-                        let scroll = alacritty_terminal::grid::Scroll::Delta(delta);
-                        self.term.scroll_display(scroll);
-                    }
-                }
                 TerminalEvent::UpdateContent(content) => {
                     self.update_content(content);
-                }
-                TerminalEvent::ScrollHalfPageUp => {
-                    let scroll_lines = self.term.screen_lines() as i32 / 2;
-                    self.term.vi_mode_cursor =
-                        self.term.vi_mode_cursor.scroll(&self.term, scroll_lines);
-
-                    self.term.scroll_display(
-                        alacritty_terminal::grid::Scroll::Delta(scroll_lines),
-                    );
-                    self.update_terminal();
-                }
-                TerminalEvent::ScrollHalfPageDown => {
-                    let scroll_lines = -(self.term.screen_lines() as i32 / 2);
-                    self.term.vi_mode_cursor =
-                        self.term.vi_mode_cursor.scroll(&self.term, scroll_lines);
-
-                    self.term.scroll_display(
-                        alacritty_terminal::grid::Scroll::Delta(scroll_lines),
-                    );
                 }
             }
             self.update_terminal();
@@ -957,10 +992,12 @@ impl Widget<LapceTabData> for LapceTerminal {
                 self.request_focus(ctx, data);
             }
             Event::Wheel(wheel_event) => {
-                data.term_tx.send((
-                    self.term_id,
-                    TerminalEvent::Scroll(wheel_event.wheel_delta.y),
-                ));
+                data.terminal
+                    .terminals
+                    .get(&self.term_id)
+                    .unwrap()
+                    .wheel_scroll(wheel_event.wheel_delta.y);
+                ctx.request_paint();
             }
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
@@ -1059,8 +1096,11 @@ impl Widget<LapceTabData> for LapceTerminal {
             let line_height = data.config.editor.line_height as f64;
             let width = (self.width / width).floor() as usize;
             let height = (self.height / line_height).floor() as usize;
-            data.term_tx
-                .send((self.term_id, TerminalEvent::Resize(width, height)));
+            data.terminal
+                .terminals
+                .get(&self.term_id)
+                .unwrap()
+                .resize(width, height);
         }
         size
     }
@@ -1072,10 +1112,11 @@ impl Widget<LapceTabData> for LapceTerminal {
         let y_shift = (line_height - char_size.height) / 2.0;
 
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
+        let term = terminal.term.borrow();
+        let content = term.renderable_content();
 
-        if let Some(selection) = terminal.content.selection.as_ref() {
-            let start_line =
-                selection.start.line.0 + terminal.content.display_offset as i32;
+        if let Some(selection) = content.selection.as_ref() {
+            let start_line = selection.start.line.0 + content.display_offset as i32;
             let start_line = if start_line < 0 {
                 0
             } else {
@@ -1083,8 +1124,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             };
             let start_col = selection.start.column.0;
 
-            let end_line =
-                selection.end.line.0 + terminal.content.display_offset as i32;
+            let end_line = selection.end.line.0 + content.display_offset as i32;
             let end_line = if end_line < 0 { 0 } else { end_line as usize };
             let end_col = selection.end.column.0;
 
@@ -1104,7 +1144,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                     if line == end_line {
                         end_col + 1
                     } else {
-                        terminal.content.last_col
+                        term.last_column().0
                     }
                 };
                 let x0 = left_col as f64 * char_width;
@@ -1119,8 +1159,8 @@ impl Widget<LapceTabData> for LapceTerminal {
             }
         } else {
             if terminal.mode != Mode::Terminal {
-                let y = (terminal.content.cursor_point.line.0 as f64
-                    + terminal.content.display_offset as f64)
+                let y = (content.cursor.point.line.0 as f64
+                    + content.display_offset as f64)
                     * line_height;
                 let size = ctx.size();
                 ctx.fill(
@@ -1131,7 +1171,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             }
         }
 
-        let cursor_point = &terminal.content.cursor_point;
+        let cursor_point = &content.cursor.point;
 
         let term_bg = data
             .config
@@ -1141,21 +1181,19 @@ impl Widget<LapceTabData> for LapceTerminal {
             .config
             .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND)
             .clone();
-        for (point, cell) in &terminal.content.cells {
+        for item in content.display_iter {
+            let point = item.point;
+            let cell = item.cell;
             let x = point.column.0 as f64 * char_width;
-            let y = (point.line.0 as f64 + terminal.content.display_offset as f64)
-                * line_height;
+            let y =
+                (point.line.0 as f64 + content.display_offset as f64) * line_height;
 
-            let mut bg = data.terminal.get_color(
-                &cell.bg,
-                &terminal.content.colors,
-                &data.config,
-            );
-            let mut fg = data.terminal.get_color(
-                &cell.fg,
-                &terminal.content.colors,
-                &data.config,
-            );
+            let mut bg =
+                data.terminal
+                    .get_color(&cell.bg, &content.colors, &data.config);
+            let mut fg =
+                data.terminal
+                    .get_color(&cell.fg, &content.colors, &data.config);
             if cell.flags.contains(Flags::DIM)
                 || cell.flags.contains(Flags::DIM_BOLD)
             {
@@ -1176,7 +1214,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                 ctx.fill(rect, &bg);
             }
 
-            if cursor_point == point {
+            if cursor_point == &point {
                 let rect = Size::new(
                     char_width * cell.c.width().unwrap_or(1) as f64,
                     line_height,
@@ -1184,8 +1222,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                 .to_rect()
                 .with_origin(Point::new(
                     cursor_point.column.0 as f64 * char_width,
-                    (cursor_point.line.0 as f64
-                        + terminal.content.display_offset as f64)
+                    (cursor_point.line.0 as f64 + content.display_offset as f64)
                         * line_height,
                 ));
                 let cursor_color = if terminal.mode == Mode::Terminal {
@@ -1203,7 +1240,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             let bold = cell.flags.contains(Flags::BOLD)
                 || cell.flags.contains(Flags::DIM_BOLD);
 
-            if point == cursor_point && ctx.is_focused() {
+            if &point == cursor_point && ctx.is_focused() {
                 fg = term_bg.clone();
             }
 
@@ -1226,18 +1263,8 @@ impl Widget<LapceTabData> for LapceTerminal {
 }
 
 pub enum TerminalEvent {
-    Resize(usize, usize),
     Event(alacritty_terminal::event::Event),
     UpdateContent(String),
-    Scroll(f64),
-    ViMode,
-    SearchNext(String, Direction),
-    TerminalMode,
-    ToggleVisual(VisualMode),
-    ViMovement(Movement),
-    ScrollHalfPageUp,
-    ScrollHalfPageDown,
-    ClipyboardCopy,
     GetLines(String),
     JumpToLine(i32),
 }
@@ -1292,6 +1319,7 @@ impl EventProxy {}
 
 impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
+        println!("terminal event proxy got event {:?}", event);
         self.sender.send(TerminalEvent::Event(event));
     }
 }

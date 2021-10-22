@@ -41,7 +41,7 @@ pub enum LapceFocus {
     SourceControl,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy)]
 pub enum VisualMode {
     Normal,
     Linewise,

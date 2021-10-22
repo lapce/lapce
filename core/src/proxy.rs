@@ -40,18 +40,16 @@ pub struct LapceProxy {
     initiated: Arc<Mutex<bool>>,
     cond: Arc<Condvar>,
     pub tab_id: WidgetId,
-    term_tx: Sender<(TermId, TerminalEvent)>,
 }
 
 impl LapceProxy {
-    pub fn new(tab_id: WidgetId, term_tx: Sender<(TermId, TerminalEvent)>) -> Self {
+    pub fn new(tab_id: WidgetId) -> Self {
         let proxy = Self {
             peer: Arc::new(Mutex::new(None)),
             process: Arc::new(Mutex::new(None)),
             initiated: Arc::new(Mutex::new(false)),
             cond: Arc::new(Condvar::new()),
             tab_id,
-            term_tx,
         };
         proxy
     }
@@ -60,7 +58,6 @@ impl LapceProxy {
         let proxy = self.clone();
         *proxy.initiated.lock() = false;
         let tab_id = self.tab_id;
-        let term_tx = self.term_tx.clone();
         thread::spawn(move || {
             let mut child = match workspace.kind {
                 LapceWorkspaceType::Local => Command::new(
@@ -104,11 +101,7 @@ impl LapceProxy {
                 proxy.cond.notify_one();
             }
 
-            let mut handler = ProxyHandlerNew {
-                tab_id,
-                term_tx,
-                event_sink,
-            };
+            let mut handler = ProxyHandlerNew { tab_id, event_sink };
             if let Err(e) =
                 looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
             {
@@ -424,7 +417,6 @@ pub enum Request {}
 
 pub struct ProxyHandlerNew {
     tab_id: WidgetId,
-    term_tx: Sender<(TermId, TerminalEvent)>,
     event_sink: ExtEventSink,
 }
 
@@ -494,14 +486,20 @@ impl Handler for ProxyHandlerNew {
                 );
             }
             Notification::UpdateTerminal { term_id, content } => {
-                self.term_tx
-                    .send((term_id, TerminalEvent::UpdateContent(content)));
+                if let Ok(content) = base64::decode(content) {
+                    self.event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::TerminalTtyUpdate(term_id, content),
+                        Target::Widget(self.tab_id),
+                    );
+                }
             }
             Notification::CloseTerminal { term_id } => {
-                self.term_tx.send((
-                    term_id,
-                    TerminalEvent::Event(alacritty_terminal::event::Event::Exit),
-                ));
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::CloseTerminal(term_id),
+                    Target::Widget(self.tab_id),
+                );
             }
         }
     }
