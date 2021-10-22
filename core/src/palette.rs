@@ -466,7 +466,7 @@ impl KeyPressFocus for PaletteViewData {
         }
     }
 
-    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.input.insert_str(palette.cursor, c);
         palette.cursor += c.len();

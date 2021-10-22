@@ -76,7 +76,7 @@ impl KeyPressFocus for CodeActionData {
         }
     }
 
-    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
 }
 
 impl CodeActionData {

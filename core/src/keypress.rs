@@ -60,7 +60,7 @@ pub trait KeyPressFocus {
         count: Option<usize>,
         env: &Env,
     );
-    fn insert(&mut self, ctx: &mut EventCtx, c: &str);
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str);
 }
 
 #[derive(Clone, Debug)]
@@ -220,7 +220,7 @@ impl KeyPressData {
         if mods.is_empty() {
             match &key_event.key {
                 druid::keyboard_types::Key::Character(c) => {
-                    focus.insert(ctx, c);
+                    focus.receive_char(ctx, c);
                     return true;
                 }
                 _ => (),

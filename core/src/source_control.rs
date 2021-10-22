@@ -132,7 +132,7 @@ impl KeyPressFocus for SourceControlData {
         }
     }
 
-    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
 }
 
 pub struct SourceControlNew {

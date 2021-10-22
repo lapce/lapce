@@ -332,7 +332,7 @@ impl KeyPressFocus for LapceTerminalViewData {
             }
             LapceCommand::ClipboardPaste => {
                 if let Some(s) = Application::global().clipboard().get_string() {
-                    self.insert(ctx, &s);
+                    self.receive_char(ctx, &s);
                 }
             }
             LapceCommand::SearchForward => {
@@ -355,7 +355,7 @@ impl KeyPressFocus for LapceTerminalViewData {
         }
     }
 
-    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         Arc::make_mut(&mut self.terminal).mode = Mode::Terminal;
         self.term_tx.send((
             self.terminal.term_id,
@@ -941,7 +941,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                         _ => "".to_string(),
                     };
                     if term_data.terminal.mode == Mode::Terminal && s != "" {
-                        term_data.insert(ctx, &s);
+                        term_data.receive_char(ctx, &s);
                     }
                 }
                 data.keypress = keypress.clone();

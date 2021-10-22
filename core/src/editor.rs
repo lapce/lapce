@@ -1920,7 +1920,7 @@ impl KeyPressFocus for LapceEditorEmptyContent {
     ) {
     }
 
-    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
 }
 
 impl KeyPressFocus for LapceEditorBufferData {
@@ -2715,7 +2715,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         }
     }
 
-    fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
             let mut selection = self.editor.cursor.edit_selection(&self.buffer);
             let cursor_char =
