@@ -1,3 +1,4 @@
+use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::{anyhow, Result};
 use bit_vec::BitVec;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
@@ -20,6 +21,7 @@ use druid::{
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use fzyr::{has_match, locate, Score};
+use itertools::Itertools;
 use lapce_proxy::terminal::TermId;
 use lsp_types::{DocumentSymbolResponse, Location, Position, Range, SymbolKind};
 use serde_json::{self, json, Value};
@@ -861,11 +863,48 @@ impl PaletteViewData {
 
     fn get_lines(&mut self, ctx: &mut EventCtx) {
         if self.focus_area == FocusArea::Terminal {
-            let term_id = self.terminal.active_term_id;
-            // self.term_tx.send((
-            //     term_id,
-            //     TerminalEvent::GetLines(self.palette.run_id.clone()),
-            // ));
+            if let Some(terminal) =
+                self.terminal.terminals.get(&self.terminal.active_term_id)
+            {
+                let raw = terminal.raw.lock();
+                let term = &raw.term;
+                let mut items = Vec::new();
+                let mut last_row: Option<String> = None;
+                let mut current_line = term.topmost_line().0;
+                for line in term.topmost_line().0..term.bottommost_line().0 {
+                    let row = &term.grid()[alacritty_terminal::index::Line(line)];
+                    let mut row_str = (0..row.len())
+                        .map(|i| &row[alacritty_terminal::index::Column(i)])
+                        .map(|c| c.c)
+                        .join("");
+                    if let Some(last_row) = last_row.as_ref() {
+                        row_str = last_row.to_string() + &row_str;
+                    } else {
+                        current_line = line;
+                    }
+                    if row
+                        .last()
+                        .map(|c| c.flags.contains(Flags::WRAPLINE))
+                        .unwrap_or(false)
+                    {
+                        last_row = Some(row_str.clone());
+                    } else {
+                        last_row = None;
+                        let item = NewPaletteItem {
+                            content: PaletteItemContent::TerminalLine(
+                                current_line,
+                                row_str.clone(),
+                            ),
+                            filter_text: row_str,
+                            score: 0,
+                            indices: vec![],
+                        };
+                        items.push(item);
+                    }
+                }
+                let palette = Arc::make_mut(&mut self.palette);
+                palette.items = items;
+            }
             return;
         }
         let editor = self.main_split.active_editor();

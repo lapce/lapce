@@ -384,6 +384,19 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::TerminalJumpToLine(line) => {
+                        if let Some(terminal) = data
+                            .terminal
+                            .terminals
+                            .get(&data.terminal.active_term_id)
+                        {
+                            terminal.raw.lock().term.vi_goto_point(
+                                alacritty_terminal::index::Point::new(
+                                    alacritty_terminal::index::Line(*line),
+                                    alacritty_terminal::index::Column(0),
+                                ),
+                            );
+                            ctx.request_paint();
+                        }
                         // data.term_tx.send((
                         //     data.terminal.active_term_id,
                         //     TerminalEvent::JumpToLine(*line),
