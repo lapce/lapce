@@ -215,9 +215,8 @@ pub fn watch_settings(event_sink: ExtEventSink) {
     });
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Data)]
 pub enum FocusArea {
-    Palette,
     SourceControl,
     Editor,
     Terminal,
@@ -236,7 +235,7 @@ pub struct LapceTabData {
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
-    pub term_tx: Sender<(TermId, TerminalEvent)>,
+    pub term_tx: Arc<Sender<(TermId, TerminalEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TerminalEvent)>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
@@ -327,7 +326,7 @@ impl LapceTabData {
             find: Arc::new(Find::new(0)),
             source_control,
             term_rx: Some(term_receiver),
-            term_tx: term_sender,
+            term_tx: Arc::new(term_sender),
             palette,
             proxy,
             keypress,
@@ -373,9 +372,11 @@ impl LapceTabData {
             let local_event_sink = event_sink.clone();
             let proxy = self.proxy.clone();
             let workspace = self.workspace.clone();
+            let palette_widget_id = self.palette.widget_id;
             thread::spawn(move || {
                 LapceTabData::terminal_update_process(
                     tab_id,
+                    palette_widget_id,
                     receiver,
                     local_event_sink,
                     workspace,
@@ -577,6 +578,9 @@ impl LapceTabData {
             keypress: self.keypress.clone(),
             config: self.config.clone(),
             find: self.find.clone(),
+            focus_area: self.focus_area.clone(),
+            term_tx: self.term_tx.clone(),
+            terminal: self.terminal.clone(),
         }
     }
 
@@ -834,6 +838,7 @@ impl LapceTabData {
 
     pub fn terminal_update_process(
         tab_id: WidgetId,
+        palette_widget_id: WidgetId,
         receiver: Receiver<(TermId, TerminalEvent)>,
         event_sink: ExtEventSink,
         workspace: Option<Arc<LapceWorkspace>>,
@@ -847,6 +852,7 @@ impl LapceTabData {
                         term_id,
                         TerminalParser::new(
                             tab_id,
+                            palette_widget_id,
                             term_id,
                             event_sink.clone(),
                             workspace.clone(),

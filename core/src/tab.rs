@@ -33,7 +33,7 @@ use crate::{
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
     status::LapceStatusNew,
-    terminal::TerminalPanel,
+    terminal::{TerminalEvent, TerminalPanel},
 };
 
 pub struct LapceTabNew {
@@ -390,6 +390,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                             *line,
                             &data.config,
                         );
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::TerminalJumpToLine(line) => {
+                        data.term_tx.send((
+                            data.terminal.active_term_id,
+                            TerminalEvent::JumpToLine(*line),
+                        ));
                         ctx.set_handled();
                     }
                     LapceUICommand::GotoDefinition(

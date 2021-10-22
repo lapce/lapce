@@ -30,6 +30,7 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
     WidgetExt, WidgetId, WidgetPod,
 };
+use itertools::Itertools;
 use lapce_proxy::terminal::TermId;
 use serde::{Deserialize, Deserializer, Serialize};
 use unicode_width::UnicodeWidthChar;
@@ -41,6 +42,7 @@ use crate::{
     find::Find,
     keypress::KeyPressFocus,
     movement::{LinePosition, Movement},
+    palette::{NewPaletteItem, PaletteItem, PaletteItemContent},
     proxy::LapceProxy,
     scroll::LapcePadding,
     split::{LapceSplitNew, SplitMoveDirection},
@@ -198,7 +200,7 @@ impl TerminalSplitData {
 
 pub struct LapceTerminalViewData {
     terminal: Arc<LapceTerminalData>,
-    term_tx: Sender<(TermId, TerminalEvent)>,
+    term_tx: Arc<Sender<(TermId, TerminalEvent)>>,
     config: Arc<Config>,
     find: Arc<Find>,
 }
@@ -405,6 +407,7 @@ impl LapceTerminalData {
 
 pub struct TerminalParser {
     tab_id: WidgetId,
+    palette_widget_id: WidgetId,
     term_id: TermId,
     term: Term<EventProxy>,
     scroll_delta: f64,
@@ -418,6 +421,7 @@ pub struct TerminalParser {
 impl TerminalParser {
     pub fn new(
         tab_id: WidgetId,
+        palette_widget_id: WidgetId,
         term_id: TermId,
         event_sink: ExtEventSink,
         workspace: Option<Arc<LapceWorkspace>>,
@@ -434,6 +438,7 @@ impl TerminalParser {
 
         let mut parser = TerminalParser {
             tab_id,
+            palette_widget_id,
             term_id,
             term,
             scroll_delta: 0.0,
@@ -552,6 +557,57 @@ impl TerminalParser {
         loop {
             let event = receiver.recv()?;
             match event {
+                TerminalEvent::JumpToLine(line) => {
+                    self.term
+                        .vi_goto_point(alacritty_terminal::index::Point::new(
+                            alacritty_terminal::index::Line(line),
+                            alacritty_terminal::index::Column(0),
+                        ));
+                }
+                TerminalEvent::GetLines(run_id) => {
+                    let mut items = Vec::new();
+                    let mut last_row: Option<String> = None;
+                    let mut current_line = self.term.topmost_line().0;
+                    for line in
+                        self.term.topmost_line().0..self.term.bottommost_line().0
+                    {
+                        let row =
+                            &self.term.grid()[alacritty_terminal::index::Line(line)];
+                        let mut row_str = (0..row.len())
+                            .map(|i| &row[alacritty_terminal::index::Column(i)])
+                            .map(|c| c.c)
+                            .join("");
+                        if let Some(last_row) = last_row.as_ref() {
+                            row_str = last_row.to_string() + &row_str;
+                        } else {
+                            current_line = line;
+                        }
+                        if row
+                            .last()
+                            .map(|c| c.flags.contains(Flags::WRAPLINE))
+                            .unwrap_or(false)
+                        {
+                            last_row = Some(row_str.clone());
+                        } else {
+                            last_row = None;
+                            let item = NewPaletteItem {
+                                content: PaletteItemContent::TerminalLine(
+                                    current_line,
+                                    row_str.clone(),
+                                ),
+                                filter_text: row_str,
+                                score: 0,
+                                indices: vec![],
+                            };
+                            items.push(item);
+                        }
+                    }
+                    self.event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdatePaletteItems(run_id, items),
+                        Target::Widget(self.palette_widget_id),
+                    );
+                }
                 TerminalEvent::ViMode => {
                     if !self.term.mode().contains(TermMode::VI) {
                         self.term.toggle_vi_mode();
@@ -1061,6 +1117,18 @@ impl Widget<LapceTabData> for LapceTerminal {
                         .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
                 );
             }
+        } else {
+            if terminal.mode != Mode::Terminal {
+                let y = (terminal.content.cursor_point.line.0 as f64
+                    + terminal.content.display_offset as f64)
+                    * line_height;
+                let size = ctx.size();
+                ctx.fill(
+                    Rect::new(0.0, y, size.width, y + line_height),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                );
+            }
         }
 
         let cursor_point = &terminal.content.cursor_point;
@@ -1170,6 +1238,8 @@ pub enum TerminalEvent {
     ScrollHalfPageUp,
     ScrollHalfPageDown,
     ClipyboardCopy,
+    GetLines(String),
+    JumpToLine(i32),
 }
 
 pub enum TerminalHostEvent {

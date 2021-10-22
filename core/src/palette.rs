@@ -20,6 +20,7 @@ use druid::{
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use fzyr::{has_match, locate, Score};
+use lapce_proxy::terminal::TermId;
 use lsp_types::{DocumentSymbolResponse, Location, Position, Range, SymbolKind};
 use serde_json::{self, json, Value};
 use std::fs::{self, DirEntry};
@@ -54,6 +55,7 @@ use crate::{
     state::LapceWorkspaceType,
     state::Mode,
     svg::{file_svg_new, symbol_svg_new},
+    terminal::{TerminalEvent, TerminalSplitData},
     theme::OldLapceTheme,
 };
 
@@ -112,6 +114,7 @@ pub enum PaletteStatus {
 pub enum PaletteItemContent {
     File(PathBuf, PathBuf),
     Line(usize, String),
+    TerminalLine(i32, String),
     DocumentSymbol {
         kind: SymbolKind,
         name: String,
@@ -202,6 +205,15 @@ impl PaletteItemContent {
                     ));
                 }
             }
+            PaletteItemContent::TerminalLine(line, content) => {
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::TerminalJumpToLine(*line),
+                        Target::Auto,
+                    ));
+                }
+            }
         }
         None
     }
@@ -278,6 +290,13 @@ impl PaletteItemContent {
             PaletteItemContent::Theme(theme) => (
                 None,
                 theme.to_string(),
+                indices.to_vec(),
+                "".to_string(),
+                vec![],
+            ),
+            PaletteItemContent::TerminalLine(line, content) => (
+                None,
+                content.clone(),
                 indices.to_vec(),
                 "".to_string(),
                 vec![],
@@ -361,10 +380,10 @@ impl PaletteItemContent {
 
 #[derive(Clone, Debug)]
 pub struct NewPaletteItem {
-    content: PaletteItemContent,
-    filter_text: String,
-    score: i64,
-    indices: Vec<usize>,
+    pub content: PaletteItemContent,
+    pub filter_text: String,
+    pub score: i64,
+    pub indices: Vec<usize>,
 }
 
 pub struct PaletteViewLens;
@@ -377,6 +396,9 @@ pub struct PaletteViewData {
     pub main_split: LapceMainSplitData,
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<Config>,
+    pub focus_area: FocusArea,
+    pub term_tx: Arc<Sender<(TermId, TerminalEvent)>>,
+    pub terminal: Arc<TerminalSplitData>,
 }
 
 impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
@@ -839,6 +861,14 @@ impl PaletteViewData {
     }
 
     fn get_lines(&mut self, ctx: &mut EventCtx) {
+        if self.focus_area == FocusArea::Terminal {
+            let term_id = self.terminal.active_term_id;
+            self.term_tx.send((
+                term_id,
+                TerminalEvent::GetLines(self.palette.run_id.clone()),
+            ));
+            return;
+        }
         let editor = self.main_split.active_editor();
         match &editor.content {
             EditorContent::Buffer(path) => {
@@ -1093,7 +1123,6 @@ impl Widget<LapceTabData> for NewPalette {
                 match command {
                     LapceUICommand::RunPalette(palette_type) => {
                         ctx.request_focus();
-                        data.focus_area = FocusArea::Palette;
                         ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run(ctx, palette_type.to_owned());
@@ -1104,7 +1133,6 @@ impl Widget<LapceTabData> for NewPalette {
                     }
                     LapceUICommand::RunPaletteReferences(locations) => {
                         ctx.request_focus();
-                        data.focus_area = FocusArea::Palette;
                         let mut palette_data = data.palette_view_data();
                         palette_data.run_references(ctx, locations);
                         data.palette = palette_data.palette.clone();
