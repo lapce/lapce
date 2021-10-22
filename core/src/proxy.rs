@@ -29,9 +29,16 @@ use xi_rpc::RpcPeer;
 use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
+use crate::terminal::RawTerminal;
 use crate::terminal::TerminalEvent;
 use crate::terminal::TerminalParser;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
+
+pub enum TermEvent {
+    NewTerminal(Arc<Mutex<RawTerminal>>),
+    UpdateContent(String),
+    CloseTerminal,
+}
 
 #[derive(Clone)]
 pub struct LapceProxy {
@@ -39,16 +46,18 @@ pub struct LapceProxy {
     process: Arc<Mutex<Option<Child>>>,
     initiated: Arc<Mutex<bool>>,
     cond: Arc<Condvar>,
+    term_tx: Sender<(TermId, TermEvent)>,
     pub tab_id: WidgetId,
 }
 
 impl LapceProxy {
-    pub fn new(tab_id: WidgetId) -> Self {
+    pub fn new(tab_id: WidgetId, term_tx: Sender<(TermId, TermEvent)>) -> Self {
         let proxy = Self {
             peer: Arc::new(Mutex::new(None)),
             process: Arc::new(Mutex::new(None)),
             initiated: Arc::new(Mutex::new(false)),
             cond: Arc::new(Condvar::new()),
+            term_tx,
             tab_id,
         };
         proxy
@@ -58,6 +67,7 @@ impl LapceProxy {
         let proxy = self.clone();
         *proxy.initiated.lock() = false;
         let tab_id = self.tab_id;
+        let term_tx = self.term_tx.clone();
         thread::spawn(move || {
             let mut child = match workspace.kind {
                 LapceWorkspaceType::Local => Command::new(
@@ -101,7 +111,11 @@ impl LapceProxy {
                 proxy.cond.notify_one();
             }
 
-            let mut handler = ProxyHandlerNew { tab_id, event_sink };
+            let mut handler = ProxyHandlerNew {
+                tab_id,
+                term_tx,
+                event_sink,
+            };
             if let Err(e) =
                 looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
             {
@@ -150,7 +164,13 @@ impl LapceProxy {
         )
     }
 
-    pub fn new_terminal(&self, term_id: TermId, cwd: Option<PathBuf>) {
+    pub fn new_terminal(
+        &self,
+        term_id: TermId,
+        cwd: Option<PathBuf>,
+        raw: Arc<Mutex<RawTerminal>>,
+    ) {
+        self.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
         self.wait();
         self.peer.lock().as_ref().unwrap().send_rpc_notification(
             "new_terminal",
@@ -417,6 +437,7 @@ pub enum Request {}
 
 pub struct ProxyHandlerNew {
     tab_id: WidgetId,
+    term_tx: Sender<(TermId, TermEvent)>,
     event_sink: ExtEventSink,
 }
 
@@ -486,15 +507,11 @@ impl Handler for ProxyHandlerNew {
                 );
             }
             Notification::UpdateTerminal { term_id, content } => {
-                if let Ok(content) = base64::decode(content) {
-                    self.event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::TerminalTtyUpdate(term_id, content),
-                        Target::Widget(self.tab_id),
-                    );
-                }
+                self.term_tx
+                    .send((term_id, TermEvent::UpdateContent(content)));
             }
             Notification::CloseTerminal { term_id } => {
+                self.term_tx.send((term_id, TermEvent::CloseTerminal));
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::CloseTerminal(term_id),

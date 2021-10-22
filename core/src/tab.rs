@@ -214,6 +214,10 @@ impl Widget<LapceTabData> for LapceTabNew {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::RequestPaint => {
+                        ctx.request_paint();
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateWindowOrigin => {
                         let window_origin = ctx.window_origin();
                         if data.window_origin != window_origin {
@@ -225,13 +229,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                             data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).load_content(content);
                         ctx.set_handled();
-                    }
-                    LapceUICommand::TerminalTtyUpdate(term_id, content) => {
-                        if let Some(terminal) = data.terminal.terminals.get(term_id)
-                        {
-                            terminal.tty_update(content);
-                            ctx.request_paint();
-                        }
                     }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
@@ -387,10 +384,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::TerminalJumpToLine(line) => {
-                        data.term_tx.send((
-                            data.terminal.active_term_id,
-                            TerminalEvent::JumpToLine(*line),
-                        ));
+                        // data.term_tx.send((
+                        //     data.terminal.active_term_id,
+                        //     TerminalEvent::JumpToLine(*line),
+                        // ));
                         ctx.set_handled();
                     }
                     LapceUICommand::GotoDefinition(

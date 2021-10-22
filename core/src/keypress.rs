@@ -129,8 +129,16 @@ impl KeyPressData {
         Ok(())
     }
 
-    fn handle_count(&mut self, mode: &Mode, keypress: &KeyPress) -> bool {
-        if mode == &Mode::Insert || mode == &Mode::Terminal {
+    fn handle_count<T: KeyPressFocus>(
+        &mut self,
+        focus: &T,
+        keypress: &KeyPress,
+    ) -> bool {
+        if focus.expect_char() {
+            return false;
+        }
+        let mode = focus.get_mode();
+        if mode == Mode::Insert || mode == Mode::Terminal {
             return false;
         }
 
@@ -181,7 +189,7 @@ impl KeyPressData {
         };
 
         let mode = focus.get_mode();
-        if self.handle_count(&mode, &keypress) {
+        if self.handle_count(focus, &keypress) {
             return false;
         }
 
@@ -226,8 +234,8 @@ impl KeyPressData {
             }
         }
 
-        if mode != Mode::Insert && mode != Mode::Terminal {
-            if self.handle_count(&mode, &keypress) {
+        if mode != Mode::Insert && mode != Mode::Terminal && !focus.expect_char() {
+            if self.handle_count(focus, &keypress) {
                 return false;
             }
         }

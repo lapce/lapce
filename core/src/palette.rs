@@ -397,7 +397,6 @@ pub struct PaletteViewData {
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<Config>,
     pub focus_area: FocusArea,
-    pub term_tx: Arc<Sender<(TermId, TerminalEvent)>>,
     pub terminal: Arc<TerminalSplitData>,
 }
 
@@ -863,10 +862,10 @@ impl PaletteViewData {
     fn get_lines(&mut self, ctx: &mut EventCtx) {
         if self.focus_area == FocusArea::Terminal {
             let term_id = self.terminal.active_term_id;
-            self.term_tx.send((
-                term_id,
-                TerminalEvent::GetLines(self.palette.run_id.clone()),
-            ));
+            // self.term_tx.send((
+            //     term_id,
+            //     TerminalEvent::GetLines(self.palette.run_id.clone()),
+            // ));
             return;
         }
         let editor = self.main_split.active_editor();

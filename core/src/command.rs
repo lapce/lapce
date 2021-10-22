@@ -437,7 +437,6 @@ pub enum LapceUICommand {
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     UpdateDiffFiles(Vec<PathBuf>),
-    TerminalTtyUpdate(TermId, Vec<u8>),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),

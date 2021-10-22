@@ -32,6 +32,7 @@ use druid::{
 };
 use itertools::Itertools;
 use lapce_proxy::terminal::TermId;
+use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use unicode_width::UnicodeWidthChar;
 
@@ -200,16 +201,11 @@ impl TerminalSplitData {
 
 pub struct LapceTerminalViewData {
     terminal: Arc<LapceTerminalData>,
-    term_tx: Arc<Sender<(TermId, TerminalEvent)>>,
     config: Arc<Config>,
     find: Arc<Find>,
 }
 
 impl LapceTerminalViewData {
-    fn send_event(&self, event: TerminalEvent) {
-        self.term_tx.send((self.terminal.term_id, event));
-    }
-
     fn terminal_mut(&mut self) -> &mut LapceTerminalData {
         Arc::make_mut(&mut self.terminal)
     }
@@ -235,7 +231,8 @@ impl LapceTerminalViewData {
             _ => (),
         }
 
-        let mut term = self.terminal.term.borrow_mut();
+        let mut raw = self.terminal.raw.lock();
+        let term = &mut raw.term;
         if !term.mode().contains(TermMode::VI) {
             term.toggle_vi_mode();
         }
@@ -247,7 +244,7 @@ impl LapceTerminalViewData {
         };
         let point = term.renderable_content().cursor.point;
         self.terminal.toggle_selection(
-            &mut term,
+            term,
             ty,
             point,
             alacritty_terminal::index::Side::Left,
@@ -280,7 +277,8 @@ impl KeyPressFocus for LapceTerminalViewData {
     ) {
         ctx.request_paint();
         if let Some(movement) = command.move_command(count) {
-            let mut term = self.terminal.term.borrow_mut();
+            let mut raw = self.terminal.raw.lock();
+            let term = &mut raw.term;
             match movement {
                 Movement::Left => {
                     term.vi_motion(ViMotion::Left);
@@ -335,11 +333,12 @@ impl KeyPressFocus for LapceTerminalViewData {
                     return;
                 }
                 self.terminal_mut().mode = Mode::Normal;
-                let mut term = self.terminal.term.borrow_mut();
+                let mut raw = self.terminal.raw.lock();
+                let term = &mut raw.term;
                 if !term.mode().contains(TermMode::VI) {
                     term.toggle_vi_mode();
                 }
-                self.terminal.clear_selection(&mut term);
+                self.terminal.clear_selection(term);
             }
             LapceCommand::ToggleVisualMode => {
                 self.toggle_visual(VisualMode::Normal);
@@ -352,16 +351,18 @@ impl KeyPressFocus for LapceTerminalViewData {
             }
             LapceCommand::InsertMode => {
                 self.terminal_mut().mode = Mode::Terminal;
-                let mut term = self.terminal.term.borrow_mut();
+                let mut raw = self.terminal.raw.lock();
+                let term = &mut raw.term;
                 if term.mode().contains(TermMode::VI) {
                     term.toggle_vi_mode();
                 }
                 let scroll = alacritty_terminal::grid::Scroll::Bottom;
                 term.scroll_display(scroll);
-                self.terminal.clear_selection(&mut term);
+                self.terminal.clear_selection(term);
             }
             LapceCommand::PageUp => {
-                let mut term = self.terminal.term.borrow_mut();
+                let mut raw = self.terminal.raw.lock();
+                let term = &mut raw.term;
                 let scroll_lines = term.screen_lines() as i32 / 2;
                 term.vi_mode_cursor =
                     term.vi_mode_cursor.scroll(&term, scroll_lines);
@@ -371,7 +372,8 @@ impl KeyPressFocus for LapceTerminalViewData {
                 ));
             }
             LapceCommand::PageDown => {
-                let mut term = self.terminal.term.borrow_mut();
+                let mut raw = self.terminal.raw.lock();
+                let term = &mut raw.term;
                 let scroll_lines = -(term.screen_lines() as i32 / 2);
                 term.vi_mode_cursor =
                     term.vi_mode_cursor.scroll(&term, scroll_lines);
@@ -422,11 +424,12 @@ impl KeyPressFocus for LapceTerminalViewData {
                 if self.terminal.mode == Mode::Visual {
                     self.terminal_mut().mode = Mode::Normal;
                 }
-                let mut term = self.terminal.term.borrow_mut();
+                let mut raw = self.terminal.raw.lock();
+                let term = &mut raw.term;
                 if let Some(content) = term.selection_to_string() {
                     Application::global().clipboard().put_string(content);
                 }
-                self.terminal.clear_selection(&mut term);
+                self.terminal.clear_selection(term);
             }
             LapceCommand::ClipboardPaste => {
                 if let Some(s) = Application::global().clipboard().get_string() {
@@ -435,22 +438,18 @@ impl KeyPressFocus for LapceTerminalViewData {
             }
             LapceCommand::SearchForward => {
                 if let Some(search_string) = self.find.search_string.as_ref() {
-                    let mut term = self.terminal.term.borrow_mut();
-                    self.terminal.search_next(
-                        &mut term,
-                        search_string,
-                        Direction::Right,
-                    );
+                    let mut raw = self.terminal.raw.lock();
+                    let term = &mut raw.term;
+                    self.terminal
+                        .search_next(term, search_string, Direction::Right);
                 }
             }
             LapceCommand::SearchBackward => {
                 if let Some(search_string) = self.find.search_string.as_ref() {
-                    let mut term = self.terminal.term.borrow_mut();
-                    self.terminal.search_next(
-                        &mut term,
-                        search_string,
-                        Direction::Left,
-                    );
+                    let mut raw = self.terminal.raw.lock();
+                    let term = &mut raw.term;
+                    self.terminal
+                        .search_next(term, search_string, Direction::Left);
                 }
             }
             _ => (),
@@ -464,18 +463,51 @@ impl KeyPressFocus for LapceTerminalViewData {
     }
 }
 
+pub struct RawTerminal {
+    pub parser: ansi::Processor,
+    pub term: Term<EventProxy>,
+    pub scroll_delta: f64,
+}
+
+impl RawTerminal {
+    pub fn update_content(&mut self, content: &str) {
+        if let Ok(content) = base64::decode(content) {
+            for byte in content {
+                self.parser.advance(&mut self.term, byte);
+            }
+        }
+    }
+}
+
+impl RawTerminal {
+    pub fn new(term_id: TermId, proxy: Arc<LapceProxy>) -> Self {
+        let config = TermConfig::default();
+        let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
+        let event_proxy = EventProxy {
+            proxy: proxy.clone(),
+            term_id,
+        };
+
+        let term = Term::new(&config, size, event_proxy.clone());
+        let parser = ansi::Processor::new();
+
+        Self {
+            parser,
+            term,
+            scroll_delta: 0.0,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct LapceTerminalData {
     pub term_id: TermId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub panel_widget_id: Option<WidgetId>,
-    // pub content: Arc<TerminalContent>,
     pub mode: Mode,
     pub visual_mode: VisualMode,
-    parser: Rc<RefCell<ansi::Processor>>,
-    term: Rc<RefCell<Term<EventProxy>>>,
-    scroll_delta: Rc<RefCell<f64>>,
+    pub raw: Arc<Mutex<RawTerminal>>,
     pub proxy: Arc<LapceProxy>,
 }
 
@@ -491,7 +523,6 @@ impl LapceTerminalData {
         let widget_id = WidgetId::next();
 
         let term_id = TermId::next();
-        proxy.new_terminal(term_id, cwd);
 
         let mut config = TermConfig::default();
         let event_proxy = EventProxy {
@@ -500,9 +531,8 @@ impl LapceTerminalData {
         };
         let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
 
-        let term =
-            Rc::new(RefCell::new(Term::new(&config, size, event_proxy.clone())));
-        let parser = Rc::new(RefCell::new(ansi::Processor::new()));
+        let raw = Arc::new(Mutex::new(RawTerminal::new(term_id, proxy.clone())));
+        proxy.new_terminal(term_id, cwd, raw.clone());
 
         Self {
             term_id,
@@ -512,36 +542,27 @@ impl LapceTerminalData {
             // content: Arc::new(TerminalContent::new()),
             mode: Mode::Terminal,
             visual_mode: VisualMode::Normal,
-            term,
-            parser,
+            raw,
             proxy,
-            scroll_delta: Rc::new(RefCell::new(0.0)),
-        }
-    }
-
-    pub fn tty_update(&self, content: &[u8]) {
-        let mut term = self.term.borrow_mut();
-        for byte in content {
-            self.parser.borrow_mut().advance(&mut *term, *byte);
         }
     }
 
     pub fn resize(&self, width: usize, height: usize) {
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-        self.term.borrow_mut().resize(size);
+        self.raw.lock().term.resize(size);
         self.proxy.terminal_resize(self.term_id, width, height);
     }
 
     pub fn wheel_scroll(&self, delta: f64) {
+        let mut raw = self.raw.lock();
         let step = 25.0;
-        let mut scroll_delta = self.scroll_delta.borrow_mut();
-        *scroll_delta -= delta;
-        let delta = (*scroll_delta / step) as i32;
-        *scroll_delta -= delta as f64 * step;
+        raw.scroll_delta -= delta;
+        let delta = (raw.scroll_delta / step) as i32;
+        raw.scroll_delta -= delta as f64 * step;
         if delta != 0 {
             let scroll = alacritty_terminal::grid::Scroll::Delta(delta);
-            self.term.borrow_mut().scroll_display(scroll);
+            raw.term.scroll_display(scroll);
         }
     }
 
@@ -984,7 +1005,6 @@ impl Widget<LapceTabData> for LapceTerminal {
             data.terminal.terminals.get(&self.term_id).unwrap().clone();
         let mut term_data = LapceTerminalViewData {
             terminal: old_terminal_data.clone(),
-            term_tx: data.term_tx.clone(),
             config: data.config.clone(),
             find: data.find.clone(),
         };
@@ -1113,7 +1133,8 @@ impl Widget<LapceTabData> for LapceTerminal {
         let y_shift = (line_height - char_size.height) / 2.0;
 
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
-        let term = terminal.term.borrow();
+        let raw = terminal.raw.lock();
+        let term = &raw.term;
         let content = term.renderable_content();
 
         if let Some(selection) = content.selection.as_ref() {

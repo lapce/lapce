@@ -67,7 +67,7 @@ use crate::{
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
-    proxy::{LapceProxy, ProxyHandlerNew},
+    proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
     source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
     split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
@@ -236,8 +236,8 @@ pub struct LapceTabData {
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
-    pub term_tx: Arc<Sender<(TermId, TerminalEvent)>>,
-    pub term_rx: Option<Receiver<(TermId, TerminalEvent)>>,
+    pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
+    pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub window_origin: Point,
@@ -280,7 +280,7 @@ impl LapceTabData {
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let (term_sender, term_receiver) = unbounded();
-        let proxy = Arc::new(LapceProxy::new(tab_id));
+        let proxy = Arc::new(LapceProxy::new(tab_id, term_sender.clone()));
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
@@ -580,7 +580,6 @@ impl LapceTabData {
             config: self.config.clone(),
             find: self.find.clone(),
             focus_area: self.focus_area.clone(),
-            term_tx: self.term_tx.clone(),
             terminal: self.terminal.clone(),
         }
     }
@@ -840,31 +839,54 @@ impl LapceTabData {
     pub fn terminal_update_process(
         tab_id: WidgetId,
         palette_widget_id: WidgetId,
-        receiver: Receiver<(TermId, TerminalEvent)>,
+        receiver: Receiver<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
         workspace: Option<Arc<LapceWorkspace>>,
         proxy: Arc<LapceProxy>,
     ) {
         let mut terminals = HashMap::new();
+        let mut last_redraw = std::time::Instant::now();
+        let mut last_event = None;
         loop {
-            if let Ok((term_id, event)) = receiver.recv() {
-                if !terminals.contains_key(&term_id) {
-                    terminals.insert(
-                        term_id,
-                        TerminalParser::new(
-                            tab_id,
-                            palette_widget_id,
-                            term_id,
-                            event_sink.clone(),
-                            workspace.clone(),
-                            proxy.clone(),
-                        ),
-                    );
-                }
-                let sender = terminals.get(&term_id).unwrap();
-                sender.send(event);
+            let (term_id, event) = if let Some((term_id, event)) = last_event.take()
+            {
+                (term_id, event)
             } else {
-                return;
+                match receiver.recv() {
+                    Ok((term_id, event)) => (term_id, event),
+                    Err(_) => return,
+                }
+            };
+            match event {
+                TermEvent::CloseTerminal => {
+                    terminals.remove(&term_id);
+                }
+                TermEvent::NewTerminal(raw) => {
+                    terminals.insert(term_id, raw);
+                }
+                TermEvent::UpdateContent(content) => {
+                    if let Some(raw) = terminals.get_mut(&term_id) {
+                        raw.lock().update_content(&content);
+                        last_event = receiver.try_recv().ok();
+                        if last_event.is_some() {
+                            if last_redraw.elapsed().as_millis() > 10 {
+                                last_redraw = std::time::Instant::now();
+                                event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::RequestPaint,
+                                    Target::Widget(tab_id),
+                                );
+                            }
+                        } else {
+                            last_redraw = std::time::Instant::now();
+                            event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::RequestPaint,
+                                Target::Widget(tab_id),
+                            );
+                        }
+                    }
+                }
             }
         }
     }
@@ -3660,3 +3682,5 @@ fn str_matching_pair(c: &str) -> Option<char> {
     }
     None
 }
+
+fn progress_term_event() {}
