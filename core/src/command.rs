@@ -25,7 +25,6 @@ use crate::{
     palette::{NewPaletteItem, PaletteType},
     split::SplitMoveDirection,
     state::LapceWorkspace,
-    terminal::TerminalContent,
 };
 
 pub const LAPCE_NEW_COMMAND: Selector<LapceCommandNew> =

@@ -33,7 +33,7 @@ use crate::{
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
     status::LapceStatusNew,
-    terminal::{TerminalEvent, TerminalPanel},
+    terminal::TerminalPanel,
 };
 
 pub struct LapceTabNew {

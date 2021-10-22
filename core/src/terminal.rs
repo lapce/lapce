@@ -55,6 +55,8 @@ const CTRL_CHARS: &'static [char] = &[
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
 ];
 
+pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>>;
+
 #[derive(Clone)]
 pub struct TerminalSplitData {
     pub active: WidgetId,
@@ -521,16 +523,7 @@ impl LapceTerminalData {
     ) -> Self {
         let cwd = workspace.map(|w| w.path.clone());
         let widget_id = WidgetId::next();
-
         let term_id = TermId::next();
-
-        let mut config = TermConfig::default();
-        let event_proxy = EventProxy {
-            proxy: proxy.clone(),
-            term_id,
-        };
-        let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
-
         let raw = Arc::new(Mutex::new(RawTerminal::new(term_id, proxy.clone())));
         proxy.new_terminal(term_id, cwd, raw.clone());
 
@@ -539,7 +532,6 @@ impl LapceTerminalData {
             widget_id,
             split_id,
             panel_widget_id,
-            // content: Arc::new(TerminalContent::new()),
             mode: Mode::Terminal,
             visual_mode: VisualMode::Normal,
             raw,
@@ -630,248 +622,6 @@ impl LapceTerminalData {
                 selection.ty = ty;
             }
             _ => self.start_selection(term, ty, point, side),
-        }
-    }
-}
-
-pub struct TerminalParser {
-    tab_id: WidgetId,
-    palette_widget_id: WidgetId,
-    term_id: TermId,
-    term: Term<EventProxy>,
-    scroll_delta: f64,
-    sender: Sender<TerminalEvent>,
-    parser: ansi::Processor,
-    event_sink: ExtEventSink,
-    proxy: Arc<LapceProxy>,
-    indexed_colors: HashMap<u8, Color>,
-}
-
-impl TerminalParser {
-    pub fn new(
-        tab_id: WidgetId,
-        palette_widget_id: WidgetId,
-        term_id: TermId,
-        event_sink: ExtEventSink,
-        workspace: Option<Arc<LapceWorkspace>>,
-        proxy: Arc<LapceProxy>,
-    ) -> Sender<TerminalEvent> {
-        let mut config = TermConfig::default();
-        let (sender, receiver) = crossbeam_channel::unbounded();
-        let event_proxy = EventProxy {
-            term_id,
-            proxy: proxy.clone(),
-        };
-        let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
-
-        let term = Term::new(&config, size, event_proxy.clone());
-
-        let mut parser = TerminalParser {
-            tab_id,
-            palette_widget_id,
-            term_id,
-            term,
-            scroll_delta: 0.0,
-            sender: sender.clone(),
-            parser: ansi::Processor::new(),
-            event_sink,
-            proxy,
-            indexed_colors: HashMap::new(),
-        };
-
-        std::thread::spawn(move || {
-            parser.run(receiver);
-        });
-
-        sender
-    }
-
-    pub fn fill_cube(&mut self) {
-        let mut index: u8 = 16;
-        // Build colors.
-        for r in 0..6 {
-            for g in 0..6 {
-                for b in 0..6 {
-                    // Override colors 16..232 with the config (if present).
-                    self.indexed_colors.insert(
-                        index,
-                        Color::rgb8(
-                            if r == 0 { 0 } else { r * 40 + 55 },
-                            if b == 0 { 0 } else { b * 40 + 55 },
-                            if g == 0 { 0 } else { g * 40 + 55 },
-                        ),
-                    );
-                    index += 1;
-                }
-            }
-        }
-    }
-
-    pub fn fill_gray_ramp(&mut self) {
-        let mut index: u8 = 232;
-
-        for i in 0..24 {
-            // Override colors 232..256 with the config (if present).
-
-            let value = i * 10 + 8;
-            self.indexed_colors
-                .insert(index, Color::rgb8(value, value, value));
-            index += 1;
-        }
-    }
-
-    pub fn update_terminal(&self) {
-        let renderable_content = self.term.renderable_content();
-        let cursor_point = renderable_content.cursor.point;
-
-        let mut cells = Vec::new();
-        for cell in renderable_content.display_iter {
-            let inverse = cell.flags.contains(Flags::INVERSE);
-            let c = cell.cell.c;
-            if cursor_point == cell.point
-                || (c != ' ' && c != '\t')
-                || (cell.bg == ansi::Color::Named(ansi::NamedColor::Background)
-                    && inverse)
-                || (!inverse
-                    && cell.bg != ansi::Color::Named(ansi::NamedColor::Background))
-            {
-                cells.push((cell.point.clone(), cell.cell.clone()));
-            }
-        }
-        let content = Arc::new(TerminalContent {
-            cells,
-            cursor_point,
-            display_offset: renderable_content.display_offset,
-            colors: renderable_content.colors.clone(),
-            selection: renderable_content.selection.clone(),
-            last_col: self.term.last_column().0 as usize,
-        });
-    }
-
-    fn clear_selection(&mut self) {
-        self.term.selection = None;
-    }
-
-    fn start_selection(
-        &mut self,
-        ty: SelectionType,
-        point: alacritty_terminal::index::Point,
-        side: alacritty_terminal::index::Side,
-    ) {
-        self.term.selection = Some(Selection::new(ty, point, side));
-    }
-
-    fn toggle_selection(
-        &mut self,
-        ty: SelectionType,
-        point: alacritty_terminal::index::Point,
-        side: alacritty_terminal::index::Side,
-    ) {
-        match &mut self.term.selection {
-            Some(selection) if selection.ty == ty && !selection.is_empty() => {
-                self.clear_selection();
-            }
-            Some(selection) if !selection.is_empty() => {
-                selection.ty = ty;
-            }
-            _ => self.start_selection(ty, point, side),
-        }
-    }
-
-    pub fn run(&mut self, receiver: Receiver<TerminalEvent>) -> Result<()> {
-        loop {
-            let event = receiver.recv()?;
-            match event {
-                TerminalEvent::JumpToLine(line) => {
-                    self.term
-                        .vi_goto_point(alacritty_terminal::index::Point::new(
-                            alacritty_terminal::index::Line(line),
-                            alacritty_terminal::index::Column(0),
-                        ));
-                }
-                TerminalEvent::GetLines(run_id) => {
-                    let mut items = Vec::new();
-                    let mut last_row: Option<String> = None;
-                    let mut current_line = self.term.topmost_line().0;
-                    for line in
-                        self.term.topmost_line().0..self.term.bottommost_line().0
-                    {
-                        let row =
-                            &self.term.grid()[alacritty_terminal::index::Line(line)];
-                        let mut row_str = (0..row.len())
-                            .map(|i| &row[alacritty_terminal::index::Column(i)])
-                            .map(|c| c.c)
-                            .join("");
-                        if let Some(last_row) = last_row.as_ref() {
-                            row_str = last_row.to_string() + &row_str;
-                        } else {
-                            current_line = line;
-                        }
-                        if row
-                            .last()
-                            .map(|c| c.flags.contains(Flags::WRAPLINE))
-                            .unwrap_or(false)
-                        {
-                            last_row = Some(row_str.clone());
-                        } else {
-                            last_row = None;
-                            let item = NewPaletteItem {
-                                content: PaletteItemContent::TerminalLine(
-                                    current_line,
-                                    row_str.clone(),
-                                ),
-                                filter_text: row_str,
-                                score: 0,
-                                indices: vec![],
-                            };
-                            items.push(item);
-                        }
-                    }
-                    self.event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdatePaletteItems(run_id, items),
-                        Target::Widget(self.palette_widget_id),
-                    );
-                }
-                TerminalEvent::Event(event) => match event {
-                    alacritty_terminal::event::Event::MouseCursorDirty => {}
-                    alacritty_terminal::event::Event::Title(_) => {}
-                    alacritty_terminal::event::Event::ResetTitle => {}
-                    alacritty_terminal::event::Event::ClipboardStore(_, _) => {}
-                    alacritty_terminal::event::Event::ClipboardLoad(_, _) => {}
-                    alacritty_terminal::event::Event::ColorRequest(_, _) => {}
-                    alacritty_terminal::event::Event::PtyWrite(s) => {
-                        self.proxy.terminal_write(self.term_id, &s);
-                        let scroll = alacritty_terminal::grid::Scroll::Bottom;
-                        self.term.scroll_display(scroll);
-                        if self.term.mode().contains(TermMode::VI) {
-                            self.term.toggle_vi_mode();
-                        }
-                    }
-                    alacritty_terminal::event::Event::CursorBlinkingChange(_) => {}
-                    alacritty_terminal::event::Event::Wakeup => {}
-                    alacritty_terminal::event::Event::Bell => {}
-                    alacritty_terminal::event::Event::Exit => {
-                        self.event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::CloseTerminal(self.term_id),
-                            Target::Widget(self.tab_id),
-                        );
-                    }
-                },
-                TerminalEvent::UpdateContent(content) => {
-                    self.update_content(content);
-                }
-            }
-            self.update_terminal();
-        }
-    }
-
-    pub fn update_content(&mut self, content: String) {
-        if let Ok(content) = base64::decode(content) {
-            for byte in content {
-                self.parser.advance(&mut self.term, byte);
-            }
         }
     }
 }
@@ -1283,54 +1033,6 @@ impl Widget<LapceTabData> for LapceTerminal {
         }
     }
 }
-
-pub enum TerminalEvent {
-    Event(alacritty_terminal::event::Event),
-    UpdateContent(String),
-    GetLines(String),
-    JumpToLine(i32),
-}
-
-pub enum TerminalHostEvent {
-    UpdateContent {
-        cursor: RenderableCursor,
-        content: Vec<(alacritty_terminal::index::Point, Cell)>,
-    },
-    Exit,
-}
-
-pub struct TerminalContent {
-    cells: Vec<(alacritty_terminal::index::Point, Cell)>,
-    cursor_point: alacritty_terminal::index::Point,
-    display_offset: usize,
-    colors: alacritty_terminal::term::color::Colors,
-    selection: Option<SelectionRange>,
-    last_col: usize,
-}
-
-impl Debug for TerminalContent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("{:?}", self.cells))?;
-        f.write_str(&format!("{:?}", self.cursor_point))?;
-        f.write_str(&format!("{:?}", self.display_offset))?;
-        Ok(())
-    }
-}
-
-impl TerminalContent {
-    pub fn new() -> Self {
-        Self {
-            cells: Vec::new(),
-            cursor_point: alacritty_terminal::index::Point::default(),
-            display_offset: 0,
-            colors: alacritty_terminal::term::color::Colors::default(),
-            selection: None,
-            last_col: 0,
-        }
-    }
-}
-
-pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>>;
 
 #[derive(Clone)]
 pub struct EventProxy {

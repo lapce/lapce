@@ -69,10 +69,8 @@ use crate::{
     panel::PanelPosition,
     proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
     source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
-    split::SplitMoveDirection,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
-    terminal::{TerminalEvent, TerminalParser, TerminalSplitData},
-    theme::OldLapceTheme,
+    terminal::TerminalSplitData,
 };
 
 #[derive(Clone, Data)]

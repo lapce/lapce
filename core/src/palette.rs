@@ -57,7 +57,7 @@ use crate::{
     state::LapceWorkspaceType,
     state::Mode,
     svg::{file_svg_new, symbol_svg_new},
-    terminal::{TerminalEvent, TerminalSplitData},
+    terminal::TerminalSplitData,
     theme::OldLapceTheme,
 };
 

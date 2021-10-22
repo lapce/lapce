@@ -30,8 +30,6 @@ use crate::command::LapceUICommand;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
 use crate::terminal::RawTerminal;
-use crate::terminal::TerminalEvent;
-use crate::terminal::TerminalParser;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 pub enum TermEvent {
