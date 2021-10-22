@@ -208,8 +208,9 @@ impl KeyPressData {
         }
 
         if mode != Mode::Insert && mode != Mode::Terminal {
-            self.handle_count(&mode, &keypress);
-            return false;
+            if self.handle_count(&mode, &keypress) {
+                return false;
+            }
         }
 
         self.count = None;

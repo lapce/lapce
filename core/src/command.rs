@@ -178,6 +178,10 @@ pub enum LapceCommand {
     DeleteWordBackward,
     #[strum(serialize = "delete_to_beginning_of_line")]
     DeleteToBeginningOfLine,
+    #[strum(serialize = "inline_find_right")]
+    InlineFindRight,
+    #[strum(serialize = "inline_find_left")]
+    InlineFindLeft,
     #[strum(serialize = "down")]
     Down,
     #[strum(serialize = "up")]

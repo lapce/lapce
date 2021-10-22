@@ -2661,6 +2661,8 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::ClearSearch => {
                 Arc::make_mut(&mut self.find).unset();
             }
+            LapceCommand::InlineFindLeft => {}
+            LapceCommand::InlineFindRight => {}
             LapceCommand::JoinLines => {
                 let offset = self.editor.cursor.offset();
                 let (line, col) = self.buffer.offset_to_line_col(offset);

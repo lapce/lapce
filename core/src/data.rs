@@ -1451,6 +1451,12 @@ pub enum EditorContent {
 }
 
 #[derive(Clone, Debug)]
+enum InlineFindDirection {
+    Left,
+    Right,
+}
+
+#[derive(Clone, Debug)]
 pub struct LapceEditorData {
     pub split_id: Option<WidgetId>,
     pub view_id: WidgetId,
@@ -1464,6 +1470,7 @@ pub struct LapceEditorData {
     pub locations: Vec<EditorLocationNew>,
     pub current_location: usize,
     pub last_movement: Movement,
+    inline_find: Option<InlineFindDirection>,
 }
 
 impl LapceEditorData {
@@ -1491,6 +1498,7 @@ impl LapceEditorData {
             locations: vec![],
             current_location: 0,
             last_movement: Movement::Left,
+            inline_find: None,
         }
     }
 
