@@ -18,6 +18,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - name: Update rust
+        run: rustup update
       - name: Build
         run: cargo build --release
       - name: Install WiX
