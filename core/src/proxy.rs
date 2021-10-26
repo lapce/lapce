@@ -80,6 +80,12 @@ impl LapceProxy {
                 .spawn(),
                 LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
                     .arg(format!("{}@{}", user, host))
+                    .arg("-o")
+                    .arg("ControlMaster=auto")
+                    .arg("-o")
+                    .arg("ControlPath=~/.ssh/cm-%r@%h:%p")
+                    .arg("-o")
+                    .arg("ControlPersist=30m")
                     .arg("/tmp/proxy/target/release/lapce-proxy")
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
