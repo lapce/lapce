@@ -599,7 +599,7 @@ impl LapceTabData {
                     if let Some(folder) =
                         tinyfiledialogs::select_folder_dialog("Open folder", &dir)
                     {
-                        let path = PathBuf::from(folder).canonicalize().unwrap();
+                        let path = PathBuf::from(folder);
                         let workspace = LapceWorkspace {
                             kind: LapceWorkspaceType::Local,
                             path,
