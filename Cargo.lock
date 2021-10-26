@@ -1995,6 +1995,7 @@ dependencies = [
  "anyhow",
  "base64 0.13.0",
  "crossbeam-channel 0.5.1",
+ "directories",
  "git2",
  "home",
  "jsonrpc-lite",

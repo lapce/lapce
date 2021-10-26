@@ -15,6 +15,7 @@ use alacritty_terminal::{
     term::SizeInfo,
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
+use directories::BaseDirs;
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
 use mio::{
@@ -70,7 +71,7 @@ impl Terminal {
         let poll = mio::Poll::new().unwrap();
         let mut config = TermConfig::default();
         config.working_directory =
-            cwd.or_else(|| std::env::var("HOME").ok().map(|h| PathBuf::from(h)));
+            cwd.or_else(|| BaseDirs::new().map(|d| PathBuf::from(d.home_dir())));
         config.shell = std::env::var("SHELL").ok().map(|shell| Program::WithArgs {
             program: shell.to_string(),
             args: vec!["-l".to_string()],
