@@ -15,9 +15,10 @@ use alacritty_terminal::{
     term::SizeInfo,
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
+#[cfg(not(windows))]
+use mio::unix::UnixReady;
 use mio::{
     channel::{channel, Receiver, Sender},
-    unix::UnixReady,
     Events, PollOpt, Ready,
 };
 use serde::{Deserialize, Deserializer, Serialize};
@@ -75,10 +76,10 @@ impl Terminal {
             args: vec!["-l".to_string()],
         });
         setup_env(&config);
-        
+
         #[cfg(target_os = "macos")]
         set_locale_environment();
-        
+
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
         let mut pty = alacritty_terminal::tty::new(&config, &size, None);
@@ -314,6 +315,8 @@ impl State {
 }
 
 fn set_locale_environment() {
-    let locale = locale_config::Locale::global_default().to_string().replace("-", "_");
+    let locale = locale_config::Locale::global_default()
+        .to_string()
+        .replace("-", "_");
     std::env::set_var("LC_ALL", locale + ".UTF-8");
 }
