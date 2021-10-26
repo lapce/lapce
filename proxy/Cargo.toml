@@ -2,7 +2,7 @@
 name = "lapce-proxy"
 version = "0.0.1"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 directories = "4.0.1"
