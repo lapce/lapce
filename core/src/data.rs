@@ -32,7 +32,7 @@ use lsp_types::{
     Location, Position, TextEdit, WorkspaceClientCapabilities,
 };
 use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use tree_sitter::{Node, Parser};
 use tree_sitter_highlight::{
@@ -60,6 +60,7 @@ use crate::{
     },
     completion::{CompletionData, CompletionStatus, Snippet},
     config::{Config, LapceTheme},
+    db::LapceDb,
     editor::{EditorLocationNew, LapceEditorBufferData, LapceEditorViewContent},
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -121,6 +122,7 @@ pub struct LapceWindowData {
     pub keypress: Arc<KeyPressData>,
     pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub config: Arc<Config>,
+    pub db: Arc<LapceDb>,
 }
 
 impl Data for LapceWindowData {
@@ -134,9 +136,16 @@ impl LapceWindowData {
         keypress: Arc<KeyPressData>,
         theme: Arc<std::collections::HashMap<String, Color>>,
     ) -> Self {
+        let db = Arc::new(LapceDb::new().unwrap());
         let mut tabs = im::HashMap::new();
         let tab_id = WidgetId::next();
-        let tab = LapceTabData::new(tab_id, keypress.clone(), theme.clone(), None);
+        let tab = LapceTabData::new(
+            tab_id,
+            db.clone(),
+            keypress.clone(),
+            theme.clone(),
+            None,
+        );
         tabs.insert(tab_id, tab);
         let config = Arc::new(Config::load(None).unwrap_or_default());
         Self {
@@ -146,6 +155,7 @@ impl LapceWindowData {
             keypress,
             theme,
             config,
+            db,
         }
     }
 }
@@ -245,6 +255,7 @@ pub struct LapceTabData {
     pub config: Arc<Config>,
     pub focus: WidgetId,
     pub focus_area: FocusArea,
+    pub db: Arc<LapceDb>,
 }
 
 impl Data for LapceTabData {
@@ -269,6 +280,7 @@ impl Data for LapceTabData {
 impl LapceTabData {
     pub fn new(
         tab_id: WidgetId,
+        db: Arc<LapceDb>,
         keypress: Arc<KeyPressData>,
         theme: Arc<std::collections::HashMap<String, Color>>,
         event_sink: Option<ExtEventSink>,
@@ -345,6 +357,7 @@ impl LapceTabData {
             panel_active: PanelPosition::LeftTop,
             config,
             focus_area: FocusArea::Editor,
+            db,
         };
         if let Some(event_sink) = event_sink {
             tab.start_update_process(event_sink);
@@ -1471,7 +1484,7 @@ pub enum LapceEditorContainerKind {
     DiffSplit(WidgetId, WidgetId),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum EditorContent {
     Buffer(PathBuf),
     None,

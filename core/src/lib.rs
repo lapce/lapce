@@ -6,6 +6,7 @@ pub mod completion;
 pub mod config;
 pub mod container;
 mod data;
+pub mod db;
 pub mod editor;
 pub mod explorer;
 pub mod find;

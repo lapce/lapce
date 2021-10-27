@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+sled = "0.34.7"
 base64 = "0.13.0"
 alacritty_terminal = "0.15.0"
 config = "0.11"

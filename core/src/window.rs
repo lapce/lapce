@@ -65,6 +65,7 @@ impl LapceWindowNew {
         let tab_id = WidgetId::next();
         let mut tab_data = LapceTabData::new(
             tab_id,
+            data.db.clone(),
             data.keypress.clone(),
             data.theme.clone(),
             Some(ctx.get_external_handle()),
@@ -77,6 +78,7 @@ impl LapceWindowNew {
             self.tabs[data.active] = WidgetPod::new(tab.boxed());
             self.tab_headers[data.active] = WidgetPod::new(tab_header);
             if let Some(tab) = data.tabs.remove(&data.active_id) {
+                tab.db.save_workspace(&tab);
                 tab.proxy.stop();
             }
             data.active_id = tab_id;
@@ -113,6 +115,7 @@ impl LapceWindowNew {
         self.tabs.remove(index);
         self.tab_headers.remove(index);
         if let Some(tab) = data.tabs.remove(&id) {
+            tab.db.save_workspace(&tab);
             tab.proxy.stop();
         }
 

@@ -1,4 +1,5 @@
 use druid::{piet::PietText, Env, Point, Rect, Size};
+use serde::{Deserialize, Serialize};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{RopeDelta, Transformer};
 
@@ -11,13 +12,13 @@ use crate::{
 };
 use std::cmp::{max, min};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cursor {
     pub mode: CursorMode,
     pub horiz: Option<ColPosition>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum CursorMode {
     Normal(usize),
     Visual {
@@ -241,7 +242,7 @@ impl Cursor {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ColPosition {
     FirstNonBlank,
     Start,
@@ -249,7 +250,7 @@ pub enum ColPosition {
     Col(usize),
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct SelRegion {
     start: usize,
     end: usize,
@@ -313,7 +314,7 @@ impl SelRegion {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Selection {
     regions: Vec<SelRegion>,
 }

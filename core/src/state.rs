@@ -12,6 +12,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
+use std::fmt::Display;
 use std::process::Child;
 use std::process::Command;
 use std::process::Stdio;
@@ -41,7 +42,7 @@ pub enum LapceFocus {
     SourceControl,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy, Deserialize, Serialize)]
 pub enum VisualMode {
     Normal,
     Linewise,
@@ -76,13 +77,24 @@ pub struct KeyMap {
     pub command: String,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(String, String),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+impl Display for LapceWorkspaceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LapceWorkspaceType::Local => f.write_str("Local"),
+            LapceWorkspaceType::RemoteSSH(user, host) => {
+                write!(f, "ssh://{}@{}", user, host)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LapceWorkspace {
     pub kind: LapceWorkspaceType,
     pub path: PathBuf,
@@ -102,6 +114,12 @@ impl Default for LapceWorkspace {
                 .unwrap()
                 .as_secs(),
         }
+    }
+}
+
+impl Display for LapceWorkspace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.kind, self.path.to_str().unwrap())
     }
 }
 

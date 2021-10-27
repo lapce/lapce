@@ -498,7 +498,7 @@ dependencies = [
  "clicolors-control",
  "lazy_static 1.4.0",
  "libc",
- "parking_lot 0.6.4",
+ "parking_lot 0.11.2",
  "regex",
  "termios",
  "unicode-width",
@@ -1327,6 +1327,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "fsevent"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1960,6 +1970,7 @@ dependencies = [
  "regex",
  "serde 1.0.130",
  "serde_json",
+ "sled",
  "strum",
  "strum_macros",
  "tinyfiledialogs",
@@ -3667,6 +3678,22 @@ name = "slab"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c307a32c1c5c437f38c7fd45d753050587732ba8628319fbdf12a7e289ccc590"
+
+[[package]]
+name = "sled"
+version = "0.34.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f96b4737c2ce5987354855aed3797279def4ebf734436c6aa4552cf8e169935"
+dependencies = [
+ "crc32fast",
+ "crossbeam-epoch 0.9.5",
+ "crossbeam-utils 0.8.5",
+ "fs2",
+ "fxhash",
+ "libc",
+ "log",
+ "parking_lot 0.11.2",
+]
 
 [[package]]
 name = "slotmap"
