@@ -1045,6 +1045,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
+source = "git+https://github.com/lapce/druid#f33476a4d7b060830151ff852d64d69577564750"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1068,6 +1069,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
+source = "git+https://github.com/lapce/druid#f33476a4d7b060830151ff852d64d69577564750"
 dependencies = [
  "proc-macro2 1.0.29",
  "quote 1.0.9",
@@ -1077,6 +1079,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
+source = "git+https://github.com/lapce/druid#f33476a4d7b060830151ff852d64d69577564750"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
