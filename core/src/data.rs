@@ -1064,6 +1064,7 @@ pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
     pub active: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
+    pub editors_order: Arc<Vec<WidgetId>>,
     pub open_files: im::HashMap<PathBuf, Arc<BufferNew>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub register: Arc<Register>,
@@ -1382,10 +1383,12 @@ impl LapceMainSplitData {
 
         let mut open_files = im::HashMap::new();
         let mut editors = im::HashMap::new();
+        let mut editors_order = Vec::new();
 
+        let mut active = WidgetId::next();
         if let Some(info) = workspace_info {
             let mut positions = HashMap::new();
-            for e in &info.editors {
+            for (i, e) in info.editors.iter().enumerate() {
                 let editor = LapceEditorData::new(
                     None,
                     Some(*split_id),
@@ -1393,6 +1396,9 @@ impl LapceMainSplitData {
                     EditorType::Normal,
                     config,
                 );
+                if info.active_editor == i {
+                    active = editor.view_id;
+                }
                 match &e.content {
                     EditorContent::Buffer(path) => {
                         if !positions.contains_key(path) {
@@ -1421,6 +1427,7 @@ impl LapceMainSplitData {
                     }
                     EditorContent::None => {}
                 }
+                editors_order.push(editor.view_id);
                 editors.insert(editor.view_id, Arc::new(editor));
             }
             for (path, locations) in positions.into_iter() {
@@ -1440,10 +1447,10 @@ impl LapceMainSplitData {
                 EditorType::Normal,
                 config,
             );
+            active = editor.view_id;
+            editors_order.push(editor.view_id);
             editors.insert(editor.view_id, Arc::new(editor));
         }
-
-        let view_id = editors.iter().next().unwrap().1.view_id;
 
         let path = PathBuf::from("[Palette Preview Editor]");
         let editor = LapceEditorData::new(
@@ -1461,8 +1468,9 @@ impl LapceMainSplitData {
         Self {
             split_id,
             editors,
+            editors_order: Arc::new(editors_order),
             open_files,
-            active: Arc::new(view_id),
+            active: Arc::new(active),
             update_sender,
             register: Arc::new(Register::default()),
             proxy,

@@ -54,14 +54,13 @@ pub struct LapceTabNew {
 impl LapceTabNew {
     pub fn new(data: &LapceTabData) -> Self {
         let mut main_split = LapceSplitNew::new(*data.main_split.split_id);
-        for (_, editor) in data.main_split.editors.iter() {
-            if editor.editor_type == EditorType::Normal {
-                main_split = main_split.with_flex_child(
-                    LapceEditorView::new(editor).boxed(),
-                    Some(editor.view_id),
-                    1.0,
-                );
-            }
+        for view_id in data.main_split.editors_order.iter() {
+            let editor = data.main_split.editors.get(view_id).unwrap();
+            main_split = main_split.with_flex_child(
+                LapceEditorView::new(editor).boxed(),
+                Some(editor.view_id),
+                1.0,
+            );
         }
         let completion = CompletionContainer::new(&data.completion);
         let palette = NewPalette::new(

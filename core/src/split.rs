@@ -192,6 +192,7 @@ impl LapceSplitNew {
         data.main_split.editors.remove(&view_id);
         self.children.remove(index);
         self.children_ids.remove(index);
+        data.main_split.editors_order = Arc::new(self.children_ids.clone());
 
         self.even_flex_children();
         ctx.children_changed();
@@ -227,6 +228,7 @@ impl LapceSplitNew {
 
         self.children.swap(index, index + 1);
         self.children_ids.swap(index, index + 1);
+        data.main_split.editors_order = Arc::new(self.children_ids.clone());
 
         ctx.request_layout();
     }
@@ -442,6 +444,7 @@ impl LapceSplitNew {
         data.main_split
             .editors
             .insert(editor_data.view_id, Arc::new(editor_data));
+        data.main_split.editors_order = Arc::new(self.children_ids.clone());
     }
 }
 

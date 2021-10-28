@@ -16,6 +16,7 @@ pub struct LapceDb {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
+    pub active_editor: usize,
     pub editors: Vec<EditorInfo>,
 }
 
@@ -75,12 +76,19 @@ impl LapceDb {
 
     pub fn save_workspace(&self, data: &LapceTabData) -> Result<()> {
         let workspace = data.workspace.as_ref().ok_or(anyhow!("no workspace"))?;
+
+        let mut active_editor = 0;
         let editors = data
             .main_split
-            .editors
+            .editors_order
             .iter()
-            .filter_map(|(_, editor)| match &editor.editor_type {
-                EditorType::Normal => Some(EditorInfo {
+            .enumerate()
+            .map(|(i, view_id)| {
+                if &*data.main_split.active == view_id {
+                    active_editor = i;
+                }
+                let editor = data.main_split.editors.get(view_id).unwrap();
+                EditorInfo {
                     content: editor.content.clone(),
                     scroll_offset: (editor.scroll_offset.x, editor.scroll_offset.y),
                     position: if let EditorContent::Buffer(path) = &editor.content {
@@ -90,11 +98,13 @@ impl LapceDb {
                     } else {
                         None
                     },
-                }),
-                _ => None,
+                }
             })
             .collect();
-        let workspace_info = WorkspaceInfo { editors };
+        let workspace_info = WorkspaceInfo {
+            editors,
+            active_editor,
+        };
         let workspace_info = serde_json::to_string(&workspace_info)?;
         let workspace = workspace.to_string();
         self.db
