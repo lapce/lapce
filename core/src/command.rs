@@ -372,6 +372,7 @@ pub enum LapceUICommand {
     LoadBuffer {
         path: PathBuf,
         content: String,
+        locations: Vec<(WidgetId, EditorLocationNew)>,
     },
     LoadBufferAndGoToPosition {
         path: PathBuf,

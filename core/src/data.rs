@@ -60,7 +60,7 @@ use crate::{
     },
     completion::{CompletionData, CompletionStatus, Snippet},
     config::{Config, LapceTheme},
-    db::LapceDb,
+    db::{LapceDb, WorkspaceInfo},
     editor::{EditorLocationNew, LapceEditorBufferData, LapceEditorViewContent},
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -77,38 +77,16 @@ use crate::{
 #[derive(Clone, Data)]
 pub struct LapceData {
     pub windows: im::HashMap<WindowId, LapceWindowData>,
-    pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub keypress: Arc<KeyPressData>,
 }
 
 impl LapceData {
-    pub fn load() -> Self {
+    pub fn load(event_sink: ExtEventSink) -> Self {
         let mut windows = im::HashMap::new();
         let keypress = Arc::new(KeyPressData::new());
-        let theme =
-            Arc::new(Self::get_theme().unwrap_or(std::collections::HashMap::new()));
-        let window = LapceWindowData::new(keypress.clone(), theme.clone());
+        let window = LapceWindowData::new(keypress.clone(), event_sink.clone());
         windows.insert(WindowId::next(), window);
-        Self {
-            windows,
-            theme,
-            keypress,
-        }
-    }
-
-    fn get_theme() -> Result<std::collections::HashMap<String, Color>> {
-        let mut f = File::open("/Users/Lulu/lapce/.lapce/theme.toml")?;
-        let mut content = vec![];
-        f.read_to_end(&mut content)?;
-        let toml_theme: im::HashMap<String, String> = toml::from_slice(&content)?;
-
-        let mut theme = std::collections::HashMap::new();
-        for (name, hex) in toml_theme.iter() {
-            if let Ok(color) = Color::from_hex_str(hex) {
-                theme.insert(name.to_string(), color);
-            }
-        }
-        Ok(theme)
+        Self { windows, keypress }
     }
 
     pub fn reload_env(&self, env: &mut Env) {}
@@ -120,7 +98,6 @@ pub struct LapceWindowData {
     pub active: usize,
     pub active_id: WidgetId,
     pub keypress: Arc<KeyPressData>,
-    pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub config: Arc<Config>,
     pub db: Arc<LapceDb>,
 }
@@ -132,19 +109,16 @@ impl Data for LapceWindowData {
 }
 
 impl LapceWindowData {
-    pub fn new(
-        keypress: Arc<KeyPressData>,
-        theme: Arc<std::collections::HashMap<String, Color>>,
-    ) -> Self {
+    pub fn new(keypress: Arc<KeyPressData>, event_sink: ExtEventSink) -> Self {
         let db = Arc::new(LapceDb::new().unwrap());
         let mut tabs = im::HashMap::new();
         let tab_id = WidgetId::next();
         let tab = LapceTabData::new(
             tab_id,
+            None,
             db.clone(),
             keypress.clone(),
-            theme.clone(),
-            None,
+            event_sink,
         );
         tabs.insert(tab_id, tab);
         let config = Arc::new(Config::load(None).unwrap_or_default());
@@ -153,7 +127,6 @@ impl LapceWindowData {
             active: 0,
             active_id: tab_id,
             keypress,
-            theme,
             config,
             db,
         }
@@ -247,7 +220,6 @@ pub struct LapceTabData {
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
-    pub theme: Arc<std::collections::HashMap<String, Color>>,
     pub window_origin: Point,
     pub panels: im::HashMap<PanelPosition, Arc<PanelData>>,
     pub panel_active: PanelPosition,
@@ -280,12 +252,16 @@ impl Data for LapceTabData {
 impl LapceTabData {
     pub fn new(
         tab_id: WidgetId,
+        workspace: Option<LapceWorkspace>,
         db: Arc<LapceDb>,
         keypress: Arc<KeyPressData>,
-        theme: Arc<std::collections::HashMap<String, Color>>,
-        event_sink: Option<ExtEventSink>,
+        event_sink: ExtEventSink,
     ) -> Self {
         let config = Arc::new(Config::load(None).unwrap_or_default());
+
+        let workspace_info = workspace
+            .as_ref()
+            .and_then(|w| db.get_workspace_info(w).ok());
 
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
@@ -295,10 +271,12 @@ impl LapceTabData {
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
         let mut main_split = LapceMainSplitData::new(
+            workspace_info.as_ref(),
             palette.preview_editor,
             update_sender.clone(),
             proxy.clone(),
             &config,
+            event_sink.clone(),
         );
         main_split.add_source_control_editor(
             source_control.editor_view_id,
@@ -329,7 +307,7 @@ impl LapceTabData {
         );
         let mut tab = Self {
             id: tab_id,
-            workspace: None,
+            workspace: workspace.map(|w| Arc::new(w)),
             focus: *main_split.active,
             main_split,
             completion,
@@ -341,7 +319,6 @@ impl LapceTabData {
             palette,
             proxy,
             keypress,
-            theme,
             update_sender,
             update_receiver: Some(update_receiver),
             window_origin: Point::ZERO,
@@ -359,9 +336,7 @@ impl LapceTabData {
             focus_area: FocusArea::Editor,
             db,
         };
-        if let Some(event_sink) = event_sink {
-            tab.start_update_process(event_sink);
-        }
+        tab.start_update_process(event_sink);
         tab
     }
 
@@ -1016,10 +991,8 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
     ) -> V {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
-        tab.theme = data.theme.clone();
         let result = f(&mut tab);
         data.keypress = tab.keypress.clone();
-        data.theme = tab.theme.clone();
         if !tab.same(data.tabs.get(&self.0).unwrap()) {
             data.tabs.insert(self.0, tab);
         }
@@ -1046,10 +1019,8 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     ) -> V {
         let mut win = data.windows.get(&self.0).unwrap().clone();
         win.keypress = data.keypress.clone();
-        win.theme = data.theme.clone();
         let result = f(&mut win);
         data.keypress = win.keypress.clone();
-        data.theme = win.theme.clone();
         if !win.same(data.windows.get(&self.0).unwrap()) {
             data.windows.insert(self.0, win);
         }
@@ -1325,11 +1296,10 @@ impl LapceMainSplitData {
             let buffer =
                 Arc::new(BufferNew::new(path.clone(), self.update_sender.clone()));
             self.open_files.insert(path.clone(), buffer.clone());
-            buffer.retrieve_file_and_go_to_location(
+            buffer.retrieve_file(
                 self.proxy.clone(),
                 ctx.get_external_handle(),
-                editor.view_id,
-                location,
+                vec![(editor.view_id, location)],
             );
         } else {
             let buffer = self.open_files.get(&path).unwrap();
@@ -1401,23 +1371,79 @@ impl LapceMainSplitData {
 
 impl LapceMainSplitData {
     pub fn new(
+        workspace_info: Option<&WorkspaceInfo>,
         palette_preview_editor: WidgetId,
         update_sender: Arc<Sender<UpdateEvent>>,
         proxy: Arc<LapceProxy>,
         config: &Config,
+        event_sink: ExtEventSink,
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
-        let mut editors = im::HashMap::new();
-        let editor = LapceEditorData::new(
-            None,
-            Some(*split_id),
-            EditorContent::None,
-            EditorType::Normal,
-            config,
-        );
-        let view_id = editor.view_id;
-        editors.insert(editor.view_id, Arc::new(editor));
+
         let mut open_files = im::HashMap::new();
+        let mut editors = im::HashMap::new();
+
+        if let Some(info) = workspace_info {
+            let mut positions = HashMap::new();
+            for e in &info.editors {
+                let editor = LapceEditorData::new(
+                    None,
+                    Some(*split_id),
+                    e.content.clone(),
+                    EditorType::Normal,
+                    config,
+                );
+                match &e.content {
+                    EditorContent::Buffer(path) => {
+                        if !positions.contains_key(path) {
+                            positions.insert(path.clone(), vec![]);
+                        }
+
+                        positions.get_mut(path).unwrap().push((
+                            editor.view_id,
+                            EditorLocationNew {
+                                path: path.clone(),
+                                position: e.position.clone(),
+                                scroll_offset: Some(Vec2::new(
+                                    e.scroll_offset.0,
+                                    e.scroll_offset.1,
+                                )),
+                            },
+                        ));
+
+                        if !open_files.contains_key(path) {
+                            let buffer = Arc::new(BufferNew::new(
+                                path.clone(),
+                                update_sender.clone(),
+                            ));
+                            open_files.insert(path.clone(), buffer.clone());
+                        }
+                    }
+                    EditorContent::None => {}
+                }
+                editors.insert(editor.view_id, Arc::new(editor));
+            }
+            for (path, locations) in positions.into_iter() {
+                open_files.get(&path).unwrap().retrieve_file(
+                    proxy.clone(),
+                    event_sink.clone(),
+                    locations.clone(),
+                );
+            }
+        }
+
+        if editors.len() == 0 {
+            let editor = LapceEditorData::new(
+                None,
+                Some(*split_id),
+                EditorContent::None,
+                EditorType::Normal,
+                config,
+            );
+            editors.insert(editor.view_id, Arc::new(editor));
+        }
+
+        let view_id = editors.iter().next().unwrap().1.view_id;
 
         let path = PathBuf::from("[Palette Preview Editor]");
         let editor = LapceEditorData::new(

@@ -19,19 +19,15 @@ fn build_window(data: &LapceData) -> impl Widget<LapceData> {
 }
 
 pub fn lanuch() {
-    let mut data = LapceData::load();
+    let launcher = AppLauncher::new();
+    let mut data = LapceData::load(launcher.get_external_handle());
     let root = build_window(&data);
     let window = WindowDesc::new(root)
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
-    let launcher = AppLauncher::with_window(window);
+    let launcher = launcher.with_window(window);
     let launcher = launcher.configure_env(|env, data| data.reload_env(env));
-    for (_, win) in data.windows.iter_mut() {
-        for (_, tab) in win.tabs.iter_mut() {
-            tab.start_update_process(launcher.get_external_handle());
-        }
-    }
     watch_settings(launcher.get_external_handle());
     launcher
         .use_simple_logger()

@@ -21,7 +21,7 @@ use crate::{
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::{Config, LapceTheme},
     data::{
-        EditorContent, EditorDiagnostic, EditorKind, LapceMainSplitData,
+        EditorContent, EditorDiagnostic, EditorKind, EditorType, LapceMainSplitData,
         LapceTabData,
     },
     editor::{EditorLocationNew, LapceEditorView},
@@ -53,13 +53,16 @@ pub struct LapceTabNew {
 
 impl LapceTabNew {
     pub fn new(data: &LapceTabData) -> Self {
-        let editor = data.main_split.active_editor();
-        let main_split = LapceSplitNew::new(*data.main_split.split_id)
-            .with_flex_child(
-                LapceEditorView::new(editor).boxed(),
-                Some(editor.view_id),
-                1.0,
-            );
+        let mut main_split = LapceSplitNew::new(*data.main_split.split_id);
+        for (_, editor) in data.main_split.editors.iter() {
+            if editor.editor_type == EditorType::Normal {
+                main_split = main_split.with_flex_child(
+                    LapceEditorView::new(editor).boxed(),
+                    Some(editor.view_id),
+                    1.0,
+                );
+            }
+        }
         let completion = CompletionContainer::new(&data.completion);
         let palette = NewPalette::new(
             &data.palette,
@@ -224,10 +227,22 @@ impl Widget<LapceTabData> for LapceTabNew {
                             data.window_origin = window_origin;
                         }
                     }
-                    LapceUICommand::LoadBuffer { path, content } => {
+                    LapceUICommand::LoadBuffer {
+                        path,
+                        content,
+                        locations,
+                    } => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).load_content(content);
+                        for (view_id, location) in locations {
+                            data.main_split.go_to_location(
+                                ctx,
+                                *view_id,
+                                location.clone(),
+                                &data.config,
+                            );
+                        }
                         ctx.set_handled();
                     }
                     LapceUICommand::CloseTerminal(id) => {

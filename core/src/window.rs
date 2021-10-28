@@ -62,15 +62,18 @@ impl LapceWindowNew {
         workspace: Option<LapceWorkspace>,
         replace_current: bool,
     ) {
+        if replace_current {
+            let tab = data.tabs.get(&data.active_id).unwrap();
+            tab.db.save_workspace(&tab);
+        }
         let tab_id = WidgetId::next();
-        let mut tab_data = LapceTabData::new(
+        let tab_data = LapceTabData::new(
             tab_id,
+            workspace,
             data.db.clone(),
             data.keypress.clone(),
-            data.theme.clone(),
-            Some(ctx.get_external_handle()),
+            ctx.get_external_handle(),
         );
-        tab_data.workspace = workspace.map(|w| Arc::new(w));
         let tab = LapceTabNew::new(&tab_data).lens(LapceTabLens(tab_id));
         let tab_header = LapceTabHeader::new().lens(LapceTabLens(tab_id));
         data.tabs.insert(tab_id, tab_data);
@@ -78,7 +81,6 @@ impl LapceWindowNew {
             self.tabs[data.active] = WidgetPod::new(tab.boxed());
             self.tab_headers[data.active] = WidgetPod::new(tab_header);
             if let Some(tab) = data.tabs.remove(&data.active_id) {
-                tab.db.save_workspace(&tab);
                 tab.proxy.stop();
             }
             data.active_id = tab_id;

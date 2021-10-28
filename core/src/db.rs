@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
 use druid::Vec2;
+use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -22,7 +23,7 @@ pub struct WorkspaceInfo {
 pub struct EditorInfo {
     pub content: EditorContent,
     pub scroll_offset: (f64, f64),
-    pub cursor: Cursor,
+    pub position: Option<Position>,
 }
 
 impl LapceDb {
@@ -37,6 +38,41 @@ impl LapceDb {
         Ok(Self { db })
     }
 
+    pub fn save_recent_workspaces(
+        &self,
+        workspaces: Vec<LapceWorkspace>,
+    ) -> Result<()> {
+        let workspaces = serde_json::to_string(&workspaces)?;
+        let key = "recent_workspaces";
+        self.db.insert(key, workspaces.as_str())?;
+        Ok(())
+    }
+
+    pub fn get_recent_workspaces(&self) -> Result<Vec<LapceWorkspace>> {
+        let key = "recent_workspaces";
+        let workspaces = self
+            .db
+            .get(&key)?
+            .ok_or(anyhow!("can't find recent workspaces"))?;
+        let workspaces = std::str::from_utf8(&workspaces)?;
+        let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
+        Ok(workspaces)
+    }
+
+    pub fn get_workspace_info(
+        &self,
+        workspace: &LapceWorkspace,
+    ) -> Result<WorkspaceInfo> {
+        let workspace = workspace.to_string();
+        let info = self
+            .db
+            .get(&workspace)?
+            .ok_or(anyhow!("can't find workspace info"))?;
+        let info = std::str::from_utf8(&info)?;
+        let info: WorkspaceInfo = serde_json::from_str(info)?;
+        Ok(info)
+    }
+
     pub fn save_workspace(&self, data: &LapceTabData) -> Result<()> {
         let workspace = data.workspace.as_ref().ok_or(anyhow!("no workspace"))?;
         let editors = data
@@ -47,7 +83,13 @@ impl LapceDb {
                 EditorType::Normal => Some(EditorInfo {
                     content: editor.content.clone(),
                     scroll_offset: (editor.scroll_offset.x, editor.scroll_offset.y),
-                    cursor: editor.cursor.clone(),
+                    position: if let EditorContent::Buffer(path) = &editor.content {
+                        let buffer =
+                            data.main_split.open_files.get(path).unwrap().clone();
+                        Some(buffer.offset_to_position(editor.cursor.offset()))
+                    } else {
+                        None
+                    },
                 }),
                 _ => None,
             })
@@ -56,9 +98,8 @@ impl LapceDb {
         let workspace_info = serde_json::to_string(&workspace_info)?;
         let workspace = workspace.to_string();
         self.db
-            .insert(workspace.as_bytes(), workspace_info.as_bytes())?;
+            .insert(workspace.as_str(), workspace_info.as_str())?;
         self.db.flush()?;
-        println!("db save workspace done {} {}", workspace, workspace_info);
         Ok(())
     }
 }

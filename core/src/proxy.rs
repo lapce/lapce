@@ -112,7 +112,7 @@ impl LapceProxy {
             proxy.initialize(workspace.path.clone());
             {
                 *proxy.initiated.lock() = true;
-                proxy.cond.notify_one();
+                proxy.cond.notify_all();
             }
 
             let mut handler = ProxyHandlerNew {

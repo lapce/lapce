@@ -198,6 +198,7 @@ pub struct BufferNew {
     pub rev: u64,
     pub dirty: bool,
     pub loaded: bool,
+    pub start_to_load: Rc<RefCell<bool>>,
     pub local: bool,
     update_sender: Arc<Sender<UpdateEvent>>,
     pub line_changes: HashMap<usize, char>,
@@ -242,6 +243,7 @@ impl BufferNew {
             max_len_line: 0,
             num_lines: 0,
             rev: 0,
+            start_to_load: Rc::new(RefCell::new(false)),
             loaded: false,
             dirty: false,
             update_sender,
@@ -337,15 +339,27 @@ impl BufferNew {
         }
     }
 
-    pub fn retrieve_file(&self, proxy: Arc<LapceProxy>, event_sink: ExtEventSink) {
+    pub fn retrieve_file(
+        &self,
+        proxy: Arc<LapceProxy>,
+        event_sink: ExtEventSink,
+        locations: Vec<(WidgetId, EditorLocationNew)>,
+    ) {
+        if self.loaded || *self.start_to_load.borrow() {
+            return;
+        }
+        *self.start_to_load.borrow_mut() = true;
         let id = self.id;
         let path = self.path.clone();
         thread::spawn(move || {
             let content = { proxy.new_buffer(id, path.clone()).unwrap() };
-            println!("load file got content");
             event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::LoadBuffer { path, content },
+                LapceUICommand::LoadBuffer {
+                    path,
+                    content,
+                    locations,
+                },
                 Target::Auto,
             );
         });
@@ -445,30 +459,34 @@ impl BufferNew {
         }
     }
 
-    pub fn retrieve_file_and_go_to_location(
-        &self,
-        proxy: Arc<LapceProxy>,
-        event_sink: ExtEventSink,
-        editor_view_id: WidgetId,
-        location: EditorLocationNew,
-    ) {
-        let id = self.id;
-        let path = self.path.clone();
-        thread::spawn(move || {
-            let content = { proxy.new_buffer(id, path.clone()).unwrap() };
-            println!("load file got content");
-            event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::LoadBufferAndGoToPosition {
-                    path,
-                    content,
-                    editor_view_id,
-                    location,
-                },
-                Target::Auto,
-            );
-        });
-    }
+    //  pub fn retrieve_file_and_go_to_location(
+    //      &self,
+    //      proxy: Arc<LapceProxy>,
+    //      event_sink: ExtEventSink,
+    //      editor_view_id: WidgetId,
+    //      location: EditorLocationNew,
+    //  ) {
+    //      if self.loaded || *self.start_to_load.borrow() {
+    //          return;
+    //      }
+    //      *self.start_to_load.borrow_mut() = true;
+    //      let id = self.id;
+    //      let path = self.path.clone();
+    //      thread::spawn(move || {
+    //          let content = { proxy.new_buffer(id, path.clone()).unwrap() };
+    //          println!("load file got content");
+    //          event_sink.submit_command(
+    //              LAPCE_UI_COMMAND,
+    //              LapceUICommand::LoadBufferAndGoToPosition {
+    //                  path,
+    //                  content,
+    //                  editor_view_id,
+    //                  location,
+    //              },
+    //              Target::Auto,
+    //          );
+    //      });
+    //  }
 
     pub fn num_lines(&self) -> usize {
         self.line_of_offset(self.rope.len()) + 1
@@ -842,6 +860,11 @@ impl BufferNew {
         count: usize,
         limit: usize,
     ) -> usize {
+        let offset = if offset > self.len() {
+            self.len()
+        } else {
+            offset
+        };
         let mut cursor = Cursor::new(&self.rope, offset);
         let mut new_offset = offset;
         for i in 0..count {
