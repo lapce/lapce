@@ -165,10 +165,7 @@ impl LapceDb {
             active_editor,
         };
 
-        self.save_tx.send(SaveEvent::Workspace(
-            (*(workspace.clone())).clone(),
-            workspace_info,
-        ))?;
+        self.insert_workspace(workspace, &workspace_info)?;
         Ok(())
     }
 
