@@ -1,23 +1,39 @@
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Result};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::ProjectDirs;
 use druid::Vec2;
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    data::{EditorContent, EditorType, LapceTabData},
+    data::{EditorContent, EditorType, LapceData, LapceTabData, LapceWindowData},
     movement::Cursor,
     state::LapceWorkspace,
 };
 
+pub enum SaveEvent {
+    Workspace(LapceWorkspace, WorkspaceInfo),
+    Tabs(TabsInfo),
+}
+
+#[derive(Clone)]
 pub struct LapceDb {
-    db: sled::Db,
+    path: PathBuf,
+    save_tx: Sender<SaveEvent>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
     pub active_editor: usize,
     pub editors: Vec<EditorInfo>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TabsInfo {
+    pub active_tab: usize,
+    pub workspaces: Vec<Option<LapceWorkspace>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -32,27 +48,49 @@ impl LapceDb {
         let proj_dirs = ProjectDirs::from("", "", "Lapce")
             .ok_or(anyhow!("can't find project dirs"))?;
         let path = proj_dirs.config_dir().join("lapce.db");
+        let (save_tx, save_rx) = unbounded();
+
+        let db = Self { path, save_tx };
+        let local_db = db.clone();
+        std::thread::spawn(move || -> Result<()> {
+            loop {
+                let event = save_rx.recv()?;
+                match event {
+                    SaveEvent::Workspace(workspace, info) => {
+                        local_db.insert_workspace(&workspace, &info);
+                    }
+                    SaveEvent::Tabs(info) => {
+                        local_db.insert_tabs(&info);
+                    }
+                }
+            }
+        });
+        Ok(db)
+    }
+
+    pub fn get_db(&self) -> Result<sled::Db> {
         let db = sled::Config::default()
-            .path(path)
+            .path(&self.path)
             .flush_every_ms(None)
             .open()?;
-        Ok(Self { db })
+        Ok(db)
     }
 
     pub fn save_recent_workspaces(
         &self,
         workspaces: Vec<LapceWorkspace>,
     ) -> Result<()> {
+        let db = self.get_db()?;
         let workspaces = serde_json::to_string(&workspaces)?;
         let key = "recent_workspaces";
-        self.db.insert(key, workspaces.as_str())?;
+        db.insert(key, workspaces.as_str())?;
         Ok(())
     }
 
     pub fn get_recent_workspaces(&self) -> Result<Vec<LapceWorkspace>> {
+        let db = self.get_db()?;
         let key = "recent_workspaces";
-        let workspaces = self
-            .db
+        let workspaces = db
             .get(&key)?
             .ok_or(anyhow!("can't find recent workspaces"))?;
         let workspaces = std::str::from_utf8(&workspaces)?;
@@ -64,14 +102,35 @@ impl LapceDb {
         &self,
         workspace: &LapceWorkspace,
     ) -> Result<WorkspaceInfo> {
+        let db = self.get_db()?;
         let workspace = workspace.to_string();
-        let info = self
-            .db
+        let info = db
             .get(&workspace)?
             .ok_or(anyhow!("can't find workspace info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: WorkspaceInfo = serde_json::from_str(info)?;
         Ok(info)
+    }
+
+    fn insert_tabs(&self, info: &TabsInfo) -> Result<()> {
+        let tabs_info = serde_json::to_string(info)?;
+        let db = self.get_db()?;
+        db.insert(b"tabs", tabs_info.as_str())?;
+        db.flush()?;
+        Ok(())
+    }
+
+    fn insert_workspace(
+        &self,
+        workspace: &LapceWorkspace,
+        info: &WorkspaceInfo,
+    ) -> Result<()> {
+        let workspace = workspace.to_string();
+        let workspace_info = serde_json::to_string(info)?;
+        let db = self.get_db()?;
+        db.insert(workspace.as_str(), workspace_info.as_str())?;
+        db.flush()?;
+        Ok(())
     }
 
     pub fn save_workspace(&self, data: &LapceTabData) -> Result<()> {
@@ -105,11 +164,41 @@ impl LapceDb {
             editors,
             active_editor,
         };
-        let workspace_info = serde_json::to_string(&workspace_info)?;
-        let workspace = workspace.to_string();
-        self.db
-            .insert(workspace.as_str(), workspace_info.as_str())?;
-        self.db.flush()?;
+
+        self.save_tx.send(SaveEvent::Workspace(
+            (*(workspace.clone())).clone(),
+            workspace_info,
+        ))?;
+        Ok(())
+    }
+
+    pub fn get_tabs_info(&self) -> Result<TabsInfo> {
+        let db = self.get_db()?;
+        let tabs = db.get(b"tabs")?.ok_or(anyhow!("can't find tabs info"))?;
+        let tabs = std::str::from_utf8(&tabs)?;
+        let tabs = serde_json::from_str(tabs)?;
+        Ok(tabs)
+    }
+
+    pub fn save_tabs(&self, data: &LapceWindowData) -> Result<()> {
+        let mut active_tab = 0;
+        let workspaces: Vec<Option<LapceWorkspace>> = data
+            .tabs_order
+            .iter()
+            .enumerate()
+            .map(|(i, w)| {
+                let tab = data.tabs.get(w).unwrap();
+                if tab.id == data.active_id {
+                    active_tab = i;
+                }
+                tab.workspace.clone().map(|w| (*w).clone())
+            })
+            .collect();
+        let info = TabsInfo {
+            active_tab,
+            workspaces,
+        };
+        self.save_tx.send(SaveEvent::Tabs(info))?;
         Ok(())
     }
 }

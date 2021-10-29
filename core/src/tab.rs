@@ -560,7 +560,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     | LapceUICommand::CancelCodeActions => {
                         self.code_action.event(ctx, event, data, env);
                     }
-                    LapceUICommand::FocusTab => {
+                    LapceUICommand::Focus => {
                         let dir = data
                             .workspace
                             .as_ref()

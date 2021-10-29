@@ -95,6 +95,7 @@ impl LapceData {
 #[derive(Clone)]
 pub struct LapceWindowData {
     pub tabs: im::HashMap<WidgetId, LapceTabData>,
+    pub tabs_order: Arc<Vec<WidgetId>>,
     pub active: usize,
     pub active_id: WidgetId,
     pub keypress: Arc<KeyPressData>,
@@ -112,20 +113,49 @@ impl LapceWindowData {
     pub fn new(keypress: Arc<KeyPressData>, event_sink: ExtEventSink) -> Self {
         let db = Arc::new(LapceDb::new().unwrap());
         let mut tabs = im::HashMap::new();
-        let tab_id = WidgetId::next();
-        let tab = LapceTabData::new(
-            tab_id,
-            None,
-            db.clone(),
-            keypress.clone(),
-            event_sink,
-        );
-        tabs.insert(tab_id, tab);
+        let mut tabs_order = Vec::new();
+        let mut active_tab_id = WidgetId::next();
+        let mut active = 0;
+
+        if let Ok(info) = db.get_tabs_info() {
+            for (i, workspace) in info.workspaces.iter().enumerate() {
+                let tab_id = WidgetId::next();
+                let tab = LapceTabData::new(
+                    tab_id,
+                    workspace.clone(),
+                    db.clone(),
+                    keypress.clone(),
+                    event_sink.clone(),
+                );
+                tabs.insert(tab_id, tab);
+                tabs_order.push(tab_id);
+                if i == info.active_tab {
+                    active_tab_id = tab_id;
+                    active = i;
+                }
+            }
+        }
+
+        if tabs.len() == 0 {
+            let tab_id = WidgetId::next();
+            let tab = LapceTabData::new(
+                tab_id,
+                None,
+                db.clone(),
+                keypress.clone(),
+                event_sink,
+            );
+            tabs.insert(tab_id, tab);
+            tabs_order.push(tab_id);
+            active_tab_id = tab_id;
+        }
+
         let config = Arc::new(Config::load(None).unwrap_or_default());
         Self {
             tabs,
-            active: 0,
-            active_id: tab_id,
+            tabs_order: Arc::new(tabs_order),
+            active,
+            active_id: active_tab_id,
             keypress,
             config,
             db,
@@ -271,6 +301,7 @@ impl LapceTabData {
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
         let mut main_split = LapceMainSplitData::new(
+            tab_id,
             workspace_info.as_ref(),
             palette.preview_editor,
             update_sender.clone(),
@@ -1061,6 +1092,7 @@ pub enum EditorKind {
 
 #[derive(Clone, Data, Lens)]
 pub struct LapceMainSplitData {
+    pub tab_id: Arc<WidgetId>,
     pub split_id: Arc<WidgetId>,
     pub active: Arc<WidgetId>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
@@ -1298,6 +1330,7 @@ impl LapceMainSplitData {
                 Arc::new(BufferNew::new(path.clone(), self.update_sender.clone()));
             self.open_files.insert(path.clone(), buffer.clone());
             buffer.retrieve_file(
+                *self.tab_id,
                 self.proxy.clone(),
                 ctx.get_external_handle(),
                 vec![(editor.view_id, location)],
@@ -1372,6 +1405,7 @@ impl LapceMainSplitData {
 
 impl LapceMainSplitData {
     pub fn new(
+        tab_id: WidgetId,
         workspace_info: Option<&WorkspaceInfo>,
         palette_preview_editor: WidgetId,
         update_sender: Arc<Sender<UpdateEvent>>,
@@ -1432,6 +1466,7 @@ impl LapceMainSplitData {
             }
             for (path, locations) in positions.into_iter() {
                 open_files.get(&path).unwrap().retrieve_file(
+                    tab_id,
                     proxy.clone(),
                     event_sink.clone(),
                     locations.clone(),
@@ -1466,6 +1501,7 @@ impl LapceMainSplitData {
         open_files.insert(path.clone(), Arc::new(buffer));
 
         Self {
+            tab_id: Arc::new(tab_id),
             split_id,
             editors,
             editors_order: Arc::new(editors_order),

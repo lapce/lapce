@@ -36,18 +36,19 @@ pub struct LapceWindowNew {
 impl LapceWindowNew {
     pub fn new(data: &LapceWindowData) -> Self {
         let tabs = data
-            .tabs
+            .tabs_order
             .iter()
-            .map(|(tab_id, data)| {
+            .map(|tab_id| {
+                let data = data.tabs.get(tab_id).unwrap();
                 let tab = LapceTabNew::new(data);
                 let tab = tab.lens(LapceTabLens(*tab_id));
                 WidgetPod::new(tab.boxed())
             })
             .collect();
         let tab_headers = data
-            .tabs
+            .tabs_order
             .iter()
-            .map(|(tab_id, data)| {
+            .map(|tab_id| {
                 let tab_header = LapceTabHeader::new().lens(LapceTabLens(*tab_id));
                 WidgetPod::new(tab_header)
             })
@@ -94,9 +95,11 @@ impl LapceWindowNew {
         }
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::FocusTab,
-            Target::Auto,
+            LapceUICommand::Focus,
+            Target::Widget(data.active_id),
         ));
+        data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());
+        data.db.save_tabs(data);
         ctx.children_changed();
         ctx.set_handled();
         ctx.request_layout();
@@ -130,11 +133,13 @@ impl LapceWindowNew {
             data.active_id = self.tabs[data.active].id();
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::FocusTab,
-                Target::Auto,
+                LapceUICommand::Focus,
+                Target::Widget(data.active_id),
             ));
         }
 
+        data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());
+        data.db.save_tabs(data);
         ctx.children_changed();
         ctx.set_handled();
         ctx.request_layout();
@@ -168,6 +173,13 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         env: &Env,
     ) {
         match event {
+            Event::WindowConnected => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(data.active_id),
+                ));
+            }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
@@ -244,10 +256,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                                 if i != data.active {
                                     data.active = i;
                                     data.active_id = tab.id();
+                                    data.db.save_tabs(data);
                                     ctx.submit_command(Command::new(
                                         LAPCE_UI_COMMAND,
-                                        LapceUICommand::FocusTab,
-                                        Target::Auto,
+                                        LapceUICommand::Focus,
+                                        Target::Widget(data.active_id),
                                     ));
                                 }
                                 return;
@@ -259,6 +272,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         self.tabs.swap(data.active, *index);
                         self.tab_headers.swap(data.active, *index);
                         data.active = *index;
+                        data.tabs_order =
+                            Arc::new(self.tabs.iter().map(|t| t.id()).collect());
+                        data.db.save_tabs(data);
                         return;
                     }
                     LapceUICommand::NextTab => {
@@ -269,10 +285,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         };
                         data.active = new_index;
                         data.active_id = self.tabs[new_index].id();
+                        data.db.save_tabs(data);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::FocusTab,
-                            Target::Auto,
+                            LapceUICommand::Focus,
+                            Target::Widget(data.active_id),
                         ));
                         ctx.request_layout();
                         ctx.set_handled();
@@ -285,10 +302,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         };
                         data.active = new_index;
                         data.active_id = self.tabs[new_index].id();
+                        data.db.save_tabs(data);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::FocusTab,
-                            Target::Auto,
+                            LapceUICommand::Focus,
+                            Target::Widget(data.active_id),
                         ));
                         ctx.request_layout();
                         ctx.set_handled();
@@ -299,6 +317,21 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             _ => (),
         }
         self.tabs[data.active].event(ctx, event, data, env);
+        match event {
+            Event::MouseDown(_)
+            | Event::MouseUp(_)
+            | Event::MouseMove(_)
+            | Event::Wheel(_)
+            | Event::KeyDown(_)
+            | Event::KeyUp(_) => {}
+            _ => {
+                for (i, tab) in self.tabs.iter_mut().enumerate() {
+                    if i != data.active {
+                        tab.event(ctx, event, data, env);
+                    }
+                }
+            }
+        }
         for tab_header in self.tab_headers.iter_mut() {
             tab_header.event(ctx, event, data, env);
         }
@@ -336,7 +369,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         if old_tab.workspace != tab.workspace {
             ctx.request_layout();
         }
-        self.tabs[data.active].update(ctx, data, env);
+        for tab in self.tabs.iter_mut() {
+            tab.update(ctx, data, env);
+        }
 
         // println!(
         //     "update took {}",
@@ -405,10 +440,11 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         };
 
         let start = std::time::SystemTime::now();
-        let tab = &mut self.tabs[data.active];
         let bc = BoxConstraints::tight(tab_size);
-        tab.layout(ctx, &bc, data, env);
-        tab.set_origin(ctx, data, env, tab_origin);
+        for tab in self.tabs.iter_mut() {
+            tab.layout(ctx, &bc, data, env);
+            tab.set_origin(ctx, data, env, tab_origin);
+        }
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
         // println!("layout took {}", duration as f64 / 1000.0);

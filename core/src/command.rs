@@ -401,7 +401,7 @@ pub enum LapceUICommand {
     RequestLayout,
     RequestPaint,
     ResetFade,
-    FocusTab,
+    //FocusTab,
     CloseTab,
     CloseTabId(WidgetId),
     FocusTabId(WidgetId),

@@ -341,6 +341,7 @@ impl BufferNew {
 
     pub fn retrieve_file(
         &self,
+        tab_id: WidgetId,
         proxy: Arc<LapceProxy>,
         event_sink: ExtEventSink,
         locations: Vec<(WidgetId, EditorLocationNew)>,
@@ -360,7 +361,7 @@ impl BufferNew {
                     content,
                     locations,
                 },
-                Target::Auto,
+                Target::Widget(tab_id),
             );
         });
     }
