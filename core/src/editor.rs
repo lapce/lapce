@@ -1436,7 +1436,11 @@ impl LapceEditorBufferData {
                         self.buffer.len(),
                     );
                     let char = self.buffer.slice_to_cow(*offset..next).to_string();
-                    let char_width = UnicodeWidthStr::width(char.as_str()).max(1);
+                    let char_width = if char == "\t" {
+                        4
+                    } else {
+                        UnicodeWidthStr::width(char.as_str()).max(1)
+                    };
                     ctx.fill(
                         Rect::ZERO
                             .with_origin(Point::new(
@@ -1527,8 +1531,11 @@ impl LapceEditorBufferData {
                             self.buffer.len(),
                         );
                         let char = self.buffer.slice_to_cow(*end..next).to_string();
-                        let char_width =
-                            UnicodeWidthStr::width(char.as_str()).max(1);
+                        let char_width = if char == "\t" {
+                            4
+                        } else {
+                            UnicodeWidthStr::width(char.as_str()).max(1)
+                        };
                         ctx.fill(
                             Rect::ZERO
                                 .with_origin(Point::new(

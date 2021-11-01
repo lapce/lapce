@@ -611,7 +611,21 @@ impl BufferNew {
         bounds: [f64; 2],
         config: &Config,
     ) -> PietTextLayout {
-        let line_content = line_content.replace('\t', "    ");
+        let (line_content, cursor_index) = if line_content.contains('\t') {
+            let cursor_index = cursor_index.map(|index| {
+                line_content
+                    .chars()
+                    .enumerate()
+                    .filter(|(i, c)| *i < index && *c == '\t')
+                    .count()
+                    * 3
+                    + index
+            });
+            let line_content = line_content.replace('\t', "    ");
+            (line_content, cursor_index)
+        } else {
+            (line_content.to_string(), cursor_index)
+        };
         let styles = self.get_line_styles(line);
         let mut layout_builder = ctx
             .text()
@@ -2212,6 +2226,9 @@ pub fn grapheme_column_width(s: &str) -> usize {
     // Let's check for emoji-ness for ourselves first
     use xi_unicode::EmojiExt;
     for c in s.chars() {
+        if c == '\t' {
+            return 4;
+        }
         if c.is_emoji_modifier_base() || c.is_emoji_modifier() {
             // treat modifier sequences as double wide
             return 2;
