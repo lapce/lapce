@@ -1768,7 +1768,7 @@ impl LapceEditorBufferData {
                 let start = diagnostic.diagnositc.range.start;
                 let end = diagnostic.diagnositc.range.end;
                 if (start.line as usize) <= end_line
-                    || (end.line as usize) >= start_line
+                    && (end.line as usize) >= start_line
                 {
                     let start_offset = if let Some(range) = diagnostic.range {
                         range.0

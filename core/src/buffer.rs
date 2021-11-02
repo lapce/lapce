@@ -38,7 +38,7 @@ use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
 use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
     interval::IntervalBounds,
@@ -48,6 +48,7 @@ use xi_rope::{
     Cursor, Delta, DeltaBuilder, Interval, LinesMetric, RopeDelta, RopeInfo,
     Transformer,
 };
+use xi_unicode::EmojiExt;
 
 use crate::config::{Config, LapceTheme};
 use crate::data::EditorKind;
@@ -715,20 +716,21 @@ impl BufferNew {
     }
 
     pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
-        let line_content = self.line_content(line);
-        let mut line_content = line_content.as_str();
-        if line_content.ends_with("\n") {
-            line_content = &line_content[..line_content.len() - 1];
-        }
         let mut pos = 0;
         let mut offset = self.offset_of_line(line);
-        for grapheme in line_content.graphemes(true) {
-            pos += grapheme_column_width(grapheme);
+        for c in self
+            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+            .chars()
+        {
+            if c == '\n' {
+                return offset;
+            }
+            pos += char_width(c);
             if pos > col {
                 return offset;
             }
 
-            offset += grapheme.len();
+            offset += c.len_utf8();
             if pos == col {
                 return offset;
             }
@@ -2210,6 +2212,17 @@ fn semantic_tokens_lengend(
             options,
         ) => options.semantic_tokens_options.legend.clone(),
     }
+}
+
+pub fn char_width(c: char) -> usize {
+    if c == '\t' {
+        return 4;
+    }
+    if c.is_emoji_modifier_base() || c.is_emoji_modifier() {
+        // treat modifier sequences as double wide
+        return 2;
+    }
+    c.width().unwrap_or(0)
 }
 
 pub fn str_col(s: &str) -> usize {
