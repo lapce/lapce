@@ -191,7 +191,6 @@ pub struct BufferNew {
     pub rope: Rope,
     pub path: PathBuf,
     pub line_styles: Rc<RefCell<Vec<Option<Arc<Vec<(usize, usize, Style)>>>>>>,
-    pub text_layouts: Rc<RefCell<Vec<Option<Arc<StyledTextLayout>>>>>,
     pub styles: Arc<Spans<Style>>,
     pub semantic_tokens: bool,
     pub language: Option<LapceLanguage>,
@@ -239,7 +238,6 @@ impl BufferNew {
             path,
             styles: Arc::new(SpansBuilder::new(0).build()),
             line_styles: Rc::new(RefCell::new(Vec::new())),
-            text_layouts: Rc::new(RefCell::new(Vec::new())),
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             semantic_tokens: false,
@@ -279,7 +277,6 @@ impl BufferNew {
             syntax_tree: None,
         };
         *buffer.line_styles.borrow_mut() = vec![None; buffer.num_lines()];
-        *buffer.text_layouts.borrow_mut() = vec![None; buffer.num_lines()];
         buffer
     }
 
@@ -326,7 +323,6 @@ impl BufferNew {
         self.max_len_line = max_len_line;
         self.num_lines = self.num_lines();
         *self.line_styles.borrow_mut() = vec![None; self.num_lines()];
-        *self.text_layouts.borrow_mut() = vec![None; self.num_lines()];
         self.loaded = true;
         self.notify_update();
     }
@@ -608,47 +604,7 @@ impl BufferNew {
         line_styles
     }
 
-    pub fn get_text_layout(
-        &self,
-        ctx: &mut PaintCtx,
-        line: usize,
-        line_content: &str,
-        cursor_index: Option<usize>,
-        bounds: [f64; 2],
-        config: &Config,
-    ) -> Arc<StyledTextLayout> {
-        let styles = self.get_line_styles(line);
-        let mut text_layouts = self.text_layouts.borrow_mut();
-        match &text_layouts[line] {
-            Some(text_layout) => {
-                if line_content == &text_layout.text
-                    && text_layout.styles == styles
-                    && bounds == text_layout.bounds
-                {
-                    return text_layout.clone();
-                }
-            }
-            None => {}
-        }
-        let layout = self.new_text_layout(
-            ctx,
-            line,
-            line_content,
-            cursor_index,
-            bounds,
-            config,
-        );
-        let text_layout = Arc::new(StyledTextLayout {
-            text: line_content.to_string(),
-            layout,
-            styles,
-            bounds,
-        });
-        text_layouts[line] = Some(text_layout.clone());
-        text_layout
-    }
-
-    fn new_text_layout(
+    pub fn new_text_layout(
         &self,
         ctx: &mut PaintCtx,
         line: usize,
@@ -1271,16 +1227,6 @@ impl BufferNew {
         }
     }
 
-    fn update_text_layouts(&mut self, delta: &RopeDelta, inval_lines: &InvalLines) {
-        let mut text_layouts = self.text_layouts.borrow_mut();
-        let mut right = text_layouts.split_off(inval_lines.start_line)
-            [inval_lines.inval_count..]
-            .to_vec();
-        let mut new = vec![None; inval_lines.new_count];
-        text_layouts.append(&mut new);
-        text_layouts.append(&mut right);
-    }
-
     fn update_line_styles(&mut self, delta: &RopeDelta, inval_lines: &InvalLines) {
         Arc::make_mut(&mut self.styles).apply_shape(delta);
         let mut line_styles = self.line_styles.borrow_mut();
@@ -1402,7 +1348,6 @@ impl BufferNew {
         };
         self.update_size(&inval_lines);
         self.update_line_styles(&delta, &inval_lines);
-        self.update_text_layouts(&delta, &inval_lines);
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.notify_update();

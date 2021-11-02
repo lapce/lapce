@@ -1374,7 +1374,7 @@ impl LapceEditorBufferData {
                 } else {
                     None
                 };
-            let text_layout = self.buffer.get_text_layout(
+            let text_layout = self.buffer.new_text_layout(
                 ctx,
                 line,
                 line_content,
@@ -1383,7 +1383,7 @@ impl LapceEditorBufferData {
                 &self.config,
             );
             ctx.draw_text(
-                &text_layout.layout,
+                &text_layout,
                 Point::new(0.0, line_height * line as f64 + y_shift),
             );
         }
