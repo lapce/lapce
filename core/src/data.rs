@@ -437,19 +437,6 @@ impl LapceTabData {
         }
     }
 
-    // pub fn set_workspace(
-    //     &mut self,
-    //     workspace: LapceWorkspace,
-    //     event_sink: ExtEventSink,
-    // ) {
-    //     self.workspace = Some(Arc::new(workspace.clone()));
-    //     self.main_split.diagnostics.clear();
-    //     self.main_split.error_count = 0;
-    //     self.main_split.warning_count = 0;
-    //     self.proxy.start(workspace.clone(), event_sink.clone());
-    //     self.config = Arc::new(Config::load(Some(workspace)).unwrap_or_default());
-    // }
-
     pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
         let editor = self.main_split.active_editor();
         match &editor.content {

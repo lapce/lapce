@@ -1,6 +1,6 @@
 use std::{
-    cell::RefCell, collections::HashMap, convert::TryFrom, fmt::Debug, io::Read,
-    ops::Index, path::PathBuf, rc::Rc, sync::Arc,
+    cell::RefCell, convert::TryFrom, fmt::Debug, io::Read, ops::Index,
+    path::PathBuf, rc::Rc, sync::Arc,
 };
 
 use alacritty_terminal::{
@@ -30,6 +30,7 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
     WidgetExt, WidgetId, WidgetPod,
 };
+use hashbrown::HashMap;
 use itertools::Itertools;
 use lapce_proxy::terminal::TermId;
 use parking_lot::Mutex;
