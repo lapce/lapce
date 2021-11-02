@@ -1228,6 +1228,7 @@ impl LapceEditorBufferData {
         let num_lines = (ctx.size().height / line_height).floor() as usize;
         let last_line = self.buffer.last_line();
         let current_line = self.editor.cursor.current_line(&self.buffer);
+        let width = self.config.editor_text_width(ctx.text(), "W");
         for line in start_line..start_line + num_lines + 1 {
             if line > last_line {
                 break;
@@ -1243,7 +1244,6 @@ impl LapceEditorBufferData {
                     current_line - line
                 }
             };
-            let width = self.config.editor_text_width(ctx.text(), "W");
             let x = ((last_line + 1).to_string().len() - content.to_string().len())
                 as f64
                 * width;
