@@ -1968,6 +1968,7 @@ dependencies = [
  "lsp-types",
  "parking_lot 0.11.2",
  "regex",
+ "rustc-hash",
  "serde 1.0.130",
  "serde_json",
  "sled",

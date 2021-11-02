@@ -6,6 +6,7 @@ use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     theme, Color, Env, FontDescriptor, FontFamily, Key, Size,
 };
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
@@ -97,9 +98,9 @@ pub struct Config {
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
     #[serde(skip)]
-    pub theme: HashMap<String, Color>,
+    pub theme: FxHashMap<String, Color>,
     #[serde(skip)]
-    pub themes: HashMap<String, HashMap<String, Color>>,
+    pub themes: FxHashMap<String, FxHashMap<String, Color>>,
 }
 
 impl Config {
@@ -128,7 +129,7 @@ impl Config {
 
         config.theme = get_theme(default_light_theme)?;
 
-        let mut themes = HashMap::new();
+        let mut themes = HashMap::default();
         themes.insert("Lapce Light".to_string(), get_theme(default_light_theme)?);
         themes.insert("Lapce Dark".to_string(), get_theme(default_dark_theme)?);
         config.themes = themes;
@@ -352,9 +353,9 @@ impl Config {
     }
 }
 
-fn get_theme(content: &str) -> Result<HashMap<String, Color>> {
-    let theme_colors: HashMap<String, String> = toml::from_str(content)?;
-    let mut theme = HashMap::new();
+fn get_theme(content: &str) -> Result<FxHashMap<String, Color>> {
+    let theme_colors: FxHashMap<String, String> = toml::from_str(content)?;
+    let mut theme = HashMap::default();
     for (k, v) in theme_colors.iter() {
         if v.starts_with("$") {
             let var_name = &v[1..];
