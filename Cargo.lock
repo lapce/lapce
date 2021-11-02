@@ -36,6 +36,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "739f4a8db6605981345c5654f3a85b056ce52f37a39d34da03f25bf2151ea16e"
 
 [[package]]
+name = "ahash"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
+dependencies = [
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1045,7 +1056,6 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#fe2dd72929edc534ece197ee4f8160a747c2a375"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1069,7 +1079,6 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid#fe2dd72929edc534ece197ee4f8160a747c2a375"
 dependencies = [
  "proc-macro2 1.0.29",
  "quote 1.0.9",
@@ -1079,7 +1088,6 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#fe2dd72929edc534ece197ee4f8160a747c2a375"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
@@ -1626,7 +1634,7 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 dependencies = [
- "ahash",
+ "ahash 0.4.7",
 ]
 
 [[package]]
@@ -1634,6 +1642,9 @@ name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
+dependencies = [
+ "ahash 0.7.6",
+]
 
 [[package]]
 name = "heck"
@@ -1958,6 +1969,7 @@ dependencies = [
  "druid",
  "fuzzy-matcher",
  "fzyr",
+ "hashbrown 0.11.2",
  "im",
  "include_dir",
  "indexmap",
@@ -1968,7 +1980,6 @@ dependencies = [
  "lsp-types",
  "parking_lot 0.11.2",
  "regex",
- "rustc-hash",
  "serde 1.0.130",
  "serde_json",
  "sled",
@@ -2969,19 +2980,18 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu#beb68d2cecfd810ff5cbe1e9cd4e471ef6b7f506"
 dependencies = [
  "bytemuck",
  "font-kit",
  "futures",
  "glam",
+ "hashbrown 0.11.2",
  "include_dir",
  "linked-hash-map",
  "lyon",
  "pathfinder_geometry",
  "piet",
  "raw-window-handle",
- "rustc-hash",
  "sha2 0.9.8",
  "unicode-width",
  "usvg",
