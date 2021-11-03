@@ -185,21 +185,18 @@ impl LapceProxy {
         )
     }
 
-    pub fn new_buffer(&self, buffer_id: BufferId, path: PathBuf) -> Result<String> {
+    pub fn new_buffer(
+        &self,
+        buffer_id: BufferId,
+        path: PathBuf,
+        f: Box<dyn Callback>,
+    ) {
         self.wait();
-        let result = self
-            .peer
-            .lock()
-            .as_ref()
-            .unwrap()
-            .send_rpc_request(
-                "new_buffer",
-                &json!({ "buffer_id": buffer_id, "path": path }),
-            )
-            .map_err(|e| anyhow!("{:?}", e))?;
-
-        let resp: NewBufferResponse = serde_json::from_value(result)?;
-        return Ok(resp.content);
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
+            "new_buffer",
+            &json!({ "buffer_id": buffer_id, "path": path }),
+            f,
+        );
     }
 
     pub fn update(&self, buffer_id: BufferId, delta: &RopeDelta, rev: u64) {

@@ -10,6 +10,7 @@ use druid::{
 };
 use druid::{Env, FontFamily, PaintCtx, Point};
 use language::{new_highlight_config, new_parser, LapceLanguage};
+use lapce_proxy::dispatch::NewBufferResponse;
 use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{CallHierarchyOptions, SemanticTokensLegend};
 use lsp_types::{
@@ -355,16 +356,27 @@ impl BufferNew {
         let id = self.id;
         let path = self.path.clone();
         thread::spawn(move || {
-            let content = { proxy.new_buffer(id, path.clone()).unwrap() };
-            event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::LoadBuffer {
-                    path,
-                    content,
-                    locations,
-                },
-                Target::Widget(tab_id),
-            );
+            proxy.new_buffer(
+                id,
+                path.clone(),
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        if let Ok(resp) =
+                            serde_json::from_value::<NewBufferResponse>(res)
+                        {
+                            event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::LoadBuffer {
+                                    path,
+                                    content: resp.content,
+                                    locations,
+                                },
+                                Target::Widget(tab_id),
+                            );
+                        }
+                    };
+                }),
+            )
         });
     }
 
