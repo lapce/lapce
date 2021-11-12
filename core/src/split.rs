@@ -4,7 +4,7 @@ use crate::{
     data::{EditorContent, EditorType, LapceEditorData, LapceTabData, PanelData},
     editor::{EditorLocation, LapceEditorView},
     scroll::{LapcePadding, LapceScroll},
-    terminal::{LapceTerminal, LapceTerminalData},
+    terminal::{LapceTerminal, LapceTerminalData, LapceTerminalView},
 };
 use std::{cmp::Ordering, sync::Arc};
 
@@ -319,7 +319,7 @@ impl LapceSplitNew {
             panel_widget_id,
             data.proxy.clone(),
         ));
-        let terminal = LapcePadding::new(10.0, LapceTerminal::new(&terminal_data));
+        let terminal = LapceTerminalView::new(&terminal_data);
         Arc::make_mut(&mut data.terminal)
             .terminals
             .insert(terminal_data.term_id, terminal_data.clone());
@@ -514,10 +514,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                                 Some(data.terminal.widget_id),
                                 data.proxy.clone(),
                             ));
-                            let terminal = LapcePadding::new(
-                                10.0,
-                                LapceTerminal::new(&terminal_data),
-                            );
+                            let terminal = LapceTerminalView::new(&terminal_data);
                             self.insert_flex_child(
                                 0,
                                 terminal.boxed(),

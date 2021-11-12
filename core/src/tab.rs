@@ -244,6 +244,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateTerminalTitle(term_id, title) => {
+                        let terminal_panel = Arc::make_mut(&mut data.terminal);
+                        if let Some(mut terminal) =
+                            terminal_panel.terminals.get_mut(term_id)
+                        {
+                            Arc::make_mut(&mut terminal).title = title.to_string();
+                        }
+                    }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
                         if let Some(terminal) = terminal_panel.terminals.get_mut(id)

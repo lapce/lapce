@@ -24,11 +24,11 @@ use alacritty_terminal::{
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use druid::{
-    piet::{Text, TextAttribute, TextLayoutBuilder},
+    piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     Application, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
-    ExtEventSink, FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
-    WidgetExt, WidgetId, WidgetPod,
+    ExtEventSink, FontFamily, FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx,
+    Modifiers, PaintCtx, Point, Rect, Region, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -49,6 +49,7 @@ use crate::{
     scroll::LapcePadding,
     split::{LapceSplitNew, SplitMoveDirection},
     state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
+    svg::get_svg,
 };
 
 const CTRL_CHARS: &'static [char] = &[
@@ -482,11 +483,16 @@ impl RawTerminal {
 }
 
 impl RawTerminal {
-    pub fn new(term_id: TermId, proxy: Arc<LapceProxy>) -> Self {
+    pub fn new(
+        term_id: TermId,
+        proxy: Arc<LapceProxy>,
+        event_sink: ExtEventSink,
+    ) -> Self {
         let config = TermConfig::default();
         let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
         let event_proxy = EventProxy {
             proxy: proxy.clone(),
+            event_sink,
             term_id,
         };
 
@@ -504,8 +510,10 @@ impl RawTerminal {
 #[derive(Clone)]
 pub struct LapceTerminalData {
     pub term_id: TermId,
+    pub view_id: WidgetId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
+    pub title: String,
     pub panel_widget_id: Option<WidgetId>,
     pub mode: Mode,
     pub visual_mode: VisualMode,
@@ -523,14 +531,21 @@ impl LapceTerminalData {
     ) -> Self {
         let cwd = workspace.map(|w| w.path.clone());
         let widget_id = WidgetId::next();
+        let view_id = WidgetId::next();
         let term_id = TermId::next();
-        let raw = Arc::new(Mutex::new(RawTerminal::new(term_id, proxy.clone())));
+        let raw = Arc::new(Mutex::new(RawTerminal::new(
+            term_id,
+            proxy.clone(),
+            event_sink,
+        )));
         proxy.new_terminal(term_id, cwd, raw.clone());
 
         Self {
             term_id,
             widget_id,
+            view_id,
             split_id,
+            title: "".to_string(),
             panel_widget_id,
             mode: Mode::Terminal,
             visual_mode: VisualMode::Normal,
@@ -700,6 +715,192 @@ impl Widget<LapceTabData> for TerminalPanel {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.split.paint(ctx, data, env);
+    }
+}
+
+pub struct LapceTerminalView {
+    header: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    terminal: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+}
+
+impl LapceTerminalView {
+    pub fn new(data: &LapceTerminalData) -> Self {
+        let header = LapcePadding::new((10.0, 8.0), LapceTerminalHeader::new(data));
+        let terminal = LapcePadding::new(10.0, LapceTerminal::new(data));
+        Self {
+            header: WidgetPod::new(header.boxed()),
+            terminal: WidgetPod::new(terminal.boxed()),
+        }
+    }
+}
+
+impl Widget<LapceTabData> for LapceTerminalView {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        self.header.event(ctx, event, data, env);
+        self.terminal.event(ctx, event, data, env);
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        self.header.lifecycle(ctx, event, data, env);
+        self.terminal.lifecycle(ctx, event, data, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        self.header.update(ctx, data, env);
+        self.terminal.update(ctx, data, env);
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let self_size = bc.max();
+        let header_size = self.header.layout(ctx, bc, data, env);
+        self.header.set_origin(ctx, data, env, Point::ZERO);
+
+        if self_size.height > header_size.height {
+            let terminal_size =
+                Size::new(self_size.width, self_size.height - header_size.height);
+            let bc = BoxConstraints::new(Size::ZERO, terminal_size);
+            self.terminal.layout(ctx, &bc, data, env);
+            self.terminal.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new(0.0, header_size.height),
+            );
+        }
+
+        self_size
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let shadow_width = 5.0;
+        let self_rect = ctx.size().to_rect();
+        ctx.with_save(|ctx| {
+            ctx.clip(self_rect);
+            let rect = self.header.layout_rect();
+            ctx.blurred_rect(
+                rect,
+                shadow_width,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
+        });
+
+        self.header.paint(ctx, data, env);
+        self.terminal.paint(ctx, data, env);
+    }
+}
+
+pub struct LapceTerminalHeader {
+    term_id: TermId,
+}
+
+impl LapceTerminalHeader {
+    pub fn new(data: &LapceTerminalData) -> Self {
+        Self {
+            term_id: data.term_id,
+        }
+    }
+}
+
+impl Widget<LapceTabData> for LapceTerminalHeader {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        Size::new(bc.max().width, data.config.editor.font_size as f64)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let svg = get_svg("terminal.svg").unwrap();
+        let width = data.config.editor.font_size as f64;
+        let height = data.config.editor.font_size as f64;
+        let rect = Size::new(width, height).to_rect();
+        ctx.draw_svg(
+            &svg,
+            rect,
+            Some(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+            ),
+        );
+
+        let term = data.terminal.terminals.get(&self.term_id).unwrap();
+        let text_layout = ctx
+            .text()
+            .new_text_layout(term.title.clone())
+            .font(FontFamily::SYSTEM_UI, data.config.editor.font_size as f64)
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let y =
+            (data.config.editor.font_size as f64 - text_layout.size().height) / 2.0;
+        ctx.draw_text(
+            &text_layout,
+            Point::new(data.config.editor.font_size as f64 + 5.0, y),
+        );
     }
 }
 
@@ -1099,6 +1300,7 @@ impl Widget<LapceTabData> for LapceTerminal {
 pub struct EventProxy {
     term_id: TermId,
     proxy: Arc<LapceProxy>,
+    event_sink: ExtEventSink,
 }
 
 impl EventProxy {}
@@ -1109,6 +1311,13 @@ impl EventListener for EventProxy {
             alacritty_terminal::event::Event::PtyWrite(s) => {
                 println!("pyt write {}", s);
                 self.proxy.terminal_write(self.term_id, &s);
+            }
+            alacritty_terminal::event::Event::Title(title) => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateTerminalTitle(self.term_id, title),
+                    Target::Widget(self.proxy.tab_id),
+                );
             }
             _ => (),
         }
