@@ -65,6 +65,7 @@ use druid::{
     FontWeight,
 };
 use fzyr::has_match;
+use itertools::Itertools;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
@@ -763,6 +764,38 @@ impl LapceEditorBufferData {
     fn set_cursor(&mut self, cursor: Cursor) {
         let editor = Arc::make_mut(&mut self.editor);
         editor.cursor = cursor;
+    }
+
+    fn jump_to_nearest_delta(&mut self, delta: &RopeDelta) {
+        let mut transformer = Transformer::new(delta);
+
+        let offset = self.editor.cursor.offset();
+        let offset = transformer.transform(offset, false);
+        let (ins, del) = delta.clone().factor();
+        let ins = ins.transform_shrink(&del);
+        let mut positions = ins
+            .inserted_subset()
+            .complement_iter()
+            .map(|s| s.1)
+            .collect::<Vec<usize>>();
+        positions.append(
+            &mut del
+                .complement_iter()
+                .map(|s| transformer.transform(s.1, false))
+                .collect::<Vec<usize>>(),
+        );
+        positions.sort_by_key(|p| {
+            let p = *p as i32 - offset as i32;
+            if p > 0 {
+                p as usize
+            } else {
+                -p as usize
+            }
+        });
+        if let Some(new_offset) = positions.iter().next() {
+            let selection = Selection::caret(*new_offset);
+            self.set_cursor_after_change(selection);
+        }
     }
 
     fn initiate_diagnositcs_offset(&mut self) {
@@ -2094,11 +2127,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_undo(proxy) {
-                    let (iv, _) = delta.summary();
-                    let line = self.buffer.line_of_offset(iv.start);
-                    let offset = self.buffer.first_non_blank_character_on_line(line);
-                    let selection = Selection::caret(offset);
-                    self.set_cursor_after_change(selection);
+                    self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
                 }
             }
@@ -2107,11 +2136,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_redo(proxy) {
-                    let (iv, _) = delta.summary();
-                    let line = self.buffer.line_of_offset(iv.start);
-                    let offset = self.buffer.first_non_blank_character_on_line(line);
-                    let selection = Selection::caret(offset);
-                    self.set_cursor_after_change(selection);
+                    self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
                 }
             }
