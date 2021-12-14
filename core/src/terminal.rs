@@ -1066,7 +1066,11 @@ impl Widget<LapceTabData> for LapceTerminal {
             self.height = size.height;
             let width = data.config.editor_text_width(ctx.text(), "W");
             let line_height = data.config.editor.line_height as f64;
-            let width = (self.width / width).floor() as usize;
+            let width = if width > 0.0 {
+                (self.width / width).floor() as usize
+            } else {
+                0
+            };
             let height = (self.height / line_height).floor() as usize;
             data.terminal
                 .terminals
