@@ -1950,7 +1950,7 @@ dependencies = [
 
 [[package]]
 name = "lapce"
-version = "0.0.2"
+version = "0.0.4"
 dependencies = [
  "lapce-core",
  "lapce-proxy",
@@ -2983,7 +2983,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu#1585fb354dea8dde3584563aaa71ca71182800f6"
+source = "git+https://github.com/lapce/piet-wgpu#78425c6486b048da26ef5c0d3dfa91bf314db294"
 dependencies = [
  "bytemuck",
  "font-kit",
