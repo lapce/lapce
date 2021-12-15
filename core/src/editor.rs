@@ -1268,6 +1268,8 @@ impl LapceEditorBufferData {
             }
             let content = if *self.main_split.active != self.view_id {
                 line + 1
+            } else if self.editor.cursor.is_insert() {
+                line + 1
             } else {
                 if line == current_line {
                     line + 1
