@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="windows-1252"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
-    <Product Name="Lapce" Id="*" UpgradeCode="87c21c74-dbd5-4584-89d5-46d9cd0c40a7" Language="1033" Codepage="1252" Version="0.0.1" Manufacturer="Lapce">
+    <Product Name="Lapce" Id="*" UpgradeCode="9c09a374-1135-4782-959f-2dec376a1dfa" Language="1033" Codepage="1252" Version="0.0.4" Manufacturer="Lapce">
         <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
         <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
         <Icon Id="lapce.exe" SourceFile=".\extra\windows\lapce.ico"/>
@@ -39,7 +39,7 @@
 
         <DirectoryRef Id="LapceProgramMenu">
             <!-- Application shortcut -->
-            <Component Id="LapceShortcut" Guid="aa36e61a-23cd-4383-b744-2f78e912f0dc">
+            <Component Id="LapceShortcut" Guid="7d3d3a8e-febb-4759-8eca-873676d5066a">
                 <Shortcut Id="LapceShortcutFile" Icon="lapce.exe" Name="Lapce" Description="Lightning-fast and Powerful Code Editor" Target="[LapceProgramFiles]lapce.exe"/>
                 <RemoveFolder Id="LapceProgramMenu" On="uninstall"/>
                 <RegistryValue Root="HKCU" Key="Software\Microsoft\Lapce" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
@@ -48,14 +48,14 @@
 
         <DirectoryRef Id="LapceProgramFiles">
             <!-- Add to PATH -->
-            <Component Id="ModifyPathEnv" Guid="edf0b679-9eb6-46f7-a5d1-5160f30acb34" KeyPath="yes">
+            <Component Id="ModifyPathEnv" Guid="0581ccb0-5db8-4935-8b07-8f46bc2d7171" KeyPath="yes">
                 <Environment Id="PathEnv" Value="[LapceProgramFiles]" Name="PATH" Permanent="no" Part="first" Action="set" System="yes"/>
             </Component>
         </DirectoryRef>
 
         <DirectoryRef Id="TARGETDIR">
             <!-- Add context menu -->
-            <Component Id="ContextMenu" Guid="449f9121-f7b9-41fe-82da-52349ea8ff91">
+            <Component Id="ContextMenu" Guid="22ad399b-1d77-416c-ae33-57e8f8511177">
                 <RegistryKey Root="HKCU" Key="Software\Classes\Directory\Background\shell\Open Lapce here\command">
                     <RegistryValue Type="string" Value="[LapceProgramFiles]lapce.exe --working-directory &quot;%V&quot;" KeyPath="yes"/>
                 </RegistryKey>
