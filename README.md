@@ -14,7 +14,8 @@ Lapce is written in pure Rust, with UI in [Druid](https://github.com/linebender/
 <h2>Features</h2>
 
 * Modal Editing (Vim like) support as first class citizen (can be turned off as well)
-* Built in LSP support
-* Built in remote development support (inspired by [VSCode Remote Development](https://code.visualstudio.com/docs/remote/remote-overview))
+* Built-in LSP support
+* Built-in remote development support (inspired by [VSCode Remote Development](https://code.visualstudio.com/docs/remote/remote-overview))
 * Plugin can be written in programming languages that can compile to [WASI](https://wasi.dev/) (C, Rust, [AssemblyScript](https://www.assemblyscript.org/))
-* Built in terminal
+* Built-in terminal
+
