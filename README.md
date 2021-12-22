@@ -5,6 +5,8 @@
 
 <h4 align="center">Lightning-fast and Powerful Code Editor written in Rust</h4>
 
+[![chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://lapce.zulipchat.com)
+
 ![](https://github.com/lapce/lapce/blob/master/extra/images/screenshot.png?raw=true)
 
 <h2>About</h2>
