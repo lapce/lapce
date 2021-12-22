@@ -1,5 +1,6 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use home::home_dir;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
@@ -14,6 +15,13 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::thread;
 use toml;
+use wasmer::ChainableNamedResolver;
+use wasmer::ImportObject;
+use wasmer::Store;
+use wasmer::WasmerEnv;
+use wasmer_wasi::Pipe;
+use wasmer_wasi::WasiEnv;
+use wasmer_wasi::WasiState;
 use xi_rpc::Handler;
 use xi_rpc::RpcLoop;
 use xi_rpc::RpcPeer;
@@ -47,6 +55,17 @@ pub struct PluginDescription {
     configuration: Option<Value>,
 }
 
+#[derive(WasmerEnv, Clone)]
+pub(crate) struct PluginEnv {
+    wasi_env: WasiEnv,
+    dispatcher: Dispatcher,
+}
+
+pub(crate) struct PluginNew {
+    instance: wasmer::Instance,
+    env: PluginEnv,
+}
+
 pub struct Plugin {
     id: PluginId,
     dispatcher: Dispatcher,
@@ -59,6 +78,8 @@ pub struct Plugin {
 pub struct PluginCatalog {
     id_counter: Counter,
     items: HashMap<PluginName, PluginDescription>,
+    plugins: HashMap<PluginId, PluginNew>,
+    store: wasmer::Store,
 }
 
 impl PluginCatalog {
@@ -66,12 +87,15 @@ impl PluginCatalog {
         PluginCatalog {
             id_counter: Counter::default(),
             items: HashMap::new(),
+            plugins: HashMap::new(),
+            store: wasmer::Store::default(),
         }
     }
 
     pub fn reload(&mut self) {
         eprintln!("plugin reload from paths");
         self.items.clear();
+        self.plugins.clear();
         self.load();
     }
 
@@ -89,12 +113,48 @@ impl PluginCatalog {
 
     pub fn start_all(&mut self, dispatcher: Dispatcher) {
         for (_, manifest) in self.items.clone().iter() {
-            start_plugin_process(
-                self.next_plugin_id(),
-                dispatcher.clone(),
-                manifest.clone(),
-            );
+            if let Ok(plugin) =
+                self.start_plugin(dispatcher.clone(), manifest.clone())
+            {
+                let id = self.next_plugin_id();
+                self.plugins.insert(id, plugin);
+            }
         }
+    }
+
+    fn start_plugin(
+        &mut self,
+        dispatcher: Dispatcher,
+        plugin_desc: PluginDescription,
+    ) -> Result<PluginNew> {
+        let module = wasmer::Module::from_file(&self.store, plugin_desc.exec_path)?;
+
+        let output = Pipe::new();
+        let input = Pipe::new();
+        let mut wasi_env = WasiState::new("Lapce")
+            .stdin(Box::new(input))
+            .stdout(Box::new(output))
+            .finalize()?;
+        let wasi = wasi_env.import_object(&module)?;
+
+        let plugin_env = PluginEnv {
+            wasi_env,
+            dispatcher,
+        };
+        let lapce = lapce_exports(&self.store, &plugin_env);
+        let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
+
+        let initialize = instance.exports.get_function("initialize")?;
+        wasi_write_object(
+            &plugin_env.wasi_env,
+            &plugin_desc.configuration.unwrap_or(serde_json::json!({})),
+        );
+        initialize.call(&[])?;
+
+        Ok(PluginNew {
+            instance,
+            env: plugin_env,
+        })
     }
 
     pub fn next_plugin_id(&mut self) -> PluginId {
@@ -102,53 +162,68 @@ impl PluginCatalog {
     }
 }
 
-fn start_plugin_process(
-    id: PluginId,
-    dispatcher: Dispatcher,
-    plugin_desc: PluginDescription,
-) {
-    thread::spawn(move || {
-        let parts: Vec<&str> = plugin_desc
-            .exec_path
-            .to_str()
-            .unwrap()
-            .split(" ")
-            .into_iter()
-            .collect();
-        let mut child = Command::new(parts[0]);
-        for part in &parts[1..] {
-            child.arg(part);
+pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObject {
+    macro_rules! lapce_export {
+        ($($host_function:ident),+ $(,)?) => {
+            wasmer::imports! {
+                "lapce" => {
+                    $(stringify!($host_function) =>
+                        wasmer::Function::new_native_with_env(store, plugin_env.clone(), $host_function),)+
+                }
+            }
         }
-        child.current_dir(plugin_desc.dir.as_ref().unwrap());
-        let child = child.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn();
-        if child.is_err() {
-            eprintln!("can't start proxy {:?}", child);
-            return;
+    }
+
+    lapce_export! {
+        host_handle_notification,
+    }
+}
+
+fn host_handle_notification(plugin_env: &PluginEnv) {
+    let notification: Result<PluginNotification> =
+        wasi_read_object(&plugin_env.wasi_env);
+    if let Ok(notification) = notification {
+        match notification {
+            PluginNotification::StartLspServer {
+                exec_path,
+                language_id,
+                options,
+            } => {
+                plugin_env.dispatcher.lsp.lock().start_server(
+                    &exec_path,
+                    &language_id,
+                    options.clone(),
+                );
+            }
         }
-        let mut child = child.unwrap();
-        let child_stdin = child.stdin.take().unwrap();
-        let child_stdout = child.stdout.take().unwrap();
-        let mut looper = RpcLoop::new(child_stdin);
-        let peer: RpcPeer = Box::new(looper.get_raw_peer());
-        let name = plugin_desc.name.clone();
-        let plugin = Plugin {
-            id,
-            dispatcher: dispatcher.clone(),
-            configuration: plugin_desc.configuration.clone(),
-            peer,
-            process: child,
-            name,
-        };
-        eprintln!("plugin main loop starting {:?}", &plugin_desc.exec_path);
-        plugin.initialize();
-        let mut handler = PluginHandler { dispatcher };
-        if let Err(e) =
-            looper.mainloop(|| BufReader::new(child_stdout), &mut handler)
-        {
-            eprintln!("plugin main loop failed {} {:?}", e, &plugin_desc.dir);
-        }
-        eprintln!("plugin main loop exit {:?}", plugin_desc.dir);
-    });
+    }
+}
+
+pub fn wasi_read_string(wasi_env: &WasiEnv) -> Result<String> {
+    let mut state = wasi_env.state();
+    let wasi_file = state
+        .fs
+        .stdout_mut()?
+        .as_mut()
+        .ok_or(anyhow!("can't get stdout"))?;
+    let mut buf = String::new();
+    wasi_file.read_to_string(&mut buf)?;
+    Ok(buf)
+}
+
+pub fn wasi_read_object<T: DeserializeOwned>(wasi_env: &WasiEnv) -> Result<T> {
+    let json = wasi_read_string(wasi_env)?;
+    Ok(serde_json::from_str(&json)?)
+}
+
+pub fn wasi_write_string(wasi_env: &WasiEnv, buf: &str) {
+    let mut state = wasi_env.state();
+    let wasi_file = state.fs.stdin_mut().unwrap().as_mut().unwrap();
+    writeln!(wasi_file, "{}\r", buf).unwrap();
+}
+
+pub fn wasi_write_object(wasi_env: &WasiEnv, object: &(impl Serialize + ?Sized)) {
+    wasi_write_string(wasi_env, &serde_json::to_string(&object).unwrap());
 }
 
 #[derive(Serialize, Deserialize, Debug)]

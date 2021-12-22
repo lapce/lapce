@@ -5,6 +5,8 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+wasmer = "2.1.1"
+wasmer-wasi = "2.1.1"
 directories = "4.0.1"
 locale_config = "0.3.0"
 base64 = "0.13.0"
