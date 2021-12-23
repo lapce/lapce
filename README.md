@@ -7,11 +7,11 @@
 
 [![chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://lapce.zulipchat.com)
 
-![](https://github.com/lapce/lapce/blob/master/extra/images/screenshot.png?raw=true)
 
-<h2>About</h2>
 
 Lapce is written in pure Rust, with UI in [Druid](https://github.com/linebender/druid). It's using [Xi-Editor](https://github.com/xi-editor/xi-editor)'s [Rope Science](https://xi-editor.io/docs/rope_science_00.html) for text editing, and using [Wgpu](https://github.com/gfx-rs/wgpu) for rendering. 
+
+![](https://github.com/lapce/lapce/blob/master/extra/images/screenshot.png?raw=true)
 
 <h2>Features</h2>
 
