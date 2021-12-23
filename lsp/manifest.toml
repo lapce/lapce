@@ -1,3 +1,0 @@
-name = "lapce-lsp-plugin"
-version = "0.1"
-exec_path = "../target/release/lapce-lsp-plugin"

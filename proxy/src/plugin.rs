@@ -50,7 +50,7 @@ pub struct PluginId(pub usize);
 pub struct PluginDescription {
     pub name: String,
     pub version: String,
-    pub exec_path: PathBuf,
+    pub wasm: PathBuf,
     dir: Option<PathBuf>,
     configuration: Option<Value>,
 }
@@ -100,21 +100,20 @@ impl PluginCatalog {
     }
 
     pub fn load(&mut self) {
-        let all_manifests = find_all_manifests();
-        for manifest_path in &all_manifests {
-            match load_manifest(manifest_path) {
-                Err(e) => eprintln!("load manifest err {}", e),
-                Ok(manifest) => {
-                    self.items.insert(manifest.name.clone(), manifest);
+        let all_plugins = find_all_plugins();
+        for plugin_path in &all_plugins {
+            match load_plugin(plugin_path) {
+                Err(e) => eprintln!("load plugin err {}", e),
+                Ok(plugin) => {
+                    self.items.insert(plugin.name.clone(), plugin);
                 }
             }
         }
     }
 
     pub fn start_all(&mut self, dispatcher: Dispatcher) {
-        for (_, manifest) in self.items.clone().iter() {
-            if let Ok(plugin) =
-                self.start_plugin(dispatcher.clone(), manifest.clone())
+        for (_, plugin) in self.items.clone().iter() {
+            if let Ok(plugin) = self.start_plugin(dispatcher.clone(), plugin.clone())
             {
                 let id = self.next_plugin_id();
                 self.plugins.insert(id, plugin);
@@ -127,7 +126,7 @@ impl PluginCatalog {
         dispatcher: Dispatcher,
         plugin_desc: PluginDescription,
     ) -> Result<PluginNew> {
-        let module = wasmer::Module::from_file(&self.store, plugin_desc.exec_path)?;
+        let module = wasmer::Module::from_file(&self.store, plugin_desc.wasm)?;
 
         let output = Pipe::new();
         let input = Pipe::new();
@@ -289,34 +288,26 @@ impl Plugin {
     }
 }
 
-fn find_all_manifests() -> Vec<PathBuf> {
-    let mut manifest_paths = Vec::new();
+fn find_all_plugins() -> Vec<PathBuf> {
+    let mut plugin_paths = Vec::new();
     let home = home_dir().unwrap();
     let path = home.join(".lapce").join("plugins");
     path.read_dir().map(|dir| {
         dir.flat_map(|item| item.map(|p| p.path()).ok())
-            .map(|dir| dir.join("manifest.toml"))
+            .map(|dir| dir.join("plugin.toml"))
             .filter(|f| f.exists())
-            .for_each(|f| manifest_paths.push(f))
+            .for_each(|f| plugin_paths.push(f))
     });
-    eprintln!("proxy mainfiest paths {:?}", manifest_paths);
-    manifest_paths
+    eprintln!("proxy plugin paths {:?}", plugin_paths);
+    plugin_paths
 }
 
-fn load_manifest(path: &PathBuf) -> Result<PluginDescription> {
+fn load_plugin(path: &PathBuf) -> Result<PluginDescription> {
     let mut file = fs::File::open(&path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
-    let mut manifest: PluginDescription = toml::from_str(&contents)?;
-    // normalize relative paths
-    //manifest.dir = Some(path.parent().unwrap().canonicalize()?);
-    //    if manifest.exec_path.starts_with("./") {
-    manifest.dir = Some(path.parent().unwrap().canonicalize()?);
-    manifest.exec_path = path
-        .parent()
-        .unwrap()
-        .join(manifest.exec_path)
-        .canonicalize()?;
-    //   }
-    Ok(manifest)
+    let mut plugin: PluginDescription = toml::from_str(&contents)?;
+    plugin.dir = Some(path.parent().unwrap().canonicalize()?);
+    plugin.wasm = path.parent().unwrap().join(plugin.wasm).canonicalize()?;
+    Ok(plugin)
 }

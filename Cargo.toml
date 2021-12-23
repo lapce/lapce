@@ -18,4 +18,4 @@ name = "lapce-proxy"
 path = "proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["lsp", "core", "proxy", "rpc"]
+members = ["core", "proxy", "rpc"]
