@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+reqwest = { version = "0.11", features = ["blocking"] }
 wasmer = "2.1.1"
 wasmer-wasi = "2.1.1"
 directories = "4.0.1"

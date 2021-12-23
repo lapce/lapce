@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use home::home_dir;
+use notify::Watcher;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -12,8 +13,9 @@ use std::path::PathBuf;
 use std::process::Child;
 use std::process::Command;
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 use std::thread;
+use std::time::Duration;
 use toml;
 use wasmer::ChainableNamedResolver;
 use wasmer::ImportObject;
@@ -55,12 +57,21 @@ pub struct PluginDescription {
     configuration: Option<Value>,
 }
 
+#[derive(Serialize, Clone)]
+pub struct PluginInfo {
+    arch: String,
+    os: String,
+    configuration: Option<Value>,
+}
+
 #[derive(WasmerEnv, Clone)]
 pub(crate) struct PluginEnv {
     wasi_env: WasiEnv,
+    desc: PluginDescription,
     dispatcher: Dispatcher,
 }
 
+#[derive(Clone)]
 pub(crate) struct PluginNew {
     instance: wasmer::Instance,
     env: PluginEnv,
@@ -126,11 +137,12 @@ impl PluginCatalog {
         dispatcher: Dispatcher,
         plugin_desc: PluginDescription,
     ) -> Result<PluginNew> {
-        let module = wasmer::Module::from_file(&self.store, plugin_desc.wasm)?;
+        let module = wasmer::Module::from_file(&self.store, &plugin_desc.wasm)?;
 
         let output = Pipe::new();
         let input = Pipe::new();
         let mut wasi_env = WasiState::new("Lapce")
+            .map_dir("/", plugin_desc.dir.clone().unwrap())?
             .stdin(Box::new(input))
             .stdout(Box::new(output))
             .finalize()?;
@@ -138,22 +150,35 @@ impl PluginCatalog {
 
         let plugin_env = PluginEnv {
             wasi_env,
+            desc: plugin_desc.clone(),
             dispatcher,
         };
         let lapce = lapce_exports(&self.store, &plugin_env);
         let instance = wasmer::Instance::new(&module, &lapce.chain_back(wasi))?;
-
-        let initialize = instance.exports.get_function("initialize")?;
-        wasi_write_object(
-            &plugin_env.wasi_env,
-            &plugin_desc.configuration.unwrap_or(serde_json::json!({})),
-        );
-        initialize.call(&[])?;
-
-        Ok(PluginNew {
+        let plugin = PluginNew {
             instance,
             env: plugin_env,
-        })
+        };
+
+        let local_plugin = plugin.clone();
+        thread::spawn(move || {
+            let initialize = local_plugin
+                .instance
+                .exports
+                .get_function("initialize")
+                .unwrap();
+            wasi_write_object(
+                &local_plugin.env.wasi_env,
+                &PluginInfo {
+                    os: std::env::consts::OS.to_string(),
+                    arch: std::env::consts::ARCH.to_string(),
+                    configuration: plugin_desc.configuration,
+                },
+            );
+            initialize.call(&[]).unwrap();
+        });
+
+        Ok(plugin)
     }
 
     pub fn next_plugin_id(&mut self) -> PluginId {
@@ -178,6 +203,27 @@ pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObje
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "method", content = "params")]
+pub enum PluginNotification {
+    StartLspServer {
+        exec_path: String,
+        language_id: String,
+        options: Option<Value>,
+    },
+    DownloadFile {
+        url: String,
+        path: PathBuf,
+    },
+    LockFile {
+        path: PathBuf,
+    },
+    MakeFileExecutable {
+        path: PathBuf,
+    },
+}
+
 fn host_handle_notification(plugin_env: &PluginEnv) {
     let notification: Result<PluginNotification> =
         wasi_read_object(&plugin_env.wasi_env);
@@ -189,10 +235,55 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                 options,
             } => {
                 plugin_env.dispatcher.lsp.lock().start_server(
-                    &exec_path,
+                    plugin_env
+                        .desc
+                        .dir
+                        .clone()
+                        .unwrap()
+                        .join(&exec_path)
+                        .to_str()
+                        .unwrap(),
                     &language_id,
                     options.clone(),
                 );
+            }
+            PluginNotification::DownloadFile { url, path } => {
+                let mut resp = reqwest::blocking::get(url).expect("request failed");
+                let mut out = std::fs::File::create(
+                    plugin_env.desc.dir.clone().unwrap().join(path),
+                )
+                .expect("failed to create file");
+                std::io::copy(&mut resp, &mut out).expect("failed to copy content");
+                eprintln!("donwload file finished");
+            }
+            PluginNotification::LockFile { path } => {
+                let path = plugin_env.desc.dir.clone().unwrap().join(path);
+                eprintln!("lock file path {:?}", path);
+                let mut n = 0;
+                loop {
+                    if let Ok(file) = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&path)
+                    {
+                        return;
+                    }
+                    if n > 10 {
+                        return;
+                    }
+                    n += 1;
+                    let (tx, rx) = mpsc::channel();
+                    let mut watcher = notify::raw_watcher(tx).unwrap();
+                    watcher.watch(&path, notify::RecursiveMode::NonRecursive);
+                    rx.recv_timeout(Duration::from_secs(10));
+                    watcher.unwatch(&path);
+                }
+            }
+            PluginNotification::MakeFileExecutable { path } => {
+                Command::new("chmod")
+                    .arg("+x")
+                    .arg(&plugin_env.desc.dir.clone().unwrap().join(path))
+                    .output();
             }
         }
     }
@@ -226,54 +317,10 @@ pub fn wasi_write_object(wasi_env: &WasiEnv, object: &(impl Serialize + ?Sized))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum PluginNotification {
-    StartLspServer {
-        exec_path: String,
-        language_id: String,
-        options: Option<Value>,
-    },
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub enum PluginRequest {}
 
 pub struct PluginHandler {
     dispatcher: Dispatcher,
-}
-
-impl Handler for PluginHandler {
-    type Notification = PluginNotification;
-    type Request = PluginRequest;
-
-    fn handle_notification(
-        &mut self,
-        ctx: &xi_rpc::RpcCtx,
-        rpc: Self::Notification,
-    ) {
-        match &rpc {
-            PluginNotification::StartLspServer {
-                exec_path,
-                language_id,
-                options,
-            } => {
-                self.dispatcher.lsp.lock().start_server(
-                    exec_path,
-                    language_id,
-                    options.clone(),
-                );
-            }
-        }
-    }
-
-    fn handle_request(
-        &mut self,
-        ctx: &xi_rpc::RpcCtx,
-        rpc: Self::Request,
-    ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
-        Err(xi_rpc::RemoteError::InvalidRequest(None))
-    }
 }
 
 impl Plugin {

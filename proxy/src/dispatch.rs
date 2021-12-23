@@ -238,8 +238,16 @@ impl Dispatcher {
         };
         *dispatcher.watcher.lock() = Some(FileWatcher::new(dispatcher.clone()));
         dispatcher.lsp.lock().dispatcher = Some(dispatcher.clone());
-        dispatcher.plugins.lock().reload();
-        dispatcher.plugins.lock().start_all(dispatcher.clone());
+
+        let local_dispatcher = dispatcher.clone();
+        thread::spawn(move || {
+            local_dispatcher.plugins.lock().reload();
+            local_dispatcher
+                .plugins
+                .lock()
+                .start_all(local_dispatcher.clone());
+        });
+
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
             local_dispatcher.start_update_process(git_receiver);
