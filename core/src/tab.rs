@@ -712,6 +712,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     .event(ctx, event, data, env);
             }
         }
+        self.activity.event(ctx, event, data, env);
     }
 
     fn lifecycle(

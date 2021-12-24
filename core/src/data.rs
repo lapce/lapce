@@ -344,7 +344,7 @@ impl LapceTabData {
             Arc::new(PanelData {
                 active: source_control.widget_id,
                 widgets: vec![
-                    (file_explorer.widget_id, PanelKind::SourceControl),
+                    (file_explorer.widget_id, PanelKind::FileExplorer),
                     (source_control.widget_id, PanelKind::SourceControl),
                 ],
                 shown: true,

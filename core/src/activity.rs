@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use druid::{
-    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LensExt, LifeCycle,
+    BoxConstraints, Cursor, Env, Event, EventCtx, LayoutCtx, LensExt, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
 };
 
@@ -23,6 +25,36 @@ impl Widget<LapceTabData> for ActivityBar {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::MouseDown(mouse) => {
+                if mouse.button.is_left() {
+                    let index = (mouse.pos.y / 50.0) as usize;
+                    if let Some(panel) = data.panels.get_mut(&PanelPosition::LeftTop)
+                    {
+                        if let Some((widget_id, kind)) = panel
+                            .widgets
+                            .get(index.min(panel.widgets.len() - 1))
+                            .as_ref()
+                        {
+                            Arc::make_mut(panel).active = *widget_id;
+                        }
+                    }
+                }
+            }
+            Event::MouseMove(mouse) => {
+                let n = data
+                    .panels
+                    .get(&PanelPosition::LeftTop)
+                    .map(|panel| panel.widgets.len())
+                    .unwrap_or(0);
+                if n > 0 && mouse.pos.y < 50.0 * n as f64 {
+                    ctx.set_cursor(&Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
+            }
+            _ => {}
+        }
     }
 
     fn lifecycle(
@@ -118,13 +150,13 @@ impl Widget<LapceTabData> for ActivityBar {
             for (widget_id, kind) in panel.widgets.iter() {
                 let svg = match kind {
                     crate::data::PanelKind::FileExplorer => {
-                        get_svg("git-icon.svg").unwrap()
+                        get_svg("file-explorer.svg").unwrap()
                     }
                     crate::data::PanelKind::SourceControl => {
                         get_svg("git-icon.svg").unwrap()
                     }
                     crate::data::PanelKind::Terminal => {
-                        get_svg("git-icon.svg").unwrap()
+                        get_svg("terminal.svg").unwrap()
                     }
                 };
                 if &panel.active == widget_id {
@@ -136,7 +168,7 @@ impl Widget<LapceTabData> for ActivityBar {
                             .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
                     );
                 }
-                let svg_size = 30.0;
+                let svg_size = 25.0;
                 let rect =
                     Size::new(svg_size, svg_size)
                         .to_rect()
