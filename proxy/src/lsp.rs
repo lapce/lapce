@@ -368,6 +368,8 @@ impl LspClient {
             }
         });
 
+        lsp_client.initialize();
+
         lsp_client
     }
 
@@ -430,6 +432,14 @@ impl LspClient {
                     }),
                 );
             }
+            "$/progress" => {
+                self.dispatcher.send_notification(
+                    "work_done_progress",
+                    json!({
+                        "progress": params,
+                    }),
+                );
+            }
             _ => eprintln!("{} {:?}", method, params),
         }
     }
@@ -481,6 +491,27 @@ impl LspClient {
         self.send_rpc(&to_value(&request).unwrap());
     }
 
+    fn initialize(&self) {
+        let root_url =
+            Url::from_directory_path(self.dispatcher.workspace.lock().clone())
+                .unwrap();
+        let (sender, receiver) = channel();
+        self.send_initialize(Some(root_url), move |lsp_client, result| {
+            if let Ok(result) = result {
+                {
+                    let init_result: InitializeResult =
+                        serde_json::from_value(result).unwrap();
+                    let mut state = lsp_client.state.lock();
+                    state.server_capabilities = Some(init_result.capabilities);
+                    state.is_initialized = true;
+                }
+                lsp_client.send_initialized();
+            }
+            sender.send(true);
+        });
+        receiver.recv_timeout(Duration::from_millis(1000));
+    }
+
     pub fn send_did_open(
         &self,
         buffer_id: &BufferId,
@@ -497,24 +528,7 @@ impl LspClient {
         };
 
         if !is_initialized {
-            let root_url =
-                Url::from_directory_path(self.dispatcher.workspace.lock().clone())
-                    .unwrap();
-            let (sender, receiver) = channel();
-            self.send_initialize(Some(root_url), move |lsp_client, result| {
-                if let Ok(result) = result {
-                    {
-                        let init_result: InitializeResult =
-                            serde_json::from_value(result).unwrap();
-                        let mut state = lsp_client.state.lock();
-                        state.server_capabilities = Some(init_result.capabilities);
-                        state.is_initialized = true;
-                    }
-                    lsp_client.send_initialized();
-                }
-                sender.send(true);
-            });
-            receiver.recv_timeout(Duration::from_millis(1000));
+            self.initialize();
         }
 
         let text_document_did_open_params = DidOpenTextDocumentParams {
@@ -601,8 +615,21 @@ impl LspClient {
                 semantic_tokens: Some(SemanticTokensClientCapabilities {
                     ..Default::default()
                 }),
+
                 ..Default::default()
             }),
+            window: Some(WindowClientCapabilities {
+                work_done_progress: Some(true),
+                show_message: Some(ShowMessageRequestClientCapabilities {
+                    message_action_item: Some(MessageActionItemCapabilities {
+                        additional_properties_support: Some(true),
+                    }),
+                }),
+                ..Default::default()
+            }),
+            experimental: Some(json!({
+                "serverStatusNotification": true,
+            })),
             ..Default::default()
         };
 

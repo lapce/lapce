@@ -29,7 +29,7 @@ use lapce_proxy::terminal::TermId;
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
-    Location, Position, TextEdit, WorkspaceClientCapabilities,
+    Location, Position, ProgressToken, TextEdit, WorkspaceClientCapabilities,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -226,6 +226,14 @@ pub fn watch_settings(event_sink: ExtEventSink) {
     });
 }
 
+#[derive(Clone)]
+pub struct WorkProgress {
+    pub token: ProgressToken,
+    pub title: String,
+    pub message: Option<String>,
+    pub percentage: Option<u32>,
+}
+
 #[derive(Clone, PartialEq, Data)]
 pub enum FocusArea {
     Palette,
@@ -258,6 +266,7 @@ pub struct LapceTabData {
     pub focus: WidgetId,
     pub focus_area: FocusArea,
     pub db: Arc<LapceDb>,
+    pub progresses: im::Vector<WorkProgress>,
 }
 
 impl Data for LapceTabData {
@@ -276,6 +285,7 @@ impl Data for LapceTabData {
             && self.focus_area == other.focus_area
             && self.panel_active == other.panel_active
             && self.find.same(&other.find)
+            && self.progresses.ptr_eq(&other.progresses)
     }
 }
 
@@ -366,6 +376,7 @@ impl LapceTabData {
             config,
             focus_area: FocusArea::Editor,
             db,
+            progresses: im::Vector::new(),
         };
         tab.start_update_process(event_sink);
         tab

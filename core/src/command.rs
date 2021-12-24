@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use lapce_proxy::terminal::TermId;
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
-    PublishDiagnosticsParams, Range, TextEdit,
+    ProgressParams, PublishDiagnosticsParams, Range, TextEdit, WorkDoneProgress,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -437,6 +437,7 @@ pub enum LapceUICommand {
     UpdateBufferLineChanges(BufferId, u64, HashMap<usize, char>),
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
+    WorkDoneProgress(ProgressParams),
     UpdateDiffFiles(Vec<PathBuf>),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),

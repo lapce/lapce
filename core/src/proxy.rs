@@ -15,7 +15,9 @@ use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lapce_proxy::terminal::TermId;
 use lsp_types::CompletionItem;
 use lsp_types::Position;
+use lsp_types::ProgressParams;
 use lsp_types::PublishDiagnosticsParams;
+use lsp_types::WorkDoneProgress;
 use parking_lot::{Condvar, Mutex};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -418,6 +420,9 @@ pub enum Notification {
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
     },
+    WorkDoneProgress {
+        progress: ProgressParams,
+    },
     ListDir {
         items: Vec<FileNodeItem>,
     },
@@ -496,6 +501,13 @@ impl Handler for ProxyHandlerNew {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::PublishDiagnostics(diagnostics),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            Notification::WorkDoneProgress { progress } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::WorkDoneProgress(progress),
                     Target::Widget(self.tab_id),
                 );
             }

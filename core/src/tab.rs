@@ -9,6 +9,7 @@ use druid::{
     Point, Rect, RenderContext, Size, Target, Vec2, Widget, WidgetExt, WidgetId,
     WidgetPod, WindowConfig,
 };
+use itertools::Itertools;
 use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 
 use crate::{
@@ -22,7 +23,7 @@ use crate::{
     config::{Config, LapceTheme},
     data::{
         EditorContent, EditorDiagnostic, EditorKind, EditorType, LapceMainSplitData,
-        LapceTabData,
+        LapceTabData, WorkProgress,
     },
     editor::{EditorLocationNew, LapceEditorView},
     movement::{self, CursorMode, Selection},
@@ -284,6 +285,42 @@ impl Widget<LapceTabData> for LapceTabNew {
                             })
                             .collect();
                         ctx.set_handled();
+                    }
+                    LapceUICommand::WorkDoneProgress(params) => {
+                        match &params.value {
+                            lsp_types::ProgressParamsValue::WorkDone(progress) => {
+                                match progress {
+                                    lsp_types::WorkDoneProgress::Begin(begin) => {
+                                        data.progresses.push_back(WorkProgress {
+                                            token: params.token.clone(),
+                                            title: begin.title.clone(),
+                                            message: begin.message.clone(),
+                                            percentage: begin.percentage.clone(),
+                                        });
+                                    }
+                                    lsp_types::WorkDoneProgress::Report(report) => {
+                                        for p in data.progresses.iter_mut() {
+                                            if p.token == params.token {
+                                                p.message = report.message.clone();
+                                                p.percentage =
+                                                    report.percentage.clone();
+                                            }
+                                        }
+                                    }
+                                    lsp_types::WorkDoneProgress::End(end) => {
+                                        for i in data
+                                            .progresses
+                                            .iter()
+                                            .positions(|p| p.token == params.token)
+                                            .sorted()
+                                            .rev()
+                                        {
+                                            data.progresses.remove(i);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     LapceUICommand::PublishDiagnostics(diagnostics) => {
                         let path = PathBuf::from(diagnostics.uri.path());

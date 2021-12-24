@@ -64,6 +64,11 @@ impl Widget<LapceTabData> for LapceStatusNew {
             ctx.request_paint();
             return;
         }
+
+        if !old_data.progresses.ptr_eq(&data.progresses) {
+            ctx.request_paint();
+            return;
+        }
     }
 
     fn layout(
@@ -152,5 +157,27 @@ impl Widget<LapceTabData> for LapceStatusNew {
             .unwrap();
         ctx.draw_text(&text_layout, Point::new(left + 10.0, 4.0));
         left += 10.0 + text_layout.size().width;
+
+        for progress in data.progresses.iter() {
+            let mut text = progress.title.clone();
+            let message = progress.message.clone().unwrap_or("".to_string());
+            if message != "" {
+                text += ": ";
+                text += &message;
+            }
+            let text_layout = ctx
+                .text()
+                .new_text_layout(text)
+                .font(FontFamily::SYSTEM_UI, 13.0)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(&text_layout, Point::new(left + 10.0, 4.0));
+            left += 10.0 + text_layout.size().width;
+        }
     }
 }
