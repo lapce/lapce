@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod app;
 pub mod buffer;
 pub mod code_action;
