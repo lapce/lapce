@@ -296,6 +296,7 @@ impl Data for LapceTabData {
             && self.panel_active == other.panel_active
             && self.find.same(&other.find)
             && self.progresses.ptr_eq(&other.progresses)
+            && self.file_explorer.same(&other.file_explorer)
     }
 }
 
@@ -320,7 +321,12 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
-        let file_explorer = Arc::new(FileExplorerData::new());
+        let file_explorer = Arc::new(FileExplorerData::new(
+            tab_id,
+            workspace.clone(),
+            proxy.clone(),
+            event_sink.clone(),
+        ));
         let mut main_split = LapceMainSplitData::new(
             tab_id,
             workspace_info.as_ref(),
@@ -342,7 +348,7 @@ impl LapceTabData {
         panels.insert(
             PanelPosition::LeftTop,
             Arc::new(PanelData {
-                active: source_control.widget_id,
+                active: file_explorer.widget_id,
                 widgets: vec![
                     (file_explorer.widget_id, PanelKind::FileExplorer),
                     (source_control.widget_id, PanelKind::SourceControl),
