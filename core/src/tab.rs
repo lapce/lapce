@@ -119,7 +119,7 @@ impl LapceTabNew {
         if let Some(position) = self.current_bar_hover.as_ref() {
             match position {
                 PanelResizePosition::Left => {
-                    data.panel_size.left = mouse_pos.x.round().max(50.0);
+                    data.panel_size.left = (mouse_pos.x - 50.0).round().max(50.0);
                 }
                 PanelResizePosition::LeftSplit => (),
                 PanelResizePosition::Bottom => {
@@ -147,7 +147,7 @@ impl LapceTabNew {
             .map(|p| p.is_shown())
             .unwrap_or(false);
         let left = if panel_left_bottom_shown || panel_left_top_shown {
-            let left = data.panel_size.left;
+            let left = data.panel_size.left + 50.0;
             if mouse_pos.x >= left - 3.0 && mouse_pos.x <= left + 3.0 {
                 return Some(PanelResizePosition::Left);
             }

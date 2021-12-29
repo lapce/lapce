@@ -386,11 +386,11 @@ impl LapceTabData {
             window_origin: Point::ZERO,
             panels,
             panel_size: PanelSize {
-                left: 300.0,
+                left: 250.0,
                 left_split: 0.5,
                 bottom: 300.0,
                 bottom_split: 0.5,
-                right: 300.0,
+                right: 250.0,
                 right_split: 0.5,
             },
             panel_active: PanelPosition::LeftTop,
