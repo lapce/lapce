@@ -1042,7 +1042,12 @@ impl Widget<LapceTabData> for LapceTabNew {
 
         for (panel_widget_id, panel) in self.panels.iter_mut() {
             if !active_panels.contains(panel_widget_id) {
-                panel.layout(ctx, &BoxConstraints::tight(Size::ZERO), data, env);
+                panel.layout(
+                    ctx,
+                    &BoxConstraints::tight(Size::new(300.0, 300.0)),
+                    data,
+                    env,
+                );
                 panel.set_origin(ctx, data, env, Point::ZERO);
             }
         }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc, str::FromStr, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, rc::Rc, str::FromStr, sync::Arc};
 
 use druid::{
     kurbo::BezPath,
@@ -55,14 +55,18 @@ pub fn get_svg(name: &str) -> Option<Svg> {
     SVG_STORE.get_svg(name)
 }
 
-pub fn file_svg_new(exten: &str) -> Option<Svg> {
-    let file_type = match exten {
-        "rs" => "rust",
-        "md" => "markdown",
-        "cc" => "cpp",
-        s => s,
+pub fn file_svg_new(path: &PathBuf) -> Svg {
+    let file_type = match path.file_name().and_then(|f| f.to_str()).unwrap_or("") {
+        "LICENSE" => "license",
+        _ => match path.extension().and_then(|s| s.to_str()).unwrap_or("") {
+            "rs" => "rust",
+            "md" => "markdown",
+            "cc" => "cpp",
+            s => s,
+        },
     };
     get_svg(&format!("file_type_{}.svg", file_type))
+        .unwrap_or_else(|| get_svg("default_file.svg").unwrap())
 }
 
 pub fn symbol_svg_new(kind: &SymbolKind) -> Option<Svg> {
