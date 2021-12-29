@@ -488,23 +488,15 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     ctx.stroke(path, &Color::rgb8(0, 0, 0), 2.0);
                 }
             }
-            let svg = file_svg_new(
-                &path
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string(),
-            );
-            if let Some(svg) = svg.as_ref() {
-                let width = 13.0;
-                let height = 13.0;
-                let rect =
-                    Size::new(width, height).to_rect().with_origin(Point::new(
-                        (line_height - width) / 2.0 + line_height,
-                        (line_height - height) / 2.0 + y,
-                    ));
-                ctx.draw_svg(&svg, rect, None);
-            }
+            let svg = file_svg_new(&path);
+            let width = 13.0;
+            let height = 13.0;
+            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+                (line_height - width) / 2.0 + line_height,
+                (line_height - height) / 2.0 + y,
+            ));
+            ctx.draw_svg(&svg, rect, None);
+
             let file_name = path
                 .file_name()
                 .and_then(|s| s.to_str())

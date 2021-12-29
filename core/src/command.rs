@@ -4,7 +4,7 @@ use alacritty_terminal::ansi::CursorShape;
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
 use indexmap::IndexMap;
-use lapce_proxy::terminal::TermId;
+use lapce_proxy::{dispatch::FileNodeItem, terminal::TermId};
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
     ProgressParams, PublishDiagnosticsParams, Range, TextEdit, WorkDoneProgress,
@@ -397,6 +397,7 @@ pub enum LapceUICommand {
     RunPaletteReferences(Vec<EditorLocationNew>),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
+    UpdateExplorerItems(usize, PathBuf, Vec<FileNodeItem>),
     UpdateWindowOrigin,
     RequestLayout,
     RequestPaint,

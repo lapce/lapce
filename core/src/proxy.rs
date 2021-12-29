@@ -302,6 +302,7 @@ impl LapceProxy {
     }
 
     pub fn read_dir(&self, path: &PathBuf, f: Box<dyn Callback>) {
+        self.wait();
         self.peer.lock().as_ref().unwrap().send_rpc_request_async(
             "read_dir",
             &json!({

@@ -1735,13 +1735,7 @@ fn file_paint_items(
     path: &PathBuf,
     indices: &[usize],
 ) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>) {
-    let svg = file_svg_new(
-        &path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_string(),
-    );
+    let svg = file_svg_new(path);
     let file_name = path
         .file_name()
         .and_then(|s| s.to_str())
@@ -1779,7 +1773,7 @@ fn file_paint_items(
             }
         })
         .collect();
-    (svg, file_name, text_indices, folder, hint_indices)
+    (Some(svg), file_name, text_indices, folder, hint_indices)
 }
 
 pub fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {

@@ -930,7 +930,12 @@ impl LapceTerminal {
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
         if let Some(widget_panel_id) = terminal.panel_widget_id.as_ref() {
             for (pos, panel) in data.panels.iter_mut() {
-                if panel.widgets.contains(widget_panel_id) {
+                if panel
+                    .widgets
+                    .iter()
+                    .map(|(id, _)| *id)
+                    .contains(widget_panel_id)
+                {
                     Arc::make_mut(panel).active = *widget_panel_id;
                     data.panel_active = pos.clone();
                     break;

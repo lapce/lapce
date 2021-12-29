@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc, thread};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+    thread,
+};
 
 use directories::ProjectDirs;
 use druid::{
@@ -13,6 +18,7 @@ use itertools::Itertools;
 use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 
 use crate::{
+    activity::ActivityBar,
     buffer::{BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent},
     code_action::CodeAction,
     command::{
@@ -26,6 +32,7 @@ use crate::{
         LapceTabData, WorkProgress,
     },
     editor::{EditorLocationNew, LapceEditorView},
+    explorer::FileExplorer,
     movement::{self, CursorMode, Selection},
     palette::{NewPalette, PaletteViewLens},
     panel::{PanelPosition, PanelResizePosition},
@@ -39,6 +46,7 @@ use crate::{
 
 pub struct LapceTabNew {
     id: WidgetId,
+    activity: WidgetPod<LapceTabData, ActivityBar>,
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -63,6 +71,7 @@ impl LapceTabNew {
                 1.0,
             );
         }
+        let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
         let palette = NewPalette::new(
             &data.palette,
@@ -75,16 +84,24 @@ impl LapceTabNew {
         let code_action = CodeAction::new();
 
         let mut panels = HashMap::new();
+        let file_explorer = FileExplorer::new(&data.file_explorer);
+        panels.insert(
+            data.file_explorer.widget_id,
+            WidgetPod::new(file_explorer.boxed()),
+        );
+
         let source_control = SourceControlNew::new(&data);
         panels.insert(
             data.source_control.widget_id,
             WidgetPod::new(source_control.boxed()),
         );
+
         let terminal = TerminalPanel::new(&data);
         panels.insert(data.terminal.widget_id, WidgetPod::new(terminal.boxed()));
 
         Self {
             id: data.id,
+            activity: WidgetPod::new(activity),
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion.boxed()),
             code_action: WidgetPod::new(code_action.boxed()),
@@ -647,7 +664,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::FocusSourceControl => {
                         for (_, panel) in data.panels.iter_mut() {
-                            for widget_id in panel.widgets.clone() {
+                            for (widget_id, kind) in panel.widgets.clone() {
                                 if widget_id == data.source_control.widget_id {
                                     let panel = Arc::make_mut(panel);
                                     panel.active = widget_id;
@@ -682,6 +699,24 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .update_syntax_tree(*rev, tree.to_owned());
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateExplorerItems(index, path, items) => {
+                        let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                        if let Some(node) = file_explorer.get_node_mut(path) {
+                            node.children = items
+                                .iter()
+                                .map(|item| (item.path_buf.clone(), item.clone()))
+                                .collect();
+                            node.read = true;
+                            node.open = true;
+                            node.children_open_count = node.children.len();
+                        }
+                        if let Some(paths) = file_explorer.node_tree(path) {
+                            for path in paths.iter() {
+                                file_explorer.update_node_count(path);
+                            }
+                        }
+                        ctx.set_handled();
+                    }
                     _ => (),
                 }
             }
@@ -700,6 +735,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     .event(ctx, event, data, env);
             }
         }
+        self.activity.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -723,6 +759,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         }
 
         self.palette.lifecycle(ctx, event, data, env);
+        self.activity.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);
         self.code_action.lifecycle(ctx, event, data, env);
         self.status.lifecycle(ctx, event, data, env);
@@ -761,6 +798,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         }
 
         self.palette.update(ctx, data, env);
+        self.activity.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
         self.code_action.update(ctx, data, env);
@@ -786,6 +824,9 @@ impl Widget<LapceTabData> for LapceTabNew {
         let self_size = bc.max();
         self.height = self_size.height;
 
+        let activity_size = self.activity.layout(ctx, bc, data, env);
+        self.activity.set_origin(ctx, data, env, Point::ZERO);
+
         let status_size = self.status.layout(ctx, bc, data, env);
         self.status.set_origin(
             ctx,
@@ -795,6 +836,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         );
         self.status_height = status_size.height;
 
+        let mut active_panels = Vec::new();
         let panel_left_top_shown = data
             .panels
             .get(&PanelPosition::LeftTop)
@@ -813,26 +855,28 @@ impl Widget<LapceTabData> for LapceTabNew {
                 let bottom_height =
                     self_size.height - status_size.height - top_height;
 
-                let panel_left_top = self
-                    .panels
-                    .get_mut(
-                        &data.panels.get(&PanelPosition::LeftTop).unwrap().active,
-                    )
-                    .unwrap();
+                let panel_left_top =
+                    data.panels.get(&PanelPosition::LeftTop).unwrap().active;
+                active_panels.push(panel_left_top);
+                let panel_left_top = self.panels.get_mut(&panel_left_top).unwrap();
                 panel_left_top.layout(
                     ctx,
                     &BoxConstraints::tight(Size::new(left_width, top_height)),
                     data,
                     env,
                 );
-                panel_left_top.set_origin(ctx, data, env, Point::ZERO);
+                panel_left_top.set_origin(
+                    ctx,
+                    data,
+                    env,
+                    Point::new(activity_size.width, 0.0),
+                );
 
-                let panel_left_bottom = self
-                    .panels
-                    .get_mut(
-                        &data.panels.get(&PanelPosition::LeftBottom).unwrap().active,
-                    )
-                    .unwrap();
+                let panel_left_bottom =
+                    data.panels.get(&PanelPosition::LeftBottom).unwrap().active;
+                active_panels.push(panel_left_bottom);
+                let panel_left_bottom =
+                    self.panels.get_mut(&panel_left_bottom).unwrap();
                 panel_left_bottom.layout(
                     ctx,
                     &BoxConstraints::tight(Size::new(left_width, bottom_height)),
@@ -843,38 +887,45 @@ impl Widget<LapceTabData> for LapceTabNew {
                     ctx,
                     data,
                     env,
-                    Point::new(0.0, top_height),
+                    Point::new(activity_size.width, top_height),
                 );
             } else if panel_left_top_shown {
                 let top_height = self_size.height - status_size.height;
-                let panel_left_top = self
-                    .panels
-                    .get_mut(
-                        &data.panels.get(&PanelPosition::LeftTop).unwrap().active,
-                    )
-                    .unwrap();
+                let panel_left_top =
+                    data.panels.get(&PanelPosition::LeftTop).unwrap().active;
+                active_panels.push(panel_left_top);
+                let panel_left_top = self.panels.get_mut(&panel_left_top).unwrap();
                 panel_left_top.layout(
                     ctx,
                     &BoxConstraints::tight(Size::new(left_width, top_height)),
                     data,
                     env,
                 );
-                panel_left_top.set_origin(ctx, data, env, Point::ZERO);
+                panel_left_top.set_origin(
+                    ctx,
+                    data,
+                    env,
+                    Point::new(activity_size.width, 0.0),
+                );
             } else if panel_left_bottom_shown {
                 let bottom_height = self_size.height - status_size.height;
-                let panel_left_bottom = self
-                    .panels
-                    .get_mut(
-                        &data.panels.get(&PanelPosition::LeftBottom).unwrap().active,
-                    )
-                    .unwrap();
+                let panel_left_bottom =
+                    data.panels.get(&PanelPosition::LeftBottom).unwrap().active;
+                active_panels.push(panel_left_bottom);
+                let panel_left_bottom =
+                    self.panels.get_mut(&panel_left_bottom).unwrap();
                 panel_left_bottom.layout(
                     ctx,
                     &BoxConstraints::tight(Size::new(left_width, bottom_height)),
                     data,
                     env,
                 );
-                panel_left_bottom.set_origin(ctx, data, env, Point::ZERO);
+                panel_left_bottom.set_origin(
+                    ctx,
+                    data,
+                    env,
+                    Point::new(activity_size.width, 0.0),
+                );
             }
             left_width
         } else {
@@ -901,19 +952,19 @@ impl Widget<LapceTabData> for LapceTabNew {
             } else {
                 data.panel_size.bottom
             };
-            let panel_x = panel_left_width;
+            let panel_x = panel_left_width + activity_size.width;
             let panel_y = self_size.height - status_size.height - bottom_height;
-            let panel_width = self_size.width - panel_left_width;
+            let panel_width =
+                self_size.width - activity_size.width - panel_left_width;
             if panel_bottom_left_shown && panel_bottom_right_shown {
                 let left_width = panel_width * data.panel_size.bottom_split;
                 let right_width = panel_width - left_width;
 
-                let panel_bottom_left = self
-                    .panels
-                    .get_mut(
-                        &data.panels.get(&PanelPosition::BottomLeft).unwrap().active,
-                    )
-                    .unwrap();
+                let panel_bottom_left =
+                    data.panels.get(&PanelPosition::BottomLeft).unwrap().active;
+                active_panels.push(panel_bottom_left);
+                let panel_bottom_left =
+                    self.panels.get_mut(&panel_bottom_left).unwrap();
                 panel_bottom_left.layout(
                     ctx,
                     &BoxConstraints::tight(Size::new(left_width, bottom_height)),
@@ -924,19 +975,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                     ctx,
                     data,
                     env,
-                    Point::new(panel_left_width, panel_y),
+                    Point::new(panel_left_width + activity_size.width, panel_y),
                 );
 
-                let panel_bottom_right = self
-                    .panels
-                    .get_mut(
-                        &data
-                            .panels
-                            .get(&PanelPosition::BottomRight)
-                            .unwrap()
-                            .active,
-                    )
-                    .unwrap();
+                let panel_bottom_right =
+                    data.panels.get(&PanelPosition::BottomRight).unwrap().active;
+                active_panels.push(panel_bottom_right);
+                let panel_bottom_right =
+                    self.panels.get_mut(&panel_bottom_right).unwrap();
                 panel_bottom_right.layout(
                     ctx,
                     &BoxConstraints::tight(Size::new(right_width, bottom_height)),
@@ -947,15 +993,17 @@ impl Widget<LapceTabData> for LapceTabNew {
                     ctx,
                     data,
                     env,
-                    Point::new(panel_left_width + left_width, panel_y),
+                    Point::new(
+                        panel_left_width + left_width + activity_size.width,
+                        panel_y,
+                    ),
                 );
             } else if panel_bottom_left_shown {
-                let panel_bottom_left = self
-                    .panels
-                    .get_mut(
-                        &data.panels.get(&PanelPosition::BottomLeft).unwrap().active,
-                    )
-                    .unwrap();
+                let panel_bottom_left =
+                    data.panels.get(&PanelPosition::BottomLeft).unwrap().active;
+                active_panels.push(panel_bottom_left);
+                let panel_bottom_left =
+                    self.panels.get_mut(&panel_bottom_left).unwrap();
                 panel_bottom_left.layout(
                     ctx,
                     &BoxConstraints::tight(Size::new(panel_width, bottom_height)),
@@ -969,16 +1017,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                     Point::new(panel_x, panel_y),
                 );
             } else if panel_bottom_right_shown {
-                let panel_bottom_right = self
-                    .panels
-                    .get_mut(
-                        &data
-                            .panels
-                            .get(&PanelPosition::BottomRight)
-                            .unwrap()
-                            .active,
-                    )
-                    .unwrap();
+                let panel_bottom_right =
+                    data.panels.get(&PanelPosition::BottomRight).unwrap().active;
+                active_panels.push(panel_bottom_right);
+                let panel_bottom_right =
+                    self.panels.get_mut(&panel_bottom_right).unwrap();
                 panel_bottom_right.layout(
                     ctx,
                     &BoxConstraints::tight(Size::new(panel_width, bottom_height)),
@@ -997,8 +1040,20 @@ impl Widget<LapceTabData> for LapceTabNew {
             0.0
         };
 
+        for (panel_widget_id, panel) in self.panels.iter_mut() {
+            if !active_panels.contains(panel_widget_id) {
+                panel.layout(
+                    ctx,
+                    &BoxConstraints::tight(Size::new(300.0, 300.0)),
+                    data,
+                    env,
+                );
+                panel.set_origin(ctx, data, env, Point::ZERO);
+            }
+        }
+
         let main_split_size = Size::new(
-            self_size.width - panel_left_width,
+            self_size.width - panel_left_width - activity_size.width,
             self_size.height - status_size.height - panel_bottom_height,
         );
         let main_split_bc = BoxConstraints::tight(main_split_size);
@@ -1007,7 +1062,7 @@ impl Widget<LapceTabData> for LapceTabNew {
             ctx,
             data,
             env,
-            Point::new(panel_left_width, 0.0),
+            Point::new(panel_left_width + activity_size.width, 0.0),
         );
         self.main_split_height = main_split_size.height;
 
@@ -1073,6 +1128,29 @@ impl Widget<LapceTabData> for LapceTabNew {
                 }
             }
         }
+        self.activity.paint(ctx, data, env);
+        // if let Some((active_index, (id, kind))) =
+        //     data.panels.get(&PanelPosition::LeftTop).and_then(|panel| {
+        //         panel
+        //             .widgets
+        //             .iter()
+        //             .enumerate()
+        //             .find(|(i, (id, kind))| id == &panel.active)
+        //     })
+        // {
+        //     let active_offset = 50.0 * active_index as f64;
+        //     let rect = Size::new(50.0, 50.0)
+        //         .to_rect()
+        //         .with_origin(Point::new(0.0, active_offset));
+        //     ctx.fill(
+        //         rect,
+        //         data.config
+        //             .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+        //     );
+        //     // self.activity
+        //     //     .widget_mut()
+        //     //     .paint_svg(ctx, data, active_index, kind);
+        // }
         self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
         self.code_action.paint(ctx, data, env);

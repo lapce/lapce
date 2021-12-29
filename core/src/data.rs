@@ -25,6 +25,7 @@ use druid::{
     Rect, Size, Target, TextLayout, Vec2, WidgetId, WindowId,
 };
 use im::{self, hashmap};
+use itertools::Itertools;
 use lapce_proxy::terminal::TermId;
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
@@ -62,6 +63,7 @@ use crate::{
     config::{Config, LapceTheme},
     db::{LapceDb, WorkspaceInfo},
     editor::{EditorLocationNew, LapceEditorBufferData, LapceEditorViewContent},
+    explorer::FileExplorerData,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     language::{new_highlight_config, new_parser, LapceLanguage},
@@ -170,9 +172,16 @@ pub struct EditorDiagnostic {
 }
 
 #[derive(Clone)]
+pub enum PanelKind {
+    FileExplorer,
+    SourceControl,
+    Terminal,
+}
+
+#[derive(Clone)]
 pub struct PanelData {
     pub active: WidgetId,
-    pub widgets: Vec<WidgetId>,
+    pub widgets: Vec<(WidgetId, PanelKind)>,
     pub shown: bool,
     pub maximized: bool,
 }
@@ -252,6 +261,7 @@ pub struct LapceTabData {
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
+    pub file_explorer: Arc<FileExplorerData>,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
@@ -286,6 +296,7 @@ impl Data for LapceTabData {
             && self.panel_active == other.panel_active
             && self.find.same(&other.find)
             && self.progresses.ptr_eq(&other.progresses)
+            && self.file_explorer.same(&other.file_explorer)
     }
 }
 
@@ -310,6 +321,12 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
+        let file_explorer = Arc::new(FileExplorerData::new(
+            tab_id,
+            workspace.clone(),
+            proxy.clone(),
+            event_sink.clone(),
+        ));
         let mut main_split = LapceMainSplitData::new(
             tab_id,
             workspace_info.as_ref(),
@@ -331,8 +348,11 @@ impl LapceTabData {
         panels.insert(
             PanelPosition::LeftTop,
             Arc::new(PanelData {
-                active: source_control.widget_id,
-                widgets: vec![source_control.widget_id],
+                active: file_explorer.widget_id,
+                widgets: vec![
+                    (file_explorer.widget_id, PanelKind::FileExplorer),
+                    (source_control.widget_id, PanelKind::SourceControl),
+                ],
                 shown: true,
                 maximized: false,
             }),
@@ -341,7 +361,7 @@ impl LapceTabData {
             PanelPosition::BottomLeft,
             Arc::new(PanelData {
                 active: terminal.widget_id,
-                widgets: vec![terminal.widget_id],
+                widgets: vec![(terminal.widget_id, PanelKind::Terminal)],
                 shown: true,
                 maximized: false,
             }),
@@ -355,6 +375,7 @@ impl LapceTabData {
             terminal,
             find: Arc::new(Find::new(0)),
             source_control,
+            file_explorer,
             term_rx: Some(term_receiver),
             term_tx: Arc::new(term_sender),
             palette,
@@ -772,7 +793,12 @@ impl LapceTabData {
             LapceWorkbenchCommand::ToggleTerminal => {
                 if self.focus_area == FocusArea::Terminal {
                     for (_, panel) in self.panels.iter_mut() {
-                        if panel.widgets.contains(&self.terminal.widget_id) {
+                        if panel
+                            .widgets
+                            .iter()
+                            .map(|(id, kind)| *id)
+                            .contains(&self.terminal.widget_id)
+                        {
                             let panel = Arc::make_mut(panel);
                             panel.shown = false;
                             break;
@@ -785,7 +811,12 @@ impl LapceTabData {
                     ));
                 } else {
                     for (_, panel) in self.panels.iter_mut() {
-                        if panel.widgets.contains(&self.terminal.widget_id) {
+                        if panel
+                            .widgets
+                            .iter()
+                            .map(|(id, kind)| *id)
+                            .contains(&self.terminal.widget_id)
+                        {
                             let panel = Arc::make_mut(panel);
                             panel.shown = true;
                             panel.active = self.terminal.widget_id;
