@@ -3592,38 +3592,41 @@ impl Widget<LapceTabData> for LapceEditorContainer {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        self.gutter.event(ctx, event, data, env);
+        self.editor.event(ctx, event, data, env);
         match event {
-            Event::WindowConnected => {
-                if *data.main_split.active == self.view_id {
-                    // ctx.request_focus();
+            Event::MouseDown(_) | Event::MouseUp(_) => {
+                let editor =
+                    data.main_split.editors.get(&self.view_id).unwrap().clone();
+                match &editor.content {
+                    EditorContent::Buffer(path) => {
+                        let buffer =
+                            data.main_split.open_files.get(path).unwrap().clone();
+                        let mut editor_data = LapceEditorBufferData {
+                            view_id: self.view_id,
+                            main_split: data.main_split.clone(),
+                            completion: data.completion.clone(),
+                            proxy: data.proxy.clone(),
+                            find: data.find.clone(),
+                            buffer: buffer.clone(),
+                            editor: editor.clone(),
+                            config: data.config.clone(),
+                            workspace: data.workspace.clone(),
+                        };
+                        editor_data.sync_buffer_position(
+                            self.editor.widget().inner().offset(),
+                        );
+                        data.update_from_editor_buffer_data(
+                            editor_data,
+                            &editor,
+                            &buffer,
+                        );
+                    }
+                    EditorContent::None => {}
                 }
-            }
-            Event::KeyDown(key_event) => {
-                // if data.key_down(ctx, key_event, env) {
-                //     self.ensure_cursor_visible(ctx, data, None, env);
-                // }
-                // data.sync_buffer_position(self.editor.widget().inner().offset());
-                // ctx.set_handled();
-                // data.get_code_actions(ctx);
-            }
-            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                // self.handle_lapce_ui_command(ctx, &command, data, env);
             }
             _ => (),
         }
-        self.gutter.event(ctx, event, data, env);
-        self.editor.event(ctx, event, data, env);
-        let offset = self.editor.widget().inner().offset();
-        // if data.editor.scroll_offset != offset {
-        //     Arc::make_mut(&mut data.editor).scroll_offset = offset;
-        //     data.fill_text_layouts(ctx, &data.theme.clone(), env);
-        //     ctx.submit_command(Command::new(
-        //         LAPCE_UI_COMMAND,
-        //         LapceUICommand::UpdateWindowOrigin,
-        //         Target::Widget(self.editor_id),
-        //     ));
-        // }
     }
 
     fn lifecycle(
