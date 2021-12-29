@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc, thread};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+    thread,
+};
 
 use directories::ProjectDirs;
 use druid::{
@@ -695,14 +700,19 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateExplorerItems(index, path, items) => {
-                        if let Some(item) = Arc::make_mut(&mut data.file_explorer)
-                            .items
-                            .get_mut(*index)
-                        {
-                            if &item.path_buf == path {
-                                item.read = true;
-                                item.open = true;
-                                item.children = items.to_owned();
+                        let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                        if let Some(node) = file_explorer.get_node_mut(path) {
+                            node.children = items
+                                .iter()
+                                .map(|item| (item.path_buf.clone(), item.clone()))
+                                .collect();
+                            node.read = true;
+                            node.open = true;
+                            node.children_open_count = node.children.len();
+                        }
+                        if let Some(paths) = file_explorer.node_tree(path) {
+                            for path in paths.iter() {
+                                file_explorer.update_node_count(path);
                             }
                         }
                         ctx.set_handled();

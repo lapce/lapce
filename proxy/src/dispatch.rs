@@ -188,13 +188,14 @@ pub struct NewBufferResponse {
     pub content: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Ord, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileNodeItem {
     pub path_buf: PathBuf,
     pub is_dir: bool,
     pub read: bool,
     pub open: bool,
-    pub children: Vec<FileNodeItem>,
+    pub children: HashMap<PathBuf, FileNodeItem>,
+    pub children_open_count: usize,
 }
 
 impl std::cmp::PartialOrd for FileNodeItem {
@@ -380,27 +381,28 @@ impl Dispatcher {
         match rpc {
             Notification::Initialize { workspace } => {
                 *self.workspace.lock() = workspace.clone();
-                let mut items = Vec::new();
-                if let Ok(entries) = fs::read_dir(&workspace) {
-                    for entry in entries {
-                        if let Ok(entry) = entry {
-                            let item = FileNodeItem {
-                                path_buf: entry.path(),
-                                is_dir: entry.path().is_dir(),
-                                open: false,
-                                read: false,
-                                children: Vec::new(),
-                            };
-                            items.push(item);
-                        }
-                    }
-                }
-                self.send_notification(
-                    "list_dir",
-                    json!({
-                        "items": items,
-                    }),
-                );
+                // let mut items = Vec::new();
+                // if let Ok(entries) = fs::read_dir(&workspace) {
+                //     for entry in entries {
+                //         if let Ok(entry) = entry {
+                //             let item = FileNodeItem {
+                //                 path_buf: entry.path(),
+                //                 is_dir: entry.path().is_dir(),
+                //                 open: false,
+                //                 read: false,
+                //                 children: Vec::new(),
+                //                 children_open_count: 0,
+                //             };
+                //             items.push(item);
+                //         }
+                //     }
+                // }
+                // self.send_notification(
+                //     "list_dir",
+                //     json!({
+                //         "items": items,
+                //     }),
+                // );
                 self.watcher.lock().as_mut().unwrap().watch(
                     &workspace,
                     true,
@@ -553,7 +555,7 @@ impl Dispatcher {
                 thread::spawn(move || {
                     let result = fs::read_dir(path)
                         .map(|entries| {
-                            let mut items = entries
+                            let items = entries
                                 .into_iter()
                                 .filter_map(|entry| {
                                     entry
@@ -562,12 +564,12 @@ impl Dispatcher {
                                             is_dir: e.path().is_dir(),
                                             open: false,
                                             read: false,
-                                            children: Vec::new(),
+                                            children: HashMap::new(),
+                                            children_open_count: 0,
                                         })
                                         .ok()
                                 })
                                 .collect::<Vec<FileNodeItem>>();
-                            items.sort();
                             serde_json::to_value(items).unwrap()
                         })
                         .map_err(|e| anyhow!(e));

@@ -1,3 +1,6 @@
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::path::Path;
 use std::{cmp, path::PathBuf};
 use std::{str::FromStr, sync::Arc};
 
@@ -47,7 +50,7 @@ pub struct FileExplorerState {
 pub struct FileExplorerData {
     pub tab_id: WidgetId,
     pub widget_id: WidgetId,
-    pub items: Vec<FileNodeItem>,
+    pub workspace: Option<FileNodeItem>,
     index: usize,
     count: usize,
 }
@@ -61,13 +64,14 @@ impl FileExplorerData {
     ) -> Self {
         let mut items = Vec::new();
         let widget_id = WidgetId::next();
-        if let Some(workspace) = workspace {
+        if let Some(workspace) = workspace.clone() {
             items.push(FileNodeItem {
                 path_buf: workspace.path.clone(),
                 is_dir: true,
                 read: false,
                 open: false,
-                children: Vec::new(),
+                children: HashMap::new(),
+                children_open_count: 0,
             });
             let index = 0;
             std::thread::spawn(move || {
@@ -98,10 +102,66 @@ impl FileExplorerData {
         Self {
             tab_id,
             widget_id,
-            items,
+            workspace: workspace.map(|w| FileNodeItem {
+                path_buf: w.path.clone(),
+                is_dir: true,
+                read: false,
+                open: false,
+                children: HashMap::new(),
+                children_open_count: 0,
+            }),
             index: 0,
             count: 0,
         }
+    }
+
+    pub fn update_node_count(&mut self, path: &PathBuf) -> Option<()> {
+        let node = self.get_node_mut(path)?;
+        if node.is_dir {
+            if node.open {
+                node.children_open_count = node
+                    .children
+                    .iter()
+                    .map(|(_, item)| item.children_open_count + 1)
+                    .sum::<usize>();
+            } else {
+                node.children_open_count = 0;
+            }
+        }
+        None
+    }
+
+    pub fn node_tree(&mut self, path: &PathBuf) -> Option<Vec<PathBuf>> {
+        let root = &self.workspace.as_ref()?.path_buf;
+        let path = path.strip_prefix(root).ok()?;
+        Some(
+            path.ancestors()
+                .map(|p| root.join(p))
+                .collect::<Vec<PathBuf>>(),
+        )
+    }
+
+    pub fn get_node_by_index(&mut self, index: usize) -> Option<&mut FileNodeItem> {
+        let (_, node) = get_item_children(0, index, self.workspace.as_mut()?);
+        node
+    }
+
+    pub fn get_node_mut(&mut self, path: &PathBuf) -> Option<&mut FileNodeItem> {
+        let mut node = self.workspace.as_mut()?;
+        if &node.path_buf == path {
+            return Some(node);
+        }
+        let root = node.path_buf.clone();
+        let path = path.strip_prefix(&root).ok()?;
+        println!("striped path {:?}", path);
+        for path in path.ancestors().collect::<Vec<&Path>>().iter().rev() {
+            if path.to_str()? == "" {
+                continue;
+            }
+            println!("ancestor path {:?}", path);
+            node = node.children.get_mut(&root.join(path))?;
+        }
+        Some(node)
     }
 
     fn paint_item(
@@ -200,7 +260,7 @@ impl FileExplorerData {
         }
         let mut i = i;
         if item.open {
-            for item in &item.children {
+            for item in node_children(item) {
                 i = self.paint_item(
                     ctx,
                     min,
@@ -220,6 +280,86 @@ impl FileExplorerData {
         }
         i
     }
+}
+
+fn node_children_mut(node: &mut FileNodeItem) -> Vec<&mut FileNodeItem> {
+    let mut children = node
+        .children
+        .iter_mut()
+        .map(|(_, item)| item)
+        .collect::<Vec<&mut FileNodeItem>>();
+    children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, true) => a
+            .path_buf
+            .to_str()
+            .unwrap()
+            .cmp(b.path_buf.to_str().unwrap()),
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        (false, false) => a
+            .path_buf
+            .to_str()
+            .unwrap()
+            .cmp(b.path_buf.to_str().unwrap()),
+    });
+    children
+}
+
+fn node_children(node: &FileNodeItem) -> Vec<&FileNodeItem> {
+    let mut children = node
+        .children
+        .iter()
+        .map(|(_, item)| item)
+        .collect::<Vec<&FileNodeItem>>();
+    children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, true) => a
+            .path_buf
+            .to_str()
+            .unwrap()
+            .cmp(b.path_buf.to_str().unwrap()),
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        (false, false) => a
+            .path_buf
+            .to_str()
+            .unwrap()
+            .cmp(b.path_buf.to_str().unwrap()),
+    });
+    children
+}
+
+// fn get_item_count(item: &FileNodeItem) -> usize {
+//     let mut count = 1;
+//     if item.open {
+//         for child in item.children.iter() {
+//             count += get_item_count(child);
+//         }
+//     }
+//     count
+// }
+//
+fn get_item_children<'a>(
+    i: usize,
+    index: usize,
+    item: &'a mut FileNodeItem,
+) -> (usize, Option<&'a mut FileNodeItem>) {
+    if i == index {
+        return (i, Some(item));
+    }
+    let mut i = i;
+    if item.open {
+        for child in node_children_mut(item) {
+            let count = child.children_open_count;
+            if i + count + 1 >= index {
+                let (new_index, node) = get_item_children(i + 1, index, child);
+                if new_index == index {
+                    return (new_index, node);
+                }
+            }
+            i += count + 1;
+        }
+    }
+    (i, None)
 }
 
 pub struct FileExplorer {
@@ -246,6 +386,72 @@ impl Widget<LapceTabData> for FileExplorer {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::MouseMove(mouse_event) => {
+                if let Some(workspace) = data.file_explorer.workspace.as_ref() {
+                    let line_height = data.config.editor.line_height as f64;
+                    let y = mouse_event.pos.y;
+                    if y >= line_height
+                        && y <= line_height
+                            * (workspace.children_open_count + 1 + 1) as f64
+                    {
+                        ctx.set_cursor(&Cursor::Pointer);
+                    } else {
+                        ctx.clear_cursor();
+                    }
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                let line_height = data.config.editor.line_height as f64;
+                let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                if mouse_event.pos.y > line_height {
+                    let index =
+                        ((mouse_event.pos.y - line_height) / line_height) as usize;
+                    if let Some(node) = file_explorer.get_node_by_index(index) {
+                        if node.is_dir {
+                            if node.read {
+                                node.open = !node.open;
+                            } else {
+                                let tab_id = data.id;
+                                let path = node.path_buf.clone();
+                                let event_sink = ctx.get_external_handle();
+                                data.proxy.read_dir(
+                                    &node.path_buf,
+                                    Box::new(move |result| {
+                                        if let Ok(res) = result {
+                                            let resp: Result<
+                                                Vec<FileNodeItem>,
+                                                serde_json::Error,
+                                            > = serde_json::from_value(res);
+                                            if let Ok(items) = resp {
+                                                println!("update explorer items");
+                                                event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::UpdateExplorerItems(
+                                        index,
+                                        path,
+                                        items,
+                                    ),
+                                    Target::Widget(tab_id));
+                                            }
+                                        }
+                                    }),
+                                );
+                            }
+                            println!("mouse on node {} {:?}", index, node.path_buf);
+                        }
+                        let path = node.path_buf.clone();
+                        if let Some(paths) = file_explorer.node_tree(&path) {
+                            println!("{:?}", paths);
+                            for path in paths.iter() {
+                                file_explorer.update_node_count(path);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => (),
+        }
     }
 
     fn lifecycle(
@@ -297,26 +503,21 @@ impl Widget<LapceTabData> for FileExplorer {
         let index = data.file_explorer.index;
         let min = (rect.y0 / line_height).floor() as usize;
         let max = (rect.y1 / line_height) as usize + 1;
-        let mut i = 0;
         let level = 0;
 
-        for item in data.file_explorer.items.iter() {
-            i = data.file_explorer.paint_item(
+        if let Some(item) = data.file_explorer.workspace.as_ref() {
+            data.file_explorer.paint_item(
                 ctx,
                 min,
                 max,
                 line_height,
                 width,
                 level,
-                i,
+                0,
                 index,
                 item,
                 &data.config,
             );
-            i += 1;
-            if i > max {
-                break;
-            }
         }
     }
 
