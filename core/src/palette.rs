@@ -322,7 +322,7 @@ impl PaletteItemContent {
             _ => line_height,
         };
 
-        let focus_color = Color::rgb8(0, 0, 0);
+        let focus_color = config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
 
         let mut text_layout = ctx
             .text()
@@ -355,10 +355,7 @@ impl PaletteItemContent {
                 .new_text_layout(hint)
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(
-                    config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone()
-                        .with_alpha(0.6),
+                    config.get_color_unchecked(LapceTheme::EDITOR_DIM).clone(),
                 );
             for i in &hint_indices {
                 let i = *i;

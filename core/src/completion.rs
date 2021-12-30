@@ -719,7 +719,8 @@ impl Widget<LapceTabData> for CompletionNew {
                 ctx.draw_svg(&svg, rect, Some(&color));
             }
 
-            let focus_color = Color::rgb8(0, 0, 0);
+            let focus_color =
+                data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
             let content = item.item.label.as_str();
             let point = Point::new(line_height + 5.0, y);
 

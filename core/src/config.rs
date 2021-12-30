@@ -35,6 +35,7 @@ impl LapceTheme {
     pub const EDITOR_BACKGROUND: &'static str = "editor.background";
     pub const EDITOR_FOREGROUND: &'static str = "editor.foreground";
     pub const EDITOR_DIM: &'static str = "editor.dim";
+    pub const EDITOR_FOCUS: &'static str = "editor.focus";
     pub const EDITOR_CARET: &'static str = "editor.caret";
     pub const EDITOR_SELECTION: &'static str = "editor.selection";
     pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
