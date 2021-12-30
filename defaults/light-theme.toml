@@ -16,7 +16,7 @@ magenta = "#A626A4"
 "lapce.warn" = "#e9a700"
 "lapce.dropdown_shadow" = "#b4b4b4"
 "lapce.border" = "#b4b4b4"
-"lapce.scroll_bar" = "$grey"
+"lapce.scroll_bar" = "#b4b4b4"
 
 "terminal.cursor" = "$black"
 "terminal.foreground" = "$black"

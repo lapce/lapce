@@ -225,6 +225,7 @@ impl Config {
         env.set(theme::SCROLLBAR_EDGE_WIDTH, 0.0);
         env.set(theme::SCROLLBAR_WIDTH, 15.0);
         env.set(theme::SCROLLBAR_PAD, 0.0);
+        env.set(theme::SCROLLBAR_MAX_OPACITY, 1.0);
         env.set(
             theme::SCROLLBAR_COLOR,
             Color::from_hex_str("#949494").unwrap(),

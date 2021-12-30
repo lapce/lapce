@@ -424,6 +424,8 @@ impl Widget<LapceTabData> for FileExplorer {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        self.file_list.paint(ctx, data, env);
+
         let line_height = data.config.editor.line_height as f64;
 
         let shadow_width = 5.0;
@@ -469,7 +471,6 @@ impl Widget<LapceTabData> for FileExplorer {
             .unwrap();
         ctx.draw_text(&text_layout, Point::new(20.0, 4.0));
 
-        self.file_list.paint(ctx, data, env);
         //  let text_layout = ctx
         //      .text()
         //      .new_text_layout("Explorer")

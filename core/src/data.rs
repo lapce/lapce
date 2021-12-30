@@ -91,7 +91,10 @@ impl LapceData {
         Self { windows, keypress }
     }
 
-    pub fn reload_env(&self, env: &mut Env) {}
+    pub fn reload_env(&self, env: &mut Env) {
+        env.set(theme::SCROLLBAR_WIDTH, 10.0);
+        env.set(theme::SCROLLBAR_MAX_OPACITY, 0.7);
+    }
 }
 
 #[derive(Clone)]
