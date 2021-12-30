@@ -43,7 +43,7 @@ jobs:
   linux:
     runs-on: ubuntu-latest
 
-    step:
+    steps:
       - uses: actions/checkout@v2
       - name: Install dependencies
         run: |
