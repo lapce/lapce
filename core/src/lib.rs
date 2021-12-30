@@ -18,6 +18,7 @@ pub mod movement;
 pub mod outline;
 pub mod palette;
 pub mod panel;
+pub mod plugin;
 pub mod proxy;
 pub mod scroll;
 pub mod signature;

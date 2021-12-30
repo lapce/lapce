@@ -1,7 +1,7 @@
 use crate::buffer::{get_mod_time, Buffer, BufferId};
 use crate::core_proxy::CoreProxy;
 use crate::lsp::LspCatalog;
-use crate::plugin::PluginCatalog;
+use crate::plugin::{PluginCatalog, PluginDescription};
 use crate::terminal::{TermId, Terminal};
 use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
@@ -119,6 +119,9 @@ pub enum Notification {
     NewTerminal {
         term_id: TermId,
         cwd: Option<PathBuf>,
+    },
+    InstallPlugin {
+        plugin: PluginDescription,
     },
     TerminalWrite {
         term_id: TermId,
@@ -243,6 +246,13 @@ impl Dispatcher {
         let local_dispatcher = dispatcher.clone();
         thread::spawn(move || {
             local_dispatcher.plugins.lock().reload();
+            let plugins = { local_dispatcher.plugins.lock().items.clone() };
+            local_dispatcher.send_notification(
+                "installed_plugins",
+                json!({
+                    "plugins": plugins,
+                }),
+            );
             local_dispatcher
                 .plugins
                 .lock()
@@ -427,6 +437,24 @@ impl Dispatcher {
                 if let Some(content_change) = buffer.update(&delta, rev) {
                     self.lsp.lock().update(buffer, &content_change, buffer.rev);
                 }
+            }
+            Notification::InstallPlugin { plugin } => {
+                let catalog = self.plugins.clone();
+                let dispatcher = self.clone();
+                std::thread::spawn(move || {
+                    if let Err(e) =
+                        catalog.lock().install_plugin(dispatcher.clone(), plugin)
+                    {
+                        eprintln!("install plugin error {}", e);
+                    }
+                    let plugins = { dispatcher.plugins.lock().items.clone() };
+                    dispatcher.send_notification(
+                        "installed_plugins",
+                        json!({
+                            "plugins": plugins,
+                        }),
+                    );
+                });
             }
             Notification::NewTerminal { term_id, cwd } => {
                 let mut terminal = Terminal::new(term_id, cwd, 50, 10);

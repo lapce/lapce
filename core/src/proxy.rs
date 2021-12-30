@@ -12,6 +12,7 @@ use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
+use lapce_proxy::plugin::PluginDescription;
 use lapce_proxy::terminal::TermId;
 use lsp_types::CompletionItem;
 use lsp_types::Position;
@@ -185,6 +186,14 @@ impl LapceProxy {
                 "cwd": cwd,
             }),
         )
+    }
+
+    pub fn install_plugin(&self, plugin: &PluginDescription) {
+        self.peer
+            .lock()
+            .as_ref()
+            .unwrap()
+            .send_rpc_notification("install_plugin", &json!({ "plugin": plugin }));
     }
 
     pub fn new_buffer(
@@ -424,6 +433,9 @@ pub enum Notification {
     WorkDoneProgress {
         progress: ProgressParams,
     },
+    InstalledPlugins {
+        plugins: HashMap<String, PluginDescription>,
+    },
     ListDir {
         items: Vec<FileNodeItem>,
     },
@@ -509,6 +521,13 @@ impl Handler for ProxyHandlerNew {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::WorkDoneProgress(progress),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            Notification::InstalledPlugins { plugins } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateInstalledPlugins(plugins),
                     Target::Widget(self.tab_id),
                 );
             }

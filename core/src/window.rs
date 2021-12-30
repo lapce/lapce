@@ -183,6 +183,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::UpdatePluginDescriptions(plugins) => {
+                        data.plugins = Arc::new(plugins.to_owned());
+                    }
                     LapceUICommand::ReloadConfig => {
                         data.config =
                             Arc::new(Config::load(None).unwrap_or_default());

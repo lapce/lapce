@@ -36,6 +36,7 @@ use crate::{
     movement::{self, CursorMode, Selection},
     palette::{NewPalette, PaletteViewLens},
     panel::{PanelPosition, PanelResizePosition},
+    plugin::Plugin,
     scroll::LapceScrollNew,
     source_control::SourceControlNew,
     split::LapceSplitNew,
@@ -95,6 +96,9 @@ impl LapceTabNew {
             data.source_control.widget_id,
             WidgetPod::new(source_control.boxed()),
         );
+
+        let plugin = Plugin::new();
+        panels.insert(data.plugin.widget_id, WidgetPod::new(plugin.boxed()));
 
         let terminal = TerminalPanel::new(&data);
         panels.insert(data.terminal.widget_id, WidgetPod::new(terminal.boxed()));
@@ -285,6 +289,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                             ));
                         }
                         ctx.set_handled();
+                    }
+                    LapceUICommand::UpdateInstalledPlugins(plugins) => {
+                        data.installed_plugins = Arc::new(plugins.to_owned());
                     }
                     LapceUICommand::UpdateDiffFiles(files) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
