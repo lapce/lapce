@@ -155,6 +155,9 @@ impl Widget<LapceTabData> for ActivityBar {
                     crate::data::PanelKind::SourceControl => {
                         get_svg("git-icon.svg").unwrap()
                     }
+                    crate::data::PanelKind::Plugin => {
+                        get_svg("plugin-icon.svg").unwrap()
+                    }
                     crate::data::PanelKind::Terminal => {
                         get_svg("terminal.svg").unwrap()
                     }

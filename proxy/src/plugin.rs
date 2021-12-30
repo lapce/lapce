@@ -7,8 +7,7 @@ use serde_json::json;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::io::BufReader;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::Child;
 use std::process::Command;
@@ -48,11 +47,16 @@ impl Counter {
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct PluginId(pub usize);
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct PluginDescription {
     pub name: String,
     pub version: String,
-    pub wasm: PathBuf,
+    pub display_name: String,
+    pub author: String,
+    pub description: String,
+    pub repository: String,
+    pub wasm: String,
     dir: Option<PathBuf>,
     configuration: Option<Value>,
 }
@@ -88,8 +92,8 @@ pub struct Plugin {
 
 pub struct PluginCatalog {
     id_counter: Counter,
-    items: HashMap<PluginName, PluginDescription>,
-    plugins: HashMap<PluginId, PluginNew>,
+    pub items: HashMap<PluginName, PluginDescription>,
+    plugins: HashMap<PluginName, PluginNew>,
     store: wasmer::Store,
 }
 
@@ -122,12 +126,57 @@ impl PluginCatalog {
         }
     }
 
+    pub fn install_plugin(
+        &mut self,
+        dispatcher: Dispatcher,
+        plugin: PluginDescription,
+    ) -> Result<()> {
+        let home = home_dir().unwrap();
+        let path = home.join(".lapce").join("plugins").join(&plugin.name);
+        std::fs::remove_dir_all(&path);
+
+        std::fs::create_dir_all(&path)?;
+
+        {
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(path.join("plugin.toml"))?;
+            file.write_all(&toml::to_vec(&plugin)?)?;
+        }
+
+        {
+            let url = format!(
+                "https://raw.githubusercontent.com/{}/master/{}",
+                plugin.repository, plugin.wasm
+            );
+            let mut resp = reqwest::blocking::get(url)?;
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(path.join(&plugin.wasm))?;
+            std::io::copy(&mut resp, &mut file)?;
+        }
+
+        let mut plugin = plugin.clone();
+        plugin.dir = Some(path.clone());
+        plugin.wasm = path
+            .join(&plugin.wasm)
+            .to_str()
+            .ok_or(anyhow!("path can't to string"))?
+            .to_string();
+        let p = self.start_plugin(dispatcher, plugin.clone())?;
+        self.items.insert(plugin.name.clone(), plugin.clone());
+        self.plugins.insert(plugin.name.clone(), p);
+        Ok(())
+    }
+
     pub fn start_all(&mut self, dispatcher: Dispatcher) {
         for (_, plugin) in self.items.clone().iter() {
-            if let Ok(plugin) = self.start_plugin(dispatcher.clone(), plugin.clone())
-            {
-                let id = self.next_plugin_id();
-                self.plugins.insert(id, plugin);
+            if let Ok(p) = self.start_plugin(dispatcher.clone(), plugin.clone()) {
+                self.plugins.insert(plugin.name.clone(), p);
             }
         }
     }
@@ -355,6 +404,13 @@ fn load_plugin(path: &PathBuf) -> Result<PluginDescription> {
     file.read_to_string(&mut contents)?;
     let mut plugin: PluginDescription = toml::from_str(&contents)?;
     plugin.dir = Some(path.parent().unwrap().canonicalize()?);
-    plugin.wasm = path.parent().unwrap().join(plugin.wasm).canonicalize()?;
+    plugin.wasm = path
+        .parent()
+        .unwrap()
+        .join(&plugin.wasm)
+        .canonicalize()?
+        .to_str()
+        .ok_or(anyhow!("path can't to string"))?
+        .to_string();
     Ok(plugin)
 }

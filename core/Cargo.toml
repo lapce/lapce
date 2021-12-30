@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+reqwest = { version = "0.11", features = ["blocking", "json"] }
 hashbrown = "0.11.2"
 sled = "0.34.7"
 base64 = "0.13.0"

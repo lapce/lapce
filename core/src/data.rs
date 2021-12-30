@@ -26,7 +26,7 @@ use druid::{
 };
 use im::{self, hashmap};
 use itertools::Itertools;
-use lapce_proxy::terminal::TermId;
+use lapce_proxy::{plugin::PluginDescription, terminal::TermId};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
@@ -70,6 +70,7 @@ use crate::{
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
+    plugin::PluginData,
     proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
     source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
@@ -88,12 +89,43 @@ impl LapceData {
         let keypress = Arc::new(KeyPressData::new());
         let window = LapceWindowData::new(keypress.clone(), event_sink.clone());
         windows.insert(WindowId::next(), window);
+
+        thread::spawn(move || {
+            if let Ok(plugins) = LapceData::load_plugin_descriptions() {
+                event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdatePluginDescriptions(plugins),
+                    Target::Auto,
+                );
+            }
+        });
         Self { windows, keypress }
     }
 
     pub fn reload_env(&self, env: &mut Env) {
         env.set(theme::SCROLLBAR_WIDTH, 10.0);
         env.set(theme::SCROLLBAR_MAX_OPACITY, 0.7);
+    }
+
+    fn load_plugin_descriptions() -> Result<Vec<PluginDescription>> {
+        let plugins: Vec<String> =
+            reqwest::blocking::get("https://lapce.github.io/plugins.json")?
+                .json()?;
+        let plugins: Vec<PluginDescription> = plugins
+            .iter()
+            .filter_map(|plugin| LapceData::load_plgin_description(plugin).ok())
+            .collect();
+        Ok(plugins)
+    }
+
+    fn load_plgin_description(plugin: &str) -> Result<PluginDescription> {
+        let url = format!(
+            "https://raw.githubusercontent.com/{}/master/plugin.toml",
+            plugin
+        );
+        let content = reqwest::blocking::get(url)?.text()?;
+        let plugin: PluginDescription = toml::from_str(&content)?;
+        Ok(plugin)
     }
 }
 
@@ -105,6 +137,7 @@ pub struct LapceWindowData {
     pub active_id: WidgetId,
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<Config>,
+    pub plugins: Arc<Vec<PluginDescription>>,
     pub db: Arc<LapceDb>,
 }
 
@@ -160,6 +193,7 @@ impl LapceWindowData {
             tabs,
             tabs_order: Arc::new(tabs_order),
             active,
+            plugins: Arc::new(Vec::new()),
             active_id: active_tab_id,
             keypress,
             config,
@@ -178,6 +212,7 @@ pub struct EditorDiagnostic {
 pub enum PanelKind {
     FileExplorer,
     SourceControl,
+    Plugin,
     Terminal,
 }
 
@@ -264,6 +299,9 @@ pub struct LapceTabData {
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
+    pub plugin: Arc<PluginData>,
+    pub plugins: Arc<Vec<PluginDescription>>,
+    pub installed_plugins: Arc<HashMap<String, PluginDescription>>,
     pub file_explorer: Arc<FileExplorerData>,
     pub proxy: Arc<LapceProxy>,
     pub keypress: Arc<KeyPressData>,
@@ -300,6 +338,8 @@ impl Data for LapceTabData {
             && self.find.same(&other.find)
             && self.progresses.ptr_eq(&other.progresses)
             && self.file_explorer.same(&other.file_explorer)
+            && self.plugin.same(&other.plugin)
+            && self.installed_plugins.same(&other.installed_plugins)
     }
 }
 
@@ -330,6 +370,7 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
+        let plugin = Arc::new(PluginData::new());
         let file_explorer = Arc::new(FileExplorerData::new(
             tab_id,
             workspace.clone(),
@@ -361,6 +402,7 @@ impl LapceTabData {
                 widgets: vec![
                     (file_explorer.widget_id, PanelKind::FileExplorer),
                     (source_control.widget_id, PanelKind::SourceControl),
+                    (plugin.widget_id, PanelKind::Plugin),
                 ],
                 shown: true,
                 maximized: false,
@@ -382,6 +424,9 @@ impl LapceTabData {
             main_split,
             completion,
             terminal,
+            plugin,
+            plugins: Arc::new(Vec::new()),
+            installed_plugins: Arc::new(HashMap::new()),
             find: Arc::new(Find::new(0)),
             source_control,
             file_explorer,
@@ -1060,6 +1105,7 @@ impl Lens<LapceWindowData, LapceTabData> for LapceTabLens {
     ) -> V {
         let mut tab = data.tabs.get(&self.0).unwrap().clone();
         tab.keypress = data.keypress.clone();
+        tab.plugins = data.plugins.clone();
         let result = f(&mut tab);
         data.keypress = tab.keypress.clone();
         if !tab.same(data.tabs.get(&self.0).unwrap()) {
@@ -1707,19 +1753,6 @@ pub struct LapceEditorViewData {
 }
 
 impl LapceEditorViewData {
-    // pub fn key_down(
-    //     &mut self,
-    //     ctx: &mut EventCtx,
-    //     key_event: &KeyEvent,
-    //     env: &Env,
-    // ) -> bool {
-    //     let mut keypress = self.keypress.clone();
-    //     let k = Arc::make_mut(&mut keypress);
-    //     let executed = k.key_down(ctx, key_event, self, env);
-    //     self.keypress = keypress;
-    //     executed
-    // }
-
     pub fn buffer_mut(&mut self) -> &mut BufferNew {
         Arc::make_mut(&mut self.buffer)
     }
@@ -1741,19 +1774,6 @@ impl LapceEditorViewData {
         theme: &Arc<HashMap<String, Color>>,
         env: &Env,
     ) {
-        // let start = std::time::SystemTime::now();
-        // let line_height = env.get(LapceTheme::EDITOR_LINE_HEIGHT);
-        // let start_line = (self.editor.scroll_offset.y / line_height) as usize;
-        // let size = self.editor.size;
-        // let num_lines = ((size.height / line_height).ceil()) as usize;
-        // let text = ctx.text();
-        // let buffer = self.buffer_mut();
-        // for line in start_line..start_line + num_lines + 1 {
-        //     buffer.update_line_layouts(text, line, theme, env);
-        // }
-        // let end = std::time::SystemTime::now();
-        // let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("fill text layout took {}", duration);
     }
 
     pub fn on_diagnostic(&self) -> Option<usize> {
@@ -1812,46 +1832,6 @@ impl LapceEditorViewData {
             );
         }
     }
-
-    // fn move_command(
-    //     &self,
-    //     count: Option<usize>,
-    //     cmd: &LapceCommand,
-    // ) -> Option<Movement> {
-    //     match cmd {
-    //         LapceCommand::Left => Some(Movement::Left),
-    //         LapceCommand::Right => Some(Movement::Right),
-    //         LapceCommand::Up => Some(Movement::Up),
-    //         LapceCommand::Down => Some(Movement::Down),
-    //         LapceCommand::LineStart => Some(Movement::StartOfLine),
-    //         LapceCommand::LineEnd => Some(Movement::EndOfLine),
-    //         LapceCommand::GotoLineDefaultFirst => Some(match count {
-    //             Some(n) => Movement::Line(LinePosition::Line(n)),
-    //             None => Movement::Line(LinePosition::First),
-    //         }),
-    //         LapceCommand::GotoLineDefaultLast => Some(match count {
-    //             Some(n) => Movement::Line(LinePosition::Line(n)),
-    //             None => Movement::Line(LinePosition::Last),
-    //         }),
-    //         LapceCommand::WordBackward => Some(Movement::WordBackward),
-    //         LapceCommand::WordFoward => Some(Movement::WordForward),
-    //         LapceCommand::WordEndForward => Some(Movement::WordEndForward),
-    //         LapceCommand::MatchPairs => Some(Movement::MatchPairs),
-    //         LapceCommand::NextUnmatchedRightBracket => {
-    //             Some(Movement::NextUnmatched(')'))
-    //         }
-    //         LapceCommand::PreviousUnmatchedLeftBracket => {
-    //             Some(Movement::PreviousUnmatched('('))
-    //         }
-    //         LapceCommand::NextUnmatchedRightCurlyBracket => {
-    //             Some(Movement::NextUnmatched('}'))
-    //         }
-    //         LapceCommand::PreviousUnmatchedLeftCurlyBracket => {
-    //             Some(Movement::PreviousUnmatched('{'))
-    //         }
-    //         _ => None,
-    //     }
-    // }
 
     fn toggle_visual(&mut self, visual_mode: VisualMode) {
         if !self.config.lapce.modal {
@@ -2197,10 +2177,6 @@ impl LapceEditorViewData {
         }
     }
 
-    // pub fn cusor_region(&self, config: &Config) -> Rect {
-    //     self.editor.cursor.region(&self.buffer, config)
-    // }
-
     pub fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
         let line = self.buffer.line_of_offset(offset);
         let line_start = self.buffer.offset_of_line(line);
@@ -2529,1074 +2505,7 @@ impl LapceEditorViewData {
         let completion = Arc::make_mut(&mut self.completion);
         completion.cancel();
     }
-
-    //  fn update_completion(&mut self, ctx: &mut EventCtx) {
-    //      if self.get_mode() != Mode::Insert {
-    //          return;
-    //      }
-    //      if !self.buffer.loaded {
-    //          return;
-    //      }
-    //      if self.buffer.local {
-    //          return;
-    //      }
-    //      let offset = self.editor.cursor.offset();
-    //      let start_offset = self.buffer.prev_code_boundary(offset);
-    //      let end_offset = self.buffer.next_code_boundary(offset);
-    //      let input = self
-    //          .buffer
-    //          .slice_to_cow(start_offset..end_offset)
-    //          .to_string();
-    //      let char = if start_offset == 0 {
-    //          "".to_string()
-    //      } else {
-    //          self.buffer
-    //              .slice_to_cow(start_offset - 1..start_offset)
-    //              .to_string()
-    //      };
-    //      let completion = Arc::make_mut(&mut self.completion);
-    //      if input == "" && char != "." && char != ":" {
-    //          completion.cancel();
-    //          return;
-    //      }
-
-    //      if completion.status != CompletionStatus::Inactive
-    //          && completion.offset == start_offset
-    //          && completion.buffer_id == self.buffer.id
-    //      {
-    //          completion.update_input(input.clone());
-
-    //          if !completion.input_items.contains_key("") {
-    //              let event_sink = ctx.get_external_handle();
-    //              completion.request(
-    //                  self.proxy.clone(),
-    //                  completion.request_id,
-    //                  self.buffer.id,
-    //                  "".to_string(),
-    //                  self.buffer.offset_to_position(start_offset),
-    //                  completion.id,
-    //                  event_sink,
-    //              );
-    //          }
-
-    //          if !completion.input_items.contains_key(&input) {
-    //              let event_sink = ctx.get_external_handle();
-    //              completion.request(
-    //                  self.proxy.clone(),
-    //                  completion.request_id,
-    //                  self.buffer.id,
-    //                  input,
-    //                  self.buffer.offset_to_position(offset),
-    //                  completion.id,
-    //                  event_sink,
-    //              );
-    //          }
-
-    //          return;
-    //      }
-
-    //      completion.buffer_id = self.buffer.id;
-    //      completion.offset = start_offset;
-    //      completion.input = input.clone();
-    //      completion.status = CompletionStatus::Started;
-    //      completion.input_items.clear();
-    //      completion.request_id += 1;
-    //      let event_sink = ctx.get_external_handle();
-    //      completion.request(
-    //          self.proxy.clone(),
-    //          completion.request_id,
-    //          self.buffer.id,
-    //          "".to_string(),
-    //          self.buffer.offset_to_position(start_offset),
-    //          completion.id,
-    //          event_sink.clone(),
-    //      );
-    //      if input != "" {
-    //          completion.request(
-    //              self.proxy.clone(),
-    //              completion.request_id,
-    //              self.buffer.id,
-    //              input,
-    //              self.buffer.offset_to_position(offset),
-    //              completion.id,
-    //              event_sink,
-    //          );
-    //      }
-    //  }
 }
-
-// pub struct LapceEditorLens(pub WidgetId);
-//
-// impl Lens<LapceTabData, LapceEditorViewData> for LapceEditorLens {
-//     fn with<V, F: FnOnce(&LapceEditorViewData) -> V>(
-//         &self,
-//         data: &LapceTabData,
-//         f: F,
-//     ) -> V {
-//         let main_split = &data.main_split;
-//         let editor = main_split.editors.get(&self.0).unwrap();
-//         let diagnostics = data
-//             .main_split
-//             .diagnostics
-//             .get(&editor.buffer)
-//             .unwrap_or(&Arc::new(vec![]))
-//             .clone();
-//         let editor_view = LapceEditorViewData {
-//             buffer: main_split.open_files.get(&editor.buffer).unwrap().clone(),
-//             workspace: data.workspace.clone(),
-//             editor: editor.clone(),
-//             main_split: main_split.clone(),
-//             diagnostics,
-//             all_diagnostics: data.main_split.diagnostics.clone(),
-//             keypress: data.keypress.clone(),
-//             completion: data.completion.clone(),
-//             palette: Arc::new(data.palette.widget_id),
-//             theme: data.theme.clone(),
-//             proxy: data.proxy.clone(),
-//             config: data.config.clone(),
-//         };
-//         f(&editor_view)
-//     }
-//
-//     fn with_mut<V, F: FnOnce(&mut LapceEditorViewData) -> V>(
-//         &self,
-//         data: &mut LapceTabData,
-//         f: F,
-//     ) -> V {
-//         let main_split = &data.main_split;
-//         let editor = main_split.editors.get(&self.0).unwrap().clone();
-//         let buffer = main_split.open_files.get(&editor.buffer).unwrap().clone();
-//         let diagnostics = data
-//             .main_split
-//             .diagnostics
-//             .get(&editor.buffer)
-//             .unwrap_or(&Arc::new(vec![]))
-//             .clone();
-//         let mut editor_view = LapceEditorViewData {
-//             buffer: buffer.clone(),
-//             workspace: data.workspace.clone(),
-//             editor: editor.clone(),
-//             diagnostics: diagnostics.clone(),
-//             all_diagnostics: data.main_split.diagnostics.clone(),
-//             main_split: data.main_split.clone(),
-//             keypress: data.keypress.clone(),
-//             completion: data.completion.clone(),
-//             palette: Arc::new(data.palette.widget_id),
-//             theme: data.theme.clone(),
-//             proxy: data.proxy.clone(),
-//             config: data.config.clone(),
-//         };
-//         let result = f(&mut editor_view);
-//
-//         data.keypress = editor_view.keypress.clone();
-//         data.completion = editor_view.completion.clone();
-//         data.main_split = editor_view.main_split.clone();
-//         if !diagnostics.same(&editor_view.diagnostics) {
-//             data.main_split.diagnostics.insert(
-//                 editor_view.buffer.path.clone(),
-//                 editor_view.diagnostics.clone(),
-//             );
-//         }
-//         data.theme = editor_view.theme.clone();
-//         if !editor.same(&editor_view.editor) {
-//             data.main_split
-//                 .editors
-//                 .insert(self.0, editor_view.editor.clone());
-//         }
-//         if !buffer.same(&editor_view.buffer) {
-//             data.main_split
-//                 .open_files
-//                 .insert(editor_view.buffer.path.clone(), editor_view.buffer.clone());
-//         }
-//
-//         result
-//     }
-// }
-
-// impl KeyPressFocus for LapceEditorViewData {
-//     fn get_mode(&self) -> Mode {
-//         self.editor.cursor.get_mode()
-//     }
-//
-//     fn check_condition(&self, condition: &str) -> bool {
-//         match condition {
-//             "editor_focus" => true,
-//             "source_control_focus" => {
-//                 self.editor.editor_type == EditorType::SourceControl
-//             }
-//             "in_snippet" => self.editor.snippet.is_some(),
-//             "list_focus" => {
-//                 self.completion.status != CompletionStatus::Inactive
-//                     && self.completion.len() > 0
-//             }
-//             _ => false,
-//         }
-//     }
-
-// fn run_command(
-//     &mut self,
-//     ctx: &mut EventCtx,
-//     cmd: &LapceCommand,
-//     count: Option<usize>,
-//     env: &Env,
-// ) {
-//     if let Some(movement) = self.move_command(count, cmd) {
-//         self.do_move(&movement, count.unwrap_or(1));
-//         if let Some(snippet) = self.editor.snippet.as_ref() {
-//             let offset = self.editor.cursor.offset();
-//             let mut within_region = false;
-//             for (_, (start, end)) in snippet {
-//                 if offset >= *start && offset <= *end {
-//                     within_region = true;
-//                     break;
-//                 }
-//             }
-//             if !within_region {
-//                 Arc::make_mut(&mut self.editor).snippet = None;
-//             }
-//         }
-//         self.cancel_completion();
-//         return;
-//     }
-//     match cmd {
-//         LapceCommand::SplitLeft => {
-//             if let Some(split_id) = self.editor.split_id.clone() {
-//                 ctx.submit_command(Command::new(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::SplitEditorMove(
-//                         SplitMoveDirection::Left,
-//                         self.editor.view_id,
-//                     ),
-//                     Target::Widget(split_id),
-//                 ));
-//             }
-//         }
-//         LapceCommand::SplitRight => {
-//             if let Some(split_id) = self.editor.split_id.clone() {
-//                 ctx.submit_command(Command::new(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::SplitEditorMove(
-//                         SplitMoveDirection::Right,
-//                         self.editor.view_id,
-//                     ),
-//                     Target::Widget(split_id),
-//                 ));
-//             }
-//         }
-//         LapceCommand::SplitUp => {
-//             if let Some(split_id) = self.editor.split_id.clone() {
-//                 ctx.submit_command(Command::new(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::SplitEditorMove(
-//                         SplitMoveDirection::Up,
-//                         self.editor.view_id,
-//                     ),
-//                     Target::Widget(split_id),
-//                 ));
-//             }
-//         }
-//         LapceCommand::SplitDown => {
-//             if let Some(split_id) = self.editor.split_id.clone() {
-//                 ctx.submit_command(Command::new(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::SplitEditorMove(
-//                         SplitMoveDirection::Down,
-//                         self.editor.view_id,
-//                     ),
-//                     Target::Widget(split_id),
-//                 ));
-//             }
-//         }
-//         LapceCommand::SplitExchange => {
-//             if let Some(split_id) = self.editor.split_id.clone() {
-//                 if self.editor.editor_type == EditorType::Normal {
-//                     ctx.submit_command(Command::new(
-//                         LAPCE_UI_COMMAND,
-//                         LapceUICommand::SplitEditorExchange(self.editor.view_id),
-//                         Target::Widget(split_id),
-//                     ));
-//                 }
-//             }
-//         }
-//         LapceCommand::SplitVertical => {
-//             if let Some(split_id) = self.editor.split_id.clone() {
-//                 if self.editor.editor_type == EditorType::Normal {
-//                     ctx.submit_command(Command::new(
-//                         LAPCE_UI_COMMAND,
-//                         LapceUICommand::SplitEditor(true, self.editor.view_id),
-//                         Target::Widget(split_id),
-//                     ));
-//                 }
-//             }
-//         }
-//         LapceCommand::SplitClose => {
-//             if let Some(split_id) = self.editor.split_id.clone() {
-//                 if self.editor.editor_type == EditorType::Normal {
-//                     ctx.submit_command(Command::new(
-//                         LAPCE_UI_COMMAND,
-//                         LapceUICommand::SplitEditorClose(self.editor.view_id),
-//                         Target::Widget(split_id),
-//                     ));
-//                 }
-//             }
-//         }
-//         LapceCommand::Undo => {
-//             self.initiate_diagnositcs_offset();
-//             let proxy = self.proxy.clone();
-//             let buffer = self.buffer_mut();
-//             if let Some(delta) = buffer.do_undo(proxy) {
-//                 let (iv, _) = delta.summary();
-//                 let line = self.buffer.line_of_offset(iv.start);
-//                 let offset = self.buffer.first_non_blank_character_on_line(line);
-//                 let selection = Selection::caret(offset);
-//                 self.set_cursor_after_change(selection);
-//                 self.update_diagnositcs_offset(&delta);
-//             }
-//         }
-//         LapceCommand::Redo => {
-//             self.initiate_diagnositcs_offset();
-//             let proxy = self.proxy.clone();
-//             let buffer = self.buffer_mut();
-//             if let Some(delta) = buffer.do_redo(proxy) {
-//                 let (iv, _) = delta.summary();
-//                 let line = self.buffer.line_of_offset(iv.start);
-//                 let offset = self.buffer.first_non_blank_character_on_line(line);
-//                 let selection = Selection::caret(offset);
-//                 self.set_cursor_after_change(selection);
-//                 self.update_diagnositcs_offset(&delta);
-//             }
-//         }
-//         LapceCommand::Append => {
-//             let offset = self
-//                 .buffer
-//                 .move_offset(
-//                     self.editor.cursor.offset(),
-//                     None,
-//                     1,
-//                     &Movement::Right,
-//                     Mode::Insert,
-//                 )
-//                 .0;
-//             self.buffer_mut().update_edit_type();
-//             self.set_cursor(Cursor::new(
-//                 CursorMode::Insert(Selection::caret(offset)),
-//                 None,
-//             ));
-//         }
-//         LapceCommand::AppendEndOfLine => {
-//             let (offset, horiz) = self.buffer.move_offset(
-//                 self.editor.cursor.offset(),
-//                 None,
-//                 1,
-//                 &Movement::EndOfLine,
-//                 Mode::Insert,
-//             );
-//             self.buffer_mut().update_edit_type();
-//             self.set_cursor(Cursor::new(
-//                 CursorMode::Insert(Selection::caret(offset)),
-//                 Some(horiz),
-//             ));
-//         }
-//         LapceCommand::InsertMode => {
-//             Arc::make_mut(&mut self.editor).cursor.mode = CursorMode::Insert(
-//                 Selection::caret(self.editor.cursor.offset()),
-//             );
-//             self.buffer_mut().update_edit_type();
-//         }
-//         LapceCommand::InsertFirstNonBlank => {
-//             match &self.editor.cursor.mode {
-//                 CursorMode::Normal(offset) => {
-//                     let (offset, horiz) = self.buffer.move_offset(
-//                         *offset,
-//                         None,
-//                         1,
-//                         &Movement::FirstNonBlank,
-//                         Mode::Normal,
-//                     );
-//                     self.buffer_mut().update_edit_type();
-//                     self.set_cursor(Cursor::new(
-//                         CursorMode::Insert(Selection::caret(offset)),
-//                         Some(horiz),
-//                     ));
-//                 }
-//                 CursorMode::Visual { start, end, mode } => {
-//                     let mut selection = Selection::new();
-//                     for region in
-//                         self.editor.cursor.edit_selection(&self.buffer).regions()
-//                     {
-//                         selection.add_region(SelRegion::caret(region.min()));
-//                     }
-//                     self.buffer_mut().update_edit_type();
-//                     self.set_cursor(Cursor::new(
-//                         CursorMode::Insert(selection),
-//                         None,
-//                     ));
-//                 }
-//                 CursorMode::Insert(_) => {}
-//             };
-//         }
-//         LapceCommand::NewLineAbove => {
-//             let line = self.editor.cursor.current_line(&self.buffer);
-//             let offset = if line > 0 {
-//                 self.buffer.line_end_offset(line - 1, true)
-//             } else {
-//                 self.buffer.first_non_blank_character_on_line(line)
-//             };
-//             self.insert_new_line(ctx, offset);
-//         }
-//         LapceCommand::NewLineBelow => {
-//             let offset = self.editor.cursor.offset();
-//             let offset = self.buffer.offset_line_end(offset, true);
-//             self.insert_new_line(ctx, offset);
-//         }
-//         LapceCommand::DeleteToBeginningOfLine => {
-//             let selection = match self.editor.cursor.mode {
-//                 CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-//                     self.editor.cursor.edit_selection(&self.buffer)
-//                 }
-//                 CursorMode::Insert(_) => {
-//                     let selection =
-//                         self.editor.cursor.edit_selection(&self.buffer);
-//                     let selection = self.buffer.update_selection(
-//                         &selection,
-//                         1,
-//                         &Movement::StartOfLine,
-//                         Mode::Insert,
-//                         true,
-//                     );
-//                     selection
-//                 }
-//             };
-//             let (selection, _) =
-//                 self.edit(ctx, &selection, "", None, true, EditType::Delete);
-//             match self.editor.cursor.mode {
-//                 CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-//                     let offset = selection.min_offset();
-//                     let offset =
-//                         self.buffer.offset_line_end(offset, false).min(offset);
-//                     self.set_cursor(Cursor::new(
-//                         CursorMode::Normal(offset),
-//                         None,
-//                     ));
-//                 }
-//                 CursorMode::Insert(_) => {
-//                     self.set_cursor(Cursor::new(
-//                         CursorMode::Insert(selection),
-//                         None,
-//                     ));
-//                 }
-//             }
-//         }
-//         LapceCommand::Yank => {
-//             let data = self.editor.cursor.yank(&self.buffer);
-//             let register = Arc::make_mut(&mut self.main_split.register);
-//             register.add_yank(data);
-//             match &self.editor.cursor.mode {
-//                 CursorMode::Visual { start, end, mode } => {
-//                     let offset = *start.min(end);
-//                     let offset =
-//                         self.buffer.offset_line_end(offset, false).min(offset);
-//                     self.set_cursor(Cursor::new(
-//                         CursorMode::Normal(offset),
-//                         None,
-//                     ));
-//                 }
-//                 CursorMode::Normal(_) => {}
-//                 CursorMode::Insert(_) => {}
-//             }
-//         }
-//         LapceCommand::ClipboardCopy => {
-//             let data = self.editor.cursor.yank(&self.buffer);
-//             Application::global().clipboard().put_string(data.content);
-//             match &self.editor.cursor.mode {
-//                 CursorMode::Visual { start, end, mode } => {
-//                     let offset = *start.min(end);
-//                     let offset =
-//                         self.buffer.offset_line_end(offset, false).min(offset);
-//                     self.set_cursor(Cursor::new(
-//                         CursorMode::Normal(offset),
-//                         None,
-//                     ));
-//                 }
-//                 CursorMode::Normal(_) => {}
-//                 CursorMode::Insert(_) => {}
-//             }
-//         }
-//         LapceCommand::ClipboardPaste => {
-//             if let Some(s) = Application::global().clipboard().get_string() {
-//                 let data = RegisterData {
-//                     content: s.to_string(),
-//                     mode: VisualMode::Normal,
-//                 };
-//                 self.paste(ctx, &data);
-//             }
-//         }
-//         LapceCommand::Paste => {
-//             let data = self.main_split.register.unamed.clone();
-//             self.paste(ctx, &data);
-//         }
-//         LapceCommand::DeleteWordBackward => {
-//             let selection = match self.editor.cursor.mode {
-//                 CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-//                     self.editor.cursor.edit_selection(&self.buffer)
-//                 }
-//                 CursorMode::Insert(_) => {
-//                     let selection =
-//                         self.editor.cursor.edit_selection(&self.buffer);
-//                     let selection = self.buffer.update_selection(
-//                         &selection,
-//                         1,
-//                         &Movement::WordBackward,
-//                         Mode::Insert,
-//                         true,
-//                     );
-//                     selection
-//                 }
-//             };
-//             let (selection, _) =
-//                 self.edit(ctx, &selection, "", None, true, EditType::Delete);
-//             self.set_cursor_after_change(selection);
-//             self.update_completion(ctx);
-//         }
-//         LapceCommand::DeleteBackward => {
-//             let selection = match self.editor.cursor.mode {
-//                 CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-//                     self.editor.cursor.edit_selection(&self.buffer)
-//                 }
-//                 CursorMode::Insert(_) => {
-//                     let selection =
-//                         self.editor.cursor.edit_selection(&self.buffer);
-//                     let mut selection = self.buffer.update_selection(
-//                         &selection,
-//                         1,
-//                         &Movement::Left,
-//                         Mode::Insert,
-//                         true,
-//                     );
-//                     if selection.regions().len() == 1 {
-//                         let delete_str = self
-//                             .buffer
-//                             .slice_to_cow(
-//                                 selection.min_offset()..selection.max_offset(),
-//                             )
-//                             .to_string();
-//                         if str_is_pair_left(&delete_str) {
-//                             if let Some(c) = str_matching_pair(&delete_str) {
-//                                 let offset = selection.max_offset();
-//                                 let line = self.buffer.line_of_offset(offset);
-//                                 let line_end =
-//                                     self.buffer.line_end_offset(line, true);
-//                                 let content = self
-//                                     .buffer
-//                                     .slice_to_cow(offset..line_end)
-//                                     .to_string();
-//                                 if content.trim().starts_with(&c.to_string()) {
-//                                     let index = content
-//                                         .match_indices(c)
-//                                         .next()
-//                                         .unwrap()
-//                                         .0;
-//                                     selection = Selection::region(
-//                                         selection.min_offset(),
-//                                         offset + index + 1,
-//                                     );
-//                                 }
-//                             }
-//                         }
-//                     }
-//                     selection
-//                 }
-//             };
-//             let (selection, _) =
-//                 self.edit(ctx, &selection, "", None, true, EditType::Delete);
-//             self.set_cursor_after_change(selection);
-//             self.update_completion(ctx);
-//         }
-//         LapceCommand::DeleteForeward => {
-//             let selection = self.editor.cursor.edit_selection(&self.buffer);
-//             let (selection, _) =
-//                 self.edit(ctx, &selection, "", None, true, EditType::Delete);
-//             self.set_cursor_after_change(selection);
-//             self.update_completion(ctx);
-//         }
-//         LapceCommand::DeleteForewardAndInsert => {
-//             let selection = self.editor.cursor.edit_selection(&self.buffer);
-//             let (selection, _) =
-//                 self.edit(ctx, &selection, "", None, true, EditType::Delete);
-//             self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
-//             self.update_completion(ctx);
-//         }
-//         LapceCommand::InsertNewLine => {
-//             let selection = self.editor.cursor.edit_selection(&self.buffer);
-//             if selection.regions().len() > 1 {
-//                 let (selection, _) = self.edit(
-//                     ctx,
-//                     &selection,
-//                     "\n",
-//                     None,
-//                     true,
-//                     EditType::InsertNewline,
-//                 );
-//                 self.set_cursor(Cursor::new(
-//                     CursorMode::Insert(selection),
-//                     None,
-//                 ));
-//                 return;
-//             };
-//             self.insert_new_line(ctx, self.editor.cursor.offset());
-//             self.update_completion(ctx);
-//         }
-//         LapceCommand::ToggleVisualMode => {
-//             self.toggle_visual(VisualMode::Normal);
-//         }
-//         LapceCommand::ToggleLinewiseVisualMode => {
-//             self.toggle_visual(VisualMode::Linewise);
-//         }
-//         LapceCommand::ToggleBlockwiseVisualMode => {
-//             self.toggle_visual(VisualMode::Blockwise);
-//         }
-//         LapceCommand::CenterOfWindow => {
-//             ctx.submit_command(Command::new(
-//                 LAPCE_UI_COMMAND,
-//                 LapceUICommand::EnsureCursorCenter,
-//                 Target::Widget(self.editor.view_id),
-//             ));
-//         }
-//         LapceCommand::ScrollDown => {
-//             self.scroll(ctx, true, count.unwrap_or(1), env);
-//         }
-//         LapceCommand::ScrollUp => {
-//             self.scroll(ctx, false, count.unwrap_or(1), env);
-//         }
-//         LapceCommand::PageDown => {
-//             self.page_move(ctx, true, env);
-//         }
-//         LapceCommand::PageUp => {
-//             self.page_move(ctx, false, env);
-//         }
-//         LapceCommand::JumpLocationBackward => {
-//             self.jump_location_backward(ctx, env);
-//         }
-//         LapceCommand::JumpLocationForward => {
-//             self.jump_location_forward(ctx, env);
-//         }
-//         LapceCommand::NextError => {
-//             self.next_error(ctx, env);
-//         }
-//         LapceCommand::PreviousError => {}
-//         LapceCommand::ListNext => {
-//             let completion = Arc::make_mut(&mut self.completion);
-//             completion.next();
-//         }
-//         LapceCommand::ListPrevious => {
-//             let completion = Arc::make_mut(&mut self.completion);
-//             completion.previous();
-//         }
-//         LapceCommand::JumpToNextSnippetPlaceholder => {
-//             if let Some(snippet) = self.editor.snippet.as_ref() {
-//                 let mut current = 0;
-//                 let offset = self.editor.cursor.offset();
-//                 for (i, (_, (start, end))) in snippet.iter().enumerate() {
-//                     if *start <= offset && offset <= *end {
-//                         current = i;
-//                         break;
-//                     }
-//                 }
-
-//                 let last_placeholder = current + 1 >= snippet.len() - 1;
-
-//                 if let Some((_, (start, end))) = snippet.get(current + 1) {
-//                     let mut selection = Selection::new();
-//                     let region = SelRegion::new(*start, *end, None);
-//                     selection.add_region(region);
-//                     self.set_cursor(Cursor::new(
-//                         CursorMode::Insert(selection),
-//                         None,
-//                     ));
-//                 }
-
-//                 if last_placeholder {
-//                     Arc::make_mut(&mut self.editor).snippet = None;
-//                 }
-//                 self.cancel_completion();
-//             }
-//         }
-//         LapceCommand::JumpToPrevSnippetPlaceholder => {
-//             if let Some(snippet) = self.editor.snippet.as_ref() {
-//                 let mut current = 0;
-//                 let offset = self.editor.cursor.offset();
-//                 for (i, (_, (start, end))) in snippet.iter().enumerate() {
-//                     if *start <= offset && offset <= *end {
-//                         current = i;
-//                         break;
-//                     }
-//                 }
-
-//                 if current > 0 {
-//                     if let Some((_, (start, end))) = snippet.get(current - 1) {
-//                         let mut selection = Selection::new();
-//                         let region = SelRegion::new(*start, *end, None);
-//                         selection.add_region(region);
-//                         self.set_cursor(Cursor::new(
-//                             CursorMode::Insert(selection),
-//                             None,
-//                         ));
-//                     }
-//                     self.cancel_completion();
-//                 }
-//             }
-//         }
-//         LapceCommand::ListSelect => {
-//             let selection = self.editor.cursor.edit_selection(&self.buffer);
-
-//             let count = self.completion.input.len();
-//             let selection = if count > 0 {
-//                 self.buffer.update_selection(
-//                     &selection,
-//                     count,
-//                     &Movement::Left,
-//                     Mode::Insert,
-//                     true,
-//                 )
-//             } else {
-//                 selection
-//             };
-
-//             let item = self.completion.current_item().to_owned();
-//             self.cancel_completion();
-//             if item.data.is_some() {
-//                 let view_id = self.editor.view_id;
-//                 let buffer_id = self.buffer.id;
-//                 let rev = self.buffer.rev;
-//                 let offset = self.editor.cursor.offset();
-//                 let event_sink = ctx.get_external_handle();
-//                 self.proxy.completion_resolve(
-//                     buffer_id,
-//                     item.clone(),
-//                     Box::new(move |result| {
-//                         println!("completion resolve result {:?}", result);
-//                         let mut item = item.clone();
-//                         if let Ok(res) = result {
-//                             if let Ok(i) =
-//                                 serde_json::from_value::<CompletionItem>(res)
-//                             {
-//                                 item = i;
-//                             }
-//                         };
-//                         event_sink.submit_command(
-//                             LAPCE_UI_COMMAND,
-//                             LapceUICommand::ResolveCompletion(
-//                                 buffer_id, rev, offset, item,
-//                             ),
-//                             Target::Widget(view_id),
-//                         );
-//                     }),
-//                 );
-//             } else {
-//                 self.apply_completion_item(ctx, &item);
-//             }
-//         }
-//         LapceCommand::NormalMode => {
-//             if !self.config.lapce.modal {
-//                 return;
-//             }
-
-//             let offset = match &self.editor.cursor.mode {
-//                 CursorMode::Insert(selection) => {
-//                     self.buffer
-//                         .move_offset(
-//                             selection.get_cursor_offset(),
-//                             None,
-//                             1,
-//                             &Movement::Left,
-//                             Mode::Normal,
-//                         )
-//                         .0
-//                 }
-//                 CursorMode::Visual { start, end, mode } => {
-//                     self.buffer.offset_line_end(*end, false).min(*end)
-//                 }
-//                 CursorMode::Normal(offset) => *offset,
-//             };
-//             self.buffer_mut().update_edit_type();
-//             let mut cursor = &mut Arc::make_mut(&mut self.editor).cursor;
-//             cursor.mode = CursorMode::Normal(offset);
-//             cursor.horiz = None;
-//             Arc::make_mut(&mut self.editor).snippet = None;
-//             self.cancel_completion();
-//         }
-//         LapceCommand::GotoDefinition => {
-//             let offset = self.editor.cursor.offset();
-//             let start_offset = self.buffer.prev_code_boundary(offset);
-//             let start_position = self.buffer.offset_to_position(start_offset);
-//             let event_sink = ctx.get_external_handle();
-//             let buffer_id = self.buffer.id;
-//             let position = self.buffer.offset_to_position(offset);
-//             let proxy = self.proxy.clone();
-//             let editor_view_id = self.editor.view_id;
-//             self.proxy.get_definition(
-//                 offset,
-//                 buffer_id,
-//                 position,
-//                 Box::new(move |result| {
-//                     if let Ok(res) = result {
-//                         if let Ok(resp) =
-//                             serde_json::from_value::<GotoDefinitionResponse>(res)
-//                         {
-//                             if let Some(location) = match resp {
-//                                 GotoDefinitionResponse::Scalar(location) => {
-//                                     Some(location)
-//                                 }
-//                                 GotoDefinitionResponse::Array(locations) => {
-//                                     if locations.len() > 0 {
-//                                         Some(locations[0].clone())
-//                                     } else {
-//                                         None
-//                                     }
-//                                 }
-//                                 GotoDefinitionResponse::Link(location_links) => {
-//                                     None
-//                                 }
-//                             } {
-//                                 if location.range.start == start_position {
-//                                     proxy.get_references(
-//                                         buffer_id,
-//                                         position,
-//                                         Box::new(move |result| {
-//                                             process_get_references(
-//                                                 editor_view_id,
-//                                                 offset,
-//                                                 result,
-//                                                 event_sink,
-//                                             );
-//                                         }),
-//                                     );
-//                                 } else {
-//                                     event_sink.submit_command(
-//                                         LAPCE_UI_COMMAND,
-//                                         LapceUICommand::GotoDefinition(
-//                                             editor_view_id,
-//                                             offset,
-//                                             EditorLocationNew {
-//                                                 path: PathBuf::from(
-//                                                     location.uri.path(),
-//                                                 ),
-//                                                 position: Some(
-//                                                     location.range.start,
-//                                                 ),
-//                                                 scroll_offset: None,
-//                                             },
-//                                         ),
-//                                         Target::Auto,
-//                                     );
-//                                 }
-//                             }
-//                         }
-//                     }
-//                 }),
-//             );
-//         }
-//         LapceCommand::SourceControl => {
-//             ctx.submit_command(Command::new(
-//                 LAPCE_UI_COMMAND,
-//                 LapceUICommand::FocusSourceControl,
-//                 Target::Auto,
-//             ));
-//         }
-//         LapceCommand::SourceControlCancel => {
-//             if self.editor.editor_type == EditorType::SourceControl {
-//                 ctx.submit_command(Command::new(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::FocusEditor,
-//                     Target::Auto,
-//                 ));
-//                 println!("source control cancel");
-//             }
-//         }
-//         LapceCommand::ShowCodeActions => {
-//             if let Some(actions) = self.current_code_actions() {
-//                 if actions.len() > 0 {
-//                     ctx.submit_command(Command::new(
-//                         LAPCE_UI_COMMAND,
-//                         LapceUICommand::ShowCodeActions,
-//                         Target::Auto,
-//                     ));
-//                 }
-//             }
-//         }
-//         LapceCommand::SearchWholeWordForward => {
-//             let offset = self.editor.cursor.offset();
-//             let (start, end) = self.buffer.select_word(offset);
-//             let word = self.buffer.slice_to_cow(start..end).to_string();
-//             Arc::make_mut(&mut self.main_split.find)
-//                 .set_find(&word, false, false, true);
-//             let next = self.main_split.find.next(
-//                 &self.buffer.rope,
-//                 offset,
-//                 false,
-//                 true,
-//             );
-//             if let Some((start, end)) = next {
-//                 self.do_move(&Movement::Offset(start), 1);
-//             }
-//         }
-//         LapceCommand::SearchForward => {
-//             let offset = self.editor.cursor.offset();
-//             let next = self.main_split.find.next(
-//                 &self.buffer.rope,
-//                 offset,
-//                 false,
-//                 true,
-//             );
-//             if let Some((start, end)) = next {
-//                 self.do_move(&Movement::Offset(start), 1);
-//             }
-//         }
-//         LapceCommand::SearchBackward => {
-//             let offset = self.editor.cursor.offset();
-//             let next =
-//                 self.main_split
-//                     .find
-//                     .next(&self.buffer.rope, offset, true, true);
-//             if let Some((start, end)) = next {
-//                 self.do_move(&Movement::Offset(start), 1);
-//             }
-//         }
-//         LapceCommand::JoinLines => {
-//             let offset = self.editor.cursor.offset();
-//             let (line, col) = self.buffer.offset_to_line_col(offset);
-//             if line < self.buffer.last_line() {
-//                 let start = self.buffer.line_end_offset(line, true);
-//                 let end =
-//                     self.buffer.first_non_blank_character_on_line(line + 1);
-//                 self.edit(
-//                     ctx,
-//                     &Selection::region(start, end),
-//                     " ",
-//                     None,
-//                     false,
-//                     EditType::Other,
-//                 );
-//             }
-//         }
-//         LapceCommand::Save => {
-//             if !self.buffer.dirty {
-//                 return;
-//             }
-
-//             let proxy = self.proxy.clone();
-//             let buffer_id = self.buffer.id;
-//             let rev = self.buffer.rev;
-//             let path = self.buffer.path.clone();
-//             let event_sink = ctx.get_external_handle();
-//             let (sender, receiver) = bounded(1);
-//             thread::spawn(move || {
-//                 proxy.get_document_formatting(
-//                     buffer_id,
-//                     Box::new(move |result| {
-//                         sender.send(result);
-//                     }),
-//                 );
-
-//                 let result =
-//                     receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
-//                         |e| Err(anyhow!("{}", e)),
-//                         |v| v.map_err(|e| anyhow!("{:?}", e)),
-//                     );
-//                 event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::DocumentFormatAndSave(path, rev, result),
-//                     Target::Auto,
-//                 );
-//             });
-//         }
-//         _ => {
-//             ctx.submit_command(Command::new(
-//                 LAPCE_COMMAND,
-//                 cmd.clone(),
-//                 Target::Auto,
-//             ));
-//         }
-//     }
-// }
-
-//     fn insert(&mut self, ctx: &mut EventCtx, c: &str) {
-//         if self.get_mode() == Mode::Insert {
-//             let mut selection = self.editor.cursor.edit_selection(&self.buffer);
-//             let cursor_char =
-//                 self.buffer.char_at_offset(selection.get_cursor_offset());
-//
-//             let mut content = c.to_string();
-//             if c.chars().count() == 1 {
-//                 let c = c.chars().next().unwrap();
-//                 if !matching_pair_direction(c).unwrap_or(true) {
-//                     if cursor_char == Some(c) {
-//                         self.do_move(&Movement::Right, 1);
-//                         return;
-//                     } else {
-//                         let offset = selection.get_cursor_offset();
-//                         let line = self.buffer.line_of_offset(offset);
-//                         let line_start = self.buffer.offset_of_line(line);
-//                         if self.buffer.slice_to_cow(line_start..offset).trim() == ""
-//                         {
-//                             if let Some(c) = matching_char(c) {
-//                                 if let Some(previous_offset) =
-//                                     self.buffer.previous_unmatched(c, offset)
-//                                 {
-//                                     let previous_line =
-//                                         self.buffer.line_of_offset(previous_offset);
-//                                     let line_indent =
-//                                         self.buffer.indent_on_line(previous_line);
-//                                     content = line_indent + &content;
-//                                     selection =
-//                                         Selection::region(line_start, offset);
-//                                 }
-//                             }
-//                         };
-//                     }
-//                 }
-//             }
-//
-//             let (selection, _) = self.edit(
-//                 ctx,
-//                 &selection,
-//                 &content,
-//                 None,
-//                 true,
-//                 EditType::InsertChars,
-//             );
-//             let editor = Arc::make_mut(&mut self.editor);
-//             editor.cursor.mode = CursorMode::Insert(selection.clone());
-//             editor.cursor.horiz = None;
-//             if c.chars().count() == 1 {
-//                 let c = c.chars().next().unwrap();
-//                 if matching_pair_direction(c).unwrap_or(false) {
-//                     if cursor_char
-//                         .map(|c| {
-//                             let prop = get_word_property(c);
-//                             prop == WordProperty::Lf
-//                                 || prop == WordProperty::Space
-//                                 || prop == WordProperty::Punctuation
-//                         })
-//                         .unwrap_or(true)
-//                     {
-//                         if let Some(c) = matching_char(c) {
-//                             self.edit(
-//                                 ctx,
-//                                 &selection,
-//                                 &c.to_string(),
-//                                 None,
-//                                 false,
-//                                 EditType::InsertChars,
-//                             );
-//                         }
-//                     }
-//                 }
-//             }
-//             self.update_completion(ctx);
-//         }
-//     }
-// }
 
 fn next_in_file_errors_offset(
     position: Position,
