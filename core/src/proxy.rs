@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::io::BufReader;
-use std::os::unix::prelude::CommandExt;
 use std::process::Command;
 use std::process::Stdio;
 use std::thread;
@@ -12,7 +11,6 @@ use crossbeam_channel::Sender;
 use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
-use lapce_proxy::dispatch::VERSION;
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lapce_proxy::plugin::PluginDescription;
 use lapce_proxy::terminal::TermId;
@@ -36,6 +34,8 @@ use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
 use crate::terminal::RawTerminal;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub enum TermEvent {
     NewTerminal(Arc<Mutex<RawTerminal>>),
@@ -119,7 +119,7 @@ impl LapceProxy {
                         .arg("ControlPath=~/.ssh/cm-%r@%h:%p")
                         .arg("-o")
                         .arg("ControlPersist=30m")
-                        .arg("/tmp/proxy/target/release/lapce-proxy")
+                        .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
                         .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
                         .spawn()

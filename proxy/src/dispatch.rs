@@ -25,8 +25,6 @@ use std::{sync::Arc, time::Duration};
 use xi_core_lib::watcher::{EventQueue, FileWatcher, Notify, WatchToken};
 use xi_rope::{RopeDelta, RopeInfo};
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 pub const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
 pub const GIT_EVENT_TOKEN: WatchToken = WatchToken(2);
 
