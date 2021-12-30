@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::BufReader;
+use std::os::unix::prelude::CommandExt;
 use std::process::Command;
 use std::process::Stdio;
 use std::thread;
@@ -11,6 +12,7 @@ use crossbeam_channel::Sender;
 use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
+use lapce_proxy::dispatch::VERSION;
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lapce_proxy::plugin::PluginDescription;
 use lapce_proxy::terminal::TermId;
@@ -81,18 +83,47 @@ impl LapceProxy {
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .spawn(),
-                LapceWorkspaceType::RemoteSSH(user, host) => Command::new("ssh")
-                    .arg(format!("{}@{}", user, host))
-                    .arg("-o")
-                    .arg("ControlMaster=auto")
-                    .arg("-o")
-                    .arg("ControlPath=~/.ssh/cm-%r@%h:%p")
-                    .arg("-o")
-                    .arg("ControlPersist=30m")
-                    .arg("/tmp/proxy/target/release/lapce-proxy")
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .spawn(),
+                LapceWorkspaceType::RemoteSSH(user, host) => {
+                    let cmd = Command::new("ssh")
+                        .arg(format!("{}@{}", user, host))
+                        .arg("-o")
+                        .arg("ControlMaster=auto")
+                        .arg("-o")
+                        .arg("ControlPath=~/.ssh/cm-%r@%h:%p")
+                        .arg("-o")
+                        .arg("ControlPersist=30m")
+                        .arg("test")
+                        .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
+                        .output()
+                        .unwrap();
+                    if !cmd.status.success() {
+                        Command::new("ssh")
+                            .arg(format!("{}@{}", user, host))
+                            .arg("-o")
+                            .arg("ControlMaster=auto")
+                            .arg("-o")
+                            .arg("ControlPath=~/.ssh/cm-%r@%h:%p")
+                            .arg("-o")
+                            .arg("ControlPersist=30m")
+                            .arg("mkdir")
+                            .arg("~/.lapce/")
+                            .output()
+                            .unwrap();
+                    }
+
+                    Command::new("ssh")
+                        .arg(format!("{}@{}", user, host))
+                        .arg("-o")
+                        .arg("ControlMaster=auto")
+                        .arg("-o")
+                        .arg("ControlPath=~/.ssh/cm-%r@%h:%p")
+                        .arg("-o")
+                        .arg("ControlPersist=30m")
+                        .arg("/tmp/proxy/target/release/lapce-proxy")
+                        .stdin(Stdio::piped())
+                        .stdout(Stdio::piped())
+                        .spawn()
+                }
             };
             if child.is_err() {
                 println!("can't start proxy {:?}", child);

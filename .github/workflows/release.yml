@@ -40,6 +40,31 @@ jobs:
           tag: ${{ github.ref }}
           overwrite: true
 
+  linux:
+    runs-on: ubuntu-latest
+
+    step:
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev \
+            libxcb-xfixes0-dev libxkbcommon-dev
+      - name: Update rust
+        run: rustup update
+      - name: Build
+        run: cargo build --release
+      - name: Gzip 
+        run: |
+          gzip -c "./target/release/lapce" "./target/release/lapce-proxy" > "./Lapce-linux.gz"
+      - name: Upload Application
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./Lapce-linux.gz
+          file_glob: true
+          tag: ${{ github.ref }}
+          overwrite: true
+
   macos:
     runs-on: macos-11
 
