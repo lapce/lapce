@@ -17,6 +17,7 @@ magenta = "#C678DD"
 "lapce.warn" = "$yellow"
 "lapce.dropdown_shadow" = "#000000"
 "lapce.border" = "#000000"
+"lapce.scroll_bar" = "$grey"
 
 "terminal.cursor" = "$white"
 "terminal.foreground" = "$white"
@@ -52,9 +53,11 @@ magenta = "#C678DD"
 "completion.current" = "#2C313A"
 
 "panel.background" = "#21252B"
-"panel.current" = "#dbdbdc"
+"panel.current" = "#2C313A"
 
 "status.background" = "#21252B"
+
+"style.comment" = "#5C6370"
 
 "style.constant" = "$yellow"
 "style.type" = "$yellow"

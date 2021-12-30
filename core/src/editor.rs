@@ -1284,11 +1284,15 @@ impl LapceEditorBufferData {
                     self.config.editor.font_family(),
                     self.config.editor.font_size as f64,
                 )
-                .text_color(
+                .text_color(if line == current_line {
                     self.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
+                        .clone()
+                } else {
+                    self.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone()
+                })
                 .build()
                 .unwrap();
             ctx.draw_text(&text_layout, pos);

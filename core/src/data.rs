@@ -60,7 +60,7 @@ use crate::{
         LAPCE_UI_COMMAND,
     },
     completion::{CompletionData, CompletionStatus, Snippet},
-    config::{Config, LapceTheme},
+    config::{Config, GetConfig, LapceTheme},
     db::{LapceDb, WorkspaceInfo},
     editor::{EditorLocationNew, LapceEditorBufferData, LapceEditorViewContent},
     explorer::FileExplorerData,
@@ -297,6 +297,12 @@ impl Data for LapceTabData {
             && self.find.same(&other.find)
             && self.progresses.ptr_eq(&other.progresses)
             && self.file_explorer.same(&other.file_explorer)
+    }
+}
+
+impl GetConfig for LapceTabData {
+    fn get_config(&self) -> &Config {
+        &self.config
     }
 }
 

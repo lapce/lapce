@@ -30,6 +30,7 @@ impl LapceTheme {
     pub const LAPCE_INACTIVE_TAB: &'static str = "lapce.inactive_tab";
     pub const LAPCE_DROPDOWN_SHADOW: &'static str = "lapce.dropdown_shadow";
     pub const LAPCE_BORDER: &'static str = "lapce.border";
+    pub const LAPCE_SCROLL_BAR: &'static str = "lapce.scroll_bar";
 
     pub const EDITOR_BACKGROUND: &'static str = "editor.background";
     pub const EDITOR_FOREGROUND: &'static str = "editor.foreground";
@@ -69,6 +70,10 @@ impl LapceTheme {
     pub const PANEL_CURRENT: &'static str = "panel.current";
 
     pub const STATUS_BACKGROUND: &'static str = "status.background";
+}
+
+pub trait GetConfig {
+    fn get_config(&self) -> &Config;
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -217,7 +222,7 @@ impl Config {
     pub fn reload_env(&self, env: &mut Env) {
         env.set(theme::SCROLLBAR_RADIUS, 0.0);
         env.set(theme::SCROLLBAR_EDGE_WIDTH, 0.0);
-        env.set(theme::SCROLLBAR_WIDTH, 10.0);
+        env.set(theme::SCROLLBAR_WIDTH, 15.0);
         env.set(theme::SCROLLBAR_PAD, 0.0);
         env.set(
             theme::SCROLLBAR_COLOR,

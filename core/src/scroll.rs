@@ -10,7 +10,10 @@ use druid::{
     LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget, WidgetPod,
 };
 
-use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
+use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::{Config, GetConfig, LapceTheme},
+};
 
 /// Represents the size and position of a rectangular "viewport" into a larger area.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -1395,17 +1398,28 @@ impl ScrollComponentNew {
     }
 
     /// Draw scroll bars.
-    pub fn draw_bars(&self, ctx: &mut PaintCtx, port: &ViewportNew, env: &Env) {
+    pub fn draw_bars(
+        &self,
+        ctx: &mut PaintCtx,
+        port: &ViewportNew,
+        env: &Env,
+        config: &Config,
+    ) {
         let scroll_offset = port.rect.origin().to_vec2();
         if self.opacity <= 0.0 {
             return;
         }
 
-        let brush = ctx
-            .render_ctx
-            .solid_brush(env.get(theme::SCROLLBAR_COLOR).with_alpha(self.opacity));
+        let brush = ctx.render_ctx.solid_brush(
+            config
+                .get_color_unchecked(LapceTheme::LAPCE_SCROLL_BAR)
+                .clone()
+                .with_alpha(self.opacity),
+        );
         let border_brush = ctx.render_ctx.solid_brush(
-            env.get(theme::SCROLLBAR_BORDER_COLOR)
+            config
+                .get_color_unchecked(LapceTheme::LAPCE_SCROLL_BAR)
+                .clone()
                 .with_alpha(self.opacity),
         );
 
@@ -1422,16 +1436,8 @@ impl ScrollComponentNew {
         // Horizontal bar
         if let Some(bounds) = self.calc_horizontal_bar_bounds(port, env) {
             let rect = (bounds - scroll_offset).inset(-edge_width / 2.0);
-            ctx.render_ctx.fill(
-                rect,
-                &env.get(theme::SCROLLBAR_COLOR).with_alpha(self.opacity),
-            );
-            ctx.render_ctx.stroke(
-                rect,
-                &env.get(theme::SCROLLBAR_BORDER_COLOR)
-                    .with_alpha(self.opacity),
-                edge_width,
-            );
+            ctx.render_ctx.fill(rect, &brush);
+            ctx.render_ctx.stroke(rect, &border_brush, edge_width);
         }
     }
 
@@ -1753,7 +1759,7 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     }
 }
 
-impl<T: Data, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
+impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         let scroll_component = &mut self.scroll_component;
         self.clip.with_port(|port| {
@@ -1823,8 +1829,12 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
         self.clip.paint(ctx, data, env);
-        self.scroll_component
-            .draw_bars(ctx, &self.clip.viewport(), env);
+        self.scroll_component.draw_bars(
+            ctx,
+            &self.clip.viewport(),
+            env,
+            data.get_config(),
+        );
     }
 }
 
