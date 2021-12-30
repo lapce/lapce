@@ -55,12 +55,15 @@ jobs:
         run: cargo build --release
       - name: Gzip 
         run: |
-          gzip -c "./target/release/lapce" "./target/release/lapce-proxy" > "./Lapce-linux.gz"
+          mkdir Lapce
+          cp ./target/release/lapce Lapce/
+          cp ./target/release/lapce-proxy Lapce/
+          tar -zcvf ./Lapce-linux.tar.gz Lapce
       - name: Upload Application
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./Lapce-linux.gz
+          file: ./Lapce-linux.tar.gz
           file_glob: true
           tag: ${{ github.ref }}
           overwrite: true
