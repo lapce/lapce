@@ -36,8 +36,8 @@ $(TARGET)-universal:
 	/usr/bin/codesign -vvv --deep --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_BINARY)
 	/usr/bin/codesign -vvv --deep --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_BINARY)-proxy
 
-app: $(APP_NAME)-native ## Create an Alacritty.app
-app-universal: $(APP_NAME)-universal ## Create a universal Alacritty.app
+app: $(APP_NAME)-native ## Create an Lapce.app
+app-universal: $(APP_NAME)-universal ## Create a universal Lapce.app
 $(APP_NAME)-%: $(TARGET)-%
 	@mkdir -p $(APP_BINARY_DIR)
 	@mkdir -p $(APP_EXTRAS_DIR)
@@ -50,8 +50,8 @@ $(APP_NAME)-%: $(TARGET)-%
 	xattr -c $(APP_DIR)/$(APP_NAME)/Contents/Resources/lapce.icns
 	/usr/bin/codesign -vvv --deep --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_DIR)/$(APP_NAME)
 
-dmg: $(DMG_NAME)-native ## Create an Alacritty.dmg
-dmg-universal: $(DMG_NAME)-universal ## Create a universal Alacritty.dmg
+dmg: $(DMG_NAME)-native ## Create an Lapce.dmg
+dmg-universal: $(DMG_NAME)-universal ## Create a universal Lapce.dmg
 $(DMG_NAME)-%: $(APP_NAME)-%
 	@echo "Packing disk image..."
 	@ln -sf /Applications $(DMG_DIR)/Applications
