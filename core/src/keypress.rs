@@ -31,7 +31,6 @@ const default_keymaps_linux: &'static str =
 #[derive(PartialEq)]
 enum KeymapMatch {
     Full(String),
-    Multiple(Vec<String>),
     Prefix,
     None,
 }
@@ -204,8 +203,13 @@ impl KeyPressData {
         } else if matches.len() > 1
             && matches.iter().filter(|m| m.key != keypresses).count() == 0
         {
-            KeymapMatch::Multiple(
-                matches.iter().map(|m| m.command.clone()).collect(),
+            KeymapMatch::Full(
+                matches
+                    .iter()
+                    .rev()
+                    .next()
+                    .map(|m| m.command.clone())
+                    .unwrap(),
             )
         } else {
             KeymapMatch::Prefix
@@ -214,14 +218,6 @@ impl KeyPressData {
             KeymapMatch::Full(command) => {
                 let count = self.count.take();
                 self.run_command(ctx, &command, count, focus, env);
-                self.pending_keypress = Vec::new();
-                return true;
-            }
-            KeymapMatch::Multiple(commands) => {
-                let count = self.count.take();
-                for command in commands {
-                    self.run_command(ctx, &command, count, focus, env);
-                }
                 self.pending_keypress = Vec::new();
                 return true;
             }
