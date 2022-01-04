@@ -3126,14 +3126,18 @@ impl Widget<LapceTabData> for LapceEditorView {
                     data.focus_area = FocusArea::Editor;
                 }
             }
-            Event::MouseDown(mouse_event) => {
-                if !self.header.widget().cross_rect.contains(mouse_event.pos) {
-                    ctx.request_focus();
-                    data.focus = self.view_id;
-                    data.focus_area = FocusArea::Editor;
-                    data.main_split.active = Arc::new(self.view_id);
+            Event::MouseDown(mouse_event) => match mouse_event.button {
+                druid::MouseButton::Left => {
+                    if !self.header.widget().cross_rect.contains(mouse_event.pos) {
+                        ctx.request_focus();
+                        data.focus = self.view_id;
+                        data.focus_area = FocusArea::Editor;
+                        data.main_split.active = Arc::new(self.view_id);
+                    }
                 }
-            }
+                druid::MouseButton::Right => {}
+                _ => (),
+            },
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {

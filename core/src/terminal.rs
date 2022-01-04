@@ -1006,7 +1006,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                         }
                         KbKey::Backspace => "\x08".to_string(),
                         KbKey::Tab => "\x09".to_string(),
-                        KbKey::Enter => "\n".to_string(),
+                        KbKey::Enter => "\r".to_string(),
                         KbKey::Escape => "\x1b".to_string(),
                         _ => "".to_string(),
                     };
