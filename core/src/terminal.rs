@@ -538,7 +538,12 @@ impl LapceTerminalData {
             proxy.clone(),
             event_sink,
         )));
-        proxy.new_terminal(term_id, cwd, raw.clone());
+
+        let local_proxy = proxy.clone();
+        let local_raw = raw.clone();
+        std::thread::spawn(move || {
+            local_proxy.new_terminal(term_id, cwd, local_raw);
+        });
 
         Self {
             term_id,
@@ -557,8 +562,14 @@ impl LapceTerminalData {
     pub fn resize(&self, width: usize, height: usize) {
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-        self.raw.lock().term.resize(size);
-        self.proxy.terminal_resize(self.term_id, width, height);
+
+        let raw = self.raw.clone();
+        let proxy = self.proxy.clone();
+        let term_id = self.term_id;
+        std::thread::spawn(move || {
+            raw.lock().term.resize(size);
+            proxy.terminal_resize(term_id, width, height);
+        });
     }
 
     pub fn wheel_scroll(&self, delta: f64) {
