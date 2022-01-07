@@ -56,7 +56,9 @@ use druid::{
     RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt,
     WidgetId, WidgetPod, WindowId,
 };
-use druid::{menu, Application, ExtEventSink, FileDialogOptions, Menu, Modifiers};
+use druid::{
+    menu, Application, ExtEventSink, FileDialogOptions, Menu, Modifiers, MouseEvent,
+};
 use druid::{
     piet::{
         PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
@@ -1135,108 +1137,6 @@ impl LapceEditorBufferData {
             .diagnostics
             .get_mut(&self.buffer.path)
             .map(|d| Arc::make_mut(d))
-    }
-
-    fn paint_header(&self, ctx: &mut PaintCtx, cross_rect: Rect, is_hot: bool) {
-        let shadow_width = 5.0;
-        let rect = ctx.size().to_rect();
-        ctx.blurred_rect(
-            rect,
-            shadow_width,
-            self.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
-        ctx.fill(
-            rect,
-            self.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-        );
-
-        let mut path = self.buffer.path.clone();
-        let svg = file_svg_new(&path);
-
-        let width = 13.0;
-        let height = 13.0;
-        let rect = Size::new(width, height)
-            .to_rect()
-            .with_origin(Point::new((30.0 - width) / 2.0, (30.0 - height) / 2.0));
-        ctx.draw_svg(&svg, rect, None);
-
-        let mut file_name = path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_string();
-        if self.buffer.dirty {
-            file_name = "*".to_string() + &file_name;
-        }
-        let text_layout = ctx
-            .text()
-            .new_text_layout(file_name)
-            .font(FontFamily::SYSTEM_UI, 13.0)
-            .text_color(
-                self.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        ctx.draw_text(&text_layout, Point::new(30.0, 7.0));
-
-        if let Some(workspace) = self.workspace.as_ref() {
-            path = path
-                .strip_prefix(&workspace.path)
-                .unwrap_or(&path)
-                .to_path_buf();
-        }
-        let folder = path
-            .parent()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_string();
-        if folder != "" {
-            let x = text_layout.size().width;
-
-            let text_layout = ctx
-                .text()
-                .new_text_layout(folder)
-                .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(
-                    self.config
-                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            ctx.draw_text(&text_layout, Point::new(30.0 + x + 5.0, 7.0));
-        }
-
-        if is_hot {
-            let line = Line::new(
-                Point::new(cross_rect.x0, cross_rect.y0),
-                Point::new(cross_rect.x1, cross_rect.y1),
-            );
-            ctx.stroke(
-                line,
-                &self
-                    .config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-                1.0,
-            );
-            let line = Line::new(
-                Point::new(cross_rect.x1, cross_rect.y0),
-                Point::new(cross_rect.x0, cross_rect.y1),
-            );
-            ctx.stroke(
-                line,
-                &self
-                    .config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-                1.0,
-            );
-        }
     }
 
     fn paint_gutter(&self, ctx: &mut PaintCtx, gutter_width: f64) {
@@ -3727,11 +3627,21 @@ impl Widget<LapceTabData> for LapceEditorContainer {
     }
 }
 
+pub struct LapceEditorHeaderIcon {
+    rect: Rect,
+    command: Command,
+    icon: String,
+}
+
 pub struct LapceEditorHeader {
     view_id: WidgetId,
     pub display: bool,
     cross_rect: Rect,
+    mouse_pos: Point,
     view_is_hot: bool,
+    height: f64,
+    icon_size: f64,
+    icons: Vec<LapceEditorHeaderIcon>,
 }
 
 impl LapceEditorHeader {
@@ -3740,7 +3650,194 @@ impl LapceEditorHeader {
             display: true,
             view_id,
             cross_rect: Rect::ZERO,
+            mouse_pos: Point::ZERO,
             view_is_hot: false,
+            height: 30.0,
+            icon_size: 20.0,
+            icons: Vec::new(),
+        }
+    }
+
+    pub fn get_icons(
+        &self,
+        self_size: Size,
+        data: &LapceTabData,
+    ) -> Vec<LapceEditorHeaderIcon> {
+        match data.editor_view_content(self.view_id) {
+            LapceEditorViewContent::Buffer(data) => {
+                let gap = (self.height - self.icon_size) / 2.0;
+
+                let mut icons = Vec::new();
+                let x = self_size.width
+                    - ((icons.len() + 1) as f64) * (gap + self.icon_size);
+                let icon = LapceEditorHeaderIcon {
+                    icon: "close".to_string(),
+                    rect: Size::new(self.icon_size, self.icon_size)
+                        .to_rect()
+                        .with_origin(Point::new(x, gap)),
+                    command: Command::new(
+                        LAPCE_NEW_COMMAND,
+                        LapceCommandNew {
+                            cmd: LapceCommand::SplitClose.to_string(),
+                            palette_desc: None,
+                            target: CommandTarget::Focus,
+                        },
+                        Target::Widget(self.view_id),
+                    ),
+                };
+                icons.push(icon);
+
+                let x = self_size.width
+                    - ((icons.len() + 1) as f64) * (gap + self.icon_size);
+                let icon = LapceEditorHeaderIcon {
+                    icon: "split-horizontal".to_string(),
+                    rect: Size::new(self.icon_size, self.icon_size)
+                        .to_rect()
+                        .with_origin(Point::new(x, gap)),
+                    command: Command::new(
+                        LAPCE_NEW_COMMAND,
+                        LapceCommandNew {
+                            cmd: LapceCommand::SplitVertical.to_string(),
+                            palette_desc: None,
+                            target: CommandTarget::Focus,
+                        },
+                        Target::Widget(self.view_id),
+                    ),
+                };
+                icons.push(icon);
+
+                icons
+            }
+            LapceEditorViewContent::None => vec![],
+        }
+    }
+
+    pub fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
+        for icon in self.icons.iter() {
+            if icon.rect.contains(mouse_event.pos) {
+                ctx.submit_command(icon.command.clone());
+            }
+        }
+    }
+
+    pub fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        for icon in self.icons.iter() {
+            if icon.rect.contains(mouse_event.pos) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn paint_buffer(&self, ctx: &mut PaintCtx, data: &LapceEditorBufferData) {
+        let shadow_width = 5.0;
+        let rect = ctx.size().to_rect();
+        ctx.blurred_rect(
+            rect,
+            shadow_width,
+            data.config
+                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        );
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
+
+        let mut path = data.buffer.path.clone();
+        let svg = file_svg_new(&path);
+
+        let width = 13.0;
+        let height = 13.0;
+        let rect = Size::new(width, height)
+            .to_rect()
+            .with_origin(Point::new((30.0 - width) / 2.0, (30.0 - height) / 2.0));
+        ctx.draw_svg(&svg, rect, None);
+
+        let mut file_name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        if data.buffer.dirty {
+            file_name = "*".to_string() + &file_name;
+        }
+        let text_layout = ctx
+            .text()
+            .new_text_layout(file_name)
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(&text_layout, Point::new(30.0, 7.0));
+
+        if let Some(workspace) = data.workspace.as_ref() {
+            path = path
+                .strip_prefix(&workspace.path)
+                .unwrap_or(&path)
+                .to_path_buf();
+        }
+        let folder = path
+            .parent()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        if folder != "" {
+            let x = text_layout.size().width;
+
+            let text_layout = ctx
+                .text()
+                .new_text_layout(folder)
+                .font(FontFamily::SYSTEM_UI, 13.0)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(&text_layout, Point::new(30.0 + x + 5.0, 7.0));
+        }
+
+        if self.view_is_hot {
+            if self.cross_rect.contains(self.mouse_pos) {
+                ctx.fill(
+                    &self.cross_rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                );
+            }
+
+            let padding = 6.0;
+            let cross_rect = self.cross_rect.inflate(-padding, -padding);
+            let line = Line::new(
+                Point::new(cross_rect.x0, cross_rect.y0),
+                Point::new(cross_rect.x1, cross_rect.y1),
+            );
+            ctx.stroke(
+                line,
+                &data
+                    .config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+                1.0,
+            );
+            let line = Line::new(
+                Point::new(cross_rect.x1, cross_rect.y0),
+                Point::new(cross_rect.x0, cross_rect.y1),
+            );
+            ctx.stroke(
+                line,
+                &data
+                    .config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+                1.0,
+            );
         }
     }
 }
@@ -3755,24 +3852,15 @@ impl Widget<LapceTabData> for LapceEditorHeader {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
-                if self.cross_rect.contains(mouse_event.pos) {
+                self.mouse_pos = mouse_event.pos;
+                if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                 } else {
                     ctx.set_cursor(&druid::Cursor::Arrow);
                 }
             }
             Event::MouseDown(mouse_event) => {
-                if self.cross_rect.contains(mouse_event.pos) {
-                    ctx.submit_command(Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
-                            cmd: LapceCommand::SplitClose.to_string(),
-                            palette_desc: None,
-                            target: CommandTarget::Focus,
-                        },
-                        Target::Widget(self.view_id),
-                    ));
-                }
+                self.mouse_down(ctx, mouse_event);
             }
             _ => {}
         }
@@ -3803,10 +3891,11 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
+        // ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
         if self.display {
-            let size = Size::new(bc.max().width, 30.0);
-            let cross_size = 8.0;
+            let size = Size::new(bc.max().width, self.height);
+            self.icons = self.get_icons(size, data);
+            let cross_size = 20.0;
             let padding = (size.height - cross_size) / 2.0;
             let origin = Point::new(size.width - padding - cross_size, padding);
             self.cross_rect = Size::new(cross_size, cross_size)
@@ -3824,7 +3913,7 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         }
         match data.editor_view_content(self.view_id) {
             LapceEditorViewContent::Buffer(data) => {
-                data.paint_header(ctx, self.cross_rect, self.view_is_hot);
+                self.paint_buffer(ctx, &data);
             }
             LapceEditorViewContent::None => {}
         }
