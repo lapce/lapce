@@ -45,6 +45,12 @@ use crate::{
     terminal::TerminalPanel,
 };
 
+pub struct LapceIcon {
+    pub rect: Rect,
+    pub command: Command,
+    pub icon: String,
+}
+
 pub struct LapceTabNew {
     id: WidgetId,
     activity: WidgetPod<LapceTabData, ActivityBar>,
@@ -287,6 +293,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 ),
                                 Target::Widget(terminal.split_id),
                             ));
+                            data.proxy.terminal_close(terminal.term_id);
                         }
                         ctx.set_handled();
                     }

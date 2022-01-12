@@ -179,6 +179,15 @@ impl LapceProxy {
         )
     }
 
+    pub fn terminal_close(&self, term_id: TermId) {
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
+            "terminal_close",
+            &json!({
+                "term_id": term_id,
+            }),
+        )
+    }
+
     pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
         self.wait();
         self.peer.lock().as_ref().unwrap().send_rpc_notification(

@@ -81,7 +81,35 @@ dependencies = [
  "regex-automata",
  "serde 1.0.130",
  "serde_yaml",
- "signal-hook",
+ "signal-hook 0.1.17",
+ "unicode-width",
+ "vte",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "alacritty_terminal"
+version = "0.16.0-rc2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54c51875d37376010fdf153b8594897700a82f0a18942ccad4beebfe61d61ede"
+dependencies = [
+ "alacritty_config_derive",
+ "base64 0.13.0",
+ "bitflags",
+ "dirs",
+ "libc",
+ "log",
+ "mio 0.6.23",
+ "mio-anonymous-pipes",
+ "mio-extras",
+ "miow 0.3.7",
+ "nix 0.22.2",
+ "parking_lot 0.11.2",
+ "regex-automata",
+ "serde 1.0.130",
+ "serde_yaml",
+ "signal-hook 0.3.13",
+ "signal-hook-mio",
  "unicode-width",
  "vte",
  "winapi 0.3.9",
@@ -2121,7 +2149,7 @@ dependencies = [
 name = "lapce-core"
 version = "0.0.1"
 dependencies = [
- "alacritty_terminal",
+ "alacritty_terminal 0.15.0",
  "anyhow",
  "base64 0.13.0",
  "bit-vec 0.5.1",
@@ -2170,7 +2198,7 @@ dependencies = [
 name = "lapce-proxy"
 version = "0.0.1"
 dependencies = [
- "alacritty_terminal",
+ "alacritty_terminal 0.16.0-rc2",
  "anyhow",
  "base64 0.13.0",
  "crossbeam-channel 0.5.1",
@@ -2647,6 +2675,17 @@ dependencies = [
  "log",
  "mio 0.6.23",
  "slab",
+]
+
+[[package]]
+name = "mio-uds"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afcb699eb26d4332647cc848492bbc15eafb26f08d0304550d5aa1f612e066f0"
+dependencies = [
+ "iovec",
+ "libc",
+ "mio 0.6.23",
 ]
 
 [[package]]
@@ -4087,6 +4126,28 @@ dependencies = [
  "libc",
  "mio 0.6.23",
  "signal-hook-registry",
+]
+
+[[package]]
+name = "signal-hook"
+version = "0.3.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "647c97df271007dcea485bb74ffdb57f2e683f1306c854f468a0c244badabf2d"
+dependencies = [
+ "libc",
+ "signal-hook-registry",
+]
+
+[[package]]
+name = "signal-hook-mio"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29fd5867f1c4f2c5be079aee7a2adf1152ebb04a4bc4d341f504b7dece607ed4"
+dependencies = [
+ "libc",
+ "mio 0.6.23",
+ "mio-uds",
+ "signal-hook 0.3.13",
 ]
 
 [[package]]

@@ -27,8 +27,8 @@ use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     Application, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
     ExtEventSink, FontFamily, FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx,
-    Modifiers, PaintCtx, Point, Rect, Region, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    Modifiers, MouseEvent, PaintCtx, Point, Rect, Region, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -38,7 +38,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
-    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
+        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData},
     find::Find,
@@ -50,6 +53,7 @@ use crate::{
     split::{LapceSplitNew, SplitMoveDirection},
     state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     svg::get_svg,
+    tab::LapceIcon,
 };
 
 const CTRL_CHARS: &'static [char] = &[
@@ -730,16 +734,16 @@ impl Widget<LapceTabData> for TerminalPanel {
 }
 
 pub struct LapceTerminalView {
-    header: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    header: WidgetPod<LapceTabData, LapceTerminalHeader>,
     terminal: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
 impl LapceTerminalView {
     pub fn new(data: &LapceTerminalData) -> Self {
-        let header = LapcePadding::new((10.0, 8.0), LapceTerminalHeader::new(data));
+        let header = LapceTerminalHeader::new(data);
         let terminal = LapcePadding::new(10.0, LapceTerminal::new(data));
         Self {
-            header: WidgetPod::new(header.boxed()),
+            header: WidgetPod::new(header),
             terminal: WidgetPod::new(terminal.boxed()),
         }
     }
@@ -764,6 +768,13 @@ impl Widget<LapceTabData> for LapceTerminalView {
         data: &LapceTabData,
         env: &Env,
     ) {
+        match event {
+            LifeCycle::HotChanged(is_hot) => {
+                self.header.widget_mut().view_is_hot = *is_hot;
+                ctx.request_paint();
+            }
+            _ => (),
+        }
         self.header.lifecycle(ctx, event, data, env);
         self.terminal.lifecycle(ctx, event, data, env);
     }
@@ -832,12 +843,84 @@ impl Widget<LapceTabData> for LapceTerminalView {
 
 pub struct LapceTerminalHeader {
     term_id: TermId,
+    height: f64,
+    icon_size: f64,
+    icon_padding: f64,
+    icons: Vec<LapceIcon>,
+    mouse_pos: Point,
+    view_is_hot: bool,
 }
 
 impl LapceTerminalHeader {
     pub fn new(data: &LapceTerminalData) -> Self {
         Self {
             term_id: data.term_id,
+            height: 30.0,
+            icon_size: 24.0,
+            mouse_pos: Point::ZERO,
+            icon_padding: 4.0,
+            icons: Vec::new(),
+            view_is_hot: false,
+        }
+    }
+
+    fn get_icons(&self, self_size: Size, data: &LapceTabData) -> Vec<LapceIcon> {
+        let gap = (self.height - self.icon_size) / 2.0;
+
+        let terminal_data = data.terminal.terminals.get(&self.term_id).unwrap();
+
+        let mut icons = Vec::new();
+        let x =
+            self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
+        let icon = LapceIcon {
+            icon: "close.svg".to_string(),
+            rect: Size::new(self.icon_size, self.icon_size)
+                .to_rect()
+                .with_origin(Point::new(x, gap)),
+            command: Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::CloseTerminal(self.term_id),
+                Target::Widget(data.id),
+            ),
+        };
+        icons.push(icon);
+
+        let x =
+            self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
+        let icon = LapceIcon {
+            icon: "split-horizontal.svg".to_string(),
+            rect: Size::new(self.icon_size, self.icon_size)
+                .to_rect()
+                .with_origin(Point::new(x, gap)),
+            command: Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SplitTerminal(
+                    true,
+                    terminal_data.widget_id,
+                    terminal_data.panel_widget_id.clone(),
+                ),
+                Target::Widget(terminal_data.split_id),
+            ),
+        };
+        icons.push(icon);
+
+        icons
+    }
+
+    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        for icon in self.icons.iter() {
+            if icon.rect.contains(mouse_event.pos) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn mouse_down(&self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {
+        for icon in self.icons.iter() {
+            if icon.rect.contains(mouse_event.pos) {
+                ctx.submit_command(icon.command.clone());
+            }
         }
     }
 }
@@ -850,6 +933,22 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::MouseMove(mouse_event) => {
+                self.mouse_pos = mouse_event.pos;
+                if self.icon_hit_test(mouse_event) {
+                    ctx.set_cursor(&druid::Cursor::Pointer);
+                    ctx.request_paint();
+                } else {
+                    ctx.clear_cursor();
+                    ctx.request_paint();
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                self.mouse_down(ctx, mouse_event);
+            }
+            _ => {}
+        }
     }
 
     fn lifecycle(
@@ -877,41 +976,74 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        Size::new(bc.max().width, data.config.editor.font_size as f64)
+        let self_size = Size::new(bc.max().width, self.height);
+        self.icons = self.get_icons(self_size, data);
+        self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let svg = get_svg("terminal.svg").unwrap();
-        let width = data.config.editor.font_size as f64;
-        let height = data.config.editor.font_size as f64;
-        let rect = Size::new(width, height).to_rect();
-        ctx.draw_svg(
-            &svg,
-            rect,
-            Some(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-            ),
-        );
+        let mut clip_rect = ctx.size().to_rect();
+        if self.view_is_hot {
+            if let Some(icon) = self.icons.iter().rev().next().as_ref() {
+                clip_rect.x1 = icon.rect.x0;
+            }
+        }
 
-        let term = data.terminal.terminals.get(&self.term_id).unwrap();
-        let text_layout = ctx
-            .text()
-            .new_text_layout(term.title.clone())
-            .font(FontFamily::SYSTEM_UI, data.config.editor.font_size as f64)
-            .text_color(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        let y =
-            (data.config.editor.font_size as f64 - text_layout.size().height) / 2.0;
-        ctx.draw_text(
-            &text_layout,
-            Point::new(data.config.editor.font_size as f64 + 5.0, y),
-        );
+        ctx.with_save(|ctx| {
+            ctx.clip(clip_rect);
+            let svg = get_svg("terminal.svg").unwrap();
+            let width = data.config.editor.font_size as f64;
+            let height = data.config.editor.font_size as f64;
+            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+                (self.height - width) / 2.0,
+                (self.height - height) / 2.0,
+            ));
+            ctx.draw_svg(
+                &svg,
+                rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
+            );
+
+            let term = data.terminal.terminals.get(&self.term_id).unwrap();
+            let text_layout = ctx
+                .text()
+                .new_text_layout(term.title.clone())
+                .font(FontFamily::SYSTEM_UI, data.config.editor.font_size as f64)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let y = (self.height - text_layout.size().height) / 2.0;
+            ctx.draw_text(&text_layout, Point::new(self.height, y));
+        });
+
+        if self.view_is_hot {
+            for icon in self.icons.iter() {
+                if icon.rect.contains(self.mouse_pos) {
+                    ctx.fill(
+                        &icon.rect,
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    );
+                }
+                if let Some(svg) = get_svg(&icon.icon) {
+                    ctx.draw_svg(
+                        &svg,
+                        icon.rect.inflate(-self.icon_padding, -self.icon_padding),
+                        Some(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        ),
+                    );
+                }
+            }
+        }
     }
 }
 

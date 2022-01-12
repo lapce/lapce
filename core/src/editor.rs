@@ -17,6 +17,7 @@ use crate::signature::SignatureState;
 use crate::split::LapceSplitNew;
 use crate::state::LapceWorkspace;
 use crate::svg::{file_svg_new, get_svg, logo_svg};
+use crate::tab::LapceIcon;
 use crate::theme::OldLapceTheme;
 use crate::{buffer::get_word_property, state::LapceFocus};
 use crate::{buffer::matching_char, data::LapceEditorViewData};
@@ -3625,12 +3626,6 @@ impl Widget<LapceTabData> for LapceEditorContainer {
     }
 }
 
-pub struct LapceEditorHeaderIcon {
-    rect: Rect,
-    command: Command,
-    icon: String,
-}
-
 pub struct LapceEditorHeader {
     view_id: WidgetId,
     pub display: bool,
@@ -3639,7 +3634,7 @@ pub struct LapceEditorHeader {
     view_is_hot: bool,
     height: f64,
     icon_size: f64,
-    icons: Vec<LapceEditorHeaderIcon>,
+    icons: Vec<LapceIcon>,
     svg_padding: f64,
 }
 
@@ -3652,17 +3647,13 @@ impl LapceEditorHeader {
             mouse_pos: Point::ZERO,
             view_is_hot: false,
             height: 30.0,
-            icon_size: 25.0,
-            svg_padding: 5.0,
+            icon_size: 24.0,
+            svg_padding: 4.0,
             icons: Vec::new(),
         }
     }
 
-    pub fn get_icons(
-        &self,
-        self_size: Size,
-        data: &LapceTabData,
-    ) -> Vec<LapceEditorHeaderIcon> {
+    pub fn get_icons(&self, self_size: Size, data: &LapceTabData) -> Vec<LapceIcon> {
         match data.editor_view_content(self.view_id) {
             LapceEditorViewContent::Buffer(data) => {
                 let gap = (self.height - self.icon_size) / 2.0;
@@ -3670,7 +3661,7 @@ impl LapceEditorHeader {
                 let mut icons = Vec::new();
                 let x = self_size.width
                     - ((icons.len() + 1) as f64) * (gap + self.icon_size);
-                let icon = LapceEditorHeaderIcon {
+                let icon = LapceIcon {
                     icon: "close.svg".to_string(),
                     rect: Size::new(self.icon_size, self.icon_size)
                         .to_rect()
@@ -3689,7 +3680,7 @@ impl LapceEditorHeader {
 
                 let x = self_size.width
                     - ((icons.len() + 1) as f64) * (gap + self.icon_size);
-                let icon = LapceEditorHeaderIcon {
+                let icon = LapceIcon {
                     icon: "split-horizontal.svg".to_string(),
                     rect: Size::new(self.icon_size, self.icon_size)
                         .to_rect()

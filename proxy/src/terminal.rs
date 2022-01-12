@@ -51,7 +51,7 @@ impl TermId {
     }
 }
 
-pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>>;
+pub type TermConfig = alacritty_terminal::config::Config;
 
 pub struct Terminal {
     term_id: TermId,
@@ -70,12 +70,13 @@ impl Terminal {
     ) -> Terminal {
         let poll = mio::Poll::new().unwrap();
         let mut config = TermConfig::default();
-        config.working_directory =
+        config.pty_config.working_directory =
             cwd.or_else(|| BaseDirs::new().map(|d| PathBuf::from(d.home_dir())));
-        config.shell = std::env::var("SHELL").ok().map(|shell| Program::WithArgs {
-            program: shell.to_string(),
-            args: vec!["-l".to_string()],
-        });
+        config.pty_config.shell =
+            std::env::var("SHELL").ok().map(|shell| Program::WithArgs {
+                program: shell.to_string(),
+                args: vec!["-l".to_string()],
+            });
         setup_env(&config);
 
         #[cfg(target_os = "macos")]
@@ -83,7 +84,8 @@ impl Terminal {
 
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-        let mut pty = alacritty_terminal::tty::new(&config, &size, None);
+        let mut pty =
+            alacritty_terminal::tty::new(&config.pty_config, &size, None).unwrap();
 
         let (tx, rx) = channel();
 
@@ -179,6 +181,8 @@ impl Terminal {
                 .reregister(&self.poll, interest, poll_opts)
                 .unwrap();
         }
+        let _ = self.poll.deregister(&self.rx);
+        let _ = self.pty.deregister(&self.poll);
     }
 
     /// Drain the channel.

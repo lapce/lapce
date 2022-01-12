@@ -132,6 +132,9 @@ pub enum Notification {
         width: usize,
         height: usize,
     },
+    TerminalClose {
+        term_id: TermId,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -464,6 +467,12 @@ impl Dispatcher {
                 std::thread::spawn(move || {
                     terminal.run(dispatcher);
                 });
+            }
+            Notification::TerminalClose { term_id } => {
+                let mut terminals = self.terminals.lock();
+                if let Some(tx) = terminals.remove(&term_id) {
+                    tx.send(Msg::Shutdown);
+                }
             }
             Notification::TerminalWrite { term_id, content } => {
                 let terminals = self.terminals.lock();
