@@ -19,6 +19,7 @@ pub mod outline;
 pub mod palette;
 pub mod panel;
 pub mod plugin;
+pub mod problem;
 pub mod proxy;
 pub mod scroll;
 pub mod signature;

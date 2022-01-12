@@ -44,7 +44,7 @@ use crate::{
     config::{Config, LapceTheme},
     data::{
         EditorContent, EditorKind, FocusArea, LapceEditorData, LapceEditorViewData,
-        LapceMainSplitData, LapceTabData,
+        LapceMainSplitData, LapceTabData, PanelKind,
     },
     editor::{EditorLocationNew, LapceEditorContainer, LapceEditorView},
     find::Find,
@@ -859,7 +859,7 @@ impl PaletteViewData {
     }
 
     fn get_lines(&mut self, ctx: &mut EventCtx) {
-        if self.focus_area == FocusArea::Terminal {
+        if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
             if let Some(terminal) =
                 self.terminal.terminals.get(&self.terminal.active_term_id)
             {

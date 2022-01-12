@@ -144,6 +144,18 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_maximized_panel")]
     ToggleMaximizedPanel,
 
+    #[strum(serialize = "toggle_source_control")]
+    ToggleSourceControl,
+
+    #[strum(serialize = "toggle_plugin")]
+    TogglePlugin,
+
+    #[strum(serialize = "toggle_file_explorer")]
+    ToggleFileExplorer,
+
+    #[strum(serialize = "toggle_problem")]
+    ToggleProblem,
+
     #[strum(serialize = "focus_editor")]
     FocusEditor,
 

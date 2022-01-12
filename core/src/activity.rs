@@ -148,20 +148,7 @@ impl Widget<LapceTabData> for ActivityBar {
             .clone();
         if let Some(panel) = data.panels.get(&PanelPosition::LeftTop) {
             for (widget_id, kind) in panel.widgets.iter() {
-                let svg = match kind {
-                    crate::data::PanelKind::FileExplorer => {
-                        get_svg("file-explorer.svg").unwrap()
-                    }
-                    crate::data::PanelKind::SourceControl => {
-                        get_svg("git-icon.svg").unwrap()
-                    }
-                    crate::data::PanelKind::Plugin => {
-                        get_svg("plugin-icon.svg").unwrap()
-                    }
-                    crate::data::PanelKind::Terminal => {
-                        get_svg("terminal.svg").unwrap()
-                    }
-                };
+                let svg = kind.svg();
                 if &panel.active == widget_id {
                     ctx.fill(
                         Size::new(size, size)

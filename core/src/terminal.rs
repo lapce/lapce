@@ -43,7 +43,7 @@ use crate::{
         LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{FocusArea, LapceTabData},
+    data::{FocusArea, LapceTabData, PanelKind},
     find::Find,
     keypress::KeyPressFocus,
     movement::{LinePosition, Movement},
@@ -1069,7 +1069,7 @@ impl LapceTerminal {
         Arc::make_mut(&mut data.terminal).active = self.widget_id;
         Arc::make_mut(&mut data.terminal).active_term_id = self.term_id;
         data.focus = self.widget_id;
-        data.focus_area = FocusArea::Terminal;
+        data.focus_area = FocusArea::Panel(PanelKind::Terminal);
         let terminal = data.terminal.terminals.get(&self.term_id).unwrap();
         if let Some(widget_panel_id) = terminal.panel_widget_id.as_ref() {
             for (pos, panel) in data.panels.iter_mut() {

@@ -17,7 +17,7 @@ use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
 use crossbeam_utils::sync::WaitGroup;
 use directories::{ProjectDirs, UserDirs};
 use druid::{
-    piet::{PietText, Text},
+    piet::{PietText, Svg, Text},
     theme,
     widget::{Label, LabelText},
     Application, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
@@ -71,9 +71,11 @@ use crate::{
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
     plugin::PluginData,
+    problem::ProblemData,
     proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
     source_control::{SourceControlData, SOURCE_CONTROL_BUFFER},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
+    svg::get_svg,
     terminal::TerminalSplitData,
 };
 
@@ -208,12 +210,29 @@ pub struct EditorDiagnostic {
     pub diagnositc: Diagnostic,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Data)]
 pub enum PanelKind {
     FileExplorer,
     SourceControl,
     Plugin,
     Terminal,
+    Problem,
+}
+
+impl PanelKind {
+    pub fn svg_name(&self) -> String {
+        match &self {
+            PanelKind::FileExplorer => "file-explorer.svg".to_string(),
+            PanelKind::SourceControl => "git-icon.svg".to_string(),
+            PanelKind::Plugin => "plugin-icon.svg".to_string(),
+            PanelKind::Terminal => "terminal.svg".to_string(),
+            PanelKind::Problem => "error.svg".to_string(),
+        }
+    }
+
+    pub fn svg(&self) -> Svg {
+        get_svg(&self.svg_name()).unwrap()
+    }
 }
 
 #[derive(Clone)]
@@ -284,9 +303,8 @@ pub struct WorkProgress {
 #[derive(Clone, PartialEq, Data)]
 pub enum FocusArea {
     Palette,
-    SourceControl,
     Editor,
-    Terminal,
+    Panel(PanelKind),
 }
 
 #[derive(Clone, Lens)]
@@ -299,6 +317,7 @@ pub struct LapceTabData {
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
     pub source_control: Arc<SourceControlData>,
+    pub problem: Arc<ProblemData>,
     pub plugin: Arc<PluginData>,
     pub plugins: Arc<Vec<PluginDescription>>,
     pub installed_plugins: Arc<HashMap<String, PluginDescription>>,
@@ -339,6 +358,7 @@ impl Data for LapceTabData {
             && self.progresses.ptr_eq(&other.progresses)
             && self.file_explorer.same(&other.file_explorer)
             && self.plugin.same(&other.plugin)
+            && self.problem.same(&other.problem)
             && self.installed_plugins.same(&other.installed_plugins)
     }
 }
@@ -393,6 +413,7 @@ impl LapceTabData {
         );
 
         let terminal = Arc::new(TerminalSplitData::new(proxy.clone()));
+        let problem = Arc::new(ProblemData::new());
 
         let mut panels = im::HashMap::new();
         panels.insert(
@@ -412,7 +433,10 @@ impl LapceTabData {
             PanelPosition::BottomLeft,
             Arc::new(PanelData {
                 active: terminal.widget_id,
-                widgets: vec![(terminal.widget_id, PanelKind::Terminal)],
+                widgets: vec![
+                    (terminal.widget_id, PanelKind::Terminal),
+                    (problem.widget_id, PanelKind::Problem),
+                ],
                 shown: true,
                 maximized: false,
             }),
@@ -425,6 +449,7 @@ impl LapceTabData {
             completion,
             terminal,
             plugin,
+            problem,
             plugins: Arc::new(Vec::new()),
             installed_plugins: Arc::new(HashMap::new()),
             find: Arc::new(Find::new(0)),
@@ -845,7 +870,7 @@ impl LapceTabData {
                 ));
             }
             LapceWorkbenchCommand::ToggleTerminal => {
-                if self.focus_area == FocusArea::Terminal {
+                if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
                     for (_, panel) in self.panels.iter_mut() {
                         if panel
                             .widgets
@@ -910,6 +935,18 @@ impl LapceTabData {
                     LapceUICommand::Focus,
                     Target::Widget(self.terminal.active),
                 ));
+            }
+            LapceWorkbenchCommand::ToggleSourceControl => {
+                self.toggle_panel(
+                    ctx,
+                    self.source_control.widget_id,
+                    PanelKind::SourceControl,
+                );
+            }
+            LapceWorkbenchCommand::TogglePlugin => {}
+            LapceWorkbenchCommand::ToggleFileExplorer => {}
+            LapceWorkbenchCommand::ToggleProblem => {
+                self.toggle_panel(ctx, self.problem.widget_id, PanelKind::Problem);
             }
         }
     }
@@ -986,6 +1023,52 @@ impl LapceTabData {
                             );
                         }
                     }
+                }
+            }
+        }
+    }
+
+    fn toggle_panel(
+        &mut self,
+        ctx: &mut EventCtx,
+        widget_id: WidgetId,
+        kind: PanelKind,
+    ) {
+        if self.focus_area == FocusArea::Panel(kind) {
+            for (_, panel) in self.panels.iter_mut() {
+                if panel
+                    .widgets
+                    .iter()
+                    .map(|(id, kind)| *id)
+                    .contains(&widget_id)
+                {
+                    let panel = Arc::make_mut(panel);
+                    panel.shown = false;
+                    break;
+                }
+            }
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(*self.main_split.active),
+            ));
+        } else {
+            for (_, panel) in self.panels.iter_mut() {
+                if panel
+                    .widgets
+                    .iter()
+                    .map(|(id, kind)| *id)
+                    .contains(&widget_id)
+                {
+                    let panel = Arc::make_mut(panel);
+                    panel.shown = true;
+                    panel.active = widget_id;
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(widget_id),
+                    ));
+                    break;
                 }
             }
         }
