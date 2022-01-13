@@ -703,6 +703,7 @@ impl LapceTabData {
         &mut self,
         ctx: &mut EventCtx,
         command: &LapceWorkbenchCommand,
+        data: Option<serde_json::Value>,
         count: Option<usize>,
         env: &Env,
     ) {
@@ -870,57 +871,31 @@ impl LapceTabData {
                 ));
             }
             LapceWorkbenchCommand::ToggleTerminal => {
-                if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
-                    for (_, panel) in self.panels.iter_mut() {
-                        if panel
-                            .widgets
-                            .iter()
-                            .map(|(id, kind)| *id)
-                            .contains(&self.terminal.widget_id)
-                        {
-                            let panel = Arc::make_mut(panel);
-                            panel.shown = false;
-                            break;
-                        }
-                    }
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(*self.main_split.active),
-                    ));
-                } else {
-                    for (_, panel) in self.panels.iter_mut() {
-                        if panel
-                            .widgets
-                            .iter()
-                            .map(|(id, kind)| *id)
-                            .contains(&self.terminal.widget_id)
-                        {
-                            let panel = Arc::make_mut(panel);
-                            panel.shown = true;
-                            panel.active = self.terminal.widget_id;
-                            break;
-                        }
-                    }
-                    if self.terminal.terminals.len() == 0 {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::InitTerminalPanel(true),
-                            Target::Widget(self.terminal.split_id),
-                        ));
-                    } else {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::Focus,
-                            Target::Widget(self.terminal.active),
-                        ));
-                    }
-                }
+                self.toggle_panel(ctx, self.terminal.widget_id, PanelKind::Terminal);
             }
             LapceWorkbenchCommand::ToggleMaximizedPanel => {
-                let panel = self.panels.get_mut(&self.panel_active).unwrap();
-                let panel = Arc::make_mut(panel);
-                panel.maximized = !panel.maximized;
+                if let Some(data) = data {
+                    let id: u64 = serde_json::from_value(data).unwrap();
+                    let panel_widget_id = WidgetId::from_raw(id);
+                    for (_, panel) in self.panels.iter_mut() {
+                        if panel
+                            .widgets
+                            .iter()
+                            .map(|(id, kind)| *id)
+                            .contains(&panel_widget_id)
+                        {
+                            if panel.active == panel_widget_id {
+                                let panel = Arc::make_mut(panel);
+                                panel.maximized = !panel.maximized;
+                            }
+                            break;
+                        }
+                    }
+                } else {
+                    let panel = self.panels.get_mut(&self.panel_active).unwrap();
+                    let panel = Arc::make_mut(panel);
+                    panel.maximized = !panel.maximized;
+                }
             }
             LapceWorkbenchCommand::FocusEditor => {
                 ctx.submit_command(Command::new(
@@ -948,6 +923,31 @@ impl LapceTabData {
             LapceWorkbenchCommand::ToggleProblem => {
                 self.toggle_panel(ctx, self.problem.widget_id, PanelKind::Problem);
             }
+            LapceWorkbenchCommand::HidePanel => {
+                if let Some(data) = data {
+                    let id: u64 = serde_json::from_value(data).unwrap();
+                    let panel_widget_id = WidgetId::from_raw(id);
+                    for (_, panel) in self.panels.iter_mut() {
+                        if panel
+                            .widgets
+                            .iter()
+                            .map(|(id, kind)| *id)
+                            .contains(&panel_widget_id)
+                        {
+                            if panel.active == panel_widget_id {
+                                let panel = Arc::make_mut(panel);
+                                panel.shown = false;
+                            }
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(*self.main_split.active),
+                            ));
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -961,7 +961,13 @@ impl LapceTabData {
         match command.target {
             CommandTarget::Workbench => {
                 if let Ok(cmd) = LapceWorkbenchCommand::from_str(&command.cmd) {
-                    self.run_workbench_command(ctx, &cmd, count, env);
+                    self.run_workbench_command(
+                        ctx,
+                        &cmd,
+                        command.data.clone(),
+                        count,
+                        env,
+                    );
                 }
             }
             CommandTarget::Plugin(_) => {}

@@ -3162,6 +3162,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::InsertMode.to_string(),
+                        data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,
                     },
@@ -3172,6 +3173,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::NormalMode.to_string(),
+                        data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,
                     },
@@ -3670,6 +3672,7 @@ impl LapceEditorHeader {
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
                             cmd: LapceCommand::SplitClose.to_string(),
+                            data: None,
                             palette_desc: None,
                             target: CommandTarget::Focus,
                         },
@@ -3689,6 +3692,7 @@ impl LapceEditorHeader {
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
                             cmd: LapceCommand::SplitVertical.to_string(),
+                            data: None,
                             palette_desc: None,
                             target: CommandTarget::Focus,
                         },
@@ -4605,12 +4609,14 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
         vec![
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                data: None,
                 palette_desc: Some("Show All Commands".to_string()),
                 target: CommandTarget::Workbench,
             },
             if modal {
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                    data: None,
                     palette_desc: LapceWorkbenchCommand::DisableModal
                         .get_message()
                         .map(|m| m.to_string()),
@@ -4619,6 +4625,7 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             } else {
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                    data: None,
                     palette_desc: LapceWorkbenchCommand::EnableModal
                         .get_message()
                         .map(|m| m.to_string()),
@@ -4627,11 +4634,13 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             },
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+                data: None,
                 palette_desc: Some("Open Folder".to_string()),
                 target: CommandTarget::Workbench,
             },
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+                data: None,
                 palette_desc: Some("Open Recent".to_string()),
                 target: CommandTarget::Workbench,
             },
@@ -4640,12 +4649,14 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
         vec![
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                data: None,
                 palette_desc: Some("Show All Commands".to_string()),
                 target: CommandTarget::Workbench,
             },
             if modal {
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                    data: None,
                     palette_desc: LapceWorkbenchCommand::DisableModal
                         .get_message()
                         .map(|m| m.to_string()),
@@ -4654,6 +4665,7 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             } else {
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                    data: None,
                     palette_desc: LapceWorkbenchCommand::EnableModal
                         .get_message()
                         .map(|m| m.to_string()),
@@ -4662,6 +4674,7 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             },
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::Palette.to_string(),
+                data: None,
                 palette_desc: Some("Go To File".to_string()),
                 target: CommandTarget::Workbench,
             },

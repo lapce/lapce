@@ -98,6 +98,7 @@ impl LapceStatusNew {
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
                             cmd: cmd.to_string(),
+                            data: None,
                             palette_desc: None,
                             target: CommandTarget::Workbench,
                         },

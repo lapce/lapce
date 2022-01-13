@@ -38,6 +38,7 @@ pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
 #[derive(Clone, Debug)]
 pub struct LapceCommandNew {
     pub cmd: String,
+    pub data: Option<serde_json::Value>,
     pub palette_desc: Option<String>,
     pub target: CommandTarget,
 }
@@ -59,6 +60,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
     for c in LapceWorkbenchCommand::iter() {
         let command = LapceCommandNew {
             cmd: c.to_string(),
+            data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
             target: CommandTarget::Workbench,
         };
@@ -68,6 +70,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
     for c in LapceCommand::iter() {
         let command = LapceCommandNew {
             cmd: c.to_string(),
+            data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
             target: CommandTarget::Focus,
         };
@@ -138,11 +141,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.workspace")]
     PaletteWorkspace,
 
-    #[strum(serialize = "toggle_terminal")]
-    ToggleTerminal,
-
     #[strum(serialize = "toggle_maximized_panel")]
     ToggleMaximizedPanel,
+
+    #[strum(serialize = "hide_panel")]
+    HidePanel,
+
+    #[strum(serialize = "toggle_terminal")]
+    ToggleTerminal,
 
     #[strum(serialize = "toggle_source_control")]
     ToggleSourceControl,
