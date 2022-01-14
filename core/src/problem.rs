@@ -15,7 +15,8 @@ use lsp_types::DiagnosticSeverity;
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{EditorDiagnostic, FocusArea, LapceTabData, PanelKind},
+    data::{EditorDiagnostic, EditorKind, FocusArea, LapceTabData, PanelKind},
+    editor::EditorLocationNew,
     panel::{LapcePanel, PanelHeaderKind, PanelSection},
     split::LapceSplitNew,
     svg::{file_svg_new, get_svg},
@@ -127,7 +128,25 @@ impl ProblemContent {
             for d in diagnositcs {
                 i += 1;
                 if i == n {
-                    println!("pressed {}", d.diagnositc.message);
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::JumpToLocation(
+                            EditorKind::SplitActive,
+                            EditorLocationNew {
+                                path: path.clone(),
+                                position: Some(
+                                    d.range
+                                        .map(|(line, col)| lsp_types::Position {
+                                            line: line as u32,
+                                            character: col as u32,
+                                        })
+                                        .unwrap_or(d.diagnositc.range.start.clone()),
+                                ),
+                                scroll_offset: None,
+                            },
+                        ),
+                        Target::Widget(data.id),
+                    ));
                     return;
                 }
                 for related in d
@@ -138,7 +157,24 @@ impl ProblemContent {
                 {
                     i += 1;
                     if i == n {
-                        println!("pressed {}", related.message);
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::JumpToLocation(
+                                EditorKind::SplitActive,
+                                EditorLocationNew {
+                                    path: related
+                                        .location
+                                        .uri
+                                        .to_file_path()
+                                        .unwrap(),
+                                    position: Some(
+                                        related.location.range.start.clone(),
+                                    ),
+                                    scroll_offset: None,
+                                },
+                            ),
+                            Target::Widget(data.id),
+                        ));
                         return;
                     }
                 }
@@ -219,7 +255,6 @@ impl Widget<LapceTabData> for ProblemContent {
                     + 1
             })
             .sum::<usize>();
-        println!("problem len {} {}", n, bc.max().height);
         let line_height = data.config.editor.line_height as f64;
         let height = line_height * n as f64;
         Size::new(bc.max().width, height)

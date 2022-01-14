@@ -11,6 +11,7 @@ use crossbeam_channel::Sender;
 use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
+use flate2::read::GzDecoder;
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lapce_proxy::plugin::PluginDescription;
 use lapce_proxy::terminal::TermId;
@@ -93,10 +94,22 @@ impl LapceProxy {
                         .arg("-o")
                         .arg("ControlPersist=30m")
                         .arg("test")
+                        .arg("-a")
                         .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
                         .output()
                         .unwrap();
+                    println!("ssh check proxy file {:?}", cmd.status);
                     if !cmd.status.success() {
+                        let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
+                        let mut resp =
+                            reqwest::blocking::get(url).expect("request failed");
+                        let local_path = format!("/tmp/lapce-proxy-{}", VERSION);
+                        let mut out = std::fs::File::create(&local_path)
+                            .expect("failed to create file");
+                        let mut gz = GzDecoder::new(&mut resp);
+                        std::io::copy(&mut gz, &mut out)
+                            .expect("failed to copy content");
+
                         Command::new("ssh")
                             .arg(format!("{}@{}", user, host))
                             .arg("-o")
@@ -107,6 +120,34 @@ impl LapceProxy {
                             .arg("ControlPersist=30m")
                             .arg("mkdir")
                             .arg("~/.lapce/")
+                            .output()
+                            .unwrap();
+
+                        Command::new("scp")
+                            .arg("-o")
+                            .arg("ControlMaster=auto")
+                            .arg("-o")
+                            .arg("ControlPath=~/.ssh/cm-%r@%h:%p")
+                            .arg("-o")
+                            .arg("ControlPersist=30m")
+                            .arg(&local_path)
+                            .arg(format!(
+                                "{user}@{host}:~/.lapce/lapce-proxy-{VERSION}"
+                            ))
+                            .output()
+                            .unwrap();
+
+                        Command::new("ssh")
+                            .arg(format!("{}@{}", user, host))
+                            .arg("-o")
+                            .arg("ControlMaster=auto")
+                            .arg("-o")
+                            .arg("ControlPath=~/.ssh/cm-%r@%h:%p")
+                            .arg("-o")
+                            .arg("ControlPersist=30m")
+                            .arg("chmod")
+                            .arg("+x")
+                            .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
                             .output()
                             .unwrap();
                     }

@@ -503,9 +503,24 @@ impl PanelMainHeader {
         };
         icons.push(icon);
 
+        let mut icon_svg = "chevron-up.svg";
+        for (_, panel) in data.panels.iter() {
+            if panel
+                .widgets
+                .iter()
+                .map(|(id, _)| id)
+                .any(|w| w == &self.panel_widget_id)
+            {
+                if panel.maximized {
+                    icon_svg = "chevron-down.svg";
+                }
+                break;
+            }
+        }
+
         let x = self_size.width - ((icons.len() + 1) as f64) * (gap + icon_size);
         let icon = LapceIcon {
-            icon: "close.svg".to_string(),
+            icon: icon_svg.to_string(),
             rect: Size::new(icon_size, icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
