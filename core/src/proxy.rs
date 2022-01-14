@@ -94,7 +94,7 @@ impl LapceProxy {
                         .arg("-o")
                         .arg("ControlPersist=30m")
                         .arg("test")
-                        .arg("-a")
+                        .arg("-e")
                         .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
                         .output()
                         .unwrap();
