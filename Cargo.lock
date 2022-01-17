@@ -2170,6 +2170,7 @@ dependencies = [
  "jsonrpc-lite",
  "lapce-proxy",
  "lazy_static 1.4.0",
+ "libloading",
  "lsp-types",
  "parking_lot 0.11.2",
  "regex",
@@ -2179,11 +2180,11 @@ dependencies = [
  "sled",
  "strum",
  "strum_macros",
+ "threadpool",
  "tinyfiledialogs",
  "toml",
  "tree-sitter",
  "tree-sitter-highlight",
- "tree-sitter-rust",
  "unicode-segmentation",
  "unicode-width",
  "usvg",
@@ -4530,6 +4531,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "threadpool"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d050e60b33d41c19108b32cea32164033a9013fe3b46cbd4457559bfbf77afaa"
+dependencies = [
+ "num_cpus",
+]
+
+[[package]]
 name = "time"
 version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4721,9 +4731,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.19.2"
+version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8085411272e5e472f38ed09b911b29ab61979f21cd5fba3454738b85b438ba20"
+checksum = "c36be3222512d85a112491ae0cc280a38076022414f00b64582da1b7565ffd82"
 dependencies = [
  "cc",
  "regex",
@@ -4731,21 +4741,12 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-highlight"
-version = "0.19.2"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb37284ab259e42af1e49fa0f302e3fa93400f2f3921dcfd342b1c833db45970"
+checksum = "042342584c5a7a0b833d9fc4e2bdab3f9868ddc6c4b339a1e01451c6720868bc"
 dependencies = [
  "regex",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-rust"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "784f7ef9cdbd4c895dc2d4bb785e95b4a5364a602eec803681db83d1927ddf15"
-dependencies = [
- "cc",
+ "thiserror",
  "tree-sitter",
 ]
 

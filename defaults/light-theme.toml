@@ -80,6 +80,7 @@ magenta = "#A626A4"
 "style.property" = "$red"
 "style.enumMember" = "$red"
 "style.enum-member" = "$red"
+"style.variable.other.member" = "$red"
 
 "style.string" = "$green"
 

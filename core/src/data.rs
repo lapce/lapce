@@ -66,7 +66,7 @@ use crate::{
     explorer::FileExplorerData,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
-    language::{new_highlight_config, new_parser, LapceLanguage},
+    language::{new_highlight_config, new_parser, LapceLanguage, SCOPES},
     movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
@@ -2722,10 +2722,7 @@ fn buffer_receive_update(
     update: BufferUpdate,
     parsers: &mut HashMap<LapceLanguage, Parser>,
     highlighter: &mut Highlighter,
-    highlight_configs: &mut HashMap<
-        LapceLanguage,
-        (HighlightConfiguration, Vec<String>),
-    >,
+    highlight_configs: &mut HashMap<LapceLanguage, HighlightConfiguration>,
     event_sink: &ExtEventSink,
     tab_id: WidgetId,
 ) {
@@ -2752,13 +2749,10 @@ fn buffer_receive_update(
 
     if !update.semantic_tokens {
         if !highlight_configs.contains_key(&update.language) {
-            let (highlight_config, highlight_names) =
-                new_highlight_config(update.language);
-            highlight_configs
-                .insert(update.language, (highlight_config, highlight_names));
+            let highlight_config = new_highlight_config(update.language);
+            highlight_configs.insert(update.language, highlight_config);
         }
-        let (highlight_config, highlight_names) =
-            highlight_configs.get(&update.language).unwrap();
+        let highlight_config = highlight_configs.get(&update.language).unwrap();
         let mut current_hl: Option<Highlight> = None;
         let mut highlights = SpansBuilder::new(update.rope.len());
         for hightlight in highlighter
@@ -2774,7 +2768,7 @@ fn buffer_receive_update(
                 match highlight {
                     HighlightEvent::Source { start, end } => {
                         if let Some(hl) = current_hl {
-                            if let Some(hl) = highlight_names.get(hl.0) {
+                            if let Some(hl) = SCOPES.get(hl.0) {
                                 highlights.add_span(
                                     Interval::new(start, end),
                                     Style {

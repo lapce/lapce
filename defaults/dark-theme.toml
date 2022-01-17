@@ -79,6 +79,7 @@ magenta = "#C678DD"
 "style.property" = "$red"
 "style.enumMember" = "$red"
 "style.enum-member" = "$red"
+"style.variable.other.member" = "$red"
 
 "style.string" = "$green"
 
