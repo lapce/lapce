@@ -13,7 +13,8 @@ use indexmap::IndexMap;
 use toml;
 
 use crate::command::{
-    lapce_internal_commands, CommandTarget, LapceCommandNew, LAPCE_NEW_COMMAND,
+    lapce_internal_commands, CommandExecuted, CommandTarget, LapceCommandNew,
+    LAPCE_NEW_COMMAND,
 };
 use crate::data::LapceTabData;
 use crate::{
@@ -31,6 +32,7 @@ const default_keymaps_linux: &'static str =
 #[derive(PartialEq)]
 enum KeymapMatch {
     Full(String),
+    Multiple(Vec<String>),
     Prefix,
     None,
 }
@@ -74,7 +76,7 @@ pub trait KeyPressFocus {
         command: &LapceCommand,
         count: Option<usize>,
         env: &Env,
-    );
+    ) -> CommandExecuted;
     fn expect_char(&self) -> bool {
         false
     }
@@ -112,20 +114,25 @@ impl KeyPressData {
         count: Option<usize>,
         focus: &mut T,
         env: &Env,
-    ) -> Result<()> {
+    ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
             if let CommandTarget::Focus = cmd.target {
-                let cmd = LapceCommand::from_str(command)?;
-                focus.run_command(ctx, &cmd, count, env);
+                if let Ok(cmd) = LapceCommand::from_str(command) {
+                    focus.run_command(ctx, &cmd, count, env)
+                } else {
+                    CommandExecuted::No
+                }
             } else {
                 ctx.submit_command(Command::new(
                     LAPCE_NEW_COMMAND,
                     cmd.clone(),
                     Target::Auto,
                 ));
+                CommandExecuted::Yes
             }
+        } else {
+            CommandExecuted::No
         }
-        Ok(())
     }
 
     fn handle_count<T: KeyPressFocus>(
@@ -203,13 +210,8 @@ impl KeyPressData {
         } else if matches.len() > 1
             && matches.iter().filter(|m| m.key != keypresses).count() == 0
         {
-            KeymapMatch::Full(
-                matches
-                    .iter()
-                    .rev()
-                    .next()
-                    .map(|m| m.command.clone())
-                    .unwrap(),
+            KeymapMatch::Multiple(
+                matches.iter().rev().map(|m| m.command.clone()).collect(),
             )
         } else {
             KeymapMatch::Prefix
@@ -219,6 +221,19 @@ impl KeyPressData {
                 let count = self.count.take();
                 self.run_command(ctx, &command, count, focus, env);
                 self.pending_keypress = Vec::new();
+                return true;
+            }
+            KeymapMatch::Multiple(commands) => {
+                self.pending_keypress = Vec::new();
+                let count = self.count.take();
+                for command in commands {
+                    if self.run_command(ctx, &command, count, focus, env)
+                        == CommandExecuted::Yes
+                    {
+                        return true;
+                    }
+                }
+
                 return true;
             }
             KeymapMatch::Prefix => {

@@ -54,6 +54,12 @@ pub enum CommandTarget {
     Plugin(String),
 }
 
+#[derive(PartialEq)]
+pub enum CommandExecuted {
+    Yes,
+    No,
+}
+
 pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
     let mut commands = IndexMap::new();
 
@@ -309,8 +315,9 @@ pub enum LapceCommand {
     NextError,
     #[strum(serialize = "previous_error")]
     PreviousError,
-    #[strum(serialize = "document_formatting")]
-    DocumentFormatting,
+    #[strum(serialize = "format_document")]
+    #[strum(message = "Format Document")]
+    FormatDocument,
     #[strum(serialize = "save")]
     Save,
     #[strum(serialize = "show_code_actions")]
@@ -438,6 +445,7 @@ pub enum LapceUICommand {
     RequestPaintRect(Rect),
     ApplyEdits(usize, u64, Vec<TextEdit>),
     ApplyEditsAndSave(usize, u64, Result<Value>),
+    DocumentFormat(PathBuf, u64, Result<Value>),
     DocumentFormatAndSave(PathBuf, u64, Result<Value>),
     BufferSave(PathBuf, u64),
     UpdateSemanticTokens(BufferId, PathBuf, u64, Vec<(usize, usize, String)>),

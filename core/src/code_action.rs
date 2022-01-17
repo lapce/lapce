@@ -12,7 +12,7 @@ use lsp_types::{
 
 use crate::{
     buffer::EditType,
-    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{EditorContent, LapceMainSplitData, LapceTabData},
     keypress::{KeyPressData, KeyPressFocus},
@@ -49,7 +49,7 @@ impl KeyPressFocus for CodeActionData {
         command: &LapceCommand,
         count: Option<usize>,
         env: &Env,
-    ) {
+    ) -> CommandExecuted {
         match command {
             LapceCommand::CodeActionsCancel => {
                 ctx.submit_command(Command::new(
@@ -72,8 +72,9 @@ impl KeyPressFocus for CodeActionData {
                     Target::Auto,
                 ));
             }
-            _ => {}
+            _ => return CommandExecuted::No,
         }
+        CommandExecuted::Yes
     }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}

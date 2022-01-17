@@ -918,8 +918,16 @@ impl LapceTabData {
                     PanelKind::SourceControl,
                 );
             }
-            LapceWorkbenchCommand::TogglePlugin => {}
-            LapceWorkbenchCommand::ToggleFileExplorer => {}
+            LapceWorkbenchCommand::TogglePlugin => {
+                self.toggle_panel(ctx, self.plugin.widget_id, PanelKind::Plugin);
+            }
+            LapceWorkbenchCommand::ToggleFileExplorer => {
+                self.toggle_panel(
+                    ctx,
+                    self.file_explorer.widget_id,
+                    PanelKind::FileExplorer,
+                );
+            }
             LapceWorkbenchCommand::ToggleProblem => {
                 self.toggle_panel(ctx, self.problem.widget_id, PanelKind::Problem);
             }
@@ -1311,7 +1319,7 @@ impl LapceMainSplitData {
         Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
     }
 
-    pub fn document_format_and_save(
+    pub fn document_format(
         &mut self,
         ctx: &mut EventCtx,
         path: &PathBuf,
@@ -1350,6 +1358,16 @@ impl LapceMainSplitData {
                 }
             }
         }
+    }
+
+    pub fn document_format_and_save(
+        &mut self,
+        ctx: &mut EventCtx,
+        path: &PathBuf,
+        rev: u64,
+        result: &Result<Value>,
+    ) {
+        self.document_format(ctx, path, rev, result);
 
         let buffer = self.open_files.get(path).unwrap();
         let rev = buffer.rev;
@@ -1438,9 +1456,23 @@ impl LapceMainSplitData {
         self.initiate_diagnositcs_offset(path);
         let proxy = self.proxy.clone();
         let buffer = self.open_files.get_mut(path)?;
+
+        let buffer_len = buffer.len();
+        let mut move_cursor = true;
+        for (selection, _) in edits.iter() {
+            if selection.min_offset() == 0
+                && selection.max_offset() >= buffer_len - 1
+            {
+                move_cursor = false;
+                break;
+            }
+        }
+
         let delta =
             Arc::make_mut(buffer).edit_multiple(ctx, edits, proxy, edit_type);
-        self.cursor_apply_delta(path, &delta);
+        if move_cursor {
+            self.cursor_apply_delta(path, &delta);
+        }
         self.update_diagnositcs_offset(path, &delta);
         Some(delta)
     }

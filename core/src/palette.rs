@@ -39,7 +39,7 @@ use uuid::Uuid;
 use crate::{
     command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND,
-    command::{CommandTarget, LapceCommand, LAPCE_NEW_COMMAND},
+    command::{CommandExecuted, CommandTarget, LapceCommand, LAPCE_NEW_COMMAND},
     command::{LapceCommandNew, LapceUICommand},
     config::{Config, LapceTheme},
     data::{
@@ -462,7 +462,7 @@ impl KeyPressFocus for PaletteViewData {
         command: &LapceCommand,
         count: Option<usize>,
         env: &Env,
-    ) {
+    ) -> CommandExecuted {
         match command {
             LapceCommand::PaletteCancel => {
                 self.cancel(ctx);
@@ -482,8 +482,9 @@ impl KeyPressFocus for PaletteViewData {
             LapceCommand::ListSelect => {
                 self.select(ctx);
             }
-            _ => {}
+            _ => return CommandExecuted::No,
         }
+        CommandExecuted::Yes
     }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {

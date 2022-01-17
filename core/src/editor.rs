@@ -1,6 +1,7 @@
 use crate::buffer::{has_unmatched_pair, EditType};
 use crate::command::{
-    CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+    CommandExecuted, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
+    LAPCE_NEW_COMMAND,
 };
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme, LOGO};
@@ -1883,7 +1884,8 @@ impl KeyPressFocus for LapceEditorEmptyContent {
         command: &LapceCommand,
         count: Option<usize>,
         env: &Env,
-    ) {
+    ) -> CommandExecuted {
+        CommandExecuted::No
     }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
@@ -1919,7 +1921,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         cmd: &LapceCommand,
         count: Option<usize>,
         env: &Env,
-    ) {
+    ) -> CommandExecuted {
         if let Some(movement) = cmd.move_command(count) {
             self.do_move(&movement, count.unwrap_or(1));
             if let Some(snippet) = self.editor.snippet.as_ref() {
@@ -1936,7 +1938,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             self.cancel_completion();
-            return;
+            return CommandExecuted::Yes;
         }
         match cmd {
             LapceCommand::SplitLeft => {
@@ -2313,7 +2315,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         CursorMode::Insert(selection),
                         None,
                     ));
-                    return;
+                    return CommandExecuted::Yes;
                 };
                 self.insert_new_line(ctx, self.editor.cursor.offset());
                 self.update_completion(ctx);
@@ -2470,7 +2472,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::NormalMode => {
                 if !self.config.lapce.modal {
-                    return;
+                    return CommandExecuted::Yes;
                 }
 
                 let offset = match &self.editor.cursor.mode {
@@ -2655,9 +2657,36 @@ impl KeyPressFocus for LapceEditorBufferData {
                     );
                 }
             }
+            LapceCommand::FormatDocument => {
+                let proxy = self.proxy.clone();
+                let buffer_id = self.buffer.id;
+                let rev = self.buffer.rev;
+                let path = self.buffer.path.clone();
+                let event_sink = ctx.get_external_handle();
+                let (sender, receiver) = bounded(1);
+                thread::spawn(move || {
+                    proxy.get_document_formatting(
+                        buffer_id,
+                        Box::new(move |result| {
+                            sender.send(result);
+                        }),
+                    );
+
+                    let result =
+                        receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
+                            |e| Err(anyhow!("{}", e)),
+                            |v| v.map_err(|e| anyhow!("{:?}", e)),
+                        );
+                    event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::DocumentFormat(path, rev, result),
+                        Target::Auto,
+                    );
+                });
+            }
             LapceCommand::Save => {
                 if !self.buffer.dirty {
-                    return;
+                    return CommandExecuted::Yes;
                 }
 
                 let proxy = self.proxy.clone();
@@ -2686,8 +2715,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                     );
                 });
             }
-            _ => (),
+            _ => return CommandExecuted::No,
         }
+        CommandExecuted::Yes
     }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {

@@ -219,7 +219,7 @@ impl Cursor {
         match &self.mode {
             CursorMode::Normal(offset) => {
                 let mut transformer = Transformer::new(delta);
-                let new_offset = transformer.transform(*offset, false);
+                let new_offset = transformer.transform(*offset, true);
                 self.mode = CursorMode::Normal(new_offset);
             }
             CursorMode::Visual { start, end, mode } => {

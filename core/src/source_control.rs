@@ -15,7 +15,10 @@ use druid::{
 };
 
 use crate::{
-    command::{CommandTarget, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandExecuted, CommandTarget, LapceCommand, LapceUICommand,
+        LAPCE_UI_COMMAND,
+    },
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
     editor::{LapceEditorContainer, LapceEditorView},
@@ -77,7 +80,7 @@ impl KeyPressFocus for SourceControlData {
         command: &LapceCommand,
         count: Option<usize>,
         env: &Env,
-    ) {
+    ) -> CommandExecuted {
         match command {
             LapceCommand::SplitUp => {
                 ctx.submit_command(Command::new(
@@ -128,8 +131,9 @@ impl KeyPressFocus for SourceControlData {
                         !self.diff_files[self.file_list_index].1;
                 }
             }
-            _ => (),
+            _ => return CommandExecuted::No,
         }
+        CommandExecuted::Yes
     }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}

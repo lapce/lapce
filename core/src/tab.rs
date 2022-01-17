@@ -395,6 +395,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .document_format_and_save(ctx, path, *rev, result);
                         ctx.set_handled();
                     }
+                    LapceUICommand::DocumentFormat(path, rev, result) => {
+                        data.main_split.document_format(ctx, path, *rev, result);
+                        ctx.set_handled();
+                    }
                     LapceUICommand::BufferSave(path, rev) => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();

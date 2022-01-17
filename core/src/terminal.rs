@@ -39,8 +39,8 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::{
     command::{
-        CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandExecuted, CommandTarget, LapceCommand, LapceCommandNew,
+        LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData, PanelKind},
@@ -281,7 +281,7 @@ impl KeyPressFocus for LapceTerminalViewData {
         command: &LapceCommand,
         count: Option<usize>,
         env: &Env,
-    ) {
+    ) -> CommandExecuted {
         ctx.request_paint();
         if let Some(movement) = command.move_command(count) {
             let mut raw = self.terminal.raw.lock();
@@ -332,12 +332,12 @@ impl KeyPressFocus for LapceTerminalViewData {
                 }
                 _ => (),
             };
-            return;
+            return CommandExecuted::Yes;
         }
         match command {
             LapceCommand::NormalMode => {
                 if !self.config.lapce.modal {
-                    return;
+                    return CommandExecuted::Yes;
                 }
                 self.terminal_mut().mode = Mode::Normal;
                 let mut raw = self.terminal.raw.lock();
@@ -459,8 +459,9 @@ impl KeyPressFocus for LapceTerminalViewData {
                         .search_next(term, search_string, Direction::Left);
                 }
             }
-            _ => (),
+            _ => return CommandExecuted::No,
         }
+        CommandExecuted::Yes
     }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {

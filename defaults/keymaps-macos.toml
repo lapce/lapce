@@ -51,17 +51,6 @@ key = "ctrl+."
 command = "show_code_actions"
 mode = "n"
 
-[[keymaps]]
-key = "meta+k"
-command = "focus_editor"
-when = "panel_focus"
-
-[[keymaps]]
-key = "meta+j"
-command = "focus_terminal"
-mode = "n"
-when = "editor_focus"
-
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -125,26 +114,6 @@ key = "o"
 command = "list.expand"
 when = "list_focus"
 mode = "n"
-
-[[keymaps]]
-key = "meta+e"
-command = "file_explorer"
-mode = "n"
-
-[[keymaps]]
-key = "meta+l"
-command = "file_explorer.cancel"
-when = "file_explorer_focus"
-
-[[keymaps]]
-key = "meta+i"
-command = "source_control"
-mode = "n"
-
-[[keymaps]]
-key = "meta+l"
-command = "source_control.cancel"
-when = "source_control_focus"
 
 [[keymaps]]
 key = "/"
