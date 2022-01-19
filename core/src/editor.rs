@@ -1356,32 +1356,20 @@ impl LapceEditorBufferData {
         let width = self.config.editor_text_width(ctx.text(), "W");
         match &self.editor.cursor.mode {
             CursorMode::Normal(offset) => {
-                let (line, col) = self.buffer.offset_to_line_col(*offset);
+                let line = self.buffer.line_of_offset(*offset);
                 self.paint_cursor_line(ctx, line, is_focused, placeholder);
 
                 if is_focused {
-                    let cursor_x = col as f64 * width;
-                    let next = self.buffer.next_grapheme_offset(
-                        *offset,
-                        1,
-                        self.buffer.len(),
+                    let (x0, x1) = self.editor.cursor.current_char(
+                        ctx.text(),
+                        &self.buffer,
+                        config,
                     );
-                    let char = self.buffer.slice_to_cow(*offset..next).to_string();
-                    let char_width = if char == "\t" {
-                        4
-                    } else {
-                        UnicodeWidthStr::width(char.as_str()).max(1)
-                    };
+                    let char_width = if x1 > x0 { x1 - x0 } else { width };
                     ctx.fill(
                         Rect::ZERO
-                            .with_origin(Point::new(
-                                cursor_x,
-                                line as f64 * line_height,
-                            ))
-                            .with_size(Size::new(
-                                width * char_width as f64,
-                                line_height,
-                            )),
+                            .with_origin(Point::new(x0, line as f64 * line_height))
+                            .with_size(Size::new(char_width, line_height)),
                         self.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
                     );
                 }
@@ -1397,13 +1385,7 @@ impl LapceEditorBufferData {
                     if line < start_line || line > end_line {
                         continue;
                     }
-                    let line_content = self
-                        .buffer
-                        .slice_to_cow(
-                            self.buffer.offset_of_line(line)
-                                ..self.buffer.offset_of_line(line + 1),
-                        )
-                        .to_string();
+                    let line_content = self.buffer.line_content(line);
                     let left_col = match mode {
                         &VisualMode::Normal => match line {
                             _ if line == start_line => start_col,
@@ -1454,29 +1436,21 @@ impl LapceEditorBufferData {
                     }
 
                     if is_focused {
-                        let (line, col) = self.buffer.offset_to_line_col(*end);
-                        let cursor_x = col as f64 * width;
-                        let next = self.buffer.next_grapheme_offset(
-                            *end,
-                            1,
-                            self.buffer.len(),
+                        let line = self.buffer.line_of_offset(*end);
+
+                        let (x0, x1) = self.editor.cursor.current_char(
+                            ctx.text(),
+                            &self.buffer,
+                            config,
                         );
-                        let char = self.buffer.slice_to_cow(*end..next).to_string();
-                        let char_width = if char == "\t" {
-                            4
-                        } else {
-                            UnicodeWidthStr::width(char.as_str()).max(1)
-                        };
+                        let char_width = if x1 > x0 { x1 - x0 } else { width };
                         ctx.fill(
                             Rect::ZERO
                                 .with_origin(Point::new(
-                                    cursor_x,
+                                    x0,
                                     line as f64 * line_height,
                                 ))
-                                .with_size(Size::new(
-                                    width * char_width as f64,
-                                    line_height,
-                                )),
+                                .with_size(Size::new(char_width, line_height)),
                             self.config
                                 .get_color_unchecked(LapceTheme::EDITOR_CARET),
                         );
@@ -1544,14 +1518,17 @@ impl LapceEditorBufferData {
                     }
 
                     if is_focused {
-                        let (line, col) =
-                            self.buffer.offset_to_line_col(region.end());
-                        let x = (col as f64 * width).round();
+                        let line = self.buffer.line_of_offset(region.end());
                         let y = line as f64 * line_height;
+                        let (x0, x1) = self.editor.cursor.current_char(
+                            ctx.text(),
+                            &self.buffer,
+                            config,
+                        );
                         ctx.stroke(
                             Line::new(
-                                Point::new(x, y),
-                                Point::new(x, y + line_height),
+                                Point::new(x0, y),
+                                Point::new(x0, y + line_height),
                             ),
                             self.config
                                 .get_color_unchecked(LapceTheme::EDITOR_CARET),
@@ -2296,6 +2273,19 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let selection = self.editor.cursor.edit_selection(&self.buffer);
                 let (selection, _) =
                     self.edit(ctx, &selection, "", None, true, EditType::Delete);
+                self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
+                self.update_completion(ctx);
+            }
+            LapceCommand::InsertTab => {
+                let selection = self.editor.cursor.edit_selection(&self.buffer);
+                let (selection, _) = self.edit(
+                    ctx,
+                    &selection,
+                    "\t",
+                    None,
+                    true,
+                    EditType::InsertChars,
+                );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
                 self.update_completion(ctx);
             }

@@ -273,6 +273,8 @@ pub enum LapceCommand {
     GetReferences,
     #[strum(serialize = "insert_new_line")]
     InsertNewLine,
+    #[strum(serialize = "insert_tab")]
+    InsertTab,
     #[strum(serialize = "word_backward")]
     WordBackward,
     #[strum(serialize = "word_foward")]

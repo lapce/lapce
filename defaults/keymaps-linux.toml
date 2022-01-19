@@ -142,6 +142,11 @@ command = "insert_new_line"
 mode = "i"
 
 [[keymaps]]
+key = "tab"
+command = "insert_tab"
+mode = "i"
+
+[[keymaps]]
 key = "ctrl+m"
 command = "insert_new_line"
 mode = "i"

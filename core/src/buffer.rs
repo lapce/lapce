@@ -625,23 +625,10 @@ impl BufferNew {
         bounds: [f64; 2],
         config: &Config,
     ) -> PietTextLayout {
-        let (text, cursor_index) = if line_content.contains('\t') {
-            let cursor_index = cursor_index.map(|index| {
-                line_content[..index.min(line_content.len())]
-                    .matches('\t')
-                    .count()
-                    * 3
-                    + index
-            });
-            let line_content = line_content.replace('\t', "    ");
-            (line_content, cursor_index)
-        } else {
-            (line_content.to_string(), cursor_index)
-        };
         let styles = self.get_line_styles(line);
         let mut layout_builder = ctx
             .text()
-            .new_text_layout(text)
+            .new_text_layout(line_content.to_string())
             .font(config.editor.font_family(), config.editor.font_size as f64)
             .text_color(
                 config
@@ -661,16 +648,6 @@ impl BufferNew {
         }
 
         for (start, end, style) in styles.iter() {
-            let start = line_content[..(*start).min(line_content.len())]
-                .matches('\t')
-                .count()
-                * 3
-                + start;
-            let end = line_content[..(*end).min(line_content.len())]
-                .matches('\t')
-                .count()
-                * 3
-                + end;
             if let Some(fg_color) = style.fg_color.as_ref() {
                 if let Some(fg_color) =
                     config.get_color(&("style.".to_string() + fg_color))
@@ -2237,7 +2214,7 @@ fn semantic_tokens_lengend(
 
 pub fn char_width(c: char) -> usize {
     if c == '\t' {
-        return 4;
+        return 8;
     }
     if c.is_emoji_modifier_base() || c.is_emoji_modifier() {
         // treat modifier sequences as double wide
@@ -2261,7 +2238,7 @@ pub fn grapheme_column_width(s: &str) -> usize {
     use xi_unicode::EmojiExt;
     for c in s.chars() {
         if c == '\t' {
-            return 4;
+            return 8;
         }
         if c.is_emoji_modifier_base() || c.is_emoji_modifier() {
             // treat modifier sequences as double wide
