@@ -88,11 +88,12 @@ impl Cursor {
             1,
             buffer.offset_line_end(offset, true),
         );
-        let line_start = buffer.offset_of_line(line);
-        let line_content = buffer.line_content(line);
-        let x0 =
-            config.editor_text_width(text, &line_content[..offset - line_start]);
-        let x1 = config.editor_text_width(text, &line_content[..next - line_start]);
+
+        let (_, x0) = buffer.offset_to_line_col(offset);
+        let (_, x1) = buffer.offset_to_line_col(next);
+        let width = config.editor_text_width(text, "W");
+        let x0 = x0 as f64 * width;
+        let x1 = x1 as f64 * width;
         (x0, x1)
     }
 
