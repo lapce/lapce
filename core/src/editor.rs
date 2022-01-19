@@ -1300,8 +1300,7 @@ impl LapceEditorBufferData {
                     let index = self
                         .buffer
                         .slice_to_cow(cursor_line_start..cursor_offset)
-                        .chars()
-                        .count();
+                        .len();
                     Some(index)
                 } else {
                     None

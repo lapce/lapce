@@ -707,7 +707,7 @@ impl Widget<LapceTabData> for CompletionNew {
                 let rect = Size::new(line_height, line_height)
                     .to_rect()
                     .with_origin(Point::new(0.0, line_height * line as f64));
-                ctx.fill(rect, &color.clone().with_alpha(0.2));
+                ctx.fill(rect, &color.clone().with_alpha(0.3));
 
                 let width = 16.0;
                 let height = 16.0;

@@ -625,12 +625,10 @@ impl BufferNew {
         bounds: [f64; 2],
         config: &Config,
     ) -> PietTextLayout {
-        let (line_content, cursor_index) = if line_content.contains('\t') {
+        let (text, cursor_index) = if line_content.contains('\t') {
             let cursor_index = cursor_index.map(|index| {
-                line_content
-                    .chars()
-                    .enumerate()
-                    .filter(|(i, c)| *i < index && *c == '\t')
+                line_content[..index.min(line_content.len())]
+                    .matches('\t')
                     .count()
                     * 3
                     + index
@@ -643,7 +641,7 @@ impl BufferNew {
         let styles = self.get_line_styles(line);
         let mut layout_builder = ctx
             .text()
-            .new_text_layout(line_content)
+            .new_text_layout(text)
             .font(config.editor.font_family(), config.editor.font_size as f64)
             .text_color(
                 config
@@ -663,6 +661,16 @@ impl BufferNew {
         }
 
         for (start, end, style) in styles.iter() {
+            let start = line_content[..(*start).min(line_content.len())]
+                .matches('\t')
+                .count()
+                * 3
+                + start;
+            let end = line_content[..(*end).min(line_content.len())]
+                .matches('\t')
+                .count()
+                * 3
+                + end;
             if let Some(fg_color) = style.fg_color.as_ref() {
                 if let Some(fg_color) =
                     config.get_color(&("style.".to_string() + fg_color))
