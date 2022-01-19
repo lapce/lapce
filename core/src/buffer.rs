@@ -714,6 +714,7 @@ impl BufferNew {
     }
 
     pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
+        let tab_width = 8;
         let mut pos = 0;
         let mut offset = self.offset_of_line(line);
         for c in self
@@ -723,7 +724,13 @@ impl BufferNew {
             if c == '\n' {
                 return offset;
             }
-            pos += char_width(c);
+            let width = if c == '\t' {
+                tab_width - pos % tab_width
+            } else {
+                char_width(c)
+            };
+
+            pos += width;
             if pos > col {
                 return offset;
             }
@@ -2224,26 +2231,37 @@ pub fn char_width(c: char) -> usize {
 }
 
 pub fn str_col(s: &str) -> usize {
-    s.graphemes(true).map(grapheme_column_width).sum()
-}
-//
-/// Returns the number of cells visually occupied by a grapheme.
-/// The input string must be a single grapheme.
-pub fn grapheme_column_width(s: &str) -> usize {
-    // Due to this issue:
-    // https://github.com/unicode-rs/unicode-width/issues/4
-    // we cannot simply use the unicode-width crate to compute
-    // the desired value.
-    // Let's check for emoji-ness for ourselves first
-    use xi_unicode::EmojiExt;
+    let tab_width = 8;
+    let mut total_width = 0;
+
     for c in s.chars() {
-        if c == '\t' {
-            return 8;
-        }
-        if c.is_emoji_modifier_base() || c.is_emoji_modifier() {
-            // treat modifier sequences as double wide
-            return 2;
-        }
+        let width = if c == '\t' {
+            tab_width - total_width % tab_width
+        } else {
+            char_width(c)
+        };
+
+        total_width += width;
     }
-    UnicodeWidthStr::width(s)
+
+    total_width
 }
+
+// pub fn grapheme_column_width(s: &str) -> usize {
+//     // Due to this issue:
+//     // https://github.com/unicode-rs/unicode-width/issues/4
+//     // we cannot simply use the unicode-width crate to compute
+//     // the desired value.
+//     // Let's check for emoji-ness for ourselves first
+//     use xi_unicode::EmojiExt;
+//     for c in s.chars() {
+//         if c == '\t' {
+//             return 8;
+//         }
+//         if c.is_emoji_modifier_base() || c.is_emoji_modifier() {
+//             // treat modifier sequences as double wide
+//             return 2;
+//         }
+//     }
+//     UnicodeWidthStr::width(s)
+// }
