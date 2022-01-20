@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     buffer::BufferContent,
-    data::{EditorContent, EditorType, LapceData, LapceTabData, LapceWindowData},
+    data::{EditorContent, LapceData, LapceTabData, LapceWindowData},
     movement::Cursor,
     state::LapceWorkspace,
 };

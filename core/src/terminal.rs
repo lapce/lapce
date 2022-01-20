@@ -684,6 +684,24 @@ impl Widget<LapceTabData> for TerminalPanel {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::Focus => {
+                        if data.terminal.terminals.len() > 0 {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(data.terminal.active),
+                            ));
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
         self.split.event(ctx, event, data, env);
     }
 
@@ -707,7 +725,7 @@ impl Widget<LapceTabData> for TerminalPanel {
         if data.terminal.terminals.len() == 0 {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::InitTerminalPanel(false),
+                LapceUICommand::InitTerminalPanel(true),
                 Target::Widget(data.terminal.split_id),
             ));
         }

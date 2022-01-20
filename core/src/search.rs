@@ -18,7 +18,7 @@ use druid::{
 };
 
 use crate::{
-    data::{EditorType, LapceEditorData, LapceTabData},
+    data::{LapceEditorData, LapceTabData},
     panel::{LapcePanel, PanelHeaderKind},
     split::LapceSplitNew,
 };

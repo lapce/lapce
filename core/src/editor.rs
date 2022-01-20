@@ -1,12 +1,13 @@
-use crate::buffer::{has_unmatched_pair, BufferContent, EditType};
+use crate::buffer::{has_unmatched_pair, BufferContent, EditType, LocalBufferKind};
 use crate::command::{
     CommandExecuted, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
     LAPCE_NEW_COMMAND,
 };
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme, LOGO};
+use crate::data::lapce_main_split_data_derived_lenses::local_buffers;
 use crate::data::{
-    EditorContent, EditorDiagnostic, EditorType, FocusArea, InlineFindDirection,
+    EditorContent, EditorDiagnostic, FocusArea, InlineFindDirection,
     LapceEditorData, LapceMainSplitData, LapceTabData, RegisterData,
 };
 use crate::find::Find;
@@ -1844,35 +1845,6 @@ impl LapceEditorBufferData {
     }
 }
 
-pub struct LapceEditorEmptyContent {}
-
-pub enum LapceEditorViewContent {
-    Buffer(LapceEditorBufferData),
-    None,
-}
-
-impl KeyPressFocus for LapceEditorEmptyContent {
-    fn get_mode(&self) -> Mode {
-        Mode::Normal
-    }
-
-    fn check_condition(&self, condition: &str) -> bool {
-        false
-    }
-
-    fn run_command(
-        &mut self,
-        ctx: &mut EventCtx,
-        command: &LapceCommand,
-        count: Option<usize>,
-        env: &Env,
-    ) -> CommandExecuted {
-        CommandExecuted::No
-    }
-
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
-}
-
 impl KeyPressFocus for LapceEditorBufferData {
     fn get_mode(&self) -> Mode {
         self.editor.cursor.get_mode()
@@ -1884,9 +1856,16 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
-            "editor_focus" => true,
+            "editor_focus" => match self.editor.content {
+                BufferContent::File(_) => true,
+                BufferContent::Local(_) => false,
+            },
             "source_control_focus" => {
-                self.editor.editor_type == EditorType::SourceControl
+                self.editor.content
+                    == BufferContent::Local(LocalBufferKind::SourceControl)
+            }
+            "search_focus" => {
+                self.editor.content == BufferContent::Local(LocalBufferKind::Search)
             }
             "in_snippet" => self.editor.snippet.is_some(),
             "list_focus" => {
@@ -1973,7 +1952,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::SplitExchange => {
                 if let Some(split_id) = self.editor.split_id.clone() {
-                    if self.editor.editor_type == EditorType::Normal {
+                    if let BufferContent::File(_) = &self.editor.content {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::SplitEditorExchange(self.editor.view_id),
@@ -1984,7 +1963,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::SplitVertical => {
                 if let Some(split_id) = self.editor.split_id.clone() {
-                    if self.editor.editor_type == EditorType::Normal {
+                    if let BufferContent::File(_) = &self.editor.content {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::SplitEditor(true, self.editor.view_id),
@@ -1995,7 +1974,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::SplitClose => {
                 if let Some(split_id) = self.editor.split_id.clone() {
-                    if self.editor.editor_type == EditorType::Normal {
+                    if let BufferContent::File(_) = &self.editor.content {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::SplitEditorClose(self.editor.view_id),
@@ -2575,7 +2554,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                 ));
             }
             LapceCommand::SourceControlCancel => {
-                if self.editor.editor_type == EditorType::SourceControl {
+                if self.editor.content
+                    == BufferContent::Local(LocalBufferKind::SourceControl)
+                {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::FocusEditor,
@@ -3057,7 +3038,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                 druid::MouseButton::Left => {
                     ctx.request_focus();
                     data.focus = self.view_id;
-                    if editor.editor_type == EditorType::Normal {
+                    if let BufferContent::File(_) = &editor.content {
                         data.focus_area = FocusArea::Editor;
                         data.main_split.active = Arc::new(Some(self.view_id));
                     }
@@ -3071,7 +3052,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LapceUICommand::Focus => {
                         ctx.request_focus();
                         data.focus = self.view_id;
-                        if editor.editor_type == EditorType::Normal {
+                        if let BufferContent::File(_) = &editor.content {
                             data.focus_area = FocusArea::Editor;
                             data.main_split.active = Arc::new(Some(self.view_id));
                         }
@@ -3289,12 +3270,12 @@ impl LapceEditorContainer {
         }
     }
 
-    fn set_focus(&self, ctx: &mut EventCtx, data: &mut LapceEditorViewData) {
-        if data.editor.editor_type != EditorType::SourceControl {
-            data.main_split.active = Arc::new(Some(self.view_id));
-        }
-        ctx.request_focus();
-    }
+    // fn set_focus(&self, ctx: &mut EventCtx, data: &mut LapceEditorViewData) {
+    //     if let BufferContent::File(_) = &self.editor.content {
+    //         data.main_split.active = Arc::new(Some(self.view_id));
+    //     }
+    //     ctx.request_focus();
+    // }
 
     // pub fn handle_lapce_ui_command(
     //     &mut self,

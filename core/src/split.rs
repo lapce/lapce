@@ -4,10 +4,7 @@ use crate::{
         LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{
-        EditorContent, EditorType, FocusArea, LapceEditorData, LapceTabData,
-        PanelData,
-    },
+    data::{EditorContent, FocusArea, LapceEditorData, LapceTabData, PanelData},
     editor::{EditorLocation, LapceEditorView},
     keypress::{DefaultKeyPressHandler, KeyPress},
     scroll::{LapcePadding, LapceScroll},
@@ -453,7 +450,6 @@ impl LapceSplitNew {
             None,
             Some(self.split_id),
             from_editor.content.clone(),
-            EditorType::Normal,
             &data.config,
         );
         editor_data.cursor = from_editor.cursor.clone();

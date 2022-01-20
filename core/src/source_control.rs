@@ -336,6 +336,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 ctx.request_focus();
                 source_control.active = self.widget_id;
                 data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
+                data.focus = self.widget_id;
                 ctx.set_handled();
             }
             Event::KeyDown(key_event) => {

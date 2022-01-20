@@ -63,7 +63,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus, Snippet},
     config::{Config, GetConfig, LapceTheme},
     db::{LapceDb, WorkspaceInfo},
-    editor::{EditorLocationNew, LapceEditorBufferData, LapceEditorViewContent},
+    editor::{EditorLocationNew, LapceEditorBufferData},
     explorer::FileExplorerData,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -421,14 +421,12 @@ impl LapceTabData {
         );
         main_split.add_editor(
             source_control.editor_view_id,
-            LocalBufferKind::Search,
-            EditorType::SourceControl,
+            LocalBufferKind::SourceControl,
             &config,
         );
         main_split.add_editor(
             search.editor_view_id,
             LocalBufferKind::Search,
-            EditorType::Search,
             &config,
         );
 
@@ -640,10 +638,17 @@ impl LapceTabData {
                 .insert(editor.view_id, editor_buffer_data.editor);
         }
         if !editor_buffer_data.buffer.same(&buffer) {
-            if let BufferContent::File(path) = &buffer.content {
-                self.main_split
-                    .open_files
-                    .insert(path.clone(), editor_buffer_data.buffer);
+            match &buffer.content {
+                BufferContent::File(path) => {
+                    self.main_split
+                        .open_files
+                        .insert(path.clone(), editor_buffer_data.buffer);
+                }
+                BufferContent::Local(kind) => {
+                    self.main_split
+                        .local_buffers
+                        .insert(kind.clone(), editor_buffer_data.buffer);
+                }
             }
         }
     }
@@ -1563,7 +1568,6 @@ impl LapceMainSplitData {
                         None,
                         Some(*self.split_id),
                         BufferContent::Local(LocalBufferKind::Empty),
-                        EditorType::Normal,
                         config,
                     ));
                     self.editors.insert(editor.view_id, editor.clone());
@@ -1732,7 +1736,6 @@ impl LapceMainSplitData {
                     None,
                     Some(*split_id),
                     e.content.clone(),
-                    EditorType::Normal,
                     config,
                 );
                 if info.active_editor == i {
@@ -1797,7 +1800,6 @@ impl LapceMainSplitData {
             Some(palette_preview_editor),
             None,
             BufferContent::File(path.clone()),
-            EditorType::Palette,
             config,
         );
         editors.insert(editor.view_id, Arc::new(editor));
@@ -1835,32 +1837,10 @@ impl LapceMainSplitData {
         }
     }
 
-    // pub fn add_source_control_editor(
-    //     &mut self,
-    //     view_id: WidgetId,
-    //     split_id: WidgetId,
-    //     config: &Config,
-    // ) {
-    //     let path = PathBuf::from(SOURCE_CONTROL_BUFFER);
-    //     let mut buffer =
-    //         BufferNew::new(path.clone(), self.update_sender.clone()).set_local();
-    //     buffer.load_content("");
-    //     self.open_files.insert(path.clone(), Arc::new(buffer));
-    //     let editor = LapceEditorData::new(
-    //         Some(view_id),
-    //         Some(split_id),
-    //         EditorContent::File(path.clone()),
-    //         EditorType::SourceControl,
-    //         config,
-    //     );
-    //     self.editors.insert(editor.view_id, Arc::new(editor));
-    // }
-
     pub fn add_editor(
         &mut self,
         view_id: WidgetId,
         buffer_kind: LocalBufferKind,
-        editor_type: EditorType,
         config: &Config,
     ) {
         let mut buffer = BufferNew::new(
@@ -1875,26 +1855,20 @@ impl LapceMainSplitData {
             Some(view_id),
             None,
             BufferContent::Local(buffer_kind),
-            editor_type,
             config,
         );
         self.editors.insert(editor.view_id, Arc::new(editor));
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum EditorType {
-    DiffSplit(WidgetId, WidgetId),
-    Normal,
-    SourceControl,
-    Search,
-    Palette,
-}
-
-pub enum LapceEditorContainerKind {
-    Container(WidgetId),
-    DiffSplit(WidgetId, WidgetId),
-}
+// #[derive(Clone, Debug, PartialEq)]
+// pub enum EditorType {
+//     DiffSplit(WidgetId, WidgetId),
+//     Normal,
+//     SourceControl,
+//     Search,
+//     Palette,
+// }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum EditorContent {
@@ -1912,7 +1886,6 @@ pub enum InlineFindDirection {
 pub struct LapceEditorData {
     pub split_id: Option<WidgetId>,
     pub view_id: WidgetId,
-    pub editor_type: EditorType,
     pub content: BufferContent,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
@@ -1931,13 +1904,11 @@ impl LapceEditorData {
         view_id: Option<WidgetId>,
         split_id: Option<WidgetId>,
         content: BufferContent,
-        editor_type: EditorType,
         config: &Config,
     ) -> Self {
         Self {
             split_id,
             view_id: view_id.unwrap_or(WidgetId::next()),
-            editor_type,
             content,
             scroll_offset: Vec2::ZERO,
             cursor: if config.lapce.modal {

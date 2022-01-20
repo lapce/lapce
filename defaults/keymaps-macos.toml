@@ -22,10 +22,6 @@ key = "meta+,"
 command = "open_settings"
 
 [[keymaps]]
-key = "meta+1"
-command = "toggle_terminal"
-
-[[keymaps]]
 key = "meta+u"
 command = "toggle_maximized_panel"
 when = "panel_focus"

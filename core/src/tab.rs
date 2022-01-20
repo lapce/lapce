@@ -30,8 +30,8 @@ use crate::{
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::{Config, LapceTheme},
     data::{
-        EditorContent, EditorDiagnostic, EditorType, LapceMainSplitData,
-        LapceTabData, WorkProgress,
+        EditorContent, EditorDiagnostic, LapceMainSplitData, LapceTabData,
+        WorkProgress,
     },
     editor::{EditorLocationNew, LapceEditorView},
     explorer::FileExplorer,
