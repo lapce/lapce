@@ -8,6 +8,7 @@ use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    buffer::BufferContent,
     data::{EditorContent, EditorType, LapceData, LapceTabData, LapceWindowData},
     movement::Cursor,
     state::LapceWorkspace,
@@ -38,7 +39,7 @@ pub struct TabsInfo {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct EditorInfo {
-    pub content: EditorContent,
+    pub content: BufferContent,
     pub scroll_offset: (f64, f64),
     pub position: Option<Position>,
 }
@@ -133,7 +134,10 @@ impl LapceDb {
         Ok(())
     }
 
-    pub fn save_workspace(&self, data: &LapceTabData) -> Result<()> {
+    pub fn workspace_info(
+        &self,
+        data: &LapceTabData,
+    ) -> Result<(LapceWorkspace, WorkspaceInfo)> {
         let workspace = data.workspace.as_ref().ok_or(anyhow!("no workspace"))?;
 
         let mut active_editor = 0;
@@ -143,14 +147,14 @@ impl LapceDb {
             .iter()
             .enumerate()
             .map(|(i, view_id)| {
-                if &*data.main_split.active == view_id {
+                if *data.main_split.active == Some(*view_id) {
                     active_editor = i;
                 }
                 let editor = data.main_split.editors.get(view_id).unwrap();
                 EditorInfo {
                     content: editor.content.clone(),
                     scroll_offset: (editor.scroll_offset.x, editor.scroll_offset.y),
-                    position: if let EditorContent::Buffer(path) = &editor.content {
+                    position: if let BufferContent::File(path) = &editor.content {
                         let buffer =
                             data.main_split.open_files.get(path).unwrap().clone();
                         Some(buffer.offset_to_position(editor.cursor.offset()))
@@ -164,8 +168,21 @@ impl LapceDb {
             editors,
             active_editor,
         };
+        Ok(((**workspace).clone(), workspace_info))
+    }
 
-        self.insert_workspace(workspace, &workspace_info)?;
+    pub fn save_workspace(&self, data: &LapceTabData) -> Result<()> {
+        let (workspace, workspace_info) = self.workspace_info(data)?;
+
+        self.insert_workspace(&workspace, &workspace_info)?;
+        Ok(())
+    }
+
+    pub fn save_workspace_async(&self, data: &LapceTabData) -> Result<()> {
+        let (workspace, workspace_info) = self.workspace_info(data)?;
+
+        self.save_tx
+            .send(SaveEvent::Workspace(workspace, workspace_info))?;
         Ok(())
     }
 

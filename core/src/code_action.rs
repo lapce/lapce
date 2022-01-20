@@ -11,7 +11,7 @@ use lsp_types::{
 };
 
 use crate::{
-    buffer::EditType,
+    buffer::{BufferContent, EditType},
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{EditorContent, LapceMainSplitData, LapceTabData},
@@ -83,8 +83,12 @@ impl KeyPressFocus for CodeActionData {
 impl CodeActionData {
     pub fn next(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
         match &editor.content {
-            EditorContent::Buffer(path) => {
+            BufferContent::File(path) => {
                 let buffer = self.main_split.open_files.get(path).unwrap();
                 let offset = editor.cursor.offset();
                 let prev_offset = buffer.prev_code_boundary(offset);
@@ -99,14 +103,18 @@ impl CodeActionData {
                     true,
                 );
             }
-            EditorContent::None => {}
+            BufferContent::Local(_) => {}
         }
     }
 
     pub fn select(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
         match &editor.content {
-            EditorContent::Buffer(path) => {
+            BufferContent::File(path) => {
                 let buffer = self.main_split.open_files.get(path).unwrap();
                 let offset = editor.cursor.offset();
                 let prev_offset = buffer.prev_code_boundary(offset);
@@ -158,14 +166,18 @@ impl CodeActionData {
                     }
                 }
             }
-            EditorContent::None => {}
+            BufferContent::Local(_) => {}
         }
     }
 
     pub fn previous(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
         match &editor.content {
-            EditorContent::Buffer(path) => {
+            BufferContent::File(path) => {
                 let buffer = self.main_split.open_files.get(path).unwrap();
                 let offset = editor.cursor.offset();
                 let prev_offset = buffer.prev_code_boundary(offset);
@@ -180,7 +192,7 @@ impl CodeActionData {
                     true,
                 );
             }
-            EditorContent::None => {}
+            BufferContent::Local(_) => {}
         }
     }
 }
@@ -250,7 +262,15 @@ impl Widget<LapceTabData> for CodeAction {
         env: &Env,
     ) {
         let old_editor = old_data.main_split.active_editor();
+        let old_editor = match old_editor {
+            Some(editor) => editor,
+            None => return,
+        };
         let editor = data.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
 
         if !old_data.main_split.show_code_actions
             && data.main_split.show_code_actions
@@ -299,9 +319,14 @@ impl Widget<LapceTabData> for CodeAction {
         );
 
         let editor = data.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
+
         match &editor.content {
-            EditorContent::None => {}
-            EditorContent::Buffer(path) => {
+            BufferContent::Local(_) => {}
+            BufferContent::File(path) => {
                 let buffer = data.main_split.open_files.get(path).unwrap();
                 let offset = editor.cursor.offset();
                 let prev_offset = buffer.prev_code_boundary(offset);

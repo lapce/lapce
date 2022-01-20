@@ -37,13 +37,14 @@ use usvg;
 use uuid::Uuid;
 
 use crate::{
+    buffer::BufferContent,
     command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, CommandTarget, LapceCommand, LAPCE_NEW_COMMAND},
     command::{LapceCommandNew, LapceUICommand},
     config::{Config, LapceTheme},
     data::{
-        EditorContent, EditorKind, FocusArea, LapceEditorData, LapceEditorViewData,
+        EditorContent, FocusArea, LapceEditorData, LapceEditorViewData,
         LapceMainSplitData, LapceTabData, PanelKind,
     },
     editor::{EditorLocationNew, LapceEditorContainer, LapceEditorView},
@@ -130,7 +131,12 @@ pub enum PaletteItemContent {
 }
 
 impl PaletteItemContent {
-    fn select(&self, ctx: &mut EventCtx, preview: bool) -> Option<PaletteType> {
+    fn select(
+        &self,
+        ctx: &mut EventCtx,
+        preview: bool,
+        preview_editor_id: WidgetId,
+    ) -> Option<PaletteType> {
         match &self {
             PaletteItemContent::File(_, full_path) => {
                 if !preview {
@@ -147,38 +153,38 @@ impl PaletteItemContent {
                 range,
                 container_name,
             } => {
-                let kind = if preview {
-                    EditorKind::PalettePreview
+                let editor_id = if preview {
+                    Some(preview_editor_id)
                 } else {
-                    EditorKind::SplitActive
+                    None
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToPosition(kind, range.start.clone()),
+                    LapceUICommand::JumpToPosition(editor_id, range.start.clone()),
                     Target::Auto,
                 ));
             }
             PaletteItemContent::Line(line, _) => {
-                let kind = if preview {
-                    EditorKind::PalettePreview
+                let editor_id = if preview {
+                    Some(preview_editor_id)
                 } else {
-                    EditorKind::SplitActive
+                    None
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLine(kind, *line),
+                    LapceUICommand::JumpToLine(editor_id, *line),
                     Target::Auto,
                 ));
             }
             PaletteItemContent::ReferenceLocation(rel_path, location) => {
-                let kind = if preview {
-                    EditorKind::PalettePreview
+                let editor_id = if preview {
+                    Some(preview_editor_id)
                 } else {
-                    EditorKind::SplitActive
+                    None
                 };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::JumpToLocation(kind, location.clone()),
+                    LapceUICommand::JumpToLocation(editor_id, location.clone()),
                     Target::Auto,
                 ));
             }
@@ -533,7 +539,7 @@ impl PaletteData {
 
     pub fn preview(&self, ctx: &mut EventCtx) {
         if let Some(item) = self.get_item() {
-            item.content.select(ctx, true);
+            item.content.select(ctx, true, self.preview_editor);
         }
     }
 
@@ -619,10 +625,17 @@ impl PaletteViewData {
         palette.cursor = palette.input.len();
         palette.index = 0;
 
-        let active_content = self.main_split.active_editor().content.clone();
-        self.main_split
-            .editor_kind_mut(&EditorKind::PalettePreview)
-            .content = active_content;
+        if let Some(active_editor_content) =
+            self.main_split.active_editor().map(|e| e.content.clone())
+        {
+            let preview_editor = Arc::make_mut(
+                self.main_split
+                    .editors
+                    .get_mut(&palette.preview_editor)
+                    .unwrap(),
+            );
+            preview_editor.content = active_editor_content;
+        }
 
         match &palette.palette_type {
             &PaletteType::File => {
@@ -715,7 +728,9 @@ impl PaletteViewData {
         }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {
-            if let Some(palette_type) = item.content.select(ctx, false) {
+            if let Some(palette_type) =
+                item.content.select(ctx, false, palette.preview_editor)
+            {
                 self.run(ctx, Some(palette_type));
             } else {
                 self.cancel(ctx);
@@ -906,123 +921,113 @@ impl PaletteViewData {
             return;
         }
         let editor = self.main_split.active_editor();
-        match &editor.content {
-            EditorContent::Buffer(path) => {
-                let buffer = self.main_split.open_files.get(path).unwrap();
-                let last_line_number = buffer.last_line() + 1;
-                let last_line_number_len = last_line_number.to_string().len();
-                let palette = Arc::make_mut(&mut self.palette);
-                palette.items = buffer
-                    .rope
-                    .lines(0..buffer.len())
-                    .enumerate()
-                    .map(|(i, l)| {
-                        let line_number = i + 1;
-                        let text = format!(
-                            "{}{} {}",
-                            vec![
-                                " ";
-                                last_line_number_len - line_number.to_string().len()
-                            ]
-                            .join(""),
-                            line_number,
-                            l.to_string()
-                        );
-                        NewPaletteItem {
-                            content: PaletteItemContent::Line(
-                                line_number,
-                                text.clone(),
-                            ),
-                            filter_text: text,
-                            score: 0,
-                            indices: vec![],
-                        }
-                    })
-                    .collect();
-            }
-            EditorContent::None => {}
-        }
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
+
+        let buffer = self.main_split.editor_buffer(editor.view_id);
+        let last_line_number = buffer.last_line() + 1;
+        let last_line_number_len = last_line_number.to_string().len();
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.items = buffer
+            .rope
+            .lines(0..buffer.len())
+            .enumerate()
+            .map(|(i, l)| {
+                let line_number = i + 1;
+                let text = format!(
+                    "{}{} {}",
+                    vec![" "; last_line_number_len - line_number.to_string().len()]
+                        .join(""),
+                    line_number,
+                    l.to_string()
+                );
+                NewPaletteItem {
+                    content: PaletteItemContent::Line(line_number, text.clone()),
+                    filter_text: text,
+                    score: 0,
+                    indices: vec![],
+                }
+            })
+            .collect();
     }
 
     fn get_global_search(&mut self, ctx: &mut EventCtx) {}
 
     fn get_document_symbols(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return,
+        };
+
         let widget_id = self.palette.widget_id;
 
-        match &editor.content {
-            EditorContent::Buffer(path) => {
-                let buffer_id = self.main_split.open_files.get(path).unwrap().id;
-                let run_id = self.palette.run_id.clone();
-                let event_sink = ctx.get_external_handle();
+        if let BufferContent::File(path) = &editor.content {
+            let path = path.clone();
+            let buffer_id = self.main_split.open_files.get(&path).unwrap().id;
+            let run_id = self.palette.run_id.clone();
+            let event_sink = ctx.get_external_handle();
 
-                self.palette.proxy.get_document_symbols(
-                    buffer_id,
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            let resp: Result<
-                                DocumentSymbolResponse,
-                                serde_json::Error,
-                            > = serde_json::from_value(res);
-                            if let Ok(resp) = resp {
-                                let items: Vec<NewPaletteItem> = match resp {
-                                    DocumentSymbolResponse::Flat(symbols) => symbols
-                                        .iter()
-                                        .map(|s| {
-                                            let mut filter_text = s.name.clone();
-                                            if let Some(container_name) =
-                                                s.container_name.as_ref()
-                                            {
-                                                filter_text += container_name;
-                                            }
-                                            NewPaletteItem {
+            self.palette.proxy.get_document_symbols(
+                buffer_id,
+                Box::new(move |result| {
+                    if let Ok(res) = result {
+                        let resp: Result<DocumentSymbolResponse, serde_json::Error> =
+                            serde_json::from_value(res);
+                        if let Ok(resp) = resp {
+                            let items: Vec<NewPaletteItem> = match resp {
+                                DocumentSymbolResponse::Flat(symbols) => symbols
+                                    .iter()
+                                    .map(|s| {
+                                        let mut filter_text = s.name.clone();
+                                        if let Some(container_name) =
+                                            s.container_name.as_ref()
+                                        {
+                                            filter_text += container_name;
+                                        }
+                                        NewPaletteItem {
+                                            content:
+                                                PaletteItemContent::DocumentSymbol {
+                                                    kind: s.kind,
+                                                    name: s.name.clone(),
+                                                    range: s.location.range,
+                                                    container_name: s
+                                                        .container_name
+                                                        .clone(),
+                                                },
+                                            filter_text,
+                                            score: 0,
+                                            indices: Vec::new(),
+                                        }
+                                    })
+                                    .collect(),
+                                DocumentSymbolResponse::Nested(symbols) => symbols
+                                    .iter()
+                                    .map(|s| NewPaletteItem {
                                         content:
                                             PaletteItemContent::DocumentSymbol {
                                                 kind: s.kind,
                                                 name: s.name.clone(),
-                                                range: s.location.range,
-                                                container_name: s
-                                                    .container_name
-                                                    .clone(),
+                                                range: s.range,
+                                                container_name: None,
                                             },
-                                        filter_text,
+                                        filter_text: s.name.clone(),
                                         score: 0,
                                         indices: Vec::new(),
-                                    }
-                                        })
-                                        .collect(),
-                                    DocumentSymbolResponse::Nested(symbols) => {
-                                        symbols
-                                            .iter()
-                                            .map(|s| {
-                                                NewPaletteItem {
-                                    content: PaletteItemContent::DocumentSymbol {
-                                        kind: s.kind,
-                                        name: s.name.clone(),
-                                        range: s.range,
-                                        container_name: None,
-                                    },
-                                    filter_text: s.name.clone(),
-                                    score: 0,
-                                    indices: Vec::new(),
-                                }
-                                            })
-                                            .collect()
-                                    }
-                                };
-                                event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::UpdatePaletteItems(
-                                        run_id, items,
-                                    ),
-                                    Target::Widget(widget_id),
-                                );
-                            }
+                                    })
+                                    .collect(),
+                            };
+                            event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::UpdatePaletteItems(run_id, items),
+                                Target::Widget(widget_id),
+                            );
                         }
-                    }),
-                );
-            }
-            EditorContent::None => {}
+                    }
+                }),
+            );
         }
     }
 

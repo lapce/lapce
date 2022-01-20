@@ -52,7 +52,6 @@ use xi_rope::{
 use xi_unicode::EmojiExt;
 
 use crate::config::{Config, LapceTheme};
-use crate::data::EditorKind;
 use crate::editor::EditorLocationNew;
 use crate::find::FindProgress;
 use crate::theme::OldLapceTheme;
@@ -186,11 +185,24 @@ struct Revision {
     edit: Contents,
 }
 
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+pub enum LocalBufferKind {
+    Search,
+    SourceControl,
+    Empty,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum BufferContent {
+    File(PathBuf),
+    Local(LocalBufferKind),
+}
+
 #[derive(Clone)]
 pub struct BufferNew {
     pub id: BufferId,
     pub rope: Rope,
-    pub path: PathBuf,
+    pub content: BufferContent,
     pub line_styles: Rc<RefCell<Vec<Option<Arc<Vec<(usize, usize, Style)>>>>>>,
     pub styles: Arc<Spans<Style>>,
     pub semantic_tokens: bool,
@@ -229,14 +241,20 @@ pub struct BufferNew {
 }
 
 impl BufferNew {
-    pub fn new(path: PathBuf, update_sender: Arc<Sender<UpdateEvent>>) -> Self {
+    pub fn new(
+        content: BufferContent,
+        update_sender: Arc<Sender<UpdateEvent>>,
+    ) -> Self {
         let rope = Rope::from("");
-        let language = LapceLanguage::from_path(&path);
+        let language = match &content {
+            BufferContent::File(path) => LapceLanguage::from_path(path),
+            BufferContent::Local(_) => None,
+        };
         let buffer = Self {
             id: BufferId::next(),
             rope,
             language,
-            path,
+            content,
             styles: Arc::new(SpansBuilder::new(0).build()),
             line_styles: Rc::new(RefCell::new(Vec::new())),
             find: Rc::new(RefCell::new(Find::new(0))),
@@ -330,15 +348,17 @@ impl BufferNew {
 
     pub fn notify_update(&self) {
         if let Some(language) = self.language {
-            self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
-                id: self.id,
-                path: self.path.clone(),
-                rope: self.rope.clone(),
-                rev: self.rev,
-                language,
-                highlights: self.styles.clone(),
-                semantic_tokens: self.semantic_tokens,
-            }));
+            if let BufferContent::File(path) = &self.content {
+                self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
+                    id: self.id,
+                    path: path.clone(),
+                    rope: self.rope.clone(),
+                    rev: self.rev,
+                    language,
+                    highlights: self.styles.clone(),
+                    semantic_tokens: self.semantic_tokens,
+                }));
+            }
         }
     }
 
@@ -354,30 +374,32 @@ impl BufferNew {
         }
         *self.start_to_load.borrow_mut() = true;
         let id = self.id;
-        let path = self.path.clone();
-        thread::spawn(move || {
-            proxy.new_buffer(
-                id,
-                path.clone(),
-                Box::new(move |result| {
-                    if let Ok(res) = result {
-                        if let Ok(resp) =
-                            serde_json::from_value::<NewBufferResponse>(res)
-                        {
-                            event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::LoadBuffer {
-                                    path,
-                                    content: resp.content,
-                                    locations,
-                                },
-                                Target::Widget(tab_id),
-                            );
-                        }
-                    };
-                }),
-            )
-        });
+        if let BufferContent::File(path) = &self.content {
+            let path = path.clone();
+            thread::spawn(move || {
+                proxy.new_buffer(
+                    id,
+                    path.clone(),
+                    Box::new(move |result| {
+                        if let Ok(res) = result {
+                            if let Ok(resp) =
+                                serde_json::from_value::<NewBufferResponse>(res)
+                            {
+                                event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::LoadBuffer {
+                                        path,
+                                        content: resp.content,
+                                        locations,
+                                    },
+                                    Target::Widget(tab_id),
+                                );
+                            }
+                        };
+                    }),
+                )
+            });
+        }
     }
 
     pub fn reset_find(&self, current_find: &Find) {

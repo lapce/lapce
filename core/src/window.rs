@@ -286,6 +286,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         } else {
                             data.active + 1
                         };
+                        data.db.save_workspace_async(
+                            data.tabs.get(&data.active_id).unwrap(),
+                        );
                         data.active = new_index;
                         data.active_id = self.tabs[new_index].id();
                         data.db.save_tabs(data);
@@ -303,6 +306,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         } else {
                             data.active - 1
                         };
+                        data.db.save_workspace_async(
+                            data.tabs.get(&data.active_id).unwrap(),
+                        );
                         data.active = new_index;
                         data.active_id = self.tabs[new_index].id();
                         data.db.save_tabs(data);

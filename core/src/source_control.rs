@@ -34,6 +34,7 @@ use crate::{
 };
 
 pub const SOURCE_CONTROL_BUFFER: &'static str = "[Source Control Buffer]";
+pub const SEARCH_BUFFER: &'static str = "[Search Buffer]";
 
 #[derive(Clone)]
 pub struct SourceControlData {

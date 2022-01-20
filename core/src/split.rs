@@ -1,17 +1,26 @@
 use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::{Config, LapceTheme},
-    data::{EditorContent, EditorType, LapceEditorData, LapceTabData, PanelData},
+    data::{
+        EditorContent, EditorType, FocusArea, LapceEditorData, LapceTabData,
+        PanelData,
+    },
     editor::{EditorLocation, LapceEditorView},
+    keypress::{DefaultKeyPressHandler, KeyPress},
     scroll::{LapcePadding, LapceScroll},
+    svg::logo_svg,
     terminal::{LapceTerminal, LapceTerminalData, LapceTerminalView},
 };
 use std::{cmp::Ordering, sync::Arc};
 
 use druid::{
     kurbo::{Line, Rect},
+    piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     widget::IdentityWrapper,
-    Command, Target, WidgetId, WindowId,
+    Command, FontFamily, Target, WidgetId, WindowId,
 };
 use druid::{
     theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
@@ -19,6 +28,7 @@ use druid::{
     WidgetExt, WidgetPod,
 };
 use lapce_proxy::terminal::TermId;
+use strum::EnumMessage;
 
 #[derive(Debug)]
 pub enum SplitMoveDirection {
@@ -34,6 +44,7 @@ pub struct LapceSplitNew {
     children_ids: Vec<WidgetId>,
     vertical: bool,
     show_border: bool,
+    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
 }
 
 pub struct ChildWidgetNew {
@@ -51,6 +62,7 @@ impl LapceSplitNew {
             children_ids: Vec::new(),
             vertical: true,
             show_border: true,
+            commands: vec![],
         }
     }
 
@@ -161,13 +173,6 @@ impl LapceSplitNew {
             return;
         }
 
-        if self.children.len() == 1 {
-            let view_id = self.children[0].widget.id();
-            let editor = data.main_split.editors.get_mut(&view_id).unwrap();
-            Arc::make_mut(editor).content = EditorContent::None;
-            return;
-        }
-
         let mut index = 0;
         for (i, child_id) in self.children_ids.iter().enumerate() {
             if child_id == &widget_id {
@@ -176,19 +181,27 @@ impl LapceSplitNew {
             }
         }
 
-        let new_index = if index >= self.children.len() - 1 {
-            index - 1
+        if self.children.len() > 1 {
+            let new_index = if index >= self.children.len() - 1 {
+                index - 1
+            } else {
+                index + 1
+            };
+            let new_view_id = self.children[new_index].widget.id();
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(new_view_id),
+            ));
         } else {
-            index + 1
-        };
-        let view_id = self.children[index].widget.id();
-        let new_view_id = self.children[new_index].widget.id();
-        let new_editor = data.main_split.editors.get(&new_view_id).unwrap();
-        if *data.main_split.active == view_id {
-            data.main_split.active = Arc::new(new_editor.view_id);
-            data.focus = new_editor.view_id;
-            ctx.set_focus(new_editor.view_id);
+            data.main_split.active = Arc::new(None);
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(self.split_id),
+            ));
         }
+        let view_id = self.children[index].widget.id();
         data.main_split.editors.remove(&view_id);
         self.children.remove(index);
         self.children_ids.remove(index);
@@ -360,11 +373,13 @@ impl LapceSplitNew {
                     }
                 }
             }
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::Focus,
-                Target::Widget(*data.main_split.active),
-            ));
+            if let Some(active) = *data.main_split.active {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(active),
+                ));
+            }
             return;
         }
 
@@ -395,6 +410,26 @@ impl LapceSplitNew {
 
         self.even_flex_children();
         ctx.children_changed();
+    }
+
+    pub fn split_add_editor(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        widget_id: WidgetId,
+    ) {
+        let editor_data = data.main_split.editors.get(&widget_id).unwrap();
+        let editor = LapceEditorView::new(&editor_data);
+        self.insert_flex_child(0, editor.boxed(), Some(editor_data.view_id), 1.0);
+        self.even_flex_children();
+        ctx.children_changed();
+        data.main_split.editors_order = Arc::new(self.children_ids.clone());
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(widget_id),
+        ));
     }
 
     pub fn split_editor(
@@ -464,9 +499,59 @@ impl Widget<LapceTabData> for LapceSplitNew {
             child.widget.event(ctx, event, data, env);
         }
         match event {
+            Event::MouseMove(mouse_event) => {
+                if self.children.len() == 0 {
+                    let mut on_command = false;
+                    for (_, _, rect, _) in &self.commands {
+                        if rect.contains(mouse_event.pos) {
+                            on_command = true;
+                            break;
+                        }
+                    }
+                    if on_command {
+                        ctx.set_cursor(&druid::Cursor::Pointer);
+                    } else {
+                        ctx.clear_cursor();
+                    }
+                }
+            }
+            Event::MouseDown(mouse_event) => {
+                if self.children.len() == 0 {
+                    for (cmd, _, rect, _) in &self.commands {
+                        if rect.contains(mouse_event.pos) {
+                            ctx.submit_command(Command::new(
+                                LAPCE_NEW_COMMAND,
+                                cmd.clone(),
+                                Target::Auto,
+                            ));
+                            return;
+                        }
+                    }
+                }
+            }
+            Event::KeyDown(key_event) => {
+                if self.children.len() == 0 {
+                    ctx.set_handled();
+                    let mut keypress = data.keypress.clone();
+                    Arc::make_mut(&mut keypress).key_down(
+                        ctx,
+                        key_event,
+                        &mut DefaultKeyPressHandler {},
+                        env,
+                    );
+                }
+            }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
+                    LapceUICommand::Focus => {
+                        ctx.request_focus();
+                        data.focus = self.split_id;
+                        data.focus_area = FocusArea::Editor;
+                    }
+                    LapceUICommand::SplitAddEditor(widget_id) => {
+                        self.split_add_editor(ctx, data, *widget_id);
+                    }
                     LapceUICommand::SplitEditor(vertical, widget_id) => {
                         self.split_editor(ctx, data, *vertical, *widget_id);
                     }
@@ -579,6 +664,64 @@ impl Widget<LapceTabData> for LapceSplitNew {
 
         let children_len = self.children.len();
         if children_len == 0 {
+            let origin =
+                Point::new(my_size.width / 2.0, my_size.height / 2.0 + 40.0);
+            let line_height = data.config.editor.line_height as f64;
+
+            self.commands = empty_editor_commands(
+                data.config.lapce.modal,
+                data.workspace.is_some(),
+            )
+            .iter()
+            .enumerate()
+            .map(|(i, cmd)| {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(cmd.palette_desc.as_ref().unwrap().to_string())
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                let point =
+                    origin - (text_layout.size().width, -line_height * i as f64);
+                let rect = text_layout.size().to_rect().with_origin(point);
+                let mut key = None;
+                for (_, keymaps) in data.keypress.keymaps.iter() {
+                    for keymap in keymaps {
+                        if keymap.command == cmd.cmd {
+                            let mut keymap_str = "".to_string();
+                            for keypress in &keymap.key {
+                                if keymap_str != "" {
+                                    keymap_str += " "
+                                }
+                                keymap_str += &keybinding_to_string(keypress);
+                            }
+                            key = Some(keymap_str);
+                            break;
+                        }
+                    }
+                    if key.is_some() {
+                        break;
+                    }
+                }
+                let key_text_layout = ctx
+                    .text()
+                    .new_text_layout(key.unwrap_or("Unbound".to_string()))
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                (cmd.clone(), text_layout, rect, key_text_layout)
+            })
+            .collect();
             return my_size;
         }
 
@@ -642,6 +785,48 @@ impl Widget<LapceTabData> for LapceSplitNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        if self.children.len() == 0 {
+            let rect = ctx.size().to_rect();
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
+            ctx.with_save(|ctx| {
+                ctx.clip(rect);
+                let svg = logo_svg();
+                let size = ctx.size();
+                let svg_size = 100.0;
+                let rect = Size::ZERO
+                    .to_rect()
+                    .with_origin(
+                        Point::new(size.width / 2.0, size.height / 2.0)
+                            + (0.0, -svg_size),
+                    )
+                    .inflate(svg_size, svg_size);
+                ctx.draw_svg(
+                    &svg,
+                    rect,
+                    Some(
+                        &data
+                            .config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone()
+                            .with_alpha(0.5),
+                    ),
+                );
+
+                for (cmd, text, rect, keymap) in &self.commands {
+                    ctx.draw_text(text, rect.origin());
+                    ctx.draw_text(
+                        keymap,
+                        rect.origin() + (20.0 + rect.width(), 0.0),
+                    );
+                }
+            });
+
+            return;
+        }
         for child in self.children.iter_mut() {
             child.widget.paint(ctx, data, env);
         }
@@ -649,4 +834,106 @@ impl Widget<LapceTabData> for LapceSplitNew {
             self.paint_bar(ctx, &data.config);
         }
     }
+}
+
+fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNew> {
+    if !has_workspace {
+        vec![
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                data: None,
+                palette_desc: Some("Show All Commands".to_string()),
+                target: CommandTarget::Workbench,
+            },
+            if modal {
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                    data: None,
+                    palette_desc: LapceWorkbenchCommand::DisableModal
+                        .get_message()
+                        .map(|m| m.to_string()),
+                    target: CommandTarget::Workbench,
+                }
+            } else {
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                    data: None,
+                    palette_desc: LapceWorkbenchCommand::EnableModal
+                        .get_message()
+                        .map(|m| m.to_string()),
+                    target: CommandTarget::Workbench,
+                }
+            },
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+                data: None,
+                palette_desc: Some("Open Folder".to_string()),
+                target: CommandTarget::Workbench,
+            },
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+                data: None,
+                palette_desc: Some("Open Recent".to_string()),
+                target: CommandTarget::Workbench,
+            },
+        ]
+    } else {
+        vec![
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                data: None,
+                palette_desc: Some("Show All Commands".to_string()),
+                target: CommandTarget::Workbench,
+            },
+            if modal {
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                    data: None,
+                    palette_desc: LapceWorkbenchCommand::DisableModal
+                        .get_message()
+                        .map(|m| m.to_string()),
+                    target: CommandTarget::Workbench,
+                }
+            } else {
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                    data: None,
+                    palette_desc: LapceWorkbenchCommand::EnableModal
+                        .get_message()
+                        .map(|m| m.to_string()),
+                    target: CommandTarget::Workbench,
+                }
+            },
+            LapceCommandNew {
+                cmd: LapceWorkbenchCommand::Palette.to_string(),
+                data: None,
+                palette_desc: Some("Go To File".to_string()),
+                target: CommandTarget::Workbench,
+            },
+        ]
+    }
+}
+
+fn keybinding_to_string(keypress: &KeyPress) -> String {
+    let mut keymap_str = "".to_string();
+    if keypress.mods.ctrl() {
+        keymap_str += "Ctrl+";
+    }
+    if keypress.mods.alt() {
+        keymap_str += "Alt+";
+    }
+    if keypress.mods.meta() {
+        let keyname = match std::env::consts::OS {
+            "macos" => "Cmd",
+            "windows" => "Win",
+            _ => "Meta",
+        };
+        keymap_str += &keyname;
+        keymap_str += "+";
+    }
+    if keypress.mods.shift() {
+        keymap_str += "Shift+";
+    }
+    keymap_str += &keypress.key.to_string();
+    keymap_str
 }

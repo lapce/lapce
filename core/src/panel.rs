@@ -253,16 +253,22 @@ impl LapcePanel {
         let mut split = LapceSplitNew::new(split_id);
         for (section_widget_id, header, content) in sections {
             let header = match header {
-                PanelHeaderKind::simple(s) => PanelSectionHeader::new(s).boxed(),
-                PanelHeaderKind::widget(w) => w,
+                PanelHeaderKind::None => None,
+                PanelHeaderKind::Simple(s) => {
+                    Some(PanelSectionHeader::new(s).boxed())
+                }
+                PanelHeaderKind::Widget(w) => Some(w),
             };
             let section =
                 PanelSection::new(section_widget_id, header, content).boxed();
             split = split.with_flex_child(section, Some(section_widget_id), 1.0);
         }
         let header = match header {
-            PanelHeaderKind::simple(s) => PanelMainHeader::new(widget_id, s).boxed(),
-            PanelHeaderKind::widget(w) => w,
+            PanelHeaderKind::None => {
+                PanelMainHeader::new(widget_id, "".to_string()).boxed()
+            }
+            PanelHeaderKind::Simple(s) => PanelMainHeader::new(widget_id, s).boxed(),
+            PanelHeaderKind::Widget(w) => w,
         };
         Self {
             widget_id,
@@ -273,26 +279,27 @@ impl LapcePanel {
 }
 
 pub enum PanelHeaderKind {
-    simple(String),
-    widget(Box<dyn Widget<LapceTabData>>),
+    None,
+    Simple(String),
+    Widget(Box<dyn Widget<LapceTabData>>),
 }
 
 pub struct PanelSection {
     widget_id: WidgetId,
-    header: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    header: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     content: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
 
 impl PanelSection {
     pub fn new(
         widget_id: WidgetId,
-        header: Box<dyn Widget<LapceTabData>>,
+        header: Option<Box<dyn Widget<LapceTabData>>>,
         content: Box<dyn Widget<LapceTabData>>,
     ) -> Self {
         let content = LapceScrollNew::new(content).vertical().boxed();
         Self {
             widget_id,
-            header: WidgetPod::new(header),
+            header: header.map(|header| WidgetPod::new(header)),
             content: WidgetPod::new(content),
         }
     }
@@ -303,7 +310,7 @@ impl PanelSection {
         content: Box<dyn Widget<LapceTabData>>,
     ) -> Self {
         let header = PanelSectionHeader::new(header).boxed();
-        Self::new(widget_id, header, content)
+        Self::new(widget_id, Some(header), content)
     }
 }
 
@@ -315,7 +322,9 @@ impl Widget<LapceTabData> for PanelSection {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        self.header.event(ctx, event, data, env);
+        if let Some(header) = self.header.as_mut() {
+            header.event(ctx, event, data, env);
+        }
         self.content.event(ctx, event, data, env);
     }
 
@@ -326,7 +335,9 @@ impl Widget<LapceTabData> for PanelSection {
         data: &LapceTabData,
         env: &Env,
     ) {
-        self.header.lifecycle(ctx, event, data, env);
+        if let Some(header) = self.header.as_mut() {
+            header.lifecycle(ctx, event, data, env);
+        }
         self.content.lifecycle(ctx, event, data, env);
     }
 
@@ -337,7 +348,9 @@ impl Widget<LapceTabData> for PanelSection {
         data: &LapceTabData,
         env: &Env,
     ) {
-        self.header.update(ctx, data, env);
+        if let Some(header) = self.header.as_mut() {
+            header.update(ctx, data, env);
+        }
         self.content.update(ctx, data, env);
     }
 
@@ -349,14 +362,19 @@ impl Widget<LapceTabData> for PanelSection {
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
-        let header_height = 30.0;
-        self.header.layout(
-            ctx,
-            &BoxConstraints::tight(Size::new(self_size.width, header_height)),
-            data,
-            env,
-        );
-        self.header.set_origin(ctx, data, env, Point::ZERO);
+        let header_height = if let Some(header) = self.header.as_mut() {
+            let header_height = 30.0;
+            header.layout(
+                ctx,
+                &BoxConstraints::tight(Size::new(self_size.width, header_height)),
+                data,
+                env,
+            );
+            header.set_origin(ctx, data, env, Point::ZERO);
+            header_height
+        } else {
+            0.0
+        };
 
         self.content.layout(
             ctx,
@@ -375,7 +393,9 @@ impl Widget<LapceTabData> for PanelSection {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.content.paint(ctx, data, env);
-        self.header.paint(ctx, data, env);
+        if let Some(header) = self.header.as_mut() {
+            header.paint(ctx, data, env);
+        }
     }
 }
 

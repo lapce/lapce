@@ -523,3 +523,27 @@ keymaps = [
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
 }
+
+pub struct DefaultKeyPressHandler {}
+
+impl KeyPressFocus for DefaultKeyPressHandler {
+    fn get_mode(&self) -> Mode {
+        Mode::Normal
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        false
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommand,
+        count: Option<usize>,
+        env: &Env,
+    ) -> CommandExecuted {
+        CommandExecuted::Yes
+    }
+
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
+}

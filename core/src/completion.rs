@@ -540,7 +540,15 @@ impl Widget<LapceTabData> for CompletionContainer {
 
         if data.completion.status != CompletionStatus::Inactive {
             let old_editor = old_data.main_split.active_editor();
+            let old_editor = match old_editor {
+                Some(editor) => editor,
+                None => return,
+            };
             let editor = data.main_split.active_editor();
+            let editor = match editor {
+                Some(editor) => editor,
+                None => return,
+            };
             if old_editor.window_origin != editor.window_origin
                 || old_editor.scroll_offset != editor.scroll_offset
             {
