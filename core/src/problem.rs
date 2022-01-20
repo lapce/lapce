@@ -18,7 +18,7 @@ use crate::{
     data::{EditorDiagnostic, FocusArea, LapceTabData, PanelKind},
     editor::EditorLocationNew,
     panel::{LapcePanel, PanelHeaderKind, PanelSection},
-    split::LapceSplitNew,
+    split::{LapceSplitNew, SplitDirection},
     svg::{file_svg_new, get_svg},
 };
 
@@ -43,17 +43,20 @@ impl ProblemData {
         LapcePanel::new(
             self.widget_id,
             self.split_id,
+            SplitDirection::Vertical,
             PanelHeaderKind::Simple("Problem".to_string()),
             vec![
                 (
                     self.error_widget_id,
                     PanelHeaderKind::Simple("Errors".to_string()),
                     ProblemContent::new(DiagnosticSeverity::Error).boxed(),
+                    None,
                 ),
                 (
                     self.warning_widget_id,
                     PanelHeaderKind::Simple("Warnings".to_string()),
                     ProblemContent::new(DiagnosticSeverity::Warning).boxed(),
+                    None,
                 ),
             ],
         )

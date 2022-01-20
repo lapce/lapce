@@ -19,7 +19,7 @@ use crate::{
     explorer::FileExplorerState,
     outline::OutlineState,
     scroll::LapceScrollNew,
-    split::LapceSplitNew,
+    split::{LapceSplitNew, SplitDirection},
     svg::get_svg,
     tab::LapceIcon,
 };
@@ -247,11 +247,17 @@ impl LapcePanel {
     pub fn new(
         widget_id: WidgetId,
         split_id: WidgetId,
+        split_direction: SplitDirection,
         header: PanelHeaderKind,
-        sections: Vec<(WidgetId, PanelHeaderKind, Box<dyn Widget<LapceTabData>>)>,
+        sections: Vec<(
+            WidgetId,
+            PanelHeaderKind,
+            Box<dyn Widget<LapceTabData>>,
+            Option<f64>,
+        )>,
     ) -> Self {
-        let mut split = LapceSplitNew::new(split_id);
-        for (section_widget_id, header, content) in sections {
+        let mut split = LapceSplitNew::new(split_id).direction(split_direction);
+        for (section_widget_id, header, content, size) in sections {
             let header = match header {
                 PanelHeaderKind::None => None,
                 PanelHeaderKind::Simple(s) => {
@@ -261,7 +267,12 @@ impl LapcePanel {
             };
             let section =
                 PanelSection::new(section_widget_id, header, content).boxed();
-            split = split.with_flex_child(section, Some(section_widget_id), 1.0);
+
+            if let Some(size) = size {
+                split = split.with_child(section, Some(section_widget_id), size);
+            } else {
+                split = split.with_flex_child(section, Some(section_widget_id), 1.0);
+            }
         }
         let header = match header {
             PanelHeaderKind::None => {
@@ -376,19 +387,19 @@ impl Widget<LapceTabData> for PanelSection {
             0.0
         };
 
-        self.content.layout(
+        let content_size = self.content.layout(
             ctx,
-            &BoxConstraints::tight(Size::new(
-                self_size.width,
-                self_size.height - header_height,
-            )),
+            &BoxConstraints::new(
+                Size::ZERO,
+                Size::new(self_size.width, self_size.height - header_height),
+            ),
             data,
             env,
         );
         self.content
             .set_origin(ctx, data, env, Point::new(0.0, header_height));
 
-        self_size
+        Size::new(content_size.width, header_height + content_size.height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {

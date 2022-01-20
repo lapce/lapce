@@ -421,11 +421,13 @@ impl LapceTabData {
         );
         main_split.add_editor(
             source_control.editor_view_id,
+            Some(source_control.split_id),
             LocalBufferKind::SourceControl,
             &config,
         );
         main_split.add_editor(
             search.editor_view_id,
+            None,
             LocalBufferKind::Search,
             &config,
         );
@@ -1840,6 +1842,7 @@ impl LapceMainSplitData {
     pub fn add_editor(
         &mut self,
         view_id: WidgetId,
+        split_id: Option<WidgetId>,
         buffer_kind: LocalBufferKind,
         config: &Config,
     ) {
@@ -1853,7 +1856,7 @@ impl LapceMainSplitData {
             .insert(buffer_kind.clone(), Arc::new(buffer));
         let editor = LapceEditorData::new(
             Some(view_id),
-            None,
+            split_id,
             BufferContent::Local(buffer_kind),
             config,
         );

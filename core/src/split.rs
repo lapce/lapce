@@ -35,11 +35,17 @@ pub enum SplitMoveDirection {
     Left,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SplitDirection {
+    Vertical,
+    Horizontal,
+}
+
 pub struct LapceSplitNew {
     split_id: WidgetId,
     children: Vec<ChildWidgetNew>,
     children_ids: Vec<WidgetId>,
-    vertical: bool,
+    direction: SplitDirection,
     show_border: bool,
     commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
 }
@@ -57,14 +63,19 @@ impl LapceSplitNew {
             split_id,
             children: Vec::new(),
             children_ids: Vec::new(),
-            vertical: true,
+            direction: SplitDirection::Vertical,
             show_border: true,
             commands: vec![],
         }
     }
 
+    pub fn direction(mut self, direction: SplitDirection) -> Self {
+        self.direction = direction;
+        self
+    }
+
     pub fn horizontal(mut self) -> Self {
-        self.vertical = false;
+        self.direction = SplitDirection::Horizontal;
         self
     }
 
@@ -143,7 +154,7 @@ impl LapceSplitNew {
 
         let size = ctx.size();
         for i in 1..children_len {
-            let line = if self.vertical {
+            let line = if self.direction == SplitDirection::Vertical {
                 let x = self.children[i].layout_rect.x0;
                 let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
                 line
@@ -258,7 +269,7 @@ impl LapceSplitNew {
             }
         }
 
-        let new_index = if self.vertical {
+        let new_index = if self.direction == SplitDirection::Vertical {
             match direction {
                 SplitMoveDirection::Left => {
                     if index == 0 {
@@ -722,10 +733,38 @@ impl Widget<LapceTabData> for LapceSplitNew {
         }
 
         let mut non_flex_total = 0.0;
-        for child in self.children.iter() {
+        let mut max_other_axis = 0.0;
+        for child in self.children.iter_mut() {
             if !child.flex {
-                non_flex_total += child.params;
-            }
+                let (width, height) = match self.direction {
+                    SplitDirection::Vertical => (child.params, my_size.height),
+                    SplitDirection::Horizontal => (my_size.width, child.params),
+                };
+                let size = Size::new(width, height);
+                let size = child.widget.layout(
+                    ctx,
+                    &BoxConstraints::new(Size::ZERO, size),
+                    data,
+                    env,
+                );
+                non_flex_total += match self.direction {
+                    SplitDirection::Vertical => size.width,
+                    SplitDirection::Horizontal => size.height,
+                };
+                match self.direction {
+                    SplitDirection::Vertical => {
+                        if size.height > max_other_axis {
+                            max_other_axis = size.height;
+                        }
+                    }
+                    SplitDirection::Horizontal => {
+                        if size.width > max_other_axis {
+                            max_other_axis = size.width;
+                        }
+                    }
+                }
+                child.layout_rect = child.layout_rect.with_size(size)
+            };
         }
 
         let mut flex_sum = 0.0;
@@ -735,7 +774,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
             }
         }
 
-        let flex_total = if self.vertical {
+        let flex_total = if self.direction == SplitDirection::Vertical {
             my_size.width
         } else {
             my_size.height
@@ -744,40 +783,50 @@ impl Widget<LapceTabData> for LapceSplitNew {
         let mut x = 0.0;
         let mut y = 0.0;
         for child in self.children.iter_mut() {
-            let (width, height) = if self.vertical {
-                let width = if child.flex {
-                    (flex_total / flex_sum * child.params).round()
-                } else {
-                    child.params
-                };
-                let height = my_size.height;
-                (width, height)
+            if !child.flex {
+                child.widget.set_origin(ctx, data, env, Point::new(x, y));
+                child.layout_rect = child.layout_rect.with_origin(Point::new(x, y));
             } else {
-                let height = if child.flex {
-                    (flex_total / flex_sum * child.params).round()
-                } else {
-                    child.params
+                let flex = flex_total / flex_sum * child.params;
+                let (width, height) = match self.direction {
+                    SplitDirection::Vertical => (flex, my_size.height),
+                    SplitDirection::Horizontal => (my_size.width, flex),
                 };
-                let width = my_size.width;
-                (width, height)
-            };
-            let size = Size::new(width, height);
-            child
-                .widget
-                .layout(ctx, &BoxConstraints::new(size, size), data, env);
-            child.widget.set_origin(ctx, data, env, Point::new(x, y));
-            child.layout_rect = child
-                .layout_rect
-                .with_size(size)
-                .with_origin(Point::new(x, y));
-            if self.vertical {
-                x += width;
-            } else {
-                y += height;
+                let size = Size::new(width, height);
+                let size = child.widget.layout(
+                    ctx,
+                    &BoxConstraints::new(Size::ZERO, size),
+                    data,
+                    env,
+                );
+                match self.direction {
+                    SplitDirection::Vertical => {
+                        if size.height > max_other_axis {
+                            max_other_axis = size.height;
+                        }
+                    }
+                    SplitDirection::Horizontal => {
+                        if size.width > max_other_axis {
+                            max_other_axis = size.width;
+                        }
+                    }
+                }
+                child.widget.set_origin(ctx, data, env, Point::new(x, y));
+                child.layout_rect = child
+                    .layout_rect
+                    .with_origin(Point::new(x, y))
+                    .with_size(size);
+            }
+            match self.direction {
+                SplitDirection::Vertical => x += child.layout_rect.size().width,
+                SplitDirection::Horizontal => y += child.layout_rect.size().height,
             }
         }
 
-        my_size
+        match self.direction {
+            SplitDirection::Vertical => Size::new(x, max_other_axis),
+            SplitDirection::Horizontal => Size::new(max_other_axis, y),
+        }
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {

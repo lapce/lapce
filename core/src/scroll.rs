@@ -1650,6 +1650,7 @@ impl ScrollComponentNew {
     ) {
         if !ctx.is_handled() {
             if let Event::Wheel(mouse) = event {
+                println!("view port {} {}", port.rect, port.content_size);
                 if port.pan_by(mouse.wheel_delta.round()) {}
                 ctx.request_paint();
                 self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);

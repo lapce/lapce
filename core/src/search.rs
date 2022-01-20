@@ -5,6 +5,7 @@ use crate::{
     config::Config,
     data::EditorContent,
     editor::LapceEditorView,
+    split::SplitDirection,
 };
 use crossbeam_channel::Sender;
 use druid::{
@@ -55,8 +56,9 @@ impl SearchData {
         LapcePanel::new(
             self.widget_id,
             self.split_id,
+            SplitDirection::Vertical,
             PanelHeaderKind::Simple("Search".to_string()),
-            vec![(self.split_id, PanelHeaderKind::None, split.boxed())],
+            vec![(self.split_id, PanelHeaderKind::None, split.boxed(), None)],
         )
     }
 }

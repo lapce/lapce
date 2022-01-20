@@ -25,9 +25,9 @@ use crate::{
     keypress::KeyPressFocus,
     movement::Movement,
     palette::svg_tree_size,
-    panel::{PanelPosition, PanelProperty},
+    panel::{LapcePanel, PanelHeaderKind, PanelPosition, PanelProperty},
     scroll::LapceScrollNew,
-    split::{LapceSplitNew, SplitMoveDirection},
+    split::{LapceSplitNew, SplitDirection, SplitMoveDirection},
     state::Mode,
     svg::file_svg_new,
     theme::OldLapceTheme,
@@ -41,6 +41,7 @@ pub struct SourceControlData {
     pub active: WidgetId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
+    pub split_direction: SplitDirection,
     pub file_list_id: WidgetId,
     pub file_list_index: usize,
     pub editor_view_id: WidgetId,
@@ -57,8 +58,43 @@ impl SourceControlData {
             file_list_id,
             file_list_index: 0,
             split_id: WidgetId::next(),
+            split_direction: SplitDirection::Horizontal,
             diff_files: Vec::new(),
         }
+    }
+
+    pub fn new_panel(&self, data: &LapceTabData) -> LapcePanel {
+        let editor_data = data
+            .main_split
+            .editors
+            .get(&data.source_control.editor_view_id)
+            .unwrap();
+        let input = LapceEditorView::new(editor_data)
+            .hide_header()
+            .hide_gutter()
+            .set_placeholder("Commit Message".to_string())
+            .padding(10.0);
+        let content = SourceControlFileList::new(self.file_list_id);
+        LapcePanel::new(
+            self.widget_id,
+            self.split_id,
+            self.split_direction,
+            PanelHeaderKind::Simple("Source Control".to_string()),
+            vec![
+                (
+                    WidgetId::next(),
+                    PanelHeaderKind::None,
+                    input.boxed(),
+                    Some(300.0),
+                ),
+                (
+                    self.file_list_id,
+                    PanelHeaderKind::Simple("Changes".to_string()),
+                    content.boxed(),
+                    None,
+                ),
+            ],
+        )
     }
 }
 
@@ -84,16 +120,6 @@ impl KeyPressFocus for SourceControlData {
     ) -> CommandExecuted {
         match command {
             LapceCommand::SplitUp => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorMove(
-                        SplitMoveDirection::Up,
-                        self.active,
-                    ),
-                    Target::Widget(self.split_id),
-                ));
-            }
-            LapceCommand::SplitDown => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::SplitEditorMove(
@@ -279,6 +305,14 @@ impl SourceControlFileList {
             mouse_down: None,
         }
     }
+
+    pub fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        ctx.request_focus();
+        let source_control = Arc::make_mut(&mut data.source_control);
+        source_control.active = self.widget_id;
+        data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
+        data.focus = self.widget_id;
+    }
 }
 
 impl Widget<LapceTabData> for SourceControlFileList {
@@ -300,7 +334,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
             }
             Event::MouseUp(mouse_event) => {
                 let line_height = data.config.editor.line_height as f64;
-                let y = mouse_event.pos.y - line_height - 10.0;
+                let y = mouse_event.pos.y;
                 if y > 0.0 {
                     let line = (y / line_height).floor() as usize;
                     if line < data.source_control.diff_files.len()
@@ -323,7 +357,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 self.mouse_down = None;
                 let source_control = Arc::make_mut(&mut data.source_control);
                 let line_height = data.config.editor.line_height as f64;
-                let y = mouse_event.pos.y - line_height - 10.0;
+                let y = mouse_event.pos.y;
                 if y > 0.0 {
                     let line = (y / line_height).floor() as usize;
                     if line < source_control.diff_files.len() {
@@ -333,10 +367,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         }
                     }
                 }
-                ctx.request_focus();
-                source_control.active = self.widget_id;
-                data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
-                data.focus = self.widget_id;
+                self.request_focus(ctx, data);
                 ctx.set_handled();
             }
             Event::KeyDown(key_event) => {
@@ -357,14 +388,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
-                        if !ctx.is_focused() {
-                            let source_control =
-                                Arc::make_mut(&mut data.source_control);
-                            source_control.active = self.widget_id;
-                            data.focus_area =
-                                FocusArea::Panel(PanelKind::SourceControl);
-                            ctx.request_focus();
-                        }
+                        self.request_focus(ctx, data);
                         ctx.set_handled();
                     }
                     _ => (),
@@ -406,45 +430,12 @@ impl Widget<LapceTabData> for SourceControlFileList {
         env: &Env,
     ) -> Size {
         let line_height = data.config.editor.line_height as f64;
-        let height = line_height * data.source_control.diff_files.len() as f64
-            + line_height
-            + 10.0;
+        let height = line_height * data.source_control.diff_files.len() as f64;
         Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let line_height = data.config.editor.line_height as f64;
-
-        {
-            let shadow_width = 5.0;
-            let rect = Size::new(ctx.size().width, line_height)
-                .to_rect()
-                .with_origin(Point::new(0.0, 5.0));
-            ctx.blurred_rect(
-                rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-            );
-
-            let text_layout = ctx
-                .text()
-                .new_text_layout("Changes")
-                .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            ctx.draw_text(&text_layout, Point::new(5.0, 5.0 + 4.0));
-        }
 
         let files = &data.source_control.diff_files;
 
@@ -469,7 +460,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
             if line >= files.len() {
                 break;
             }
-            let y = line_height * (line + 1) as f64 + 10.0;
+            let y = line_height * line as f64;
             let (mut path, checked) = files[line].clone();
             if let Some(workspace) = data.workspace.as_ref() {
                 path = path

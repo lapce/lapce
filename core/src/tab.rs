@@ -99,7 +99,7 @@ impl LapceTabNew {
             WidgetPod::new(file_explorer.boxed()),
         );
 
-        let source_control = SourceControlNew::new(&data);
+        let source_control = data.source_control.new_panel(&data);
         panels.insert(
             data.source_control.widget_id,
             WidgetPod::new(source_control.boxed()),
