@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use crate::{
     buffer::{BufferNew, UpdateEvent},
     config::Config,
-    data::EditorContent,
+    data::{EditorContent, PanelKind},
     editor::LapceEditorView,
     split::SplitDirection,
 };
@@ -54,6 +54,7 @@ impl SearchData {
             .with_child(input.boxed(), None, 45.0)
             .with_flex_child(SearchContent::new().boxed(), None, 1.0);
         LapcePanel::new(
+            PanelKind::Search,
             self.widget_id,
             self.split_id,
             SplitDirection::Vertical,

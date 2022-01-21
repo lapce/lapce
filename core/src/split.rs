@@ -4,7 +4,10 @@ use crate::{
         LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{EditorContent, FocusArea, LapceEditorData, LapceTabData, PanelData},
+    data::{
+        EditorContent, FocusArea, LapceEditorData, LapceTabData, PanelData,
+        PanelKind,
+    },
     editor::{EditorLocation, LapceEditorView},
     keypress::{DefaultKeyPressHandler, KeyPress},
     scroll::{LapcePadding, LapceScroll},
@@ -323,7 +326,6 @@ impl LapceSplitNew {
         data: &mut LapceTabData,
         vertical: bool,
         widget_id: WidgetId,
-        panel_widget_id: Option<WidgetId>,
     ) {
         let mut index = 0;
         for (i, child_id) in self.children_ids.iter().enumerate() {
@@ -337,7 +339,6 @@ impl LapceSplitNew {
             data.workspace.clone(),
             self.split_id,
             ctx.get_external_handle(),
-            panel_widget_id,
             data.proxy.clone(),
         ));
         let terminal = LapceTerminalView::new(&terminal_data);
@@ -361,7 +362,6 @@ impl LapceSplitNew {
         data: &mut LapceTabData,
         term_id: TermId,
         widget_id: WidgetId,
-        panel_widget_id: Option<WidgetId>,
     ) {
         if self.children.len() == 0 {
             return;
@@ -374,11 +374,9 @@ impl LapceSplitNew {
 
             self.even_flex_children();
             ctx.children_changed();
-            if let Some(panel_id) = panel_widget_id {
-                for (pos, panel) in data.panels.iter_mut() {
-                    if panel.active == panel_id {
-                        Arc::make_mut(panel).shown = false;
-                    }
+            for (pos, panel) in data.panels.iter_mut() {
+                if panel.active == PanelKind::Terminal {
+                    Arc::make_mut(panel).shown = false;
                 }
             }
             if let Some(active) = *data.main_split.active {
@@ -571,31 +569,11 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     LapceUICommand::SplitEditorClose(widget_id) => {
                         self.split_editor_close(ctx, data, *widget_id);
                     }
-                    LapceUICommand::SplitTerminal(
-                        vertical,
-                        widget_id,
-                        panel_widget_id,
-                    ) => {
-                        self.split_terminal(
-                            ctx,
-                            data,
-                            *vertical,
-                            *widget_id,
-                            panel_widget_id.to_owned(),
-                        );
+                    LapceUICommand::SplitTerminal(vertical, widget_id) => {
+                        self.split_terminal(ctx, data, *vertical, *widget_id);
                     }
-                    LapceUICommand::SplitTerminalClose(
-                        term_id,
-                        widget_id,
-                        panel_widget_id,
-                    ) => {
-                        self.split_terminal_close(
-                            ctx,
-                            data,
-                            *term_id,
-                            *widget_id,
-                            panel_widget_id.to_owned(),
-                        );
+                    LapceUICommand::SplitTerminalClose(term_id, widget_id) => {
+                        self.split_terminal_close(ctx, data, *term_id, *widget_id);
                     }
                     LapceUICommand::InitTerminalPanel(focus) => {
                         if data.terminal.terminals.len() == 0 {
@@ -603,7 +581,6 @@ impl Widget<LapceTabData> for LapceSplitNew {
                                 data.workspace.clone(),
                                 data.terminal.split_id,
                                 ctx.get_external_handle(),
-                                Some(data.terminal.widget_id),
                                 data.proxy.clone(),
                             ));
                             let terminal = LapceTerminalView::new(&terminal_data);

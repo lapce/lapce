@@ -217,7 +217,7 @@ pub struct EditorDiagnostic {
     pub diagnositc: Diagnostic,
 }
 
-#[derive(Clone, PartialEq, Data)]
+#[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq)]
 pub enum PanelKind {
     FileExplorer,
     SourceControl,
@@ -246,8 +246,8 @@ impl PanelKind {
 
 #[derive(Clone)]
 pub struct PanelData {
-    pub active: WidgetId,
-    pub widgets: Vec<(WidgetId, PanelKind)>,
+    pub active: PanelKind,
+    pub widgets: Vec<PanelKind>,
     pub shown: bool,
     pub maximized: bool,
 }
@@ -439,11 +439,11 @@ impl LapceTabData {
         panels.insert(
             PanelPosition::LeftTop,
             Arc::new(PanelData {
-                active: file_explorer.widget_id,
+                active: PanelKind::FileExplorer,
                 widgets: vec![
-                    (file_explorer.widget_id, PanelKind::FileExplorer),
-                    (source_control.widget_id, PanelKind::SourceControl),
-                    (plugin.widget_id, PanelKind::Plugin),
+                    PanelKind::FileExplorer,
+                    PanelKind::SourceControl,
+                    PanelKind::Plugin,
                 ],
                 shown: true,
                 maximized: false,
@@ -452,11 +452,11 @@ impl LapceTabData {
         panels.insert(
             PanelPosition::BottomLeft,
             Arc::new(PanelData {
-                active: search.widget_id,
+                active: PanelKind::Search,
                 widgets: vec![
-                    (terminal.widget_id, PanelKind::Terminal),
-                    (search.widget_id, PanelKind::Search),
-                    (problem.widget_id, PanelKind::Problem),
+                    PanelKind::Terminal,
+                    PanelKind::Search,
+                    PanelKind::Problem,
                 ],
                 shown: true,
                 maximized: false,
@@ -623,6 +623,15 @@ impl LapceTabData {
                 Size::new(width, code_actions.len() as f64 * line_height)
             }
         }
+    }
+
+    pub fn panel_position(&self, kind: PanelKind) -> Option<PanelPosition> {
+        for (pos, panels) in self.panels.iter() {
+            if panels.widgets.contains(&kind) {
+                return Some(pos.clone());
+            }
+        }
+        None
     }
 
     pub fn update_from_editor_buffer_data(
@@ -920,24 +929,19 @@ impl LapceTabData {
                 ));
             }
             LapceWorkbenchCommand::ToggleTerminal => {
-                self.toggle_panel(ctx, self.terminal.widget_id, PanelKind::Terminal);
+                self.toggle_panel(ctx, PanelKind::Terminal);
             }
             LapceWorkbenchCommand::ToggleMaximizedPanel => {
                 if let Some(data) = data {
-                    let id: u64 = serde_json::from_value(data).unwrap();
-                    let panel_widget_id = WidgetId::from_raw(id);
-                    for (_, panel) in self.panels.iter_mut() {
-                        if panel
-                            .widgets
-                            .iter()
-                            .map(|(id, kind)| *id)
-                            .contains(&panel_widget_id)
-                        {
-                            if panel.active == panel_widget_id {
-                                let panel = Arc::make_mut(panel);
-                                panel.maximized = !panel.maximized;
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        for (_, panel) in self.panels.iter_mut() {
+                            if panel.widgets.contains(&kind) {
+                                if panel.active == kind {
+                                    let panel = Arc::make_mut(panel);
+                                    panel.maximized = !panel.maximized;
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
                 } else {
@@ -963,52 +967,38 @@ impl LapceTabData {
                 ));
             }
             LapceWorkbenchCommand::ToggleSourceControl => {
-                self.toggle_panel(
-                    ctx,
-                    self.source_control.widget_id,
-                    PanelKind::SourceControl,
-                );
+                self.toggle_panel(ctx, PanelKind::SourceControl);
             }
             LapceWorkbenchCommand::TogglePlugin => {
-                self.toggle_panel(ctx, self.plugin.widget_id, PanelKind::Plugin);
+                self.toggle_panel(ctx, PanelKind::Plugin);
             }
             LapceWorkbenchCommand::ToggleFileExplorer => {
-                self.toggle_panel(
-                    ctx,
-                    self.file_explorer.widget_id,
-                    PanelKind::FileExplorer,
-                );
+                self.toggle_panel(ctx, PanelKind::FileExplorer);
             }
             LapceWorkbenchCommand::ToggleSearch => {
-                self.toggle_panel(ctx, self.search.widget_id, PanelKind::Search);
+                self.toggle_panel(ctx, PanelKind::Search);
             }
             LapceWorkbenchCommand::ToggleProblem => {
-                self.toggle_panel(ctx, self.problem.widget_id, PanelKind::Problem);
+                self.toggle_panel(ctx, PanelKind::Problem);
+            }
+            LapceWorkbenchCommand::TogglePanel => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.toggle_panel(ctx, kind);
+                    }
+                }
+            }
+            LapceWorkbenchCommand::ShowPanel => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.show_panel(ctx, kind);
+                    }
+                }
             }
             LapceWorkbenchCommand::HidePanel => {
                 if let Some(data) = data {
-                    let id: u64 = serde_json::from_value(data).unwrap();
-                    let panel_widget_id = WidgetId::from_raw(id);
-                    for (_, panel) in self.panels.iter_mut() {
-                        if panel
-                            .widgets
-                            .iter()
-                            .map(|(id, kind)| *id)
-                            .contains(&panel_widget_id)
-                        {
-                            if panel.active == panel_widget_id {
-                                let panel = Arc::make_mut(panel);
-                                panel.shown = false;
-                            }
-                            if let Some(active) = *self.main_split.active {
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::Focus,
-                                    Target::Widget(active),
-                                ));
-                            }
-                            break;
-                        }
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.hide_panel(ctx, kind);
                     }
                 }
             }
@@ -1098,51 +1088,54 @@ impl LapceTabData {
         }
     }
 
-    fn toggle_panel(
-        &mut self,
-        ctx: &mut EventCtx,
-        widget_id: WidgetId,
-        kind: PanelKind,
-    ) {
-        if self.focus_area == FocusArea::Panel(kind) {
-            for (_, panel) in self.panels.iter_mut() {
-                if panel
-                    .widgets
-                    .iter()
-                    .map(|(id, kind)| *id)
-                    .contains(&widget_id)
-                {
-                    let panel = Arc::make_mut(panel);
-                    panel.shown = false;
-                    break;
-                }
+    fn hide_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
+        for (_, panel) in self.panels.iter_mut() {
+            if panel.widgets.contains(&kind) {
+                let panel = Arc::make_mut(panel);
+                panel.shown = false;
+                break;
             }
-            if let Some(active) = *self.main_split.active {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::Focus,
-                    Target::Widget(active),
-                ));
-            }
-        } else {
-            for (_, panel) in self.panels.iter_mut() {
-                if panel
-                    .widgets
-                    .iter()
-                    .map(|(id, kind)| *id)
-                    .contains(&widget_id)
-                {
+        }
+        if let Some(active) = *self.main_split.active {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(active),
+            ));
+        }
+    }
+
+    fn show_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
+        for (_, panel) in self.panels.iter_mut() {
+            for k in panel.widgets.clone() {
+                if k == kind {
                     let panel = Arc::make_mut(panel);
                     panel.shown = true;
-                    panel.active = widget_id;
+                    panel.active = k;
+                    let focus_id = match kind {
+                        PanelKind::FileExplorer => self.file_explorer.widget_id,
+                        PanelKind::SourceControl => self.source_control.active,
+                        PanelKind::Plugin => self.plugin.widget_id,
+                        PanelKind::Terminal => self.terminal.widget_id,
+                        PanelKind::Search => self.search.widget_id,
+                        PanelKind::Problem => self.problem.widget_id,
+                    };
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::Focus,
-                        Target::Widget(widget_id),
+                        Target::Widget(focus_id),
                     ));
                     break;
                 }
             }
+        }
+    }
+
+    fn toggle_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
+        if self.focus_area == FocusArea::Panel(kind) {
+            self.hide_panel(ctx, kind);
+        } else {
+            self.show_panel(ctx, kind);
         }
     }
 

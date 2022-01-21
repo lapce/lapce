@@ -31,16 +31,15 @@ use crate::{
     config::{Config, LapceTheme},
     data::{
         EditorContent, EditorDiagnostic, LapceMainSplitData, LapceTabData,
-        WorkProgress,
+        PanelKind, WorkProgress,
     },
     editor::{EditorLocationNew, LapceEditorView},
     explorer::FileExplorer,
     movement::{self, CursorMode, Selection},
     palette::{NewPalette, PaletteViewLens},
-    panel::{PanelPosition, PanelResizePosition},
+    panel::{PanelHeaderKind, PanelPosition, PanelResizePosition},
     plugin::Plugin,
     scroll::LapceScrollNew,
-    source_control::SourceControlNew,
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
     status::LapceStatusNew,
@@ -62,7 +61,7 @@ pub struct LapceTabNew {
     code_action: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     panels:
-        HashMap<WidgetId, WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+        HashMap<PanelKind, WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     current_bar_hover: Option<PanelResizePosition>,
     height: f64,
     main_split_height: f64,
@@ -95,27 +94,27 @@ impl LapceTabNew {
         let mut panels = HashMap::new();
         let file_explorer = FileExplorer::new(&data.file_explorer);
         panels.insert(
-            data.file_explorer.widget_id,
+            PanelKind::FileExplorer,
             WidgetPod::new(file_explorer.boxed()),
         );
 
         let source_control = data.source_control.new_panel(&data);
         panels.insert(
-            data.source_control.widget_id,
+            PanelKind::SourceControl,
             WidgetPod::new(source_control.boxed()),
         );
 
         let plugin = Plugin::new();
-        panels.insert(data.plugin.widget_id, WidgetPod::new(plugin.boxed()));
+        panels.insert(PanelKind::Plugin, WidgetPod::new(plugin.boxed()));
 
         let terminal = TerminalPanel::new(&data);
-        panels.insert(data.terminal.widget_id, WidgetPod::new(terminal.boxed()));
+        panels.insert(PanelKind::Terminal, WidgetPod::new(terminal.boxed()));
 
         let search = data.search.new_panel(&data);
-        panels.insert(data.search.widget_id, WidgetPod::new(search.boxed()));
+        panels.insert(PanelKind::Search, WidgetPod::new(search.boxed()));
 
         let problem = data.problem.new_panel();
-        panels.insert(data.problem.widget_id, WidgetPod::new(problem.boxed()));
+        panels.insert(PanelKind::Problem, WidgetPod::new(problem.boxed()));
 
         Self {
             id: data.id,
@@ -297,7 +296,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 LapceUICommand::SplitTerminalClose(
                                     terminal.term_id,
                                     terminal.widget_id,
-                                    terminal.panel_widget_id.clone(),
                                 ),
                                 Target::Widget(terminal.split_id),
                             ));
@@ -698,15 +696,15 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::FocusSourceControl => {
                         for (_, panel) in data.panels.iter_mut() {
-                            for (widget_id, kind) in panel.widgets.clone() {
-                                if widget_id == data.source_control.widget_id {
+                            for kind in panel.widgets.clone() {
+                                if kind == PanelKind::SourceControl {
                                     let panel = Arc::make_mut(panel);
-                                    panel.active = widget_id;
+                                    panel.active = PanelKind::SourceControl;
                                     panel.shown = true;
                                     ctx.submit_command(Command::new(
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::Focus,
-                                        Target::Widget(widget_id),
+                                        Target::Widget(data.source_control.active),
                                     ));
                                 }
                             }

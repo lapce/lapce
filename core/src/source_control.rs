@@ -51,10 +51,11 @@ pub struct SourceControlData {
 impl SourceControlData {
     pub fn new() -> Self {
         let file_list_id = WidgetId::next();
+        let editor_view_id = WidgetId::next();
         Self {
-            active: file_list_id,
+            active: editor_view_id,
             widget_id: WidgetId::next(),
-            editor_view_id: WidgetId::next(),
+            editor_view_id,
             file_list_id,
             file_list_index: 0,
             split_id: WidgetId::next(),
@@ -76,13 +77,14 @@ impl SourceControlData {
             .padding(10.0);
         let content = SourceControlFileList::new(self.file_list_id);
         LapcePanel::new(
+            PanelKind::SourceControl,
             self.widget_id,
             self.split_id,
             self.split_direction,
             PanelHeaderKind::Simple("Source Control".to_string()),
             vec![
                 (
-                    WidgetId::next(),
+                    editor_data.view_id,
                     PanelHeaderKind::None,
                     input.boxed(),
                     Some(300.0),
@@ -164,133 +166,6 @@ impl KeyPressFocus for SourceControlData {
     }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
-}
-
-pub struct SourceControlNew {
-    widget_id: WidgetId,
-    editor_view_id: WidgetId,
-    split: WidgetPod<LapceTabData, LapceSplitNew>,
-}
-
-impl SourceControlNew {
-    pub fn new(data: &LapceTabData) -> Self {
-        let editor_data = data
-            .main_split
-            .editors
-            .get(&data.source_control.editor_view_id)
-            .unwrap();
-        let editor = LapceEditorView::new(editor_data)
-            .hide_header()
-            .hide_gutter()
-            .set_placeholder("Commit Message".to_string())
-            .padding(10.0);
-
-        let file_list = SourceControlFileList::new(data.source_control.file_list_id);
-        let file_list_id = data.source_control.file_list_id;
-        let file_list = LapceScrollNew::new(file_list);
-
-        let split = LapceSplitNew::new(data.source_control.split_id)
-            .horizontal()
-            .hide_border()
-            .with_child(editor.boxed(), Some(editor_data.view_id), 200.0)
-            .with_flex_child(file_list.boxed(), Some(file_list_id), 0.5);
-        Self {
-            widget_id: data.source_control.widget_id,
-            editor_view_id: data.source_control.editor_view_id,
-            split: WidgetPod::new(split),
-        }
-    }
-}
-
-impl Widget<LapceTabData> for SourceControlNew {
-    fn id(&self) -> Option<WidgetId> {
-        Some(self.widget_id)
-    }
-
-    fn event(
-        &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
-    ) {
-        match event {
-            Event::Command(cmd) => match cmd {
-                _ if cmd.is(LAPCE_UI_COMMAND) => {
-                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                    match command {
-                        LapceUICommand::Focus => {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::Focus,
-                                Target::Widget(self.editor_view_id),
-                            ));
-                            ctx.set_handled();
-                        }
-                        _ => (),
-                    }
-                }
-                _ => (),
-            },
-            _ => (),
-        }
-        self.split.event(ctx, event, data, env);
-    }
-
-    fn lifecycle(
-        &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
-    ) {
-        self.split.lifecycle(ctx, event, data, env);
-    }
-
-    fn update(
-        &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
-    ) {
-        if !data.source_control.same(&old_data.source_control) {
-            ctx.request_layout();
-            ctx.request_paint();
-        }
-        self.split.update(ctx, data, env);
-    }
-
-    fn layout(
-        &mut self,
-        ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        data: &LapceTabData,
-        env: &Env,
-    ) -> Size {
-        for (pos, panel) in data.panels.iter() {
-            if panel.active == self.widget_id {
-                match pos {
-                    PanelPosition::LeftTop | PanelPosition::LeftBottom => {
-                        ctx.set_paint_insets((0.0, 0.0, 10.0, 0.0));
-                    }
-                    PanelPosition::BottomLeft | PanelPosition::BottomRight => {
-                        ctx.set_paint_insets((0.0, 10.0, 0.0, 0.0));
-                    }
-                    PanelPosition::RightTop | PanelPosition::RightBottom => {
-                        ctx.set_paint_insets((10.0, 0.0, 0.0, 0.0));
-                    }
-                }
-            }
-        }
-        self.split.layout(ctx, bc, data, env);
-        self.split.set_origin(ctx, data, env, Point::ZERO);
-        bc.max()
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        self.split.paint(ctx, data, env);
-    }
 }
 
 pub struct SourceControlFileList {
@@ -444,8 +319,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .to_rect()
                 .with_origin(Point::new(
                     0.0,
-                    (data.source_control.file_list_index + 1) as f64 * line_height
-                        + 10.0,
+                    data.source_control.file_list_index as f64 * line_height,
                 ));
             ctx.fill(
                 rect,
@@ -472,7 +346,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 let width = 13.0;
                 let height = 13.0;
                 let origin = Point::new(
-                    (line_height - width) / 2.0,
+                    (line_height - width) / 2.0 + 5.0,
                     (line_height - height) / 2.0 + y,
                 );
                 let rect = Size::new(width, height).to_rect().with_origin(origin);

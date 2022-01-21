@@ -50,22 +50,12 @@ impl LapceStatusNew {
         let left_panels = data
             .panels
             .get(&PanelPosition::BottomLeft)
-            .map(|p| {
-                p.widgets
-                    .iter()
-                    .map(|(_, kind)| kind.clone())
-                    .collect::<Vec<PanelKind>>()
-            })
+            .map(|p| p.widgets.clone())
             .unwrap_or(Vec::new());
         let mut right_panels = data
             .panels
             .get(&PanelPosition::BottomRight)
-            .map(|p| {
-                p.widgets
-                    .iter()
-                    .map(|(_, kind)| kind.clone())
-                    .collect::<Vec<PanelKind>>()
-            })
+            .map(|p| p.widgets.clone())
             .unwrap_or(Vec::new());
         let mut panels = left_panels;
         panels.append(&mut right_panels);

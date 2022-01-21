@@ -152,6 +152,12 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "hide_panel")]
     HidePanel,
 
+    #[strum(serialize = "show_panel")]
+    ShowPanel,
+
+    #[strum(serialize = "toggle_panel")]
+    TogglePanel,
+
     #[strum(serialize = "toggle_terminal")]
     ToggleTerminal,
 
@@ -484,8 +490,8 @@ pub enum LapceUICommand {
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
     CloseTerminal(TermId),
-    SplitTerminal(bool, WidgetId, Option<WidgetId>),
-    SplitTerminalClose(TermId, WidgetId, Option<WidgetId>),
+    SplitTerminal(bool, WidgetId),
+    SplitTerminalClose(TermId, WidgetId),
     SplitAddEditor(WidgetId),
     SplitEditor(bool, WidgetId),
     SplitEditorMove(SplitMoveDirection, WidgetId),

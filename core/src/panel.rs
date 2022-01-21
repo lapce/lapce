@@ -15,7 +15,7 @@ use crate::{
     },
     command::{LapceCommandNew, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::LapceTabData,
+    data::{LapceTabData, PanelKind},
     explorer::FileExplorerState,
     outline::OutlineState,
     scroll::LapceScrollNew,
@@ -245,6 +245,7 @@ impl Widget<LapceTabData> for LapcePanel {
 
 impl LapcePanel {
     pub fn new(
+        kind: PanelKind,
         widget_id: WidgetId,
         split_id: WidgetId,
         split_direction: SplitDirection,
@@ -276,9 +277,11 @@ impl LapcePanel {
         }
         let header = match header {
             PanelHeaderKind::None => {
-                PanelMainHeader::new(widget_id, "".to_string()).boxed()
+                PanelMainHeader::new(widget_id, kind, "".to_string()).boxed()
             }
-            PanelHeaderKind::Simple(s) => PanelMainHeader::new(widget_id, s).boxed(),
+            PanelHeaderKind::Simple(s) => {
+                PanelMainHeader::new(widget_id, kind, s).boxed()
+            }
             PanelHeaderKind::Widget(w) => w,
         };
         Self {
@@ -497,13 +500,15 @@ pub struct PanelMainHeader {
     text: String,
     icons: Vec<LapceIcon>,
     panel_widget_id: WidgetId,
+    kind: PanelKind,
     mouse_pos: Point,
 }
 
 impl PanelMainHeader {
-    pub fn new(panel_widget_id: WidgetId, text: String) -> Self {
+    pub fn new(panel_widget_id: WidgetId, kind: PanelKind, text: String) -> Self {
         Self {
             panel_widget_id,
+            kind,
             text,
             icons: Vec::new(),
             mouse_pos: Point::ZERO,
@@ -525,7 +530,7 @@ impl PanelMainHeader {
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::HidePanel.to_string(),
-                    data: Some(json!(self.panel_widget_id.to_raw())),
+                    data: Some(json!(self.kind)),
                     palette_desc: None,
                     target: CommandTarget::Workbench,
                 },
@@ -534,39 +539,43 @@ impl PanelMainHeader {
         };
         icons.push(icon);
 
-        let mut icon_svg = "chevron-up.svg";
-        for (_, panel) in data.panels.iter() {
-            if panel
-                .widgets
-                .iter()
-                .map(|(id, _)| id)
-                .any(|w| w == &self.panel_widget_id)
+        let position = data.panel_position(self.kind);
+        if let Some(position) = position {
+            if position == PanelPosition::BottomLeft
+                || position == PanelPosition::BottomRight
             {
-                if panel.maximized {
-                    icon_svg = "chevron-down.svg";
+                let mut icon_svg = "chevron-up.svg";
+                for (_, panel) in data.panels.iter() {
+                    if panel.widgets.contains(&self.kind) {
+                        if panel.maximized {
+                            icon_svg = "chevron-down.svg";
+                        }
+                        break;
+                    }
                 }
-                break;
+
+                let x =
+                    self_size.width - ((icons.len() + 1) as f64) * (gap + icon_size);
+                let icon = LapceIcon {
+                    icon: icon_svg.to_string(),
+                    rect: Size::new(icon_size, icon_size)
+                        .to_rect()
+                        .with_origin(Point::new(x, gap)),
+                    command: Command::new(
+                        LAPCE_NEW_COMMAND,
+                        LapceCommandNew {
+                            cmd: LapceWorkbenchCommand::ToggleMaximizedPanel
+                                .to_string(),
+                            data: Some(json!(self.kind)),
+                            palette_desc: None,
+                            target: CommandTarget::Workbench,
+                        },
+                        Target::Widget(data.id),
+                    ),
+                };
+                icons.push(icon);
             }
         }
-
-        let x = self_size.width - ((icons.len() + 1) as f64) * (gap + icon_size);
-        let icon = LapceIcon {
-            icon: icon_svg.to_string(),
-            rect: Size::new(icon_size, icon_size)
-                .to_rect()
-                .with_origin(Point::new(x, gap)),
-            command: Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::ToggleMaximizedPanel.to_string(),
-                    data: Some(json!(self.panel_widget_id.to_raw())),
-                    palette_desc: None,
-                    target: CommandTarget::Workbench,
-                },
-                Target::Widget(data.id),
-            ),
-        };
-        icons.push(icon);
 
         self.icons = icons;
     }

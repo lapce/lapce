@@ -283,13 +283,13 @@ impl LapceEditorBufferData {
                 LocalBufferKind::Search => Size::new(editor_size.width, line_height),
                 LocalBufferKind::SourceControl => {
                     for (pos, panels) in panels.iter() {
-                        for (panel_id, panel_kind) in panels.widgets.iter() {
+                        for panel_kind in panels.widgets.iter() {
                             if panel_kind == &PanelKind::SourceControl {
                                 return match pos {
                                     PanelPosition::BottomLeft
                                     | PanelPosition::BottomRight => {
                                         let width = 200.0;
-                                        Size::new(width, editor_size.width)
+                                        Size::new(width, editor_size.height)
                                     }
                                     _ => {
                                         let height = 100.0f64;
@@ -297,7 +297,11 @@ impl LapceEditorBufferData {
                                             line_height
                                                 * self.buffer.num_lines() as f64,
                                         );
-                                        Size::new(editor_size.width, height)
+                                        Size::new(
+                                            (width * self.buffer.max_len as f64)
+                                                .max(editor_size.width),
+                                            height,
+                                        )
                                     }
                                 };
                             }
@@ -2887,6 +2891,7 @@ impl LapceEditorView {
                 }
                 LocalBufferKind::SourceControl => {
                     data.focus_area = FocusArea::Panel(PanelKind::SourceControl);
+                    Arc::make_mut(&mut data.source_control).active = self.view_id;
                 }
                 LocalBufferKind::Empty => {}
             },

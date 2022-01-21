@@ -1,12 +1,20 @@
 use std::sync::Arc;
 
 use druid::{
-    BoxConstraints, Cursor, Env, Event, EventCtx, LayoutCtx, LensExt, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LensExt,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
+    UpdateCtx, Widget,
 };
+use serde_json::json;
 
 use crate::{
-    config::LapceTheme, data::LapceTabData, panel::PanelPosition, svg::get_svg,
+    command::{
+        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+    },
+    config::LapceTheme,
+    data::LapceTabData,
+    panel::PanelPosition,
+    svg::get_svg,
 };
 
 pub struct ActivityBar {}
@@ -31,12 +39,32 @@ impl Widget<LapceTabData> for ActivityBar {
                     let index = (mouse.pos.y / 50.0) as usize;
                     if let Some(panel) = data.panels.get_mut(&PanelPosition::LeftTop)
                     {
-                        if let Some((widget_id, kind)) = panel
-                            .widgets
-                            .get(index.min(panel.widgets.len() - 1))
-                            .as_ref()
-                        {
-                            Arc::make_mut(panel).active = *widget_id;
+                        if let Some(kind) = panel.widgets.get(index) {
+                            if panel.active == *kind {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_NEW_COMMAND,
+                                    LapceCommandNew {
+                                        cmd: LapceWorkbenchCommand::TogglePanel
+                                            .to_string(),
+                                        data: Some(json!(kind)),
+                                        palette_desc: None,
+                                        target: CommandTarget::Workbench,
+                                    },
+                                    Target::Widget(data.id),
+                                ));
+                            } else {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_NEW_COMMAND,
+                                    LapceCommandNew {
+                                        cmd: LapceWorkbenchCommand::ShowPanel
+                                            .to_string(),
+                                        data: Some(json!(kind)),
+                                        palette_desc: None,
+                                        target: CommandTarget::Workbench,
+                                    },
+                                    Target::Widget(data.id),
+                                ));
+                            }
                         }
                     }
                 }
@@ -147,9 +175,9 @@ impl Widget<LapceTabData> for ActivityBar {
             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
             .clone();
         if let Some(panel) = data.panels.get(&PanelPosition::LeftTop) {
-            for (widget_id, kind) in panel.widgets.iter() {
+            for kind in panel.widgets.iter() {
                 let svg = kind.svg();
-                if &panel.active == widget_id {
+                if &panel.active == kind && panel.shown {
                     ctx.fill(
                         Size::new(size, size)
                             .to_rect()

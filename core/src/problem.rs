@@ -41,6 +41,7 @@ impl ProblemData {
 
     pub fn new_panel(&self) -> LapcePanel {
         LapcePanel::new(
+            PanelKind::Problem,
             self.widget_id,
             self.split_id,
             SplitDirection::Vertical,
