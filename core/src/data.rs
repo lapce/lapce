@@ -829,6 +829,7 @@ impl LapceTabData {
                             path: path.clone(),
                             position: None,
                             scroll_offset: None,
+                            hisotry: None,
                         },
                         &self.config,
                     );
@@ -853,6 +854,7 @@ impl LapceTabData {
                             path: path.clone(),
                             position: None,
                             scroll_offset: None,
+                            hisotry: None,
                         },
                         &self.config,
                     );
@@ -1592,6 +1594,7 @@ impl LapceMainSplitData {
                     path: path.clone(),
                     position: Some(position),
                     scroll_offset: None,
+                    hisotry: None,
                 };
                 self.jump_to_location(ctx, editor_view_id, location, config);
             }
@@ -1653,8 +1656,19 @@ impl LapceMainSplitData {
                 None => (buffer.cursor_offset, Some(&buffer.scroll_offset)),
             };
 
+            if let Some(compare) = location.hisotry.as_ref() {
+                if !buffer.histories.contains_key(compare) {
+                    buffer.retrieve_file_head(
+                        *self.tab_id,
+                        self.proxy.clone(),
+                        ctx.get_external_handle(),
+                    );
+                }
+            }
+
             let editor = self.get_editor_or_new(ctx, Some(editor_view_id), config);
             editor.content = BufferContent::File(path.clone());
+            editor.compare = location.hisotry.clone();
             editor.cursor = if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(offset), None)
             } else {
@@ -1751,6 +1765,7 @@ impl LapceMainSplitData {
                                     e.scroll_offset.0,
                                     e.scroll_offset.1,
                                 )),
+                                hisotry: None,
                             },
                         ));
 
@@ -1883,6 +1898,7 @@ pub struct LapceEditorData {
     pub split_id: Option<WidgetId>,
     pub view_id: WidgetId,
     pub content: BufferContent,
+    pub compare: Option<String>,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
     pub size: Rc<RefCell<Size>>,
@@ -1913,6 +1929,7 @@ impl LapceEditorData {
                 Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
             },
             size: Rc::new(RefCell::new(Size::ZERO)),
+            compare: None,
             window_origin: Point::ZERO,
             snippet: None,
             locations: vec![],
@@ -1956,6 +1973,7 @@ impl LapceEditorData {
                 path: path.clone(),
                 position: Some(buffer.offset_to_position(self.cursor.offset())),
                 scroll_offset: Some(self.scroll_offset.clone()),
+                hisotry: None,
             };
             self.locations.push(location);
             self.current_location = self.locations.len();
@@ -2302,6 +2320,7 @@ impl LapceEditorViewData {
                 path,
                 position: Some(position),
                 scroll_offset: None,
+                hisotry: None,
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -2775,6 +2794,7 @@ fn process_get_references(
                     path: PathBuf::from(location.uri.path()),
                     position: Some(location.range.start.clone()),
                     scroll_offset: None,
+                    hisotry: None,
                 },
             ),
             Target::Auto,

@@ -7,12 +7,6 @@ use std::{collections::HashMap, path::PathBuf};
 use tree_sitter::{Language, Parser};
 use tree_sitter_highlight::HighlightConfiguration;
 
-#[cfg(unix)]
-const DYLIB_EXTENSION: &str = "so";
-
-#[cfg(windows)]
-const DYLIB_EXTENSION: &str = "dll";
-
 pub const QUERIES_DIR: Dir = include_dir!("../runtime/queries");
 lazy_static! {
     pub static ref SCOPES: Vec<String> = vec![
@@ -43,10 +37,8 @@ lazy_static! {
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub enum LapceLanguage {
     Rust,
-    Toml,
     Javascript,
     Go,
-    Yaml,
 }
 
 impl LapceLanguage {
@@ -54,12 +46,12 @@ impl LapceLanguage {
         let extension = path.extension()?.to_str()?;
         Some(match extension {
             "rs" => LapceLanguage::Rust,
-            "toml" => LapceLanguage::Toml,
             "js" => LapceLanguage::Javascript,
             "jsx" => LapceLanguage::Javascript,
             "go" => LapceLanguage::Go,
-            "yaml" => LapceLanguage::Yaml,
-            "yml" => LapceLanguage::Yaml,
+            // "toml" => LapceLanguage::Toml,
+            // "yaml" => LapceLanguage::Yaml,
+            // "yml" => LapceLanguage::Yaml,
             _ => return None,
         })
     }
@@ -73,7 +65,7 @@ pub fn new_highlight_config(language: LapceLanguage) -> HighlightConfiguration {
     match language {
         LapceLanguage::Rust => {
             let mut configuration = HighlightConfiguration::new(
-                unsafe { tree_sitter_rust() },
+                tree_sitter_rust::language(),
                 QUERIES_DIR
                     .get_file("rust/highlights.scm")
                     .unwrap()
@@ -86,24 +78,9 @@ pub fn new_highlight_config(language: LapceLanguage) -> HighlightConfiguration {
             configuration.configure(&SCOPES);
             configuration
         }
-        LapceLanguage::Toml => {
-            let mut configuration = HighlightConfiguration::new(
-                unsafe { tree_sitter_toml() },
-                QUERIES_DIR
-                    .get_file("toml/highlights.scm")
-                    .unwrap()
-                    .contents_utf8()
-                    .unwrap(),
-                "",
-                "",
-            )
-            .unwrap();
-            configuration.configure(&SCOPES);
-            configuration
-        }
         LapceLanguage::Javascript => {
             let mut configuration = HighlightConfiguration::new(
-                unsafe { tree_sitter_javascript() },
+                tree_sitter_javascript::language(),
                 QUERIES_DIR
                     .get_file("javascript/highlights.scm")
                     .unwrap()
@@ -116,24 +93,9 @@ pub fn new_highlight_config(language: LapceLanguage) -> HighlightConfiguration {
             configuration.configure(&SCOPES);
             configuration
         }
-        LapceLanguage::Yaml => {
-            let mut configuration = HighlightConfiguration::new(
-                unsafe { tree_sitter_yaml() },
-                QUERIES_DIR
-                    .get_file("yaml/highlights.scm")
-                    .unwrap()
-                    .contents_utf8()
-                    .unwrap(),
-                "",
-                "",
-            )
-            .unwrap();
-            configuration.configure(&SCOPES);
-            configuration
-        }
         LapceLanguage::Go => {
             let mut configuration = HighlightConfiguration::new(
-                unsafe { tree_sitter_go() },
+                tree_sitter_go::language(),
                 QUERIES_DIR
                     .get_file("go/highlights.scm")
                     .unwrap()
@@ -151,34 +113,11 @@ pub fn new_highlight_config(language: LapceLanguage) -> HighlightConfiguration {
 
 pub fn new_parser(language: LapceLanguage) -> Parser {
     let language = match language {
-        LapceLanguage::Rust => unsafe { tree_sitter_rust() },
-        LapceLanguage::Toml => unsafe { tree_sitter_toml() },
-        LapceLanguage::Javascript => unsafe { tree_sitter_javascript() },
-        LapceLanguage::Go => unsafe { tree_sitter_go() },
-        LapceLanguage::Yaml => unsafe { tree_sitter_yaml() },
+        LapceLanguage::Rust => tree_sitter_rust::language(),
+        LapceLanguage::Javascript => tree_sitter_javascript::language(),
+        LapceLanguage::Go => tree_sitter_go::language(),
     };
     let mut parser = Parser::new();
     parser.set_language(language).unwrap();
     parser
 }
-
-extern "C" {
-    fn tree_sitter_rust() -> Language;
-    fn tree_sitter_toml() -> Language;
-    fn tree_sitter_yaml() -> Language;
-    fn tree_sitter_go() -> Language;
-    fn tree_sitter_javascript() -> Language;
-}
-
-// impl TreeSitter {
-//     pub fn new() -> TreeSitter {
-//         let mut parsers = HashMap::new();
-//
-//         let mut parser = Parser::new();
-//         let language = tree_sitter_rust::language();
-//         parser.set_language(language);
-//         parsers.insert(LapceLanguage::Rust, parser);
-//
-//         TreeSitter { parsers }
-//     }
-// }

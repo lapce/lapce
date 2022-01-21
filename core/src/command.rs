@@ -16,7 +16,7 @@ use strum::{self, EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumProperty, EnumString};
 use tree_sitter::Tree;
 use tree_sitter_highlight::Highlight;
-use xi_rope::spans::Spans;
+use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     buffer::BufferId,
@@ -411,6 +411,11 @@ pub enum LapceUICommand {
         content: String,
         locations: Vec<(WidgetId, EditorLocationNew)>,
     },
+    LoadBufferHead {
+        path: PathBuf,
+        id: String,
+        content: Rope,
+    },
     LoadBufferAndGoToPosition {
         path: PathBuf,
         content: String,
@@ -420,6 +425,7 @@ pub enum LapceUICommand {
     SetWorkspace(LapceWorkspace),
     SetTheme(String, bool),
     OpenFile(PathBuf),
+    OpenFileDiff(PathBuf, String),
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, CompletionItem),
     UpdateCompletion(usize, String, CompletionResponse),

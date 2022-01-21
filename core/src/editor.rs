@@ -71,6 +71,8 @@ use druid::{
     FontWeight,
 };
 use fzyr::has_match;
+use hashbrown::HashSet;
+use indexmap::IndexMap;
 use itertools::Itertools;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
@@ -79,6 +81,7 @@ use lsp_types::{
     Location, Position, SignatureHelp, TextEdit, Url, WorkspaceEdit,
 };
 use serde_json::Value;
+use std::ops::Range;
 use std::thread;
 use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
@@ -139,6 +142,7 @@ pub struct EditorLocationNew {
     pub path: PathBuf,
     pub position: Option<Position>,
     pub scroll_offset: Option<Vec2>,
+    pub hisotry: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -220,6 +224,19 @@ pub struct LapceEditorBufferData {
     pub find: Arc<Find>,
     pub proxy: Arc<LapceProxy>,
     pub config: Arc<Config>,
+}
+
+pub enum DiffLines {
+    Left(Range<usize>),
+    Both(Range<usize>, Range<usize>),
+    Right(Range<usize>),
+}
+
+#[derive(Hash, Eq, PartialEq, Clone)]
+pub enum DiffCurrentLine {
+    Left(usize),
+    Both(usize, usize),
+    Right(usize),
 }
 
 impl LapceEditorBufferData {
@@ -994,6 +1011,7 @@ impl LapceEditorBufferData {
                 path,
                 position: Some(position),
                 scroll_offset: None,
+                hisotry: None,
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -1325,7 +1343,9 @@ impl LapceEditorBufferData {
         let line_height = self.config.editor.line_height as f64;
         self.paint_cursor(ctx, is_focused, placeholder, config);
         self.paint_find(ctx);
+        let self_size = ctx.size();
         let rect = ctx.region().bounding_box();
+        let last_line = self.buffer.last_line();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
 
@@ -1339,6 +1359,340 @@ impl LapceEditorBufferData {
             .build()
             .unwrap();
         let y_shift = (line_height - text_layout.size().height) / 2.0;
+
+        if let Some(compare) = self.editor.compare.as_ref() {
+            if let Some(history) = self.buffer.histories.get(compare) {
+                let mut left_line = 0;
+                let mut right_line = 0;
+                let mut changes = IndexMap::new();
+                let left_str = &history.slice_to_cow(0..history.len());
+                let right_str =
+                    &self.buffer.rope.slice_to_cow(0..self.buffer.rope.len());
+                for diff in diff::lines(left_str, right_str) {
+                    match diff {
+                        diff::Result::Left(l) => {
+                            let key = DiffCurrentLine::Right(right_line);
+                            if !changes.contains_key(&key) {
+                                changes.insert(
+                                    key.clone(),
+                                    DiffLines::Left(left_line..left_line),
+                                );
+                            }
+                            if let DiffLines::Left(range) =
+                                changes.get_mut(&key).unwrap()
+                            {
+                                range.end = left_line;
+                            }
+                            left_line += 1;
+                        }
+                        diff::Result::Both(_, _) => {
+                            if !changes
+                                .last()
+                                .map(|(key, value)| match key {
+                                    DiffCurrentLine::Both(_, _) => true,
+                                    _ => false,
+                                })
+                                .unwrap_or(false)
+                            {
+                                changes.insert(
+                                    DiffCurrentLine::Both(left_line, right_line),
+                                    DiffLines::Both(
+                                        left_line..left_line,
+                                        right_line..right_line,
+                                    ),
+                                );
+                            }
+                            if let DiffLines::Both(left, right) =
+                                changes.last_mut().unwrap().1
+                            {
+                                left.end = left_line;
+                                right.end = right_line;
+                            }
+
+                            left_line += 1;
+                            right_line += 1;
+                        }
+                        diff::Result::Right(_) => {
+                            let key = DiffCurrentLine::Left(left_line);
+                            if !changes.contains_key(&key) {
+                                changes.insert(
+                                    key.clone(),
+                                    DiffLines::Right(right_line..right_line),
+                                );
+                            }
+                            if let DiffLines::Right(range) =
+                                changes.get_mut(&key).unwrap()
+                            {
+                                range.end = right_line;
+                            }
+
+                            right_line += 1;
+                        }
+                    }
+                }
+
+                let mut line = 0;
+                for (key, change) in changes.iter() {
+                    match change {
+                        DiffLines::Left(range) => {
+                            line += range.len();
+
+                            if line < start_line {
+                                continue;
+                            }
+                            ctx.fill(
+                                Size::new(
+                                    self_size.width,
+                                    line_height * range.len() as f64,
+                                )
+                                .to_rect()
+                                .with_origin(
+                                    Point::new(
+                                        0.0,
+                                        line_height * (line - range.len()) as f64,
+                                    ),
+                                ),
+                                &Color::RED,
+                            );
+                            if line > end_line {
+                                break;
+                            }
+                        }
+                        DiffLines::Both(left, right) => {
+                            line += right.len().min(6);
+                            if line < start_line {
+                                continue;
+                            }
+                            if line > end_line {
+                                break;
+                            }
+                        }
+                        DiffLines::Right(range) => {
+                            line += range.len();
+
+                            if line < start_line {
+                                continue;
+                            }
+
+                            ctx.fill(
+                                Size::new(
+                                    self_size.width,
+                                    line_height * range.len() as f64,
+                                )
+                                .to_rect()
+                                .with_origin(
+                                    Point::new(
+                                        0.0,
+                                        line_height * (line - range.len()) as f64,
+                                    ),
+                                ),
+                                &Color::GREEN,
+                            );
+
+                            if line > end_line {
+                                break;
+                            }
+                        }
+                    }
+                }
+                return;
+
+                let mut line = 0;
+                let mut left_line = 0;
+                let mut changes = IndexMap::new();
+                let mut deletes = IndexMap::new();
+                let mut adds = HashSet::new();
+                for diff in diff::lines(
+                    &history.slice_to_cow(0..history.len()),
+                    &self.buffer.rope.slice_to_cow(0..self.buffer.rope.len()),
+                ) {
+                    match diff {
+                        diff::Result::Left(l) => {
+                            if !deletes.contains_key(&line) {
+                                deletes.insert(line, vec![]);
+                            }
+                            deletes.get_mut(&line).unwrap().push(l.to_string());
+
+                            if !changes.contains_key(&line) {
+                                changes.insert(line, 0);
+                            }
+                            *changes.get_mut(&line).unwrap() -= 1;
+                        }
+                        diff::Result::Both(_, _) => {
+                            line += 1;
+                        }
+                        diff::Result::Right(_) => {
+                            adds.insert(line);
+
+                            let mut had_previous = false;
+                            if let Some((last_line, last)) = changes.last_mut() {
+                                if *last > 0 && *last_line + *last == line {
+                                    *last += 1;
+                                    had_previous = true;
+                                }
+                            }
+                            if !had_previous {
+                                changes.insert(line, 1);
+                            }
+
+                            line += 1;
+                        }
+                    }
+                }
+
+                let mut line = 0;
+                let mut deleted_lines = 0;
+                let mut skipped_lines = 0;
+
+                for (changed_line, change) in changes.iter() {}
+
+                for (delete_line, delete) in deletes.iter() {
+                    if delete_line + deleted_lines + delete.len() < start_line {
+                        deleted_lines += delete.len();
+                        continue;
+                    }
+                    if delete_line + deleted_lines < start_line {
+                        for (i, deleted_str) in delete
+                            [start_line - (delete_line + deleted_lines)..]
+                            .iter()
+                            .enumerate()
+                        {
+                            line = delete_line + deleted_lines + i;
+                            if line > end_line {
+                                break;
+                            }
+                            ctx.fill(
+                                Size::new(self_size.width, line_height)
+                                    .to_rect()
+                                    .with_origin(Point::new(
+                                        0.0,
+                                        line_height * line as f64,
+                                    )),
+                                &Color::RED,
+                            );
+                            let text_layout = ctx
+                                .text()
+                                .new_text_layout(deleted_str.to_string())
+                                .font(
+                                    config.editor.font_family(),
+                                    config.editor.font_size as f64,
+                                )
+                                .build_with_bounds([rect.x0, rect.x1]);
+                            ctx.draw_text(
+                                &text_layout,
+                                Point::new(0.0, line_height * line as f64 + y_shift),
+                            );
+                        }
+                        line += 1;
+                        deleted_lines += delete.len();
+                        continue;
+                    }
+
+                    if line < start_line {
+                        line = start_line;
+                    }
+                    for i in line..delete_line + deleted_lines {
+                        if line > end_line {
+                            break;
+                        }
+                        let actual_line = line - deleted_lines;
+                        if actual_line > last_line {
+                            break;
+                        }
+                        if adds.contains(&actual_line) {
+                            ctx.fill(
+                                Size::new(self_size.width, line_height)
+                                    .to_rect()
+                                    .with_origin(Point::new(
+                                        0.0,
+                                        line_height * line as f64,
+                                    )),
+                                &Color::GREEN,
+                            );
+                        }
+                        let text_layout = self.buffer.new_text_layout(
+                            ctx,
+                            actual_line,
+                            &self.buffer.line_content(actual_line),
+                            None,
+                            [rect.x0, rect.x1],
+                            &self.config,
+                        );
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(0.0, line_height * line as f64 + y_shift),
+                        );
+                        line += 1;
+                    }
+
+                    for (i, deleted_str) in delete.iter().enumerate() {
+                        line = delete_line + deleted_lines + i;
+                        if line > end_line {
+                            break;
+                        }
+
+                        ctx.fill(
+                            Size::new(self_size.width, line_height)
+                                .to_rect()
+                                .with_origin(Point::new(
+                                    0.0,
+                                    line_height * line as f64,
+                                )),
+                            &Color::RED,
+                        );
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(deleted_str.to_string())
+                            .font(
+                                config.editor.font_family(),
+                                config.editor.font_size as f64,
+                            )
+                            .build_with_bounds([rect.x0, rect.x1]);
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(0.0, line_height * line as f64 + y_shift),
+                        );
+                    }
+                    line += 1;
+                    deleted_lines += delete.len();
+                }
+
+                if line < start_line {
+                    line = start_line;
+                }
+                for i in line..end_line {
+                    let actual_line = line - deleted_lines;
+                    if actual_line > last_line {
+                        break;
+                    }
+                    if adds.contains(&actual_line) {
+                        ctx.fill(
+                            Size::new(self_size.width, line_height)
+                                .to_rect()
+                                .with_origin(Point::new(
+                                    0.0,
+                                    line_height * line as f64,
+                                )),
+                            &Color::GREEN,
+                        );
+                    }
+                    let text_layout = self.buffer.new_text_layout(
+                        ctx,
+                        actual_line,
+                        &self.buffer.line_content(actual_line),
+                        None,
+                        [rect.x0, rect.x1],
+                        &self.config,
+                    );
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(0.0, line_height * line as f64 + y_shift),
+                    );
+                    line += 1;
+                }
+                return;
+            }
+        }
 
         let cursor_offset = self.editor.cursor.offset();
         let cursor_line = self.buffer.line_of_offset(cursor_offset);
@@ -2586,6 +2940,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                                         location.range.start,
                                                     ),
                                                     scroll_offset: None,
+                                                    hisotry: None,
                                                 },
                                             ),
                                             Target::Auto,
@@ -4306,36 +4661,6 @@ impl Widget<LapceTabData> for LapceEditor {
         let is_focused = data.focus == self.view_id;
         let data = data.editor_view_content(self.view_id);
         data.paint_content(ctx, is_focused, self.placeholder.as_ref(), &data.config);
-        // LapceEditorViewContent::None => {
-        //     let svg = logo_svg();
-        //     let size = ctx.size();
-        //     let svg_size = 100.0;
-        //     let rect = Size::ZERO
-        //         .to_rect()
-        //         .with_origin(
-        //             Point::new(size.width / 2.0, size.height / 2.0)
-        //                 + (0.0, -svg_size),
-        //         )
-        //         .inflate(svg_size, svg_size);
-        //     ctx.draw_svg(
-        //         &svg,
-        //         rect,
-        //         Some(
-        //             &data
-        //                 .config
-        //                 .get_color_unchecked(LapceTheme::EDITOR_DIM)
-        //                 .clone()
-        //                 .with_alpha(0.5),
-        //         ),
-        //     );
-        //     for (cmd, text, rect, keymap) in &self.commands {
-        //         ctx.draw_text(text, rect.origin());
-        //         ctx.draw_text(
-        //             keymap,
-        //             rect.origin() + (20.0 + rect.width(), 0.0),
-        //         );
-        //     }
-        // }
     }
 }
 
@@ -4473,6 +4798,7 @@ fn process_get_references(
                     path: PathBuf::from(location.uri.path()),
                     position: Some(location.range.start.clone()),
                     scroll_offset: None,
+                    hisotry: None,
                 },
             ),
             Target::Auto,

@@ -10,7 +10,7 @@ use druid::{
 };
 use druid::{Env, FontFamily, PaintCtx, Point};
 use language::{new_highlight_config, new_parser, LapceLanguage};
-use lapce_proxy::dispatch::NewBufferResponse;
+use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
 use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{CallHierarchyOptions, SemanticTokensLegend};
 use lsp_types::{
@@ -35,10 +35,6 @@ use std::{
 use std::{collections::HashMap, fs::File};
 use std::{fs, str::FromStr};
 use tree_sitter::{Node, Parser, Tree};
-use tree_sitter_highlight::{
-    Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
-};
-use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
@@ -58,8 +54,6 @@ use crate::theme::OldLapceTheme;
 use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
-    data::LapceEditorViewData,
-    editor::EditorOperator,
     find::Find,
     language,
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
@@ -217,6 +211,7 @@ pub struct BufferNew {
     pub local: bool,
     update_sender: Arc<Sender<UpdateEvent>>,
     pub line_changes: HashMap<usize, char>,
+    pub histories: im::HashMap<String, Rope>,
 
     pub find: Rc<RefCell<Find>>,
     pub find_progress: Rc<RefCell<FindProgress>>,
@@ -270,6 +265,7 @@ impl BufferNew {
             update_sender,
             local: false,
             line_changes: HashMap::new(),
+            histories: im::HashMap::new(),
 
             revs: vec![Revision {
                 max_undo_so_far: 0,
@@ -361,6 +357,44 @@ impl BufferNew {
             }
         }
     }
+
+    pub fn retrieve_file_head(
+        &self,
+        tab_id: WidgetId,
+        proxy: Arc<LapceProxy>,
+        event_sink: ExtEventSink,
+    ) {
+        let id = self.id;
+        if let BufferContent::File(path) = &self.content {
+            let path = path.clone();
+            thread::spawn(move || {
+                proxy.get_buffer_head(
+                    id,
+                    path.clone(),
+                    Box::new(move |result| {
+                        if let Ok(res) = result {
+                            if let Ok(resp) =
+                                serde_json::from_value::<BufferHeadResponse>(res)
+                            {
+                                println!("load buffer head {}", resp.content);
+                                event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::LoadBufferHead {
+                                        path,
+                                        content: Rope::from(resp.content),
+                                        id: resp.id,
+                                    },
+                                    Target::Widget(tab_id),
+                                );
+                            }
+                        }
+                    }),
+                )
+            });
+        }
+    }
+
+    pub fn retrieve_file_history(&self) {}
 
     pub fn retrieve_file(
         &self,

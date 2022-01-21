@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+diff = "0.1.12"
 libloading = "0.7"
 flate2 = "1.0.22"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
@@ -30,6 +31,9 @@ parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
 tree-sitter = "0.20.2"
 tree-sitter-highlight = "0.20.1"
+tree-sitter-rust = "0.20.0"
+tree-sitter-go = "0.19.1"
+tree-sitter-javascript = "0.20.0"
 anyhow = "1.0.32"
 strum = "0.19"
 strum_macros = "0.19"

@@ -5,7 +5,7 @@ use crate::plugin::{PluginCatalog, PluginDescription};
 use crate::terminal::{TermId, Terminal};
 use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Oid, Repository};
 use jsonrpc_lite::{self, JsonRpc};
@@ -145,6 +145,10 @@ pub enum Request {
         buffer_id: BufferId,
         path: PathBuf,
     },
+    BufferHead {
+        buffer_id: BufferId,
+        path: PathBuf,
+    },
     GetCompletion {
         request_id: usize,
         buffer_id: BufferId,
@@ -191,6 +195,12 @@ pub enum Request {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewBufferResponse {
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BufferHeadResponse {
+    pub id: String,
     pub content: String,
 }
 
@@ -521,6 +531,20 @@ impl Dispatcher {
                     "result": resp,
                 }));
             }
+            Request::BufferHead { buffer_id, path } => {
+                let workspace = self.workspace.lock().clone();
+                let result = file_get_head(&workspace, &path);
+                if let Ok((blob_id, content)) = result {
+                    let resp = BufferHeadResponse {
+                        id: "head".to_string(),
+                        content,
+                    };
+                    self.sender.send(json!({
+                        "id": id,
+                        "result": resp,
+                    }));
+                }
+            }
             Request::GetCompletion {
                 buffer_id,
                 position,
@@ -704,6 +728,23 @@ fn git_diff(workspace_path: &PathBuf) -> Option<Vec<String>> {
     let mut diff_files: Vec<String> = diff_files.into_iter().collect();
     diff_files.sort();
     Some(diff_files)
+}
+
+fn file_get_head(
+    workspace_path: &PathBuf,
+    path: &PathBuf,
+) -> Result<(String, String)> {
+    let repo =
+        Repository::open(workspace_path.to_str().ok_or(anyhow!("can't to str"))?)?;
+    let head = repo.head()?;
+    let tree = head.peel_to_tree()?;
+    let tree_entry = tree.get_path(path.strip_prefix(workspace_path)?)?;
+    let blob = repo.find_blob(tree_entry.id())?;
+    let id = blob.id().to_string();
+    let content = std::str::from_utf8(blob.content())
+        .with_context(|| "content bytes to string")?
+        .to_string();
+    Ok((id, content))
 }
 
 fn file_git_diff(

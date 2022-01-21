@@ -239,6 +239,15 @@ impl Widget<LapceTabData> for SourceControlFileList {
                         source_control.file_list_index = line;
                         if mouse_event.pos.x < line_height {
                             self.mouse_down = Some(line);
+                        } else {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::OpenFileDiff(
+                                    source_control.diff_files[line].0.clone(),
+                                    "head".to_string(),
+                                ),
+                                Target::Widget(data.id),
+                            ));
                         }
                     }
                 }

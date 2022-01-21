@@ -277,6 +277,20 @@ impl LapceProxy {
             .send_rpc_notification("install_plugin", &json!({ "plugin": plugin }));
     }
 
+    pub fn get_buffer_head(
+        &self,
+        buffer_id: BufferId,
+        path: PathBuf,
+        f: Box<dyn Callback>,
+    ) {
+        self.wait();
+        self.peer.lock().as_ref().unwrap().send_rpc_request_async(
+            "buffer_head",
+            &json!({ "buffer_id": buffer_id, "path": path, }),
+            f,
+        );
+    }
+
     pub fn new_buffer(
         &self,
         buffer_id: BufferId,

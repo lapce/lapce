@@ -279,6 +279,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::LoadBufferHead { path, id, content } => {
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        let buffer = Arc::make_mut(buffer);
+                        buffer.histories.insert(id.clone(), content.clone());
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateTerminalTitle(term_id, title) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
                         if let Some(mut terminal) =
@@ -427,6 +434,21 @@ impl Widget<LapceTabData> for LapceTabNew {
                         );
                         ctx.set_handled();
                     }
+                    LapceUICommand::OpenFileDiff(path, history) => {
+                        let editor_view_id = data.main_split.active.clone();
+                        data.main_split.jump_to_location(
+                            ctx,
+                            *editor_view_id,
+                            EditorLocationNew {
+                                path: path.clone(),
+                                position: None,
+                                scroll_offset: None,
+                                hisotry: Some(history.to_string()),
+                            },
+                            &data.config,
+                        );
+                        ctx.set_handled();
+                    }
                     LapceUICommand::OpenFile(path) => {
                         let editor_view_id = data.main_split.active.clone();
                         data.main_split.jump_to_location(
@@ -436,6 +458,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 path: path.clone(),
                                 position: None,
                                 scroll_offset: None,
+                                hisotry: None,
                             },
                             &data.config,
                         );
@@ -555,6 +578,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                         path: PathBuf::from(l.uri.path()),
                                         position: Some(l.range.start.clone()),
                                         scroll_offset: None,
+                                        hisotry: None,
                                     })
                                     .collect();
                                 ctx.submit_command(Command::new(
