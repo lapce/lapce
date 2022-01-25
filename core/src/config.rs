@@ -40,6 +40,10 @@ impl LapceTheme {
     pub const EDITOR_SELECTION: &'static str = "editor.selection";
     pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
 
+    pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
+    pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
+    pub const SOURCE_CONTROL_MODIFIED: &'static str = "source_control.modified";
+
     pub const TERMINAL_CURSOR: &'static str = "terminal.cursor";
     pub const TERMINAL_BACKGROUND: &'static str = "terminal.background";
     pub const TERMINAL_FOREGROUND: &'static str = "terminal.foreground";

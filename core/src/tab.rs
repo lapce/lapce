@@ -283,7 +283,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         let buffer = Arc::make_mut(buffer);
-                        buffer.histories.insert(id.clone(), content.clone());
+                        buffer.load_history(id, content.clone());
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateTerminalTitle(term_id, title) => {
@@ -661,6 +661,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                                                 id: buffer.id,
                                                 path: path.clone(),
                                                 rope: buffer.rope.clone(),
+                                                head_rope: buffer
+                                                    .histories
+                                                    .get("head")
+                                                    .map(|r| r.clone()),
                                                 rev: *rev,
                                                 language: *language,
                                                 highlights: buffer.styles.clone(),
@@ -756,6 +760,47 @@ impl Widget<LapceTabData> for LapceTabNew {
                         Arc::make_mut(buffer)
                             .update_syntax_tree(*rev, tree.to_owned());
                         ctx.set_handled();
+                    }
+                    LapceUICommand::UpdateHisotryChanges {
+                        id,
+                        path,
+                        rev,
+                        history,
+                        changes,
+                    } => {
+                        ctx.set_handled();
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        Arc::make_mut(buffer).update_history_changes(
+                            *rev,
+                            history,
+                            changes.clone(),
+                        );
+                    }
+                    LapceUICommand::UpdateHistoryStyle {
+                        id,
+                        path,
+                        rev,
+                        history,
+                        highlights,
+                        changes,
+                    } => {
+                        ctx.set_handled();
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        Arc::make_mut(buffer).history_styles.insert(
+                            history.to_string(),
+                            Arc::new(highlights.to_owned()),
+                        );
+                        buffer
+                            .history_line_styles
+                            .borrow_mut()
+                            .insert(history.to_string(), HashMap::new());
+                        Arc::make_mut(buffer).update_history_changes(
+                            *rev,
+                            history,
+                            changes.clone(),
+                        );
                     }
                     LapceUICommand::UpdateExplorerItems(index, path, items) => {
                         let file_explorer = Arc::make_mut(&mut data.file_explorer);

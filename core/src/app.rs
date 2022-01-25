@@ -24,6 +24,7 @@ pub fn lanuch() {
     let root = build_window(&data);
     let window = WindowDesc::new(root)
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
+        .show_titlebar(false)
         .window_size(Size::new(800.0, 600.0))
         .with_min_size(Size::new(800.0, 600.0));
     let launcher = launcher.with_window(window);

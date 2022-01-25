@@ -46,6 +46,10 @@ magenta = "#A626A4"
 "editor.selection" = "$grey"
 "editor.current_line" = "$light_grey"
 
+"source_control.added" = "#50a14f32"
+"source_control.removed" = "#ff526632"
+"source_control.modified" = "#0184bc32"
+
 "palette.background" = "#eaeaeb"
 "palette.current" = "#dbdbdc"
 

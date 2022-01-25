@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use crossbeam_utils::sync::WaitGroup;
 use druid::piet::{Piet, TextLayout};
 use druid::{piet::PietTextLayout, FontWeight, Key, Vec2};
 use druid::{
@@ -13,11 +12,7 @@ use language::{new_highlight_config, new_parser, LapceLanguage};
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
 use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{CallHierarchyOptions, SemanticTokensLegend};
-use lsp_types::{
-    CodeActionResponse, Position, Range, TextDocumentContentChangeEvent,
-};
-use lsp_types::{Location, SemanticTokens};
-use parking_lot::Mutex;
+use lsp_types::{CodeActionResponse, Position};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -36,7 +31,6 @@ use std::{collections::HashMap, fs::File};
 use std::{fs, str::FromStr};
 use tree_sitter::{Node, Parser, Tree};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
-use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
     interval::IntervalBounds,
     multiset::Subset,
@@ -48,9 +42,8 @@ use xi_rope::{
 use xi_unicode::EmojiExt;
 
 use crate::config::{Config, LapceTheme};
-use crate::editor::EditorLocationNew;
+use crate::editor::{DiffLines, EditorLocationNew};
 use crate::find::FindProgress;
-use crate::theme::OldLapceTheme;
 use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
@@ -58,7 +51,6 @@ use crate::{
     language,
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     proxy::LapceProxy,
-    state::LapceWorkspaceType,
     state::{Counter, Mode},
 };
 
@@ -118,14 +110,26 @@ pub struct Style {
 }
 
 pub enum UpdateEvent {
+    History(BufferHisotryUpdate),
     Buffer(BufferUpdate),
     SemanticTokens(BufferUpdate, Vec<(usize, usize, String)>),
+}
+
+pub struct BufferHisotryUpdate {
+    pub id: BufferId,
+    pub path: PathBuf,
+    pub history: String,
+    pub rev: u64,
+    pub current_rope: Rope,
+    pub history_rope: Rope,
+    pub language: LapceLanguage,
 }
 
 pub struct BufferUpdate {
     pub id: BufferId,
     pub path: PathBuf,
     pub rope: Rope,
+    pub head_rope: Option<Rope>,
     pub rev: u64,
     pub language: LapceLanguage,
     pub highlights: Arc<Spans<Style>>,
@@ -212,6 +216,11 @@ pub struct BufferNew {
     update_sender: Arc<Sender<UpdateEvent>>,
     pub line_changes: HashMap<usize, char>,
     pub histories: im::HashMap<String, Rope>,
+    pub history_styles: im::HashMap<String, Arc<Spans<Style>>>,
+    pub history_line_styles: Rc<
+        RefCell<HashMap<String, HashMap<usize, Arc<Vec<(usize, usize, Style)>>>>>,
+    >,
+    pub history_changes: im::HashMap<String, Arc<Vec<DiffLines>>>,
 
     pub find: Rc<RefCell<Find>>,
     pub find_progress: Rc<RefCell<FindProgress>>,
@@ -266,6 +275,9 @@ impl BufferNew {
             local: false,
             line_changes: HashMap::new(),
             histories: im::HashMap::new(),
+            history_styles: im::HashMap::new(),
+            history_line_styles: Rc::new(RefCell::new(HashMap::new())),
+            history_changes: im::HashMap::new(),
 
             revs: vec![Revision {
                 max_undo_so_far: 0,
@@ -318,6 +330,24 @@ impl BufferNew {
         self.syntax_tree = None;
     }
 
+    pub fn load_history(&mut self, version: &str, content: Rope) {
+        self.histories.insert(version.to_string(), content.clone());
+        if let Some(language) = self.language {
+            if let BufferContent::File(path) = &self.content {
+                self.update_sender
+                    .send(UpdateEvent::History(BufferHisotryUpdate {
+                        id: self.id,
+                        path: path.clone(),
+                        rev: self.rev,
+                        history: version.to_string(),
+                        current_rope: self.rope.clone(),
+                        history_rope: content.clone(),
+                        language,
+                    }));
+            }
+        }
+    }
+
     pub fn load_content(&mut self, content: &str) {
         self.reset_revs();
 
@@ -349,6 +379,7 @@ impl BufferNew {
                     id: self.id,
                     path: path.clone(),
                     rope: self.rope.clone(),
+                    head_rope: self.histories.get("head").map(|r| r.clone()),
                     rev: self.rev,
                     language,
                     highlights: self.styles.clone(),
@@ -376,7 +407,6 @@ impl BufferNew {
                             if let Ok(resp) =
                                 serde_json::from_value::<BufferHeadResponse>(res)
                             {
-                                println!("load buffer head {}", resp.content);
                                 event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::LoadBufferHead {
@@ -410,6 +440,8 @@ impl BufferNew {
         let id = self.id;
         if let BufferContent::File(path) = &self.content {
             let path = path.clone();
+            let proxy = proxy.clone();
+            let event_sink = event_sink.clone();
             thread::spawn(move || {
                 proxy.new_buffer(
                     id,
@@ -434,6 +466,8 @@ impl BufferNew {
                 )
             });
         }
+
+        self.retrieve_file_head(tab_id, proxy, event_sink);
     }
 
     pub fn reset_find(&self, current_find: &Find) {
@@ -638,6 +672,49 @@ impl BufferNew {
         self.rope.len()
     }
 
+    fn get_hisotry_line_styles(
+        &self,
+        history: &str,
+        line: usize,
+    ) -> Option<Arc<Vec<(usize, usize, Style)>>> {
+        let rope = self.histories.get(history)?;
+        let styles = self.history_styles.get(history)?;
+        let mut cached_line_styles = self.history_line_styles.borrow_mut();
+        let cached_line_styles = cached_line_styles.get_mut(history)?;
+        if let Some(line_styles) = cached_line_styles.get(&line) {
+            return Some(line_styles.clone());
+        }
+
+        let start_offset = rope.offset_of_line(line);
+        let end_offset = rope.offset_of_line(line + 1);
+
+        let line_styles: Vec<(usize, usize, Style)> = styles
+            .iter_chunks(start_offset..end_offset)
+            .filter_map(|(iv, style)| {
+                let start = iv.start();
+                let end = iv.end();
+                if start > end_offset {
+                    None
+                } else if end < start_offset {
+                    None
+                } else {
+                    Some((
+                        if start > start_offset {
+                            start - start_offset
+                        } else {
+                            0
+                        },
+                        end - start_offset,
+                        style.clone(),
+                    ))
+                }
+            })
+            .collect();
+        let line_styles = Arc::new(line_styles);
+        cached_line_styles.insert(line, line_styles.clone());
+        Some(line_styles)
+    }
+
     fn get_line_styles(&self, line: usize) -> Arc<Vec<(usize, usize, Style)>> {
         if let Some(line_styles) = self.line_styles.borrow()[line].as_ref() {
             return line_styles.clone();
@@ -670,6 +747,47 @@ impl BufferNew {
         let line_styles = Arc::new(line_styles);
         self.line_styles.borrow_mut()[line] = Some(line_styles.clone());
         line_styles
+    }
+
+    pub fn history_text_layout(
+        &self,
+        ctx: &mut PaintCtx,
+        history: &str,
+        line: usize,
+        cursor_index: Option<usize>,
+        bounds: [f64; 2],
+        config: &Config,
+    ) -> Option<PietTextLayout> {
+        let rope = self.histories.get(history)?;
+        let start_offset = rope.offset_of_line(line);
+        let end_offset = rope.offset_of_line(line + 1);
+        let line_content = rope.slice_to_cow(start_offset..end_offset).to_string();
+
+        let mut layout_builder = ctx
+            .text()
+            .new_text_layout(line_content)
+            .font(config.editor.font_family(), config.editor.font_size as f64)
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            );
+
+        if let Some(styles) = self.get_hisotry_line_styles(history, line) {
+            for (start, end, style) in styles.iter() {
+                if let Some(fg_color) = style.fg_color.as_ref() {
+                    if let Some(fg_color) =
+                        config.get_color(&("style.".to_string() + fg_color))
+                    {
+                        layout_builder = layout_builder.range_attribute(
+                            start..end,
+                            TextAttribute::TextColor(fg_color.clone()),
+                        );
+                    }
+                }
+            }
+        }
+        Some(layout_builder.build_with_bounds(bounds))
     }
 
     pub fn new_text_layout(
@@ -1237,6 +1355,18 @@ impl BufferNew {
             return;
         }
         self.syntax_tree = Some(Arc::new(tree));
+    }
+
+    pub fn update_history_changes(
+        &mut self,
+        rev: u64,
+        history: &str,
+        changes: Arc<Vec<DiffLines>>,
+    ) {
+        if rev != self.rev {
+            return;
+        }
+        self.history_changes.insert(history.to_string(), changes);
     }
 
     pub fn update_styles(
