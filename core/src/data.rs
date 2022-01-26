@@ -7,7 +7,7 @@ use std::{
     process::{self, Stdio},
     rc::Rc,
     str::FromStr,
-    sync::Arc,
+    sync::{atomic::AtomicU64, Arc},
     thread,
     time::Duration,
 };
@@ -52,8 +52,8 @@ use crate::{
     buffer::{
         get_word_property, has_unmatched_pair, matching_char,
         matching_pair_direction, previous_has_unmatched_pair, BufferContent,
-        BufferHisotryUpdate, BufferId, BufferNew, BufferState, BufferUpdate,
-        EditType, LocalBufferKind, Style, UpdateEvent, WordProperty,
+        BufferId, BufferNew, BufferState, BufferUpdate, EditType, LocalBufferKind,
+        Style, UpdateEvent, WordProperty,
     },
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommand, LapceCommandNew,
@@ -63,7 +63,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus, Snippet},
     config::{Config, GetConfig, LapceTheme},
     db::{LapceDb, WorkspaceInfo},
-    editor::{DiffLines, EditorLocationNew, LapceEditorBufferData},
+    editor::{EditorLocationNew, LapceEditorBufferData},
     explorer::FileExplorerData,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -424,12 +424,14 @@ impl LapceTabData {
             Some(source_control.split_id),
             LocalBufferKind::SourceControl,
             &config,
+            event_sink.clone(),
         );
         main_split.add_editor(
             search.editor_view_id,
             None,
             LocalBufferKind::Search,
             &config,
+            event_sink.clone(),
         );
 
         let terminal = Arc::new(TerminalSplitData::new(proxy.clone()));
@@ -564,6 +566,7 @@ impl LapceTabData {
             view_id: editor_view_id,
             main_split: self.main_split.clone(),
             completion: self.completion.clone(),
+            source_control: self.source_control.clone(),
             proxy: self.proxy.clone(),
             find: self.find.clone(),
             buffer,
@@ -1188,16 +1191,6 @@ impl LapceTabData {
                                 Target::Widget(tab_id),
                             );
                         }
-                        UpdateEvent::History(update) => {
-                            buffer_receive_history_update(
-                                update,
-                                &mut parsers,
-                                &mut highlighter,
-                                &mut highlight_configs,
-                                &event_sink,
-                                tab_id,
-                            );
-                        }
                     };
                 }
             }
@@ -1606,6 +1599,8 @@ impl LapceMainSplitData {
             let buffer = Arc::new(BufferNew::new(
                 BufferContent::File(path.clone()),
                 self.update_sender.clone(),
+                *self.tab_id,
+                ctx.get_external_handle(),
             ));
             self.open_files.insert(path.clone(), buffer.clone());
             buffer.retrieve_file(
@@ -1742,6 +1737,8 @@ impl LapceMainSplitData {
                             let buffer = Arc::new(BufferNew::new(
                                 BufferContent::File(path.clone()),
                                 update_sender.clone(),
+                                tab_id,
+                                event_sink.clone(),
                             ));
                             open_files.insert(path.clone(), buffer.clone());
                         }
@@ -1782,8 +1779,12 @@ impl LapceMainSplitData {
             config,
         );
         editors.insert(editor.view_id, Arc::new(editor));
-        let mut buffer =
-            BufferNew::new(BufferContent::File(path.clone()), update_sender.clone());
+        let mut buffer = BufferNew::new(
+            BufferContent::File(path.clone()),
+            update_sender.clone(),
+            tab_id,
+            event_sink.clone(),
+        );
         buffer.loaded = true;
         open_files.insert(path.clone(), Arc::new(buffer));
 
@@ -1793,6 +1794,8 @@ impl LapceMainSplitData {
             Arc::new(BufferNew::new(
                 BufferContent::Local(LocalBufferKind::Empty),
                 update_sender.clone(),
+                tab_id,
+                event_sink.clone(),
             )),
         );
 
@@ -1822,10 +1825,13 @@ impl LapceMainSplitData {
         split_id: Option<WidgetId>,
         buffer_kind: LocalBufferKind,
         config: &Config,
+        event_sink: ExtEventSink,
     ) {
         let mut buffer = BufferNew::new(
             BufferContent::Local(buffer_kind.clone()),
             self.update_sender.clone(),
+            *self.tab_id,
+            event_sink.clone(),
         )
         .set_local();
         buffer.load_content("");
@@ -2809,133 +2815,6 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
     ))
 }
 
-fn buffer_receive_history_update(
-    update: BufferHisotryUpdate,
-    parsers: &mut HashMap<LapceLanguage, Parser>,
-    highlighter: &mut Highlighter,
-    highlight_configs: &mut HashMap<LapceLanguage, HighlightConfiguration>,
-    event_sink: &ExtEventSink,
-    tab_id: WidgetId,
-) {
-    if !highlight_configs.contains_key(&update.language) {
-        let highlight_config = new_highlight_config(update.language);
-        highlight_configs.insert(update.language, highlight_config);
-    }
-    let highlight_config = highlight_configs.get(&update.language).unwrap();
-    let mut current_hl: Option<Highlight> = None;
-    let mut highlights = SpansBuilder::new(update.history_rope.len());
-    for hightlight in highlighter
-        .highlight(
-            highlight_config,
-            update
-                .history_rope
-                .slice_to_cow(0..update.history_rope.len())
-                .as_bytes(),
-            None,
-            |_| None,
-        )
-        .unwrap()
-    {
-        if let Ok(highlight) = hightlight {
-            match highlight {
-                HighlightEvent::Source { start, end } => {
-                    if let Some(hl) = current_hl {
-                        if let Some(hl) = SCOPES.get(hl.0) {
-                            highlights.add_span(
-                                Interval::new(start, end),
-                                Style {
-                                    fg_color: Some(hl.to_string()),
-                                },
-                            );
-                        }
-                    }
-                }
-                HighlightEvent::HighlightStart(hl) => {
-                    current_hl = Some(hl);
-                }
-                HighlightEvent::HighlightEnd => current_hl = None,
-            }
-        }
-    }
-    let highlights = highlights.build();
-    let changes =
-        buffer_diff(update.history_rope.clone(), update.current_rope.clone());
-    event_sink.submit_command(
-        LAPCE_UI_COMMAND,
-        LapceUICommand::UpdateHistoryStyle {
-            id: update.id,
-            path: update.path,
-            history: update.history,
-            highlights,
-            rev: update.rev,
-            changes: Arc::new(changes),
-        },
-        Target::Widget(tab_id),
-    );
-}
-
-fn buffer_diff(left_rope: Rope, right_rope: Rope) -> Vec<DiffLines> {
-    let mut changes = Vec::new();
-    let left_str = &left_rope.slice_to_cow(0..left_rope.len());
-    let right_str = &right_rope.slice_to_cow(0..right_rope.len());
-    let mut left_line = 0;
-    let mut right_line = 0;
-    for diff in diff::lines(left_str, right_str) {
-        match diff {
-            diff::Result::Left(_) => {
-                match changes.last_mut() {
-                    Some(DiffLines::Left(r)) => r.end = left_line + 1,
-                    _ => changes.push(DiffLines::Left(left_line..left_line + 1)),
-                }
-                left_line += 1;
-            }
-            diff::Result::Both(_, _) => {
-                match changes.last_mut() {
-                    Some(DiffLines::Both(l, r)) => {
-                        l.end = left_line + 1;
-                        r.end = right_line + 1;
-                    }
-                    _ => changes.push(DiffLines::Both(
-                        left_line..left_line + 1,
-                        right_line..right_line + 1,
-                    )),
-                }
-                left_line += 1;
-                right_line += 1;
-            }
-            diff::Result::Right(_) => {
-                match changes.last_mut() {
-                    Some(DiffLines::Right(r)) => r.end = right_line + 1,
-                    _ => changes.push(DiffLines::Right(right_line..right_line + 1)),
-                }
-                right_line += 1;
-            }
-        }
-    }
-    for (i, change) in changes.clone().iter().enumerate().rev() {
-        match change {
-            DiffLines::Both(l, r) => {
-                if r.len() > 6 {
-                    changes[i] = DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
-                    changes.insert(
-                        i,
-                        DiffLines::Skip(
-                            l.start + 3..l.end - 3,
-                            r.start + 3..r.end - 3,
-                        ),
-                    );
-                    changes.insert(
-                        i,
-                        DiffLines::Both(l.start..l.start + 3, r.start..r.start + 3),
-                    );
-                }
-            }
-            _ => (),
-        }
-    }
-    changes
-}
-
 fn buffer_receive_update(
     update: BufferUpdate,
     parsers: &mut HashMap<LapceLanguage, Parser>,
@@ -2960,21 +2839,6 @@ fn buffer_receive_update(
                 path: update.path.clone(),
                 rev: update.rev,
                 tree,
-            },
-            Target::Widget(tab_id),
-        );
-    }
-
-    if let Some(head_rope) = update.head_rope.as_ref() {
-        let changes = buffer_diff(head_rope.clone(), update.rope.clone());
-        event_sink.submit_command(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateHisotryChanges {
-                id: update.id,
-                path: update.path.clone(),
-                rev: update.rev,
-                history: "head".to_string(),
-                changes: Arc::new(changes),
             },
             Target::Widget(tab_id),
         );

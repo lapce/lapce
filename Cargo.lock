@@ -2180,6 +2180,7 @@ dependencies = [
  "libloading",
  "lsp-types",
  "parking_lot 0.11.2",
+ "rayon",
  "regex",
  "reqwest",
  "serde 1.0.130",

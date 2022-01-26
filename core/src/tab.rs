@@ -633,22 +633,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateBufferLineChanges(
-                        id,
-                        rev,
-                        line_changes,
-                    ) => {
-                        for (_, buffer) in data.main_split.open_files.iter_mut() {
-                            if &buffer.id == id {
-                                if buffer.rev == *rev {
-                                    let buffer = Arc::make_mut(buffer);
-                                    buffer.line_changes = line_changes.to_owned();
-                                }
-                                break;
-                            }
-                        }
-                        ctx.set_handled();
-                    }
                     LapceUICommand::UpdateSemanticTokens(id, path, rev, tokens) => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
@@ -661,10 +645,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                                                 id: buffer.id,
                                                 path: path.clone(),
                                                 rope: buffer.rope.clone(),
-                                                head_rope: buffer
-                                                    .histories
-                                                    .get("head")
-                                                    .map(|r| r.clone()),
                                                 rev: *rev,
                                                 language: *language,
                                                 highlights: buffer.styles.clone(),
@@ -780,10 +760,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::UpdateHistoryStyle {
                         id,
                         path,
-                        rev,
                         history,
                         highlights,
-                        changes,
                     } => {
                         ctx.set_handled();
                         let buffer =
@@ -796,11 +774,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .history_line_styles
                             .borrow_mut()
                             .insert(history.to_string(), HashMap::new());
-                        Arc::make_mut(buffer).update_history_changes(
-                            *rev,
-                            history,
-                            changes.clone(),
-                        );
                     }
                     LapceUICommand::UpdateExplorerItems(index, path, items) => {
                         let file_explorer = Arc::make_mut(&mut data.file_explorer);

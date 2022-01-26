@@ -20,8 +20,8 @@ use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     buffer::BufferId,
-    buffer::{InvalLines, Style},
-    editor::{DiffLines, EditorLocation, EditorLocationNew, HighlightTextLayout},
+    buffer::{DiffLines, InvalLines, Style},
+    editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
     movement::{LinePosition, Movement},
     palette::{NewPaletteItem, PaletteType},
     split::SplitMoveDirection,
@@ -325,6 +325,10 @@ pub enum LapceCommand {
     NextError,
     #[strum(serialize = "previous_error")]
     PreviousError,
+    #[strum(serialize = "next_diff")]
+    NextDiff,
+    #[strum(serialize = "previous_diff")]
+    PreviousDiff,
     #[strum(serialize = "format_document")]
     #[strum(message = "Format Document")]
     FormatDocument,
@@ -477,10 +481,8 @@ pub enum LapceUICommand {
     UpdateHistoryStyle {
         id: BufferId,
         path: PathBuf,
-        rev: u64,
         history: String,
         highlights: Spans<Style>,
-        changes: Arc<Vec<DiffLines>>,
     },
     UpdateSyntaxTree {
         id: BufferId,
@@ -496,7 +498,6 @@ pub enum LapceUICommand {
         changes: Arc<Vec<DiffLines>>,
     },
     CenterOfWindow,
-    UpdateBufferLineChanges(BufferId, u64, HashMap<usize, char>),
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     WorkDoneProgress(ProgressParams),

@@ -512,11 +512,6 @@ pub enum Notification {
         path: PathBuf,
         tokens: Vec<(usize, usize, String)>,
     },
-    UpdateGit {
-        buffer_id: BufferId,
-        line_changes: HashMap<usize, char>,
-        rev: u64,
-    },
     ReloadBuffer {
         buffer_id: BufferId,
         new_content: String,
@@ -575,21 +570,6 @@ impl Handler for ProxyHandlerNew {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSemanticTokens(
                         buffer_id, path, rev, tokens,
-                    ),
-                    Target::Widget(self.tab_id),
-                );
-            }
-            Notification::UpdateGit {
-                buffer_id,
-                line_changes,
-                rev,
-            } => {
-                self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateBufferLineChanges(
-                        buffer_id,
-                        rev,
-                        line_changes,
                     ),
                     Target::Widget(self.tab_id),
                 );

@@ -340,19 +340,6 @@ impl Dispatcher {
             };
 
             self.lsp.lock().get_semantic_tokens(buffer);
-
-            if let Some((diff, line_changes)) =
-                file_git_diff(&workspace, &PathBuf::from(path), &content)
-            {
-                self.sender.send(json!({
-                    "method": "update_git",
-                    "params": {
-                        "buffer_id": buffer_id,
-                        "line_changes": line_changes,
-                        "rev": rev,
-                    },
-                }));
-            }
         }
     }
 
