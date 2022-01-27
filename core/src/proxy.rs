@@ -12,6 +12,7 @@ use crossbeam_utils::sync::WaitGroup;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
 use flate2::read::GzDecoder;
+use lapce_proxy::dispatch::FileDiff;
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lapce_proxy::plugin::PluginDescription;
 use lapce_proxy::terminal::TermId;
@@ -265,6 +266,16 @@ impl LapceProxy {
             &json!({
                 "term_id": term_id,
                 "cwd": cwd,
+            }),
+        )
+    }
+
+    pub fn git_commit(&self, message: &str, diffs: Vec<FileDiff>) {
+        self.peer.lock().as_ref().unwrap().send_rpc_notification(
+            "git_commit",
+            &json!({
+                "message": message,
+                "diffs": diffs,
             }),
         )
     }
@@ -532,6 +543,9 @@ pub enum Notification {
     DiffFiles {
         files: Vec<PathBuf>,
     },
+    FileDiffs {
+        diffs: Vec<FileDiff>,
+    },
     UpdateTerminal {
         term_id: TermId,
         content: String,
@@ -607,10 +621,11 @@ impl Handler for ProxyHandlerNew {
                 );
             }
             Notification::ListDir { items } => {}
-            Notification::DiffFiles { files } => {
+            Notification::DiffFiles { files } => {}
+            Notification::FileDiffs { diffs } => {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateDiffFiles(files),
+                    LapceUICommand::UpdateFileDiffs(diffs),
                     Target::Widget(self.tab_id),
                 );
             }

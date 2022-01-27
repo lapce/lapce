@@ -26,7 +26,7 @@ use druid::{
 };
 use im::{self, hashmap};
 use itertools::Itertools;
-use lapce_proxy::{plugin::PluginDescription, terminal::TermId};
+use lapce_proxy::{dispatch::FileDiff, plugin::PluginDescription, terminal::TermId};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
@@ -1006,6 +1006,47 @@ impl LapceTabData {
                         self.hide_panel(ctx, kind);
                     }
                 }
+            }
+            LapceWorkbenchCommand::SourceControlCommit => {
+                let diffs: Vec<FileDiff> = self
+                    .source_control
+                    .file_diffs
+                    .iter()
+                    .filter_map(
+                        |(diff, checked)| {
+                            if *checked {
+                                Some(diff.clone())
+                            } else {
+                                None
+                            }
+                        },
+                    )
+                    .collect();
+                if diffs.len() == 0 {
+                    return;
+                }
+                let buffer = self
+                    .main_split
+                    .local_buffers
+                    .get_mut(&LocalBufferKind::SourceControl)
+                    .unwrap();
+                let message = buffer.rope.to_string();
+                let message = message.trim();
+                if message == "" {
+                    return;
+                }
+                self.proxy.git_commit(message, diffs);
+                Arc::make_mut(buffer).load_content("");
+                let editor = self
+                    .main_split
+                    .editors
+                    .get_mut(&self.source_control.editor_view_id)
+                    .unwrap();
+                Arc::make_mut(editor).cursor = if self.config.lapce.modal {
+                    Cursor::new(CursorMode::Normal(0), None)
+                } else {
+                    Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
+                };
             }
         }
     }

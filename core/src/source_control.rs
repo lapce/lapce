@@ -13,6 +13,7 @@ use druid::{
     Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetExt,
     WidgetId, WidgetPod, WindowId,
 };
+use lapce_proxy::dispatch::FileDiff;
 
 use crate::{
     command::{
@@ -29,7 +30,7 @@ use crate::{
     scroll::LapceScrollNew,
     split::{LapceSplitNew, SplitDirection, SplitMoveDirection},
     state::Mode,
-    svg::file_svg_new,
+    svg::{file_svg_new, get_svg},
     theme::OldLapceTheme,
 };
 
@@ -45,7 +46,7 @@ pub struct SourceControlData {
     pub file_list_id: WidgetId,
     pub file_list_index: usize,
     pub editor_view_id: WidgetId,
-    pub diff_files: Vec<(PathBuf, bool)>,
+    pub file_diffs: Vec<(FileDiff, bool)>,
 }
 
 impl SourceControlData {
@@ -60,7 +61,7 @@ impl SourceControlData {
             file_list_index: 0,
             split_id: WidgetId::next(),
             split_direction: SplitDirection::Horizontal,
-            diff_files: Vec::new(),
+            file_diffs: Vec::new(),
         }
     }
 
@@ -141,7 +142,7 @@ impl KeyPressFocus for SourceControlData {
             LapceCommand::Up | LapceCommand::ListPrevious => {
                 self.file_list_index = Movement::Up.update_index(
                     self.file_list_index,
-                    self.diff_files.len(),
+                    self.file_diffs.len(),
                     1,
                     true,
                 );
@@ -149,23 +150,23 @@ impl KeyPressFocus for SourceControlData {
             LapceCommand::Down | LapceCommand::ListNext => {
                 self.file_list_index = Movement::Down.update_index(
                     self.file_list_index,
-                    self.diff_files.len(),
+                    self.file_diffs.len(),
                     1,
                     true,
                 );
             }
             LapceCommand::ListExpand => {
-                if self.diff_files.len() > 0 {
-                    self.diff_files[self.file_list_index].1 =
-                        !self.diff_files[self.file_list_index].1;
+                if self.file_diffs.len() > 0 {
+                    self.file_diffs[self.file_list_index].1 =
+                        !self.file_diffs[self.file_list_index].1;
                 }
             }
             LapceCommand::ListSelect => {
-                if self.diff_files.len() > 0 {
+                if self.file_diffs.len() > 0 {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::OpenFileDiff(
-                            self.diff_files[self.file_list_index].0.clone(),
+                            self.file_diffs[self.file_list_index].0.path().clone(),
                             "head".to_string(),
                         ),
                         Target::Auto,
@@ -224,15 +225,15 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 let y = mouse_event.pos.y;
                 if y > 0.0 {
                     let line = (y / line_height).floor() as usize;
-                    if line < data.source_control.diff_files.len()
+                    if line < data.source_control.file_diffs.len()
                         && mouse_event.pos.x < line_height
                     {
                         if let Some(mouse_down) = self.mouse_down {
                             if mouse_down == line {
                                 let source_control =
                                     Arc::make_mut(&mut data.source_control);
-                                source_control.diff_files[line].1 =
-                                    !source_control.diff_files[line].1;
+                                source_control.file_diffs[line].1 =
+                                    !source_control.file_diffs[line].1;
                             }
                         }
                     }
@@ -247,7 +248,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 let y = mouse_event.pos.y;
                 if y > 0.0 {
                     let line = (y / line_height).floor() as usize;
-                    if line < source_control.diff_files.len() {
+                    if line < source_control.file_diffs.len() {
                         source_control.file_list_index = line;
                         if mouse_event.pos.x < line_height {
                             self.mouse_down = Some(line);
@@ -255,7 +256,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::OpenFileDiff(
-                                    source_control.diff_files[line].0.clone(),
+                                    source_control.file_diffs[line].0.path().clone(),
                                     "head".to_string(),
                                 ),
                                 Target::Widget(data.id),
@@ -316,6 +317,11 @@ impl Widget<LapceTabData> for SourceControlFileList {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if data.source_control.file_diffs.len()
+            != old_data.source_control.file_diffs.len()
+        {
+            ctx.request_layout();
+        }
     }
 
     fn layout(
@@ -326,16 +332,18 @@ impl Widget<LapceTabData> for SourceControlFileList {
         env: &Env,
     ) -> Size {
         let line_height = data.config.editor.line_height as f64;
-        let height = line_height * data.source_control.diff_files.len() as f64;
+        let height = line_height * data.source_control.file_diffs.len() as f64;
         Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let self_size = ctx.size();
+
         let line_height = data.config.editor.line_height as f64;
 
-        let files = &data.source_control.diff_files;
+        let diffs = &data.source_control.file_diffs;
 
-        if ctx.is_focused() && files.len() > 0 {
+        if ctx.is_focused() && diffs.len() > 0 {
             let rect = Size::new(ctx.size().width, line_height)
                 .to_rect()
                 .with_origin(Point::new(
@@ -352,11 +360,12 @@ impl Widget<LapceTabData> for SourceControlFileList {
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
         for line in start_line..end_line {
-            if line >= files.len() {
+            if line >= diffs.len() {
                 break;
             }
             let y = line_height * line as f64;
-            let (mut path, checked) = files[line].clone();
+            let (diff, checked) = diffs[line].clone();
+            let mut path = diff.path().clone();
             if let Some(workspace) = data.workspace.as_ref() {
                 path = path
                     .strip_prefix(&workspace.path)
@@ -407,7 +416,13 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 )
                 .build()
                 .unwrap();
-            ctx.draw_text(&text_layout, Point::new(line_height * 2.0, y + 4.0));
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    line_height * 2.0,
+                    y + (line_height - text_layout.size().height) / 2.0,
+                ),
+            );
             let folder = path
                 .parent()
                 .and_then(|s| s.to_str())
@@ -429,9 +444,46 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     .unwrap();
                 ctx.draw_text(
                     &text_layout,
-                    Point::new(line_height * 2.0 + x + 5.0, y + 4.0),
+                    Point::new(
+                        line_height * 2.0 + x + 5.0,
+                        y + (line_height - text_layout.size().height) / 2.0,
+                    ),
                 );
             }
+
+            let (svg, color) = match diff {
+                FileDiff::Modified(_) => (
+                    "diff-modified.svg",
+                    data.config
+                        .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
+                ),
+                FileDiff::Added(_) => (
+                    "diff-added.svg",
+                    data.config
+                        .get_color_unchecked(LapceTheme::SOURCE_CONTROL_ADDED),
+                ),
+                FileDiff::Deleted(_) => (
+                    "diff-removed.svg",
+                    data.config
+                        .get_color_unchecked(LapceTheme::SOURCE_CONTROL_REMOVED),
+                ),
+                FileDiff::Renamed(_, _) => (
+                    "diff-renamed.svg",
+                    data.config
+                        .get_color_unchecked(LapceTheme::SOURCE_CONTROL_MODIFIED),
+                ),
+            };
+            let svg = get_svg(svg).unwrap();
+
+            let svg_size = 15.0;
+            let rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        self_size.width - svg_size - 10.0,
+                        line as f64 * line_height + (line_height - svg_size) / 2.0,
+                    ));
+            ctx.draw_svg(&svg, rect, Some(&color.clone().with_alpha(0.9)));
         }
     }
 }

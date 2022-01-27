@@ -123,6 +123,10 @@ pub enum Notification {
     InstallPlugin {
         plugin: PluginDescription,
     },
+    GitCommit {
+        message: String,
+        diffs: Vec<FileDiff>,
+    },
     TerminalWrite {
         term_id: TermId,
         content: String,
@@ -202,6 +206,25 @@ pub struct NewBufferResponse {
 pub struct BufferHeadResponse {
     pub id: String,
     pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FileDiff {
+    Modified(PathBuf),
+    Added(PathBuf),
+    Deleted(PathBuf),
+    Renamed(PathBuf, PathBuf),
+}
+
+impl FileDiff {
+    pub fn path(&self) -> &PathBuf {
+        match &self {
+            FileDiff::Modified(p)
+            | FileDiff::Added(p)
+            | FileDiff::Deleted(p)
+            | FileDiff::Renamed(_, p) => p,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -309,11 +332,11 @@ impl Dispatcher {
             if self.workspace_updated.load(atomic::Ordering::Relaxed) {
                 self.workspace_updated
                     .store(false, atomic::Ordering::Relaxed);
-                if let Some(diff_files) = git_diff(&self.workspace.lock()) {
+                if let Some(file_diffs) = git_diff_new(&self.workspace.lock()) {
                     self.send_notification(
-                        "diff_files",
+                        "file_diffs",
                         json!({
-                            "files": diff_files,
+                            "diffs": file_diffs,
                         }),
                     );
                 }
@@ -418,11 +441,11 @@ impl Dispatcher {
                     true,
                     GIT_EVENT_TOKEN,
                 );
-                if let Some(diff_files) = git_diff(&workspace) {
+                if let Some(file_diffs) = git_diff_new(&workspace) {
                     self.send_notification(
-                        "diff_files",
+                        "file_diffs",
                         json!({
-                            "files": diff_files,
+                            "diffs": file_diffs,
                         }),
                     );
                 }
@@ -493,6 +516,13 @@ impl Dispatcher {
                     true,
                 );
                 tx.send(Msg::Resize(size));
+            }
+            Notification::GitCommit { message, diffs } => {
+                eprintln!("received git commit");
+                let workspace = self.workspace.lock().clone();
+                if let Err(e) = git_commit(&workspace, &message, diffs) {
+                    eprintln!("git commit error {e}");
+                }
             }
         }
     }
@@ -685,15 +715,81 @@ pub struct DiffHunk {
     pub header: String,
 }
 
-fn git_diff(workspace_path: &PathBuf) -> Option<Vec<String>> {
-    let repo = Repository::open(workspace_path.to_str()?).ok()?;
-    let mut diff_files = HashSet::new();
-    let diff = repo.diff_index_to_workdir(None, None).ok()?;
-    for delta in diff.deltas() {
-        if let Some(path) = delta.new_file().path() {
-            if let Some(s) = path.to_str() {
-                diff_files.insert(workspace_path.join(s).to_str()?.to_string());
+fn git_commit(
+    workspace_path: &PathBuf,
+    message: &str,
+    diffs: Vec<FileDiff>,
+) -> Result<()> {
+    let repo = Repository::open(
+        workspace_path
+            .to_str()
+            .ok_or(anyhow!("workspace path can't changed to str"))?,
+    )?;
+    let mut index = repo.index()?;
+    for diff in diffs {
+        match diff {
+            FileDiff::Modified(p) | FileDiff::Added(p) => {
+                index.add_path(p.strip_prefix(workspace_path)?)?;
             }
+            FileDiff::Renamed(a, d) => {
+                index.add_path(a.strip_prefix(workspace_path)?)?;
+                index.remove_path(d.strip_prefix(workspace_path)?)?;
+            }
+            FileDiff::Deleted(p) => {
+                index.remove_path(p.strip_prefix(workspace_path)?)?;
+            }
+        }
+    }
+    index.write()?;
+    let tree = index.write_tree()?;
+    let tree = repo.find_tree(tree)?;
+    let signature = repo.signature()?;
+    let parent = repo.head()?.peel_to_commit()?;
+    repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        message,
+        &tree,
+        &[&parent],
+    )?;
+    Ok(())
+}
+
+fn git_delta_format(
+    workspace_path: &PathBuf,
+    delta: &git2::DiffDelta,
+) -> Option<(git2::Delta, git2::Oid, PathBuf)> {
+    match delta.status() {
+        git2::Delta::Added | git2::Delta::Untracked => Some((
+            git2::Delta::Added,
+            delta.new_file().id(),
+            delta.new_file().path().map(|p| workspace_path.join(p))?,
+        )),
+        git2::Delta::Deleted => Some((
+            git2::Delta::Deleted,
+            delta.old_file().id(),
+            delta.old_file().path().map(|p| workspace_path.join(p))?,
+        )),
+        git2::Delta::Modified => Some((
+            git2::Delta::Modified,
+            delta.new_file().id(),
+            delta.new_file().path().map(|p| workspace_path.join(p))?,
+        )),
+        _ => None,
+    }
+}
+
+fn git_diff_new(workspace_path: &PathBuf) -> Option<Vec<FileDiff>> {
+    let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    let mut deltas = Vec::new();
+    let mut diff_options = DiffOptions::new();
+    let diff = repo
+        .diff_index_to_workdir(None, Some(diff_options.include_untracked(true)))
+        .ok()?;
+    for delta in diff.deltas() {
+        if let Some(delta) = git_delta_format(workspace_path, &delta) {
+            deltas.push(delta);
         }
     }
     let cached_diff = repo
@@ -706,16 +802,90 @@ fn git_diff(workspace_path: &PathBuf) -> Option<Vec<String>> {
         )
         .ok()?;
     for delta in cached_diff.deltas() {
-        if let Some(path) = delta.new_file().path() {
-            if let Some(s) = path.to_str() {
-                diff_files.insert(workspace_path.join(s).to_str()?.to_string());
+        if let Some(delta) = git_delta_format(workspace_path, &delta) {
+            deltas.push(delta);
+        }
+    }
+    let mut renames = Vec::new();
+    let mut renamed_deltas = HashSet::new();
+
+    for (i, delta) in deltas.iter().enumerate() {
+        if delta.0 == git2::Delta::Added {
+            for (j, d) in deltas.iter().enumerate() {
+                if d.0 == git2::Delta::Deleted && d.1 == delta.1 {
+                    renames.push((i, j));
+                    renamed_deltas.insert(i);
+                    renamed_deltas.insert(j);
+                    break;
+                }
             }
         }
     }
-    let mut diff_files: Vec<String> = diff_files.into_iter().collect();
-    diff_files.sort();
-    Some(diff_files)
+
+    let mut file_diffs = Vec::new();
+    for (i, j) in renames.iter() {
+        file_diffs.push(FileDiff::Renamed(
+            deltas[*i].2.clone(),
+            deltas[*j].2.clone(),
+        ));
+    }
+    for (i, delta) in deltas.iter().enumerate() {
+        if renamed_deltas.contains(&i) {
+            continue;
+        }
+        let diff = match delta.0 {
+            git2::Delta::Added => FileDiff::Added(delta.2.clone()),
+            git2::Delta::Deleted => FileDiff::Deleted(delta.2.clone()),
+            git2::Delta::Modified => FileDiff::Modified(delta.2.clone()),
+            _ => continue,
+        };
+        file_diffs.push(diff);
+    }
+    file_diffs.sort_by_key(|d| match d {
+        FileDiff::Modified(p)
+        | FileDiff::Added(p)
+        | FileDiff::Renamed(p, _)
+        | FileDiff::Deleted(p) => p.clone(),
+    });
+    Some(file_diffs)
 }
+
+// fn git_diff(workspace_path: &PathBuf) -> Option<Vec<String>> {
+//     let repo = Repository::open(workspace_path.to_str()?).ok()?;
+//     let mut diff_files = HashSet::new();
+//     let mut diff_options = DiffOptions::new();
+//     let diff = repo
+//         .diff_index_to_workdir(None, Some(diff_options.include_untracked(true)))
+//         .ok()?;
+//     for delta in diff.deltas() {
+//         eprintln!("delta {:?}", delta);
+//         if let Some(path) = delta.new_file().path() {
+//             if let Some(s) = path.to_str() {
+//                 diff_files.insert(workspace_path.join(s).to_str()?.to_string());
+//             }
+//         }
+//     }
+//     let cached_diff = repo
+//         .diff_tree_to_index(
+//             repo.find_tree(repo.revparse_single("HEAD^{tree}").ok()?.id())
+//                 .ok()
+//                 .as_ref(),
+//             None,
+//             None,
+//         )
+//         .ok()?;
+//     for delta in cached_diff.deltas() {
+//         eprintln!("delta {:?}", delta);
+//         if let Some(path) = delta.new_file().path() {
+//             if let Some(s) = path.to_str() {
+//                 diff_files.insert(workspace_path.join(s).to_str()?.to_string());
+//             }
+//         }
+//     }
+//     let mut diff_files: Vec<String> = diff_files.into_iter().collect();
+//     diff_files.sort();
+//     Some(diff_files)
+// }
 
 fn file_get_head(
     workspace_path: &PathBuf,

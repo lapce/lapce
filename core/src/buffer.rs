@@ -391,7 +391,7 @@ impl BufferNew {
                 let event_sink = self.event_sink.clone();
                 let tab_id = self.tab_id;
                 let version = version.to_string();
-                rayon::spawn_fifo(move || {
+                rayon::spawn(move || {
                     let mut highlight_config = highlight_config.lock();
                     let mut highlighter = highlighter.lock();
                     let highlights = rope_styles(

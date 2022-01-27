@@ -313,21 +313,29 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::UpdateInstalledPlugins(plugins) => {
                         data.installed_plugins = Arc::new(plugins.to_owned());
                     }
-                    LapceUICommand::UpdateDiffFiles(files) => {
+                    LapceUICommand::UpdateFileDiffs(diffs) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
-                        source_control.diff_files = files
+                        source_control.file_diffs = diffs
                             .iter()
-                            .map(|path| {
+                            .map(|diff| {
                                 let mut checked = true;
-                                for (p, c) in source_control.diff_files.iter() {
-                                    if p == path {
+                                for (p, c) in source_control.file_diffs.iter() {
+                                    if p == diff {
                                         checked = *c;
                                         break;
                                     }
                                 }
-                                (path.clone(), checked)
+                                (diff.clone(), checked)
                             })
                             .collect();
+
+                        for (path, buffer) in data.main_split.open_files.iter() {
+                            buffer.retrieve_file_head(
+                                data.id,
+                                data.proxy.clone(),
+                                ctx.get_external_handle(),
+                            );
+                        }
                         ctx.set_handled();
                     }
                     LapceUICommand::WorkDoneProgress(params) => {

@@ -984,14 +984,15 @@ impl LapceEditorBufferData {
 
     fn next_diff(&mut self, ctx: &mut EventCtx, env: &Env) {
         if let BufferContent::File(buffer_path) = &self.buffer.content {
-            if self.source_control.diff_files.len() == 0 {
+            if self.source_control.file_diffs.len() == 0 {
                 return;
             }
             let mut diff_files: Vec<(PathBuf, Vec<Position>)> = self
                 .source_control
-                .diff_files
+                .file_diffs
                 .iter()
-                .map(|(path, _)| {
+                .map(|(diff, _)| {
+                    let path = diff.path();
                     let mut positions = Vec::new();
                     if let Some(buffer) = self.main_split.open_files.get(path) {
                         if let Some(changes) = buffer.history_changes.get("head") {

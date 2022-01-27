@@ -5,7 +5,9 @@ use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
 use indexmap::IndexMap;
 use lapce_proxy::{
-    dispatch::FileNodeItem, plugin::PluginDescription, terminal::TermId,
+    dispatch::{FileDiff, FileNodeItem},
+    plugin::PluginDescription,
+    terminal::TermId,
 };
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
@@ -181,6 +183,9 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "focus_terminal")]
     FocusTerminal,
+
+    #[strum(serialize = "source_control_commit")]
+    SourceControlCommit,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
@@ -501,7 +506,7 @@ pub enum LapceUICommand {
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     WorkDoneProgress(ProgressParams),
-    UpdateDiffFiles(Vec<PathBuf>),
+    UpdateFileDiffs(Vec<FileDiff>),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),
