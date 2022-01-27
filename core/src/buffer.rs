@@ -948,9 +948,17 @@ impl BufferNew {
         pos: Point,
         mode: Mode,
         config: &Config,
+        compare: Option<String>,
     ) -> usize {
         let line_height = config.editor.line_height as f64;
         let line = (pos.y / line_height).floor() as usize;
+
+        let line = if let Some(compare) = compare.as_ref() {
+            self.diff_actual_line_from_visual(compare, line)
+        } else {
+            line
+        };
+
         let last_line = self.last_line();
         let (line, col) = if line > last_line {
             (last_line, 0)
@@ -1082,10 +1090,18 @@ impl BufferNew {
         movement: &Movement,
         mode: Mode,
         modify: bool,
+        compare: Option<String>,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
-            let region = self.update_region(region, count, movement, mode, modify);
+            let region = self.update_region(
+                region,
+                count,
+                movement,
+                mode,
+                modify,
+                compare.clone(),
+            );
             new_selection.add_region(region);
         }
         new_selection
@@ -1098,9 +1114,16 @@ impl BufferNew {
         movement: &Movement,
         mode: Mode,
         modify: bool,
+        compare: Option<String>,
     ) -> SelRegion {
-        let (end, horiz) =
-            self.move_offset(region.end(), region.horiz(), count, movement, mode);
+        let (end, horiz) = self.move_offset(
+            region.end(),
+            region.horiz(),
+            count,
+            movement,
+            mode,
+            compare,
+        );
 
         let start = match modify {
             true => region.start(),
@@ -1159,6 +1182,143 @@ impl BufferNew {
         new_offset
     }
 
+    pub fn diff_visual_line(&self, compare: &str, line: usize) -> usize {
+        let mut visual_line = 0;
+        if let Some(changes) = self.history_changes.get(compare) {
+            for (i, change) in changes.iter().enumerate() {
+                match change {
+                    DiffLines::Left(range) => {
+                        visual_line += range.len();
+                    }
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        if r.contains(&line) {
+                            visual_line += line - r.start;
+                            break;
+                        }
+                        visual_line += r.len();
+                    }
+                    DiffLines::Skip(_, r) => {
+                        if r.contains(&line) {
+                            break;
+                        }
+                        visual_line += 1;
+                    }
+                }
+            }
+        }
+        visual_line
+    }
+
+    pub fn diff_actual_line_from_visual(
+        &self,
+        compare: &str,
+        visual_line: usize,
+    ) -> usize {
+        let mut current_visual_line = 0;
+        let mut line = 0;
+        if let Some(changes) = self.history_changes.get(compare) {
+            for (i, change) in changes.iter().enumerate() {
+                match change {
+                    DiffLines::Left(range) => {
+                        current_visual_line += range.len();
+                        if current_visual_line > visual_line {
+                            if let Some(change) = changes.get(i + 1) {
+                                match change {
+                                    DiffLines::Left(_) => {}
+                                    DiffLines::Both(_, r)
+                                    | DiffLines::Skip(_, r)
+                                    | DiffLines::Right(r) => {
+                                        line = r.start;
+                                    }
+                                }
+                            } else if i > 0 {
+                                if let Some(change) = changes.get(i - 1) {
+                                    match change {
+                                        DiffLines::Left(_) => {}
+                                        DiffLines::Both(_, r)
+                                        | DiffLines::Skip(_, r)
+                                        | DiffLines::Right(r) => {
+                                            line = r.end - 1;
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    DiffLines::Skip(_, r) => {
+                        current_visual_line += 1;
+                        if current_visual_line > visual_line {
+                            line = r.end;
+                            break;
+                        }
+                    }
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        current_visual_line += r.len();
+                        if current_visual_line > visual_line {
+                            line = r.end - (current_visual_line - visual_line);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if current_visual_line <= visual_line {
+            self.last_line()
+        } else {
+            line
+        }
+    }
+
+    fn diff_cursor_line(&self, compare: &str, line: usize) -> usize {
+        let mut cursor_line = 0;
+        if let Some(changes) = self.history_changes.get(compare) {
+            for (i, change) in changes.iter().enumerate() {
+                match change {
+                    DiffLines::Left(range) => {}
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        if r.contains(&line) {
+                            cursor_line += line - r.start;
+                            break;
+                        }
+                        cursor_line += r.len();
+                    }
+                    DiffLines::Skip(_, r) => {
+                        if r.contains(&line) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        cursor_line
+    }
+
+    fn diff_actual_line(&self, compare: &str, cursor_line: usize) -> usize {
+        let mut current_cursor_line = 0;
+        let mut line = 0;
+        if let Some(changes) = self.history_changes.get(compare) {
+            for (i, change) in changes.iter().enumerate() {
+                match change {
+                    DiffLines::Left(range) => {}
+                    DiffLines::Skip(_, r) => {}
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        current_cursor_line += r.len();
+                        if current_cursor_line > cursor_line {
+                            line = r.end - (current_cursor_line - cursor_line);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if current_cursor_line <= cursor_line {
+            self.last_line()
+        } else {
+            line
+        }
+    }
+
     pub fn move_offset(
         &self,
         offset: usize,
@@ -1166,6 +1326,7 @@ impl BufferNew {
         count: usize,
         movement: &Movement,
         mode: Mode,
+        compare: Option<String>,
     ) -> (usize, ColPosition) {
         let horiz = if let Some(horiz) = horiz {
             horiz.clone()
@@ -1206,15 +1367,41 @@ impl BufferNew {
             }
             Movement::Up => {
                 let line = self.line_of_offset(offset);
-                let line = if line > count { line - count } else { 0 };
+                let line = if let Some(compare) = compare.as_ref() {
+                    let cursor_line = self.diff_cursor_line(compare, line);
+                    let cursor_line = if cursor_line > count {
+                        cursor_line - count
+                    } else {
+                        0
+                    };
+                    self.diff_actual_line(compare, cursor_line)
+                } else {
+                    if line > count {
+                        line - count
+                    } else {
+                        0
+                    }
+                };
+
                 let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
                 let new_offset = self.offset_of_line_col(line, col);
                 (new_offset, horiz)
             }
             Movement::Down => {
                 let last_line = self.last_line();
-                let line = self.line_of_offset(offset) + count;
-                let line = if line > last_line { last_line } else { line };
+                let line = self.line_of_offset(offset);
+
+                let line = if let Some(compare) = compare.as_ref() {
+                    let cursor_line = self.diff_cursor_line(compare, line);
+                    let cursor_line = cursor_line + count;
+                    let line = self.diff_actual_line(compare, cursor_line);
+                    line
+                } else {
+                    let line = line + count;
+                    let line = if line > last_line { last_line } else { line };
+                    line
+                };
+
                 let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
                 let new_offset = self.offset_of_line_col(line, col);
                 (new_offset, horiz)

@@ -436,7 +436,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::OpenFileDiff(path, history) => {
                         let editor_view_id = data.main_split.active.clone();
-                        data.main_split.jump_to_location(
+                        let editor_view_id = data.main_split.jump_to_location(
                             ctx,
                             *editor_view_id,
                             EditorLocationNew {
@@ -447,6 +447,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                             },
                             &data.config,
                         );
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(editor_view_id),
+                        ));
                         ctx.set_handled();
                     }
                     LapceUICommand::OpenFile(path) => {

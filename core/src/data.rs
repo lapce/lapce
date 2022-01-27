@@ -1570,13 +1570,14 @@ impl LapceMainSplitData {
         editor_view_id: Option<WidgetId>,
         location: EditorLocationNew,
         config: &Config,
-    ) {
+    ) -> WidgetId {
         let editor_view_id =
             self.get_editor_or_new(ctx, editor_view_id, config).view_id;
         let buffer = self.editor_buffer(editor_view_id);
         let editor = self.get_editor_or_new(ctx, Some(editor_view_id), config);
         editor.save_jump_location(&buffer);
         self.go_to_location(ctx, Some(editor_view_id), location, config);
+        editor_view_id
     }
 
     pub fn go_to_location(
@@ -2366,6 +2367,7 @@ impl LapceEditorViewData {
                     count,
                     movement,
                     Mode::Normal,
+                    self.editor.compare.clone(),
                 );
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.cursor.mode = CursorMode::Normal(new_offset);
@@ -2378,6 +2380,7 @@ impl LapceEditorViewData {
                     count,
                     movement,
                     Mode::Visual,
+                    self.editor.compare.clone(),
                 );
                 let start = *start;
                 let mode = mode.clone();
@@ -2396,6 +2399,7 @@ impl LapceEditorViewData {
                     movement,
                     Mode::Insert,
                     false,
+                    self.editor.compare.clone(),
                 );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }

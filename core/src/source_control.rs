@@ -160,6 +160,18 @@ impl KeyPressFocus for SourceControlData {
                         !self.diff_files[self.file_list_index].1;
                 }
             }
+            LapceCommand::ListSelect => {
+                if self.diff_files.len() > 0 {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::OpenFileDiff(
+                            self.diff_files[self.file_list_index].0.clone(),
+                            "head".to_string(),
+                        ),
+                        Target::Auto,
+                    ));
+                }
+            }
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
