@@ -111,6 +111,7 @@ pub enum Notification {
     Initialize {
         workspace: PathBuf,
     },
+    Shutdown {},
     Update {
         buffer_id: BufferId,
         delta: RopeDelta,
@@ -317,6 +318,12 @@ impl Dispatcher {
                         self.handle_request(id, request);
                     }
                     Ok(Call::Notification(notification)) => {
+                        match &notification {
+                            Notification::Shutdown {} => {
+                                return Ok(());
+                            }
+                            _ => (),
+                        }
                         self.handle_notification(notification)
                     }
                     Err(e) => {}
@@ -414,28 +421,6 @@ impl Dispatcher {
         match rpc {
             Notification::Initialize { workspace } => {
                 *self.workspace.lock() = workspace.clone();
-                // let mut items = Vec::new();
-                // if let Ok(entries) = fs::read_dir(&workspace) {
-                //     for entry in entries {
-                //         if let Ok(entry) = entry {
-                //             let item = FileNodeItem {
-                //                 path_buf: entry.path(),
-                //                 is_dir: entry.path().is_dir(),
-                //                 open: false,
-                //                 read: false,
-                //                 children: Vec::new(),
-                //                 children_open_count: 0,
-                //             };
-                //             items.push(item);
-                //         }
-                //     }
-                // }
-                // self.send_notification(
-                //     "list_dir",
-                //     json!({
-                //         "items": items,
-                //     }),
-                // );
                 self.watcher.lock().as_mut().unwrap().watch(
                     &workspace,
                     true,
@@ -450,6 +435,7 @@ impl Dispatcher {
                     );
                 }
             }
+            Notification::Shutdown {} => {}
             Notification::Update {
                 buffer_id,
                 delta,
