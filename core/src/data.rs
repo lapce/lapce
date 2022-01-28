@@ -454,7 +454,7 @@ impl LapceTabData {
         panels.insert(
             PanelPosition::BottomLeft,
             Arc::new(PanelData {
-                active: PanelKind::Search,
+                active: PanelKind::Terminal,
                 widgets: vec![
                     PanelKind::Terminal,
                     PanelKind::Search,
