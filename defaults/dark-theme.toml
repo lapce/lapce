@@ -49,7 +49,7 @@ magenta = "#C678DD"
 
 "source_control.added" = "#50a14f32"
 "source_control.removed" = "#ff526632"
-"source_control.modified" = ""
+"source_control.modified" = "#0184bc32"
 
 "palette.background" = "#21252B"
 "palette.current" = "#2C313A"
