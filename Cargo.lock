@@ -2145,7 +2145,7 @@ dependencies = [
 
 [[package]]
 name = "lapce"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "lapce-core",
  "lapce-proxy",
@@ -2153,7 +2153,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-core"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "alacritty_terminal 0.15.0",
  "anyhow",
@@ -2209,7 +2209,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-proxy"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "alacritty_terminal 0.16.0-rc2",
  "anyhow",
