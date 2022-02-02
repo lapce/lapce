@@ -4,12 +4,13 @@ use anyhow::Result;
 use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
-    theme, Color, Env, FontDescriptor, FontFamily, Key, Size,
+    theme, Color, Env, ExtEventSink, FontDescriptor, FontFamily, Key, Size, Target,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
     data::hex_to_color,
     state::{LapceWorkspace, LapceWorkspaceType},
 };
@@ -111,6 +112,35 @@ pub struct Config {
     pub theme: HashMap<String, Color>,
     #[serde(skip)]
     pub themes: HashMap<String, HashMap<String, Color>>,
+}
+
+pub struct ConfigWatcher {
+    event_sink: ExtEventSink,
+}
+
+impl ConfigWatcher {
+    pub fn new(event_sink: ExtEventSink) -> Self {
+        Self { event_sink }
+    }
+}
+
+impl notify::EventHandler for ConfigWatcher {
+    fn handle_event(&mut self, event: notify::Result<notify::Event>) {
+        if let Ok(event) = event {
+            match event.kind {
+                notify::EventKind::Create(_)
+                | notify::EventKind::Modify(_)
+                | notify::EventKind::Remove(_) => {
+                    self.event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ReloadConfig,
+                        Target::Auto,
+                    );
+                }
+                _ => (),
+            }
+        }
+    }
 }
 
 impl Config {

@@ -23,10 +23,6 @@ use std::{
 use std::{io::BufReader, sync::atomic::AtomicU64};
 use std::{path::Path, sync::atomic};
 use toml;
-use xi_rpc::Handler;
-use xi_rpc::RpcLoop;
-use xi_rpc::RpcPeer;
-use xi_trace::enable_tracing;
 
 #[derive(PartialEq)]
 enum KeymapMatch {

@@ -1,7 +1,6 @@
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::cmp::{max, min};
-use xi_core_lib::selection::InsertDrift;
 use xi_rope::{
     delta::DeltaRegion,
     find::{find, is_multiline_regex, CaseMatching},
@@ -10,7 +9,7 @@ use xi_rope::{
 
 use crate::{
     buffer::WordCursor,
-    movement::{SelRegion, Selection},
+    movement::{InsertDrift, SelRegion, Selection},
 };
 
 const REGEX_SIZE_LIMIT: usize = 1000000;

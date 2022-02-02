@@ -64,6 +64,14 @@ impl LspCatalog {
         }
     }
 
+    pub fn stop(&mut self) {
+        for (_, client) in self.clients.iter() {
+            client.stop();
+        }
+        self.clients.clear();
+        self.dispatcher.take();
+    }
+
     pub fn start_server(
         &mut self,
         exec_path: &str,
@@ -371,6 +379,10 @@ impl LspClient {
         lsp_client.initialize();
 
         lsp_client
+    }
+
+    fn stop(&self) {
+        self.state.lock().process.kill();
     }
 
     pub fn get_uri(&self, buffer: &Buffer) -> Url {

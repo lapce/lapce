@@ -252,7 +252,10 @@ impl LapceSplitNew {
 
         self.children.swap(index, index + 1);
         self.children_ids.swap(index, index + 1);
-        data.main_split.editors_order = Arc::new(self.children_ids.clone());
+
+        if data.main_split.editors.contains_key(&widget_id) {
+            data.main_split.editors_order = Arc::new(self.children_ids.clone());
+        }
 
         ctx.request_layout();
     }

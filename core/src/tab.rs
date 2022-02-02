@@ -834,19 +834,6 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
-        match event {
-            LifeCycle::WidgetAdded => {
-                data.proxy.start(
-                    data.workspace
-                        .clone()
-                        .map(|w| (*w).clone())
-                        .unwrap_or(LapceWorkspace::default()),
-                    ctx.get_external_handle(),
-                );
-            }
-            _ => {}
-        }
-
         self.palette.lifecycle(ctx, event, data, env);
         self.activity.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);

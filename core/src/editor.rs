@@ -14,6 +14,7 @@ use crate::data::{
 };
 use crate::find::Find;
 use crate::keypress::{KeyMap, KeyPress, KeyPressFocus};
+use crate::movement::InsertDrift;
 use crate::panel::PanelPosition;
 use crate::proxy::LapceProxy;
 use crate::scroll::LapceIdentityWrapper;
@@ -83,7 +84,6 @@ use std::{collections::HashMap, sync::Arc};
 use std::{str::FromStr, time::Duration};
 use strum::EnumMessage;
 use unicode_width::UnicodeWidthStr;
-use xi_core_lib::selection::InsertDrift;
 use xi_rope::{Interval, RopeDelta, Transformer};
 
 pub struct LapceUI {}
@@ -5235,7 +5235,7 @@ fn str_matching_pair(c: &str) -> Option<char> {
 fn process_get_references(
     editor_view_id: WidgetId,
     offset: usize,
-    result: Result<Value, xi_rpc::Error>,
+    result: Result<Value, Value>,
     event_sink: ExtEventSink,
 ) -> Result<()> {
     let res = result.map_err(|e| anyhow!("{:?}", e))?;

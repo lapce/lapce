@@ -1,6 +1,5 @@
 use druid::{piet::PietText, Env, Point, Rect, Size};
 use serde::{Deserialize, Serialize};
-use xi_core_lib::selection::InsertDrift;
 use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
@@ -11,6 +10,16 @@ use crate::{
     theme::OldLapceTheme,
 };
 use std::cmp::{max, min};
+
+#[derive(Copy, Clone)]
+pub enum InsertDrift {
+    /// Indicates this edit should happen within any (non-caret) selections if possible.
+    Inside,
+    /// Indicates this edit should happen outside any selections if possible.
+    Outside,
+    /// Indicates to do whatever the `after` bool says to do
+    Default,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cursor {

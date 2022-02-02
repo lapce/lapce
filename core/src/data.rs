@@ -32,6 +32,7 @@ use lsp_types::{
     CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
     Location, Position, ProgressToken, TextEdit, WorkspaceClientCapabilities,
 };
+use notify::Watcher;
 use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -39,14 +40,9 @@ use tree_sitter::{Node, Parser};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
-use xi_core_lib::{
-    selection::InsertDrift,
-    watcher::{FileWatcher, Notify, WatchToken},
-};
 use xi_rope::{
     spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta, Transformer,
 };
-use xi_rpc::{RpcLoop, RpcPeer};
 
 use crate::{
     buffer::{
@@ -61,14 +57,17 @@ use crate::{
         LAPCE_UI_COMMAND,
     },
     completion::{CompletionData, CompletionStatus, Snippet},
-    config::{Config, GetConfig, LapceTheme},
+    config::{Config, ConfigWatcher, GetConfig, LapceTheme},
     db::{LapceDb, WorkspaceInfo},
     editor::{EditorLocationNew, LapceEditorBufferData},
     explorer::FileExplorerData,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     language::{new_highlight_config, new_parser, LapceLanguage, SCOPES},
-    movement::{Cursor, CursorMode, LinePosition, Movement, SelRegion, Selection},
+    movement::{
+        Cursor, CursorMode, InsertDrift, LinePosition, Movement, SelRegion,
+        Selection,
+    },
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
     plugin::PluginData,
@@ -143,6 +142,7 @@ pub struct LapceWindowData {
     pub config: Arc<Config>,
     pub plugins: Arc<Vec<PluginDescription>>,
     pub db: Arc<LapceDb>,
+    pub watcher: Arc<notify::RecommendedWatcher>,
 }
 
 impl Data for LapceWindowData {
@@ -198,6 +198,15 @@ impl LapceWindowData {
             LapceUICommand::Focus,
             Target::Widget(active_tab_id),
         );
+
+        let mut watcher =
+            notify::recommended_watcher(ConfigWatcher::new(event_sink.clone()))
+                .unwrap();
+        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
+            let path = proj_dirs.config_dir().join("settings.toml");
+            watcher.watch(&path, notify::RecursiveMode::Recursive);
+        }
+
         Self {
             tabs,
             tabs_order: Arc::new(tabs_order),
@@ -207,6 +216,7 @@ impl LapceWindowData {
             keypress,
             config,
             db,
+            watcher: Arc::new(watcher),
         }
     }
 }
@@ -270,35 +280,6 @@ pub struct PanelSize {
     pub bottom_split: f64,
     pub right: f64,
     pub right_split: f64,
-}
-
-struct ConfigNotify {
-    event_sink: ExtEventSink,
-}
-
-impl Notify for ConfigNotify {
-    fn notify(&self) {
-        println!("receive config file watcher notify");
-        self.event_sink.submit_command(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::ReloadConfig,
-            Target::Auto,
-        );
-    }
-}
-
-pub fn watch_settings(event_sink: ExtEventSink) {
-    thread::spawn(move || {
-        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
-            let mut watcher = FileWatcher::new(ConfigNotify { event_sink });
-            let path = proj_dirs.config_dir().join("settings.toml");
-            println!("start to watch path {:?}", path);
-            watcher.watch(&path, false, WatchToken(0));
-            loop {
-                thread::sleep(std::time::Duration::from_secs(1));
-            }
-        }
-    });
 }
 
 #[derive(Clone)]
@@ -397,7 +378,12 @@ impl LapceTabData {
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let (term_sender, term_receiver) = unbounded();
-        let proxy = Arc::new(LapceProxy::new(tab_id, term_sender.clone()));
+        let proxy = Arc::new(LapceProxy::new(
+            tab_id,
+            workspace.clone().unwrap_or(LapceWorkspace::default()),
+            term_sender.clone(),
+            event_sink.clone(),
+        ));
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
@@ -2795,7 +2781,7 @@ fn next_in_file_errors_offset(
 fn process_get_references(
     editor_view_id: WidgetId,
     offset: usize,
-    result: Result<Value, xi_rpc::Error>,
+    result: Result<Value, Value>,
     event_sink: ExtEventSink,
 ) -> Result<()> {
     let res = result.map_err(|e| anyhow!("{:?}", e))?;

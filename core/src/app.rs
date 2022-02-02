@@ -3,7 +3,7 @@ use druid::{
 };
 
 use crate::{
-    data::{watch_settings, LapceData, LapceWindowLens},
+    data::{ LapceData, LapceWindowLens},
     window::LapceWindowNew,
 };
 
@@ -20,7 +20,7 @@ fn build_window(data: &LapceData) -> impl Widget<LapceData> {
 
 pub fn lanuch() {
     let launcher = AppLauncher::new();
-    let mut data = LapceData::load(launcher.get_external_handle());
+    let data = LapceData::load(launcher.get_external_handle());
     let root = build_window(&data);
     let window = WindowDesc::new(root)
         .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
@@ -29,9 +29,5 @@ pub fn lanuch() {
         .with_min_size(Size::new(800.0, 600.0));
     let launcher = launcher.with_window(window);
     let launcher = launcher.configure_env(|env, data| data.reload_env(env));
-    watch_settings(launcher.get_external_handle());
-    launcher
-        .use_simple_logger()
-        .launch(data)
-        .expect("launch failed");
+    launcher.launch(data).expect("launch failed");
 }

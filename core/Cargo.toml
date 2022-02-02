@@ -41,11 +41,9 @@ strum_macros = "0.19"
 lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
-xi-core-lib = "0.3.0"
+notify = "5.0.0-pre.13"
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 xi-unicode = "0.3.0"
-xi-rpc = "0.3.0"
-xi-trace = "0.2.0"
 fzyr = "0.1.2"
 fuzzy-matcher = "0.3.7"
 uuid = { version = "0.7.4", features = ["v4"] }
@@ -53,6 +51,7 @@ lsp-types = { version = "0.89.2", features = ["proposed"] }
 druid = { git = "https://github.com/lapce/druid", features = ["svg", "im"] }
 # druid = { path = "../../druid/druid", features = ["svg", "im"] }
 toml = { version = "0.5.8", features = ["preserve_order"] }
+lapce-rpc = { path = "../rpc" }
 lapce-proxy = { path = "../proxy" }
 
 [build-dependencies]
