@@ -7,6 +7,10 @@ use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Oid, Repository};
+use grep_matcher::Matcher;
+use grep_regex::RegexMatcher;
+use grep_searcher::sinks::UTF8;
+use grep_searcher::Searcher;
 use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::{CompletionItem, Position, TextDocumentContentChangeEvent};
@@ -156,6 +160,9 @@ pub enum Request {
         request_id: usize,
         buffer_id: BufferId,
         position: Position,
+    },
+    GlobalSearch {
+        pattern: String,
     },
     CompletionResolve {
         buffer_id: BufferId,
@@ -630,38 +637,15 @@ impl Dispatcher {
                 });
             }
             Request::GetFiles { path } => {
-                eprintln!("get files");
                 let workspace = self.workspace.lock().clone();
                 let local_dispatcher = self.clone();
                 thread::spawn(move || {
                     let mut items = Vec::new();
-                    let mut dirs = Vec::new();
-                    dirs.push(workspace.clone());
-                    while let Some(dir) = dirs.pop() {
-                        if let Ok(readdir) = fs::read_dir(dir) {
-                            for entry in readdir {
-                                let entry = entry.unwrap();
-                                let path = entry.path();
-                                if entry
-                                    .file_name()
-                                    .to_str()
-                                    .unwrap()
-                                    .starts_with(".")
-                                {
-                                    continue;
-                                }
-                                if path.is_dir() {
-                                    if !path
-                                        .as_path()
-                                        .to_str()
-                                        .unwrap()
-                                        .to_string()
-                                        .ends_with("target")
-                                    {
-                                        dirs.push(path);
-                                    }
-                                } else {
-                                    items.push(path.to_str().unwrap().to_string());
+                    for result in ignore::Walk::new(workspace) {
+                        if let Ok(path) = result {
+                            if let Some(file_type) = path.file_type() {
+                                if file_type.is_file() {
+                                    items.push(path.into_path());
                                 }
                             }
                         }
@@ -676,6 +660,44 @@ impl Dispatcher {
                 let resp = buffer.save(rev).map(|r| json!({}));
                 self.lsp.lock().save_buffer(buffer);
                 self.respond(id, resp);
+            }
+            Request::GlobalSearch { pattern } => {
+                let workspace = self.workspace.lock().clone();
+                let local_dispatcher = self.clone();
+                thread::spawn(move || {
+                    let matcher = RegexMatcher::new(&pattern).unwrap();
+                    let mut matches = HashMap::new();
+                    for result in ignore::Walk::new(workspace) {
+                        if let Ok(path) = result {
+                            if let Some(file_type) = path.file_type() {
+                                if file_type.is_file() {
+                                    let path = path.into_path();
+                                    let mut line_matches = Vec::new();
+                                    Searcher::new().search_path(
+                                        &matcher,
+                                        path.clone(),
+                                        UTF8(|lnum, line| {
+                                            let mymatch = matcher
+                                                .find(line.as_bytes())?
+                                                .unwrap();
+                                            line_matches.push((
+                                                lnum,
+                                                (mymatch.start(), mymatch.end()),
+                                                line.to_string(),
+                                            ));
+                                            Ok(true)
+                                        }),
+                                    );
+                                    if line_matches.len() > 0 {
+                                        matches.insert(path.clone(), line_matches);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    local_dispatcher
+                        .respond(id, Ok(serde_json::to_value(matches).unwrap()));
+                });
             }
         }
     }

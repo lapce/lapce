@@ -5,6 +5,10 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+grep-searcher = "0.1.8"
+grep-matcher = "0.1.5"
+grep-regex = "0.1.9"
+ignore = "0.4.18"
 reqwest = { version = "0.11", features = ["blocking"] }
 wasmer = "2.1.1"
 wasmer-wasi = "2.1.1"

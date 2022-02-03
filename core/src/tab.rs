@@ -20,7 +20,8 @@ use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
 use crate::{
     activity::ActivityBar,
     buffer::{
-        BufferContent, BufferId, BufferNew, BufferState, BufferUpdate, UpdateEvent,
+        BufferContent, BufferId, BufferNew, BufferState, BufferUpdate,
+        LocalBufferKind, UpdateEvent,
     },
     code_action::CodeAction,
     command::{
@@ -278,6 +279,25 @@ impl Widget<LapceTabData> for LapceTabNew {
                             );
                         }
                         ctx.set_handled();
+                    }
+                    LapceUICommand::UpdateSearch(pattern) => {
+                        if pattern == "" {
+                            Arc::make_mut(&mut data.find).unset();
+                        } else {
+                            Arc::make_mut(&mut data.find)
+                                .set_find(pattern, false, false, false);
+                        }
+                    }
+                    LapceUICommand::GlobalSearchResult(pattern, matches) => {
+                        let buffer = data
+                            .main_split
+                            .local_buffers
+                            .get(&LocalBufferKind::Search)
+                            .unwrap();
+                        if &buffer.rope.to_string() == pattern {
+                            Arc::make_mut(&mut data.search).matches =
+                                matches.clone();
+                        }
                     }
                     LapceUICommand::LoadBufferHead { path, id, content } => {
                         let buffer =

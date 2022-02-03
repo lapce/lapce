@@ -205,6 +205,8 @@ impl LapceWindowData {
         if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
             let path = proj_dirs.config_dir().join("settings.toml");
             watcher.watch(&path, notify::RecursiveMode::Recursive);
+            let path = proj_dirs.config_dir().join("keymaps.toml");
+            watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
 
         Self {
@@ -1149,7 +1151,7 @@ impl LapceTabData {
                         PanelKind::SourceControl => self.source_control.active,
                         PanelKind::Plugin => self.plugin.widget_id,
                         PanelKind::Terminal => self.terminal.widget_id,
-                        PanelKind::Search => self.search.widget_id,
+                        PanelKind::Search => self.search.active,
                         PanelKind::Problem => self.problem.widget_id,
                     };
                     ctx.submit_command(Command::new(

@@ -342,6 +342,14 @@ impl LapceProxy {
         );
     }
 
+    pub fn global_search(&self, pattern: String, f: Box<dyn Callback>) {
+        self.rpc.send_rpc_request_async(
+            "global_search",
+            &json!({ "pattern": pattern }),
+            f,
+        );
+    }
+
     pub fn new_buffer(
         &self,
         buffer_id: BufferId,

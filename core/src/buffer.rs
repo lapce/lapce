@@ -2947,29 +2947,52 @@ fn rope_diff(
             right_count - trailing_equals..right_count,
         ));
     }
-    let changes_last = changes.len() - 1;
-    for (i, change) in changes.clone().iter().enumerate().rev() {
-        if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-            return None;
-        }
-        match change {
-            DiffLines::Both(l, r) => {
-                if i == 0 || i == changes_last {
-                    if r.len() > 3 {
-                        if i == 0 {
+    if changes.len() > 0 {
+        let changes_last = changes.len() - 1;
+        for (i, change) in changes.clone().iter().enumerate().rev() {
+            if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                return None;
+            }
+            match change {
+                DiffLines::Both(l, r) => {
+                    if i == 0 || i == changes_last {
+                        if r.len() > 3 {
+                            if i == 0 {
+                                changes[i] = DiffLines::Both(
+                                    l.end - 3..l.end,
+                                    r.end - 3..r.end,
+                                );
+                                changes.insert(
+                                    i,
+                                    DiffLines::Skip(
+                                        l.start..l.end - 3,
+                                        r.start..r.end - 3,
+                                    ),
+                                );
+                            } else {
+                                changes[i] = DiffLines::Skip(
+                                    l.start + 3..l.end,
+                                    r.start + 3..r.end,
+                                );
+                                changes.insert(
+                                    i,
+                                    DiffLines::Both(
+                                        l.start..l.start + 3,
+                                        r.start..r.start + 3,
+                                    ),
+                                );
+                            }
+                        }
+                    } else {
+                        if r.len() > 6 {
                             changes[i] =
                                 DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
                             changes.insert(
                                 i,
                                 DiffLines::Skip(
-                                    l.start..l.end - 3,
-                                    r.start..r.end - 3,
+                                    l.start + 3..l.end - 3,
+                                    r.start + 3..r.end - 3,
                                 ),
-                            );
-                        } else {
-                            changes[i] = DiffLines::Skip(
-                                l.start + 3..l.end,
-                                r.start + 3..r.end,
                             );
                             changes.insert(
                                 i,
@@ -2980,28 +3003,9 @@ fn rope_diff(
                             );
                         }
                     }
-                } else {
-                    if r.len() > 6 {
-                        changes[i] =
-                            DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
-                        changes.insert(
-                            i,
-                            DiffLines::Skip(
-                                l.start + 3..l.end - 3,
-                                r.start + 3..r.end - 3,
-                            ),
-                        );
-                        changes.insert(
-                            i,
-                            DiffLines::Both(
-                                l.start..l.start + 3,
-                                r.start..r.start + 3,
-                            ),
-                        );
-                    }
                 }
+                _ => (),
             }
-            _ => (),
         }
     }
     Some(changes)

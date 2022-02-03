@@ -431,6 +431,11 @@ pub enum LapceUICommand {
         editor_view_id: WidgetId,
         location: EditorLocationNew,
     },
+    UpdateSearch(String),
+    GlobalSearchResult(
+        String,
+        Arc<HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>>,
+    ),
     SetWorkspace(LapceWorkspace),
     SetTheme(String, bool),
     OpenFile(PathBuf),

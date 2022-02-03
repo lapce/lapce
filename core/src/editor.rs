@@ -4069,6 +4069,57 @@ impl Widget<LapceTabData> for LapceEditorView {
             ctx.request_paint();
         }
 
+        if let BufferContent::Local(kind) = &data.buffer.content {
+            if let LocalBufferKind::Search = kind {
+                if !data.buffer.rope.ptr_eq(&old_data.buffer.rope) {
+                    let pattern = data.buffer.rope.to_string();
+                    let tab_id = (*data.main_split.tab_id).clone();
+                    ctx.request_layout();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSearch(pattern.clone()),
+                        Target::Widget(tab_id),
+                    ));
+                    if pattern == "" {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::GlobalSearchResult(
+                                pattern.clone(),
+                                Arc::new(HashMap::new()),
+                            ),
+                            Target::Widget(tab_id),
+                        ));
+                    } else {
+                        let event_sink = ctx.get_external_handle();
+                        data.proxy.global_search(
+                            data.buffer.rope.to_string(),
+                            Box::new(move |result| {
+                                if let Ok(matches) = result {
+                                    if let Ok(matches) = serde_json::from_value::<
+                                        HashMap<
+                                            PathBuf,
+                                            Vec<(usize, (usize, usize), String)>,
+                                        >,
+                                    >(
+                                        matches
+                                    ) {
+                                        event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GlobalSearchResult(
+                                                pattern,
+                                                Arc::new(matches),
+                                            ),
+                                            Target::Widget(tab_id),
+                                        );
+                                    }
+                                }
+                            }),
+                        )
+                    }
+                }
+            }
+        }
+
         let buffer = &data.buffer;
         let old_buffer = &old_data.buffer;
         if buffer.max_len != old_buffer.max_len
