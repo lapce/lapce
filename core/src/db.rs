@@ -34,7 +34,7 @@ pub struct WorkspaceInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TabsInfo {
     pub active_tab: usize,
-    pub workspaces: Vec<Option<LapceWorkspace>>,
+    pub workspaces: Vec<LapceWorkspace>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -138,7 +138,11 @@ impl LapceDb {
         &self,
         data: &LapceTabData,
     ) -> Result<(LapceWorkspace, WorkspaceInfo)> {
-        let workspace = data.workspace.as_ref().ok_or(anyhow!("no workspace"))?;
+        let path = data
+            .workspace
+            .path
+            .as_ref()
+            .ok_or(anyhow!("no workspace"))?;
 
         let mut active_editor = 0;
         let editors = data
@@ -168,7 +172,7 @@ impl LapceDb {
             editors,
             active_editor,
         };
-        Ok(((**workspace).clone(), workspace_info))
+        Ok(((*data.workspace).clone(), workspace_info))
     }
 
     pub fn save_workspace(&self, data: &LapceTabData) -> Result<()> {
@@ -196,7 +200,7 @@ impl LapceDb {
 
     pub fn save_tabs(&self, data: &LapceWindowData) -> Result<()> {
         let mut active_tab = 0;
-        let workspaces: Vec<Option<LapceWorkspace>> = data
+        let workspaces: Vec<LapceWorkspace> = data
             .tabs_order
             .iter()
             .enumerate()
@@ -205,7 +209,7 @@ impl LapceDb {
                 if tab.id == data.active_id {
                     active_tab = i;
                 }
-                tab.workspace.clone().map(|w| (*w).clone())
+                (*tab.workspace).clone()
             })
             .collect();
         let info = TabsInfo {

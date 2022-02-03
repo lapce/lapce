@@ -504,24 +504,24 @@ impl LspClient {
     }
 
     fn initialize(&self) {
-        let root_url =
-            Url::from_directory_path(self.dispatcher.workspace.lock().clone())
-                .unwrap();
-        let (sender, receiver) = channel();
-        self.send_initialize(Some(root_url), move |lsp_client, result| {
-            if let Ok(result) = result {
-                {
-                    let init_result: InitializeResult =
-                        serde_json::from_value(result).unwrap();
-                    let mut state = lsp_client.state.lock();
-                    state.server_capabilities = Some(init_result.capabilities);
-                    state.is_initialized = true;
+        if let Some(workspace) = self.dispatcher.workspace.lock().clone() {
+            let root_url = Url::from_directory_path(workspace).unwrap();
+            let (sender, receiver) = channel();
+            self.send_initialize(Some(root_url), move |lsp_client, result| {
+                if let Ok(result) = result {
+                    {
+                        let init_result: InitializeResult =
+                            serde_json::from_value(result).unwrap();
+                        let mut state = lsp_client.state.lock();
+                        state.server_capabilities = Some(init_result.capabilities);
+                        state.is_initialized = true;
+                    }
+                    lsp_client.send_initialized();
                 }
-                lsp_client.send_initialized();
-            }
-            sender.send(true);
-        });
-        receiver.recv_timeout(Duration::from_millis(1000));
+                sender.send(true);
+            });
+            receiver.recv_timeout(Duration::from_millis(1000));
+        }
     }
 
     pub fn send_did_open(

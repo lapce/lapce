@@ -124,27 +124,24 @@ impl Widget<LapceWindowData> for Title {
 
         let padding = 15.0;
 
+        let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
         let tab = data.tabs.get(&data.active_id).unwrap();
-        let remote_text = if let Some(workspace) = tab.workspace.as_ref() {
-            match &workspace.kind {
-                LapceWorkspaceType::Local => None,
-                LapceWorkspaceType::RemoteSSH(_, host) => {
-                    let text_layout = ctx
-                        .text()
-                        .new_text_layout(format!("SSH: {host}"))
-                        .font(FontFamily::SYSTEM_UI, 13.0)
-                        .text_color(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                                .clone(),
-                        )
-                        .build()
-                        .unwrap();
-                    Some(text_layout)
-                }
+        let remote_text = match &tab.workspace.kind {
+            LapceWorkspaceType::Local => None,
+            LapceWorkspaceType::RemoteSSH(_, host) => {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(format!("SSH: {host}"))
+                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                Some(text_layout)
             }
-        } else {
-            None
         };
 
         let remote_rect = Size::new(
@@ -180,6 +177,21 @@ impl Widget<LapceWindowData> for Title {
             );
         }
         x += remote_rect.width();
+        let command_rect =
+            command_rect.with_size(Size::new(x - command_rect.x0, size.height));
+        self.commands.push((
+            command_rect,
+            Command::new(
+                LAPCE_NEW_COMMAND,
+                LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+                Target::Widget(data.active_id),
+            ),
+        ));
 
         let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
 
@@ -197,9 +209,8 @@ impl Widget<LapceWindowData> for Title {
             ),
         );
         x += size.height;
-        let text = if let Some(workspace) = tab.workspace.as_ref() {
-            workspace
-                .path
+        let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
+            workspace_path
                 .file_name()
                 .unwrap()
                 .to_str()

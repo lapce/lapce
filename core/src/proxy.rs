@@ -166,7 +166,9 @@ impl LapceProxy {
     }
 
     fn start(&self, workspace: LapceWorkspace) -> Result<()> {
-        self.initialize(workspace.path.clone());
+        if let Some(path) = workspace.path.as_ref() {
+            self.initialize(path.clone());
+        }
         match workspace.kind {
             LapceWorkspaceType::Local => {
                 let proxy_reciever = (*self.proxy_receiver).clone();

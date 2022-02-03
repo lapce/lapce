@@ -251,9 +251,9 @@ impl Widget<LapceTabData> for SearchContent {
             );
 
             let mut path = path.clone();
-            if let Some(workspace) = data.workspace.as_ref() {
+            if let Some(workspace_path) = data.workspace.path.as_ref() {
                 path = path
-                    .strip_prefix(&workspace.path)
+                    .strip_prefix(workspace_path)
                     .unwrap_or(&path)
                     .to_path_buf();
             }

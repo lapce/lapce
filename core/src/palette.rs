@@ -72,6 +72,7 @@ pub enum PaletteType {
     Command,
     Reference,
     Theme,
+    SshHost,
 }
 
 impl PaletteType {
@@ -85,6 +86,7 @@ impl PaletteType {
             PaletteType::Command => ":".to_string(),
             PaletteType::Reference => "".to_string(),
             PaletteType::Theme => "".to_string(),
+            PaletteType::SshHost => "".to_string(),
         }
     }
 
@@ -275,7 +277,7 @@ impl PaletteItemContent {
                 file_paint_items(rel_path, indices)
             }
             PaletteItemContent::Workspace(w) => {
-                let text = w.path.to_str().unwrap();
+                let text = w.path.as_ref().unwrap().to_str().unwrap();
                 let text = match &w.kind {
                     LapceWorkspaceType::Local => text.to_string(),
                     LapceWorkspaceType::RemoteSSH(user, host) => {
@@ -397,7 +399,7 @@ pub struct PaletteViewLens;
 pub struct PaletteViewData {
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
-    pub workspace: Option<Arc<LapceWorkspace>>,
+    pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<Config>,
@@ -556,6 +558,7 @@ impl PaletteData {
             PaletteType::File => &self.input,
             PaletteType::Reference => &self.input,
             PaletteType::Theme => &self.input,
+            PaletteType::SshHost => &self.input,
             PaletteType::Line => &self.input[1..],
             PaletteType::DocumentSymbol => &self.input[1..],
             PaletteType::Workspace => &self.input[1..],
@@ -591,9 +594,9 @@ impl PaletteViewData {
             .map(|l| {
                 let full_path = l.path.clone();
                 let mut path = l.path.clone();
-                if let Some(workspace) = self.workspace.as_ref() {
+                if let Some(workspace_path) = self.workspace.path.as_ref() {
                     path = path
-                        .strip_prefix(&workspace.path)
+                        .strip_prefix(workspace_path)
                         .unwrap_or(&full_path)
                         .to_path_buf();
                 }
@@ -652,6 +655,7 @@ impl PaletteViewData {
                 self.get_workspaces(ctx);
             }
             &PaletteType::Reference => {}
+            &PaletteType::SshHost => {}
             &PaletteType::GlobalSearch => {
                 self.get_global_search(ctx);
             }
@@ -686,6 +690,7 @@ impl PaletteViewData {
             &PaletteType::File => 0,
             &PaletteType::Reference => 0,
             &PaletteType::Theme => 0,
+            &PaletteType::SshHost => 0,
             &PaletteType::Line => 1,
             &PaletteType::DocumentSymbol => 1,
             &PaletteType::Workspace => 1,
@@ -726,6 +731,26 @@ impl PaletteViewData {
                 false,
             );
         }
+        if self.palette.palette_type == PaletteType::SshHost {
+            let input = self.palette.get_input();
+            let splits = input.split("@").collect::<Vec<&str>>();
+            let mut splits = splits.iter().rev();
+            let host = splits.next().unwrap().to_string();
+            let user = splits
+                .next()
+                .map(|s| s.to_string())
+                .unwrap_or("root".to_string());
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SetWorkspace(LapceWorkspace {
+                    kind: LapceWorkspaceType::RemoteSSH(user, host),
+                    path: None,
+                    last_open: 0,
+                }),
+                Target::Auto,
+            ));
+            return;
+        }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {
             if let Some(palette_type) =
@@ -760,8 +785,11 @@ impl PaletteViewData {
     }
 
     fn get_palette_type(&self) -> PaletteType {
-        if self.palette.palette_type == PaletteType::Reference {
-            return PaletteType::Reference;
+        match self.palette.palette_type {
+            PaletteType::Reference | PaletteType::SshHost => {
+                return self.palette.palette_type.clone();
+            }
+            _ => (),
         }
         if self.palette.input == "" {
             return PaletteType::File;
@@ -791,9 +819,9 @@ impl PaletteViewData {
                         .map(|(index, path)| {
                             let full_path = path.clone();
                             let mut path = path.clone();
-                            if let Some(workspace) = workspace.as_ref() {
+                            if let Some(workspace_path) = workspace.path.as_ref() {
                                 path = path
-                                    .strip_prefix(&workspace.path)
+                                    .strip_prefix(workspace_path)
                                     .unwrap_or(&full_path)
                                     .to_path_buf();
                             }
@@ -826,7 +854,13 @@ impl PaletteViewData {
         palette.items = workspaces
             .into_iter()
             .map(|w| {
-                let text = w.path.to_str().unwrap();
+                let text = w
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .to_str()
+                    .map(|p| p.to_string())
+                    .unwrap();
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text.to_string(),
                     LapceWorkspaceType::RemoteSSH(user, host) => {

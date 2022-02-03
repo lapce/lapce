@@ -93,7 +93,7 @@ impl Display for LapceWorkspaceType {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LapceWorkspace {
     pub kind: LapceWorkspaceType,
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
     pub last_open: u64,
 }
 
@@ -101,21 +101,24 @@ impl Default for LapceWorkspace {
     fn default() -> Self {
         Self {
             kind: LapceWorkspaceType::Local,
-            path: directories::UserDirs::new()
-                .unwrap()
-                .home_dir()
-                .to_path_buf(),
-            last_open: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            path: None,
+            last_open: 0,
         }
     }
 }
 
 impl Display for LapceWorkspace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.kind, self.path.to_str().unwrap())
+        write!(
+            f,
+            "{}:{}",
+            self.kind,
+            self.path
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .map(|p| p.to_string())
+                .unwrap_or("".to_string())
+        )
     }
 }
 

@@ -59,15 +59,15 @@ pub struct FileExplorerData {
 impl FileExplorerData {
     pub fn new(
         tab_id: WidgetId,
-        workspace: Option<LapceWorkspace>,
+        workspace: LapceWorkspace,
         proxy: Arc<LapceProxy>,
         event_sink: ExtEventSink,
     ) -> Self {
         let mut items = Vec::new();
         let widget_id = WidgetId::next();
-        if let Some(workspace) = workspace.clone() {
+        if let Some(path) = workspace.path.as_ref() {
             items.push(FileNodeItem {
-                path_buf: workspace.path.clone(),
+                path_buf: path.clone(),
                 is_dir: true,
                 read: false,
                 open: false,
@@ -75,10 +75,10 @@ impl FileExplorerData {
                 children_open_count: 0,
             });
             let index = 0;
+            let path = path.clone();
             std::thread::spawn(move || {
-                let path = workspace.path.clone();
                 proxy.read_dir(
-                    &path,
+                    &path.clone(),
                     Box::new(move |result| {
                         if let Ok(res) = result {
                             let resp: Result<Vec<FileNodeItem>, serde_json::Error> =
@@ -88,7 +88,7 @@ impl FileExplorerData {
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::UpdateExplorerItems(
                                         index,
-                                        workspace.path.clone(),
+                                        path.clone(),
                                         items,
                                     ),
                                     Target::Widget(tab_id),
@@ -102,8 +102,8 @@ impl FileExplorerData {
         Self {
             tab_id,
             widget_id,
-            workspace: workspace.map(|w| FileNodeItem {
-                path_buf: w.path.clone(),
+            workspace: workspace.path.as_ref().map(|p| FileNodeItem {
+                path_buf: p.clone(),
                 is_dir: true,
                 read: false,
                 open: false,
@@ -413,75 +413,60 @@ impl Widget<LapceTabData> for FileExplorer {
     ) -> Size {
         let self_size = bc.max();
         let line_height = data.config.editor.line_height as f64;
-        let bc = BoxConstraints::tight(Size::new(
-            self_size.width,
-            self_size.height - line_height,
-        ));
-        self.file_list.layout(ctx, &bc, data, env);
+        self.file_list.layout(ctx, bc, data, env);
         self.file_list
-            .set_origin(ctx, data, env, Point::new(0.0, line_height));
+            .set_origin(ctx, data, env, Point::new(0.0, 0.0));
         self_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         self.file_list.paint(ctx, data, env);
 
-        let line_height = data.config.editor.line_height as f64;
+        //  let line_height = data.config.editor.line_height as f64;
 
-        let shadow_width = 5.0;
-        let rect = Size::new(ctx.size().width, line_height)
-            .to_rect()
-            .with_origin(Point::new(0.0, 0.0));
-        ctx.blurred_rect(
-            rect,
-            shadow_width,
-            data.config
-                .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-        );
-        ctx.fill(
-            rect,
-            data.config
-                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-        );
+        //  let shadow_width = 5.0;
+        //  let rect = Size::new(ctx.size().width, line_height)
+        //      .to_rect()
+        //      .with_origin(Point::new(0.0, 0.0));
+        //  ctx.blurred_rect(
+        //      rect,
+        //      shadow_width,
+        //      data.config
+        //          .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+        //  );
+        //  ctx.fill(
+        //      rect,
+        //      data.config
+        //          .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+        //  );
 
-        let dir = data
-            .workspace
-            .as_ref()
-            .map(|w| {
-                let dir = w.path.file_name().unwrap().to_str().unwrap();
-                let dir = match &w.kind {
-                    LapceWorkspaceType::Local => dir.to_string(),
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("{} [{}@{}]", dir, user, host)
-                    }
-                };
-                dir
-            })
-            .unwrap_or("Lapce".to_string());
-        let text_layout = ctx
-            .text()
-            .new_text_layout(dir)
-            .font(FontFamily::SYSTEM_UI, 13.0)
-            .text_color(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
-        ctx.draw_text(&text_layout, Point::new(20.0, 4.0));
-
+        //  let dir = data
+        //      .workspace
+        //      .path
+        //      .as_ref()
+        //      .map(|p| {
+        //          let dir = p.file_name().unwrap().to_str().unwrap();
+        //          let dir = match &data.workspace.kind {
+        //              LapceWorkspaceType::Local => dir.to_string(),
+        //              LapceWorkspaceType::RemoteSSH(user, host) => {
+        //                  format!("{} [{}@{}]", dir, user, host)
+        //              }
+        //          };
+        //          dir
+        //      })
+        //      .unwrap_or("Lapce".to_string());
         //  let text_layout = ctx
         //      .text()
-        //      .new_text_layout("Explorer")
-        //      .font(FontFamily::SYSTEM_UI, 14.0)
+        //      .new_text_layout(dir)
+        //      .font(FontFamily::SYSTEM_UI, 13.0)
         //      .text_color(
         //          data.config
         //              .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
         //              .clone(),
-        //      );
-        //  let text_layout = text_layout.build().unwrap();
-        //  ctx.draw_text(&text_layout, Point::new(20.0, 5.0));
+        //      )
+        //      .build()
+        //      .unwrap();
+        //  ctx.draw_text(&text_layout, Point::new(20.0, 4.0));
     }
 }
 

@@ -27,14 +27,11 @@ binary-universal: $(TARGET)-universal ## Build a universal release binary
 $(TARGET)-native:
 	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --release
 	@lipo target/release/$(TARGET) -create -output $(APP_BINARY)
-	@lipo target/release/$(TARGET)-proxy -create -output $(APP_BINARY)-proxy
 $(TARGET)-universal:
 	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --release --target=x86_64-apple-darwin
 	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --release --target=aarch64-apple-darwin
 	@lipo target/{x86_64,aarch64}-apple-darwin/release/$(TARGET) -create -output $(APP_BINARY)
-	@lipo target/{x86_64,aarch64}-apple-darwin/release/$(TARGET)-proxy -create -output $(APP_BINARY)-proxy
 	/usr/bin/codesign -vvv --deep --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_BINARY)
-	/usr/bin/codesign -vvv --deep --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_BINARY)-proxy
 
 app: $(APP_NAME)-native ## Create an Alacritty.app
 app-universal: $(APP_NAME)-universal ## Create a universal Alacritty.app
@@ -43,7 +40,6 @@ $(APP_NAME)-%: $(TARGET)-%
 	@mkdir -p $(APP_EXTRAS_DIR)
 	@cp -fRp $(APP_TEMPLATE) $(APP_DIR)
 	@cp -fp $(APP_BINARY) $(APP_BINARY_DIR)
-	@cp -fp $(APP_BINARY)-proxy $(APP_BINARY_DIR)
 	@touch -r "$(APP_BINARY)" "$(APP_DIR)/$(APP_NAME)"
 	@echo "Created '$(APP_NAME)' in '$(APP_DIR)'"
 	xattr -c $(APP_DIR)/$(APP_NAME)/Contents/Info.plist

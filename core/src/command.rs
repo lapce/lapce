@@ -134,6 +134,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reload Window")]
     ReloadWindow,
 
+    #[strum(serialize = "connect_ssh_host")]
+    #[strum(message = "Connect to SSH Host")]
+    ConnectSshHost,
+
     #[strum(serialize = "palette.line")]
     PaletteLine,
 

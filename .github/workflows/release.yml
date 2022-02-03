@@ -57,7 +57,6 @@ jobs:
         run: |
           mkdir Lapce
           cp ./target/release/lapce Lapce/
-          cp ./target/release/lapce-proxy Lapce/
           tar -zcvf ./Lapce-linux.tar.gz Lapce
           gzip -c "./target/release/lapce-proxy" > ./lapce-proxy-linux.gz
       - name: Upload Application

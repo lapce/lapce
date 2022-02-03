@@ -31,7 +31,7 @@ use xi_rope::{RopeDelta, RopeInfo};
 pub struct Dispatcher {
     pub sender: Arc<Sender<Value>>,
     pub git_sender: Sender<(BufferId, u64)>,
-    pub workspace: Arc<Mutex<PathBuf>>,
+    pub workspace: Arc<Mutex<Option<PathBuf>>>,
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
     pub terminals: Arc<Mutex<HashMap<TermId, mio::channel::Sender<Msg>>>>,
     open_files: Arc<Mutex<HashMap<String, BufferId>>>,
@@ -88,15 +88,17 @@ impl notify::EventHandler for Dispatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    if let Some(diff) = git_diff_new(&self.workspace.lock()) {
-                        if diff != *self.last_diff.lock() {
-                            self.send_notification(
-                                "diff_info",
-                                json!({
-                                    "diff": diff,
-                                }),
-                            );
-                            *self.last_diff.lock() = diff;
+                    if let Some(workspace) = self.workspace.lock().clone() {
+                        if let Some(diff) = git_diff_new(&workspace) {
+                            if diff != *self.last_diff.lock() {
+                                self.send_notification(
+                                    "diff_info",
+                                    json!({
+                                        "diff": diff,
+                                    }),
+                                );
+                                *self.last_diff.lock() = diff;
+                            }
                         }
                     }
                 }
@@ -280,7 +282,7 @@ impl Dispatcher {
         let dispatcher = Dispatcher {
             sender: Arc::new(sender),
             git_sender,
-            workspace: Arc::new(Mutex::new(PathBuf::new())),
+            workspace: Arc::new(Mutex::new(None)),
             buffers: Arc::new(Mutex::new(HashMap::new())),
             open_files: Arc::new(Mutex::new(HashMap::new())),
             terminals: Arc::new(Mutex::new(HashMap::new())),
@@ -348,7 +350,6 @@ impl Dispatcher {
     }
 
     pub fn start_update_process(&self, receiver: Receiver<(BufferId, u64)>) {
-        let workspace = self.workspace.lock().clone();
         let buffers = self.buffers.clone();
         let lsp = self.lsp.clone();
         thread::spawn(move || loop {
@@ -422,7 +423,7 @@ impl Dispatcher {
     fn handle_notification(&self, rpc: Notification) {
         match rpc {
             Notification::Initialize { workspace } => {
-                *self.workspace.lock() = workspace.clone();
+                *self.workspace.lock() = Some(workspace.clone());
                 self.watcher
                     .lock()
                     .as_mut()
@@ -509,9 +510,10 @@ impl Dispatcher {
             }
             Notification::GitCommit { message, diffs } => {
                 eprintln!("received git commit");
-                let workspace = self.workspace.lock().clone();
-                if let Err(e) = git_commit(&workspace, &message, diffs) {
-                    eprintln!("git commit error {e}");
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    if let Err(e) = git_commit(&workspace, &message, diffs) {
+                        eprintln!("git commit error {e}");
+                    }
                 }
             }
         }
@@ -539,17 +541,18 @@ impl Dispatcher {
                 }));
             }
             Request::BufferHead { buffer_id, path } => {
-                let workspace = self.workspace.lock().clone();
-                let result = file_get_head(&workspace, &path);
-                if let Ok((blob_id, content)) = result {
-                    let resp = BufferHeadResponse {
-                        id: "head".to_string(),
-                        content,
-                    };
-                    self.sender.send(json!({
-                        "id": id,
-                        "result": resp,
-                    }));
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    let result = file_get_head(&workspace, &path);
+                    if let Ok((blob_id, content)) = result {
+                        let resp = BufferHeadResponse {
+                            id: "head".to_string(),
+                            content,
+                        };
+                        self.sender.send(json!({
+                            "id": id,
+                            "result": resp,
+                        }));
+                    }
                 }
             }
             Request::GetCompletion {
@@ -645,22 +648,23 @@ impl Dispatcher {
                 });
             }
             Request::GetFiles { path } => {
-                let workspace = self.workspace.lock().clone();
-                let local_dispatcher = self.clone();
-                thread::spawn(move || {
-                    let mut items = Vec::new();
-                    for result in ignore::Walk::new(workspace) {
-                        if let Ok(path) = result {
-                            if let Some(file_type) = path.file_type() {
-                                if file_type.is_file() {
-                                    items.push(path.into_path());
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    let local_dispatcher = self.clone();
+                    thread::spawn(move || {
+                        let mut items = Vec::new();
+                        for result in ignore::Walk::new(workspace) {
+                            if let Ok(path) = result {
+                                if let Some(file_type) = path.file_type() {
+                                    if file_type.is_file() {
+                                        items.push(path.into_path());
+                                    }
                                 }
                             }
                         }
-                    }
-                    local_dispatcher
-                        .respond(id, Ok(serde_json::to_value(items).unwrap()));
-                });
+                        local_dispatcher
+                            .respond(id, Ok(serde_json::to_value(items).unwrap()));
+                    });
+                }
             }
             Request::Save { rev, buffer_id } => {
                 let mut buffers = self.buffers.lock();
@@ -670,42 +674,44 @@ impl Dispatcher {
                 self.respond(id, resp);
             }
             Request::GlobalSearch { pattern } => {
-                let workspace = self.workspace.lock().clone();
-                let local_dispatcher = self.clone();
-                thread::spawn(move || {
-                    let matcher = RegexMatcher::new(&pattern).unwrap();
-                    let mut matches = HashMap::new();
-                    for result in ignore::Walk::new(workspace) {
-                        if let Ok(path) = result {
-                            if let Some(file_type) = path.file_type() {
-                                if file_type.is_file() {
-                                    let path = path.into_path();
-                                    let mut line_matches = Vec::new();
-                                    Searcher::new().search_path(
-                                        &matcher,
-                                        path.clone(),
-                                        UTF8(|lnum, line| {
-                                            let mymatch = matcher
-                                                .find(line.as_bytes())?
-                                                .unwrap();
-                                            line_matches.push((
-                                                lnum,
-                                                (mymatch.start(), mymatch.end()),
-                                                line.to_string(),
-                                            ));
-                                            Ok(true)
-                                        }),
-                                    );
-                                    if line_matches.len() > 0 {
-                                        matches.insert(path.clone(), line_matches);
+                if let Some(workspace) = self.workspace.lock().clone() {
+                    let local_dispatcher = self.clone();
+                    thread::spawn(move || {
+                        let matcher = RegexMatcher::new(&pattern).unwrap();
+                        let mut matches = HashMap::new();
+                        for result in ignore::Walk::new(workspace) {
+                            if let Ok(path) = result {
+                                if let Some(file_type) = path.file_type() {
+                                    if file_type.is_file() {
+                                        let path = path.into_path();
+                                        let mut line_matches = Vec::new();
+                                        Searcher::new().search_path(
+                                            &matcher,
+                                            path.clone(),
+                                            UTF8(|lnum, line| {
+                                                let mymatch = matcher
+                                                    .find(line.as_bytes())?
+                                                    .unwrap();
+                                                line_matches.push((
+                                                    lnum,
+                                                    (mymatch.start(), mymatch.end()),
+                                                    line.to_string(),
+                                                ));
+                                                Ok(true)
+                                            }),
+                                        );
+                                        if line_matches.len() > 0 {
+                                            matches
+                                                .insert(path.clone(), line_matches);
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    local_dispatcher
-                        .respond(id, Ok(serde_json::to_value(matches).unwrap()));
-                });
+                        local_dispatcher
+                            .respond(id, Ok(serde_json::to_value(matches).unwrap()));
+                    });
+                }
             }
         }
     }

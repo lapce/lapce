@@ -215,7 +215,7 @@ pub struct LapceEditorBufferData {
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<BufferNew>,
     pub completion: Arc<CompletionData>,
-    pub workspace: Option<Arc<LapceWorkspace>>,
+    pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub source_control: Arc<SourceControlData>,
     pub find: Arc<Find>,
@@ -4680,9 +4680,9 @@ impl LapceEditorHeader {
                     .unwrap();
                 ctx.draw_text(&text_layout, Point::new(30.0, 7.0));
 
-                if let Some(workspace) = data.workspace.as_ref() {
+                if let Some(workspace_path) = data.workspace.path.as_ref() {
                     path = path
-                        .strip_prefix(&workspace.path)
+                        .strip_prefix(workspace_path)
                         .unwrap_or(&path)
                         .to_path_buf();
                 }

@@ -71,7 +71,7 @@ impl LapceWindowNew {
         &mut self,
         ctx: &mut EventCtx,
         data: &mut LapceWindowData,
-        workspace: Option<LapceWorkspace>,
+        workspace: LapceWorkspace,
         replace_current: bool,
     ) {
         if replace_current {
@@ -198,14 +198,14 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         data.plugins = Arc::new(plugins.to_owned());
                     }
                     LapceUICommand::ReloadConfig => {
-                        data.config =
-                            Arc::new(Config::load(None).unwrap_or_default());
+                        data.config = Arc::new(
+                            Config::load(&LapceWorkspace::default())
+                                .unwrap_or_default(),
+                        );
                         for (_, tab) in data.tabs.iter_mut() {
                             tab.config = Arc::new(
-                                Config::load(
-                                    tab.workspace.clone().map(|w| (*w).clone()),
-                                )
-                                .unwrap_or_default(),
+                                Config::load(&tab.workspace.clone())
+                                    .unwrap_or_default(),
                             );
                         }
                         Arc::make_mut(&mut data.keypress).update_keymaps();
@@ -213,9 +213,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     }
                     LapceUICommand::ReloadWindow => {
                         let tab = data.tabs.get(&data.active_id).unwrap();
-                        let workspace =
-                            tab.workspace.as_ref().map(|w| (*w.clone()).clone());
-                        self.new_tab(ctx, data, workspace, true);
+                        self.new_tab(ctx, data, (*tab.workspace).clone(), true);
                         return;
                     }
                     LapceUICommand::HideMenu => {
@@ -256,7 +254,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         workspaces.sort_by_key(|w| -(w.last_open as i64));
                         Config::update_recent_workspaces(workspaces);
 
-                        self.new_tab(ctx, data, Some(workspace.clone()), true);
+                        self.new_tab(ctx, data, workspace.clone(), true);
                         return;
                     }
                     LapceUICommand::SetTheme(theme, preview) => {
@@ -271,7 +269,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::NewTab => {
-                        self.new_tab(ctx, data, None, false);
+                        self.new_tab(ctx, data, LapceWorkspace::default(), false);
                         return;
                     }
                     LapceUICommand::CloseTab => {

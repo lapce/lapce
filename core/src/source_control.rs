@@ -370,9 +370,9 @@ impl Widget<LapceTabData> for SourceControlFileList {
             let y = line_height * line as f64;
             let (diff, checked) = diffs[line].clone();
             let mut path = diff.path().clone();
-            if let Some(workspace) = data.workspace.as_ref() {
+            if let Some(workspace_path) = data.workspace.path.as_ref() {
                 path = path
-                    .strip_prefix(&workspace.path)
+                    .strip_prefix(workspace_path)
                     .unwrap_or(&path)
                     .to_path_buf();
             }

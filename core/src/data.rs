@@ -186,7 +186,7 @@ impl LapceWindowData {
             let tab_id = WidgetId::next();
             let tab = LapceTabData::new(
                 tab_id,
-                None,
+                LapceWorkspace::default(),
                 db.clone(),
                 keypress.clone(),
                 event_sink.clone(),
@@ -196,7 +196,14 @@ impl LapceWindowData {
             active_tab_id = tab_id;
         }
 
-        let config = Arc::new(Config::load(None).unwrap_or_default());
+        let config = Arc::new(
+            Config::load(&LapceWorkspace {
+                kind: LapceWorkspaceType::Local,
+                path: None,
+                last_open: 0,
+            })
+            .unwrap_or_default(),
+        );
         event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::Focus,
@@ -308,7 +315,7 @@ pub enum FocusArea {
 #[derive(Clone, Lens)]
 pub struct LapceTabData {
     pub id: WidgetId,
-    pub workspace: Option<Arc<LapceWorkspace>>,
+    pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
     pub terminal: Arc<TerminalSplitData>,
@@ -372,23 +379,21 @@ impl GetConfig for LapceTabData {
 impl LapceTabData {
     pub fn new(
         tab_id: WidgetId,
-        workspace: Option<LapceWorkspace>,
+        workspace: LapceWorkspace,
         db: Arc<LapceDb>,
         keypress: Arc<KeyPressData>,
         event_sink: ExtEventSink,
     ) -> Self {
-        let config = Arc::new(Config::load(None).unwrap_or_default());
+        let config = Arc::new(Config::load(&workspace).unwrap_or_default());
 
-        let workspace_info = workspace
-            .as_ref()
-            .and_then(|w| db.get_workspace_info(w).ok());
+        let workspace_info = db.get_workspace_info(&workspace).ok();
 
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
         let (term_sender, term_receiver) = unbounded();
         let proxy = Arc::new(LapceProxy::new(
             tab_id,
-            workspace.clone().unwrap_or(LapceWorkspace::default()),
+            workspace.clone(),
             term_sender.clone(),
             event_sink.clone(),
         ));
@@ -461,7 +466,7 @@ impl LapceTabData {
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
         let mut tab = Self {
             id: tab_id,
-            workspace: workspace.map(|w| Arc::new(w)),
+            workspace: Arc::new(workspace),
             focus,
             main_split,
             completion,
@@ -775,7 +780,7 @@ impl LapceTabData {
                         let path = PathBuf::from(folder);
                         let workspace = LapceWorkspace {
                             kind: LapceWorkspaceType::Local,
-                            path,
+                            path: Some(path),
                             last_open: std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
                                 .unwrap()
@@ -1043,6 +1048,13 @@ impl LapceTabData {
                 };
             }
             LapceWorkbenchCommand::CheckoutBranch => {}
+            LapceWorkbenchCommand::ConnectSshHost => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::SshHost)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
         }
     }
 
@@ -1079,7 +1091,7 @@ impl LapceTabData {
         palette_widget_id: WidgetId,
         receiver: Receiver<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
-        workspace: Option<Arc<LapceWorkspace>>,
+        workspace: Arc<LapceWorkspace>,
         proxy: Arc<LapceProxy>,
     ) {
         let mut terminals = HashMap::new();

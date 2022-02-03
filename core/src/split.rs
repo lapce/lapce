@@ -657,7 +657,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
 
             self.commands = empty_editor_commands(
                 data.config.lapce.modal,
-                data.workspace.is_some(),
+                data.workspace.path.is_some(),
             )
             .iter()
             .enumerate()

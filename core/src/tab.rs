@@ -702,11 +702,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::Focus => {
                         let dir = data
                             .workspace
+                            .path
                             .as_ref()
-                            .map(|w| {
-                                let dir =
-                                    w.path.file_name().unwrap().to_str().unwrap();
-                                let dir = match &w.kind {
+                            .map(|p| {
+                                let dir = p.file_name().unwrap().to_str().unwrap();
+                                let dir = match &data.workspace.kind {
                                     LapceWorkspaceType::Local => dir.to_string(),
                                     LapceWorkspaceType::RemoteSSH(user, host) => {
                                         format!("{} [{}@{}]", dir, user, host)
@@ -1375,10 +1375,11 @@ impl Widget<LapceTabData> for LapceTabHeader {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let dir = data
             .workspace
+            .path
             .as_ref()
-            .map(|w| {
-                let dir = w.path.file_name().unwrap().to_str().unwrap();
-                let dir = match &w.kind {
+            .map(|p| {
+                let dir = p.file_name().unwrap().to_str().unwrap();
+                let dir = match &data.workspace.kind {
                     LapceWorkspaceType::Local => dir.to_string(),
                     LapceWorkspaceType::RemoteSSH(user, host) => {
                         format!("{} [{}@{}]", dir, user, host)

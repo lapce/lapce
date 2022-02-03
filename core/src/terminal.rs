@@ -523,12 +523,12 @@ pub struct LapceTerminalData {
 
 impl LapceTerminalData {
     pub fn new(
-        workspace: Option<Arc<LapceWorkspace>>,
+        workspace: Arc<LapceWorkspace>,
         split_id: WidgetId,
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
     ) -> Self {
-        let cwd = workspace.map(|w| w.path.clone());
+        let cwd = workspace.path.as_ref().map(|p| p.clone());
         let widget_id = WidgetId::next();
         let view_id = WidgetId::next();
         let term_id = TermId::next();
