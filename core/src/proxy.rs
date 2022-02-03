@@ -10,8 +10,8 @@ use crossbeam_channel::Sender;
 use druid::{ExtEventSink, WidgetId};
 use druid::{Target, WindowId};
 use flate2::read::GzDecoder;
-use lapce_proxy::dispatch::Dispatcher;
 use lapce_proxy::dispatch::FileDiff;
+use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
 use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
 use lapce_proxy::plugin::PluginDescription;
 use lapce_proxy::terminal::TermId;
@@ -108,10 +108,10 @@ impl Handler for LapceProxy {
             }
             Notification::ListDir { items } => {}
             Notification::DiffFiles { files } => {}
-            Notification::FileDiffs { diffs } => {
+            Notification::DiffInfo { diff } => {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateFileDiffs(diffs),
+                    LapceUICommand::UpdateDiffInfo(diff),
                     Target::Widget(self.tab_id),
                 );
             }
@@ -1037,8 +1037,8 @@ pub enum Notification {
     DiffFiles {
         files: Vec<PathBuf>,
     },
-    FileDiffs {
-        diffs: Vec<FileDiff>,
+    DiffInfo {
+        diff: DiffInfo,
     },
     UpdateTerminal {
         term_id: TermId,

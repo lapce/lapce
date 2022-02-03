@@ -5,7 +5,7 @@ use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId};
 use indexmap::IndexMap;
 use lapce_proxy::{
-    dispatch::{FileDiff, FileNodeItem},
+    dispatch::{DiffInfo, FileDiff, FileNodeItem},
     plugin::PluginDescription,
     terminal::TermId,
 };
@@ -24,6 +24,7 @@ use crate::{
     buffer::BufferId,
     buffer::{DiffLines, InvalLines, Style},
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
+    menu::MenuItem,
     movement::{LinePosition, Movement},
     palette::{NewPaletteItem, PaletteType},
     split::SplitMoveDirection,
@@ -145,8 +146,12 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.command")]
     PaletteCommand,
 
+    #[strum(message = "Open Recent Workspace")]
     #[strum(serialize = "palette.workspace")]
     PaletteWorkspace,
+
+    #[strum(serialize = "source_control.checkout_branch")]
+    CheckoutBranch,
 
     #[strum(serialize = "toggle_maximized_panel")]
     ToggleMaximizedPanel,
@@ -320,8 +325,11 @@ pub enum LapceCommand {
     Redo,
     #[strum(serialize = "center_of_window")]
     CenterOfWindow,
+
+    #[strum(message = "Go to Definition")]
     #[strum(serialize = "goto_definition")]
     GotoDefinition,
+
     #[strum(serialize = "jump_location_backward")]
     JumpLocationBackward,
     #[strum(serialize = "jump_location_forward")]
@@ -431,6 +439,8 @@ pub enum LapceUICommand {
         editor_view_id: WidgetId,
         location: EditorLocationNew,
     },
+    HideMenu,
+    ShowMenu(Point, Arc<Vec<MenuItem>>),
     UpdateSearch(String),
     GlobalSearchResult(
         String,
@@ -511,7 +521,7 @@ pub enum LapceUICommand {
     UpdateLineChanges(BufferId),
     PublishDiagnostics(PublishDiagnosticsParams),
     WorkDoneProgress(ProgressParams),
-    UpdateFileDiffs(Vec<FileDiff>),
+    UpdateDiffInfo(DiffInfo),
     ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),

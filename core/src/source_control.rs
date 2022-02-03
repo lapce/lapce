@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{net::ToSocketAddrs, path::PathBuf, sync::Arc};
 
 use druid::{
     kurbo::BezPath,
@@ -47,6 +47,8 @@ pub struct SourceControlData {
     pub file_list_index: usize,
     pub editor_view_id: WidgetId,
     pub file_diffs: Vec<(FileDiff, bool)>,
+    pub branch: String,
+    pub branches: Vec<String>,
 }
 
 impl SourceControlData {
@@ -62,6 +64,8 @@ impl SourceControlData {
             split_id: WidgetId::next(),
             split_direction: SplitDirection::Horizontal,
             file_diffs: Vec::new(),
+            branch: "".to_string(),
+            branches: Vec::new(),
         }
     }
 

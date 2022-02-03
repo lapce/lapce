@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder},
@@ -5,13 +7,17 @@ use druid::{
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
     Target, UpdateCtx, Widget,
 };
+use serde_json::json;
+use strum::EnumMessage;
 
 use crate::{
     command::{
-        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::LapceWindowData,
+    menu::MenuItem,
     state::LapceWorkspaceType,
     svg::get_svg,
 };
@@ -218,22 +224,121 @@ impl Widget<LapceWindowData> for Title {
             Point::new(x, (size.height - text_layout.size().height) / 2.0),
         );
         x += text_layout.size().width + padding;
-        self.commands.push((
-            command_rect.with_size(Size::new(x - command_rect.x0, size.height)),
-            Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
+        let menu_items = vec![
+            MenuItem {
+                text: LapceWorkbenchCommand::OpenFolder
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
                     cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+                    palette_desc: None,
                     data: None,
-                    palette_desc: Some("Open Folder".to_string()),
                     target: CommandTarget::Workbench,
                 },
-                Target::Widget(tab.id),
+            },
+            MenuItem {
+                text: LapceWorkbenchCommand::PaletteWorkspace
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            },
+        ];
+        let command_rect =
+            command_rect.with_size(Size::new(x - command_rect.x0, size.height));
+        self.commands.push((
+            command_rect,
+            Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ShowMenu(
+                    Point::new(command_rect.x0, command_rect.y1),
+                    Arc::new(menu_items),
+                ),
+                Target::Auto,
             ),
         ));
 
         let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
         let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
         ctx.stroke(line, line_color, 1.0);
+
+        if tab.source_control.branch != "" {
+            let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
+
+            x += 5.0;
+            let folder_svg = get_svg("git-icon.svg").unwrap();
+            let folder_rect = Size::new(size.height, size.height)
+                .to_rect()
+                .with_origin(Point::new(x, 0.0));
+            ctx.draw_svg(
+                &folder_svg,
+                folder_rect.inflate(-6.5, -6.5),
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
+            );
+            x += size.height;
+
+            let mut branch = tab.source_control.branch.clone();
+            if tab.source_control.file_diffs.len() > 0 {
+                branch += "*";
+            }
+            let text_layout = ctx
+                .text()
+                .new_text_layout(branch)
+                .font(FontFamily::SYSTEM_UI, 13.0)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            ctx.draw_text(
+                &text_layout,
+                Point::new(x, (size.height - text_layout.size().height) / 2.0),
+            );
+            x += text_layout.size().width + padding;
+
+            let command_rect =
+                command_rect.with_size(Size::new(x - command_rect.x0, size.height));
+            let menu_items = tab
+                .source_control
+                .branches
+                .iter()
+                .map(|b| MenuItem {
+                    text: b.to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceWorkbenchCommand::CheckoutBranch.to_string(),
+                        palette_desc: None,
+                        data: Some(json!(b.to_string())),
+                        target: CommandTarget::Workbench,
+                    },
+                })
+                .collect();
+            self.commands.push((
+                command_rect,
+                Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ShowMenu(
+                        Point::new(command_rect.x0, command_rect.y1),
+                        Arc::new(menu_items),
+                    ),
+                    Target::Auto,
+                ),
+            ));
+
+            let line_color =
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
+            let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
+            ctx.stroke(line, line_color, 1.0);
+        }
     }
 }

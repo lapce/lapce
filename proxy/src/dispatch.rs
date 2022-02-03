@@ -38,7 +38,7 @@ pub struct Dispatcher {
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
     pub watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
-    last_file_diffs: Arc<Mutex<Vec<FileDiff>>>,
+    last_diff: Arc<Mutex<DiffInfo>>,
 }
 
 impl notify::EventHandler for Dispatcher {
@@ -88,15 +88,15 @@ impl notify::EventHandler for Dispatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    if let Some(file_diffs) = git_diff_new(&self.workspace.lock()) {
-                        if file_diffs != *self.last_file_diffs.lock() {
+                    if let Some(diff) = git_diff_new(&self.workspace.lock()) {
+                        if diff != *self.last_diff.lock() {
                             self.send_notification(
-                                "file_diffs",
+                                "diff_info",
                                 json!({
-                                    "diffs": file_diffs,
+                                    "diff": diff,
                                 }),
                             );
-                            *self.last_file_diffs.lock() = file_diffs;
+                            *self.last_diff.lock() = diff;
                         }
                     }
                 }
@@ -214,6 +214,13 @@ pub struct BufferHeadResponse {
     pub content: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct DiffInfo {
+    pub head: String,
+    pub branches: Vec<String>,
+    pub diffs: Vec<FileDiff>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum FileDiff {
     Modified(PathBuf),
@@ -280,7 +287,7 @@ impl Dispatcher {
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
             watcher: Arc::new(Mutex::new(None)),
-            last_file_diffs: Arc::new(Mutex::new(Vec::new())),
+            last_diff: Arc::new(Mutex::new(DiffInfo::default())),
         };
         *dispatcher.watcher.lock() =
             Some(notify::recommended_watcher(dispatcher.clone()).unwrap());
@@ -421,13 +428,14 @@ impl Dispatcher {
                     .as_mut()
                     .unwrap()
                     .watch(&workspace, notify::RecursiveMode::Recursive);
-                if let Some(file_diffs) = git_diff_new(&workspace) {
+                if let Some(diff) = git_diff_new(&workspace) {
                     self.send_notification(
-                        "file_diffs",
+                        "diff_info",
                         json!({
-                            "diffs": file_diffs,
+                            "diff": diff,
                         }),
                     );
+                    *self.last_diff.lock() = diff;
                 }
             }
             Notification::Shutdown {} => {}
@@ -777,8 +785,16 @@ fn git_delta_format(
     }
 }
 
-fn git_diff_new(workspace_path: &PathBuf) -> Option<Vec<FileDiff>> {
+fn git_diff_new(workspace_path: &PathBuf) -> Option<DiffInfo> {
     let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    let head = repo.head().ok()?;
+    let name = head.shorthand()?.to_string();
+
+    let mut branches = Vec::new();
+    for branch in repo.branches(None).ok()? {
+        branches.push(branch.ok()?.0.name().ok()??.to_string());
+    }
+
     let mut deltas = Vec::new();
     let mut diff_options = DiffOptions::new();
     let diff = repo
@@ -844,7 +860,11 @@ fn git_diff_new(workspace_path: &PathBuf) -> Option<Vec<FileDiff>> {
         | FileDiff::Renamed(p, _)
         | FileDiff::Deleted(p) => p.clone(),
     });
-    Some(file_diffs)
+    Some(DiffInfo {
+        head: name,
+        branches,
+        diffs: file_diffs,
+    })
 }
 
 // fn git_diff(workspace_path: &PathBuf) -> Option<Vec<String>> {

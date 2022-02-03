@@ -14,6 +14,7 @@ pub mod find;
 pub mod keypress;
 pub mod language;
 pub mod lsp;
+pub mod menu;
 pub mod movement;
 pub mod outline;
 pub mod palette;

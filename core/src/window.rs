@@ -5,6 +5,7 @@ use crate::{
     data::{LapceTabData, LapceTabLens, LapceWindowData},
     editor::EditorUIState,
     explorer::{FileExplorer, FileExplorerState},
+    menu::Menu,
     panel::{LapcePanel, PanelPosition, PanelProperty},
     state::{LapceWorkspace, LapceWorkspaceType},
     tab::{LapceTabHeader, LapceTabNew},
@@ -27,6 +28,7 @@ use std::{collections::HashMap, ops::Index, sync::Arc};
 pub struct LapceWindowNew {
     pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
     pub tabs: Vec<WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>>,
+    menu: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
     tab_headers: Vec<
         WidgetPod<
             LapceWindowData,
@@ -56,10 +58,12 @@ impl LapceWindowNew {
                 WidgetPod::new(tab_header)
             })
             .collect();
+        let menu = Menu::new(&data.menu);
         Self {
             title,
             tabs,
             tab_headers,
+            menu: WidgetPod::new(menu.boxed()),
         }
     }
 
@@ -214,6 +218,24 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         self.new_tab(ctx, data, workspace, true);
                         return;
                     }
+                    LapceUICommand::HideMenu => {
+                        ctx.set_handled();
+                        let menu = Arc::make_mut(&mut data.menu);
+                        menu.shown = false;
+                    }
+                    LapceUICommand::ShowMenu(point, items) => {
+                        ctx.set_handled();
+                        let menu = Arc::make_mut(&mut data.menu);
+                        menu.origin = *point;
+                        menu.items = items.clone();
+                        menu.shown = true;
+                        menu.active = 0;
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(menu.widget_id),
+                        ));
+                    }
                     LapceUICommand::SetWorkspace(workspace) => {
                         let mut workspaces =
                             Config::recent_workspaces().unwrap_or(Vec::new());
@@ -332,6 +354,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             }
             _ => (),
         }
+        self.menu.event(ctx, event, data, env);
         self.tabs[data.active].event(ctx, event, data, env);
         match event {
             Event::MouseDown(_)
@@ -361,6 +384,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) {
+        self.menu.lifecycle(ctx, event, data, env);
         self.title.lifecycle(ctx, event, data, env);
         for tab in self.tabs.iter_mut() {
             tab.lifecycle(ctx, event, data, env);
@@ -379,6 +403,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
     ) {
         let start = std::time::SystemTime::now();
 
+        self.menu.update(ctx, data, env);
         self.title.update(ctx, data, env);
 
         if old_data.active != data.active {
@@ -411,6 +436,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
+
+        self.menu.layout(ctx, bc, data, env);
+        self.menu.set_origin(ctx, data, env, data.menu.origin);
 
         let title_size = self.title.layout(ctx, bc, data, env);
         self.title.set_origin(ctx, data, env, Point::ZERO);
@@ -557,5 +585,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             Point::new(size.width, title_height - 0.5),
         );
         ctx.stroke(line, line_color, 1.0);
+
+        self.menu.paint(ctx, data, env);
     }
 }

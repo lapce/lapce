@@ -36,6 +36,7 @@ use crate::{
     },
     editor::{EditorLocationNew, LapceEditorView},
     explorer::FileExplorer,
+    menu::Menu,
     movement::{self, CursorMode, Selection},
     palette::{NewPalette, PaletteViewLens},
     panel::{PanelHeaderKind, PanelPosition, PanelResizePosition},
@@ -333,9 +334,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::UpdateInstalledPlugins(plugins) => {
                         data.installed_plugins = Arc::new(plugins.to_owned());
                     }
-                    LapceUICommand::UpdateFileDiffs(diffs) => {
+                    LapceUICommand::UpdateDiffInfo(diff) => {
                         let source_control = Arc::make_mut(&mut data.source_control);
-                        source_control.file_diffs = diffs
+                        source_control.branch = diff.head.to_string();
+                        source_control.branches = diff.branches.clone();
+                        source_control.file_diffs = diff
+                            .diffs
                             .iter()
                             .map(|diff| {
                                 let mut checked = true;

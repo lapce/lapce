@@ -14,6 +14,7 @@ use crate::data::{
 };
 use crate::find::Find;
 use crate::keypress::{KeyMap, KeyPress, KeyPressFocus};
+use crate::menu::MenuItem;
 use crate::movement::InsertDrift;
 use crate::panel::PanelPosition;
 use crate::proxy::LapceProxy;
@@ -3677,8 +3678,15 @@ impl LapceEditorView {
         self
     }
 
-    pub fn request_focus(&self, ctx: &mut EventCtx, data: &mut LapceTabData) {
-        ctx.request_focus();
+    pub fn request_focus(
+        &self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        left_click: bool,
+    ) {
+        if left_click {
+            ctx.request_focus();
+        }
         data.focus = self.view_id;
         let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
         match &editor.content {
@@ -3915,16 +3923,18 @@ impl Widget<LapceTabData> for LapceEditorView {
         match event {
             Event::MouseDown(mouse_event) => match mouse_event.button {
                 druid::MouseButton::Left => {
-                    self.request_focus(ctx, data);
+                    self.request_focus(ctx, data, true);
                 }
-                druid::MouseButton::Right => {}
+                druid::MouseButton::Right => {
+                    self.request_focus(ctx, data, false);
+                }
                 _ => (),
             },
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
-                        self.request_focus(ctx, data);
+                        self.request_focus(ctx, data, true);
                     }
                     _ => (),
                 }
@@ -5039,6 +5049,41 @@ impl Widget<LapceTabData> for LapceEditor {
                             );
                         }
                     }
+                }
+                match mouse_event.button {
+                    druid::MouseButton::Right => {
+                        let menu_items = vec![
+                            MenuItem {
+                                text: LapceCommand::GotoDefinition
+                                    .get_message()
+                                    .unwrap()
+                                    .to_string(),
+                                command: LapceCommandNew {
+                                    cmd: LapceCommand::GotoDefinition.to_string(),
+                                    palette_desc: None,
+                                    data: None,
+                                    target: CommandTarget::Focus,
+                                },
+                            },
+                            MenuItem {
+                                text: "Command Palette".to_string(),
+                                command: LapceCommandNew {
+                                    cmd: LapceWorkbenchCommand::PaletteCommand
+                                        .to_string(),
+                                    palette_desc: None,
+                                    data: None,
+                                    target: CommandTarget::Workbench,
+                                },
+                            },
+                        ];
+                        let point = mouse_event.pos + editor.window_origin.to_vec2();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ShowMenu(point, Arc::new(menu_items)),
+                            Target::Auto,
+                        ));
+                    }
+                    _ => {}
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {

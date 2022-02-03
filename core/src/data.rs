@@ -21,8 +21,8 @@ use druid::{
     theme,
     widget::{Label, LabelText},
     Application, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
-    FontFamily, Insets, KeyEvent, Lens, LocalizedString, Menu, MenuItem, Point,
-    Rect, Size, Target, TextLayout, Vec2, WidgetId, WindowId,
+    FontFamily, Insets, KeyEvent, Lens, LocalizedString, Point, Rect, Size, Target,
+    TextLayout, Vec2, WidgetId, WindowId,
 };
 use im::{self, hashmap};
 use itertools::Itertools;
@@ -64,6 +64,7 @@ use crate::{
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     language::{new_highlight_config, new_parser, LapceLanguage, SCOPES},
+    menu::MenuData,
     movement::{
         Cursor, CursorMode, InsertDrift, LinePosition, Movement, SelRegion,
         Selection,
@@ -143,11 +144,14 @@ pub struct LapceWindowData {
     pub plugins: Arc<Vec<PluginDescription>>,
     pub db: Arc<LapceDb>,
     pub watcher: Arc<notify::RecommendedWatcher>,
+    pub menu: Arc<MenuData>,
 }
 
 impl Data for LapceWindowData {
     fn same(&self, other: &Self) -> bool {
-        self.active == other.active && self.tabs.same(&other.tabs)
+        self.active == other.active
+            && self.tabs.same(&other.tabs)
+            && self.menu.same(&other.menu)
     }
 }
 
@@ -208,6 +212,7 @@ impl LapceWindowData {
             let path = proj_dirs.config_dir().join("keymaps.toml");
             watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
+        let menu = MenuData::new();
 
         Self {
             tabs,
@@ -219,6 +224,7 @@ impl LapceWindowData {
             config,
             db,
             watcher: Arc::new(watcher),
+            menu: Arc::new(menu),
         }
     }
 }
@@ -1036,6 +1042,7 @@ impl LapceTabData {
                     Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
                 };
             }
+            LapceWorkbenchCommand::CheckoutBranch => {}
         }
     }
 
