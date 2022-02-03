@@ -76,7 +76,7 @@ impl LapceTabNew {
         for view_id in data.main_split.editors_order.iter() {
             let editor = data.main_split.editors.get(view_id).unwrap();
             main_split = main_split.with_flex_child(
-                LapceEditorView::new(editor).boxed(),
+                LapceEditorView::new(editor.view_id).boxed(),
                 Some(editor.view_id),
                 1.0,
             );

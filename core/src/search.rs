@@ -54,7 +54,7 @@ impl SearchData {
             .editors
             .get(&data.search.editor_view_id)
             .unwrap();
-        let input = LapceEditorView::new(editor_data)
+        let input = LapceEditorView::new(editor_data.view_id)
             .hide_header()
             .hide_gutter()
             .padding(10.0);

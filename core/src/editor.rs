@@ -3647,11 +3647,11 @@ pub struct LapceEditorView {
 }
 
 impl LapceEditorView {
-    pub fn new(data: &LapceEditorData) -> LapceEditorView {
-        let header = LapceEditorHeader::new(data.view_id);
-        let editor = LapceEditorContainer::new(data.view_id);
+    pub fn new(view_id: WidgetId) -> LapceEditorView {
+        let header = LapceEditorHeader::new(view_id);
+        let editor = LapceEditorContainer::new(view_id);
         Self {
-            view_id: data.view_id,
+            view_id,
             header: WidgetPod::new(header),
             editor: WidgetPod::new(editor),
         }

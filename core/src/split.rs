@@ -6,7 +6,7 @@ use crate::{
     config::{Config, LapceTheme},
     data::{
         EditorContent, FocusArea, LapceEditorData, LapceTabData, PanelData,
-        PanelKind,
+        PanelKind, SplitContent,
     },
     editor::{EditorLocation, LapceEditorView},
     keypress::{DefaultKeyPressHandler, KeyPress},
@@ -42,6 +42,128 @@ pub enum SplitMoveDirection {
 pub enum SplitDirection {
     Vertical,
     Horizontal,
+}
+
+pub struct LapceDynamicSplit {
+    widget_id: WidgetId,
+    children: Vec<ChildWidgetNew>,
+}
+
+impl LapceDynamicSplit {
+    pub fn new(widget_id: WidgetId) -> Self {
+        Self {
+            widget_id,
+            children: Vec::new(),
+        }
+    }
+}
+
+impl Widget<LapceTabData> for LapceDynamicSplit {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        for child in self.children.iter_mut() {
+            child.widget.event(ctx, event, data, env);
+        }
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        for child in self.children.iter_mut() {
+            child.widget.lifecycle(ctx, event, data, env);
+        }
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        let split = data.main_split.splits.get(&self.widget_id).unwrap();
+        if !split.same(&old_data.main_split.splits.get(&self.widget_id).unwrap()) {
+            self.children = split
+                .children
+                .iter()
+                .map(|child| ChildWidgetNew {
+                    widget: WidgetPod::new(child.widget()),
+                    flex: true,
+                    params: 1.0,
+                    layout_rect: Rect::ZERO,
+                })
+                .collect();
+            ctx.children_changed();
+            ctx.request_layout();
+        }
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let my_size = bc.max();
+
+        let split = data.main_split.splits.get(&self.widget_id).unwrap();
+        let children_len = self.children.len();
+        if children_len == 0 {
+            return my_size;
+        }
+
+        let mut flex_sum = 0.0;
+        for child in &self.children {
+            flex_sum += child.params;
+        }
+        let flex_total = if split.direction == SplitDirection::Vertical {
+            my_size.width
+        } else {
+            my_size.height
+        };
+        let flex_unit = flex_total / flex_sum;
+
+        let mut x = 0.0;
+        let mut y = 0.0;
+        for child in self.children.iter_mut() {
+            let flex = flex_unit * child.params;
+            let (width, height) = match split.direction {
+                SplitDirection::Vertical => (flex, my_size.height),
+                SplitDirection::Horizontal => (my_size.width, flex),
+            };
+            let size = Size::new(width, height);
+            child
+                .widget
+                .layout(ctx, &BoxConstraints::tight(size), data, env);
+            child.widget.set_origin(ctx, data, env, Point::new(x, y));
+            child.layout_rect = child
+                .layout_rect
+                .with_origin(Point::new(x, y))
+                .with_size(size);
+            match split.direction {
+                SplitDirection::Vertical => x += child.layout_rect.size().width,
+                SplitDirection::Horizontal => y += child.layout_rect.size().height,
+            }
+        }
+
+        my_size
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        for child in self.children.iter_mut() {
+            child.widget.paint(ctx, data, env);
+        }
+    }
 }
 
 pub struct LapceSplitNew {
@@ -428,7 +550,7 @@ impl LapceSplitNew {
         widget_id: WidgetId,
     ) {
         let editor_data = data.main_split.editors.get(&widget_id).unwrap();
-        let editor = LapceEditorView::new(&editor_data);
+        let editor = LapceEditorView::new(editor_data.view_id);
         self.insert_flex_child(0, editor.boxed(), Some(editor_data.view_id), 1.0);
         self.even_flex_children();
         ctx.children_changed();
@@ -475,7 +597,7 @@ impl LapceSplitNew {
             Target::Widget(editor_data.view_id),
         ));
 
-        let editor = LapceEditorView::new(&editor_data);
+        let editor = LapceEditorView::new(editor_data.view_id);
         self.insert_flex_child(
             index + 1,
             editor.boxed(),

@@ -22,7 +22,7 @@ use druid::{
     widget::{Label, LabelText},
     Application, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
     FontFamily, Insets, KeyEvent, Lens, LocalizedString, Point, Rect, Size, Target,
-    TextLayout, Vec2, WidgetId, WindowId,
+    TextLayout, Vec2, Widget, WidgetExt, WidgetId, WindowId,
 };
 use im::{self, hashmap};
 use itertools::Itertools;
@@ -59,7 +59,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus, Snippet},
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
     db::{LapceDb, WorkspaceInfo},
-    editor::{EditorLocationNew, LapceEditorBufferData},
+    editor::{EditorLocationNew, LapceEditorBufferData, LapceEditorView},
     explorer::FileExplorerData,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -76,6 +76,7 @@ use crate::{
     proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
     search::SearchData,
     source_control::{SourceControlData, SEARCH_BUFFER, SOURCE_CONTROL_BUFFER},
+    split::{LapceDynamicSplit, SplitDirection},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     svg::get_svg,
     terminal::TerminalSplitData,
@@ -1303,6 +1304,30 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     }
 }
 
+#[derive(Clone)]
+pub enum SplitContent {
+    Editor(WidgetId),
+    Split(WidgetId),
+}
+
+impl SplitContent {
+    pub fn widget(&self) -> Box<dyn Widget<LapceTabData>> {
+        match &self {
+            SplitContent::Editor(view_id) => LapceEditorView::new(*view_id).boxed(),
+            SplitContent::Split(widget_id) => {
+                LapceDynamicSplit::new(*widget_id).boxed()
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct SplitData {
+    pub widget_id: WidgetId,
+    pub children: Vec<SplitContent>,
+    pub direction: SplitDirection,
+}
+
 #[derive(Clone, Default)]
 pub struct RegisterData {
     pub content: String,
@@ -1342,6 +1367,7 @@ pub struct LapceMainSplitData {
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub editors_order: Arc<Vec<WidgetId>>,
     pub open_files: im::HashMap<PathBuf, Arc<BufferNew>>,
+    pub splits: im::HashMap<WidgetId, Arc<SplitData>>,
     pub local_buffers: im::HashMap<LocalBufferKind, Arc<BufferNew>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub register: Arc<Register>,
@@ -1853,6 +1879,7 @@ impl LapceMainSplitData {
             split_id,
             editors,
             editors_order: Arc::new(editors_order),
+            splits: im::HashMap::new(),
             open_files,
             local_buffers,
             active: Arc::new(active),
@@ -1893,6 +1920,45 @@ impl LapceMainSplitData {
             config,
         );
         self.editors.insert(editor.view_id, Arc::new(editor));
+    }
+
+    pub fn split_editor(&mut self, view_id: WidgetId, direction: SplitDirection) {
+        let editor = self.editors.get(&view_id).unwrap();
+        if let Some(split_id) = editor.split_id.as_ref() {
+            let split = self.splits.get_mut(split_id).unwrap();
+            let split = Arc::make_mut(split);
+            let mut new_editor = (**editor).clone();
+            new_editor.view_id = WidgetId::next();
+            let mut index = 0;
+            for (i, content) in split.children.iter().enumerate() {
+                match content {
+                    SplitContent::Editor(current_view_id) => {
+                        if current_view_id == &view_id {
+                            index = i;
+                            break;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            if direction == split.direction {
+                new_editor.split_id = Some(split.widget_id);
+                split
+                    .children
+                    .insert(index, SplitContent::Editor(new_editor.view_id));
+            } else {
+                let new_split = SplitData {
+                    widget_id: WidgetId::next(),
+                    children: vec![SplitContent::Editor(new_editor.view_id)],
+                    direction,
+                };
+                split
+                    .children
+                    .insert(index, SplitContent::Split(new_split.widget_id));
+            }
+            self.editors
+                .insert(new_editor.view_id, Arc::new(new_editor));
+        }
     }
 }
 
