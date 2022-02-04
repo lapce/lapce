@@ -6,13 +6,12 @@ use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
 use std::{borrow::Cow, path::Path, time::SystemTime};
-use std::{fs, str::FromStr};
+use std::fs;
 
 use lsp_types::*;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use xi_rope::{
-    interval::IntervalBounds, rope::Rope, Cursor, Delta, DeltaBuilder, Interval,
-    LinesMetric, RopeDelta, RopeInfo, Transformer,
+    interval::IntervalBounds, rope::Rope, RopeDelta
 };
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]

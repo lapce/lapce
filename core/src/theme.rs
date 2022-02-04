@@ -1,5 +1,3 @@
-use druid::{Color, FontDescriptor, Key};
-
 pub struct OldLapceTheme {}
 
 impl OldLapceTheme {

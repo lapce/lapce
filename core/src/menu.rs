@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
-    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
-    FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx,
+    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
     PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 
@@ -13,7 +13,7 @@ use crate::{
         LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::{LapceTabData, LapceWindowData},
+    data::LapceWindowData,
     keypress::KeyPressFocus,
     state::Mode,
 };
@@ -48,10 +48,10 @@ impl KeyPressFocus for MenuData {
 
     fn run_command(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         command: &LapceCommand,
-        count: Option<usize>,
-        env: &Env,
+        _count: Option<usize>,
+        _env: &Env,
     ) -> CommandExecuted {
         match command {
             _ => return CommandExecuted::No,
@@ -59,7 +59,7 @@ impl KeyPressFocus for MenuData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl MenuData {

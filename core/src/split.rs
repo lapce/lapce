@@ -5,26 +5,24 @@ use crate::{
     },
     config::{Config, LapceTheme},
     data::{
-        EditorContent, FocusArea, LapceEditorData, LapceTabData, PanelData,
+        FocusArea, LapceEditorData, LapceTabData,
         PanelKind,
     },
-    editor::{EditorLocation, LapceEditorView},
+    editor::LapceEditorView,
     keypress::{DefaultKeyPressHandler, KeyPress},
-    scroll::{LapcePadding, LapceScroll},
     svg::logo_svg,
-    terminal::{LapceTerminal, LapceTerminalData, LapceTerminalView},
+    terminal::{LapceTerminalData, LapceTerminalView},
 };
-use std::{cmp::Ordering, sync::Arc};
+use std::sync::Arc;
 
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    widget::IdentityWrapper,
-    Command, FontFamily, Target, WidgetId, WindowId,
+    Command, FontFamily, Target, WidgetId,
 };
 use druid::{
-    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
+    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Widget,
     WidgetExt, WidgetPod,
 };
 use lapce_proxy::terminal::TermId;
@@ -263,7 +261,7 @@ impl LapceSplitNew {
     pub fn split_editor_move(
         &mut self,
         ctx: &mut EventCtx,
-        data: &mut LapceTabData,
+        _data: &mut LapceTabData,
         direction: &SplitMoveDirection,
         widget_id: WidgetId,
     ) {
@@ -327,7 +325,7 @@ impl LapceSplitNew {
         &mut self,
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
-        vertical: bool,
+        _vertical: bool,
         widget_id: WidgetId,
     ) {
         let mut index = 0;

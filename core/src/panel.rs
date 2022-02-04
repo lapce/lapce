@@ -11,13 +11,11 @@ use serde_json::json;
 
 use crate::{
     command::{
-        CommandTarget, LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+        CommandTarget, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
     },
-    command::{LapceCommandNew, LAPCE_UI_COMMAND},
+    command::LapceCommandNew,
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
-    explorer::FileExplorerState,
-    outline::OutlineState,
     scroll::LapceScrollNew,
     split::{LapceSplitNew, SplitDirection},
     svg::get_svg,
@@ -48,7 +46,9 @@ pub trait PanelProperty: Send {
 }
 
 pub struct PanelState {
+    #[allow(unused)]
     window_id: WindowId,
+    #[allow(unused)]
     tab_id: WidgetId,
     pub panels: HashMap<WidgetId, Arc<Mutex<dyn PanelProperty>>>,
     pub shown: HashMap<PanelPosition, bool>,
@@ -175,6 +175,7 @@ impl PanelState {
 }
 
 pub struct LapcePanel {
+    #[allow(unused)]
     widget_id: WidgetId,
     header: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     split: WidgetPod<LapceTabData, LapceSplitNew>,
@@ -206,7 +207,7 @@ impl Widget<LapceTabData> for LapcePanel {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -299,6 +300,7 @@ pub enum PanelHeaderKind {
 }
 
 pub struct PanelSection {
+    #[allow(unused)]
     widget_id: WidgetId,
     header: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     content: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -358,7 +360,7 @@ impl Widget<LapceTabData> for PanelSection {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        old_data: &LapceTabData,
+        _: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -426,42 +428,42 @@ impl PanelSectionHeader {
 impl Widget<LapceTabData> for PanelSectionHeader {
     fn event(
         &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceTabData,
-        env: &Env,
+        _data: &LapceTabData,
+        _env: &Env,
     ) -> Size {
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _: &Env) {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
@@ -499,6 +501,7 @@ impl Widget<LapceTabData> for PanelSectionHeader {
 pub struct PanelMainHeader {
     text: String,
     icons: Vec<LapceIcon>,
+    #[allow(unused)]
     panel_widget_id: WidgetId,
     kind: PanelKind,
     mouse_pos: Point,
@@ -603,8 +606,8 @@ impl Widget<LapceTabData> for PanelMainHeader {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
+        _: &mut LapceTabData,
+        _: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -626,28 +629,28 @@ impl Widget<LapceTabData> for PanelMainHeader {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _: &mut LifeCycleCtx,
+        _: &LifeCycle,
+        _: &LapceTabData,
+        _: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _: &mut UpdateCtx,
+        _: &LapceTabData,
+        _: &LapceTabData,
+        _: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _: &Env,
     ) -> Size {
         let height = 30.0;
         let self_size = Size::new(bc.max().width, height);
@@ -655,7 +658,7 @@ impl Widget<LapceTabData> for PanelMainHeader {
         self_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _: &Env) {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {

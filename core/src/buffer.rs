@@ -1,21 +1,18 @@
-use anyhow::{anyhow, Result};
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use druid::piet::{Piet, TextLayout};
-use druid::{piet::PietTextLayout, FontWeight, Key, Vec2};
+use crossbeam_channel::Sender;
+use druid::{piet::PietTextLayout, Vec2};
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
-    Color, Command, Data, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId,
+    Data, EventCtx, ExtEventSink, Target, WidgetId,
     WindowId,
 };
-use druid::{Env, PaintCtx, Point};
+use druid::{PaintCtx, Point};
 use language::{new_highlight_config, LapceLanguage};
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
 use lsp_types::SemanticTokensServerCapabilities;
-use lsp_types::{CallHierarchyOptions, SemanticTokensLegend};
+use lsp_types::SemanticTokensLegend;
 use lsp_types::{CodeActionResponse, Position};
 use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::cmp::{self, Ordering};
 use std::ops::Range;
@@ -24,26 +21,24 @@ use std::sync::atomic::{self, AtomicU64};
 use std::{
     borrow::Cow,
     collections::BTreeSet,
-    ffi::OsString,
-    io::{self, Read, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
     thread,
 };
-use std::{collections::HashMap, fs::File};
-use std::{fs, str::FromStr};
-use tree_sitter::{Node, Parser, Tree};
+use std::{collections::HashMap};
+use std::str::FromStr;
+use tree_sitter::{Node, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthChar;
 use xi_rope::{
     interval::IntervalBounds,
     multiset::Subset,
     rope::Rope,
-    spans::{Spans, SpansBuilder, SpansInfo},
-    Cursor, Delta, DeltaBuilder, Interval, LinesMetric, RopeDelta, RopeInfo,
-    Transformer,
+    spans::{Spans, SpansBuilder},
+    Cursor, Delta, DeltaBuilder, Interval, RopeDelta, RopeInfo,
+    
 };
 use xi_unicode::EmojiExt;
 
@@ -61,7 +56,6 @@ use crate::{
     state::{Counter, Mode},
 };
 
-const FIND_BATCH_SIZE: usize = 500000;
 
 #[derive(Debug, Clone)]
 pub struct InvalLines {
@@ -96,6 +90,7 @@ impl BufferId {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct BufferUIState {
     window_id: WindowId,
     tab_id: WidgetId,

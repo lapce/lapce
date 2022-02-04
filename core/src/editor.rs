@@ -6,46 +6,41 @@ use crate::command::{
     LAPCE_NEW_COMMAND,
 };
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
-use crate::config::{Config, LapceTheme, LOGO};
+use crate::config::{Config, LapceTheme};
 use crate::data::{
-    EditorContent, EditorDiagnostic, FocusArea, InlineFindDirection,
+    EditorDiagnostic, FocusArea, InlineFindDirection,
     LapceEditorData, LapceMainSplitData, LapceTabData, PanelData, PanelKind,
     RegisterData,
 };
 use crate::find::Find;
-use crate::keypress::{KeyMap, KeyPress, KeyPressFocus};
+use crate::keypress::KeyPressFocus;
 use crate::menu::MenuItem;
 use crate::movement::InsertDrift;
 use crate::panel::PanelPosition;
 use crate::proxy::LapceProxy;
 use crate::scroll::LapceIdentityWrapper;
-use crate::signature::SignatureState;
 use crate::source_control::SourceControlData;
 use crate::split::LapceSplitNew;
 use crate::state::LapceWorkspace;
-use crate::svg::{file_svg_new, get_svg, logo_svg};
+use crate::svg::{file_svg_new, get_svg};
 use crate::tab::LapceIcon;
-use crate::theme::OldLapceTheme;
-use crate::{buffer::get_word_property, state::LapceFocus};
+use crate::buffer::get_word_property;
 use crate::{buffer::matching_char, data::LapceEditorViewData};
-use crate::{buffer::previous_has_unmatched_pair, movement::Cursor};
+use crate::movement::Cursor;
 use crate::{buffer::WordProperty, movement::CursorMode};
 use crate::{
     buffer::{matching_pair_direction, BufferNew},
     scroll::LapceScrollNew,
 };
 use crate::{
-    buffer::{next_has_unmatched_pair, BufferState},
     scroll::LapcePadding,
 };
 use crate::{
-    buffer::{BufferId, BufferUIState, InvalLines},
+    buffer::BufferId,
     command::{
         EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
-    completion::ScoredCompletionItem,
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
-    scroll::LapceScroll,
     split::SplitMoveDirection,
     state::Mode,
     state::VisualMode,
@@ -54,38 +49,35 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
 use druid::kurbo::BezPath;
 use druid::{
-    kurbo::Line, piet::PietText, theme, widget::Flex, widget::IdentityWrapper,
-    widget::Padding, widget::Scroll, widget::SvgData, Affine, BoxConstraints, Color,
-    Command, Data, Env, Event, EventCtx, FontDescriptor, FontFamily, Insets,
-    KeyEvent, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt,
-    WidgetId, WidgetPod, WindowId,
+    kurbo::Line, piet::PietText, 
+     BoxConstraints, Color,
+    Command, Data, Env, Event, EventCtx, FontFamily,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget,
+    WidgetId, WidgetPod,
 };
 use druid::{
-    menu, Application, ExtEventSink, FileDialogOptions, Menu, Modifiers, MouseEvent,
+    Application, ExtEventSink, MouseEvent,
 };
 use druid::{
     piet::{
-        PietTextLayout, Text, TextAttribute, TextLayout as TextLayoutTrait,
+        PietTextLayout, Text, TextLayout as TextLayoutTrait,
         TextLayoutBuilder,
     },
-    FontWeight,
 };
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
-    CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
-    Diagnostic, DiagnosticSeverity, DocumentChanges, GotoDefinitionResponse,
-    Location, Position, SignatureHelp, TextEdit, Url, WorkspaceEdit,
+    CodeActionResponse, CompletionItem,
+    DiagnosticSeverity, DocumentChanges, GotoDefinitionResponse,
+    Location, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde_json::Value;
-use std::ops::Range;
 use std::thread;
-use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
+use std::{iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
 use std::{str::FromStr, time::Duration};
 use strum::EnumMessage;
-use unicode_width::UnicodeWidthStr;
-use xi_rope::{Interval, RopeDelta, Transformer};
+use xi_rope::{RopeDelta, Transformer};
 
 pub struct LapceUI {}
 
@@ -130,6 +122,7 @@ pub struct EditorState {
     pub saved_buffer_id: BufferId,
     pub saved_selection: Selection,
     pub saved_scroll_offset: Vec2,
+    #[allow(unused)]
     last_movement: Movement,
 }
 
@@ -184,7 +177,7 @@ impl Widget<LapceTabData> for EditorDiffSplit {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -282,8 +275,8 @@ impl LapceEditorBufferData {
                         for change in changes.iter() {
                             match change {
                                 DiffLines::Left(l) => lines += l.len(),
-                                DiffLines::Both(l, r) => lines += r.len(),
-                                DiffLines::Skip(l, r) => lines += 1,
+                                DiffLines::Both(_l, r) => lines += r.len(),
+                                DiffLines::Skip(_l, _r) => lines += 1,
                                 DiffLines::Right(r) => lines += r.len(),
                             }
                         }
@@ -520,7 +513,7 @@ impl LapceEditorBufferData {
                             }
 
                             let mut selection = Selection::new();
-                            let (tab, (start, end)) = &snippet_tabs[0];
+                            let (_tab, (start, end)) = &snippet_tabs[0];
                             let region = SelRegion::new(*start, *end, None);
                             selection.add_region(region);
                             self.set_cursor(Cursor::new(
@@ -939,7 +932,7 @@ impl LapceEditorBufferData {
                     register.add_delete(data);
                 }
             }
-            CursorMode::Visual { start, end, mode } => {
+            CursorMode::Visual { start: _, end: _, mode: _ } => {
                 let data = self.editor.cursor.yank(&self.buffer);
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_delete(data);
@@ -1060,7 +1053,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn next_error(&mut self, ctx: &mut EventCtx, env: &Env) {
+    fn next_error(&mut self, ctx: &mut EventCtx, _env: &Env) {
         if let BufferContent::File(buffer_path) = &self.buffer.content {
             let mut file_diagnostics = self
                 .main_split
@@ -1118,7 +1111,7 @@ impl LapceEditorBufferData {
     fn jump_location_forward(
         &mut self,
         ctx: &mut EventCtx,
-        env: &Env,
+        _env: &Env,
     ) -> Option<()> {
         if self.editor.locations.len() == 0 {
             return None;
@@ -1140,7 +1133,7 @@ impl LapceEditorBufferData {
     fn jump_location_backward(
         &mut self,
         ctx: &mut EventCtx,
-        env: &Env,
+        _env: &Env,
     ) -> Option<()> {
         if self.editor.current_location < 1 {
             return None;
@@ -1161,7 +1154,7 @@ impl LapceEditorBufferData {
         None
     }
 
-    fn page_move(&mut self, ctx: &mut EventCtx, down: bool, env: &Env) {
+    fn page_move(&mut self, ctx: &mut EventCtx, down: bool, _env: &Env) {
         let line_height = self.config.editor.line_height as f64;
         let lines =
             (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
@@ -1180,7 +1173,7 @@ impl LapceEditorBufferData {
         ));
     }
 
-    fn scroll(&mut self, ctx: &mut EventCtx, down: bool, count: usize, env: &Env) {
+    fn scroll(&mut self, ctx: &mut EventCtx, down: bool, count: usize, _env: &Env) {
         let line_height = self.config.editor.line_height as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
@@ -1468,7 +1461,7 @@ impl LapceEditorBufferData {
                         }
                     }
                 }
-                DiffLines::Skip(l, r) => {
+                DiffLines::Skip(_l, _r) => {
                     let rect = Size::new(self_size.width, line_height)
                         .to_rect()
                         .with_origin(Point::new(
@@ -1626,9 +1619,9 @@ impl LapceEditorBufferData {
                 let mut last_change = None;
                 for change in changes.iter() {
                     let len = match change {
-                        DiffLines::Left(range) => 0,
-                        DiffLines::Skip(left, right) => right.len(),
-                        DiffLines::Both(left, right) => right.len(),
+                        DiffLines::Left(_) => 0,
+                        DiffLines::Skip(_, right) => right.len(),
+                        DiffLines::Both(_, right) => right.len(),
                         DiffLines::Right(range) => range.len(),
                     };
                     line += len;
@@ -1752,7 +1745,6 @@ impl LapceEditorBufferData {
         }
         let self_size = ctx.size();
         let rect = ctx.region().bounding_box();
-        let last_line = self.buffer.last_line();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
 
@@ -2306,7 +2298,6 @@ impl LapceEditorBufferData {
             }
             CursorMode::Insert(selection) => {
                 let offset = selection.get_cursor_offset();
-                let line = self.buffer.line_of_offset(offset);
                 let last_line = self.buffer.last_line();
                 let end_line = if end_line > last_line {
                     last_line
@@ -2554,7 +2545,6 @@ impl LapceEditorBufferData {
                             (self.buffer.line_end_col(line, false) + 1) as f64
                                 * width
                         };
-                        let y1 = (line + 1) as f64 * line_height;
                         let y0 = (line + 1) as f64 * line_height - 4.0;
 
                         let severity = diagnostic
@@ -2897,7 +2887,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Some(horiz),
                         ));
                     }
-                    CursorMode::Visual { start, end, mode } => {
+                    CursorMode::Visual { start: _, end: _, mode: _ } => {
                         let mut selection = Selection::new();
                         for region in
                             self.editor.cursor.edit_selection(&self.buffer).regions()
@@ -2971,7 +2961,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_yank(data);
                 match &self.editor.cursor.mode {
-                    CursorMode::Visual { start, end, mode } => {
+                    CursorMode::Visual { start, end, mode: _ } => {
                         let offset = *start.min(end);
                         let offset =
                             self.buffer.offset_line_end(offset, false).min(offset);
@@ -2988,7 +2978,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let data = self.editor.cursor.yank(&self.buffer);
                 Application::global().clipboard().put_string(data.content);
                 match &self.editor.cursor.mode {
-                    CursorMode::Visual { start, end, mode } => {
+                    CursorMode::Visual { start, end, mode: _ } => {
                         let offset = *start.min(end);
                         let offset =
                             self.buffer.offset_line_end(offset, false).min(offset);
@@ -3805,7 +3795,7 @@ impl LapceEditorView {
     fn ensure_rect_visible(
         &mut self,
         ctx: &mut EventCtx,
-        data: &LapceEditorBufferData,
+        _data: &LapceEditorBufferData,
         rect: Rect,
         env: &Env,
     ) {
@@ -4024,7 +4014,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         ctx: &mut druid::UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         if old_data.config.lapce.modal != data.config.lapce.modal {
             if !data.config.lapce.modal {
@@ -4347,7 +4337,7 @@ impl LapceEditorContainer {
     pub fn ensure_rect_visible(
         &mut self,
         ctx: &mut EventCtx,
-        data: &LapceEditorViewData,
+        _data: &LapceEditorViewData,
         rect: Rect,
         env: &Env,
     ) {
@@ -4447,7 +4437,7 @@ impl Widget<LapceTabData> for LapceEditorContainer {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -4664,7 +4654,7 @@ impl LapceEditorHeader {
                 if data.buffer.dirty {
                     file_name = "*".to_string() + &file_name;
                 }
-                if let Some(compare) = data.editor.compare.as_ref() {
+                if let Some(_compare) = data.editor.compare.as_ref() {
                     file_name += " (Working tree)";
                 }
                 let text_layout = ctx
@@ -4739,8 +4729,8 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
+        _data: &mut LapceTabData,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -4762,28 +4752,28 @@ impl Widget<LapceTabData> for LapceEditorHeader {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         // ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
         if self.display {
@@ -4801,7 +4791,7 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         }
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         if !self.display {
             return;
         }
@@ -4826,28 +4816,28 @@ impl LapceEditorGutter {
 impl Widget<LapceTabData> for LapceEditorGutter {
     fn event(
         &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
         // let old_last_line = old_data.buffer.last_line() + 1;
         // let last_line = data.buffer.last_line() + 1;
@@ -4882,7 +4872,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let data = data.editor_view_content(self.view_id);
         let last_line = data.buffer.last_line() + 1;
@@ -4904,6 +4894,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
 pub struct LapceEditor {
     view_id: WidgetId,
     placeholder: Option<String>,
+    #[allow(unused)]
     commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
 }
 
@@ -4923,7 +4914,7 @@ impl Widget<LapceTabData> for LapceEditor {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         let buffer = data.main_split.editor_buffer(self.view_id);
         let editor = data.main_split.editors.get_mut(&self.view_id).unwrap();
@@ -4983,7 +4974,7 @@ impl Widget<LapceTabData> for LapceEditor {
                     ));
                 }
             }
-            Event::MouseUp(mouse_event) => {
+            Event::MouseUp(_) => {
                 ctx.set_active(false);
             }
             Event::MouseDown(mouse_event) => {
@@ -5013,7 +5004,7 @@ impl Widget<LapceTabData> for LapceEditor {
                             editor.cursor.horiz = None;
                         }
                     }
-                    CursorMode::Visual { start, end, mode } => {
+                    CursorMode::Visual { start, end: _, mode: _ } => {
                         if mouse_event.mods.shift() {
                             editor.cursor = Cursor::new(
                                 CursorMode::Visual {
@@ -5106,19 +5097,19 @@ impl Widget<LapceTabData> for LapceEditor {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
         // let buffer = &data.buffer;
         // let old_buffer = &old_data.buffer;

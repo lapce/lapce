@@ -6,26 +6,25 @@ use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use git2::{DiffOptions, Oid, Repository};
+use git2::{DiffOptions, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcher;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::Searcher;
-use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::{CompletionItem, Position, TextDocumentContentChangeEvent};
 use notify::Watcher;
 use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use std::{cmp, fs};
-use std::{collections::HashMap, io};
+use std::collections::HashMap;
 use std::{collections::HashSet, io::BufRead};
-use std::{path::PathBuf, sync::atomic::AtomicBool};
-use std::{sync::atomic, thread};
-use std::{sync::Arc, time::Duration};
-use xi_rope::{RopeDelta, RopeInfo};
+use std::path::PathBuf;
+use std::thread;
+use std::sync::Arc;
+use xi_rope::RopeDelta;
 
 #[derive(Clone)]
 pub struct Dispatcher {
@@ -647,7 +646,7 @@ impl Dispatcher {
                     local_dispatcher.respond(id, result);
                 });
             }
-            Request::GetFiles { path } => {
+            Request::GetFiles { path: _ } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     let local_dispatcher = self.clone();
                     thread::spawn(move || {
@@ -669,7 +668,7 @@ impl Dispatcher {
             Request::Save { rev, buffer_id } => {
                 let mut buffers = self.buffers.lock();
                 let buffer = buffers.get_mut(&buffer_id).unwrap();
-                let resp = buffer.save(rev).map(|r| json!({}));
+                let resp = buffer.save(rev).map(|_| json!({}));
                 self.lsp.lock().save_buffer(buffer);
                 self.respond(id, resp);
             }
@@ -939,7 +938,7 @@ fn file_git_diff(
         .get_path(path.strip_prefix(workspace_path).ok()?)
         .ok()?;
     let blob = repo.find_blob(tree_entry.id()).ok()?;
-    let mut patch = git2::Patch::from_blob_and_buffer(
+    let patch = git2::Patch::from_blob_and_buffer(
         &blob,
         None,
         content.as_bytes(),

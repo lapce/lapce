@@ -1,14 +1,12 @@
 use std::str::FromStr;
-use std::{collections::HashMap, io::Read};
-use std::{fs::File, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
 use druid::{
-    Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers, Target, WidgetId,
-    WindowId,
+    Env, EventCtx, KeyEvent, Modifiers, Target
 };
-use druid::{Command, KbKey};
+use druid::Command;
 use indexmap::IndexMap;
 use toml;
 
@@ -16,17 +14,16 @@ use crate::command::{
     lapce_internal_commands, CommandExecuted, CommandTarget, LapceCommandNew,
     LAPCE_NEW_COMMAND,
 };
-use crate::data::LapceTabData;
 use crate::{
     command::LapceCommand,
-    state::{LapceFocus, Mode},
+    state::Mode,
 };
 
-const default_keymaps_windows: &'static str =
+const DEFAULT_KEYMAPS_WINDOWS: &'static str =
     include_str!("../../defaults/keymaps-windows.toml");
-const default_keymaps_macos: &'static str =
+const DEFAULT_KEYMAPS_MACOS: &'static str =
     include_str!("../../defaults/keymaps-macos.toml");
-const default_keymaps_linux: &'static str =
+const DEFAULT_KEYMAPS_LINUX: &'static str =
     include_str!("../../defaults/keymaps-linux.toml");
 
 #[derive(PartialEq)]
@@ -49,9 +46,7 @@ impl KeyPress {
         mods.set(Modifiers::SHIFT, false);
         if mods.is_empty() {
             match &self.key {
-                druid::keyboard_types::Key::Character(c) => {
-                    return true;
-                }
+                druid::keyboard_types::Key::Character(_) => return true,
                 _ => (),
             }
         }
@@ -183,7 +178,7 @@ impl KeyPressData {
         }
         let mut mods = key_event.mods.clone();
         match &key_event.key {
-            druid::keyboard_types::Key::Character(c) => {
+            druid::keyboard_types::Key::Character(_) => {
                 mods.set(Modifiers::SHIFT, false);
             }
             _ => (),
@@ -385,11 +380,11 @@ impl KeyPressData {
 
     fn get_keymaps() -> Result<IndexMap<Vec<KeyPress>, Vec<KeyMap>>> {
         let mut keymaps_str = if std::env::consts::OS == "macos" {
-            default_keymaps_macos
+            DEFAULT_KEYMAPS_MACOS
         } else if std::env::consts::OS == "linux" {
-            default_keymaps_linux
+            DEFAULT_KEYMAPS_LINUX
         } else {
-            default_keymaps_windows
+            DEFAULT_KEYMAPS_WINDOWS
         }
         .to_string();
 
@@ -531,19 +526,19 @@ impl KeyPressFocus for DefaultKeyPressHandler {
         Mode::Normal
     }
 
-    fn check_condition(&self, condition: &str) -> bool {
+    fn check_condition(&self, _condition: &str) -> bool {
         false
     }
 
     fn run_command(
         &mut self,
-        ctx: &mut EventCtx,
-        command: &LapceCommand,
-        count: Option<usize>,
-        env: &Env,
+        _ctx: &mut EventCtx,
+        _command: &LapceCommand,
+        _count: Option<usize>,
+        _env: &Env,
     ) -> CommandExecuted {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }

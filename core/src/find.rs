@@ -1,5 +1,5 @@
 use regex::{Regex, RegexBuilder};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
 use xi_rope::{
     delta::DeltaRegion,

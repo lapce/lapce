@@ -1,26 +1,17 @@
-use crate::{command::LapceUICommand, state::LapceWorkspaceType};
 use anyhow::{anyhow, Result};
 use druid::{WidgetId, WindowId};
-use jsonrpc_lite::{Id, JsonRpc, Params};
-use lsp_types::SemanticTokensClientCapabilities;
+use jsonrpc_lite::Id;
 use parking_lot::Mutex;
 use std::{
     collections::HashMap,
     io::BufRead,
-    io::BufReader,
-    io::BufWriter,
     io::Write,
-    process::Command,
-    process::{self, Child, Stdio},
-    sync::mpsc::{channel, Receiver},
+    process::Child,
     sync::Arc,
-    thread,
-    time::Duration,
 };
-use xi_rope::RopeDelta;
 
 use lsp_types::*;
-use serde_json::{json, to_value, Value};
+use serde_json::Value;
 
 use crate::buffer::BufferId;
 

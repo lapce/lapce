@@ -1,57 +1,46 @@
-use std::{
-    cell::RefCell, convert::TryFrom, fmt::Debug, io::Read, ops::Index,
-    path::PathBuf, rc::Rc, sync::Arc,
-};
+use std::sync::Arc;
 
 use alacritty_terminal::{
-    ansi::{self, CursorShape, Handler},
-    config::Program,
-    event::{EventListener, Notify, OnResize},
-    event_loop::{EventLoop, Notifier},
+    ansi,
+    event::EventListener,
     grid::{Dimensions, Scroll},
     index::{Direction, Side},
-    selection::{Selection, SelectionRange, SelectionType},
-    sync::FairMutex,
+    selection::{Selection, SelectionType},
     term::{
-        cell::{Cell, Flags},
+        cell::Flags,
         search::RegexSearch,
-        RenderableCursor, SizeInfo, TermMode,
+        SizeInfo, TermMode,
     },
-    tty::{self, EventedReadWrite},
     vi_mode::ViMotion,
-    Grid, Term,
+    Term,
 };
-use anyhow::Result;
-use crossbeam_channel::{Receiver, Sender};
+
 use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     Application, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
     ExtEventSink, FontFamily, FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx,
-    Modifiers, MouseEvent, PaintCtx, Point, Rect, Region, RenderContext, Size,
+    Modifiers, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use hashbrown::HashMap;
-use itertools::Itertools;
 use lapce_proxy::terminal::TermId;
 use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
     command::{
-        CommandExecuted, CommandTarget, LapceCommand, LapceCommandNew,
-        LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandExecuted, LapceCommand,
+        LapceUICommand, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData, PanelKind},
     find::Find,
     keypress::KeyPressFocus,
     movement::{LinePosition, Movement},
-    palette::{NewPaletteItem, PaletteItem, PaletteItemContent},
     proxy::LapceProxy,
     scroll::LapcePadding,
     split::{LapceSplitNew, SplitMoveDirection},
-    state::{Counter, LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
+    state::{LapceWorkspace, Mode, VisualMode},
     svg::get_svg,
     tab::LapceIcon,
 };
@@ -74,7 +63,7 @@ pub struct TerminalSplitData {
 }
 
 impl TerminalSplitData {
-    pub fn new(proxy: Arc<LapceProxy>) -> Self {
+    pub fn new(_proxy: Arc<LapceProxy>) -> Self {
         let split_id = WidgetId::next();
         let terminals = im::HashMap::new();
 
@@ -130,7 +119,7 @@ impl TerminalSplitData {
                 if let Some(rgb) = colors[*index as usize] {
                     return Color::rgb8(rgb.r, rgb.g, rgb.b);
                 }
-                const named_colors: [ansi::NamedColor; 16] = [
+                const NAMED_COLORS: [ansi::NamedColor; 16] = [
                     ansi::NamedColor::Black,
                     ansi::NamedColor::Red,
                     ansi::NamedColor::Green,
@@ -148,8 +137,8 @@ impl TerminalSplitData {
                     ansi::NamedColor::BrightCyan,
                     ansi::NamedColor::BrightWhite,
                 ];
-                if (*index as usize) < named_colors.len() {
-                    self.get_named_color(&named_colors[*index as usize], config)
+                if (*index as usize) < NAMED_COLORS.len() {
+                    self.get_named_color(&NAMED_COLORS[*index as usize], config)
                 } else {
                     self.indexed_colors.get(index).map(|c| c.clone()).unwrap()
                 }
@@ -280,7 +269,7 @@ impl KeyPressFocus for LapceTerminalViewData {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         count: Option<usize>,
-        env: &Env,
+        _env: &Env,
     ) -> CommandExecuted {
         ctx.request_paint();
         if let Some(movement) = command.move_command(count) {
@@ -460,7 +449,7 @@ impl KeyPressFocus for LapceTerminalViewData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
+    fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         if self.terminal.mode == Mode::Terminal {
             self.terminal.proxy.terminal_write(self.terminal.term_id, c);
         }
@@ -794,7 +783,7 @@ impl Widget<LapceTabData> for LapceTerminalView {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -938,8 +927,8 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
+        _data: &mut LapceTabData,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -961,35 +950,35 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let self_size = Size::new(bc.max().width, self.height);
         self.icons = self.get_icons(self_size, data);
         self_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let mut clip_rect = ctx.size().to_rect();
         if self.view_is_hot {
             if let Some(icon) = self.icons.iter().rev().next().as_ref() {
@@ -1108,7 +1097,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             find: data.find.clone(),
         };
         match event {
-            Event::MouseDown(mouse_event) => {
+            Event::MouseDown(_mouse_event) => {
                 self.request_focus(ctx, data);
             }
             Event::Wheel(wheel_event) => {
@@ -1181,8 +1170,8 @@ impl Widget<LapceTabData> for LapceTerminal {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
         match event {
             LifeCycle::FocusChanged(_) => {
@@ -1194,10 +1183,10 @@ impl Widget<LapceTabData> for LapceTerminal {
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -1206,7 +1195,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let size = bc.max();
         if self.width != size.width || self.height != size.height {
@@ -1229,7 +1218,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let char_size = data.config.editor_text_size(ctx.text(), "W");
         let char_width = char_size.width;
         let line_height = data.config.editor.line_height as f64;

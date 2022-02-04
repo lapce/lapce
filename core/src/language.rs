@@ -1,10 +1,7 @@
-use anyhow::Context;
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
-use libloading::{Library, Symbol};
-use std::str::FromStr;
 use std::{collections::HashMap, path::PathBuf};
-use tree_sitter::{Language, Parser};
+use tree_sitter::Parser;
 use tree_sitter_highlight::HighlightConfiguration;
 
 pub const QUERIES_DIR: Dir = include_dir!("../runtime/queries");

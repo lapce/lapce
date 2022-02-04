@@ -1,24 +1,17 @@
 use druid::piet::Text;
 use druid::piet::TextLayout;
 use druid::piet::TextLayoutBuilder;
-use druid::theme;
 use druid::Color;
 use druid::Command;
 use druid::EventCtx;
 use druid::MouseEvent;
 use druid::Target;
-use druid::Vec2;
-use druid::{
-    kurbo::Line, Event, FontDescriptor, FontFamily, Point, RenderContext, Size,
-    Widget, WidgetId, WindowId,
-};
-use lsp_types::DiagnosticSeverity;
+use druid::{Event, FontFamily, Point, RenderContext, Size, Widget};
 
 use crate::command::CommandTarget;
 use crate::command::LapceCommandNew;
 use crate::command::LapceWorkbenchCommand;
 use crate::command::LAPCE_NEW_COMMAND;
-use crate::command::{LapceUICommand, LAPCE_UI_COMMAND};
 use crate::config::LapceTheme;
 use crate::data::FocusArea;
 use crate::data::LapceTabData;
@@ -27,7 +20,6 @@ use crate::panel::PanelPosition;
 use crate::state::Mode;
 use crate::svg::get_svg;
 use crate::tab::LapceIcon;
-use crate::theme::OldLapceTheme;
 
 pub struct LapceStatusNew {
     height: f64,
@@ -124,8 +116,8 @@ impl Widget<LapceTabData> for LapceStatusNew {
         &mut self,
         ctx: &mut druid::EventCtx,
         event: &Event,
-        data: &mut LapceTabData,
-        env: &druid::Env,
+        _: &mut LapceTabData,
+        _: &druid::Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -147,10 +139,10 @@ impl Widget<LapceTabData> for LapceStatusNew {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut druid::LifeCycleCtx,
-        event: &druid::LifeCycle,
-        data: &LapceTabData,
-        env: &druid::Env,
+        _: &mut druid::LifeCycleCtx,
+        _: &druid::LifeCycle,
+        _: &LapceTabData,
+        _: &druid::Env,
     ) {
     }
 
@@ -159,7 +151,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
         ctx: &mut druid::UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &druid::Env,
+        _: &druid::Env,
     ) {
         match (
             old_data.main_split.active_editor(),
@@ -189,10 +181,10 @@ impl Widget<LapceTabData> for LapceStatusNew {
 
     fn layout(
         &mut self,
-        ctx: &mut druid::LayoutCtx,
+        _: &mut druid::LayoutCtx,
         bc: &druid::BoxConstraints,
         data: &LapceTabData,
-        env: &druid::Env,
+        _: &druid::Env,
     ) -> Size {
         let self_size = Size::new(bc.max().width, self.height);
         self.panel_icons = self.panel_icons(self_size, data);
@@ -203,7 +195,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
         &mut self,
         ctx: &mut druid::PaintCtx,
         data: &LapceTabData,
-        env: &druid::Env,
+        _: &druid::Env,
     ) {
         let size = ctx.size();
         let rect = size.to_rect();

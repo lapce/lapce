@@ -1,11 +1,9 @@
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
-    theme,
-    widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll, SvgData},
-    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
+    BoxConstraints, Color, Cursor, Env, Event, EventCtx,
     FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2,
-    Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    PaintCtx, Point, RenderContext, Size, UpdateCtx,
+    Widget, WidgetId
 };
 use lapce_proxy::plugin::PluginDescription;
 use strum_macros::Display;
@@ -91,7 +89,7 @@ impl Widget<LapceTabData> for Plugin {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -112,33 +110,33 @@ impl Widget<LapceTabData> for Plugin {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceTabData,
-        env: &Env,
+        _data: &LapceTabData,
+        _env: &Env,
     ) -> Size {
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let line_height = data.config.editor.line_height as f64;
 
         let size = ctx.size();

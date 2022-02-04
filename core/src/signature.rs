@@ -1,8 +1,6 @@
 use lsp_types::ParameterLabel;
 use lsp_types::SignatureHelp;
-use tree_sitter::Node;
 
-use crate::command::LapceUICommand;
 
 #[derive(Clone)]
 pub struct SignatureState {

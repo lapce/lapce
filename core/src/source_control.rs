@@ -1,37 +1,29 @@
-use std::{net::ToSocketAddrs, path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use druid::{
     kurbo::BezPath,
-    piet::{
-        LineCap, LineJoin, RoundFrom, StrokeStyle, Text,
-        TextLayout as PietTextLayout, TextLayoutBuilder,
-    },
-    theme,
-    widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll},
-    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
-    FontDescriptor, FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
-    Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetExt,
-    WidgetId, WidgetPod, WindowId,
+    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
+    BoxConstraints, Color, Command, Env, Event, EventCtx,
+    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt,
+    WidgetId
 };
 use lapce_proxy::dispatch::FileDiff;
 
 use crate::{
     command::{
-        CommandExecuted, CommandTarget, LapceCommand, LapceUICommand,
+        CommandExecuted, LapceCommand, LapceUICommand,
         LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    editor::{LapceEditorContainer, LapceEditorView},
+    editor::LapceEditorView,
     keypress::KeyPressFocus,
     movement::Movement,
-    palette::svg_tree_size,
-    panel::{LapcePanel, PanelHeaderKind, PanelPosition, PanelProperty},
-    scroll::LapceScrollNew,
-    split::{LapceSplitNew, SplitDirection, SplitMoveDirection},
+    panel::{LapcePanel, PanelHeaderKind},
+    split::{SplitDirection, SplitMoveDirection},
     state::Mode,
     svg::{file_svg_new, get_svg},
-    theme::OldLapceTheme,
 };
 
 pub const SOURCE_CONTROL_BUFFER: &'static str = "[Source Control Buffer]";
@@ -122,8 +114,8 @@ impl KeyPressFocus for SourceControlData {
         &mut self,
         ctx: &mut EventCtx,
         command: &LapceCommand,
-        count: Option<usize>,
-        env: &Env,
+        _count: Option<usize>,
+        _env: &Env,
     ) -> CommandExecuted {
         match command {
             LapceCommand::SplitUp => {
@@ -182,7 +174,7 @@ impl KeyPressFocus for SourceControlData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn receive_char(&mut self, _: &mut EventCtx, _: &str) {}
 }
 
 pub struct SourceControlFileList {
@@ -220,7 +212,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
         env: &Env,
     ) {
         match event {
-            Event::MouseMove(mouse_event) => {
+            Event::MouseMove(_) => {
                 ctx.set_cursor(&druid::Cursor::Pointer);
                 ctx.set_handled();
             }
@@ -303,8 +295,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _: &LapceTabData,
+        _: &Env,
     ) {
         match event {
             LifeCycle::FocusChanged(_) => {
@@ -319,7 +311,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
         ctx: &mut UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _: &Env,
     ) {
         if data.source_control.file_diffs.len()
             != old_data.source_control.file_diffs.len()
@@ -330,17 +322,17 @@ impl Widget<LapceTabData> for SourceControlFileList {
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _: &Env,
     ) -> Size {
         let line_height = data.config.editor.line_height as f64;
         let height = line_height * data.source_control.file_diffs.len() as f64;
         Size::new(bc.max().width, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _: &Env) {
         let self_size = ctx.size();
 
         let line_height = data.config.editor.line_height as f64;

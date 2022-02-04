@@ -58,8 +58,8 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceWindowData,
-        env: &Env,
+        _data: &mut LapceWindowData,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -81,28 +81,28 @@ impl Widget<LapceWindowData> for Title {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceWindowData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceWindowData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceWindowData,
-        data: &LapceWindowData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceWindowData,
+        _data: &LapceWindowData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceWindowData,
-        env: &Env,
+        _data: &LapceWindowData,
+        _env: &Env,
     ) -> Size {
         Size::new(bc.max().width, 28.0)
     }

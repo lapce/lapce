@@ -4,10 +4,10 @@ use anyhow::Result;
 use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
-    theme, Color, Env, ExtEventSink, FontDescriptor, FontFamily, Key, Size, Target,
+    theme, Color, Env, ExtEventSink, FontFamily, Size, Target,
 };
 use hashbrown::HashMap;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::Deserialize;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -15,10 +15,10 @@ use crate::{
     state::{LapceWorkspace, LapceWorkspaceType},
 };
 
-const default_settings: &'static str = include_str!("../../defaults/settings.toml");
-const default_light_theme: &'static str =
+const DEFAULT_SETTINGS: &'static str = include_str!("../../defaults/settings.toml");
+const DEFAULT_LIGHT_THEME: &'static str =
     include_str!("../../defaults/light-theme.toml");
-const default_dark_theme: &'static str =
+const DEFAULT_DARK_THEME: &'static str =
     include_str!("../../defaults/dark-theme.toml");
 pub const LOGO: &'static str = include_str!("../../extra/images/logo.svg");
 
@@ -146,7 +146,7 @@ impl notify::EventHandler for ConfigWatcher {
 impl Config {
     pub fn load(workspace: &LapceWorkspace) -> Result<Self> {
         let mut settings = config::Config::default().with_merged(
-            config::File::from_str(default_settings, config::FileFormat::Toml),
+            config::File::from_str(DEFAULT_SETTINGS, config::FileFormat::Toml),
         )?;
 
         if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
@@ -167,11 +167,11 @@ impl Config {
 
         let mut config: Config = settings.try_into()?;
 
-        config.theme = get_theme(default_light_theme)?;
+        config.theme = get_theme(DEFAULT_LIGHT_THEME)?;
 
         let mut themes = HashMap::new();
-        themes.insert("Lapce Light".to_string(), get_theme(default_light_theme)?);
-        themes.insert("Lapce Dark".to_string(), get_theme(default_dark_theme)?);
+        themes.insert("Lapce Light".to_string(), get_theme(DEFAULT_LIGHT_THEME)?);
+        themes.insert("Lapce Dark".to_string(), get_theme(DEFAULT_DARK_THEME)?);
         config.themes = themes;
 
         Ok(config)

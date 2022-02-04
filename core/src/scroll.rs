@@ -1,4 +1,3 @@
-use std::f64::INFINITY;
 use std::time::Duration;
 
 use druid::{
@@ -298,6 +297,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
 }
 
 #[derive(Debug, Clone)]
+#[allow(unused)]
 enum ScrollDirection {
     Bidirectional,
     Vertical,
@@ -439,7 +439,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
                             println!("scroll request paint");
                             ctx.request_paint();
                         }
-                        LapceUICommand::EnsureVisible((rect, margin, position)) => {
+                        LapceUICommand::EnsureVisible((rect, margin, _position)) => {
                             if self.ensure_visible(ctx.size(), rect, margin) {
                                 ctx.request_paint();
                             }
@@ -500,7 +500,6 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
     ) -> Size {
         bc.debug_check("Scroll");
 
-        let old_size = self.clip.viewport().rect.size();
         let child_size = self.clip.layout(ctx, &bc, data, env);
 
         let self_size = bc.constrain(child_size);
@@ -1423,7 +1422,6 @@ impl ScrollComponentNew {
                 .with_alpha(self.opacity),
         );
 
-        let radius = env.get(theme::SCROLLBAR_RADIUS);
         let edge_width = env.get(theme::SCROLLBAR_EDGE_WIDTH);
 
         // Vertical bar
@@ -1750,7 +1748,7 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     ///
     /// If the target region is larger than the viewport, we will display the
     /// portion that fits, prioritizing the portion closest to the origin.
-    pub fn scroll_to_visible(&mut self, region: Rect, env: &Env) -> bool {
+    pub fn scroll_to_visible(&mut self, region: Rect, _env: &Env) -> bool {
         if self.clip.pan_to_visible(region) {
             true
         } else {

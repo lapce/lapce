@@ -3,27 +3,19 @@ use crate::{
     command::LAPCE_UI_COMMAND,
     config::{Config, LapceTheme},
     data::{LapceTabData, LapceTabLens, LapceWindowData},
-    editor::EditorUIState,
-    explorer::{FileExplorer, FileExplorerState},
     menu::Menu,
-    panel::{LapcePanel, PanelPosition, PanelProperty},
-    state::{LapceWorkspace, LapceWorkspaceType},
+    state::LapceWorkspace,
     tab::{LapceTabHeader, LapceTabNew},
-    theme::OldLapceTheme,
     title::Title,
 };
 use druid::{
     kurbo::Line,
-    piet::{Text, TextLayout, TextLayoutBuilder},
-    theme,
-    widget::IdentityWrapper,
     widget::{LensWrap, WidgetExt},
-    BoxConstraints, Command, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext,
-    Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod, WindowId,
+    BoxConstraints, Command, Env, Event, EventCtx, 
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext,
+    Size, Target, Widget, WidgetId, WidgetPod, 
 };
-use parking_lot::Mutex;
-use std::{collections::HashMap, ops::Index, sync::Arc};
+use std::sync::Arc;
 
 pub struct LapceWindowNew {
     pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
@@ -483,7 +475,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
 
             (tab_size, tab_origin)
         } else {
-            for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
+            for tab_header in self.tab_headers.iter_mut() {
                 let bc = BoxConstraints::tight(Size::new(self_size.width, 0.0));
                 tab_header.layout(ctx, &bc, data, env);
                 tab_header.set_origin(
@@ -517,8 +509,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
-        let start = std::time::SystemTime::now();
-
         let title_height = self.title.layout_rect().height();
 
         let tab_height = 25.0;

@@ -1,5 +1,5 @@
 use druid::{
-    AppLauncher, Env, LocalizedString, Size, Widget, WidgetExt, WindowDesc, WindowId,
+    AppLauncher, Env, LocalizedString, Size, Widget, WidgetExt, WindowDesc
 };
 
 use crate::{

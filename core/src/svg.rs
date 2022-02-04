@@ -1,17 +1,12 @@
-use std::{collections::HashMap, path::PathBuf, rc::Rc, str::FromStr, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc};
 
 use druid::{
-    kurbo::BezPath,
-    piet::{
-        self, FixedLinearGradient, GradientStop, LineCap, LineJoin, StrokeStyle, Svg,
-    },
-    Affine, Color, PaintCtx, Point, Rect, RenderContext, Size,
+    piet::Svg, Color
 };
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use lsp_types::{CompletionItemKind, SymbolKind};
 use parking_lot::Mutex;
-use usvg;
 
 use crate::config::{Config, LOGO};
 

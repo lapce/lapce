@@ -1,16 +1,14 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{unbounded, Sender};
 use directories::ProjectDirs;
-use druid::Vec2;
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     buffer::BufferContent,
-    data::{EditorContent, LapceData, LapceTabData, LapceWindowData},
-    movement::Cursor,
+    data::{LapceTabData, LapceWindowData},
     state::LapceWorkspace,
 };
 
@@ -58,10 +56,10 @@ impl LapceDb {
                 let event = save_rx.recv()?;
                 match event {
                     SaveEvent::Workspace(workspace, info) => {
-                        local_db.insert_workspace(&workspace, &info);
+                        local_db.insert_workspace(&workspace, &info)?;
                     }
                     SaveEvent::Tabs(info) => {
-                        local_db.insert_tabs(&info);
+                        local_db.insert_tabs(&info)?;
                     }
                 }
             }
@@ -138,7 +136,7 @@ impl LapceDb {
         &self,
         data: &LapceTabData,
     ) -> Result<(LapceWorkspace, WorkspaceInfo)> {
-        let path = data
+        let _ = data
             .workspace
             .path
             .as_ref()

@@ -1,28 +1,24 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
-    buffer::{BufferNew, UpdateEvent},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
-    data::{EditorContent, PanelKind},
+    config::LapceTheme,
+    data::PanelKind,
     editor::{EditorLocationNew, LapceEditorView},
     scroll::LapceScrollNew,
     split::SplitDirection,
     svg::file_svg_new,
 };
-use crossbeam_channel::Sender;
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
-    theme,
-    widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll, SvgData},
-    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx,
     FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2,
-    Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    PaintCtx, Point, RenderContext, Size, Target, UpdateCtx,
+    Widget, WidgetExt, WidgetId,
 };
 
 use crate::{
-    data::{LapceEditorData, LapceTabData},
+    data::LapceTabData,
     panel::{LapcePanel, PanelHeaderKind},
     split::LapceSplitNew,
 };
@@ -106,7 +102,7 @@ impl SearchContent {
                 continue;
             }
 
-            for (line_number, (start, end), line) in matches {
+            for (line_number, (_start, _end), _line) in matches {
                 i += 1;
                 if i == n {
                     ctx.submit_command(Command::new(
@@ -139,7 +135,7 @@ impl Widget<LapceTabData> for SearchContent {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -156,10 +152,10 @@ impl Widget<LapceTabData> for SearchContent {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -168,7 +164,7 @@ impl Widget<LapceTabData> for SearchContent {
         ctx: &mut UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         if !old_data.search.matches.same(&data.search.matches) {
             ctx.request_layout();
@@ -177,10 +173,10 @@ impl Widget<LapceTabData> for SearchContent {
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let line_height = data.config.editor.line_height as f64;
         let n = data
@@ -193,7 +189,7 @@ impl Widget<LapceTabData> for SearchContent {
         Size::new(bc.max().width, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let line_height = data.config.editor.line_height as f64;
 
         if ctx.is_hot() {

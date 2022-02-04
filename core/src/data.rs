@@ -1,81 +1,73 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
-    fs::File,
-    io::{BufReader, Read},
     path::PathBuf,
-    process::{self, Stdio},
     rc::Rc,
     str::FromStr,
-    sync::{atomic::AtomicU64, Arc},
+    sync::Arc,
     thread,
-    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
-use crossbeam_utils::sync::WaitGroup;
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::{ProjectDirs, UserDirs};
 use druid::{
-    piet::{PietText, Svg, Text},
+    piet::{PietText, Svg},
     theme,
-    widget::{Label, LabelText},
-    Application, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
-    FontFamily, Insets, KeyEvent, Lens, LocalizedString, Point, Rect, Size, Target,
+    Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
+    FontFamily, Lens, Point, Rect, Size, Target,
     TextLayout, Vec2, WidgetId, WindowId,
 };
-use im::{self, hashmap};
-use itertools::Itertools;
+use im;
 use lapce_proxy::{dispatch::FileDiff, plugin::PluginDescription, terminal::TermId};
 use lsp_types::{
-    CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
-    CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
-    Location, Position, ProgressToken, TextEdit, WorkspaceClientCapabilities,
+    CodeActionOrCommand, CodeActionResponse, CompletionItem,
+    CompletionTextEdit, Diagnostic, DiagnosticSeverity,
+    Location, Position, ProgressToken, TextEdit,
 };
 use notify::Watcher;
-use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tree_sitter::{Node, Parser};
+use tree_sitter::Parser;
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
 use xi_rope::{
-    spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta, Transformer,
+    spans::SpansBuilder, Interval, RopeDelta, Transformer,
 };
 
 use crate::{
     buffer::{
-        get_word_property, has_unmatched_pair, matching_char,
-        matching_pair_direction, previous_has_unmatched_pair, BufferContent,
-        BufferId, BufferNew, BufferState, BufferUpdate, EditType, LocalBufferKind,
-        Style, UpdateEvent, WordProperty,
+        has_unmatched_pair, matching_char,
+        matching_pair_direction, BufferContent,
+        BufferNew, BufferUpdate, EditType, LocalBufferKind,
+        Style, UpdateEvent,
     },
     command::{
-        CommandTarget, EnsureVisiblePosition, LapceCommand, LapceCommandNew,
-        LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_NEW_COMMAND,
+        CommandTarget, EnsureVisiblePosition, LapceCommandNew,
+        LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    completion::{CompletionData, CompletionStatus, Snippet},
-    config::{Config, ConfigWatcher, GetConfig, LapceTheme},
+    completion::{CompletionData, Snippet},
+    config::{Config, ConfigWatcher, GetConfig},
     db::{LapceDb, WorkspaceInfo},
     editor::{EditorLocationNew, LapceEditorBufferData},
     explorer::FileExplorerData,
     find::Find,
-    keypress::{KeyPressData, KeyPressFocus},
+    keypress::KeyPressData,
     language::{new_highlight_config, new_parser, LapceLanguage, SCOPES},
     menu::MenuData,
     movement::{
-        Cursor, CursorMode, InsertDrift, LinePosition, Movement, SelRegion,
+        Cursor, CursorMode, InsertDrift, Movement, SelRegion,
         Selection,
     },
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
     plugin::PluginData,
     problem::ProblemData,
-    proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
+    proxy::{LapceProxy, TermEvent},
     search::SearchData,
-    source_control::{SourceControlData, SEARCH_BUFFER, SOURCE_CONTROL_BUFFER},
+    source_control::SourceControlData,
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     svg::get_svg,
     terminal::TerminalSplitData,

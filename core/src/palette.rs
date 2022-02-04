@@ -1,65 +1,53 @@
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use bit_vec::BitVec;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
-    kurbo::{Line, Rect},
+    kurbo::Rect,
     piet::{Svg, TextAttribute},
-    widget::Container,
-    widget::FillStrat,
-    widget::IdentityWrapper,
-    widget::SvgData,
-    Affine, Command, ExtEventSink, FontFamily, FontWeight, Insets, KeyEvent, Lens,
-    Target, Vec2, WidgetId, WindowId,
+
+    Command, ExtEventSink, FontFamily, FontWeight, Lens,
+    Target, WidgetId, WindowId,
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    theme, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, TextLayout, UpdateCtx,
+    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx,
     Widget, WidgetExt, WidgetPod,
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use fzyr::{has_match, locate, Score};
+use fzyr::Score;
 use itertools::Itertools;
-use lapce_proxy::terminal::TermId;
 use lsp_types::{DocumentSymbolResponse, Location, Position, Range, SymbolKind};
-use serde_json::{self, json, Value};
-use std::fs::{self, DirEntry};
-use std::marker::PhantomData;
+use serde_json;
 use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::{cmp::Ordering, mem::size_of_val};
-use strum::{EnumMessage, IntoEnumIterator};
+use std::sync::Arc;
+use std::cmp::Ordering;
 use usvg;
 use uuid::Uuid;
 
 use crate::{
     buffer::BufferContent,
-    command::LAPCE_COMMAND,
     command::LAPCE_UI_COMMAND,
-    command::{CommandExecuted, CommandTarget, LapceCommand, LAPCE_NEW_COMMAND},
+    command::{CommandExecuted, LapceCommand, LAPCE_NEW_COMMAND},
     command::{LapceCommandNew, LapceUICommand},
     config::{Config, LapceTheme},
     data::{
-        EditorContent, FocusArea, LapceEditorData, LapceEditorViewData,
+        FocusArea, LapceEditorData,
         LapceMainSplitData, LapceTabData, PanelKind,
     },
-    editor::{EditorLocationNew, LapceEditorContainer, LapceEditorView},
+    editor::{EditorLocationNew, LapceEditorView},
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
     proxy::LapceProxy,
-    scroll::{LapceIdentityWrapper, LapceScroll, LapceScrollNew},
-    state::LapceFocus,
+    scroll::{LapceIdentityWrapper, LapceScrollNew},
     state::LapceWorkspace,
     state::LapceWorkspaceType,
     state::Mode,
     svg::{file_svg_new, symbol_svg_new},
     terminal::TerminalSplitData,
-    theme::OldLapceTheme,
 };
 
 #[derive(Clone, Debug, PartialEq)]
