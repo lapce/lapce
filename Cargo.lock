@@ -2213,6 +2213,7 @@ dependencies = [
  "mio 0.6.23",
  "notify 5.0.0-pre.13",
  "parking_lot 0.11.2",
+ "regex",
  "reqwest",
  "serde 1.0.130",
  "serde_json",

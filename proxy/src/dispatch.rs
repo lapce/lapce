@@ -8,9 +8,9 @@ use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use git2::{DiffOptions, Oid, Repository};
 use grep_matcher::Matcher;
-use grep_regex::RegexMatcher;
+use grep_regex::{RegexMatcher, RegexMatcherBuilder};
 use grep_searcher::sinks::UTF8;
-use grep_searcher::Searcher;
+use grep_searcher::{Searcher, SearcherBuilder};
 use jsonrpc_lite::{self, JsonRpc};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::{CompletionItem, Position, TextDocumentContentChangeEvent};
@@ -677,32 +677,43 @@ impl Dispatcher {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     let local_dispatcher = self.clone();
                     thread::spawn(move || {
-                        let matcher = RegexMatcher::new(&pattern).unwrap();
                         let mut matches = HashMap::new();
-                        for result in ignore::Walk::new(workspace) {
-                            if let Ok(path) = result {
-                                if let Some(file_type) = path.file_type() {
-                                    if file_type.is_file() {
-                                        let path = path.into_path();
-                                        let mut line_matches = Vec::new();
-                                        Searcher::new().search_path(
-                                            &matcher,
-                                            path.clone(),
-                                            UTF8(|lnum, line| {
-                                                let mymatch = matcher
-                                                    .find(line.as_bytes())?
-                                                    .unwrap();
-                                                line_matches.push((
-                                                    lnum,
-                                                    (mymatch.start(), mymatch.end()),
-                                                    line.to_string(),
-                                                ));
-                                                Ok(true)
-                                            }),
-                                        );
-                                        if line_matches.len() > 0 {
-                                            matches
-                                                .insert(path.clone(), line_matches);
+                        let pattern = regex::escape(&pattern);
+                        if let Ok(matcher) = RegexMatcherBuilder::new()
+                            .case_insensitive(true)
+                            .build_literals(&[&pattern])
+                        {
+                            let mut searcher = SearcherBuilder::new().build();
+                            for result in ignore::Walk::new(workspace) {
+                                if let Ok(path) = result {
+                                    if let Some(file_type) = path.file_type() {
+                                        if file_type.is_file() {
+                                            let path = path.into_path();
+                                            let mut line_matches = Vec::new();
+                                            searcher.search_path(
+                                                &matcher,
+                                                path.clone(),
+                                                UTF8(|lnum, line| {
+                                                    let mymatch = matcher
+                                                        .find(line.as_bytes())?
+                                                        .unwrap();
+                                                    line_matches.push((
+                                                        lnum,
+                                                        (
+                                                            mymatch.start(),
+                                                            mymatch.end(),
+                                                        ),
+                                                        line.to_string(),
+                                                    ));
+                                                    Ok(true)
+                                                }),
+                                            );
+                                            if line_matches.len() > 0 {
+                                                matches.insert(
+                                                    path.clone(),
+                                                    line_matches,
+                                                );
+                                            }
                                         }
                                     }
                                 }
