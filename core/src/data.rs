@@ -6,6 +6,7 @@ use std::{
     path::PathBuf,
     process::{self, Stdio},
     rc::Rc,
+    slice::SliceIndex,
     str::FromStr,
     sync::{atomic::AtomicU64, Arc},
     thread,
@@ -1304,7 +1305,7 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SplitContent {
     Editor(WidgetId),
     Split(WidgetId),
@@ -1381,26 +1382,6 @@ pub struct LapceMainSplitData {
 }
 
 impl LapceMainSplitData {
-    // pub fn editor_kind(&self, kind: &EditorKind) -> &LapceEditorData {
-    //     match kind {
-    //         EditorKind::PalettePreview => {
-    //             self.editors.get(&self.palette_preview_editor).unwrap()
-    //         }
-    //         EditorKind::SplitActive => self.editors.get(&self.active).unwrap(),
-    //     }
-    // }
-
-    // pub fn editor_kind_mut(&mut self, kind: &EditorKind) -> &mut LapceEditorData {
-    //     match kind {
-    //         EditorKind::PalettePreview => Arc::make_mut(
-    //             self.editors.get_mut(&self.palette_preview_editor).unwrap(),
-    //         ),
-    //         EditorKind::SplitActive => {
-    //             Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
-    //         }
-    //     }
-    // }
-
     pub fn active_editor(&self) -> Option<&LapceEditorData> {
         match *self.active {
             Some(active) => match self.editors.get(&active) {
@@ -1597,18 +1578,27 @@ impl LapceMainSplitData {
                     Arc::make_mut(self.editors.get_mut(&active).unwrap())
                 }
                 None => {
+                    let split = self.splits.get_mut(&self.split_id).unwrap();
+                    let split = Arc::make_mut(split);
+
                     let editor = Arc::new(LapceEditorData::new(
                         None,
                         Some(*self.split_id),
                         BufferContent::Local(LocalBufferKind::Empty),
                         config,
                     ));
+                    split.children.push(SplitContent::Editor(editor.view_id));
                     self.editors.insert(editor.view_id, editor.clone());
                     self.active = Arc::new(Some(editor.view_id));
+                    println!("create new editor");
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitAddEditor(editor.view_id),
-                        Target::Widget(*self.split_id),
+                        LapceUICommand::SplitAdd(
+                            0,
+                            SplitContent::Editor(editor.view_id),
+                            true,
+                        ),
+                        Target::Widget(split.widget_id),
                     ));
                     Arc::make_mut(self.editors.get_mut(&editor.view_id).unwrap())
                 }
@@ -1775,6 +1765,12 @@ impl LapceMainSplitData {
         let mut open_files = im::HashMap::new();
         let mut editors = im::HashMap::new();
         let mut editors_order = Vec::new();
+        let mut splits = im::HashMap::new();
+        let mut split_data = SplitData {
+            widget_id: *split_id,
+            children: Vec::new(),
+            direction: SplitDirection::Vertical,
+        };
 
         let mut active = None;
         if let Some(info) = workspace_info {
@@ -1821,6 +1817,9 @@ impl LapceMainSplitData {
                     BufferContent::Local(_) => {}
                 }
                 editors_order.push(editor.view_id);
+                split_data
+                    .children
+                    .push(SplitContent::Editor(editor.view_id));
                 editors.insert(editor.view_id, Arc::new(editor));
             }
             for (path, locations) in positions.into_iter() {
@@ -1833,18 +1832,7 @@ impl LapceMainSplitData {
             }
         }
 
-        // if editors.len() == 0 {
-        //     let editor = LapceEditorData::new(
-        //         None,
-        //         Some(*split_id),
-        //         EditorContent::None,
-        //         EditorType::Normal,
-        //         config,
-        //     );
-        //     active = editor.view_id;
-        //     editors_order.push(editor.view_id);
-        //     editors.insert(editor.view_id, Arc::new(editor));
-        // }
+        splits.insert(split_data.widget_id, Arc::new(split_data));
 
         let path = PathBuf::from("[Palette Preview Editor]");
         let editor = LapceEditorData::new(
@@ -1879,7 +1867,7 @@ impl LapceMainSplitData {
             split_id,
             editors,
             editors_order: Arc::new(editors_order),
-            splits: im::HashMap::new(),
+            splits,
             open_files,
             local_buffers,
             active: Arc::new(active),
@@ -1922,7 +1910,12 @@ impl LapceMainSplitData {
         self.editors.insert(editor.view_id, Arc::new(editor));
     }
 
-    pub fn split_editor(&mut self, view_id: WidgetId, direction: SplitDirection) {
+    pub fn split_editor(
+        &mut self,
+        ctx: &mut EventCtx,
+        view_id: WidgetId,
+        direction: SplitDirection,
+    ) {
         let editor = self.editors.get(&view_id).unwrap();
         if let Some(split_id) = editor.split_id.as_ref() {
             let split = self.splits.get_mut(split_id).unwrap();
@@ -1945,7 +1938,16 @@ impl LapceMainSplitData {
                 new_editor.split_id = Some(split.widget_id);
                 split
                     .children
-                    .insert(index, SplitContent::Editor(new_editor.view_id));
+                    .insert(index + 1, SplitContent::Editor(new_editor.view_id));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitAdd(
+                        index,
+                        SplitContent::Editor(new_editor.view_id),
+                        false,
+                    ),
+                    Target::Widget(*split_id),
+                ));
             } else {
                 let new_split = SplitData {
                     widget_id: WidgetId::next(),
@@ -1954,7 +1956,16 @@ impl LapceMainSplitData {
                 };
                 split
                     .children
-                    .insert(index, SplitContent::Split(new_split.widget_id));
+                    .insert(index + 1, SplitContent::Split(new_split.widget_id));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitAdd(
+                        index,
+                        SplitContent::Split(new_split.widget_id),
+                        false,
+                    ),
+                    Target::Widget(*split_id),
+                ));
             }
             self.editors
                 .insert(new_editor.view_id, Arc::new(new_editor));

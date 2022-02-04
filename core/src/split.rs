@@ -543,6 +543,53 @@ impl LapceSplitNew {
         ctx.children_changed();
     }
 
+    pub fn split_add(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        index: usize,
+        content: &SplitContent,
+        focus_new: bool,
+    ) {
+        match content {
+            SplitContent::Editor(view_id) => {
+                let editor = LapceEditorView::new(*view_id);
+                let new_index = if self.children.len() == 0 {
+                    0
+                } else {
+                    index + 1
+                };
+                self.insert_flex_child(
+                    new_index,
+                    editor.boxed(),
+                    Some(*view_id),
+                    1.0,
+                );
+                self.even_flex_children();
+                ctx.children_changed();
+
+                let editor = data.main_split.editors.get(view_id).unwrap();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ForceScrollTo(
+                        editor.scroll_offset.x,
+                        editor.scroll_offset.y,
+                    ),
+                    Target::Widget(*view_id),
+                ));
+
+                if focus_new {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(*view_id),
+                    ));
+                }
+            }
+            SplitContent::Split(_) => {}
+        }
+    }
+
     pub fn split_add_editor(
         &mut self,
         ctx: &mut EventCtx,
@@ -678,6 +725,9 @@ impl Widget<LapceTabData> for LapceSplitNew {
                         ctx.request_focus();
                         data.focus = self.split_id;
                         data.focus_area = FocusArea::Editor;
+                    }
+                    LapceUICommand::SplitAdd(usize, content, focus_new) => {
+                        self.split_add(ctx, data, *usize, content, *focus_new);
                     }
                     LapceUICommand::SplitAddEditor(widget_id) => {
                         self.split_add_editor(ctx, data, *widget_id);

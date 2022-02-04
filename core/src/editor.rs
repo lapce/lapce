@@ -21,7 +21,7 @@ use crate::proxy::LapceProxy;
 use crate::scroll::LapceIdentityWrapper;
 use crate::signature::SignatureState;
 use crate::source_control::SourceControlData;
-use crate::split::LapceSplitNew;
+use crate::split::{LapceSplitNew, SplitDirection};
 use crate::state::LapceWorkspace;
 use crate::svg::{file_svg_new, get_svg, logo_svg};
 use crate::tab::LapceIcon;
@@ -2802,15 +2802,11 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::SplitVertical => {
-                if let Some(split_id) = self.editor.split_id.clone() {
-                    if let BufferContent::File(_) = &self.editor.content {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::SplitEditor(true, self.editor.view_id),
-                            Target::Widget(split_id),
-                        ));
-                    }
-                }
+                self.main_split.split_editor(
+                    ctx,
+                    self.view_id,
+                    SplitDirection::Vertical,
+                );
             }
             LapceCommand::SplitClose => {
                 if let Some(split_id) = self.editor.split_id.clone() {

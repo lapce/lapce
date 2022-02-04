@@ -23,6 +23,7 @@ use xi_rope::{spans::Spans, Rope};
 use crate::{
     buffer::BufferId,
     buffer::{DiffLines, InvalLines, Style},
+    data::SplitContent,
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
     menu::MenuItem,
     movement::{LinePosition, Movement},
@@ -547,6 +548,7 @@ pub enum LapceUICommand {
     SplitExchange,
     SplitClose,
     SplitMove(SplitMoveDirection),
+    SplitAdd(usize, SplitContent, bool),
     JumpToPosition(Option<WidgetId>, Position),
     JumpToLine(Option<WidgetId>, usize),
     JumpToLocation(Option<WidgetId>, EditorLocationNew),
