@@ -1,9 +1,8 @@
-use anyhow::{anyhow, Result};
-use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
-use jsonrpc_lite::JsonRpc;
+use anyhow::Result;
+use crossbeam_channel::{Receiver, Sender};
 use serde_json::Value;
 use std::{
-    io::{self, stdin, stdout, BufRead, BufReader, Read, Stdin, Stdout, Write},
+    io::{self, BufRead, Write},
     thread,
 };
 

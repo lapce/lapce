@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
-use jsonrpc_lite::JsonRpc;
 use parking_lot::Mutex;
 pub use parse::Call;
 pub use parse::RequestId;
@@ -19,7 +18,6 @@ pub use parse::RpcObject;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use serde_json::Value;
-use stdio::IoThreads;
 
 pub use stdio::stdio_transport;
 
