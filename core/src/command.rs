@@ -28,7 +28,7 @@ use crate::{
     menu::MenuItem,
     movement::{LinePosition, Movement},
     palette::{NewPaletteItem, PaletteType},
-    split::SplitMoveDirection,
+    split::{SplitDirection, SplitMoveDirection},
     state::LapceWorkspace,
 };
 
@@ -539,7 +539,6 @@ pub enum LapceUICommand {
     CloseTerminal(TermId),
     SplitTerminal(bool, WidgetId),
     SplitTerminalClose(TermId, WidgetId),
-    SplitAddEditor(WidgetId),
     SplitEditor(bool, WidgetId),
     SplitEditorMove(SplitMoveDirection, WidgetId),
     SplitEditorExchange(WidgetId),
@@ -549,6 +548,8 @@ pub enum LapceUICommand {
     SplitClose,
     SplitMove(SplitMoveDirection),
     SplitAdd(usize, SplitContent, bool),
+    SplitReplace(usize, SplitContent),
+    SplitChangeDirectoin(SplitDirection),
     JumpToPosition(Option<WidgetId>, Position),
     JumpToLine(Option<WidgetId>, usize),
     JumpToLocation(Option<WidgetId>, EditorLocationNew),

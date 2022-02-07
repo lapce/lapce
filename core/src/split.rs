@@ -90,21 +90,6 @@ impl Widget<LapceTabData> for LapceDynamicSplit {
         data: &LapceTabData,
         env: &Env,
     ) {
-        let split = data.main_split.splits.get(&self.widget_id).unwrap();
-        if !split.same(&old_data.main_split.splits.get(&self.widget_id).unwrap()) {
-            self.children = split
-                .children
-                .iter()
-                .map(|child| ChildWidgetNew {
-                    widget: WidgetPod::new(child.widget()),
-                    flex: true,
-                    params: 1.0,
-                    layout_rect: Rect::ZERO,
-                })
-                .collect();
-            ctx.children_changed();
-            ctx.request_layout();
-        }
     }
 
     fn layout(
@@ -245,22 +230,35 @@ impl LapceSplitNew {
         self
     }
 
+    pub fn replace_child(
+        &mut self,
+        index: usize,
+        child: Box<dyn Widget<LapceTabData>>,
+    ) {
+        let old_id = self.children[index].widget.id();
+        let old_child = &mut self.children[index];
+        old_child.widget = WidgetPod::new(child);
+        let new_id = old_child.widget.id();
+        self.children_ids[index] = new_id;
+    }
+
     pub fn insert_flex_child(
         &mut self,
         index: usize,
         child: Box<dyn Widget<LapceTabData>>,
         child_id: Option<WidgetId>,
         params: f64,
-    ) {
+    ) -> WidgetId {
         let child = ChildWidgetNew {
             widget: WidgetPod::new(child),
             flex: true,
             params,
             layout_rect: Rect::ZERO,
         };
-        self.children_ids
-            .insert(index, child_id.unwrap_or(child.widget.id()));
+        let child_id = child_id.unwrap_or(child.widget.id());
+        self.children_ids.insert(index, child_id);
         self.children.insert(index, child);
+        child_id
     }
 
     pub fn even_flex_children(&mut self) {
@@ -543,6 +541,44 @@ impl LapceSplitNew {
         ctx.children_changed();
     }
 
+    pub fn split_replace(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        index: usize,
+        content: &SplitContent,
+    ) {
+        match content {
+            SplitContent::EditorTab(_) => {}
+            SplitContent::Editor(_) => {}
+            SplitContent::Split(split_id) => {
+                let new_split_data = data.main_split.splits.get(split_id).unwrap();
+                let mut new_split = LapceSplitNew::new(*split_id)
+                    .direction(new_split_data.direction);
+
+                let first_child_id = new_split.insert_flex_child(
+                    0,
+                    new_split_data.children[0].widget(data, ctx),
+                    None,
+                    1.0,
+                );
+                new_split.insert_flex_child(
+                    1,
+                    new_split_data.children[1].widget(data, ctx),
+                    None,
+                    1.0,
+                );
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(first_child_id),
+                ));
+                self.replace_child(index, new_split.boxed());
+                ctx.children_changed();
+            }
+        }
+    }
+
     pub fn split_add(
         &mut self,
         ctx: &mut EventCtx,
@@ -552,8 +588,9 @@ impl LapceSplitNew {
         focus_new: bool,
     ) {
         match content {
+            SplitContent::EditorTab(widget_id) => {}
             SplitContent::Editor(view_id) => {
-                let editor = LapceEditorView::new(*view_id);
+                let editor = content.widget(data, ctx);
                 let new_index = if self.children.len() == 0 {
                     0
                 } else {
@@ -568,16 +605,6 @@ impl LapceSplitNew {
                 self.even_flex_children();
                 ctx.children_changed();
 
-                let editor = data.main_split.editors.get(view_id).unwrap();
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ForceScrollTo(
-                        editor.scroll_offset.x,
-                        editor.scroll_offset.y,
-                    ),
-                    Target::Widget(*view_id),
-                ));
-
                 if focus_new {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -588,26 +615,6 @@ impl LapceSplitNew {
             }
             SplitContent::Split(_) => {}
         }
-    }
-
-    pub fn split_add_editor(
-        &mut self,
-        ctx: &mut EventCtx,
-        data: &mut LapceTabData,
-        widget_id: WidgetId,
-    ) {
-        let editor_data = data.main_split.editors.get(&widget_id).unwrap();
-        let editor = LapceEditorView::new(editor_data.view_id);
-        self.insert_flex_child(0, editor.boxed(), Some(editor_data.view_id), 1.0);
-        self.even_flex_children();
-        ctx.children_changed();
-        data.main_split.editors_order = Arc::new(self.children_ids.clone());
-
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::Focus,
-            Target::Widget(widget_id),
-        ));
     }
 
     pub fn split_editor(
@@ -672,9 +679,6 @@ impl Widget<LapceTabData> for LapceSplitNew {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        for child in self.children.iter_mut() {
-            child.widget.event(ctx, event, data, env);
-        }
         match event {
             Event::MouseMove(mouse_event) => {
                 if self.children.len() == 0 {
@@ -729,8 +733,11 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     LapceUICommand::SplitAdd(usize, content, focus_new) => {
                         self.split_add(ctx, data, *usize, content, *focus_new);
                     }
-                    LapceUICommand::SplitAddEditor(widget_id) => {
-                        self.split_add_editor(ctx, data, *widget_id);
+                    LapceUICommand::SplitReplace(usize, content) => {
+                        self.split_replace(ctx, data, *usize, content);
+                    }
+                    LapceUICommand::SplitChangeDirectoin(direction) => {
+                        self.direction = *direction;
                     }
                     LapceUICommand::SplitEditor(vertical, widget_id) => {
                         self.split_editor(ctx, data, *vertical, *widget_id);
@@ -783,8 +790,12 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     }
                     _ => (),
                 }
+                return;
             }
             _ => (),
+        }
+        for child in self.children.iter_mut() {
+            child.widget.event(ctx, event, data, env);
         }
     }
 

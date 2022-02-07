@@ -557,6 +557,16 @@ command = "split_up"
 mode = "n"
 
 [[keymaps]]
+key = "ctrl+w s"
+command = "split_horizontal"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w v"
+command = "split_vertical"
+mode = "n"
+
+[[keymaps]]
 key = "meta+h"
 command = "split_left"
 mode = "nt"

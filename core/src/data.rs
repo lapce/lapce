@@ -77,7 +77,7 @@ use crate::{
     proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
     search::SearchData,
     source_control::{SourceControlData, SEARCH_BUFFER, SOURCE_CONTROL_BUFFER},
-    split::{LapceDynamicSplit, SplitDirection},
+    split::{LapceDynamicSplit, LapceSplitNew, SplitDirection},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     svg::get_svg,
     terminal::TerminalSplitData,
@@ -1305,25 +1305,74 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     }
 }
 
-#[derive(Clone, Debug)]
+pub enum ChildKind {
+    Split(SplitDirection),
+    EditorTab,
+    Editor,
+    Terminal,
+}
+
+pub struct ChildContent {
+    widget_id: WidgetId,
+    parent: Option<WidgetId>,
+    kind: ChildKind,
+}
+
+pub enum ParentKind {
+    Split(SplitDirection),
+    EditorTab,
+}
+
+pub struct ParentContent {
+    widget_id: WidgetId,
+    kind: ParentKind,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum SplitContent {
+    EditorTab(WidgetId),
     Editor(WidgetId),
     Split(WidgetId),
 }
 
 impl SplitContent {
-    pub fn widget(&self) -> Box<dyn Widget<LapceTabData>> {
+    pub fn widget(
+        &self,
+        data: &LapceTabData,
+        ctx: &mut EventCtx,
+    ) -> Box<dyn Widget<LapceTabData>> {
         match &self {
-            SplitContent::Editor(view_id) => LapceEditorView::new(*view_id).boxed(),
-            SplitContent::Split(widget_id) => {
-                LapceDynamicSplit::new(*widget_id).boxed()
+            SplitContent::EditorTab(widget_id) => todo!(),
+            SplitContent::Editor(view_id) => {
+                let editor = data.main_split.editors.get(view_id).unwrap();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ForceScrollTo(
+                        editor.scroll_offset.x,
+                        editor.scroll_offset.y,
+                    ),
+                    Target::Widget(*view_id),
+                ));
+                LapceEditorView::new(*view_id).boxed()
             }
+            SplitContent::Split(widget_id) => LapceSplitNew::new(*widget_id).boxed(),
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum EditorSplitContent {}
+
+#[derive(Clone, Debug)]
+pub struct EditorSplitData {
+    pub widget_id: WidgetId,
+    pub children: Vec<EditorSplitContent>,
+    pub direction: SplitDirection,
+}
+
+#[derive(Clone, Debug)]
 pub struct SplitData {
+    pub parent_split: Option<WidgetId>,
     pub widget_id: WidgetId,
     pub children: Vec<SplitContent>,
     pub direction: SplitDirection,
@@ -1366,6 +1415,7 @@ pub struct LapceMainSplitData {
     pub split_id: Arc<WidgetId>,
     pub active: Arc<Option<WidgetId>>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
+    pub editor_tabs: im::HashMap<WidgetId, Arc<LapceEditorTabData>>,
     pub editors_order: Arc<Vec<WidgetId>>,
     pub open_files: im::HashMap<PathBuf, Arc<BufferNew>>,
     pub splits: im::HashMap<WidgetId, Arc<SplitData>>,
@@ -1767,6 +1817,7 @@ impl LapceMainSplitData {
         let mut editors_order = Vec::new();
         let mut splits = im::HashMap::new();
         let mut split_data = SplitData {
+            parent_split: None,
             widget_id: *split_id,
             children: Vec::new(),
             direction: SplitDirection::Vertical,
@@ -1866,6 +1917,7 @@ impl LapceMainSplitData {
             tab_id: Arc::new(tab_id),
             split_id,
             editors,
+            editor_tabs: im::HashMap::new(),
             editors_order: Arc::new(editors_order),
             splits,
             open_files,
@@ -1910,63 +1962,106 @@ impl LapceMainSplitData {
         self.editors.insert(editor.view_id, Arc::new(editor));
     }
 
+    pub fn split_close(
+        &mut self,
+        ctx: &mut EventCtx,
+        split_id: WidgetId,
+        from_content: SplitContent,
+    ) {
+        let split = self.splits.get_mut(&split_id).unwrap();
+        let split = Arc::make_mut(split);
+
+        let mut index = 0;
+        for (i, content) in split.children.iter().enumerate() {
+            if content == &from_content {
+                index = i;
+                break;
+            }
+        }
+        split.children.remove(index);
+    }
+
+    pub fn split(
+        &mut self,
+        ctx: &mut EventCtx,
+        split_id: WidgetId,
+        from_content: SplitContent,
+        new_content: SplitContent,
+        direction: SplitDirection,
+    ) -> WidgetId {
+        let split = self.splits.get_mut(&split_id).unwrap();
+        let split = Arc::make_mut(split);
+
+        let mut index = 0;
+        for (i, content) in split.children.iter().enumerate() {
+            if content == &from_content {
+                index = i;
+                break;
+            }
+        }
+
+        if direction != split.direction && split.children.len() == 1 {
+            split.direction = direction;
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SplitChangeDirectoin(direction),
+                Target::Widget(split_id),
+            ));
+        }
+
+        if direction == split.direction {
+            split.children.insert(index + 1, new_content.clone());
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SplitAdd(index, new_content, false),
+                Target::Widget(split_id),
+            ));
+            split_id
+        } else {
+            let new_split = SplitData {
+                parent_split: Some(split.widget_id),
+                widget_id: WidgetId::next(),
+                children: vec![from_content.clone(), new_content.clone()],
+                direction,
+            };
+            let new_split_id = new_split.widget_id;
+            split.children[index] = SplitContent::Split(new_split.widget_id);
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SplitReplace(
+                    index,
+                    SplitContent::Split(new_split.widget_id),
+                ),
+                Target::Widget(split_id),
+            ));
+            self.splits.insert(new_split.widget_id, Arc::new(new_split));
+            new_split_id
+        }
+    }
+
     pub fn split_editor(
         &mut self,
         ctx: &mut EventCtx,
-        view_id: WidgetId,
+        editor: &mut LapceEditorData,
         direction: SplitDirection,
     ) {
-        let editor = self.editors.get(&view_id).unwrap();
-        if let Some(split_id) = editor.split_id.as_ref() {
-            let split = self.splits.get_mut(split_id).unwrap();
-            let split = Arc::make_mut(split);
-            let mut new_editor = (**editor).clone();
+        if let Some(split_id) = editor.split_id.clone() {
+            let mut new_editor = editor.clone();
             new_editor.view_id = WidgetId::next();
-            let mut index = 0;
-            for (i, content) in split.children.iter().enumerate() {
-                match content {
-                    SplitContent::Editor(current_view_id) => {
-                        if current_view_id == &view_id {
-                            index = i;
-                            break;
-                        }
-                    }
-                    _ => (),
-                }
+
+            let new_split_id = self.split(
+                ctx,
+                split_id,
+                SplitContent::Editor(editor.view_id),
+                SplitContent::Editor(new_editor.view_id),
+                direction,
+            );
+
+            new_editor.split_id = Some(new_split_id);
+            if new_split_id != split_id {
+                editor.split_id = Some(new_split_id);
             }
-            if direction == split.direction {
-                new_editor.split_id = Some(split.widget_id);
-                split
-                    .children
-                    .insert(index + 1, SplitContent::Editor(new_editor.view_id));
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitAdd(
-                        index,
-                        SplitContent::Editor(new_editor.view_id),
-                        false,
-                    ),
-                    Target::Widget(*split_id),
-                ));
-            } else {
-                let new_split = SplitData {
-                    widget_id: WidgetId::next(),
-                    children: vec![SplitContent::Editor(new_editor.view_id)],
-                    direction,
-                };
-                split
-                    .children
-                    .insert(index + 1, SplitContent::Split(new_split.widget_id));
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitAdd(
-                        index,
-                        SplitContent::Split(new_split.widget_id),
-                        false,
-                    ),
-                    Target::Widget(*split_id),
-                ));
-            }
+
             self.editors
                 .insert(new_editor.view_id, Arc::new(new_editor));
         }
@@ -1992,6 +2087,13 @@ pub enum EditorContent {
 pub enum InlineFindDirection {
     Left,
     Right,
+}
+
+#[derive(Clone, Debug)]
+pub struct LapceEditorTabData {
+    widget_id: WidgetId,
+    active: usize,
+    children: Vec<WidgetId>,
 }
 
 #[derive(Clone, Debug)]

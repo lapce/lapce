@@ -2801,10 +2801,17 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                 }
             }
+            LapceCommand::SplitHorizontal => {
+                self.main_split.split_editor(
+                    ctx,
+                    Arc::make_mut(&mut self.editor),
+                    SplitDirection::Horizontal,
+                );
+            }
             LapceCommand::SplitVertical => {
                 self.main_split.split_editor(
                     ctx,
-                    self.view_id,
+                    Arc::make_mut(&mut self.editor),
                     SplitDirection::Vertical,
                 );
             }
