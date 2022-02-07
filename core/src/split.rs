@@ -587,33 +587,21 @@ impl LapceSplitNew {
         content: &SplitContent,
         focus_new: bool,
     ) {
-        match content {
-            SplitContent::EditorTab(widget_id) => {}
-            SplitContent::Editor(view_id) => {
-                let editor = content.widget(data, ctx);
-                let new_index = if self.children.len() == 0 {
-                    0
-                } else {
-                    index + 1
-                };
-                self.insert_flex_child(
-                    new_index,
-                    editor.boxed(),
-                    Some(*view_id),
-                    1.0,
-                );
-                self.even_flex_children();
-                ctx.children_changed();
-
-                if focus_new {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(*view_id),
-                    ));
-                }
-            }
-            SplitContent::Split(_) => {}
+        let new_index = if self.children.len() == 0 {
+            0
+        } else {
+            index + 1
+        };
+        let new_child = content.widget(data, ctx);
+        self.insert_flex_child(new_index, new_child, None, 1.0);
+        self.even_flex_children();
+        ctx.children_changed();
+        if focus_new {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(content.widget_id()),
+            ));
         }
     }
 

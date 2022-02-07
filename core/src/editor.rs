@@ -2742,65 +2742,11 @@ impl KeyPressFocus for LapceEditorBufferData {
             return CommandExecuted::Yes;
         }
         match cmd {
-            LapceCommand::SplitLeft => {
-                if let Some(split_id) = self.editor.split_id.clone() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitEditorMove(
-                            SplitMoveDirection::Left,
-                            self.editor.view_id,
-                        ),
-                        Target::Widget(split_id),
-                    ));
-                }
-            }
-            LapceCommand::SplitRight => {
-                if let Some(split_id) = self.editor.split_id.clone() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitEditorMove(
-                            SplitMoveDirection::Right,
-                            self.editor.view_id,
-                        ),
-                        Target::Widget(split_id),
-                    ));
-                }
-            }
-            LapceCommand::SplitUp => {
-                if let Some(split_id) = self.editor.split_id.clone() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitEditorMove(
-                            SplitMoveDirection::Up,
-                            self.editor.view_id,
-                        ),
-                        Target::Widget(split_id),
-                    ));
-                }
-            }
-            LapceCommand::SplitDown => {
-                if let Some(split_id) = self.editor.split_id.clone() {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitEditorMove(
-                            SplitMoveDirection::Down,
-                            self.editor.view_id,
-                        ),
-                        Target::Widget(split_id),
-                    ));
-                }
-            }
-            LapceCommand::SplitExchange => {
-                if let Some(split_id) = self.editor.split_id.clone() {
-                    if let BufferContent::File(_) = &self.editor.content {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::SplitEditorExchange(self.editor.view_id),
-                            Target::Widget(split_id),
-                        ));
-                    }
-                }
-            }
+            LapceCommand::SplitLeft => {}
+            LapceCommand::SplitRight => {}
+            LapceCommand::SplitUp => {}
+            LapceCommand::SplitDown => {}
+            LapceCommand::SplitExchange => {}
             LapceCommand::SplitHorizontal => {
                 self.main_split.split_editor(
                     ctx,
@@ -2815,17 +2761,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     SplitDirection::Vertical,
                 );
             }
-            LapceCommand::SplitClose => {
-                if let Some(split_id) = self.editor.split_id.clone() {
-                    if let BufferContent::File(_) = &self.editor.content {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::SplitEditorClose(self.editor.view_id),
-                            Target::Widget(split_id),
-                        ));
-                    }
-                }
-            }
+            LapceCommand::SplitClose => {}
             LapceCommand::Undo => {
                 self.initiate_diagnositcs_offset();
                 let proxy = self.proxy.clone();
@@ -3640,6 +3576,83 @@ impl KeyPressFocus for LapceEditorBufferData {
                 editor.inline_find = None;
             }
         }
+    }
+}
+
+pub struct LapceEditorTab {
+    pub widget_id: WidgetId,
+    children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+}
+
+impl LapceEditorTab {
+    pub fn new(widget_id: WidgetId) -> Self {
+        Self {
+            widget_id,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn with_child(mut self, child: Box<dyn Widget<LapceTabData>>) -> Self {
+        self.children.push(WidgetPod::new(child));
+        self
+    }
+}
+
+impl Widget<LapceTabData> for LapceEditorTab {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        self.children[tab.active].event(ctx, event, data, env);
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        self.children[tab.active].lifecycle(ctx, event, data, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        self.children[tab.active].update(ctx, data, env);
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        for child in self.children.iter_mut() {
+            child.layout(ctx, bc, data, env);
+            child.set_origin(ctx, data, env, Point::ZERO);
+        }
+        bc.max()
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        self.children[tab.active].paint(ctx, data, env);
     }
 }
 

@@ -31,10 +31,10 @@ use crate::{
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::{Config, LapceTheme},
     data::{
-        EditorContent, EditorDiagnostic, LapceMainSplitData, LapceTabData,
-        PanelKind, WorkProgress,
+        EditorContent, EditorDiagnostic, EditorTabChild, LapceMainSplitData,
+        LapceTabData, PanelKind, SplitContent, WorkProgress,
     },
-    editor::{EditorLocationNew, LapceEditorView},
+    editor::{EditorLocationNew, LapceEditorTab, LapceEditorView},
     explorer::FileExplorer,
     menu::Menu,
     movement::{self, CursorMode, Selection},
@@ -73,14 +73,36 @@ pub struct LapceTabNew {
 impl LapceTabNew {
     pub fn new(data: &LapceTabData) -> Self {
         let mut main_split = LapceSplitNew::new(*data.main_split.split_id);
-        for view_id in data.main_split.editors_order.iter() {
-            let editor = data.main_split.editors.get(view_id).unwrap();
-            main_split = main_split.with_flex_child(
-                LapceEditorView::new(editor.view_id).boxed(),
-                Some(editor.view_id),
-                1.0,
-            );
+        let split_data = data
+            .main_split
+            .splits
+            .get(&*data.main_split.split_id)
+            .unwrap();
+        for split_content in split_data.children.iter() {
+            match split_content {
+                SplitContent::EditorTab(widget_id) => {
+                    let editor_tab_data =
+                        data.main_split.editor_tabs.get(widget_id).unwrap();
+                    let mut editor_tab = LapceEditorTab::new(*widget_id);
+                    for child in editor_tab_data.children.iter() {
+                        match child {
+                            EditorTabChild::Editor(view_id) => {
+                                let editor = LapceEditorView::new(*view_id).boxed();
+                                editor_tab = editor_tab.with_child(editor);
+                            }
+                        }
+                    }
+                    main_split = main_split.with_flex_child(
+                        editor_tab.boxed(),
+                        Some(*widget_id),
+                        1.0,
+                    );
+                }
+                SplitContent::Editor(_) => {}
+                SplitContent::Split(_) => {}
+            }
         }
+
         let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
         let palette = NewPalette::new(

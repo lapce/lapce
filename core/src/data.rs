@@ -60,7 +60,9 @@ use crate::{
     completion::{CompletionData, CompletionStatus, Snippet},
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
     db::{LapceDb, WorkspaceInfo},
-    editor::{EditorLocationNew, LapceEditorBufferData, LapceEditorView},
+    editor::{
+        EditorLocationNew, LapceEditorBufferData, LapceEditorTab, LapceEditorView,
+    },
     explorer::FileExplorerData,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
@@ -1336,13 +1338,44 @@ pub enum SplitContent {
 }
 
 impl SplitContent {
+    pub fn widget_id(&self) -> WidgetId {
+        match &self {
+            SplitContent::EditorTab(widget_id) => *widget_id,
+            SplitContent::Editor(view_id) => *view_id,
+            SplitContent::Split(split_id) => *split_id,
+        }
+    }
+
     pub fn widget(
         &self,
         data: &LapceTabData,
         ctx: &mut EventCtx,
     ) -> Box<dyn Widget<LapceTabData>> {
         match &self {
-            SplitContent::EditorTab(widget_id) => todo!(),
+            SplitContent::EditorTab(widget_id) => {
+                let editor_tab_data =
+                    data.main_split.editor_tabs.get(widget_id).unwrap();
+                let mut editor_tab = LapceEditorTab::new(editor_tab_data.widget_id);
+                for child in editor_tab_data.children.iter() {
+                    match child {
+                        EditorTabChild::Editor(view_id) => {
+                            let editor = LapceEditorView::new(*view_id).boxed();
+                            editor_tab = editor_tab.with_child(editor);
+                            let editor =
+                                data.main_split.editors.get(view_id).unwrap();
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ForceScrollTo(
+                                    editor.scroll_offset.x,
+                                    editor.scroll_offset.y,
+                                ),
+                                Target::Widget(*view_id),
+                            ));
+                        }
+                    }
+                }
+                editor_tab.boxed()
+            }
             SplitContent::Editor(view_id) => {
                 let editor = data.main_split.editors.get(view_id).unwrap();
                 ctx.submit_command(Command::new(
@@ -1814,6 +1847,7 @@ impl LapceMainSplitData {
 
         let mut open_files = im::HashMap::new();
         let mut editors = im::HashMap::new();
+        let mut editor_tabs = im::HashMap::new();
         let mut editors_order = Vec::new();
         let mut splits = im::HashMap::new();
         let mut split_data = SplitData {
@@ -1827,12 +1861,8 @@ impl LapceMainSplitData {
         if let Some(info) = workspace_info {
             let mut positions = HashMap::new();
             for (i, e) in info.editors.iter().enumerate() {
-                let editor = LapceEditorData::new(
-                    None,
-                    Some(*split_id),
-                    e.content.clone(),
-                    config,
-                );
+                let mut editor =
+                    LapceEditorData::new(None, None, e.content.clone(), config);
                 if info.active_editor == i {
                     active = Some(editor.view_id);
                 }
@@ -1868,10 +1898,18 @@ impl LapceMainSplitData {
                     BufferContent::Local(_) => {}
                 }
                 editors_order.push(editor.view_id);
+                let editor_tab = LapceEditorTabData {
+                    widget_id: WidgetId::next(),
+                    split: *split_id,
+                    active: 0,
+                    children: vec![EditorTabChild::Editor(editor.view_id)],
+                };
+                editor.tab_id = Some(editor_tab.widget_id);
                 split_data
                     .children
-                    .push(SplitContent::Editor(editor.view_id));
+                    .push(SplitContent::EditorTab(editor_tab.widget_id));
                 editors.insert(editor.view_id, Arc::new(editor));
+                editor_tabs.insert(editor_tab.widget_id, Arc::new(editor_tab));
             }
             for (path, locations) in positions.into_iter() {
                 open_files.get(&path).unwrap().retrieve_file(
@@ -1917,7 +1955,7 @@ impl LapceMainSplitData {
             tab_id: Arc::new(tab_id),
             split_id,
             editors,
-            editor_tabs: im::HashMap::new(),
+            editor_tabs,
             editors_order: Arc::new(editors_order),
             splits,
             open_files,
@@ -2045,26 +2083,60 @@ impl LapceMainSplitData {
         editor: &mut LapceEditorData,
         direction: SplitDirection,
     ) {
-        if let Some(split_id) = editor.split_id.clone() {
+        if let Some(editor_tab_id) = editor.tab_id.clone() {
+            let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
+            let split_id = editor_tab.split;
             let mut new_editor = editor.clone();
             new_editor.view_id = WidgetId::next();
+            let mut new_editor_tab = LapceEditorTabData {
+                widget_id: WidgetId::next(),
+                split: split_id,
+                active: 0,
+                children: vec![EditorTabChild::Editor(new_editor.view_id)],
+            };
+            new_editor.tab_id = Some(new_editor_tab.widget_id);
 
             let new_split_id = self.split(
                 ctx,
                 split_id,
-                SplitContent::Editor(editor.view_id),
-                SplitContent::Editor(new_editor.view_id),
+                SplitContent::EditorTab(editor_tab_id),
+                SplitContent::EditorTab(new_editor_tab.widget_id),
                 direction,
             );
 
-            new_editor.split_id = Some(new_split_id);
-            if new_split_id != split_id {
-                editor.split_id = Some(new_split_id);
+            new_editor_tab.split = new_split_id;
+            if split_id != new_split_id {
+                let editor_tab = self.editor_tabs.get_mut(&editor_tab_id).unwrap();
+                let editor_tab = Arc::make_mut(editor_tab);
+                editor_tab.split = new_split_id;
             }
 
             self.editors
                 .insert(new_editor.view_id, Arc::new(new_editor));
+            self.editor_tabs
+                .insert(new_editor_tab.widget_id, Arc::new(new_editor_tab));
         }
+
+        //   if let Some(split_id) = editor.split_id.clone() {
+        //       let mut new_editor = editor.clone();
+        //       new_editor.view_id = WidgetId::next();
+
+        //       let new_split_id = self.split(
+        //           ctx,
+        //           split_id,
+        //           SplitContent::Editor(editor.view_id),
+        //           SplitContent::Editor(new_editor.view_id),
+        //           direction,
+        //       );
+
+        //       new_editor.split_id = Some(new_split_id);
+        //       if new_split_id != split_id {
+        //           editor.split_id = Some(new_split_id);
+        //       }
+
+        //       self.editors
+        //           .insert(new_editor.view_id, Arc::new(new_editor));
+        //   }
     }
 }
 
@@ -2090,15 +2162,21 @@ pub enum InlineFindDirection {
 }
 
 #[derive(Clone, Debug)]
+pub enum EditorTabChild {
+    Editor(WidgetId),
+}
+
+#[derive(Clone, Debug)]
 pub struct LapceEditorTabData {
     widget_id: WidgetId,
-    active: usize,
-    children: Vec<WidgetId>,
+    split: WidgetId,
+    pub active: usize,
+    pub children: Vec<EditorTabChild>,
 }
 
 #[derive(Clone, Debug)]
 pub struct LapceEditorData {
-    pub split_id: Option<WidgetId>,
+    pub tab_id: Option<WidgetId>,
     pub view_id: WidgetId,
     pub content: BufferContent,
     pub compare: Option<String>,
@@ -2117,12 +2195,12 @@ pub struct LapceEditorData {
 impl LapceEditorData {
     pub fn new(
         view_id: Option<WidgetId>,
-        split_id: Option<WidgetId>,
+        tab_id: Option<WidgetId>,
         content: BufferContent,
         config: &Config,
     ) -> Self {
         Self {
-            split_id,
+            tab_id,
             view_id: view_id.unwrap_or(WidgetId::next()),
             content,
             scroll_offset: Vec2::ZERO,
