@@ -10,7 +10,7 @@ use crate::config::{Config, LapceTheme, LOGO};
 use crate::data::{
     EditorContent, EditorDiagnostic, FocusArea, InlineFindDirection,
     LapceEditorData, LapceMainSplitData, LapceTabData, PanelData, PanelKind,
-    RegisterData,
+    RegisterData, SplitContent,
 };
 use crate::find::Find;
 use crate::keypress::{KeyMap, KeyPress, KeyPressFocus};
@@ -2742,10 +2742,42 @@ impl KeyPressFocus for LapceEditorBufferData {
             return CommandExecuted::Yes;
         }
         match cmd {
-            LapceCommand::SplitLeft => {}
-            LapceCommand::SplitRight => {}
-            LapceCommand::SplitUp => {}
-            LapceCommand::SplitDown => {}
+            LapceCommand::SplitLeft => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split.split_move(
+                        ctx,
+                        SplitContent::EditorTab(*widget_id),
+                        SplitMoveDirection::Left,
+                    );
+                }
+            }
+            LapceCommand::SplitRight => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split.split_move(
+                        ctx,
+                        SplitContent::EditorTab(*widget_id),
+                        SplitMoveDirection::Right,
+                    );
+                }
+            }
+            LapceCommand::SplitUp => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split.split_move(
+                        ctx,
+                        SplitContent::EditorTab(*widget_id),
+                        SplitMoveDirection::Up,
+                    );
+                }
+            }
+            LapceCommand::SplitDown => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split.split_move(
+                        ctx,
+                        SplitContent::EditorTab(*widget_id),
+                        SplitMoveDirection::Down,
+                    );
+                }
+            }
             LapceCommand::SplitExchange => {}
             LapceCommand::SplitHorizontal => {
                 self.main_split.split_editor(

@@ -98,7 +98,6 @@ impl LapceTabNew {
                         1.0,
                     );
                 }
-                SplitContent::Editor(_) => {}
                 SplitContent::Split(_) => {}
             }
         }
@@ -1179,13 +1178,15 @@ impl Widget<LapceTabData> for LapceTabNew {
             self_size.height - status_size.height - panel_bottom_height,
         );
         let main_split_bc = BoxConstraints::tight(main_split_size);
-        self.main_split.layout(ctx, &main_split_bc, data, env);
-        self.main_split.set_origin(
-            ctx,
-            data,
-            env,
-            Point::new(panel_left_width + activity_size.width, 0.0),
+        let main_split_origin =
+            Point::new(panel_left_width + activity_size.width, 0.0);
+        data.main_split.update_split_layout_rect(
+            *data.main_split.split_id,
+            main_split_size.to_rect().with_origin(main_split_origin),
         );
+        self.main_split.layout(ctx, &main_split_bc, data, env);
+        self.main_split
+            .set_origin(ctx, data, env, main_split_origin);
         self.main_split_height = main_split_size.height;
 
         let completion_origin =

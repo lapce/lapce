@@ -550,7 +550,6 @@ impl LapceSplitNew {
     ) {
         match content {
             SplitContent::EditorTab(_) => {}
-            SplitContent::Editor(_) => {}
             SplitContent::Split(split_id) => {
                 let new_split_data = data.main_split.splits.get(split_id).unwrap();
                 let mut new_split = LapceSplitNew::new(*split_id)
@@ -820,6 +819,8 @@ impl Widget<LapceTabData> for LapceSplitNew {
     ) -> Size {
         let my_size = bc.max();
 
+        let split_data = data.main_split.splits.get(&self.split_id);
+
         let children_len = self.children.len();
         if children_len == 0 {
             let origin =
@@ -933,17 +934,37 @@ impl Widget<LapceTabData> for LapceSplitNew {
 
         let mut x = 0.0;
         let mut y = 0.0;
-        for child in self.children.iter_mut() {
+        let children_len = self.children.len();
+        for (i, child) in self.children.iter_mut().enumerate() {
             if !child.flex {
                 child.widget.set_origin(ctx, data, env, Point::new(x, y));
                 child.layout_rect = child.layout_rect.with_origin(Point::new(x, y));
             } else {
-                let flex = flex_total / flex_sum * child.params;
+                let flex = if i == children_len - 1 {
+                    flex_total
+                        - match self.direction {
+                            SplitDirection::Vertical => x,
+                            SplitDirection::Horizontal => y,
+                        }
+                } else {
+                    (flex_total / flex_sum * child.params).round()
+                };
+
                 let (width, height) = match self.direction {
                     SplitDirection::Vertical => (flex, my_size.height),
                     SplitDirection::Horizontal => (my_size.width, flex),
                 };
                 let size = Size::new(width, height);
+                let origin = Point::new(x, y);
+                if let Some(split_data) = split_data.as_ref() {
+                    let parent_origin =
+                        split_data.layout_rect.borrow().origin().to_vec2();
+                    let rect = size.to_rect().with_origin(origin + parent_origin);
+                    data.main_split.update_split_content_layout_rect(
+                        split_data.children[i].clone(),
+                        rect,
+                    );
+                }
                 let size = child.widget.layout(
                     ctx,
                     &BoxConstraints::new(Size::ZERO, size),

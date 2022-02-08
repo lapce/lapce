@@ -79,7 +79,7 @@ use crate::{
     proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
     search::SearchData,
     source_control::{SourceControlData, SEARCH_BUFFER, SOURCE_CONTROL_BUFFER},
-    split::{LapceDynamicSplit, LapceSplitNew, SplitDirection},
+    split::{LapceDynamicSplit, LapceSplitNew, SplitDirection, SplitMoveDirection},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     svg::get_svg,
     terminal::TerminalSplitData,
@@ -1333,7 +1333,6 @@ pub struct ParentContent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SplitContent {
     EditorTab(WidgetId),
-    Editor(WidgetId),
     Split(WidgetId),
 }
 
@@ -1341,7 +1340,6 @@ impl SplitContent {
     pub fn widget_id(&self) -> WidgetId {
         match &self {
             SplitContent::EditorTab(widget_id) => *widget_id,
-            SplitContent::Editor(view_id) => *view_id,
             SplitContent::Split(split_id) => *split_id,
         }
     }
@@ -1376,18 +1374,6 @@ impl SplitContent {
                 }
                 editor_tab.boxed()
             }
-            SplitContent::Editor(view_id) => {
-                let editor = data.main_split.editors.get(view_id).unwrap();
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ForceScrollTo(
-                        editor.scroll_offset.x,
-                        editor.scroll_offset.y,
-                    ),
-                    Target::Widget(*view_id),
-                ));
-                LapceEditorView::new(*view_id).boxed()
-            }
             SplitContent::Split(widget_id) => LapceSplitNew::new(*widget_id).boxed(),
         }
     }
@@ -1409,6 +1395,7 @@ pub struct SplitData {
     pub widget_id: WidgetId,
     pub children: Vec<SplitContent>,
     pub direction: SplitDirection,
+    pub layout_rect: Rc<RefCell<Rect>>,
 }
 
 #[derive(Clone, Default)]
@@ -1670,19 +1657,19 @@ impl LapceMainSplitData {
                         BufferContent::Local(LocalBufferKind::Empty),
                         config,
                     ));
-                    split.children.push(SplitContent::Editor(editor.view_id));
+                    //split.children.push(SplitContent::Editor(editor.view_id));
                     self.editors.insert(editor.view_id, editor.clone());
                     self.active = Arc::new(Some(editor.view_id));
                     println!("create new editor");
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitAdd(
-                            0,
-                            SplitContent::Editor(editor.view_id),
-                            true,
-                        ),
-                        Target::Widget(split.widget_id),
-                    ));
+                    //ctx.submit_command(Command::new(
+                    //    LAPCE_UI_COMMAND,
+                    //    LapceUICommand::SplitAdd(
+                    //        0,
+                    //        SplitContent::Editor(editor.view_id),
+                    //        true,
+                    //    ),
+                    //    Target::Widget(split.widget_id),
+                    //));
                     Arc::make_mut(self.editors.get_mut(&editor.view_id).unwrap())
                 }
             },
@@ -1855,6 +1842,7 @@ impl LapceMainSplitData {
             widget_id: *split_id,
             children: Vec::new(),
             direction: SplitDirection::Vertical,
+            layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
         };
 
         let mut active = None;
@@ -1903,6 +1891,7 @@ impl LapceMainSplitData {
                     split: *split_id,
                     active: 0,
                     children: vec![EditorTabChild::Editor(editor.view_id)],
+                    layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                 };
                 editor.tab_id = Some(editor_tab.widget_id);
                 split_data
@@ -2019,6 +2008,31 @@ impl LapceMainSplitData {
         split.children.remove(index);
     }
 
+    pub fn update_split_content_layout_rect(
+        &self,
+        content: SplitContent,
+        rect: Rect,
+    ) {
+        match content {
+            SplitContent::EditorTab(widget_id) => {
+                self.update_editor_tab_layout_rect(widget_id, rect);
+            }
+            SplitContent::Split(split_id) => {
+                self.update_split_layout_rect(split_id, rect);
+            }
+        }
+    }
+
+    pub fn update_editor_tab_layout_rect(&self, widget_id: WidgetId, rect: Rect) {
+        let editor_tab = self.editor_tabs.get(&widget_id).unwrap();
+        *editor_tab.layout_rect.borrow_mut() = rect;
+    }
+
+    pub fn update_split_layout_rect(&self, split_id: WidgetId, rect: Rect) {
+        let split = self.splits.get(&split_id).unwrap();
+        *split.layout_rect.borrow_mut() = rect;
+    }
+
     pub fn split(
         &mut self,
         ctx: &mut EventCtx,
@@ -2061,6 +2075,7 @@ impl LapceMainSplitData {
                 widget_id: WidgetId::next(),
                 children: vec![from_content.clone(), new_content.clone()],
                 direction,
+                layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             };
             let new_split_id = new_split.widget_id;
             split.children[index] = SplitContent::Split(new_split.widget_id);
@@ -2074,6 +2089,87 @@ impl LapceMainSplitData {
             ));
             self.splits.insert(new_split.widget_id, Arc::new(new_split));
             new_split_id
+        }
+    }
+
+    pub fn split_move(
+        &mut self,
+        ctx: &mut EventCtx,
+        content: SplitContent,
+        direction: SplitMoveDirection,
+    ) {
+        match content {
+            SplitContent::EditorTab(widget_id) => {
+                let editor_tab = self.editor_tabs.get(&widget_id).unwrap();
+                let rect = editor_tab.layout_rect.borrow();
+                match direction {
+                    SplitMoveDirection::Up => {
+                        for (_, e) in self.editor_tabs.iter() {
+                            let current_rect = e.layout_rect.borrow();
+                            if current_rect.y1 == rect.y0
+                                && current_rect.x0 <= rect.x0
+                                && rect.x0 < current_rect.x1
+                            {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(e.children[e.active].widget_id()),
+                                ));
+                                return;
+                            }
+                        }
+                    }
+                    SplitMoveDirection::Down => {
+                        for (_, e) in self.editor_tabs.iter() {
+                            let current_rect = e.layout_rect.borrow();
+                            if current_rect.y0 == rect.y1
+                                && current_rect.x0 <= rect.x0
+                                && rect.x0 < current_rect.x1
+                            {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(e.children[e.active].widget_id()),
+                                ));
+                                return;
+                            }
+                        }
+                    }
+                    SplitMoveDirection::Right => {
+                        for (_, e) in self.editor_tabs.iter() {
+                            let current_rect = e.layout_rect.borrow();
+                            if current_rect.x0 == rect.x1
+                                && current_rect.y0 <= rect.y0
+                                && rect.y0 < current_rect.y1
+                            {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(e.children[e.active].widget_id()),
+                                ));
+                                return;
+                            }
+                        }
+                    }
+                    SplitMoveDirection::Left => {
+                        for (_, e) in self.editor_tabs.iter() {
+                            let current_rect = e.layout_rect.borrow();
+                            if current_rect.x1 == rect.x0
+                                && current_rect.y0 <= rect.y0
+                                && rect.y0 < current_rect.y1
+                            {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(e.children[e.active].widget_id()),
+                                ));
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            SplitContent::Split(_) => {}
         }
     }
 
@@ -2093,6 +2189,7 @@ impl LapceMainSplitData {
                 split: split_id,
                 active: 0,
                 children: vec![EditorTabChild::Editor(new_editor.view_id)],
+                layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             };
             new_editor.tab_id = Some(new_editor_tab.widget_id);
 
@@ -2166,12 +2263,21 @@ pub enum EditorTabChild {
     Editor(WidgetId),
 }
 
+impl EditorTabChild {
+    pub fn widget_id(&self) -> WidgetId {
+        match &self {
+            EditorTabChild::Editor(widget_id) => *widget_id,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LapceEditorTabData {
     widget_id: WidgetId,
     split: WidgetId,
     pub active: usize,
     pub children: Vec<EditorTabChild>,
+    pub layout_rect: Rc<RefCell<Rect>>,
 }
 
 #[derive(Clone, Debug)]
