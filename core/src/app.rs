@@ -18,7 +18,7 @@ fn build_window(data: &LapceData) -> impl Widget<LapceData> {
     // .debug_invalidation()
 }
 
-pub fn lanuch() {
+pub fn launch() {
     let launcher = AppLauncher::new();
     let data = LapceData::load(launcher.get_external_handle());
     let root = build_window(&data);
