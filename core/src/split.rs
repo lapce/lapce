@@ -10,7 +10,7 @@ use crate::{
     },
     editor::{EditorLocation, LapceEditorView},
     keypress::{DefaultKeyPressHandler, KeyPress},
-    scroll::{LapcePadding, LapceScroll},
+    scroll::LapcePadding,
     svg::logo_svg,
     terminal::{LapceTerminal, LapceTerminalData, LapceTerminalView},
 };

@@ -508,10 +508,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::OpenFile(path) => {
-                        let editor_view_id = data.main_split.active.clone();
                         data.main_split.jump_to_location(
                             ctx,
-                            *editor_view_id,
+                            None,
                             EditorLocationNew {
                                 path: path.clone(),
                                 position: None,
@@ -589,7 +588,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             {
                                 data.main_split.jump_to_location(
                                     ctx,
-                                    Some(*editor_view_id),
+                                    None,
                                     location.clone(),
                                     &data.config,
                                 );

@@ -52,7 +52,7 @@ use crate::{
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
     proxy::LapceProxy,
-    scroll::{LapceIdentityWrapper, LapceScroll, LapceScrollNew},
+    scroll::{LapceIdentityWrapper, LapceScrollNew},
     state::LapceFocus,
     state::LapceWorkspace,
     state::LapceWorkspaceType,
