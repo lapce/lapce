@@ -853,7 +853,7 @@ impl ScrollComponentNew {
 
 pub struct LapceScrollNew<T, W> {
     clip: ClipBoxNew<T, W>,
-    scroll_component: ScrollComponentNew,
+    pub scroll_component: ScrollComponentNew,
 }
 
 impl<T, W: Widget<T>> LapceScrollNew<T, W> {

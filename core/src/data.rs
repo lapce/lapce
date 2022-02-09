@@ -1720,6 +1720,7 @@ impl LapceMainSplitData {
                                         LapceUICommand::Focus,
                                         Target::Widget(new_editor.view_id),
                                     ));
+
                                     return Arc::make_mut(
                                         self.editors
                                             .get_mut(&new_editor.view_id)
@@ -2001,6 +2002,7 @@ impl LapceMainSplitData {
                     active: 0,
                     children: vec![EditorTabChild::Editor(editor.view_id)],
                     layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
+                    content_is_hot: Rc::new(RefCell::new(false)),
                 };
                 editor.tab_id = Some(editor_tab.widget_id);
                 split_data
@@ -2300,6 +2302,7 @@ impl LapceMainSplitData {
                 active: 0,
                 children: vec![EditorTabChild::Editor(new_editor.view_id)],
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
+                content_is_hot: Rc::new(RefCell::new(false)),
             };
             new_editor.tab_id = Some(new_editor_tab.widget_id);
 
@@ -2396,6 +2399,7 @@ pub struct LapceEditorTabData {
     pub active: usize,
     pub children: Vec<EditorTabChild>,
     pub layout_rect: Rc<RefCell<Rect>>,
+    pub content_is_hot: Rc<RefCell<bool>>,
 }
 
 #[derive(Clone, Debug)]

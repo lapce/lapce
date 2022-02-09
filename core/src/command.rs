@@ -463,6 +463,7 @@ pub enum LapceUICommand {
     ShowCodeActions,
     CancelCodeActions,
     Focus,
+    EnsureEditorTabActiveVisble,
     FocusSourceControl,
     FocusEditor,
     RunPalette(Option<PaletteType>),
