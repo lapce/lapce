@@ -424,7 +424,7 @@ impl LapceTabData {
         );
         main_split.add_editor(
             source_control.editor_view_id,
-            Some(source_control.split_id),
+            None,
             LocalBufferKind::SourceControl,
             &config,
             event_sink.clone(),
