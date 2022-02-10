@@ -96,6 +96,7 @@ pub struct EditorConfig {
     pub font_family: String,
     pub font_size: usize,
     pub line_height: usize,
+    pub show_tab: bool,
 }
 
 impl EditorConfig {

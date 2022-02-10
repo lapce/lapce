@@ -75,7 +75,7 @@ impl SourceControlData {
             .editors
             .get(&data.source_control.editor_view_id)
             .unwrap();
-        let input = LapceEditorView::new(editor_data)
+        let input = LapceEditorView::new(editor_data.view_id)
             .hide_header()
             .hide_gutter()
             .set_placeholder("Commit Message".to_string())

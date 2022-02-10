@@ -7,3 +7,4 @@ icon-theme = ""
 font-family = "Cascadia Code"
 font-size = 13
 line-height = 25
+show-tab = true

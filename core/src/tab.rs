@@ -31,10 +31,10 @@ use crate::{
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::{Config, LapceTheme},
     data::{
-        EditorContent, EditorDiagnostic, LapceMainSplitData, LapceTabData,
-        PanelKind, WorkProgress,
+        EditorContent, EditorDiagnostic, EditorTabChild, LapceMainSplitData,
+        LapceTabData, PanelKind, SplitContent, WorkProgress,
     },
-    editor::{EditorLocationNew, LapceEditorView},
+    editor::{EditorLocationNew, LapceEditorTab, LapceEditorView},
     explorer::FileExplorer,
     menu::Menu,
     movement::{self, CursorMode, Selection},
@@ -73,14 +73,35 @@ pub struct LapceTabNew {
 impl LapceTabNew {
     pub fn new(data: &LapceTabData) -> Self {
         let mut main_split = LapceSplitNew::new(*data.main_split.split_id);
-        for view_id in data.main_split.editors_order.iter() {
-            let editor = data.main_split.editors.get(view_id).unwrap();
-            main_split = main_split.with_flex_child(
-                LapceEditorView::new(editor).boxed(),
-                Some(editor.view_id),
-                1.0,
-            );
+        let split_data = data
+            .main_split
+            .splits
+            .get(&*data.main_split.split_id)
+            .unwrap();
+        for split_content in split_data.children.iter() {
+            match split_content {
+                SplitContent::EditorTab(widget_id) => {
+                    let editor_tab_data =
+                        data.main_split.editor_tabs.get(widget_id).unwrap();
+                    let mut editor_tab = LapceEditorTab::new(*widget_id);
+                    for child in editor_tab_data.children.iter() {
+                        match child {
+                            EditorTabChild::Editor(view_id) => {
+                                let editor = LapceEditorView::new(*view_id).boxed();
+                                editor_tab = editor_tab.with_child(editor);
+                            }
+                        }
+                    }
+                    main_split = main_split.with_flex_child(
+                        editor_tab.boxed(),
+                        Some(*widget_id),
+                        1.0,
+                    );
+                }
+                SplitContent::Split(_) => {}
+            }
         }
+
         let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
         let palette = NewPalette::new(
@@ -487,10 +508,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::OpenFile(path) => {
-                        let editor_view_id = data.main_split.active.clone();
                         data.main_split.jump_to_location(
                             ctx,
-                            *editor_view_id,
+                            None,
                             EditorLocationNew {
                                 path: path.clone(),
                                 position: None,
@@ -568,7 +588,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             {
                                 data.main_split.jump_to_location(
                                     ctx,
-                                    Some(*editor_view_id),
+                                    None,
                                     location.clone(),
                                     &data.config,
                                 );
@@ -1157,13 +1177,15 @@ impl Widget<LapceTabData> for LapceTabNew {
             self_size.height - status_size.height - panel_bottom_height,
         );
         let main_split_bc = BoxConstraints::tight(main_split_size);
-        self.main_split.layout(ctx, &main_split_bc, data, env);
-        self.main_split.set_origin(
-            ctx,
-            data,
-            env,
-            Point::new(panel_left_width + activity_size.width, 0.0),
+        let main_split_origin =
+            Point::new(panel_left_width + activity_size.width, 0.0);
+        data.main_split.update_split_layout_rect(
+            *data.main_split.split_id,
+            main_split_size.to_rect().with_origin(main_split_origin),
         );
+        self.main_split.layout(ctx, &main_split_bc, data, env);
+        self.main_split
+            .set_origin(ctx, data, env, main_split_origin);
         self.main_split_height = main_split_size.height;
 
         let completion_origin =

@@ -3,9 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 use crate::command::{
     LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
 };
+use crate::state::LapceFocus;
 use crate::state::Mode;
 use crate::theme::OldLapceTheme;
-use crate::{scroll::LapceScroll, state::LapceFocus};
 use druid::piet::TextAttribute;
 use druid::FontWeight;
 use druid::{
