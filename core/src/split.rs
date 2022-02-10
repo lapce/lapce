@@ -548,32 +548,133 @@ impl LapceSplitNew {
         index: usize,
         content: &SplitContent,
     ) {
-        match content {
-            SplitContent::EditorTab(_) => {}
-            SplitContent::Split(split_id) => {
-                let new_split_data = data.main_split.splits.get(split_id).unwrap();
-                let mut new_split = LapceSplitNew::new(*split_id)
-                    .direction(new_split_data.direction);
+        let new_widget = content.widget(data, ctx);
+        self.replace_child(index, new_widget.boxed());
+        ctx.children_changed();
+    }
 
-                let first_child_id = new_split.insert_flex_child(
-                    0,
-                    new_split_data.children[0].widget(data, ctx),
-                    None,
-                    1.0,
-                );
-                new_split.insert_flex_child(
-                    1,
-                    new_split_data.children[1].widget(data, ctx),
-                    None,
-                    1.0,
-                );
+    pub fn split_exchange(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        content: &SplitContent,
+    ) {
+        let split_data = data.main_split.splits.get_mut(&self.split_id).unwrap();
+        let split_data = Arc::make_mut(split_data);
+
+        if split_data.children.len() <= 1 {
+            return;
+        }
+
+        let mut index = 0;
+        for (i, c) in split_data.children.iter().enumerate() {
+            if c == content {
+                index = i;
+                break;
+            }
+        }
+
+        if index >= split_data.children.len() - 1 {
+            return;
+        }
+
+        split_data.children.swap(index, index + 1);
+        self.children.swap(index, index + 1);
+
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(split_data.children[index].widget_id()),
+        ));
+
+        ctx.request_layout();
+    }
+
+    pub fn split_remove(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        content: &SplitContent,
+    ) {
+        let split_data = data.main_split.splits.get_mut(&self.split_id).unwrap();
+        let split_data = Arc::make_mut(split_data);
+
+        let mut index = 0;
+        for (i, c) in split_data.children.iter().enumerate() {
+            if c == content {
+                index = i;
+                break;
+            }
+        }
+
+        self.children.remove(index);
+        ctx.children_changed();
+
+        let removed_child = split_data.children.remove(index);
+        let is_active = match removed_child {
+            SplitContent::EditorTab(tab_id) => {
+                data.main_split.editor_tabs.remove(&tab_id);
+                *data.main_split.active_tab == Some(tab_id)
+            }
+            SplitContent::Split(split_id) => {
+                data.main_split.splits.remove(&split_id);
+                false
+            }
+        };
+
+        let split_data = data.main_split.splits.get_mut(&self.split_id).unwrap();
+        let split_children_len = split_data.children.len();
+        if split_children_len == 0 {
+            if let Some(parent_split) = split_data.parent_split.clone() {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitRemove(SplitContent::Split(self.split_id)),
+                    Target::Widget(parent_split),
+                ));
+            } else {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
-                    Target::Widget(first_child_id),
+                    Target::Widget(self.split_id),
                 ));
-                self.replace_child(index, new_split.boxed());
-                ctx.children_changed();
+                data.main_split.active = Arc::new(None);
+                data.main_split.active_tab = Arc::new(None);
+            }
+        } else {
+            if is_active {
+                let new_index = if index > split_children_len - 1 {
+                    split_children_len - 1
+                } else {
+                    index
+                };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(split_data.children[new_index].widget_id()),
+                ));
+            }
+            if split_children_len == 1 {
+                let split_content = split_data.children[0].clone();
+                if let Some(parent_split_id) = split_data.parent_split.clone() {
+                    let parent_split =
+                        data.main_split.splits.get_mut(&parent_split_id).unwrap();
+                    let parent_split = Arc::make_mut(parent_split);
+                    if let Some(index) = parent_split
+                        .children
+                        .iter()
+                        .position(|c| c == &SplitContent::Split(self.split_id))
+                    {
+                        parent_split.children[index] = split_content.clone();
+                        split_content
+                            .set_split_id(&mut data.main_split, parent_split_id);
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::SplitReplace(index, split_content),
+                            Target::Widget(parent_split_id),
+                        ));
+                        data.main_split.splits.remove(&self.split_id);
+                    }
+                }
             }
         }
     }
@@ -713,18 +814,34 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
-                        ctx.request_focus();
-                        data.focus = self.split_id;
-                        data.focus_area = FocusArea::Editor;
+                        let split_data =
+                            data.main_split.splits.get(&self.split_id).unwrap();
+                        if split_data.children.len() > 0 {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(split_data.children[0].widget_id()),
+                            ));
+                        } else {
+                            ctx.request_focus();
+                            data.focus = self.split_id;
+                            data.focus_area = FocusArea::Editor;
+                        }
                     }
                     LapceUICommand::SplitAdd(usize, content, focus_new) => {
                         self.split_add(ctx, data, *usize, content, *focus_new);
+                    }
+                    LapceUICommand::SplitRemove(content) => {
+                        self.split_remove(ctx, data, content);
                     }
                     LapceUICommand::SplitReplace(usize, content) => {
                         self.split_replace(ctx, data, *usize, content);
                     }
                     LapceUICommand::SplitChangeDirectoin(direction) => {
                         self.direction = *direction;
+                    }
+                    LapceUICommand::SplitExchange(content) => {
+                        self.split_exchange(ctx, data, content);
                     }
                     LapceUICommand::SplitEditor(vertical, widget_id) => {
                         self.split_editor(ctx, data, *vertical, *widget_id);

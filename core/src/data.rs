@@ -1344,6 +1344,33 @@ impl SplitContent {
         }
     }
 
+    pub fn set_split_id(&self, data: &mut LapceMainSplitData, split_id: WidgetId) {
+        match &self {
+            SplitContent::EditorTab(editor_tab_id) => {
+                let editor_tab_data =
+                    data.editor_tabs.get_mut(editor_tab_id).unwrap();
+                Arc::make_mut(editor_tab_data).split = split_id;
+            }
+            SplitContent::Split(id) => {
+                let split_data = data.splits.get_mut(id).unwrap();
+                Arc::make_mut(split_data).parent_split = Some(split_id);
+            }
+        }
+    }
+
+    pub fn split_id(&self, data: &LapceMainSplitData) -> Option<WidgetId> {
+        match &self {
+            SplitContent::EditorTab(editor_tab_id) => {
+                let editor_tab_data = data.editor_tabs.get(editor_tab_id).unwrap();
+                Some(editor_tab_data.split)
+            }
+            SplitContent::Split(split_id) => {
+                let split_data = data.splits.get(split_id).unwrap();
+                split_data.parent_split.clone()
+            }
+        }
+    }
+
     pub fn widget(
         &self,
         data: &LapceTabData,
@@ -1374,7 +1401,16 @@ impl SplitContent {
                 }
                 editor_tab.boxed()
             }
-            SplitContent::Split(widget_id) => LapceSplitNew::new(*widget_id).boxed(),
+            SplitContent::Split(widget_id) => {
+                let split_data = data.main_split.splits.get(widget_id).unwrap();
+                let mut split =
+                    LapceSplitNew::new(*widget_id).direction(split_data.direction);
+                for content in split_data.children.iter() {
+                    split =
+                        split.with_flex_child(content.widget(data, ctx), None, 1.0);
+                }
+                split.boxed()
+            }
         }
     }
 }
@@ -1738,25 +1774,54 @@ impl LapceMainSplitData {
                     let split = self.splits.get_mut(&self.split_id).unwrap();
                     let split = Arc::make_mut(split);
 
+                    let mut editor_tab = LapceEditorTabData {
+                        widget_id: WidgetId::next(),
+                        split: *self.split_id,
+                        active: 0,
+                        children: vec![],
+                        layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
+                        content_is_hot: Rc::new(RefCell::new(false)),
+                    };
+
                     let editor = Arc::new(LapceEditorData::new(
                         None,
-                        Some(*self.split_id),
+                        Some(editor_tab.widget_id),
                         BufferContent::Local(LocalBufferKind::Empty),
                         config,
                     ));
-                    //split.children.push(SplitContent::Editor(editor.view_id));
-                    self.editors.insert(editor.view_id, editor.clone());
+
+                    editor_tab
+                        .children
+                        .push(EditorTabChild::Editor(editor.view_id));
+
                     self.active = Arc::new(Some(editor.view_id));
-                    println!("create new editor");
-                    //ctx.submit_command(Command::new(
-                    //    LAPCE_UI_COMMAND,
-                    //    LapceUICommand::SplitAdd(
-                    //        0,
-                    //        SplitContent::Editor(editor.view_id),
-                    //        true,
-                    //    ),
-                    //    Target::Widget(split.widget_id),
-                    //));
+                    self.active_tab = Arc::new(Some(editor_tab.widget_id));
+
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EditorTabAdd(
+                            0,
+                            EditorTabChild::Editor(editor.view_id),
+                        ),
+                        Target::Widget(editor_tab.widget_id),
+                    ));
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitAdd(
+                            0,
+                            SplitContent::EditorTab(editor_tab.widget_id),
+                            true,
+                        ),
+                        Target::Widget(*self.split_id),
+                    ));
+                    split
+                        .children
+                        .push(SplitContent::EditorTab(editor_tab.widget_id));
+
+                    self.editors.insert(editor.view_id, editor.clone());
+                    self.editor_tabs
+                        .insert(editor_tab.widget_id, Arc::new(editor_tab));
+
                     Arc::make_mut(self.editors.get_mut(&editor.view_id).unwrap())
                 }
             },
@@ -2145,6 +2210,24 @@ impl LapceMainSplitData {
         *split.layout_rect.borrow_mut() = rect;
     }
 
+    pub fn editor_close(&mut self, ctx: &mut EventCtx, view_id: WidgetId) {
+        let editor = self.editors.get(&view_id).unwrap();
+        if let Some(tab_id) = editor.tab_id.clone() {
+            let editor_tab = self.editor_tabs.get(&tab_id).unwrap();
+            let mut index = 0;
+            for (i, child) in editor_tab.children.iter().enumerate() {
+                if child == &EditorTabChild::Editor(view_id) {
+                    index = i;
+                }
+            }
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::EditorTabRemove(index),
+                Target::Widget(tab_id),
+            ));
+        }
+    }
+
     pub fn split(
         &mut self,
         ctx: &mut EventCtx,
@@ -2199,8 +2282,23 @@ impl LapceMainSplitData {
                 ),
                 Target::Widget(split_id),
             ));
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(from_content.widget_id()),
+            ));
             self.splits.insert(new_split.widget_id, Arc::new(new_split));
             new_split_id
+        }
+    }
+
+    pub fn split_exchange(&mut self, ctx: &mut EventCtx, content: SplitContent) {
+        if let Some(split_id) = content.split_id(&self) {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SplitExchange(content),
+                Target::Widget(split_id),
+            ));
         }
     }
 
@@ -2371,7 +2469,7 @@ pub enum InlineFindDirection {
     Right,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum EditorTabChild {
     Editor(WidgetId),
 }
@@ -2394,8 +2492,8 @@ impl EditorTabChild {
 
 #[derive(Clone, Debug)]
 pub struct LapceEditorTabData {
-    widget_id: WidgetId,
-    split: WidgetId,
+    pub widget_id: WidgetId,
+    pub split: WidgetId,
     pub active: usize,
     pub children: Vec<EditorTabChild>,
     pub layout_rect: Rc<RefCell<Rect>>,

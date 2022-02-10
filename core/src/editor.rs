@@ -2778,7 +2778,12 @@ impl KeyPressFocus for LapceEditorBufferData {
                     );
                 }
             }
-            LapceCommand::SplitExchange => {}
+            LapceCommand::SplitExchange => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split
+                        .split_exchange(ctx, SplitContent::EditorTab(*widget_id));
+                }
+            }
             LapceCommand::SplitHorizontal => {
                 self.main_split.split_editor(
                     ctx,
@@ -2793,7 +2798,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                     SplitDirection::Vertical,
                 );
             }
-            LapceCommand::SplitClose => {}
+            LapceCommand::SplitClose => {
+                self.main_split.editor_close(ctx, self.view_id);
+            }
             LapceCommand::Undo => {
                 self.initiate_diagnositcs_offset();
                 let proxy = self.proxy.clone();
@@ -3657,35 +3664,11 @@ impl LapceEditorTabHeaderContent {
                     .unwrap();
                 let editor_tab = Arc::make_mut(editor_tab);
                 if tab_rect.close_rect.contains(mouse_event.pos) {
-                    if editor_tab.children.len() == 1 {
-                    } else {
-                        if editor_tab.active == i {
-                            let new_index = if i >= editor_tab.children.len() - 1 {
-                                editor_tab.active = i - 1;
-                                i - 1
-                            } else {
-                                i
-                            };
-                            editor_tab.children.remove(i);
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::Focus,
-                                Target::Widget(
-                                    editor_tab.children[new_index].widget_id(),
-                                ),
-                            ));
-                        } else {
-                            if editor_tab.active > i {
-                                editor_tab.active -= 1;
-                            }
-                            editor_tab.children.remove(i);
-                        }
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::EditorTabRemove(i),
-                            Target::Widget(self.widget_id),
-                        ));
-                    }
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EditorTabRemove(i),
+                        Target::Widget(self.widget_id),
+                    ));
                     return;
                 }
                 if editor_tab.active != i {
@@ -4027,13 +4010,8 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                         .to_rect()
                         .with_origin(Point::new(x, gap)),
                     command: Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
-                            cmd: LapceCommand::SplitClose.to_string(),
-                            data: None,
-                            palette_desc: None,
-                            target: CommandTarget::Focus,
-                        },
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SplitClose,
                         Target::Widget(self.widget_id),
                     ),
                 };
@@ -4146,6 +4124,79 @@ impl LapceEditorTab {
         self.children.push(WidgetPod::new(child));
         self
     }
+
+    fn clear_child(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
+        self.children.clear();
+        ctx.children_changed();
+
+        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+        for child in editor_tab.children.iter() {
+            match child {
+                EditorTabChild::Editor(view_id) => {
+                    data.main_split.editors.remove(&view_id);
+                }
+            }
+        }
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::SplitRemove(SplitContent::EditorTab(
+                editor_tab.widget_id,
+            )),
+            Target::Widget(editor_tab.split),
+        ));
+    }
+
+    pub fn remove_child(
+        &mut self,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+        i: usize,
+    ) {
+        self.children.remove(i);
+        ctx.children_changed();
+
+        let editor_tab = data
+            .main_split
+            .editor_tabs
+            .get_mut(&self.widget_id)
+            .unwrap();
+        let editor_tab = Arc::make_mut(editor_tab);
+        let removed_child = if editor_tab.children.len() == 1 {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SplitRemove(SplitContent::EditorTab(
+                    editor_tab.widget_id,
+                )),
+                Target::Widget(editor_tab.split),
+            ));
+            editor_tab.children.remove(i)
+        } else {
+            if editor_tab.active == i {
+                let new_index = if i >= editor_tab.children.len() - 1 {
+                    editor_tab.active = i - 1;
+                    i - 1
+                } else {
+                    i
+                };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(editor_tab.children[new_index].widget_id()),
+                ));
+                editor_tab.children.remove(i)
+            } else {
+                if editor_tab.active > i {
+                    editor_tab.active -= 1;
+                }
+                editor_tab.children.remove(i)
+            }
+        };
+        match removed_child {
+            EditorTabChild::Editor(view_id) => {
+                data.main_split.editors.remove(&view_id);
+            }
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTab {
@@ -4171,8 +4222,25 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         return;
                     }
                     LapceUICommand::EditorTabRemove(index) => {
-                        self.children.remove(*index);
-                        ctx.children_changed();
+                        self.remove_child(ctx, data, *index);
+                        return;
+                    }
+                    LapceUICommand::SplitClose => {
+                        self.clear_child(ctx, data);
+                        return;
+                    }
+                    LapceUICommand::Focus => {
+                        let tab = data
+                            .main_split
+                            .editor_tabs
+                            .get(&self.widget_id)
+                            .unwrap();
+                        let widget_id = tab.children[tab.active].widget_id();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(widget_id),
+                        ));
                         return;
                     }
                     _ => (),
