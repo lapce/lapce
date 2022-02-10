@@ -290,15 +290,15 @@ impl LapceEditorBufferData {
                     }
                     Size::new(
                         (width * self.buffer.max_len as f64).max(editor_size.width),
-                        line_height * lines as f64 + editor_size.height
-                            - line_height,
+                        (line_height * lines as f64 - line_height).max(0.0)
+                            + editor_size.height,
                     )
                 } else {
                     Size::new(
                         (width * self.buffer.max_len as f64).max(editor_size.width),
-                        line_height * self.buffer.num_lines as f64
-                            + editor_size.height
-                            - line_height,
+                        (line_height * self.buffer.num_lines as f64 - line_height)
+                            .max(0.0)
+                            + editor_size.height,
                     )
                 }
             }
@@ -4869,14 +4869,12 @@ impl Widget<LapceTabData> for LapceEditorView {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let rects = ctx.region().rects().to_vec();
-        for rect in &rects {
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-            );
-        }
+        let rect = ctx.size().to_rect();
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
         let start = std::time::SystemTime::now();
         self.editor.paint(ctx, data, env);
         let end = std::time::SystemTime::now();

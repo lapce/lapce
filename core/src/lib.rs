@@ -19,6 +19,7 @@ pub mod movement;
 pub mod outline;
 pub mod palette;
 pub mod panel;
+pub mod picker;
 pub mod plugin;
 pub mod problem;
 pub mod proxy;
