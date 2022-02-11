@@ -161,175 +161,118 @@ impl FileExplorerData {
         }
         Some(node)
     }
+}
 
-    fn paint_item(
-        &self,
-        ctx: &mut PaintCtx,
-        min: usize,
-        max: usize,
-        line_height: f64,
-        width: f64,
-        level: usize,
-        i: usize,
-        index: usize,
-        item: &FileNodeItem,
-        config: &Config,
-    ) -> usize {
-        if i > max {
-            return i;
-        }
-        if i + item.children_open_count < min {
-            return i + item.children_open_count;
-        }
-        if i >= min && i <= max {
-            if i == index {
-                ctx.fill(
-                    Rect::ZERO
-                        .with_origin(Point::new(
-                            0.0,
-                            i as f64 * line_height - line_height,
-                        ))
-                        .with_size(Size::new(width, line_height)),
-                    config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
-                );
-            }
-            let y = i as f64 * line_height - line_height;
-            let svg_y = y + 4.0;
-            let svg_size = 15.0;
-            let padding = 15.0 * level as f64;
-            if item.is_dir {
-                let icon_name = if item.open {
-                    "chevron-down.svg"
-                } else {
-                    "chevron-right.svg"
-                };
-                let svg = get_svg(icon_name).unwrap();
-                let rect = Size::new(svg_size, svg_size)
-                    .to_rect()
-                    .with_origin(Point::new(1.0 + padding, svg_y));
-                ctx.draw_svg(
-                    &svg,
-                    rect,
-                    Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
-                );
-
-                let icon_name = if item.open {
-                    "default_folder_opened.svg"
-                } else {
-                    "default_folder.svg"
-                };
-                let svg = get_svg(icon_name).unwrap();
-                let rect = Size::new(svg_size, svg_size)
-                    .to_rect()
-                    .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
-                ctx.draw_svg(&svg, rect, None);
-            } else {
-                let svg = file_svg_new(&item.path_buf);
-                let rect = Size::new(svg_size, svg_size)
-                    .to_rect()
-                    .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
-                ctx.draw_svg(&svg, rect, None);
-            }
-            let text_layout = ctx
-                .text()
-                .new_text_layout(
-                    item.path_buf
-                        .file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .to_string(),
-                )
-                .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(
-                    config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                )
-                .build()
-                .unwrap();
-            ctx.draw_text(&text_layout, Point::new(38.0 + padding, y + 3.0));
-        }
-        let mut i = i;
-        if item.open {
-            for item in node_children(item) {
-                i = self.paint_item(
-                    ctx,
-                    min,
-                    max,
-                    line_height,
-                    width,
-                    level + 1,
-                    i + 1,
-                    index,
-                    item,
-                    config,
-                );
-                if i > max {
-                    return i;
-                }
-            }
-        }
-        i
+pub fn paint_file_node_item(
+    ctx: &mut PaintCtx,
+    item: &FileNodeItem,
+    min: usize,
+    max: usize,
+    line_height: f64,
+    width: f64,
+    level: usize,
+    i: usize,
+    index: usize,
+    config: &Config,
+) -> usize {
+    if i > max {
+        return i;
     }
+    if i + item.children_open_count < min {
+        return i + item.children_open_count;
+    }
+    if i >= min && i <= max {
+        if i == index {
+            ctx.fill(
+                Rect::ZERO
+                    .with_origin(Point::new(
+                        0.0,
+                        i as f64 * line_height - line_height,
+                    ))
+                    .with_size(Size::new(width, line_height)),
+                config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+            );
+        }
+        let y = i as f64 * line_height - line_height;
+        let svg_y = y + 4.0;
+        let svg_size = 15.0;
+        let padding = 15.0 * level as f64;
+        if item.is_dir {
+            let icon_name = if item.open {
+                "chevron-down.svg"
+            } else {
+                "chevron-right.svg"
+            };
+            let svg = get_svg(icon_name).unwrap();
+            let rect = Size::new(svg_size, svg_size)
+                .to_rect()
+                .with_origin(Point::new(1.0 + padding, svg_y));
+            ctx.draw_svg(
+                &svg,
+                rect,
+                Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
+            );
+
+            let icon_name = if item.open {
+                "default_folder_opened.svg"
+            } else {
+                "default_folder.svg"
+            };
+            let svg = get_svg(icon_name).unwrap();
+            let rect = Size::new(svg_size, svg_size)
+                .to_rect()
+                .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
+            ctx.draw_svg(&svg, rect, None);
+        } else {
+            let svg = file_svg_new(&item.path_buf);
+            let rect = Size::new(svg_size, svg_size)
+                .to_rect()
+                .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
+            ctx.draw_svg(&svg, rect, None);
+        }
+        let text_layout = ctx
+            .text()
+            .new_text_layout(
+                item.path_buf
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            )
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(&text_layout, Point::new(38.0 + padding, y + 3.0));
+    }
+    let mut i = i;
+    if item.open {
+        for item in item.sorted_children() {
+            i = paint_file_node_item(
+                ctx,
+                item,
+                min,
+                max,
+                line_height,
+                width,
+                level + 1,
+                i + 1,
+                index,
+                config,
+            );
+            if i > max {
+                return i;
+            }
+        }
+    }
+    i
 }
 
-fn node_children_mut(node: &mut FileNodeItem) -> Vec<&mut FileNodeItem> {
-    let mut children = node
-        .children
-        .iter_mut()
-        .map(|(_, item)| item)
-        .collect::<Vec<&mut FileNodeItem>>();
-    children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-        (true, true) => a
-            .path_buf
-            .to_str()
-            .unwrap()
-            .cmp(b.path_buf.to_str().unwrap()),
-        (true, false) => Ordering::Less,
-        (false, true) => Ordering::Greater,
-        (false, false) => a
-            .path_buf
-            .to_str()
-            .unwrap()
-            .cmp(b.path_buf.to_str().unwrap()),
-    });
-    children
-}
-
-fn node_children(node: &FileNodeItem) -> Vec<&FileNodeItem> {
-    let mut children = node
-        .children
-        .iter()
-        .map(|(_, item)| item)
-        .collect::<Vec<&FileNodeItem>>();
-    children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-        (true, true) => a
-            .path_buf
-            .to_str()
-            .unwrap()
-            .cmp(b.path_buf.to_str().unwrap()),
-        (true, false) => Ordering::Less,
-        (false, true) => Ordering::Greater,
-        (false, false) => a
-            .path_buf
-            .to_str()
-            .unwrap()
-            .cmp(b.path_buf.to_str().unwrap()),
-    });
-    children
-}
-
-// fn get_item_count(item: &FileNodeItem) -> usize {
-//     let mut count = 1;
-//     if item.open {
-//         for child in item.children.iter() {
-//             count += get_item_count(child);
-//         }
-//     }
-//     count
-// }
-//
 fn get_item_children<'a>(
     i: usize,
     index: usize,
@@ -340,7 +283,7 @@ fn get_item_children<'a>(
     }
     let mut i = i;
     if item.open {
-        for child in node_children_mut(item) {
+        for child in item.sorted_children_mut() {
             let count = child.children_open_count;
             if i + count + 1 >= index {
                 let (new_index, node) = get_item_children(i + 1, index, child);
@@ -615,9 +558,10 @@ impl Widget<LapceTabData> for FileExplorerFileList {
 
         if let Some(item) = data.file_explorer.workspace.as_ref() {
             let mut i = 0;
-            for item in node_children(item) {
-                i = data.file_explorer.paint_item(
+            for item in item.sorted_children() {
+                i = paint_file_node_item(
                     ctx,
+                    item,
                     min,
                     max,
                     line_height,
@@ -625,7 +569,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     level + 1,
                     i + 1,
                     index,
-                    item,
                     &data.config,
                 );
                 if i > max {

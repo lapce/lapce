@@ -6,6 +6,7 @@ use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use directories::BaseDirs;
 use git2::{DiffOptions, Oid, Repository};
 use grep_matcher::Matcher;
 use grep_regex::{RegexMatcher, RegexMatcherBuilder};
@@ -19,6 +20,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use serde_json::Value;
+use std::cmp::Ordering;
 use std::{cmp, fs};
 use std::{collections::HashMap, io};
 use std::{collections::HashSet, io::BufRead};
@@ -275,6 +277,54 @@ impl std::cmp::PartialOrd for FileNodeItem {
     }
 }
 
+impl FileNodeItem {
+    pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
+        let mut children = self
+            .children
+            .iter()
+            .map(|(_, item)| item)
+            .collect::<Vec<&FileNodeItem>>();
+        children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+            (true, true) => a
+                .path_buf
+                .to_str()
+                .unwrap()
+                .cmp(b.path_buf.to_str().unwrap()),
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            (false, false) => a
+                .path_buf
+                .to_str()
+                .unwrap()
+                .cmp(b.path_buf.to_str().unwrap()),
+        });
+        children
+    }
+
+    pub fn sorted_children_mut(&mut self) -> Vec<&mut FileNodeItem> {
+        let mut children = self
+            .children
+            .iter_mut()
+            .map(|(_, item)| item)
+            .collect::<Vec<&mut FileNodeItem>>();
+        children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+            (true, true) => a
+                .path_buf
+                .to_str()
+                .unwrap()
+                .cmp(b.path_buf.to_str().unwrap()),
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            (false, false) => a
+                .path_buf
+                .to_str()
+                .unwrap()
+                .cmp(b.path_buf.to_str().unwrap()),
+        });
+        children
+    }
+}
+
 impl Dispatcher {
     pub fn new(sender: Sender<Value>) -> Dispatcher {
         let plugins = PluginCatalog::new();
@@ -309,6 +359,19 @@ impl Dispatcher {
                 .plugins
                 .lock()
                 .start_all(local_dispatcher.clone());
+        });
+
+        let local_dispatcher = dispatcher.clone();
+        thread::spawn(move || {
+            if let Some(path) = BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
+            {
+                local_dispatcher.send_notification(
+                    "home_dir",
+                    json!({
+                        "path": path,
+                    }),
+                );
+            }
         });
 
         dispatcher.start_update_process(git_receiver);
