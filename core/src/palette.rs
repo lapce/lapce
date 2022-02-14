@@ -25,13 +25,16 @@ use itertools::Itertools;
 use lapce_proxy::terminal::TermId;
 use lsp_types::{DocumentSymbolResponse, Location, Position, Range, SymbolKind};
 use serde_json::{self, json, Value};
-use std::fs::{self, DirEntry};
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::{cmp::Ordering, mem::size_of_val};
+use std::{
+    collections::HashSet,
+    fs::{self, DirEntry},
+};
 use strum::{EnumMessage, IntoEnumIterator};
 use usvg;
 use uuid::Uuid;
@@ -128,6 +131,7 @@ pub enum PaletteItemContent {
     },
     ReferenceLocation(PathBuf, EditorLocationNew),
     Workspace(LapceWorkspace),
+    SshHost(String, String),
     Command(LapceCommandNew),
     Theme(String),
 }
@@ -224,6 +228,22 @@ impl PaletteItemContent {
                     ));
                 }
             }
+            PaletteItemContent::SshHost(user, host) => {
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SetWorkspace(LapceWorkspace {
+                            kind: LapceWorkspaceType::RemoteSSH(
+                                user.to_string(),
+                                host.to_string(),
+                            ),
+                            path: None,
+                            last_open: 0,
+                        }),
+                        Target::Auto,
+                    ));
+                }
+            }
         }
         None
     }
@@ -307,6 +327,13 @@ impl PaletteItemContent {
             PaletteItemContent::TerminalLine(line, content) => (
                 None,
                 content.clone(),
+                indices.to_vec(),
+                "".to_string(),
+                vec![],
+            ),
+            PaletteItemContent::SshHost(user, host) => (
+                None,
+                format!("{user}@{host}"),
                 indices.to_vec(),
                 "".to_string(),
                 vec![],
@@ -655,7 +682,9 @@ impl PaletteViewData {
                 self.get_workspaces(ctx);
             }
             &PaletteType::Reference => {}
-            &PaletteType::SshHost => {}
+            &PaletteType::SshHost => {
+                self.get_ssh_hosts(ctx);
+            }
             &PaletteType::GlobalSearch => {
                 self.get_global_search(ctx);
             }
@@ -731,26 +760,6 @@ impl PaletteViewData {
                 false,
             );
         }
-        if self.palette.palette_type == PaletteType::SshHost {
-            let input = self.palette.get_input();
-            let splits = input.split("@").collect::<Vec<&str>>();
-            let mut splits = splits.iter().rev();
-            let host = splits.next().unwrap().to_string();
-            let user = splits
-                .next()
-                .map(|s| s.to_string())
-                .unwrap_or("root".to_string());
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::SetWorkspace(LapceWorkspace {
-                    kind: LapceWorkspaceType::RemoteSSH(user, host),
-                    path: None,
-                    last_open: 0,
-                }),
-                Target::Auto,
-            ));
-            return;
-        }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {
             if let Some(palette_type) =
@@ -761,6 +770,26 @@ impl PaletteViewData {
                 self.cancel(ctx);
             }
         } else {
+            if self.palette.palette_type == PaletteType::SshHost {
+                let input = self.palette.get_input();
+                let splits = input.split("@").collect::<Vec<&str>>();
+                let mut splits = splits.iter().rev();
+                let host = splits.next().unwrap().to_string();
+                let user = splits
+                    .next()
+                    .map(|s| s.to_string())
+                    .unwrap_or("root".to_string());
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetWorkspace(LapceWorkspace {
+                        kind: LapceWorkspaceType::RemoteSSH(user, host),
+                        path: None,
+                        last_open: 0,
+                    }),
+                    Target::Auto,
+                ));
+                return;
+            }
             self.cancel(ctx);
         }
     }
@@ -846,6 +875,33 @@ impl PaletteViewData {
                 }
             }
         }));
+    }
+
+    fn get_ssh_hosts(&mut self, ctx: &mut EventCtx) {
+        let workspaces = Config::recent_workspaces().unwrap_or(Vec::new());
+        let mut hosts = HashSet::new();
+        for workspace in workspaces.iter() {
+            match &workspace.kind {
+                LapceWorkspaceType::Local => (),
+                LapceWorkspaceType::RemoteSSH(user, host) => {
+                    hosts.insert((user.to_string(), host.to_string()));
+                }
+            }
+        }
+
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.items = hosts
+            .iter()
+            .map(|(user, host)| NewPaletteItem {
+                content: PaletteItemContent::SshHost(
+                    user.to_string(),
+                    host.to_string(),
+                ),
+                filter_text: format!("{user}@{host}"),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
     }
 
     fn get_workspaces(&mut self, ctx: &mut EventCtx) {
@@ -1571,17 +1627,33 @@ impl Widget<PaletteViewData> for NewPaletteInput {
         let text = data.palette.input.clone();
         let cursor = data.palette.cursor;
 
-        let text_layout = ctx
-            .text()
-            .new_text_layout(text)
-            .font(FontFamily::SYSTEM_UI, 14.0)
-            .text_color(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .build()
-            .unwrap();
+        let text_layout =
+            if text == "" && data.palette.palette_type == PaletteType::SshHost {
+                ctx.text()
+                    .new_text_layout(
+                        "Enter your SSH details, like user@host".to_string(),
+                    )
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap()
+            } else {
+                ctx.text()
+                    .new_text_layout(text)
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap()
+            };
+
         let line = text_layout.cursor_line_for_text_position(cursor);
         ctx.stroke(
             line,

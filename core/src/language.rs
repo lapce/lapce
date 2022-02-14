@@ -66,11 +66,7 @@ pub fn new_highlight_config(language: LapceLanguage) -> HighlightConfiguration {
         LapceLanguage::Rust => {
             let mut configuration = HighlightConfiguration::new(
                 tree_sitter_rust::language(),
-                QUERIES_DIR
-                    .get_file("rust/highlights.scm")
-                    .unwrap()
-                    .contents_utf8()
-                    .unwrap(),
+                tree_sitter_rust::HIGHLIGHT_QUERY,
                 "",
                 "",
             )
@@ -81,11 +77,7 @@ pub fn new_highlight_config(language: LapceLanguage) -> HighlightConfiguration {
         LapceLanguage::Javascript => {
             let mut configuration = HighlightConfiguration::new(
                 tree_sitter_javascript::language(),
-                QUERIES_DIR
-                    .get_file("javascript/highlights.scm")
-                    .unwrap()
-                    .contents_utf8()
-                    .unwrap(),
+                tree_sitter_javascript::HIGHLIGHT_QUERY,
                 "",
                 "",
             )
@@ -96,11 +88,7 @@ pub fn new_highlight_config(language: LapceLanguage) -> HighlightConfiguration {
         LapceLanguage::Go => {
             let mut configuration = HighlightConfiguration::new(
                 tree_sitter_go::language(),
-                QUERIES_DIR
-                    .get_file("go/highlights.scm")
-                    .unwrap()
-                    .contents_utf8()
-                    .unwrap(),
+                tree_sitter_go::HIGHLIGHT_QUERY,
                 "",
                 "",
             )
