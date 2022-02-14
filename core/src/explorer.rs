@@ -142,7 +142,7 @@ impl FileExplorerData {
     }
 
     pub fn get_node_by_index(&mut self, index: usize) -> Option<&mut FileNodeItem> {
-        let (_, node) = get_item_children(0, index, self.workspace.as_mut()?);
+        let (_, node) = get_item_children_mut(0, index, self.workspace.as_mut()?);
         node
     }
 
@@ -174,6 +174,7 @@ pub fn paint_file_node_item(
     i: usize,
     index: usize,
     config: &Config,
+    toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
     if i > max {
         return i;
@@ -212,6 +213,7 @@ pub fn paint_file_node_item(
                 rect,
                 Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
             );
+            toggle_rects.insert(i, rect.clone());
 
             let icon_name = if item.open {
                 "default_folder_opened.svg"
@@ -248,7 +250,13 @@ pub fn paint_file_node_item(
             )
             .build()
             .unwrap();
-        ctx.draw_text(&text_layout, Point::new(38.0 + padding, y + 3.0));
+        ctx.draw_text(
+            &text_layout,
+            Point::new(
+                38.0 + padding,
+                y + (line_height - text_layout.size().height) / 2.0,
+            ),
+        );
     }
     let mut i = i;
     if item.open {
@@ -264,6 +272,7 @@ pub fn paint_file_node_item(
                 i + 1,
                 index,
                 config,
+                toggle_rects,
             );
             if i > max {
                 return i;
@@ -273,7 +282,31 @@ pub fn paint_file_node_item(
     i
 }
 
-fn get_item_children<'a>(
+pub fn get_item_children<'a>(
+    i: usize,
+    index: usize,
+    item: &'a FileNodeItem,
+) -> (usize, Option<&'a FileNodeItem>) {
+    if i == index {
+        return (i, Some(item));
+    }
+    let mut i = i;
+    if item.open {
+        for child in item.sorted_children() {
+            let count = child.children_open_count;
+            if i + count + 1 >= index {
+                let (new_index, node) = get_item_children(i + 1, index, child);
+                if new_index == index {
+                    return (new_index, node);
+                }
+            }
+            i += count + 1;
+        }
+    }
+    (i, None)
+}
+
+pub fn get_item_children_mut<'a>(
     i: usize,
     index: usize,
     item: &'a mut FileNodeItem,
@@ -286,7 +319,7 @@ fn get_item_children<'a>(
         for child in item.sorted_children_mut() {
             let count = child.children_open_count;
             if i + count + 1 >= index {
-                let (new_index, node) = get_item_children(i + 1, index, child);
+                let (new_index, node) = get_item_children_mut(i + 1, index, child);
                 if new_index == index {
                     return (new_index, node);
                 }
@@ -570,6 +603,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     i + 1,
                     index,
                     &data.config,
+                    &mut HashMap::new(),
                 );
                 if i > max {
                     return;

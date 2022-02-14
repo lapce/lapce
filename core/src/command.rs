@@ -451,6 +451,7 @@ pub enum LapceUICommand {
         String,
         Arc<HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>>,
     ),
+    CancelFilePicker,
     SetWorkspace(LapceWorkspace),
     SetTheme(String, bool),
     OpenFile(PathBuf),

@@ -8,7 +8,7 @@ use std::{
 use directories::ProjectDirs;
 use druid::{
     kurbo::Line,
-    piet::{Text, TextLayout, TextLayoutBuilder},
+    piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     theme, Application, BoxConstraints, Color, Command, Cursor, Data, Env, Event,
     EventCtx, FontFamily, Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
     Point, Rect, RenderContext, Size, Target, Vec2, Widget, WidgetExt, WidgetId,
@@ -53,6 +53,12 @@ pub struct LapceIcon {
     pub rect: Rect,
     pub command: Command,
     pub icon: String,
+}
+
+pub struct LapceButton {
+    pub rect: Rect,
+    pub command: Command,
+    pub text_layout: PietTextLayout,
 }
 
 pub struct LapceTabNew {
@@ -340,6 +346,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                         {
                             Arc::make_mut(&mut terminal).title = title.to_string();
                         }
+                    }
+                    LapceUICommand::CancelFilePicker => {
+                        Arc::make_mut(&mut data.picker).active = false;
+                        ctx.set_handled();
                     }
                     LapceUICommand::HomeDir(path) => {
                         Arc::make_mut(&mut data.picker).init_home(path);
@@ -1230,7 +1240,10 @@ impl Widget<LapceTabData> for LapceTabNew {
             ctx,
             data,
             env,
-            Point::new((self_size.width - picker_size.width) / 2.0, 0.0),
+            Point::new(
+                (self_size.width - picker_size.width) / 2.0,
+                (self_size.height - picker_size.height) / 3.0,
+            ),
         );
 
         self_size
