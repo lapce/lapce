@@ -814,18 +814,22 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::Focus => {
-                        let split_data =
-                            data.main_split.splits.get(&self.split_id).unwrap();
-                        if split_data.children.len() > 0 {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::Focus,
-                                Target::Widget(split_data.children[0].widget_id()),
-                            ));
-                        } else {
-                            ctx.request_focus();
-                            data.focus = self.split_id;
-                            data.focus_area = FocusArea::Editor;
+                        if let Some(split_data) =
+                            data.main_split.splits.get(&self.split_id)
+                        {
+                            if split_data.children.len() > 0 {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::Focus,
+                                    Target::Widget(
+                                        split_data.children[0].widget_id(),
+                                    ),
+                                ));
+                            } else {
+                                ctx.request_focus();
+                                data.focus = self.split_id;
+                                data.focus_area = FocusArea::Editor;
+                            }
                         }
                     }
                     LapceUICommand::SplitAdd(usize, content, focus_new) => {
