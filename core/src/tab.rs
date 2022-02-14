@@ -8,7 +8,7 @@ use std::{
 use directories::ProjectDirs;
 use druid::{
     kurbo::Line,
-    piet::{Text, TextLayout, TextLayoutBuilder},
+    piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     theme, Application, BoxConstraints, Color, Command, Cursor, Data, Env, Event,
     EventCtx, FontFamily, Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
     Point, Rect, RenderContext, Size, Target, Vec2, Widget, WidgetExt, WidgetId,
@@ -40,6 +40,7 @@ use crate::{
     movement::{self, CursorMode, Selection},
     palette::{NewPalette, PaletteViewLens},
     panel::{PanelHeaderKind, PanelPosition, PanelResizePosition},
+    picker::FilePicker,
     plugin::Plugin,
     scroll::LapceScrollNew,
     split::LapceSplitNew,
@@ -54,6 +55,12 @@ pub struct LapceIcon {
     pub icon: String,
 }
 
+pub struct LapceButton {
+    pub rect: Rect,
+    pub command: Command,
+    pub text_layout: PietTextLayout,
+}
+
 pub struct LapceTabNew {
     id: WidgetId,
     activity: WidgetPod<LapceTabData, ActivityBar>,
@@ -62,6 +69,7 @@ pub struct LapceTabNew {
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     code_action: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     panels:
         HashMap<PanelKind, WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     current_bar_hover: Option<PanelResizePosition>,
@@ -139,12 +147,15 @@ impl LapceTabNew {
         let problem = data.problem.new_panel();
         panels.insert(PanelKind::Problem, WidgetPod::new(problem.boxed()));
 
+        let picker = FilePicker::new(data.picker.widget_id);
+
         Self {
             id: data.id,
             activity: WidgetPod::new(activity),
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion.boxed()),
             code_action: WidgetPod::new(code_action.boxed()),
+            picker: WidgetPod::new(picker.boxed()),
             palette: WidgetPod::new(palette.boxed()),
             status: WidgetPod::new(status.boxed()),
             panels,
@@ -335,6 +346,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         {
                             Arc::make_mut(&mut terminal).title = title.to_string();
                         }
+                    }
+                    LapceUICommand::CancelFilePicker => {
+                        Arc::make_mut(&mut data.picker).active = false;
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::HomeDir(path) => {
+                        Arc::make_mut(&mut data.picker).init_home(path);
+                        ctx.set_handled();
                     }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
@@ -832,6 +851,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .borrow_mut()
                             .insert(history.to_string(), HashMap::new());
                     }
+                    LapceUICommand::UpdatePickerItems(path, items) => {
+                        Arc::make_mut(&mut data.picker)
+                            .set_item_children(path, items.clone());
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateExplorerItems(index, path, items) => {
                         let file_explorer = Arc::make_mut(&mut data.file_explorer);
                         if let Some(node) = file_explorer.get_node_mut(path) {
@@ -855,6 +879,7 @@ impl Widget<LapceTabData> for LapceTabNew {
             }
             _ => (),
         }
+        self.picker.event(ctx, event, data, env);
         self.palette.event(ctx, event, data, env);
         self.completion.event(ctx, event, data, env);
         self.code_action.event(ctx, event, data, env);
@@ -884,6 +909,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.code_action.lifecycle(ctx, event, data, env);
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
+        self.picker.lifecycle(ctx, event, data, env);
 
         for (_, panel) in self.panels.iter_mut() {
             panel.lifecycle(ctx, event, data, env);
@@ -923,6 +949,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.completion.update(ctx, data, env);
         self.code_action.update(ctx, data, env);
         self.status.update(ctx, data, env);
+        self.picker.update(ctx, data, env);
         for (_, panel) in data.panels.iter() {
             if panel.is_shown() {
                 self.panels
@@ -1208,6 +1235,17 @@ impl Widget<LapceTabData> for LapceTabNew {
             Point::new((self_size.width - palette_size.width) / 2.0, 0.0),
         );
 
+        let picker_size = self.picker.layout(ctx, bc, data, env);
+        self.picker.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(
+                (self_size.width - picker_size.width) / 2.0,
+                (self_size.height - picker_size.height) / 3.0,
+            ),
+        );
+
         self_size
     }
 
@@ -1277,6 +1315,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.completion.paint(ctx, data, env);
         self.code_action.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
+        self.picker.paint(ctx, data, env);
     }
 }
 

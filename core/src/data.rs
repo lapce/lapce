@@ -27,7 +27,11 @@ use druid::{
 };
 use im::{self, hashmap};
 use itertools::Itertools;
-use lapce_proxy::{dispatch::FileDiff, plugin::PluginDescription, terminal::TermId};
+use lapce_proxy::{
+    dispatch::{FileDiff, FileNodeItem},
+    plugin::PluginDescription,
+    terminal::TermId,
+};
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
     CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
@@ -74,6 +78,7 @@ use crate::{
     },
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
+    picker::FilePickerData,
     plugin::PluginData,
     problem::ProblemData,
     proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
@@ -329,6 +334,7 @@ pub struct LapceTabData {
     pub problem: Arc<ProblemData>,
     pub search: Arc<SearchData>,
     pub plugin: Arc<PluginData>,
+    pub picker: Arc<FilePickerData>,
     pub plugins: Arc<Vec<PluginDescription>>,
     pub installed_plugins: Arc<HashMap<String, PluginDescription>>,
     pub file_explorer: Arc<FileExplorerData>,
@@ -371,6 +377,7 @@ impl Data for LapceTabData {
             && self.problem.same(&other.problem)
             && self.search.same(&other.search)
             && self.installed_plugins.same(&other.installed_plugins)
+            && self.picker.same(&other.picker)
     }
 }
 
@@ -481,6 +488,7 @@ impl LapceTabData {
             plugins: Arc::new(Vec::new()),
             installed_plugins: Arc::new(HashMap::new()),
             find: Arc::new(Find::new(0)),
+            picker: Arc::new(FilePickerData::new()),
             source_control,
             file_explorer,
             term_rx: Some(term_receiver),
@@ -773,31 +781,69 @@ impl LapceTabData {
     ) {
         match command {
             LapceWorkbenchCommand::OpenFolder => {
-                let event_sink = ctx.get_external_handle();
-                thread::spawn(move || {
-                    let dir = UserDirs::new()
-                        .and_then(|u| u.home_dir().to_str().map(|s| s.to_string()))
-                        .unwrap_or(".".to_string());
-                    if let Some(folder) =
-                        tinyfiledialogs::select_folder_dialog("Open folder", &dir)
-                    {
-                        let path = PathBuf::from(folder);
-                        let workspace = LapceWorkspace {
-                            kind: LapceWorkspaceType::Local,
-                            path: Some(path),
-                            last_open: std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs(),
-                        };
-
-                        event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::SetWorkspace(workspace),
-                            Target::Auto,
+                let picker = Arc::make_mut(&mut self.picker);
+                picker.active = true;
+                if let Some(node) = picker.get_file_node(&picker.pwd) {
+                    if !node.read {
+                        let tab_id = self.id;
+                        let path = node.path_buf.clone();
+                        let event_sink = ctx.get_external_handle();
+                        self.proxy.read_dir(
+                            &node.path_buf,
+                            Box::new(move |result| {
+                                if let Ok(res) = result {
+                                    let resp: Result<
+                                        Vec<FileNodeItem>,
+                                        serde_json::Error,
+                                    > = serde_json::from_value(res);
+                                    if let Ok(items) = resp {
+                                        event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::UpdatePickerItems(
+                                                path,
+                                                items
+                                                    .iter()
+                                                    .map(|item| {
+                                                        (
+                                                            item.path_buf.clone(),
+                                                            item.clone(),
+                                                        )
+                                                    })
+                                                    .collect(),
+                                            ),
+                                            Target::Widget(tab_id),
+                                        );
+                                    }
+                                }
+                            }),
                         );
                     }
-                });
+                }
+                // let event_sink = ctx.get_external_handle();
+                // thread::spawn(move || {
+                //     let dir = UserDirs::new()
+                //         .and_then(|u| u.home_dir().to_str().map(|s| s.to_string()))
+                //         .unwrap_or(".".to_string());
+                //     if let Some(folder) =
+                //         tinyfiledialogs::select_folder_dialog("Open folder", &dir)
+                //     {
+                //         let path = PathBuf::from(folder);
+                //         let workspace = LapceWorkspace {
+                //             kind: LapceWorkspaceType::Local,
+                //             path: Some(path),
+                //             last_open: std::time::SystemTime::now()
+                //                 .duration_since(std::time::UNIX_EPOCH)
+                //                 .unwrap()
+                //                 .as_secs(),
+                //         };
+
+                //         event_sink.submit_command(
+                //             LAPCE_UI_COMMAND,
+                //             LapceUICommand::SetWorkspace(workspace),
+                //             Target::Auto,
+                //         );
+                //     }
+                // });
             }
             LapceWorkbenchCommand::EnableModal => {
                 let config = Arc::make_mut(&mut self.config);

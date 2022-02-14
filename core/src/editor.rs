@@ -290,15 +290,15 @@ impl LapceEditorBufferData {
                     }
                     Size::new(
                         (width * self.buffer.max_len as f64).max(editor_size.width),
-                        line_height * lines as f64 + editor_size.height
-                            - line_height,
+                        (line_height * lines as f64 - line_height).max(0.0)
+                            + editor_size.height,
                     )
                 } else {
                     Size::new(
                         (width * self.buffer.max_len as f64).max(editor_size.width),
-                        line_height * self.buffer.num_lines as f64
-                            + editor_size.height
-                            - line_height,
+                        (line_height * self.buffer.num_lines as f64 - line_height)
+                            .max(0.0)
+                            + editor_size.height,
                     )
                 }
             }
@@ -3625,10 +3625,75 @@ struct TabRect {
     text_layout: PietTextLayout,
 }
 
+impl TabRect {
+    fn paint(
+        &self,
+        ctx: &mut PaintCtx,
+        data: &LapceTabData,
+        widget_id: WidgetId,
+        i: usize,
+        size: Size,
+        mouse_pos: Point,
+    ) {
+        let width = 13.0;
+        let height = 13.0;
+        let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
+
+        let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+            self.rect.x0 + (size.height - width) / 2.0,
+            (size.height - height) / 2.0,
+        ));
+        if i == editor_tab.active {
+            ctx.fill(
+                self.rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
+        }
+        ctx.draw_svg(&self.svg, rect, None);
+        let text_size = self.text_layout.size();
+        ctx.draw_text(
+            &self.text_layout,
+            Point::new(
+                self.rect.x0 + size.height,
+                (size.height - text_size.height) / 2.0,
+            ),
+        );
+        let x = self.rect.x1;
+        ctx.stroke(
+            Line::new(Point::new(x - 0.5, 0.0), Point::new(x - 0.5, size.height)),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
+
+        if ctx.is_hot() {
+            if self.close_rect.contains(mouse_pos) {
+                ctx.fill(
+                    &self.close_rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                );
+            }
+            if self.rect.contains(mouse_pos) {
+                let svg = get_svg("close.svg").unwrap();
+                ctx.draw_svg(
+                    &svg,
+                    self.close_rect.inflate(-4.0, -4.0),
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                    ),
+                );
+            }
+        }
+    }
+}
+
 pub struct LapceEditorTabHeaderContent {
     pub widget_id: WidgetId,
     rects: Vec<TabRect>,
     mouse_pos: Point,
+    pub drag_start: Option<(WidgetId, Point)>,
 }
 
 impl LapceEditorTabHeaderContent {
@@ -3637,6 +3702,7 @@ impl LapceEditorTabHeaderContent {
             widget_id,
             rects: Vec::new(),
             mouse_pos: Point::ZERO,
+            drag_start: None,
         }
     }
 
@@ -3650,7 +3716,7 @@ impl LapceEditorTabHeaderContent {
     }
 
     fn mouse_down(
-        &self,
+        &mut self,
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
         mouse_event: &MouseEvent,
@@ -3679,6 +3745,11 @@ impl LapceEditorTabHeaderContent {
                         Target::Widget(editor_tab.children[i].widget_id()),
                     ));
                 }
+                ctx.set_active(true);
+                self.drag_start = Some((
+                    editor_tab.children[i].widget_id(),
+                    mouse_event.pos.clone(),
+                ));
                 return;
             }
         }
@@ -3696,6 +3767,12 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
+                if ctx.is_active() {
+                    if let Some(pos) = self.drag_start {
+                        ctx.request_layout();
+                    }
+                    return;
+                }
                 if self.icon_hit_test(mouse_event) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                 } else {
@@ -3705,6 +3782,10 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, data, mouse_event);
+            }
+            Event::MouseUp(mouse_event) => {
+                ctx.set_active(false);
+                self.drag_start = None;
             }
             _ => (),
         }
@@ -3776,7 +3857,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             let width = (text_size.width + height * 2.0).max(200.0);
             let close_size = 24.0;
             let inflate = (height - close_size) / 2.0;
-            let tab_rect = TabRect {
+            let mut tab_rect = TabRect {
                 svg,
                 rect: Size::new(width, height)
                     .to_rect()
@@ -3787,8 +3868,17 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     .inflate(-inflate, -inflate),
                 text_layout,
             };
-            self.rects.push(tab_rect);
             x += width;
+            if let Some((dragged_widget, drag_start)) = self.drag_start.as_ref() {
+                if &child.widget_id() == dragged_widget {
+                    let x = self.mouse_pos.x - drag_start.x;
+                    tab_rect.rect.x0 += x;
+                    tab_rect.rect.x1 += x;
+                    tab_rect.close_rect.x0 += x;
+                    tab_rect.close_rect.x1 += x;
+                }
+            }
+            self.rects.push(tab_rect);
         }
 
         Size::new(width, height)
@@ -3799,59 +3889,19 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         let size = ctx.size();
 
         for (i, tab_rect) in self.rects.iter().enumerate() {
-            let width = 13.0;
-            let height = 13.0;
-            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                tab_rect.rect.x0 + (size.height - width) / 2.0,
-                (size.height - height) / 2.0,
-            ));
-            if i == editor_tab.active {
-                ctx.fill(
-                    tab_rect.rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
-            }
-            ctx.draw_svg(&tab_rect.svg, rect, None);
-            let text_size = tab_rect.text_layout.size();
-            ctx.draw_text(
-                &tab_rect.text_layout,
-                Point::new(
-                    tab_rect.rect.x0 + size.height,
-                    (size.height - text_size.height) / 2.0,
-                ),
-            );
-            let x = tab_rect.rect.x1;
-            ctx.stroke(
-                Line::new(
-                    Point::new(x - 0.5, 0.0),
-                    Point::new(x - 0.5, size.height),
-                ),
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
-            );
-
-            if ctx.is_hot() {
-                if tab_rect.close_rect.contains(self.mouse_pos) {
-                    ctx.fill(
-                        &tab_rect.close_rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-                    );
-                }
-                if tab_rect.rect.contains(self.mouse_pos) {
-                    let svg = get_svg("close.svg").unwrap();
-                    ctx.draw_svg(
-                        &svg,
-                        tab_rect.close_rect.inflate(-4.0, -4.0),
-                        Some(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                        ),
-                    );
-                }
+            if i != editor_tab.active {
+                tab_rect.paint(ctx, data, self.widget_id, i, size, self.mouse_pos);
             }
         }
+
+        self.rects.get(editor_tab.active).unwrap().paint(
+            ctx,
+            data,
+            self.widget_id,
+            editor_tab.active,
+            size,
+            self.mouse_pos,
+        );
     }
 }
 
@@ -4869,14 +4919,12 @@ impl Widget<LapceTabData> for LapceEditorView {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let rects = ctx.region().rects().to_vec();
-        for rect in &rects {
-            ctx.fill(
-                rect,
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-            );
-        }
+        let rect = ctx.size().to_rect();
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+        );
         let start = std::time::SystemTime::now();
         self.editor.paint(ctx, data, env);
         let end = std::time::SystemTime::now();

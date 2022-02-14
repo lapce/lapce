@@ -128,6 +128,13 @@ impl Handler for LapceProxy {
                 );
             }
             Notification::Shutdown {} => return ControlFlow::Exit,
+            Notification::HomeDir { path } => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::HomeDir(path),
+                    Target::Widget(self.tab_id),
+                );
+            }
         }
         ControlFlow::Continue
     }
@@ -1029,6 +1036,9 @@ pub enum Notification {
     },
     WorkDoneProgress {
         progress: ProgressParams,
+    },
+    HomeDir {
+        path: PathBuf,
     },
     InstalledPlugins {
         plugins: HashMap<String, PluginDescription>,
