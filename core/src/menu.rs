@@ -238,7 +238,7 @@ impl Widget<LapceWindowData> for Menu {
         ctx.fill(
             rect,
             data.config
-                .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
 
         let line_height = data.config.editor.line_height as f64;
@@ -248,8 +248,7 @@ impl Widget<LapceWindowData> for Menu {
             .with_size(Size::new(ctx.size().width, line_height));
         ctx.fill(
             line_rect,
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
         );
 
         for (i, item) in data.menu.items.iter().enumerate() {
