@@ -62,8 +62,8 @@ use druid::{
     WidgetId, WidgetPod, WindowId,
 };
 use druid::{
-    menu, Application, ExtEventSink, FileDialogOptions, InternalLifeCycle, Menu,
-    Modifiers, MouseEvent,
+    menu, Application, ExtEventSink, FileDialogOptions, InternalEvent,
+    InternalLifeCycle, Menu, Modifiers, MouseEvent,
 };
 use druid::{
     piet::{
@@ -3785,11 +3785,10 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 self.mouse_down(ctx, data, mouse_event);
             }
             Event::MouseUp(mouse_event) => {
-                let drag = Arc::make_mut(&mut data.drag);
-                if let Some((_, drag_content)) = drag.as_ref() {
+                if let Some((_, drag_content)) = data.drag.clone().as_ref() {
                     match drag_content {
                         DragContent::EditorTab(from_id, from_index, child, _) => {
-                            let mut mouse_index = self.rects.len() - 1;
+                            let mut mouse_index = self.rects.len();
                             for (i, tab_rect) in self.rects.iter().enumerate() {
                                 if tab_rect.rect.contains(mouse_event.pos) {
                                     if mouse_event.pos.x
@@ -3806,19 +3805,45 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                             let editor_tab = data
                                 .main_split
                                 .editor_tabs
-                                .get_mut(&self.widget_id)
-                                .unwrap();
+                                .get(&self.widget_id)
+                                .unwrap()
+                                .clone();
                             if &editor_tab.widget_id == from_id {
-                                if child.widget_id()
-                                    != editor_tab.children[mouse_index].widget_id()
-                                {
+                                let new_index = if mouse_index > *from_index {
+                                    Some(mouse_index - 1)
+                                } else if mouse_index < *from_index {
+                                    Some(mouse_index)
+                                } else {
+                                    None
+                                };
+                                if let Some(new_index) = new_index {
+                                    if new_index != *from_index {
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::EditorTabSwap(
+                                                *from_index,
+                                                new_index,
+                                            ),
+                                            Target::Widget(editor_tab.widget_id),
+                                        ));
+                                        ctx.submit_command(Command::new(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::Focus,
+                                            Target::Widget(child.widget_id()),
+                                        ));
+                                    }
                                 }
                             } else {
+                                child.set_editor_tab(data, editor_tab.widget_id);
+                                let editor_tab = data
+                                    .main_split
+                                    .editor_tabs
+                                    .get_mut(&self.widget_id)
+                                    .unwrap();
                                 let editor_tab = Arc::make_mut(editor_tab);
                                 editor_tab
                                     .children
                                     .insert(mouse_index, child.clone());
-                                editor_tab.active = mouse_index;
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::EditorTabAdd(
@@ -3844,7 +3869,9 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         }
                     };
                 }
-                *drag = None;
+                if data.drag.is_some() {
+                    *Arc::make_mut(&mut data.drag) = None;
+                }
             }
             _ => (),
         }
@@ -4352,6 +4379,21 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         ctx.children_changed();
                         return;
                     }
+                    LapceUICommand::EditorTabSwap(from_index, to_index) => {
+                        let editor_tab = data
+                            .main_split
+                            .editor_tabs
+                            .get_mut(&self.widget_id)
+                            .unwrap();
+                        let editor_tab = Arc::make_mut(editor_tab);
+
+                        let child = self.children.remove(*from_index);
+                        self.children.insert(*to_index, child);
+                        let child = editor_tab.children.remove(*from_index);
+                        editor_tab.children.insert(*to_index, child);
+                        ctx.request_layout();
+                        return;
+                    }
                     LapceUICommand::EditorTabRemove(index, delete) => {
                         self.remove_child(ctx, data, *index, *delete);
                         return;
@@ -4381,7 +4423,16 @@ impl Widget<LapceTabData> for LapceEditorTab {
         }
         self.header.event(ctx, event, data, env);
         let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-        self.children[tab.active].event(ctx, event, data, env);
+        match event {
+            Event::Internal(InternalEvent::TargetedCommand(_)) => {
+                for child in self.children.iter_mut() {
+                    child.event(ctx, event, data, env);
+                }
+            }
+            _ => {
+                self.children[tab.active].event(ctx, event, data, env);
+            }
+        }
     }
 
     fn lifecycle(
@@ -4487,6 +4538,17 @@ impl LapceEditorView {
         data.focus = self.view_id;
         let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
         if let Some(editor_tab_id) = editor.tab_id.clone() {
+            let editor_tab =
+                data.main_split.editor_tabs.get_mut(&editor_tab_id).unwrap();
+            let editor_tab = Arc::make_mut(editor_tab);
+            if let Some(index) = editor_tab
+                .children
+                .iter()
+                .position(|child| child.widget_id() == self.view_id)
+            {
+                editor_tab.active = index;
+                println!("editor tab new active {index}");
+            }
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::EnsureEditorTabActiveVisble,

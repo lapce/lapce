@@ -2563,6 +2563,16 @@ impl EditorTabChild {
             }
         }
     }
+
+    pub fn set_editor_tab(&self, data: &mut LapceTabData, editor_tab_id: WidgetId) {
+        match &self {
+            EditorTabChild::Editor(view_id) => {
+                let editor_data = data.main_split.editors.get_mut(view_id).unwrap();
+                let editor_data = Arc::make_mut(editor_data);
+                editor_data.tab_id = Some(editor_tab_id);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
