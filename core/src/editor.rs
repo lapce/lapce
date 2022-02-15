@@ -4547,7 +4547,6 @@ impl LapceEditorView {
                 .position(|child| child.widget_id() == self.view_id)
             {
                 editor_tab.active = index;
-                println!("editor tab new active {index}");
             }
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
