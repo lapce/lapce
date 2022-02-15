@@ -10,9 +10,9 @@ use druid::{
     kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     theme, Application, BoxConstraints, Color, Command, Cursor, Data, Env, Event,
-    EventCtx, FontFamily, Insets, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
-    Point, Rect, RenderContext, Size, Target, Vec2, Widget, WidgetExt, WidgetId,
-    WidgetPod, WindowConfig,
+    EventCtx, FontFamily, Insets, InternalLifeCycle, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, Vec2, Widget,
+    WidgetExt, WidgetId, WidgetPod, WindowConfig,
 };
 use itertools::Itertools;
 use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
@@ -31,8 +31,8 @@ use crate::{
     completion::{CompletionContainer, CompletionNew, CompletionStatus},
     config::{Config, LapceTheme},
     data::{
-        EditorContent, EditorDiagnostic, EditorTabChild, LapceMainSplitData,
-        LapceTabData, PanelKind, SplitContent, WorkProgress,
+        DragContent, EditorContent, EditorDiagnostic, EditorTabChild,
+        LapceMainSplitData, LapceTabData, PanelKind, SplitContent, WorkProgress,
     },
     editor::{EditorLocationNew, LapceEditorTab, LapceEditorView},
     explorer::FileExplorer,
@@ -76,39 +76,17 @@ pub struct LapceTabNew {
     height: f64,
     main_split_height: f64,
     status_height: f64,
+    mouse_pos: Point,
 }
 
 impl LapceTabNew {
     pub fn new(data: &LapceTabData) -> Self {
-        let mut main_split = LapceSplitNew::new(*data.main_split.split_id);
         let split_data = data
             .main_split
             .splits
             .get(&*data.main_split.split_id)
             .unwrap();
-        for split_content in split_data.children.iter() {
-            match split_content {
-                SplitContent::EditorTab(widget_id) => {
-                    let editor_tab_data =
-                        data.main_split.editor_tabs.get(widget_id).unwrap();
-                    let mut editor_tab = LapceEditorTab::new(*widget_id);
-                    for child in editor_tab_data.children.iter() {
-                        match child {
-                            EditorTabChild::Editor(view_id) => {
-                                let editor = LapceEditorView::new(*view_id).boxed();
-                                editor_tab = editor_tab.with_child(editor);
-                            }
-                        }
-                    }
-                    main_split = main_split.with_flex_child(
-                        editor_tab.boxed(),
-                        Some(*widget_id),
-                        1.0,
-                    );
-                }
-                SplitContent::Split(_) => {}
-            }
-        }
+        let main_split = split_data.widget(data);
 
         let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
@@ -163,6 +141,7 @@ impl LapceTabNew {
             height: 0.0,
             main_split_height: 0.0,
             status_height: 0.0,
+            mouse_pos: Point::ZERO,
         }
     }
 
@@ -228,6 +207,49 @@ impl LapceTabNew {
 
         None
     }
+
+    fn paint_drag(&self, ctx: &mut PaintCtx, data: &LapceTabData) {
+        if let Some((offset, drag_content)) = data.drag.as_ref() {
+            match drag_content {
+                DragContent::EditorTab(_, _, _, tab_rect) => {
+                    let rect = tab_rect.rect.with_origin(self.mouse_pos - *offset);
+                    let size = rect.size();
+                    let shadow_width = 5.0;
+                    ctx.blurred_rect(
+                        rect,
+                        shadow_width,
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                    );
+                    ctx.fill(
+                        rect,
+                        &data
+                            .config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                            .clone()
+                            .with_alpha(0.6),
+                    );
+
+                    let width = 13.0;
+                    let height = 13.0;
+                    let svg_rect =
+                        Size::new(width, height).to_rect().with_origin(Point::new(
+                            rect.x0 + (size.height - width) / 2.0,
+                            rect.y0 + (size.height - height) / 2.0,
+                        ));
+                    ctx.draw_svg(&tab_rect.svg, svg_rect, None);
+                    let text_size = tab_rect.text_layout.size();
+                    ctx.draw_text(
+                        &tab_rect.text_layout,
+                        Point::new(
+                            rect.x0 + size.height,
+                            rect.y0 + (size.height - text_size.height) / 2.0,
+                        ),
+                    );
+                }
+            }
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceTabNew {
@@ -258,6 +280,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                 }
             }
             Event::MouseMove(mouse) => {
+                self.mouse_pos = mouse.pos;
                 if ctx.is_active() {
                     self.update_split_point(data, mouse.pos);
                     ctx.request_layout();
@@ -290,10 +313,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateWindowOrigin => {
-                        let window_origin = ctx.window_origin();
-                        if data.window_origin != window_origin {
-                            data.window_origin = window_origin;
-                        }
+                        data.window_origin = ctx.window_origin();
+                        ctx.set_handled();
                     }
                     LapceUICommand::LoadBuffer {
                         path,
@@ -894,6 +915,15 @@ impl Widget<LapceTabData> for LapceTabNew {
             }
         }
         self.activity.event(ctx, event, data, env);
+
+        match event {
+            Event::MouseUp(_) => {
+                if data.drag.is_some() {
+                    *Arc::make_mut(&mut data.drag) = None;
+                }
+            }
+            _ => (),
+        }
     }
 
     fn lifecycle(
@@ -903,6 +933,18 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &LapceTabData,
         env: &Env,
     ) {
+        match event {
+            LifeCycle::Internal(InternalLifeCycle::ParentWindowOrigin) => {
+                if ctx.window_origin() != data.window_origin {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateWindowOrigin,
+                        Target::Widget(data.id),
+                    ))
+                }
+            }
+            _ => (),
+        }
         self.palette.lifecycle(ctx, event, data, env);
         self.activity.lifecycle(ctx, event, data, env);
         self.main_split.lifecycle(ctx, event, data, env);
@@ -924,6 +966,10 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         if old_data.focus != data.focus {
+            ctx.request_paint();
+        }
+
+        if !old_data.drag.same(&data.drag) {
             ctx.request_paint();
         }
 
@@ -1316,6 +1362,8 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.code_action.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);
+
+        self.paint_drag(ctx, data);
     }
 }
 

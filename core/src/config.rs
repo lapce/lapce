@@ -150,8 +150,7 @@ impl Config {
             config::File::from_str(default_settings, config::FileFormat::Toml),
         )?;
 
-        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
-            let path = proj_dirs.config_dir().join("settings.toml");
+        if let Some(path) = Self::settings_file() {
             settings.merge(config::File::from(path.as_path()).required(false));
         }
 
@@ -179,8 +178,13 @@ impl Config {
     }
 
     pub fn settings_file() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "Lapce")
-            .map(|d| d.config_dir().join("settings.toml"))
+        ProjectDirs::from("", "", "Lapce").map(|d| {
+            d.config_dir().join(if !cfg!(debug_assertions) {
+                "settings.toml"
+            } else {
+                "debug-settings.toml"
+            })
+        })
     }
 
     pub fn update_file(key: &str, value: toml::Value) -> Option<()> {

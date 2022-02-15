@@ -506,12 +506,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         }
         let end = std::time::SystemTime::now();
         let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("layout took {}", duration as f64 / 1000.0);
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateWindowOrigin,
-            Target::Auto,
-        ));
 
         self_size
     }

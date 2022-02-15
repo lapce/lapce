@@ -16,6 +16,7 @@ use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionResponse, Position};
 use regex::Regex;
+use serde::Serialize;
 use std::str::FromStr;
 
 use crate::{
@@ -327,7 +328,6 @@ impl CompletionData {
             position,
             Box::new(move |result| {
                 if let Ok(res) = result {
-                    println!("proxy completion result");
                     if let Ok(resp) =
                         serde_json::from_value::<CompletionResponse>(res)
                     {
@@ -349,7 +349,6 @@ impl CompletionData {
         if self.status == CompletionStatus::Inactive {
             return;
         }
-        println!("completion cancel");
         self.status = CompletionStatus::Inactive;
         self.input = "".to_string();
         self.input_items.clear();
@@ -385,6 +384,7 @@ impl CompletionData {
             .map(|i| ScoredCompletionItem {
                 item: i.to_owned(),
                 score: 0,
+                label_score: 0,
                 index: 0,
                 indices: Vec::new(),
             })
@@ -414,15 +414,28 @@ impl CompletionData {
                     }
                     let mut item = i.clone();
                     item.score = score;
+                    item.label_score = score;
                     item.indices = indices;
+                    if let Some((score, _)) =
+                        self.matcher.fuzzy_indices(&i.item.label, &self.input)
+                    {
+                        item.label_score = score;
+                    }
                     Some(item)
                 } else {
                     None
                 }
             })
             .collect();
-        items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
+        items.sort_by(|a, b| match b.score.cmp(&a.score) {
+            Ordering::Less => Ordering::Less,
+            Ordering::Greater => Ordering::Greater,
+            Ordering::Equal => match b.label_score.cmp(&a.label_score) {
+                Ordering::Less => Ordering::Less,
+                Ordering::Greater => Ordering::Greater,
+                Ordering::Equal => a.item.label.len().cmp(&b.item.label.len()),
+            },
+        });
         self.filtered_items = Arc::new(items);
     }
 }
@@ -768,6 +781,7 @@ pub struct ScoredCompletionItem {
     pub item: CompletionItem,
     index: usize,
     score: i64,
+    label_score: i64,
     indices: Vec<usize>,
 }
 
@@ -830,6 +844,7 @@ impl CompletionState {
                 let mut item = ScoredCompletionItem {
                     item: item.to_owned(),
                     score: -1 - index as i64,
+                    label_score: -1 - index as i64,
                     index: index,
                     indices: Vec::new(),
                 };
