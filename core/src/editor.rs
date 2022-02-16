@@ -3729,7 +3729,7 @@ impl LapceEditorTabHeaderContent {
                 if tab_rect.close_rect.contains(mouse_event.pos) {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::EditorTabRemove(i, true),
+                        LapceUICommand::EditorTabRemove(i, true, true),
                         Target::Widget(self.widget_id),
                     ));
                     return;
@@ -3858,6 +3858,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::EditorTabRemove(
                                         *from_index,
+                                        false,
                                         false,
                                     ),
                                     Target::Widget(*from_id),
@@ -4306,6 +4307,7 @@ impl LapceEditorTab {
         data: &mut LapceTabData,
         i: usize,
         delete: bool,
+        focus: bool,
     ) {
         self.children.remove(i);
         ctx.children_changed();
@@ -4333,11 +4335,13 @@ impl LapceEditorTab {
                 } else {
                     i
                 };
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::Focus,
-                    Target::Widget(editor_tab.children[new_index].widget_id()),
-                ));
+                if focus {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(editor_tab.children[new_index].widget_id()),
+                    ));
+                }
                 editor_tab.children.remove(i)
             } else {
                 if editor_tab.active > i {
@@ -4431,6 +4435,7 @@ impl LapceEditorTab {
                                     ),
                                     split_direction,
                                     shift_current,
+                                    true,
                                 );
                                 new_editor_tab.split = new_split_id;
                                 if split_id != new_split_id {
@@ -4456,6 +4461,7 @@ impl LapceEditorTab {
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::EditorTabRemove(
                                         *from_index,
+                                        false,
                                         false,
                                     ),
                                     Target::Widget(*from_id),
@@ -4492,6 +4498,7 @@ impl LapceEditorTab {
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::EditorTabRemove(
                                         *from_index,
+                                        false,
                                         false,
                                     ),
                                     Target::Widget(*from_id),
@@ -4549,8 +4556,8 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         ctx.request_layout();
                         return;
                     }
-                    LapceUICommand::EditorTabRemove(index, delete) => {
-                        self.remove_child(ctx, data, *index, *delete);
+                    LapceUICommand::EditorTabRemove(index, delete, focus) => {
+                        self.remove_child(ctx, data, *index, *delete, *focus);
                         return;
                     }
                     LapceUICommand::SplitClose => {

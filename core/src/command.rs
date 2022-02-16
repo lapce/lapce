@@ -556,7 +556,7 @@ pub enum LapceUICommand {
     SplitReplace(usize, SplitContent),
     SplitChangeDirectoin(SplitDirection),
     EditorTabAdd(usize, EditorTabChild),
-    EditorTabRemove(usize, bool),
+    EditorTabRemove(usize, bool, bool),
     EditorTabSwap(usize, usize),
     JumpToPosition(Option<WidgetId>, Position),
     JumpToLine(Option<WidgetId>, usize),

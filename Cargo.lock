@@ -1010,7 +1010,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#11f8a86bf3f9cc7d2447e7f3df0485738d0d7138"
+source = "git+https://github.com/lapce/druid#6d9b691d4a3ec2b32bd4fa126a49e52d4563fb85"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1034,7 +1034,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid#11f8a86bf3f9cc7d2447e7f3df0485738d0d7138"
+source = "git+https://github.com/lapce/druid#6d9b691d4a3ec2b32bd4fa126a49e52d4563fb85"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1044,7 +1044,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#11f8a86bf3f9cc7d2447e7f3df0485738d0d7138"
+source = "git+https://github.com/lapce/druid#6d9b691d4a3ec2b32bd4fa126a49e52d4563fb85"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
@@ -2718,6 +2718,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "nameof"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ce8b389a86cabeb0d8b33a61e60f3cbb4de38914342fe274e69111f3b5d9c44"
+
+[[package]]
 name = "native-tls"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2749,9 +2755,9 @@ dependencies = [
 
 [[package]]
 name = "ndk"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96d868f654c72e75f8687572699cdabe755f03effbb62542768e995d5b8d699d"
+checksum = "2032c77e030ddee34a6787a64166008da93f6a352b629261d0fee232b8742dd4"
 dependencies = [
  "bitflags",
  "jni-sys",
@@ -2761,15 +2767,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "ndk-glue"
-version = "0.5.0"
+name = "ndk-context"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc291b8de2095cba8dab7cf381bf582ff4c17a09acf854c32e46545b08085d28"
+checksum = "4e3c5cc68637e21fe8f077f6a1c9e0b9ca495bb74895226b476310f613325884"
+
+[[package]]
+name = "ndk-glue"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9ffb7443daba48349d545028777ca98853b018b4c16624aa01223bc29e078da"
 dependencies = [
  "lazy_static 1.4.0",
  "libc",
  "log",
  "ndk",
+ "ndk-context",
  "ndk-macro",
  "ndk-sys",
 ]
@@ -2789,9 +2802,12 @@ dependencies = [
 
 [[package]]
 name = "ndk-sys"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1bcdd74c20ad5d95aacd60ef9ba40fdf77f767051040541df557b7a9b2a2121"
+checksum = "6e5a6ae77c8ee183dcbbba6150e2e6b9f3f4196a7666c02a715a95692ec1fa97"
+dependencies = [
+ "jni-sys",
+]
 
 [[package]]
 name = "net2"
@@ -5622,8 +5638,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "winit"
 version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b43cc931d58b99461188607efd7acb2a093e65fc621f54cad78517a6063e73a"
+source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#e926562bd1aea46ffec198a13536cf08eab57640"
 dependencies = [
  "bitflags",
  "cocoa",
@@ -5636,6 +5651,7 @@ dependencies = [
  "libc",
  "log",
  "mio 0.8.0",
+ "nameof",
  "ndk",
  "ndk-glue",
  "ndk-sys",
@@ -5644,12 +5660,14 @@ dependencies = [
  "percent-encoding",
  "raw-window-handle",
  "smithay-client-toolkit 0.15.3",
+ "unicode-segmentation",
  "wasm-bindgen",
  "wayland-client 0.29.4",
  "wayland-protocols 0.29.4",
  "web-sys",
  "winapi 0.3.9",
  "x11-dl",
+ "xkbcommon-dl",
 ]
 
 [[package]]
@@ -5737,6 +5755,17 @@ name = "xi-unicode"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a67300977d3dc3f8034dae89778f502b6ba20b269527b3223ba59c0cf393bb8a"
+
+[[package]]
+name = "xkbcommon-dl"
+version = "0.1.0"
+source = "git+https://github.com/maroider/xkbcommon-dl?rev=900832888ad6f11011d1369befb344a9aa8a9610#900832888ad6f11011d1369befb344a9aa8a9610"
+dependencies = [
+ "bitflags",
+ "dlib",
+ "lazy_static 1.4.0",
+ "log",
+]
 
 [[package]]
 name = "xml-rs"

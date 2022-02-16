@@ -39,7 +39,7 @@ enum KeymapMatch {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyPress {
-    pub key: druid::keyboard_types::Key,
+    pub key: druid::KbKey,
     pub mods: Modifiers,
 }
 
@@ -49,7 +49,7 @@ impl KeyPress {
         mods.set(Modifiers::SHIFT, false);
         if mods.is_empty() {
             match &self.key {
-                druid::keyboard_types::Key::Character(c) => {
+                druid::KbKey::Character(c) => {
                     return true;
                 }
                 _ => (),
@@ -153,7 +153,7 @@ impl KeyPressData {
         }
 
         match &keypress.key {
-            druid::keyboard_types::Key::Character(c) => {
+            druid::KbKey::Character(c) => {
                 if let Ok(n) = c.parse::<usize>() {
                     if self.count.is_some() || n > 0 {
                         self.count = Some(self.count.unwrap_or(0) * 10 + n);
@@ -174,7 +174,7 @@ impl KeyPressData {
         focus: &mut T,
         env: &Env,
     ) -> bool {
-        if key_event.key == druid::keyboard_types::Key::Shift {
+        if key_event.key == druid::KbKey::Shift {
             let mut mods = key_event.mods.clone();
             mods.set(Modifiers::SHIFT, false);
             if mods.is_empty() {
@@ -183,7 +183,7 @@ impl KeyPressData {
         }
         let mut mods = key_event.mods.clone();
         match &key_event.key {
-            druid::keyboard_types::Key::Character(c) => {
+            druid::KbKey::Character(c) => {
                 mods.set(Modifiers::SHIFT, false);
             }
             _ => (),
@@ -257,7 +257,7 @@ impl KeyPressData {
         mods.set(Modifiers::SHIFT, false);
         if mods.is_empty() {
             match &key_event.key {
-                druid::keyboard_types::Key::Character(c) => {
+                druid::KbKey::Character(c) => {
                     focus.receive_char(ctx, c);
                     return true;
                 }
@@ -409,7 +409,7 @@ impl KeyPressData {
         Self::keymaps_from_str(&keymaps_str)
     }
 
-    fn get_keypress(key: &str) -> Vec<KeyPress> {
+    fn get_keypress<'a>(key: &'a str) -> Vec<KeyPress> {
         let mut keypresses = Vec::new();
         for k in key.split(" ") {
             let mut mods = Modifiers::default();
@@ -419,25 +419,23 @@ impl KeyPressData {
                 continue;
             }
             let key = match parts[parts.len() - 1].to_lowercase().as_str() {
-                "escape" => druid::keyboard_types::Key::Escape,
-                "esc" => druid::keyboard_types::Key::Escape,
-                "backspace" => druid::keyboard_types::Key::Backspace,
-                "bs" => druid::keyboard_types::Key::Backspace,
-                "arrowup" => druid::keyboard_types::Key::ArrowUp,
-                "arrowdown" => druid::keyboard_types::Key::ArrowDown,
-                "arrowright" => druid::keyboard_types::Key::ArrowRight,
-                "arrowleft" => druid::keyboard_types::Key::ArrowLeft,
-                "up" => druid::keyboard_types::Key::ArrowUp,
-                "down" => druid::keyboard_types::Key::ArrowDown,
-                "right" => druid::keyboard_types::Key::ArrowRight,
-                "left" => druid::keyboard_types::Key::ArrowLeft,
-                "tab" => druid::keyboard_types::Key::Tab,
-                "enter" => druid::keyboard_types::Key::Enter,
-                "delete" => druid::keyboard_types::Key::Delete,
-                "del" => druid::keyboard_types::Key::Delete,
-                _ => druid::keyboard_types::Key::Character(
-                    parts[parts.len() - 1].to_string(),
-                ),
+                "escape" => druid::KbKey::Escape,
+                "esc" => druid::KbKey::Escape,
+                "backspace" => druid::KbKey::Backspace,
+                "bs" => druid::KbKey::Backspace,
+                "arrowup" => druid::KbKey::ArrowUp,
+                "arrowdown" => druid::KbKey::ArrowDown,
+                "arrowright" => druid::KbKey::ArrowRight,
+                "arrowleft" => druid::KbKey::ArrowLeft,
+                "up" => druid::KbKey::ArrowUp,
+                "down" => druid::KbKey::ArrowDown,
+                "right" => druid::KbKey::ArrowRight,
+                "left" => druid::KbKey::ArrowLeft,
+                "tab" => druid::KbKey::Tab,
+                "enter" => druid::KbKey::Enter,
+                "delete" => druid::KbKey::Delete,
+                "del" => druid::KbKey::Delete,
+                _ => druid::KbKey::Character(parts[parts.len() - 1].to_string()),
             };
             for part in &parts[..parts.len() - 1] {
                 match part.to_lowercase().as_ref() {

@@ -2289,7 +2289,7 @@ impl LapceMainSplitData {
             }
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::EditorTabRemove(index, true),
+                LapceUICommand::EditorTabRemove(index, true, true),
                 Target::Widget(tab_id),
             ));
         }
@@ -2303,6 +2303,7 @@ impl LapceMainSplitData {
         new_content: SplitContent,
         direction: SplitDirection,
         shift_current: bool,
+        focus_new: bool,
     ) -> WidgetId {
         let split = self.splits.get_mut(&split_id).unwrap();
         let split = Arc::make_mut(split);
@@ -2356,11 +2357,19 @@ impl LapceMainSplitData {
                 ),
                 Target::Widget(split_id),
             ));
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::Focus,
-                Target::Widget(from_content.widget_id()),
-            ));
+            if focus_new {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(new_content.widget_id()),
+                ));
+            } else {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(from_content.widget_id()),
+                ));
+            }
             self.splits.insert(new_split.widget_id, Arc::new(new_split));
             new_split_id
         }
@@ -2483,6 +2492,7 @@ impl LapceMainSplitData {
                 SplitContent::EditorTab(editor_tab_id),
                 SplitContent::EditorTab(new_editor_tab.widget_id),
                 direction,
+                false,
                 false,
             );
 
