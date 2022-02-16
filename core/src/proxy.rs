@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::io::{BufReader, Stdin, Stdout};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::thread;
 use std::{path::PathBuf, process::Child, sync::Arc};
@@ -199,7 +201,10 @@ impl LapceProxy {
                     "-o",
                     "ControlPersist=30m",
                 ];
-                let cmd = Command::new("ssh")
+                let mut cmd = Command::new("ssh");
+                #[cfg(target_os = "windows")]
+                let mut cmd = cmd.creation_flags(0x08000000);
+                let cmd = cmd
                     .arg(format!("{}@{}", user, host))
                     .args(ssh_args)
                     .arg("test")
@@ -218,23 +223,29 @@ impl LapceProxy {
                     std::io::copy(&mut gz, &mut out)
                         .expect("failed to copy content");
 
-                    Command::new("ssh")
-                        .arg(format!("{}@{}", user, host))
+                    let mut cmd = Command::new("ssh");
+                    #[cfg(target_os = "windows")]
+                    let mut cmd = cmd.creation_flags(0x08000000);
+                    cmd.arg(format!("{}@{}", user, host))
                         .args(ssh_args)
                         .arg("mkdir")
                         .arg("~/.lapce/")
                         .output()
                         .unwrap();
 
-                    Command::new("scp")
-                        .args(ssh_args)
+                    let mut cmd = Command::new("scp");
+                    #[cfg(target_os = "windows")]
+                    let mut cmd = cmd.creation_flags(0x08000000);
+                    cmd.args(ssh_args)
                         .arg(&local_path)
                         .arg(format!("{user}@{host}:~/.lapce/lapce-proxy-{VERSION}"))
                         .output()
                         .unwrap();
 
-                    Command::new("ssh")
-                        .arg(format!("{}@{}", user, host))
+                    let mut cmd = Command::new("ssh");
+                    #[cfg(target_os = "windows")]
+                    let mut cmd = cmd.creation_flags(0x08000000);
+                    cmd.arg(format!("{}@{}", user, host))
                         .args(ssh_args)
                         .arg("chmod")
                         .arg("+x")
@@ -243,7 +254,10 @@ impl LapceProxy {
                         .unwrap();
                 }
 
-                let mut child = Command::new("ssh")
+                let mut child = Command::new("ssh");
+                #[cfg(target_os = "windows")]
+                let mut child = child.creation_flags(0x08000000);
+                let mut child = child
                     .arg(format!("{}@{}", user, host))
                     .args(ssh_args)
                     .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
