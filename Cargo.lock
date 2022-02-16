@@ -5638,7 +5638,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "winit"
 version = "0.26.1"
-source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#e926562bd1aea46ffec198a13536cf08eab57640"
+source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#b1c1bb986b10df55d955a23ca12ace1ad661c9d5"
 dependencies = [
  "bitflags",
  "cocoa",
@@ -5650,6 +5650,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "libc",
  "log",
+ "memmap2 0.2.3",
  "mio 0.8.0",
  "nameof",
  "ndk",
@@ -5765,6 +5766,7 @@ dependencies = [
  "dlib",
  "lazy_static 1.4.0",
  "log",
+ "x11-dl",
 ]
 
 [[package]]
