@@ -5638,7 +5638,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "winit"
 version = "0.26.1"
-source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#d0ccb68e968ca74beccc0f1ca17844d00dc5658a"
+source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#4e4388f019e2c0f6769ffce92dd4000194422908"
 dependencies = [
  "bitflags",
  "cocoa",
