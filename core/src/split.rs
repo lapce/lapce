@@ -683,13 +683,8 @@ impl LapceSplitNew {
         content: &SplitContent,
         focus_new: bool,
     ) {
-        let new_index = if self.children.len() == 0 {
-            0
-        } else {
-            index + 1
-        };
         let new_child = content.widget(data);
-        self.insert_flex_child(new_index, new_child, None, 1.0);
+        self.insert_flex_child(index, new_child, None, 1.0);
         self.even_flex_children();
         ctx.children_changed();
         if focus_new {

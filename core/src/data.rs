@@ -2302,6 +2302,7 @@ impl LapceMainSplitData {
         from_content: SplitContent,
         new_content: SplitContent,
         direction: SplitDirection,
+        shift_current: bool,
     ) -> WidgetId {
         let split = self.splits.get_mut(&split_id).unwrap();
         let split = Arc::make_mut(split);
@@ -2324,18 +2325,24 @@ impl LapceMainSplitData {
         }
 
         if direction == split.direction {
-            split.children.insert(index + 1, new_content.clone());
+            let new_index = if shift_current { index } else { index + 1 };
+            split.children.insert(new_index, new_content.clone());
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::SplitAdd(index, new_content, false),
+                LapceUICommand::SplitAdd(new_index, new_content, false),
                 Target::Widget(split_id),
             ));
             split_id
         } else {
+            let children = if shift_current {
+                vec![new_content.clone(), from_content.clone()]
+            } else {
+                vec![from_content.clone(), new_content.clone()]
+            };
             let new_split = SplitData {
                 parent_split: Some(split.widget_id),
                 widget_id: WidgetId::next(),
-                children: vec![from_content.clone(), new_content.clone()],
+                children,
                 direction,
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
             };
@@ -2476,6 +2483,7 @@ impl LapceMainSplitData {
                 SplitContent::EditorTab(editor_tab_id),
                 SplitContent::EditorTab(new_editor_tab.widget_id),
                 direction,
+                false,
             );
 
             new_editor_tab.split = new_split_id;
