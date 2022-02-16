@@ -432,7 +432,6 @@ impl Dispatcher {
                     lsp.lock().get_semantic_tokens(buffer);
                 }
                 Err(_) => {
-                    eprintln!("update process exit");
                     return;
                 }
             }
@@ -521,7 +520,6 @@ impl Dispatcher {
                     if let Err(e) =
                         catalog.lock().install_plugin(dispatcher.clone(), plugin)
                     {
-                        eprintln!("install plugin error {}", e);
                     }
                     let plugins = { dispatcher.plugins.lock().items.clone() };
                     dispatcher.send_notification(
@@ -539,7 +537,6 @@ impl Dispatcher {
                 let dispatcher = self.clone();
                 std::thread::spawn(move || {
                     terminal.run(dispatcher);
-                    eprintln!("terminal exit");
                 });
             }
             Notification::TerminalClose { term_id } => {
@@ -572,11 +569,8 @@ impl Dispatcher {
                 tx.send(Msg::Resize(size));
             }
             Notification::GitCommit { message, diffs } => {
-                eprintln!("received git commit");
                 if let Some(workspace) = self.workspace.lock().clone() {
-                    if let Err(e) = git_commit(&workspace, &message, diffs) {
-                        eprintln!("git commit error {e}");
-                    }
+                    if let Err(e) = git_commit(&workspace, &message, diffs) {}
                 }
             }
         }
@@ -946,43 +940,6 @@ fn git_diff_new(workspace_path: &PathBuf) -> Option<DiffInfo> {
         diffs: file_diffs,
     })
 }
-
-// fn git_diff(workspace_path: &PathBuf) -> Option<Vec<String>> {
-//     let repo = Repository::open(workspace_path.to_str()?).ok()?;
-//     let mut diff_files = HashSet::new();
-//     let mut diff_options = DiffOptions::new();
-//     let diff = repo
-//         .diff_index_to_workdir(None, Some(diff_options.include_untracked(true)))
-//         .ok()?;
-//     for delta in diff.deltas() {
-//         eprintln!("delta {:?}", delta);
-//         if let Some(path) = delta.new_file().path() {
-//             if let Some(s) = path.to_str() {
-//                 diff_files.insert(workspace_path.join(s).to_str()?.to_string());
-//             }
-//         }
-//     }
-//     let cached_diff = repo
-//         .diff_tree_to_index(
-//             repo.find_tree(repo.revparse_single("HEAD^{tree}").ok()?.id())
-//                 .ok()
-//                 .as_ref(),
-//             None,
-//             None,
-//         )
-//         .ok()?;
-//     for delta in cached_diff.deltas() {
-//         eprintln!("delta {:?}", delta);
-//         if let Some(path) = delta.new_file().path() {
-//             if let Some(s) = path.to_str() {
-//                 diff_files.insert(workspace_path.join(s).to_str()?.to_string());
-//             }
-//         }
-//     }
-//     let mut diff_files: Vec<String> = diff_files.into_iter().collect();
-//     diff_files.sort();
-//     Some(diff_files)
-// }
 
 fn file_get_head(
     workspace_path: &PathBuf,

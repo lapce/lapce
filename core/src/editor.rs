@@ -3249,7 +3249,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                         buffer_id,
                         item.clone(),
                         Box::new(move |result| {
-                            println!("completion resolve result {:?}", result);
                             let mut item = item.clone();
                             if let Ok(res) = result {
                                 if let Ok(i) =
@@ -3391,7 +3390,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                         LapceUICommand::FocusEditor,
                         Target::Auto,
                     ));
-                    println!("source control cancel");
                 }
             }
             LapceCommand::ShowCodeActions => {
@@ -5292,11 +5290,7 @@ impl Widget<LapceTabData> for LapceEditorView {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let start = std::time::SystemTime::now();
         self.editor.paint(ctx, data, env);
-        let end = std::time::SystemTime::now();
-        let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("editor paint took {}", duration);
         self.header.paint(ctx, data, env);
     }
 }
@@ -5553,16 +5547,8 @@ impl Widget<LapceTabData> for LapceEditorContainer {
         data: &LapceTabData,
         env: &Env,
     ) {
-        // if old_data.editor.scroll_offset != data.editor.scroll_offset {
-        //     ctx.request_paint();
-        // }
-
         self.gutter.update(ctx, data, env);
-        let start = std::time::SystemTime::now();
         self.editor.update(ctx, data, env);
-        let end = std::time::SystemTime::now();
-        let duration = end.duration_since(start).unwrap().as_micros();
-        // println!("editor update took {}", duration);
     }
 
     fn layout(

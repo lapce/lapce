@@ -554,7 +554,6 @@ impl LapceTabData {
                     receiver,
                     local_event_sink,
                 );
-                println!("buffer update process stopped");
             });
         }
 
@@ -573,7 +572,6 @@ impl LapceTabData {
                     workspace,
                     proxy,
                 );
-                println!("terminal update process stopped");
             });
         }
 
@@ -581,7 +579,6 @@ impl LapceTabData {
             let widget_id = self.palette.widget_id;
             thread::spawn(move || {
                 PaletteViewData::update_process(receiver, widget_id, event_sink);
-                println!("palette update process stopped");
             });
         }
     }

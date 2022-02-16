@@ -99,7 +99,6 @@ impl PluginCatalog {
     }
 
     pub fn reload(&mut self) {
-        eprintln!("plugin reload from paths");
         self.items.clear();
         self.plugins.clear();
         self.load();
@@ -109,7 +108,7 @@ impl PluginCatalog {
         let all_plugins = find_all_plugins();
         for plugin_path in &all_plugins {
             match load_plugin(plugin_path) {
-                Err(e) => eprintln!("load plugin err {}", e),
+                Err(e) => (),
                 Ok(plugin) => {
                     self.items.insert(plugin.name.clone(), plugin);
                 }
@@ -294,11 +293,9 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                 )
                 .expect("failed to create file");
                 std::io::copy(&mut resp, &mut out).expect("failed to copy content");
-                eprintln!("donwload file finished");
             }
             PluginNotification::LockFile { path } => {
                 let path = plugin_env.desc.dir.clone().unwrap().join(path);
-                eprintln!("lock file path {:?}", path);
                 let mut n = 0;
                 loop {
                     if let Ok(file) = std::fs::OpenOptions::new()
@@ -375,7 +372,6 @@ fn find_all_plugins() -> Vec<PathBuf> {
             .filter(|f| f.exists())
             .for_each(|f| plugin_paths.push(f))
     });
-    eprintln!("proxy plugin paths {:?}", plugin_paths);
     plugin_paths
 }
 

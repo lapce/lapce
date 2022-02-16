@@ -646,35 +646,6 @@ impl BufferNew {
         }
     }
 
-    //  pub fn retrieve_file_and_go_to_location(
-    //      &self,
-    //      proxy: Arc<LapceProxy>,
-    //      event_sink: ExtEventSink,
-    //      editor_view_id: WidgetId,
-    //      location: EditorLocationNew,
-    //  ) {
-    //      if self.loaded || *self.start_to_load.borrow() {
-    //          return;
-    //      }
-    //      *self.start_to_load.borrow_mut() = true;
-    //      let id = self.id;
-    //      let path = self.path.clone();
-    //      thread::spawn(move || {
-    //          let content = { proxy.new_buffer(id, path.clone()).unwrap() };
-    //          println!("load file got content");
-    //          event_sink.submit_command(
-    //              LAPCE_UI_COMMAND,
-    //              LapceUICommand::LoadBufferAndGoToPosition {
-    //                  path,
-    //                  content,
-    //                  editor_view_id,
-    //                  location,
-    //              },
-    //              Target::Auto,
-    //          );
-    //      });
-    //  }
-
     pub fn num_lines(&self) -> usize {
         self.line_of_offset(self.rope.len()) + 1
     }
@@ -1775,7 +1746,6 @@ impl BufferNew {
         new_deletes_from_union: Subset,
     ) {
         if !self.loaded {
-            println!("not loaded");
             return;
         }
         self.rev += 1;
@@ -2072,8 +2042,6 @@ fn shuffle(
         new_deletes_from_union,
     );
     let new_text = del_delta.apply(text);
-    // println!("shuffle: old={:?} new={:?} old_text={:?} new_text={:?} old_tombstones={:?}",
-    //     old_deletes_from_union, new_deletes_from_union, text, new_text, tombstones);
     (
         new_text,
         shuffle_tombstones(

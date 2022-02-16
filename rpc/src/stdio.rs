@@ -67,14 +67,12 @@ impl IoThreads {
         match self.reader.join() {
             Ok(r) => r?,
             Err(err) => {
-                println!("reader panicked!");
                 panic!("{:?}", err);
             }
         }
         match self.writer.join() {
             Ok(r) => r,
             Err(err) => {
-                println!("reader panicked!");
                 panic!("{:?}", err);
             }
         }

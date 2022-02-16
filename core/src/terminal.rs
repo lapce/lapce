@@ -1461,7 +1461,6 @@ impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
         match event {
             alacritty_terminal::event::Event::PtyWrite(s) => {
-                println!("pyt write {}", s);
                 self.proxy.terminal_write(self.term_id, &s);
             }
             alacritty_terminal::event::Event::Title(title) => {

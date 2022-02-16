@@ -369,7 +369,6 @@ impl LspClient {
                         local_lsp_client.handle_message(message_str.as_ref());
                     }
                     Err(err) => {
-                        eprintln!("lsp read Error occurred {:?}", err);
                         return;
                     }
                 };
@@ -428,9 +427,7 @@ impl LspClient {
                 let error = value.get_error().unwrap();
                 self.handle_response(id, Err(anyhow!("{}", error)));
             }
-            Err(err) => {
-                eprintln!("Error in parsing incoming string: {} \n {}", err, message)
-            }
+            Err(err) => {}
         }
     }
 
@@ -452,7 +449,7 @@ impl LspClient {
                     }),
                 );
             }
-            _ => eprintln!("{} {:?}", method, params),
+            _ => (),
         }
     }
 

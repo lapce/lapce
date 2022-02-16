@@ -399,8 +399,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) {
-        let start = std::time::SystemTime::now();
-
         self.menu.update(ctx, data, env);
         self.title.update(ctx, data, env);
 
@@ -415,15 +413,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         for tab in self.tabs.iter_mut() {
             tab.update(ctx, data, env);
         }
-
-        // println!(
-        //     "update took {}",
-        //     std::time::SystemTime::now()
-        //         .duration_since(start)
-        //         .unwrap()
-        //         .as_micros() as f64
-        //         / 1000.0
-        // );
     }
 
     fn layout(

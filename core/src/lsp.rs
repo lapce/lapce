@@ -39,12 +39,6 @@ pub struct LspCatalog {
     clients: HashMap<String, Arc<LspClient>>,
 }
 
-impl Drop for LspCatalog {
-    fn drop(&mut self) {
-        println!("now drop lsp catalog");
-    }
-}
-
 impl LspCatalog {
     pub fn new(window_id: WindowId, tab_id: WidgetId) -> LspCatalog {
         LspCatalog {

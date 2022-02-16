@@ -104,8 +104,6 @@ impl FilePickerData {
         }
         self.root = current_file_node;
         self.pwd = home.clone();
-
-        println!("init home {:?}", self.root);
     }
 
     pub fn get_file_node_mut(
