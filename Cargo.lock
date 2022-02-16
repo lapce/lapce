@@ -2129,7 +2129,7 @@ dependencies = [
 
 [[package]]
 name = "lapce"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "lapce-core",
  "lapce-proxy",
@@ -5638,7 +5638,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "winit"
 version = "0.26.1"
-source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#b1c1bb986b10df55d955a23ca12ace1ad661c9d5"
+source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#d0ccb68e968ca74beccc0f1ca17844d00dc5658a"
 dependencies = [
  "bitflags",
  "cocoa",
