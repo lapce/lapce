@@ -1052,7 +1052,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 child.layout_rect = child.layout_rect.with_origin(Point::new(x, y));
             } else {
                 let flex = if i == children_len - 1 {
-                    flex_total
+                    flex_total + non_flex_total
                         - match self.direction {
                             SplitDirection::Vertical => x,
                             SplitDirection::Horizontal => y,
