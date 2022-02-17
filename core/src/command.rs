@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use alacritty_terminal::ansi::CursorShape;
 use anyhow::Result;
-use druid::{Point, Rect, Selector, Size, WidgetId};
+use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
 use lapce_proxy::{
     dispatch::{DiffInfo, FileDiff, FileNodeItem},
@@ -134,6 +134,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "reload_window")]
     #[strum(message = "Reload Window")]
     ReloadWindow,
+
+    #[strum(message = "New Window")]
+    #[strum(serialize = "new_window")]
+    NewWindow,
 
     #[strum(serialize = "connect_ssh_host")]
     #[strum(message = "Connect to SSH Host")]
@@ -488,6 +492,7 @@ pub enum LapceUICommand {
     NextTab,
     PreviousTab,
     FilterItems,
+    NewWindow(WindowId),
     ReloadWindow,
     CloseBuffers(Vec<BufferId>),
     RequestPaintRect(Rect),

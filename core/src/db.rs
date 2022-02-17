@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc}
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::ProjectDirs;
-use druid::{ExtEventSink, Rect, Vec2, WidgetId};
+use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
@@ -215,6 +215,13 @@ pub struct WorkspaceInfo {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub struct WindowInfo {
+    pub size: Size,
+    pub pos: Point,
+    pub tabs: TabsInfo,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TabsInfo {
     pub active_tab: usize,
     pub workspaces: Vec<LapceWorkspace>,
@@ -233,6 +240,11 @@ pub struct EditorInfo {
     pub content: BufferContent,
     pub scroll_offset: (f64, f64),
     pub position: Option<Position>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AppInfo {
+    pub windows: Vec<WindowInfo>,
 }
 
 impl EditorInfo {
@@ -329,6 +341,34 @@ impl LapceDb {
         Ok(db)
     }
 
+    pub fn save_app(&self, data: &LapceData) -> Result<()> {
+        for (_, window) in data.windows.iter() {
+            for (_, tab) in window.tabs.iter() {
+                self.save_workspace(tab);
+            }
+        }
+        let info = AppInfo {
+            windows: data
+                .windows
+                .iter()
+                .map(|(_, window_data)| window_data.info())
+                .collect(),
+        };
+        let info = serde_json::to_string(&info)?;
+        let db = self.get_db()?;
+        db.insert("app", info.as_str())?;
+        db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_app(&self) -> Result<AppInfo> {
+        let db = self.get_db()?;
+        let info = db.get("app")?.ok_or(anyhow!("can't find app info"))?;
+        let info = std::str::from_utf8(&info)?;
+        let info: AppInfo = serde_json::from_str(info)?;
+        Ok(info)
+    }
+
     pub fn save_recent_workspaces(
         &self,
         workspaces: Vec<LapceWorkspace>,
@@ -401,6 +441,29 @@ impl LapceDb {
         Ok(())
     }
 
+    pub fn save_last_window(&self, window: &LapceWindowData) {
+        let info = window.info();
+        self.insert_last_window_info(info);
+    }
+
+    fn insert_last_window_info(&self, info: WindowInfo) -> Result<()> {
+        let info = serde_json::to_string(&info)?;
+        let db = self.get_db()?;
+        db.insert("last_window", info.as_str())?;
+        db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_last_window_info(&self) -> Result<WindowInfo> {
+        let db = self.get_db()?;
+        let info = db
+            .get("last_window")?
+            .ok_or(anyhow!("can't find last window info"))?;
+        let info = std::str::from_utf8(&info)?;
+        let info: WindowInfo = serde_json::from_str(info)?;
+        Ok(info)
+    }
+
     fn insert_workspace(
         &self,
         workspace: &LapceWorkspace,
@@ -455,7 +518,7 @@ impl LapceDb {
         Ok(tabs)
     }
 
-    pub fn save_tabs(&self, data: &LapceWindowData) -> Result<()> {
+    pub fn save_tabs_async(&self, data: &LapceWindowData) -> Result<()> {
         let mut active_tab = 0;
         let workspaces: Vec<LapceWorkspace> = data
             .tabs_order

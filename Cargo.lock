@@ -1010,7 +1010,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#6aec4a455cc2388721587ca1b8171b6a3788b58c"
+source = "git+https://github.com/lapce/druid#8c11950881d22ed46152bbdc26224bd45421ea58"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -1034,7 +1034,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid#6aec4a455cc2388721587ca1b8171b6a3788b58c"
+source = "git+https://github.com/lapce/druid#8c11950881d22ed46152bbdc26224bd45421ea58"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1044,7 +1044,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid#6aec4a455cc2388721587ca1b8171b6a3788b58c"
+source = "git+https://github.com/lapce/druid#8c11950881d22ed46152bbdc26224bd45421ea58"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
@@ -2125,6 +2125,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e30b1df631d23875f230ed3ddd1a88c231f269a04b2044eb6ca87e763b5f4c42"
 dependencies = [
  "arrayvec 0.5.2",
+ "serde 1.0.130",
 ]
 
 [[package]]
@@ -5638,7 +5639,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "winit"
 version = "0.26.1"
-source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#4e4388f019e2c0f6769ffce92dd4000194422908"
+source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#21a81abb4e35205791e29580472084c4c3f8a8bf"
 dependencies = [
  "bitflags",
  "cocoa",

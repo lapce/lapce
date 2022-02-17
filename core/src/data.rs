@@ -23,7 +23,7 @@ use druid::{
     widget::{Label, LabelText},
     Application, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
     FontFamily, Insets, KeyEvent, Lens, LocalizedString, Point, Rect, Size, Target,
-    Vec2, Widget, WidgetExt, WidgetId, WindowId,
+    Vec2, Widget, WidgetExt, WidgetId, WindowDesc, WindowId,
 };
 use im::{self, hashmap};
 use itertools::Itertools;
@@ -65,7 +65,7 @@ use crate::{
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
     db::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
-        SplitInfo, WorkspaceInfo,
+        SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
     editor::{
         EditorLocationNew, LapceEditorBufferData, LapceEditorTab, LapceEditorView,
@@ -98,14 +98,44 @@ use crate::{
 pub struct LapceData {
     pub windows: im::HashMap<WindowId, LapceWindowData>,
     pub keypress: Arc<KeyPressData>,
+    pub db: Arc<LapceDb>,
 }
 
 impl LapceData {
     pub fn load(event_sink: ExtEventSink) -> Self {
+        let db = Arc::new(LapceDb::new().unwrap());
         let mut windows = im::HashMap::new();
         let keypress = Arc::new(KeyPressData::new());
-        let window = LapceWindowData::new(keypress.clone(), event_sink.clone());
-        windows.insert(WindowId::next(), window);
+
+        if let Ok(app) = db.get_app() {
+            for info in app.windows.iter() {
+                let window = LapceWindowData::new(
+                    keypress.clone(),
+                    event_sink.clone(),
+                    info,
+                    db.clone(),
+                );
+                windows.insert(window.window_id, window);
+            }
+        }
+
+        if windows.len() == 0 {
+            let info = db.get_last_window_info().unwrap_or_else(|_| WindowInfo {
+                size: Size::new(800.0, 600.0),
+                pos: Point::new(0.0, 0.0),
+                tabs: TabsInfo {
+                    active_tab: 0,
+                    workspaces: vec![],
+                },
+            });
+            let window = LapceWindowData::new(
+                keypress.clone(),
+                event_sink.clone(),
+                &info,
+                db.clone(),
+            );
+            windows.insert(window.window_id, window);
+        }
 
         thread::spawn(move || {
             if let Ok(plugins) = LapceData::load_plugin_descriptions() {
@@ -116,7 +146,11 @@ impl LapceData {
                 );
             }
         });
-        Self { windows, keypress }
+        Self {
+            windows,
+            keypress,
+            db,
+        }
     }
 
     pub fn reload_env(&self, env: &mut Env) {
@@ -148,6 +182,7 @@ impl LapceData {
 
 #[derive(Clone)]
 pub struct LapceWindowData {
+    pub window_id: WindowId,
     pub tabs: im::HashMap<WidgetId, LapceTabData>,
     pub tabs_order: Arc<Vec<WidgetId>>,
     pub active: usize,
@@ -158,6 +193,8 @@ pub struct LapceWindowData {
     pub db: Arc<LapceDb>,
     pub watcher: Arc<notify::RecommendedWatcher>,
     pub menu: Arc<MenuData>,
+    pub size: Size,
+    pub pos: Point,
 }
 
 impl Data for LapceWindowData {
@@ -165,39 +202,46 @@ impl Data for LapceWindowData {
         self.active == other.active
             && self.tabs.same(&other.tabs)
             && self.menu.same(&other.menu)
+            && self.size.same(&other.size)
+            && self.pos.same(&other.pos)
     }
 }
 
 impl LapceWindowData {
-    pub fn new(keypress: Arc<KeyPressData>, event_sink: ExtEventSink) -> Self {
-        let db = Arc::new(LapceDb::new().unwrap());
+    pub fn new(
+        keypress: Arc<KeyPressData>,
+        event_sink: ExtEventSink,
+        info: &WindowInfo,
+        db: Arc<LapceDb>,
+    ) -> Self {
         let mut tabs = im::HashMap::new();
         let mut tabs_order = Vec::new();
         let mut active_tab_id = WidgetId::next();
         let mut active = 0;
 
-        if let Ok(info) = db.get_tabs_info() {
-            for (i, workspace) in info.workspaces.iter().enumerate() {
-                let tab_id = WidgetId::next();
-                let tab = LapceTabData::new(
-                    tab_id,
-                    workspace.clone(),
-                    db.clone(),
-                    keypress.clone(),
-                    event_sink.clone(),
-                );
-                tabs.insert(tab_id, tab);
-                tabs_order.push(tab_id);
-                if i == info.active_tab {
-                    active_tab_id = tab_id;
-                    active = i;
-                }
+        let window_id = WindowId::next();
+        for (i, workspace) in info.tabs.workspaces.iter().enumerate() {
+            let tab_id = WidgetId::next();
+            let tab = LapceTabData::new(
+                window_id,
+                tab_id,
+                workspace.clone(),
+                db.clone(),
+                keypress.clone(),
+                event_sink.clone(),
+            );
+            tabs.insert(tab_id, tab);
+            tabs_order.push(tab_id);
+            if i == info.tabs.active_tab {
+                active_tab_id = tab_id;
+                active = i;
             }
         }
 
         if tabs.len() == 0 {
             let tab_id = WidgetId::next();
             let tab = LapceTabData::new(
+                window_id,
                 tab_id,
                 LapceWorkspace::default(),
                 db.clone(),
@@ -236,6 +280,7 @@ impl LapceWindowData {
         let menu = MenuData::new();
 
         Self {
+            window_id,
             tabs,
             tabs_order: Arc::new(tabs_order),
             active,
@@ -246,6 +291,32 @@ impl LapceWindowData {
             db,
             watcher: Arc::new(watcher),
             menu: Arc::new(menu),
+            size: info.size,
+            pos: info.pos,
+        }
+    }
+
+    pub fn info(&self) -> WindowInfo {
+        let mut active_tab = 0;
+        let workspaces: Vec<LapceWorkspace> = self
+            .tabs_order
+            .iter()
+            .enumerate()
+            .map(|(i, w)| {
+                let tab = self.tabs.get(w).unwrap();
+                if tab.id == self.active_id {
+                    active_tab = i;
+                }
+                (*tab.workspace).clone()
+            })
+            .collect();
+        WindowInfo {
+            size: self.size,
+            pos: self.pos,
+            tabs: TabsInfo {
+                active_tab,
+                workspaces,
+            },
         }
     }
 }
@@ -334,6 +405,7 @@ pub enum DragContent {
 #[derive(Clone, Lens)]
 pub struct LapceTabData {
     pub id: WidgetId,
+    pub window_id: WindowId,
     pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
@@ -401,6 +473,7 @@ impl GetConfig for LapceTabData {
 
 impl LapceTabData {
     pub fn new(
+        window_id: WindowId,
         tab_id: WidgetId,
         workspace: LapceWorkspace,
         db: Arc<LapceDb>,
@@ -409,7 +482,11 @@ impl LapceTabData {
     ) -> Self {
         let config = Arc::new(Config::load(&workspace).unwrap_or_default());
 
-        let workspace_info = db.get_workspace_info(&workspace).ok();
+        let workspace_info = if workspace.path.is_some() {
+            db.get_workspace_info(&workspace).ok()
+        } else {
+            None
+        };
 
         let (update_sender, update_receiver) = unbounded();
         let update_sender = Arc::new(update_sender);
@@ -491,6 +568,7 @@ impl LapceTabData {
         let focus = (*main_split.active).unwrap_or(*main_split.split_id);
         let mut tab = Self {
             id: tab_id,
+            window_id,
             workspace: Arc::new(workspace),
             focus,
             main_split,
@@ -993,6 +1071,13 @@ impl LapceTabData {
                     LAPCE_UI_COMMAND,
                     LapceUICommand::PreviousTab,
                     Target::Auto,
+                ));
+            }
+            LapceWorkbenchCommand::NewWindow => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::NewWindow(self.window_id),
+                    Target::Global,
                 ));
             }
             LapceWorkbenchCommand::ReloadWindow => {
@@ -1986,6 +2071,9 @@ impl LapceMainSplitData {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
         };
+        if new_buffer {
+            self.db.save_buffer_position(&self.workspace, &buffer);
+        }
         let path = location.path.clone();
         let buffer_exists = self.open_files.contains_key(&path);
         if !buffer_exists {
