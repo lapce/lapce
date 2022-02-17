@@ -198,6 +198,7 @@ pub enum LocalBufferKind {
     Search,
     SourceControl,
     Empty,
+    FilePicker,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

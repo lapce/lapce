@@ -475,6 +475,7 @@ pub enum LapceUICommand {
     RunPaletteReferences(Vec<EditorLocationNew>),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
+    UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
     UpdateExplorerItems(usize, PathBuf, Vec<FileNodeItem>),
     UpdateInstalledPlugins(HashMap<String, PluginDescription>),

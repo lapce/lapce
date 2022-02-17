@@ -306,6 +306,9 @@ impl LapceEditorBufferData {
                 }
             }
             BufferContent::Local(kind) => match kind {
+                LocalBufferKind::FilePicker => {
+                    Size::new(editor_size.width, line_height)
+                }
                 LocalBufferKind::Search => Size::new(editor_size.width, line_height),
                 LocalBufferKind::SourceControl => {
                     for (pos, panels) in panels.iter() {
@@ -676,7 +679,70 @@ impl LapceEditorBufferData {
             .with_size(Size::new((width * 3.0).ceil(), line_height * 3.0))
     }
 
+    pub fn update_global_search(&self, ctx: &mut EventCtx, pattern: String) {
+        let tab_id = (*self.main_split.tab_id).clone();
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::UpdateSearch(pattern.to_string()),
+            Target::Widget(tab_id),
+        ));
+        if pattern == "" {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::GlobalSearchResult(
+                    pattern.clone(),
+                    Arc::new(HashMap::new()),
+                ),
+                Target::Widget(tab_id),
+            ));
+        } else {
+            let event_sink = ctx.get_external_handle();
+            self.proxy.global_search(
+                pattern.clone(),
+                Box::new(move |result| {
+                    if let Ok(matches) = result {
+                        if let Ok(matches) = serde_json::from_value::<
+                            HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
+                        >(matches)
+                        {
+                            event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::GlobalSearchResult(
+                                    pattern,
+                                    Arc::new(matches),
+                                ),
+                                Target::Widget(tab_id),
+                            );
+                        }
+                    }
+                }),
+            )
+        }
+    }
+
     fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
+        match &self.buffer.content {
+            BufferContent::File(_) => {}
+            BufferContent::Local(local) => match local {
+                LocalBufferKind::Search => {
+                    let pattern = self.buffer.rope.to_string();
+                    self.update_global_search(ctx, pattern);
+                    return;
+                }
+                LocalBufferKind::FilePicker => {
+                    let pwd = self.buffer.rope.to_string();
+                    let pwd = PathBuf::from(pwd);
+                    let tab_id = (*self.main_split.tab_id).clone();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdatePickerPwd(pwd),
+                        Target::Widget(tab_id),
+                    ));
+                    return;
+                }
+                LocalBufferKind::SourceControl | LocalBufferKind::Empty => {}
+            },
+        }
         let line = self.buffer.line_of_offset(offset);
         let line_start = self.buffer.offset_of_line(line);
         let line_end = self.buffer.line_end_offset(line, true);
@@ -4779,6 +4845,9 @@ impl LapceEditorView {
                 data.main_split.active_tab = Arc::new(editor.tab_id.clone());
             }
             BufferContent::Local(kind) => match kind {
+                LocalBufferKind::FilePicker => {
+                    data.focus_area = FocusArea::FilePicker;
+                }
                 LocalBufferKind::Search => {
                     data.focus_area = FocusArea::Panel(PanelKind::Search);
                 }
@@ -5159,40 +5228,54 @@ impl Widget<LapceTabData> for LapceEditorView {
                 ));
             }
         }
-        let old_data = old_data.editor_view_content(self.view_id);
-        let data = data.editor_view_content(self.view_id);
+        let old_editor_data = old_data.editor_view_content(self.view_id);
+        let editor_data = data.editor_view_content(self.view_id);
 
-        if data.editor.content != old_data.editor.content {
+        if editor_data.editor.content != old_editor_data.editor.content {
             ctx.request_layout();
         }
-        if data.editor.compare != old_data.editor.compare {
+        if editor_data.editor.compare != old_editor_data.editor.compare {
             ctx.request_layout();
         }
-        if data.editor.compare.is_some() {
-            if !data.buffer.histories.ptr_eq(&old_data.buffer.histories) {
+        if editor_data.editor.compare.is_some() {
+            if !editor_data
+                .buffer
+                .histories
+                .ptr_eq(&old_editor_data.buffer.histories)
+            {
                 ctx.request_layout();
             }
-            if !data
+            if !editor_data
                 .buffer
                 .history_changes
-                .ptr_eq(&old_data.buffer.history_changes)
+                .ptr_eq(&old_editor_data.buffer.history_changes)
             {
                 ctx.request_layout();
             }
         }
-        if data.buffer.dirty != old_data.buffer.dirty {
+        if editor_data.buffer.dirty != old_editor_data.buffer.dirty {
             ctx.request_paint();
         }
-        if data.editor.cursor != old_data.editor.cursor {
+        if editor_data.editor.cursor != old_editor_data.editor.cursor {
             ctx.request_paint();
         }
 
-        if let BufferContent::Local(kind) = &data.buffer.content {
-            if let LocalBufferKind::Search = kind {
-                if !data.buffer.rope.ptr_eq(&old_data.buffer.rope) {
-                    let pattern = data.buffer.rope.to_string();
+        if let BufferContent::Local(kind) = &editor_data.buffer.content {
+            if let LocalBufferKind::FilePicker = kind {
+                if !editor_data.buffer.rope.ptr_eq(&old_editor_data.buffer.rope) {
+                    let pwd = editor_data.buffer.rope.to_string();
+                    let pwd = PathBuf::from(pwd);
                     let tab_id = (*data.main_split.tab_id).clone();
-                    ctx.request_layout();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdatePickerPwd(pwd),
+                        Target::Widget(tab_id),
+                    ));
+                }
+            } else if let LocalBufferKind::Search = kind {
+                if !editor_data.buffer.rope.ptr_eq(&old_editor_data.buffer.rope) {
+                    let pattern = editor_data.buffer.rope.to_string();
+                    let tab_id = (*data.main_split.tab_id).clone();
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateSearch(pattern.clone()),
@@ -5210,7 +5293,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     } else {
                         let event_sink = ctx.get_external_handle();
                         data.proxy.global_search(
-                            data.buffer.rope.to_string(),
+                            pattern.clone(),
                             Box::new(move |result| {
                                 if let Ok(matches) = result {
                                     if let Ok(matches) = serde_json::from_value::<
@@ -5238,8 +5321,8 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
         }
 
-        let buffer = &data.buffer;
-        let old_buffer = &old_data.buffer;
+        let buffer = &editor_data.buffer;
+        let old_buffer = &old_editor_data.buffer;
         if buffer.max_len != old_buffer.max_len
             || buffer.num_lines != old_buffer.num_lines
         {
@@ -5254,8 +5337,8 @@ impl Widget<LapceTabData> for LapceEditorView {
             ctx.request_paint();
         }
 
-        if old_data.current_code_actions().is_some()
-            != data.current_code_actions().is_some()
+        if old_editor_data.current_code_actions().is_some()
+            != editor_data.current_code_actions().is_some()
         {
             ctx.request_paint();
         }

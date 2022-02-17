@@ -125,7 +125,7 @@ impl LapceTabNew {
         let problem = data.problem.new_panel();
         panels.insert(PanelKind::Problem, WidgetPod::new(problem.boxed()));
 
-        let picker = FilePicker::new(data.picker.widget_id);
+        let picker = FilePicker::new(data);
 
         Self {
             id: data.id,
@@ -374,6 +374,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::HomeDir(path) => {
                         Arc::make_mut(&mut data.picker).init_home(path);
+                        data.set_picker_pwd(path.clone());
                         ctx.set_handled();
                     }
                     LapceUICommand::CloseTerminal(id) => {
@@ -871,6 +872,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .history_line_styles
                             .borrow_mut()
                             .insert(history.to_string(), HashMap::new());
+                    }
+                    LapceUICommand::UpdatePickerPwd(path) => {
+                        Arc::make_mut(&mut data.picker).pwd = path.clone();
+                        data.read_picker_pwd(ctx);
+                        ctx.set_handled();
                     }
                     LapceUICommand::UpdatePickerItems(path, items) => {
                         Arc::make_mut(&mut data.picker)

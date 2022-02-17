@@ -395,6 +395,7 @@ pub enum FocusArea {
     Palette,
     Editor,
     Panel(PanelKind),
+    FilePicker,
 }
 
 #[derive(Clone)]
@@ -508,6 +509,7 @@ impl LapceTabData {
             event_sink.clone(),
         ));
         let search = Arc::new(SearchData::new());
+        let file_picker = Arc::new(FilePickerData::new());
 
         let mut main_split = LapceMainSplitData::new(
             tab_id,
@@ -531,6 +533,13 @@ impl LapceTabData {
             search.editor_view_id,
             None,
             LocalBufferKind::Search,
+            &config,
+            event_sink.clone(),
+        );
+        main_split.add_editor(
+            file_picker.editor_view_id,
+            None,
+            LocalBufferKind::FilePicker,
             &config,
             event_sink.clone(),
         );
@@ -580,7 +589,7 @@ impl LapceTabData {
             plugins: Arc::new(Vec::new()),
             installed_plugins: Arc::new(HashMap::new()),
             find: Arc::new(Find::new(0)),
-            picker: Arc::new(FilePickerData::new()),
+            picker: file_picker,
             source_control,
             file_explorer,
             term_rx: Some(term_receiver),
@@ -1397,6 +1406,61 @@ impl LapceTabData {
                     };
                 }
             }
+        }
+    }
+
+    pub fn read_picker_pwd(&mut self, ctx: &mut EventCtx) {
+        let path = self.picker.pwd.clone();
+        let event_sink = ctx.get_external_handle();
+        let tab_id = self.id;
+        self.proxy.read_dir(
+            &path.clone(),
+            Box::new(move |result| {
+                if let Ok(res) = result {
+                    let resp: Result<Vec<FileNodeItem>, serde_json::Error> =
+                        serde_json::from_value(res);
+                    if let Ok(items) = resp {
+                        event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdatePickerItems(
+                                path,
+                                items
+                                    .iter()
+                                    .map(|item| {
+                                        (item.path_buf.clone(), item.clone())
+                                    })
+                                    .collect(),
+                            ),
+                            Target::Widget(tab_id),
+                        );
+                    }
+                }
+            }),
+        );
+    }
+
+    pub fn set_picker_pwd(&mut self, pwd: PathBuf) {
+        let picker = Arc::make_mut(&mut self.picker);
+        picker.pwd = pwd.clone();
+        if let Some(s) = pwd.to_str() {
+            let buffer = self
+                .main_split
+                .local_buffers
+                .get_mut(&LocalBufferKind::FilePicker)
+                .unwrap();
+            let buffer = Arc::make_mut(buffer);
+            buffer.load_content(s);
+            let editor = self
+                .main_split
+                .editors
+                .get_mut(&self.picker.editor_view_id)
+                .unwrap();
+            let editor = Arc::make_mut(editor);
+            editor.cursor = if self.config.lapce.modal {
+                Cursor::new(CursorMode::Normal(0), None)
+            } else {
+                Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
+            };
         }
     }
 }
