@@ -57,10 +57,10 @@ impl SearchData {
         let input = LapceEditorView::new(editor_data.view_id)
             .hide_header()
             .hide_gutter()
-            .padding(10.0);
+            .padding((15.0, 15.0));
         let split = LapceSplitNew::new(self.split_id)
             .horizontal()
-            .with_child(input.boxed(), None, 45.0)
+            .with_child(input.boxed(), None, 55.0)
             .with_flex_child(
                 LapceScrollNew::new(SearchContent::new().boxed())
                     .vertical()

@@ -1457,9 +1457,17 @@ impl LapceTabData {
                 .unwrap();
             let editor = Arc::make_mut(editor);
             editor.cursor = if self.config.lapce.modal {
-                Cursor::new(CursorMode::Normal(0), None)
+                Cursor::new(
+                    CursorMode::Normal(buffer.line_end_offset(0, false)),
+                    None,
+                )
             } else {
-                Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
+                Cursor::new(
+                    CursorMode::Insert(Selection::caret(
+                        buffer.line_end_offset(0, true),
+                    )),
+                    None,
+                )
             };
         }
     }

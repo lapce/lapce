@@ -1561,6 +1561,12 @@ impl Widget<LapceTabData> for PaletteContainer {
         if data.palette.current_items().len() > 0
             && data.palette.palette_type.has_preview()
         {
+            let rect = self.preview.layout_rect();
+            ctx.fill(
+                rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
             self.preview.paint(ctx, data, env);
         }
     }

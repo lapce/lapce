@@ -2460,6 +2460,9 @@ impl LapceEditorBufferData {
         if !is_focused && self.buffer.len() == 0 && placeholder.is_some() {
             return;
         }
+        if self.editor.content.is_input() {
+            return;
+        }
         let line_height = self.config.editor.line_height as f64;
         let size = ctx.size();
         ctx.fill(
@@ -2472,6 +2475,9 @@ impl LapceEditorBufferData {
     }
 
     fn paint_find(&self, ctx: &mut PaintCtx) {
+        if self.editor.content.is_search() {
+            return;
+        }
         let line_height = self.config.editor.line_height as f64;
         let start_line =
             (self.editor.scroll_offset.y / line_height).floor() as usize;
@@ -5373,6 +5379,24 @@ impl Widget<LapceTabData> for LapceEditorView {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let editor = data.main_split.editors.get(&self.view_id).unwrap();
+        if editor.content.is_special() {
+            let size = ctx.size();
+            ctx.fill(
+                size.to_rect().inflate(5.0, 1.0),
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
+        }
+        if editor.content.is_input() {
+            let size = ctx.size();
+            ctx.stroke(
+                size.to_rect().inflate(4.5, 0.5),
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+        }
+
         self.editor.paint(ctx, data, env);
         self.header.paint(ctx, data, env);
     }
@@ -5949,7 +5973,10 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         env: &Env,
     ) -> Size {
         // ctx.set_paint_insets((0.0, 0.0, 0.0, 10.0));
-        if self.display && !data.config.editor.show_tab {
+        if self.display
+            && (!data.config.editor.show_tab
+                || self.view_id == data.palette.preview_editor)
+        {
             let size = Size::new(bc.max().width, self.height);
             self.icons = self.get_icons(size, data);
             let cross_size = 20.0;

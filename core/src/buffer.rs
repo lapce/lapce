@@ -207,6 +207,40 @@ pub enum BufferContent {
     Local(LocalBufferKind),
 }
 
+impl BufferContent {
+    pub fn is_special(&self) -> bool {
+        match &self {
+            BufferContent::File(_) => false,
+            BufferContent::Local(local) => match local {
+                LocalBufferKind::Search
+                | LocalBufferKind::SourceControl
+                | LocalBufferKind::FilePicker => true,
+                LocalBufferKind::Empty => false,
+            },
+        }
+    }
+
+    pub fn is_input(&self) -> bool {
+        match &self {
+            BufferContent::File(_) => false,
+            BufferContent::Local(local) => match local {
+                LocalBufferKind::Search | LocalBufferKind::FilePicker => true,
+                LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
+            },
+        }
+    }
+
+    pub fn is_search(&self) -> bool {
+        match &self {
+            BufferContent::File(_) => false,
+            BufferContent::Local(local) => match local {
+                LocalBufferKind::Search => true,
+                _ => false,
+            },
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct BufferNew {
     pub id: BufferId,

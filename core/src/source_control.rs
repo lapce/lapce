@@ -79,7 +79,7 @@ impl SourceControlData {
             .hide_header()
             .hide_gutter()
             .set_placeholder("Commit Message".to_string())
-            .padding(10.0);
+            .padding((15.0, 10.0));
         let content = SourceControlFileList::new(self.file_list_id);
         LapcePanel::new(
             PanelKind::SourceControl,

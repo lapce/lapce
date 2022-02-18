@@ -57,11 +57,9 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     }
                     data.db.save_last_window(&window);
                 }
-                println!("window close requested {}", data.windows.len());
                 return None;
             }
             Event::ApplicationQuit => {
-                println!("application quit {}", data.windows.len());
                 data.db.save_app(data);
                 return None;
             }
@@ -112,7 +110,6 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                         .window_size(info.size)
                         .with_min_size(Size::new(800.0, 600.0))
                         .set_position(info.pos);
-                    println!("new window");
                     ctx.new_window(desc);
                     return druid::Handled::Yes;
                 }
@@ -129,7 +126,6 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         env: &Env,
         ctx: &mut druid::DelegateCtx,
     ) {
-        println!("window added");
     }
 
     fn window_removed(
@@ -139,6 +135,5 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
         env: &Env,
         ctx: &mut druid::DelegateCtx,
     ) {
-        println!("window removed");
     }
 }
