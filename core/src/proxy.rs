@@ -32,6 +32,7 @@ use serde_json::Value;
 use xi_rope::RopeDelta;
 
 use crate::command::LapceUICommand;
+use crate::config::Config;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
 use crate::terminal::RawTerminal;
@@ -213,15 +214,19 @@ impl LapceProxy {
                     .output()
                     .unwrap();
                 if !cmd.status.success() {
-                    let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
-                    let mut resp =
-                        reqwest::blocking::get(url).expect("request failed");
-                    let local_path = format!("/tmp/lapce-proxy-{}", VERSION);
-                    let mut out = std::fs::File::create(&local_path)
-                        .expect("failed to create file");
-                    let mut gz = GzDecoder::new(&mut resp);
-                    std::io::copy(&mut gz, &mut out)
-                        .expect("failed to copy content");
+                    let local_proxy_file = Config::dir()
+                        .unwrap()
+                        .join(format!("lapce-proxy-{}", VERSION));
+                    if !local_proxy_file.exists() {
+                        let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
+                        let mut resp =
+                            reqwest::blocking::get(url).expect("request failed");
+                        let mut out = std::fs::File::create(&local_proxy_file)
+                            .expect("failed to create file");
+                        let mut gz = GzDecoder::new(&mut resp);
+                        std::io::copy(&mut gz, &mut out)
+                            .expect("failed to copy content");
+                    }
 
                     let mut cmd = Command::new("ssh");
                     #[cfg(target_os = "windows")]
@@ -237,7 +242,7 @@ impl LapceProxy {
                     #[cfg(target_os = "windows")]
                     let mut cmd = cmd.creation_flags(0x08000000);
                     cmd.args(ssh_args)
-                        .arg(&local_path)
+                        .arg(&local_proxy_file)
                         .arg(format!("{user}@{host}:~/.lapce/lapce-proxy-{VERSION}"))
                         .output()
                         .unwrap();

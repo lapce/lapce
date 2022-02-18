@@ -177,9 +177,13 @@ impl Config {
         Ok(config)
     }
 
+    pub fn dir() -> Option<PathBuf> {
+        ProjectDirs::from("", "", "Lapce").map(|d| PathBuf::from(d.config_dir()))
+    }
+
     pub fn settings_file() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "Lapce").map(|d| {
-            d.config_dir().join(if !cfg!(debug_assertions) {
+        Self::dir().map(|d| {
+            d.join(if !cfg!(debug_assertions) {
                 "settings.toml"
             } else {
                 "debug-settings.toml"
