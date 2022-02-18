@@ -28,6 +28,7 @@ use crate::{
     menu::MenuItem,
     movement::{LinePosition, Movement},
     palette::{NewPaletteItem, PaletteType},
+    proxy::ProxyStatus,
     split::{SplitDirection, SplitMoveDirection},
     state::LapceWorkspace,
 };
@@ -546,6 +547,7 @@ pub enum LapceUICommand {
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
     HomeDir(PathBuf),
+    ProxyUpdateStatus(ProxyStatus),
     CloseTerminal(TermId),
     SplitTerminal(bool, WidgetId),
     SplitTerminalClose(TermId, WidgetId),

@@ -375,6 +375,7 @@ impl Dispatcher {
         });
 
         dispatcher.start_update_process(git_receiver);
+        dispatcher.send_notification("proxy_connected", json!({}));
 
         dispatcher
     }

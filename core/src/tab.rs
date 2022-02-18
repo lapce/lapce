@@ -372,6 +372,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                         Arc::make_mut(&mut data.picker).active = false;
                         ctx.set_handled();
                     }
+                    LapceUICommand::ProxyUpdateStatus(status) => {
+                        data.proxy_status = Arc::new(*status);
+                        ctx.set_handled();
+                    }
                     LapceUICommand::HomeDir(path) => {
                         Arc::make_mut(&mut data.picker).init_home(path);
                         data.set_picker_pwd(path.clone());

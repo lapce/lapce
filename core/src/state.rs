@@ -79,6 +79,15 @@ pub enum LapceWorkspaceType {
     RemoteSSH(String, String),
 }
 
+impl LapceWorkspaceType {
+    pub fn is_remote(&self) -> bool {
+        if let LapceWorkspaceType::RemoteSSH(_, _) = &self {
+            return true;
+        }
+        false
+    }
+}
+
 impl Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -18,6 +18,7 @@ use crate::{
     config::LapceTheme,
     data::LapceWindowData,
     menu::MenuItem,
+    proxy::ProxyStatus,
     state::LapceWorkspaceType,
     svg::get_svg,
 };
@@ -129,9 +130,18 @@ impl Widget<LapceWindowData> for Title {
         let remote_text = match &tab.workspace.kind {
             LapceWorkspaceType::Local => None,
             LapceWorkspaceType::RemoteSSH(_, host) => {
+                let text = match *tab.proxy_status {
+                    ProxyStatus::Connecting => {
+                        format!("Connecting to SSH: {host} ...")
+                    }
+                    ProxyStatus::Connected => format!("SSH: {host}"),
+                    ProxyStatus::Disconnected => {
+                        format!("Disconnected SSH: {host}")
+                    }
+                };
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(format!("SSH: {host}"))
+                    .new_text_layout(text)
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(
                         data.config
@@ -155,7 +165,15 @@ impl Widget<LapceWindowData> for Title {
         )
         .to_rect()
         .with_origin(Point::new(x, 0.0));
-        ctx.fill(remote_rect, &Color::rgb8(64, 120, 242));
+        let color = match &tab.workspace.kind {
+            LapceWorkspaceType::Local => Color::rgb8(64, 120, 242),
+            LapceWorkspaceType::RemoteSSH(_, _) => match *tab.proxy_status {
+                ProxyStatus::Connecting => Color::rgb8(193, 132, 1),
+                ProxyStatus::Connected => Color::rgb8(80, 161, 79),
+                ProxyStatus::Disconnected => Color::rgb8(228, 86, 73),
+            },
+        };
+        ctx.fill(remote_rect, &color);
         let remote_svg = get_svg("remote.svg").unwrap();
         ctx.draw_svg(
             &remote_svg,

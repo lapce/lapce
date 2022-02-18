@@ -85,7 +85,7 @@ use crate::{
     picker::FilePickerData,
     plugin::PluginData,
     problem::ProblemData,
-    proxy::{LapceProxy, ProxyHandlerNew, TermEvent},
+    proxy::{LapceProxy, ProxyHandlerNew, ProxyStatus, TermEvent},
     search::SearchData,
     source_control::{SourceControlData, SEARCH_BUFFER, SOURCE_CONTROL_BUFFER},
     split::{LapceDynamicSplit, LapceSplitNew, SplitDirection, SplitMoveDirection},
@@ -422,6 +422,7 @@ pub struct LapceTabData {
     pub installed_plugins: Arc<HashMap<String, PluginDescription>>,
     pub file_explorer: Arc<FileExplorerData>,
     pub proxy: Arc<LapceProxy>,
+    pub proxy_status: Arc<ProxyStatus>,
     pub keypress: Arc<KeyPressData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
@@ -454,6 +455,7 @@ impl Data for LapceTabData {
             && self.focus == other.focus
             && self.focus_area == other.focus_area
             && self.panel_active == other.panel_active
+            && self.proxy_status.same(&other.proxy_status)
             && self.find.same(&other.find)
             && self.progresses.ptr_eq(&other.progresses)
             && self.file_explorer.same(&other.file_explorer)
@@ -596,6 +598,7 @@ impl LapceTabData {
             term_tx: Arc::new(term_sender),
             palette,
             proxy,
+            proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
             update_sender,
             update_receiver: Some(update_receiver),

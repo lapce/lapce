@@ -46,13 +46,18 @@ pub enum TermEvent {
     CloseTerminal,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum ProxyStatus {
+    Connecting,
+    Connected,
+    Disconnected,
+}
+
 #[derive(Clone)]
 pub struct LapceProxy {
     pub tab_id: WidgetId,
     rpc: RpcHandler,
     proxy_receiver: Arc<Receiver<Value>>,
-    core_sender: Arc<Sender<Value>>,
-    core_receiver: Arc<Receiver<Value>>,
     term_tx: Sender<(TermId, TermEvent)>,
     event_sink: ExtEventSink,
 }
@@ -130,7 +135,13 @@ impl Handler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::Shutdown {} => return ControlFlow::Exit,
+            Notification::ProxyConnected {} => {
+                self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connected),
+                    Target::Widget(self.tab_id),
+                );
+            }
             Notification::HomeDir { path } => {
                 self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -155,21 +166,28 @@ impl LapceProxy {
         event_sink: ExtEventSink,
     ) -> Self {
         let (proxy_sender, proxy_receiver) = crossbeam_channel::unbounded();
-        let (core_sender, core_receiver) = crossbeam_channel::unbounded();
         let rpc = RpcHandler::new(proxy_sender);
         let proxy = Self {
             tab_id,
             rpc,
             proxy_receiver: Arc::new(proxy_receiver),
-            core_sender: Arc::new(core_sender),
-            core_receiver: Arc::new(core_receiver),
             term_tx,
-            event_sink,
+            event_sink: event_sink.clone(),
         };
 
         let local_proxy = proxy.clone();
         thread::spawn(move || {
-            local_proxy.start(workspace);
+            event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connecting),
+                Target::Widget(tab_id),
+            );
+            local_proxy.start(workspace.clone());
+            event_sink.submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ProxyUpdateStatus(ProxyStatus::Disconnected),
+                Target::Widget(tab_id),
+            );
         });
 
         proxy
@@ -179,10 +197,10 @@ impl LapceProxy {
         if let Some(path) = workspace.path.as_ref() {
             self.initialize(path.clone());
         }
+        let (core_sender, core_receiver) = crossbeam_channel::unbounded();
         match workspace.kind {
             LapceWorkspaceType::Local => {
                 let proxy_reciever = (*self.proxy_receiver).clone();
-                let core_sender = (*self.core_sender).clone();
                 thread::spawn(move || {
                     let dispatcher = Dispatcher::new(core_sender);
                     dispatcher.mainloop(proxy_reciever);
@@ -190,7 +208,6 @@ impl LapceProxy {
 
                 let mut proxy = self.clone();
                 let mut handler = self.clone();
-                let core_receiver = (*self.core_receiver).clone();
                 proxy.rpc.mainloop(core_receiver, &mut handler);
             }
             LapceWorkspaceType::RemoteSSH(user, host) => {
@@ -201,6 +218,8 @@ impl LapceProxy {
                     "ControlPath=~/.ssh/cm-%r@%h:%p",
                     "-o",
                     "ControlPersist=30m",
+                    "-o",
+                    "ConnectTimeout=15",
                 ];
                 let mut cmd = Command::new("ssh");
                 #[cfg(target_os = "windows")]
@@ -211,11 +230,10 @@ impl LapceProxy {
                     .arg("test")
                     .arg("-e")
                     .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
-                    .output()
-                    .unwrap();
+                    .output()?;
                 if !cmd.status.success() {
                     let local_proxy_file = Config::dir()
-                        .unwrap()
+                        .ok_or(anyhow!("can't find config dir"))?
                         .join(format!("lapce-proxy-{}", VERSION));
                     if !local_proxy_file.exists() {
                         let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
@@ -235,8 +253,7 @@ impl LapceProxy {
                         .args(ssh_args)
                         .arg("mkdir")
                         .arg("~/.lapce/")
-                        .output()
-                        .unwrap();
+                        .output()?;
 
                     let mut cmd = Command::new("scp");
                     #[cfg(target_os = "windows")]
@@ -244,8 +261,7 @@ impl LapceProxy {
                     cmd.args(ssh_args)
                         .arg(&local_proxy_file)
                         .arg(format!("{user}@{host}:~/.lapce/lapce-proxy-{VERSION}"))
-                        .output()
-                        .unwrap();
+                        .output()?;
 
                     let mut cmd = Command::new("ssh");
                     #[cfg(target_os = "windows")]
@@ -255,8 +271,7 @@ impl LapceProxy {
                         .arg("chmod")
                         .arg("+x")
                         .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
-                        .output()
-                        .unwrap();
+                        .output()?;
                 }
 
                 let mut child = Command::new("ssh");
@@ -269,16 +284,16 @@ impl LapceProxy {
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
                     .spawn()?;
-                let stdin = child.stdin.take().unwrap();
-                let stdout = BufReader::new(child.stdout.take().unwrap());
+                let stdin = child.stdin.take().ok_or(anyhow!("can't find stdin"))?;
+                let stdout = BufReader::new(
+                    child.stdout.take().ok_or(anyhow!("can't find stdout"))?,
+                );
 
                 let proxy_reciever = (*self.proxy_receiver).clone();
-                let core_sender = (*self.core_sender).clone();
                 stdio_transport(stdin, proxy_reciever, stdout, core_sender);
 
                 let mut handler = self.clone();
                 let mut proxy = self.clone();
-                let core_receiver = (*self.core_receiver).clone();
                 proxy.rpc.mainloop(core_receiver, &mut handler);
             }
         }
@@ -557,10 +572,10 @@ impl LapceProxy {
 
     pub fn stop(&self) {
         self.rpc.send_rpc_notification("shutdown", &json!({}));
-        self.core_sender.send(json!({
-            "method": "shutdown",
-            "params": {},
-        }));
+        // self.core_sender.send(json!({
+        //     "method": "shutdown",
+        //     "params": {},
+        // }));
     }
 }
 
@@ -586,7 +601,7 @@ pub enum CursorShape {
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum Notification {
-    Shutdown {},
+    ProxyConnected {},
     SemanticTokens {
         rev: u64,
         buffer_id: BufferId,
