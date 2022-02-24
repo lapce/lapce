@@ -5,7 +5,7 @@ use druid::{
     piet::{PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, LayoutCtx,
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    Target, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 
 use crate::{
@@ -36,6 +36,8 @@ pub struct LapceSettings {
     active: usize,
     content_rect: Rect,
     header_rect: Rect,
+    switcher_rect: Rect,
+    switcher_line_height: f64,
     close_rect: Rect,
     children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
@@ -49,6 +51,8 @@ impl LapceSettings {
             header_rect: Rect::ZERO,
             content_rect: Rect::ZERO,
             close_rect: Rect::ZERO,
+            switcher_rect: Rect::ZERO,
+            switcher_line_height: 40.0,
             children,
         }
     }
@@ -59,9 +63,12 @@ impl LapceSettings {
         mouse_event: &MouseEvent,
         data: &mut LapceTabData,
     ) {
-        if self.close_rect.contains(mouse_event.pos) {
+        if self.close_rect.contains(mouse_event.pos)
+            || !self.content_rect.contains(mouse_event.pos)
+        {
             let settings = Arc::make_mut(&mut data.settings);
             settings.shown = false;
+            return;
         }
     }
 
@@ -158,13 +165,18 @@ impl Widget<LapceTabData> for LapceSettings {
                 ),
         );
 
+        self.switcher_rect =
+            Size::new(150.0, self_size.height - self.header_rect.height())
+                .to_rect()
+                .with_origin(origin + (0.0, self.header_rect.height()));
+
         let content_size = Size::new(
-            self_size.width - 100.0,
+            self_size.width - self.switcher_rect.width() - 40.0,
             self_size.height - self.header_rect.height(),
         );
         let content_origin = origin
             + (
-                self_size.width - content_size.width,
+                self_size.width - content_size.width - 20.0,
                 self_size.height - content_size.height,
             );
         let content_bc = BoxConstraints::tight(content_size);
@@ -200,6 +212,54 @@ impl Widget<LapceTabData> for LapceSettings {
                 data.config
                     .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
             );
+
+            ctx.with_save(|ctx| {
+                ctx.clip(
+                    self.switcher_rect.inflate(50.0, 0.0) + Vec2::new(50.0, 0.0),
+                );
+                ctx.blurred_rect(
+                    self.switcher_rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            });
+
+            ctx.fill(
+                Size::new(self.switcher_rect.width(), self.switcher_line_height)
+                    .to_rect()
+                    .with_origin(
+                        self.switcher_rect.origin()
+                            + (0.0, self.active as f64 * self.switcher_line_height),
+                    ),
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
+
+            for (i, text) in ["Settings", "Keybindings"].iter().enumerate() {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(text.to_string())
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                let text_size = text_layout.size();
+                ctx.draw_text(
+                    &text_layout,
+                    self.switcher_rect.origin()
+                        + (
+                            20.0,
+                            i as f64 * self.switcher_line_height
+                                + (self.switcher_line_height / 2.0
+                                    - text_size.height / 2.0),
+                        ),
+                );
+            }
 
             ctx.blurred_rect(
                 self.header_rect,

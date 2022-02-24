@@ -2,10 +2,13 @@ use std::sync::Arc;
 
 use druid::{
     kurbo::Line,
-    piet::{PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    piet::{
+        PietTextLayout, Svg, Text, TextAttribute, TextLayout, TextLayoutBuilder,
+    },
+    text::Attribute,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 
 use crate::{
@@ -34,7 +37,7 @@ impl LapceKeymap {
         let keymap = Self {
             widget_id: data.settings.keymap_widget_id,
             active_keymap: None,
-            line_height: 30.0,
+            line_height: 35.0,
             keymap_confirm: Rect::ZERO,
             keymap_cancel: Rect::ZERO,
         };
@@ -44,9 +47,11 @@ impl LapceKeymap {
             .hide_header()
             .hide_gutter()
             .padding((15.0, 15.0));
+        let header = LapceKeymapHeader::new();
         let split = LapceSplitNew::new(data.settings.keymap_split_id)
             .horizontal()
             .with_child(input.boxed(), None, 55.0)
+            .with_child(header.boxed(), None, 55.0)
             .with_flex_child(keymap.boxed(), None, 1.0);
 
         split.boxed()
@@ -248,7 +253,7 @@ impl Widget<LapceTabData> for LapceKeymap {
 
         let commands_with_keymap_len = commands_with_keymap.len();
         for i in start..end + 1 {
-            if i % 2 == 1 {
+            if i % 2 == 0 {
                 ctx.fill(
                     Size::new(rect.width(), self.line_height)
                         .to_rect()
@@ -545,6 +550,168 @@ impl Widget<LapceTabData> for LapceKeymap {
                 .inflate(50.0, 15.0);
             ctx.stroke(
                 self.keymap_cancel,
+                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                1.0,
+            );
+        }
+    }
+}
+
+pub struct LapceKeymapHeader {}
+
+impl LapceKeymapHeader {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Widget<LapceTabData> for LapceKeymapHeader {
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        Size::new(bc.max().width, 40.0)
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let size = ctx.size();
+        let keypress_width = 200.0;
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout("Command".to_string())
+            .font(FontFamily::SYSTEM_UI, 14.0)
+            .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let text_size = text_layout.size();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(10.0, (size.height - text_size.height) / 2.0),
+        );
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout("Keybinding".to_string())
+            .font(FontFamily::SYSTEM_UI, 14.0)
+            .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let text_size = text_layout.size();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(
+                size.width / 2.0 - keypress_width + 10.0,
+                (size.height - text_size.height) / 2.0,
+            ),
+        );
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout("When".to_string())
+            .font(FontFamily::SYSTEM_UI, 14.0)
+            .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
+            .text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        let text_size = text_layout.size();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(
+                size.width / 2.0
+                    + 10.0
+                    + if data.config.lapce.modal {
+                        keypress_width
+                    } else {
+                        0.0
+                    },
+                (size.height - text_size.height) / 2.0,
+            ),
+        );
+
+        if data.config.lapce.modal {
+            let text_layout = ctx
+                .text()
+                .new_text_layout("Modes".to_string())
+                .font(FontFamily::SYSTEM_UI, 14.0)
+                .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
+            let text_size = text_layout.size();
+            ctx.draw_text(
+                &text_layout,
+                Point::new(
+                    size.width / 2.0 + 10.0,
+                    (size.height - text_size.height) / 2.0,
+                ),
+            );
+        }
+
+        let x = size.width / 2.0 - keypress_width;
+        ctx.stroke(
+            Line::new(Point::new(x, 0.0), Point::new(x, size.height)),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
+        let x = size.width / 2.0;
+        ctx.stroke(
+            Line::new(Point::new(x, 0.0), Point::new(x, size.height)),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
+        if data.config.lapce.modal {
+            let x = size.width / 2.0 + keypress_width;
+            ctx.stroke(
+                Line::new(Point::new(x, 0.0), Point::new(x, size.height)),
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
                 1.0,
             );
