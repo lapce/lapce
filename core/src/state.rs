@@ -51,12 +51,24 @@ impl Default for VisualMode {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy, PartialOrd, Ord)]
 pub enum Mode {
     Normal,
     Insert,
     Visual,
     Terminal,
+}
+
+impl Mode {
+    pub fn short(&self) -> String {
+        match &self {
+            Mode::Normal => "n",
+            Mode::Insert => "i",
+            Mode::Visual => "v",
+            Mode::Terminal => "t",
+        }
+        .to_string()
+    }
 }
 
 #[derive(PartialEq, Eq, Hash, Default, Clone)]

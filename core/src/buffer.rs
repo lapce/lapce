@@ -199,6 +199,7 @@ pub enum LocalBufferKind {
     SourceControl,
     Empty,
     FilePicker,
+    Keymap,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -214,7 +215,8 @@ impl BufferContent {
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Search
                 | LocalBufferKind::SourceControl
-                | LocalBufferKind::FilePicker => true,
+                | LocalBufferKind::FilePicker
+                | LocalBufferKind::Keymap => true,
                 LocalBufferKind::Empty => false,
             },
         }
@@ -224,7 +226,9 @@ impl BufferContent {
         match &self {
             BufferContent::File(_) => false,
             BufferContent::Local(local) => match local {
-                LocalBufferKind::Search | LocalBufferKind::FilePicker => true,
+                LocalBufferKind::Search
+                | LocalBufferKind::FilePicker
+                | LocalBufferKind::Keymap => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
         }

@@ -306,10 +306,11 @@ impl LapceEditorBufferData {
                 }
             }
             BufferContent::Local(kind) => match kind {
-                LocalBufferKind::FilePicker => {
+                LocalBufferKind::FilePicker
+                | LocalBufferKind::Search
+                | LocalBufferKind::Keymap => {
                     Size::new(editor_size.width, line_height)
                 }
-                LocalBufferKind::Search => Size::new(editor_size.width, line_height),
                 LocalBufferKind::SourceControl => {
                     for (pos, panels) in panels.iter() {
                         for panel_kind in panels.widgets.iter() {
@@ -724,6 +725,16 @@ impl LapceEditorBufferData {
         match &self.buffer.content {
             BufferContent::File(_) => {}
             BufferContent::Local(local) => match local {
+                LocalBufferKind::Keymap => {
+                    let tab_id = (*self.main_split.tab_id).clone();
+                    let pattern = self.buffer.rope.to_string();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateKeymapsFilter(pattern),
+                        Target::Widget(tab_id),
+                    ));
+                    return;
+                }
                 LocalBufferKind::Search => {
                     let pattern = self.buffer.rope.to_string();
                     self.update_global_search(ctx, pattern);
@@ -4851,6 +4862,7 @@ impl LapceEditorView {
                 data.main_split.active_tab = Arc::new(editor.tab_id.clone());
             }
             BufferContent::Local(kind) => match kind {
+                LocalBufferKind::Keymap => {}
                 LocalBufferKind::FilePicker => {
                     data.focus_area = FocusArea::FilePicker;
                 }
@@ -5267,50 +5279,46 @@ impl Widget<LapceTabData> for LapceEditorView {
         }
 
         if let BufferContent::Local(kind) = &editor_data.buffer.content {
-            if let LocalBufferKind::FilePicker = kind {
-                if !editor_data.buffer.rope.ptr_eq(&old_editor_data.buffer.rope) {
-                    let pwd = editor_data.buffer.rope.to_string();
-                    let pwd = PathBuf::from(pwd);
-                    let tab_id = (*data.main_split.tab_id).clone();
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdatePickerPwd(pwd),
-                        Target::Widget(tab_id),
-                    ));
-                }
-            } else if let LocalBufferKind::Search = kind {
-                if !editor_data.buffer.rope.ptr_eq(&old_editor_data.buffer.rope) {
-                    let pattern = editor_data.buffer.rope.to_string();
-                    let tab_id = (*data.main_split.tab_id).clone();
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSearch(pattern.clone()),
-                        Target::Widget(tab_id),
-                    ));
-                    if pattern == "" {
+            if !editor_data.buffer.rope.ptr_eq(&old_editor_data.buffer.rope) {
+                match kind {
+                    LocalBufferKind::Search => {
+                        let pattern = editor_data.buffer.rope.to_string();
+                        let tab_id = (*data.main_split.tab_id).clone();
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::GlobalSearchResult(
-                                pattern.clone(),
-                                Arc::new(HashMap::new()),
-                            ),
+                            LapceUICommand::UpdateSearch(pattern.clone()),
                             Target::Widget(tab_id),
                         ));
-                    } else {
-                        let event_sink = ctx.get_external_handle();
-                        data.proxy.global_search(
-                            pattern.clone(),
-                            Box::new(move |result| {
-                                if let Ok(matches) = result {
-                                    if let Ok(matches) = serde_json::from_value::<
-                                        HashMap<
-                                            PathBuf,
-                                            Vec<(usize, (usize, usize), String)>,
-                                        >,
-                                    >(
-                                        matches
-                                    ) {
-                                        event_sink.submit_command(
+                        if pattern == "" {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::GlobalSearchResult(
+                                    pattern.clone(),
+                                    Arc::new(HashMap::new()),
+                                ),
+                                Target::Widget(tab_id),
+                            ));
+                        } else {
+                            let event_sink = ctx.get_external_handle();
+                            data.proxy.global_search(
+                                    pattern.clone(),
+                                    Box::new(move |result| {
+                                        if let Ok(matches) = result {
+                                            if let Ok(matches) =
+                                                serde_json::from_value::<
+                                                    HashMap<
+                                                        PathBuf,
+                                                        Vec<(
+                                                            usize,
+                                                            (usize, usize),
+                                                            String,
+                                                        )>,
+                                                    >,
+                                                >(
+                                                    matches
+                                                )
+                                            {
+                                                event_sink.submit_command(
                                             LAPCE_UI_COMMAND,
                                             LapceUICommand::GlobalSearchResult(
                                                 pattern,
@@ -5318,11 +5326,33 @@ impl Widget<LapceTabData> for LapceEditorView {
                                             ),
                                             Target::Widget(tab_id),
                                         );
-                                    }
-                                }
-                            }),
-                        )
+                                            }
+                                        }
+                                    }),
+                                )
+                        }
                     }
+                    LocalBufferKind::FilePicker => {
+                        let pwd = editor_data.buffer.rope.to_string();
+                        let pwd = PathBuf::from(pwd);
+                        let tab_id = (*data.main_split.tab_id).clone();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdatePickerPwd(pwd),
+                            Target::Widget(tab_id),
+                        ));
+                    }
+                    LocalBufferKind::Keymap => {
+                        let tab_id = (*data.main_split.tab_id).clone();
+                        let pattern = editor_data.buffer.rope.to_string();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateKeymapsFilter(pattern),
+                            Target::Widget(tab_id),
+                        ));
+                    }
+                    LocalBufferKind::SourceControl => {}
+                    LocalBufferKind::Empty => {}
                 }
             }
         }

@@ -73,6 +73,7 @@ use crate::{
     },
     explorer::FileExplorerData,
     find::Find,
+    keymap::LapceKeymap,
     keypress::{KeyPressData, KeyPressFocus},
     language::{new_highlight_config, new_parser, LapceLanguage, SCOPES},
     menu::MenuData,
@@ -87,6 +88,7 @@ use crate::{
     problem::ProblemData,
     proxy::{LapceProxy, ProxyHandlerNew, ProxyStatus, TermEvent},
     search::SearchData,
+    settings::LapceSettingsData,
     source_control::{SourceControlData, SEARCH_BUFFER, SOURCE_CONTROL_BUFFER},
     split::{LapceDynamicSplit, LapceSplitNew, SplitDirection, SplitMoveDirection},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
@@ -105,7 +107,8 @@ impl LapceData {
     pub fn load(event_sink: ExtEventSink) -> Self {
         let db = Arc::new(LapceDb::new().unwrap());
         let mut windows = im::HashMap::new();
-        let keypress = Arc::new(KeyPressData::new());
+        let config = Config::load(&LapceWorkspace::default()).unwrap_or_default();
+        let keypress = Arc::new(KeyPressData::new(&config, event_sink.clone()));
 
         if let Ok(app) = db.get_app() {
             for info in app.windows.iter() {
@@ -204,6 +207,7 @@ impl Data for LapceWindowData {
             && self.menu.same(&other.menu)
             && self.size.same(&other.size)
             && self.pos.same(&other.pos)
+            && self.keypress.same(&other.keypress)
     }
 }
 
@@ -273,8 +277,7 @@ impl LapceWindowData {
         if let Some(path) = Config::settings_file() {
             watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
-            let path = proj_dirs.config_dir().join("keymaps.toml");
+        if let Some(path) = KeyPressData::file() {
             watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         let menu = MenuData::new();
@@ -424,6 +427,7 @@ pub struct LapceTabData {
     pub proxy: Arc<LapceProxy>,
     pub proxy_status: Arc<ProxyStatus>,
     pub keypress: Arc<KeyPressData>,
+    pub settings: Arc<LapceSettingsData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
@@ -465,6 +469,8 @@ impl Data for LapceTabData {
             && self.installed_plugins.same(&other.installed_plugins)
             && self.picker.same(&other.picker)
             && self.drag.same(&other.drag)
+            && self.keypress.same(&other.keypress)
+            && self.settings.same(&other.settings)
     }
 }
 
@@ -503,6 +509,7 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
+        let settings = Arc::new(LapceSettingsData::new());
         let plugin = Arc::new(PluginData::new());
         let file_explorer = Arc::new(FileExplorerData::new(
             tab_id,
@@ -528,6 +535,13 @@ impl LapceTabData {
             source_control.editor_view_id,
             None,
             LocalBufferKind::SourceControl,
+            &config,
+            event_sink.clone(),
+        );
+        main_split.add_editor(
+            settings.keymap_view_id,
+            None,
+            LocalBufferKind::Keymap,
             &config,
             event_sink.clone(),
         );
@@ -598,6 +612,7 @@ impl LapceTabData {
             term_tx: Arc::new(term_sender),
             palette,
             proxy,
+            settings,
             proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
             update_sender,
@@ -998,16 +1013,10 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::OpenKeyboardShortcuts => {
-                if let Some(proj_dirs) = ProjectDirs::from("", "", "Lapce") {
-                    std::fs::create_dir_all(proj_dirs.config_dir());
-                    let path = proj_dirs.config_dir().join("keymaps.toml");
-                    {
-                        std::fs::OpenOptions::new()
-                            .create_new(true)
-                            .write(true)
-                            .open(&path);
-                    }
-
+                self.main_split.load_keyboard_shortcuts(ctx);
+            }
+            LapceWorkbenchCommand::OpenKeyboardShortcutsFile => {
+                if let Some(path) = KeyPressData::file() {
                     let editor_view_id = self.main_split.active.clone();
                     self.main_split.jump_to_location(
                         ctx,
@@ -1533,29 +1542,6 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     }
 }
 
-pub enum ChildKind {
-    Split(SplitDirection),
-    EditorTab,
-    Editor,
-    Terminal,
-}
-
-pub struct ChildContent {
-    widget_id: WidgetId,
-    parent: Option<WidgetId>,
-    kind: ChildKind,
-}
-
-pub enum ParentKind {
-    Split(SplitDirection),
-    EditorTab,
-}
-
-pub struct ParentContent {
-    widget_id: WidgetId,
-    kind: ParentKind,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum SplitContent {
     EditorTab(WidgetId),
@@ -1921,6 +1907,49 @@ impl LapceMainSplitData {
         Some(delta)
     }
 
+    pub fn get_active_tab_mut(
+        &mut self,
+        ctx: &mut EventCtx,
+    ) -> &mut LapceEditorTabData {
+        if self.active_tab.is_none() {
+            let split = self.splits.get_mut(&self.split_id).unwrap();
+            let split = Arc::make_mut(split);
+
+            let mut editor_tab = LapceEditorTabData {
+                widget_id: WidgetId::next(),
+                split: *self.split_id,
+                active: 0,
+                children: vec![],
+                layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
+                content_is_hot: Rc::new(RefCell::new(false)),
+            };
+
+            self.active_tab = Arc::new(Some(editor_tab.widget_id));
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SplitAdd(
+                    0,
+                    SplitContent::EditorTab(editor_tab.widget_id),
+                    true,
+                ),
+                Target::Widget(*self.split_id),
+            ));
+            split
+                .children
+                .push(SplitContent::EditorTab(editor_tab.widget_id));
+            self.editor_tabs
+                .insert(editor_tab.widget_id, Arc::new(editor_tab));
+        }
+
+        Arc::make_mut(
+            self.editor_tabs
+                .get_mut(&(*self.active_tab.clone()).unwrap())
+                .unwrap(),
+        )
+    }
+
+    pub fn load_keyboard_shortcuts(&mut self, ctx: &mut EventCtx) {}
+
     fn get_editor_or_new(
         &mut self,
         ctx: &mut EventCtx,
@@ -2148,6 +2177,13 @@ impl LapceMainSplitData {
         };
         if new_buffer {
             self.db.save_buffer_position(&self.workspace, &buffer);
+        } else {
+            if location.position.is_none()
+                && location.scroll_offset.is_none()
+                && location.hisotry.is_none()
+            {
+                return;
+            }
         }
         let path = location.path.clone();
         let buffer_exists = self.open_files.contains_key(&path);
@@ -2172,13 +2208,20 @@ impl LapceMainSplitData {
                 vec![(editor_view_id, location)],
             );
         } else {
-            let buffer = self.open_files.get(&path).unwrap().clone();
+            let buffer = self.open_files.get_mut(&path).unwrap().clone();
 
             let (offset, scroll_offset) = match &location.position {
-                Some(position) => (
-                    buffer.offset_of_position(position),
-                    location.scroll_offset.as_ref(),
-                ),
+                Some(position) => {
+                    let offset = buffer.offset_of_position(position);
+                    let buffer = self.open_files.get_mut(&path).unwrap();
+                    let buffer = Arc::make_mut(buffer);
+                    buffer.cursor_offset = offset;
+                    if let Some(scroll_offset) = location.scroll_offset.as_ref() {
+                        buffer.scroll_offset = scroll_offset.clone();
+                    }
+
+                    (offset, location.scroll_offset.as_ref())
+                }
                 None => (buffer.cursor_offset, Some(&buffer.scroll_offset)),
             };
 

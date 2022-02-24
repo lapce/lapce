@@ -36,6 +36,7 @@ use crate::{
     },
     editor::{EditorLocationNew, LapceEditorTab, LapceEditorView},
     explorer::FileExplorer,
+    keypress::KeyPressData,
     menu::Menu,
     movement::{self, CursorMode, Selection},
     palette::{NewPalette, PaletteViewLens},
@@ -43,6 +44,7 @@ use crate::{
     picker::FilePicker,
     plugin::Plugin,
     scroll::LapceScrollNew,
+    settings::LapceSettings,
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
     status::LapceStatusNew,
@@ -70,6 +72,7 @@ pub struct LapceTabNew {
     code_action: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    settings: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     panels:
         HashMap<PanelKind, WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     current_bar_hover: Option<PanelResizePosition>,
@@ -127,6 +130,8 @@ impl LapceTabNew {
 
         let picker = FilePicker::new(data);
 
+        let settings = LapceSettings::new(data);
+
         Self {
             id: data.id,
             activity: WidgetPod::new(activity),
@@ -136,6 +141,7 @@ impl LapceTabNew {
             picker: WidgetPod::new(picker.boxed()),
             palette: WidgetPod::new(palette.boxed()),
             status: WidgetPod::new(status.boxed()),
+            settings: WidgetPod::new(settings.boxed()),
             panels,
             current_bar_hover: None,
             height: 0.0,
@@ -552,6 +558,28 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ));
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateKeymapsFilter(pattern) => {
+                        ctx.set_handled();
+                        let keypress = Arc::make_mut(&mut data.keypress);
+                        keypress.filter_commands(pattern);
+                    }
+                    LapceUICommand::FilterKeymaps(
+                        pattern,
+                        filtered_commands_with_keymap,
+                        filtered_commands_without_keymap,
+                    ) => {
+                        ctx.set_handled();
+                        let keypress = Arc::make_mut(&mut data.keypress);
+                        if &keypress.filter_pattern == pattern {
+                            keypress.filtered_commands_with_keymap =
+                                filtered_commands_with_keymap.clone();
+                            keypress.filtered_commands_without_keymap =
+                                filtered_commands_without_keymap.clone();
+                        }
+                    }
+                    LapceUICommand::UpdateKeymap(keymap, keys) => {
+                        KeyPressData::update_file(keymap, keys);
+                    }
                     LapceUICommand::OpenFile(path) => {
                         data.main_split.jump_to_location(
                             ctx,
@@ -910,6 +938,7 @@ impl Widget<LapceTabData> for LapceTabNew {
             }
             _ => (),
         }
+        self.settings.event(ctx, event, data, env);
         self.picker.event(ctx, event, data, env);
         self.palette.event(ctx, event, data, env);
         self.completion.event(ctx, event, data, env);
@@ -962,6 +991,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
         self.picker.lifecycle(ctx, event, data, env);
+        self.settings.lifecycle(ctx, event, data, env);
 
         for (_, panel) in self.panels.iter_mut() {
             panel.lifecycle(ctx, event, data, env);
@@ -1006,6 +1036,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.code_action.update(ctx, data, env);
         self.status.update(ctx, data, env);
         self.picker.update(ctx, data, env);
+        self.settings.update(ctx, data, env);
         for (_, panel) in data.panels.iter() {
             if panel.is_shown() {
                 self.panels
@@ -1302,6 +1333,9 @@ impl Widget<LapceTabData> for LapceTabNew {
             ),
         );
 
+        self.settings.layout(ctx, bc, data, env);
+        self.settings.set_origin(ctx, data, env, Point::ZERO);
+
         self_size
     }
 
@@ -1372,7 +1406,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.code_action.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);
-
+        self.settings.paint(ctx, data, env);
         self.paint_drag(ctx, data);
     }
 }

@@ -5,6 +5,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::ProjectDirs;
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 use lsp_types::Position;
+use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -29,8 +30,8 @@ pub enum SaveEvent {
 
 #[derive(Clone)]
 pub struct LapceDb {
-    path: PathBuf,
     save_tx: Sender<SaveEvent>,
+    sled_db: Option<sled::Db>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -227,7 +228,7 @@ pub struct TabsInfo {
     pub workspaces: Vec<LapceWorkspace>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BufferInfo {
     pub workspace: LapceWorkspace,
     pub path: PathBuf,
@@ -312,7 +313,13 @@ impl LapceDb {
         });
         let (save_tx, save_rx) = unbounded();
 
-        let db = Self { path, save_tx };
+        let sled_db = sled::Config::default()
+            .path(&path)
+            .flush_every_ms(None)
+            .open()
+            .ok();
+
+        let db = Self { save_tx, sled_db };
         let local_db = db.clone();
         std::thread::spawn(move || -> Result<()> {
             loop {
@@ -333,12 +340,8 @@ impl LapceDb {
         Ok(db)
     }
 
-    pub fn get_db(&self) -> Result<sled::Db> {
-        let db = sled::Config::default()
-            .path(&self.path)
-            .flush_every_ms(None)
-            .open()?;
-        Ok(db)
+    fn get_db(&self) -> Result<&sled::Db> {
+        self.sled_db.as_ref().ok_or(anyhow!("didn't open sled db"))
     }
 
     pub fn save_app(&self, data: &LapceData) -> Result<()> {
@@ -355,15 +358,15 @@ impl LapceDb {
                 .collect(),
         };
         let info = serde_json::to_string(&info)?;
-        let db = self.get_db()?;
-        db.insert("app", info.as_str())?;
-        db.flush()?;
+        let sled_db = self.get_db()?;
+        sled_db.insert("app", info.as_str())?;
+        sled_db.flush()?;
         Ok(())
     }
 
     pub fn get_app(&self) -> Result<AppInfo> {
-        let db = self.get_db()?;
-        let info = db.get("app")?.ok_or(anyhow!("can't find app info"))?;
+        let sled_db = self.get_db()?;
+        let info = sled_db.get("app")?.ok_or(anyhow!("can't find app info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: AppInfo = serde_json::from_str(info)?;
         Ok(info)
@@ -373,17 +376,17 @@ impl LapceDb {
         &self,
         workspaces: Vec<LapceWorkspace>,
     ) -> Result<()> {
-        let db = self.get_db()?;
         let workspaces = serde_json::to_string(&workspaces)?;
         let key = "recent_workspaces";
-        db.insert(key, workspaces.as_str())?;
+        let sled_db = self.get_db()?;
+        sled_db.insert(key, workspaces.as_str())?;
         Ok(())
     }
 
     pub fn get_recent_workspaces(&self) -> Result<Vec<LapceWorkspace>> {
-        let db = self.get_db()?;
         let key = "recent_workspaces";
-        let workspaces = db
+        let sled_db = self.get_db()?;
+        let workspaces = sled_db
             .get(&key)?
             .ok_or(anyhow!("can't find recent workspaces"))?;
         let workspaces = std::str::from_utf8(&workspaces)?;
@@ -395,9 +398,9 @@ impl LapceDb {
         &self,
         workspace: &LapceWorkspace,
     ) -> Result<WorkspaceInfo> {
-        let db = self.get_db()?;
         let workspace = workspace.to_string();
-        let info = db
+        let sled_db = self.get_db()?;
+        let info = sled_db
             .get(&workspace)?
             .ok_or(anyhow!("can't find workspace info"))?;
         let info = std::str::from_utf8(&info)?;
@@ -410,11 +413,12 @@ impl LapceDb {
         workspace: &LapceWorkspace,
         path: &PathBuf,
     ) -> Result<BufferInfo> {
-        let db = self.get_db()?;
-        let workspace = workspace.to_string();
         let key =
             format!("{}:{}", workspace.to_string(), path.to_str().unwrap_or(""));
-        let info = db.get(&key)?.ok_or(anyhow!("can't find workspace info"))?;
+        let sled_db = self.get_db()?;
+        let info = sled_db
+            .get(key.as_str())?
+            .ok_or(anyhow!("can't find workspace info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: BufferInfo = serde_json::from_str(info)?;
         Ok(info)
@@ -427,17 +431,17 @@ impl LapceDb {
             info.path.to_str().unwrap_or("")
         );
         let info = serde_json::to_string(info)?;
-        let db = self.get_db()?;
-        db.insert(key, info.as_str())?;
-        db.flush()?;
+        let sled_db = self.get_db()?;
+        sled_db.insert(key.as_str(), info.as_str())?;
+        sled_db.flush()?;
         Ok(())
     }
 
     fn insert_tabs(&self, info: &TabsInfo) -> Result<()> {
         let tabs_info = serde_json::to_string(info)?;
-        let db = self.get_db()?;
-        db.insert(b"tabs", tabs_info.as_str())?;
-        db.flush()?;
+        let sled_db = self.get_db()?;
+        sled_db.insert(b"tabs", tabs_info.as_str())?;
+        sled_db.flush()?;
         Ok(())
     }
 
@@ -448,15 +452,15 @@ impl LapceDb {
 
     fn insert_last_window_info(&self, info: WindowInfo) -> Result<()> {
         let info = serde_json::to_string(&info)?;
-        let db = self.get_db()?;
-        db.insert("last_window", info.as_str())?;
-        db.flush()?;
+        let sled_db = self.get_db()?;
+        sled_db.insert("last_window", info.as_str())?;
+        sled_db.flush()?;
         Ok(())
     }
 
     pub fn get_last_window_info(&self) -> Result<WindowInfo> {
-        let db = self.get_db()?;
-        let info = db
+        let sled_db = self.get_db()?;
+        let info = sled_db
             .get("last_window")?
             .ok_or(anyhow!("can't find last window info"))?;
         let info = std::str::from_utf8(&info)?;
@@ -471,9 +475,9 @@ impl LapceDb {
     ) -> Result<()> {
         let workspace = workspace.to_string();
         let workspace_info = serde_json::to_string(info)?;
-        let db = self.get_db()?;
-        db.insert(workspace.as_str(), workspace_info.as_str())?;
-        db.flush()?;
+        let sled_db = self.get_db()?;
+        sled_db.insert(workspace.as_str(), workspace_info.as_str())?;
+        sled_db.flush()?;
         Ok(())
     }
 
@@ -511,8 +515,10 @@ impl LapceDb {
     }
 
     pub fn get_tabs_info(&self) -> Result<TabsInfo> {
-        let db = self.get_db()?;
-        let tabs = db.get(b"tabs")?.ok_or(anyhow!("can't find tabs info"))?;
+        let sled_db = self.get_db()?;
+        let tabs = sled_db
+            .get(b"tabs")?
+            .ok_or(anyhow!("can't find tabs info"))?;
         let tabs = std::str::from_utf8(&tabs)?;
         let tabs = serde_json::from_str(tabs)?;
         Ok(tabs)

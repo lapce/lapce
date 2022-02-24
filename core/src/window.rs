@@ -221,7 +221,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                                     .unwrap_or_default(),
                             );
                         }
-                        Arc::make_mut(&mut data.keypress).update_keymaps();
+                        Arc::make_mut(&mut data.keypress)
+                            .update_keymaps(&data.config);
                         ctx.set_handled();
                     }
                     LapceUICommand::ReloadWindow => {

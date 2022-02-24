@@ -25,6 +25,7 @@ use crate::{
     buffer::{DiffLines, InvalLines, Style},
     data::{EditorTabChild, SplitContent},
     editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
+    keypress::{KeyMap, KeyPress},
     menu::MenuItem,
     movement::{LinePosition, Movement},
     palette::{NewPaletteItem, PaletteType},
@@ -115,6 +116,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "open_keyboard_shortcuts")]
     #[strum(message = "Open Keyboard Shortcuts")]
     OpenKeyboardShortcuts,
+
+    #[strum(serialize = "open_keyboard_shortcuts_file")]
+    #[strum(message = "Open Keyboard Shortcuts File")]
+    OpenKeyboardShortcutsFile,
 
     #[strum(serialize = "close_tab")]
     #[strum(message = "Close Current Tab")]
@@ -348,13 +353,16 @@ pub enum LapceCommand {
     NextError,
     #[strum(serialize = "previous_error")]
     PreviousError,
+    #[strum(message = "Go to Next Difference")]
     #[strum(serialize = "next_diff")]
     NextDiff,
+    #[strum(message = "Go to Previous Difference")]
     #[strum(serialize = "previous_diff")]
     PreviousDiff,
     #[strum(serialize = "format_document")]
     #[strum(message = "Format Document")]
     FormatDocument,
+    #[strum(message = "Save")]
     #[strum(serialize = "save")]
     Save,
     #[strum(serialize = "show_code_actions")]
@@ -459,6 +467,7 @@ pub enum LapceUICommand {
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),
     SetTheme(String, bool),
+    UpdateKeymap(KeyMap, Vec<KeyPress>),
     OpenFile(PathBuf),
     OpenFileDiff(PathBuf, String),
     CancelCompletion(usize),
@@ -476,6 +485,8 @@ pub enum LapceUICommand {
     RunPaletteReferences(Vec<EditorLocationNew>),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
+    UpdateKeymapsFilter(String),
+    FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommandNew>>),
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
     UpdateExplorerItems(usize, PathBuf, Vec<FileNodeItem>),

@@ -9,7 +9,7 @@ use crate::{
         PanelKind, SplitContent,
     },
     editor::{EditorLocation, LapceEditorView},
-    keypress::{DefaultKeyPressHandler, KeyPress},
+    keypress::{DefaultKeyPressHandler, KeyMap, KeyPress},
     scroll::LapcePadding,
     svg::logo_svg,
     terminal::{LapceTerminal, LapceTerminalData, LapceTerminalView},
@@ -158,7 +158,7 @@ pub struct LapceSplitNew {
     children_ids: Vec<WidgetId>,
     direction: SplitDirection,
     show_border: bool,
-    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
+    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, Option<KeyMap>)>,
 }
 
 pub struct ChildWidgetNew {
@@ -935,8 +935,8 @@ impl Widget<LapceTabData> for LapceSplitNew {
         let children_len = self.children.len();
         if children_len == 0 {
             let origin =
-                Point::new(my_size.width / 2.0, my_size.height / 2.0 + 40.0);
-            let line_height = data.config.editor.line_height as f64;
+                Point::new(my_size.width / 2.0 - 30.0, my_size.height / 2.0 + 40.0);
+            let line_height = 35.0;
 
             self.commands = empty_editor_commands(
                 data.config.lapce.modal,
@@ -951,7 +951,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(
                         data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                             .clone(),
                     )
                     .build()
@@ -959,37 +959,13 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 let point =
                     origin - (text_layout.size().width, -line_height * i as f64);
                 let rect = text_layout.size().to_rect().with_origin(point);
-                let mut key = None;
-                for (_, keymaps) in data.keypress.keymaps.iter() {
-                    for keymap in keymaps {
-                        if keymap.command == cmd.cmd {
-                            let mut keymap_str = "".to_string();
-                            for keypress in &keymap.key {
-                                if keymap_str != "" {
-                                    keymap_str += " "
-                                }
-                                keymap_str += &keybinding_to_string(keypress);
-                            }
-                            key = Some(keymap_str);
-                            break;
-                        }
-                    }
-                    if key.is_some() {
-                        break;
-                    }
-                }
-                let key_text_layout = ctx
-                    .text()
-                    .new_text_layout(key.unwrap_or("Unbound".to_string()))
-                    .font(FontFamily::SYSTEM_UI, 14.0)
-                    .text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                            .clone(),
-                    )
-                    .build()
-                    .unwrap();
-                (cmd.clone(), text_layout, rect, key_text_layout)
+                let keymap = data
+                    .keypress
+                    .command_keymaps
+                    .get(&cmd.cmd)
+                    .and_then(|keymaps| keymaps.get(0))
+                    .map(|keymap| keymap.clone());
+                (cmd.clone(), text_layout, rect, keymap)
             })
             .collect();
             return my_size;
@@ -1146,10 +1122,11 @@ impl Widget<LapceTabData> for LapceSplitNew {
 
                 for (cmd, text, rect, keymap) in &self.commands {
                     ctx.draw_text(text, rect.origin());
-                    ctx.draw_text(
-                        keymap,
-                        rect.origin() + (20.0 + rect.width(), 0.0),
-                    );
+                    if let Some(keymap) = keymap {
+                        let origin = rect.origin()
+                            + (20.0 + rect.width(), rect.height() / 2.0);
+                        keymap.paint(ctx, origin, false, &data.config);
+                    }
                 }
             });
 
@@ -1242,7 +1219,7 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
     }
 }
 
-fn keybinding_to_string(keypress: &KeyPress) -> String {
+pub fn keybinding_to_string(keypress: &KeyPress) -> String {
     let mut keymap_str = "".to_string();
     if keypress.mods.ctrl() {
         keymap_str += "Ctrl+";
