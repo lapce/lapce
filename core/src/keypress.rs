@@ -193,12 +193,18 @@ pub struct KeyMap {
     pub command: String,
 }
 
+pub enum Alignment {
+    Left,
+    Center,
+    Right,
+}
+
 impl KeyMap {
     pub fn paint(
         &self,
         ctx: &mut PaintCtx,
         origin: Point,
-        center: bool,
+        align: Alignment,
         config: &Config,
     ) {
         let old_origin = origin.clone();
@@ -211,10 +217,10 @@ impl KeyMap {
             items.append(&mut new_items);
         }
 
-        let x_shift = if center {
-            (origin.x - old_origin.x) / 2.0
-        } else {
-            0.0
+        let x_shift = match align {
+            Alignment::Left => 0.0,
+            Alignment::Center => (origin.x - old_origin.x) / 2.0,
+            Alignment::Right => (origin.x - old_origin.x),
         };
 
         for (rect, text_layout, text_layout_pos) in items {

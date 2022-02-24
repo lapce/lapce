@@ -14,7 +14,7 @@ use crate::{
     },
     config::LapceTheme,
     data::{LapceTabData, LapceWindowData},
-    keypress::KeyPressFocus,
+    keypress::{Alignment, KeyPressFocus},
     state::Mode,
 };
 
@@ -76,12 +76,14 @@ impl MenuData {
 
 pub struct Menu {
     widget_id: WidgetId,
+    line_height: f64,
 }
 
 impl Menu {
     pub fn new(data: &MenuData) -> Self {
         Self {
             widget_id: data.widget_id,
+            line_height: 30.0,
         }
     }
 
@@ -97,8 +99,7 @@ impl Menu {
     ) {
         ctx.set_handled();
         ctx.set_cursor(&Cursor::Pointer);
-        let line_height = data.config.editor.line_height as f64;
-        let n = (mouse_event.pos.y / line_height).floor() as usize;
+        let n = (mouse_event.pos.y / self.line_height).floor() as usize;
         if n < data.menu.items.len() {
             Arc::make_mut(&mut data.menu).active = n;
         }
@@ -111,8 +112,7 @@ impl Menu {
         data: &LapceWindowData,
     ) {
         ctx.set_handled();
-        let line_height = data.config.editor.line_height as f64;
-        let n = (mouse_event.pos.y / line_height).floor() as usize;
+        let n = (mouse_event.pos.y / self.line_height).floor() as usize;
         if let Some(item) = data.menu.items.get(n) {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -212,8 +212,7 @@ impl Widget<LapceWindowData> for Menu {
         data: &LapceWindowData,
         env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
-        let height = line_height * data.menu.items.len() as f64;
+        let height = self.line_height * data.menu.items.len() as f64;
 
         Size::new(300.0, height)
     }
@@ -241,11 +240,9 @@ impl Widget<LapceWindowData> for Menu {
                 .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
 
-        let line_height = data.config.editor.line_height as f64;
-
         let line_rect = Rect::ZERO
-            .with_origin(Point::new(0.0, data.menu.active as f64 * line_height))
-            .with_size(Size::new(ctx.size().width, line_height));
+            .with_origin(Point::new(0.0, data.menu.active as f64 * self.line_height))
+            .with_size(Size::new(ctx.size().width, self.line_height));
         ctx.fill(
             line_rect,
             data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
@@ -267,10 +264,20 @@ impl Widget<LapceWindowData> for Menu {
                 &text_layout,
                 Point::new(
                     10.0,
-                    line_height * i as f64
-                        + (line_height - text_layout.size().height) / 2.0,
+                    self.line_height * i as f64
+                        + (self.line_height - text_layout.size().height) / 2.0,
                 ),
             );
+
+            if let Some(keymaps) =
+                data.keypress.command_keymaps.get(&item.command.cmd)
+            {
+                let origin = Point::new(
+                    rect.x1,
+                    self.line_height * i as f64 + self.line_height / 2.0,
+                );
+                keymaps[0].paint(ctx, origin, Alignment::Right, &data.config);
+            }
         }
     }
 }

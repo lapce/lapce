@@ -13,7 +13,9 @@ use crate::{
     config::LapceTheme,
     data::LapceTabData,
     editor::LapceEditorView,
-    keypress::{paint_key, DefaultKeyPressHandler, KeyMap, KeyPress, KeyPressData},
+    keypress::{
+        paint_key, Alignment, DefaultKeyPressHandler, KeyMap, KeyPress, KeyPressData,
+    },
     scroll::LapceScrollNew,
     split::{keybinding_to_string, LapceSplitNew},
     state::Mode,
@@ -126,6 +128,9 @@ impl Widget<LapceTabData> for LapceKeymap {
                     }
                     _ => (),
                 }
+            }
+            Event::MouseMove(mouse_event) => {
+                ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
                 ctx.set_handled();
@@ -286,7 +291,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                     size.width / 2.0 - keypress_width + 10.0,
                     i as f64 * self.line_height + self.line_height / 2.0,
                 );
-                keymap.paint(ctx, origin, false, &data.config);
+                keymap.paint(ctx, origin, Alignment::Left, &data.config);
 
                 if let Some(condition) = keymap.when.as_ref() {
                     let text_layout = ctx
@@ -441,7 +446,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                 when: keymap.when.clone(),
                 command: keymap.command.clone(),
             }
-            .paint(ctx, rect.center(), true, &data.config);
+            .paint(ctx, rect.center(), Alignment::Center, &data.config);
 
             if let Some(cmd) = data.keypress.commands.get(&keymap.command) {
                 let text = ctx

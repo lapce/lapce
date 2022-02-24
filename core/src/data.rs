@@ -989,6 +989,10 @@ impl LapceTabData {
                 ));
             }
             LapceWorkbenchCommand::OpenSettings => {
+                let settings = Arc::make_mut(&mut self.settings);
+                settings.shown = true;
+            }
+            LapceWorkbenchCommand::OpenSettingsFile => {
                 if let Some(path) = Config::settings_file() {
                     if let Some(parent) = path.parent() {
                         std::fs::create_dir_all(parent);
@@ -1013,7 +1017,8 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::OpenKeyboardShortcuts => {
-                self.main_split.load_keyboard_shortcuts(ctx);
+                let settings = Arc::make_mut(&mut self.settings);
+                settings.shown = true;
             }
             LapceWorkbenchCommand::OpenKeyboardShortcutsFile => {
                 if let Some(path) = KeyPressData::file() {
@@ -1947,8 +1952,6 @@ impl LapceMainSplitData {
                 .unwrap(),
         )
     }
-
-    pub fn load_keyboard_shortcuts(&mut self, ctx: &mut EventCtx) {}
 
     fn get_editor_or_new(
         &mut self,

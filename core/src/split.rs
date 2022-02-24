@@ -9,7 +9,7 @@ use crate::{
         PanelKind, SplitContent,
     },
     editor::{EditorLocation, LapceEditorView},
-    keypress::{DefaultKeyPressHandler, KeyMap, KeyPress},
+    keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
     scroll::LapcePadding,
     svg::logo_svg,
     terminal::{LapceTerminal, LapceTerminalData, LapceTerminalView},
@@ -1125,7 +1125,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     if let Some(keymap) = keymap {
                         let origin = rect.origin()
                             + (20.0 + rect.width(), rect.height() / 2.0);
-                        keymap.paint(ctx, origin, false, &data.config);
+                        keymap.paint(ctx, origin, Alignment::Left, &data.config);
                     }
                 }
             });

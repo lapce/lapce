@@ -369,5 +369,69 @@ impl Widget<LapceWindowData> for Title {
             let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
             ctx.stroke(line, line_color, 1.0);
         }
+
+        x = size.width;
+        x -= size.height;
+        let settings_rect = Size::new(size.height, size.height)
+            .to_rect()
+            .with_origin(Point::new(x, 0.0));
+        let settings_svg = get_svg("settings.svg").unwrap();
+        ctx.draw_svg(
+            &settings_svg,
+            settings_rect.inflate(-7.0, -7.0),
+            Some(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+            ),
+        );
+        let menu_items = vec![
+            MenuItem {
+                text: LapceWorkbenchCommand::PaletteCommand
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            },
+            MenuItem {
+                text: LapceWorkbenchCommand::OpenSettings
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::OpenSettings.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            },
+            MenuItem {
+                text: LapceWorkbenchCommand::OpenKeyboardShortcuts
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::OpenKeyboardShortcuts.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            },
+        ];
+        self.commands.push((
+            settings_rect,
+            Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ShowMenu(
+                    Point::new(size.width - 300.0, settings_rect.y1),
+                    Arc::new(menu_items),
+                ),
+                Target::Auto,
+            ),
+        ));
     }
 }

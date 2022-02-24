@@ -113,6 +113,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Settings")]
     OpenSettings,
 
+    #[strum(serialize = "open_settings_file")]
+    #[strum(message = "Open Settings File")]
+    OpenSettingsFile,
+
     #[strum(serialize = "open_keyboard_shortcuts")]
     #[strum(message = "Open Keyboard Shortcuts")]
     OpenKeyboardShortcuts,
@@ -158,6 +162,7 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.symbol")]
     PaletteSymbol,
 
+    #[strum(message = "Command Palette")]
     #[strum(serialize = "palette.command")]
     PaletteCommand,
 
