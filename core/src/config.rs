@@ -7,7 +7,8 @@ use druid::{
     theme, Color, Env, ExtEventSink, FontDescriptor, FontFamily, Key, Size, Target,
 };
 use hashbrown::HashMap;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
+use structdesc::FieldNames;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -82,20 +83,25 @@ pub trait GetConfig {
     fn get_config(&self) -> &Config;
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
+    #[field_names(desc = "Enable modal editing (Vim like)")]
     pub modal: bool,
+    #[field_names(desc = "Set the color theme of Lapce")]
     pub color_theme: String,
-    pub icon_theme: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(FieldNames, Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct EditorConfig {
+    #[field_names(desc = "Set the font family")]
     pub font_family: String,
+    #[field_names(desc = "Set the font size")]
     pub font_size: usize,
+    #[field_names(desc = "Set the line height")]
     pub line_height: usize,
+    #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
 }
 

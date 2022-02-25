@@ -491,6 +491,7 @@ pub enum LapceUICommand {
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateKeymapsFilter(String),
+    UpdateSettingsFilter(String),
     FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommandNew>>),
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),

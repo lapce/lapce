@@ -51,6 +51,8 @@ lsp-types = { version = "0.89.2", features = ["proposed"] }
 druid = { git = "https://github.com/lapce/druid", features = ["svg", "im", "serde"] }
 #druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 toml = { version = "0.5.8", features = ["preserve_order"] }
+structdesc = { git = "https://github.com/lapce/structdesc" }
+#structdesc = { path = "../../structdesc" }
 lapce-rpc = { path = "../rpc" }
 lapce-proxy = { path = "../proxy" }
 

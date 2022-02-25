@@ -44,7 +44,7 @@ use crate::{
     picker::FilePicker,
     plugin::Plugin,
     scroll::LapceScrollNew,
-    settings::LapceSettings,
+    settings::LapceSettingsPanel,
     split::LapceSplitNew,
     state::{LapceWorkspace, LapceWorkspaceType},
     status::LapceStatusNew,
@@ -130,7 +130,7 @@ impl LapceTabNew {
 
         let picker = FilePicker::new(data);
 
-        let settings = LapceSettings::new(data);
+        let settings = LapceSettingsPanel::new(data);
 
         Self {
             id: data.id,

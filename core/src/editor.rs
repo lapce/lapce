@@ -308,6 +308,7 @@ impl LapceEditorBufferData {
             BufferContent::Local(kind) => match kind {
                 LocalBufferKind::FilePicker
                 | LocalBufferKind::Search
+                | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap => {
                     Size::new(editor_size.width, line_height)
                 }
@@ -731,6 +732,16 @@ impl LapceEditorBufferData {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateKeymapsFilter(pattern),
+                        Target::Widget(tab_id),
+                    ));
+                    return;
+                }
+                LocalBufferKind::Settings => {
+                    let tab_id = (*self.main_split.tab_id).clone();
+                    let pattern = self.buffer.rope.to_string();
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSettingsFilter(pattern),
                         Target::Widget(tab_id),
                     ));
                     return;
@@ -4863,6 +4874,7 @@ impl LapceEditorView {
             }
             BufferContent::Local(kind) => match kind {
                 LocalBufferKind::Keymap => {}
+                LocalBufferKind::Settings => {}
                 LocalBufferKind::FilePicker => {
                     data.focus_area = FocusArea::FilePicker;
                 }
@@ -5348,6 +5360,15 @@ impl Widget<LapceTabData> for LapceEditorView {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::UpdateKeymapsFilter(pattern),
+                            Target::Widget(tab_id),
+                        ));
+                    }
+                    LocalBufferKind::Settings => {
+                        let tab_id = (*data.main_split.tab_id).clone();
+                        let pattern = editor_data.buffer.rope.to_string();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSettingsFilter(pattern),
                             Target::Widget(tab_id),
                         ));
                     }

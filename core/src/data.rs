@@ -88,7 +88,7 @@ use crate::{
     problem::ProblemData,
     proxy::{LapceProxy, ProxyHandlerNew, ProxyStatus, TermEvent},
     search::SearchData,
-    settings::LapceSettingsData,
+    settings::LapceSettingsPanelData,
     source_control::{SourceControlData, SEARCH_BUFFER, SOURCE_CONTROL_BUFFER},
     split::{LapceDynamicSplit, LapceSplitNew, SplitDirection, SplitMoveDirection},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
@@ -427,7 +427,7 @@ pub struct LapceTabData {
     pub proxy: Arc<LapceProxy>,
     pub proxy_status: Arc<ProxyStatus>,
     pub keypress: Arc<KeyPressData>,
-    pub settings: Arc<LapceSettingsData>,
+    pub settings: Arc<LapceSettingsPanelData>,
     pub update_receiver: Option<Receiver<UpdateEvent>>,
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
@@ -509,7 +509,7 @@ impl LapceTabData {
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
         let source_control = Arc::new(SourceControlData::new());
-        let settings = Arc::new(LapceSettingsData::new());
+        let settings = Arc::new(LapceSettingsPanelData::new());
         let plugin = Arc::new(PluginData::new());
         let file_explorer = Arc::new(FileExplorerData::new(
             tab_id,
@@ -542,6 +542,13 @@ impl LapceTabData {
             settings.keymap_view_id,
             None,
             LocalBufferKind::Keymap,
+            &config,
+            event_sink.clone(),
+        );
+        main_split.add_editor(
+            settings.settings_view_id,
+            None,
+            LocalBufferKind::Settings,
             &config,
             event_sink.clone(),
         );
