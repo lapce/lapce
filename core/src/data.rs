@@ -998,6 +998,11 @@ impl LapceTabData {
             LapceWorkbenchCommand::OpenSettings => {
                 let settings = Arc::make_mut(&mut self.settings);
                 settings.shown = true;
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ShowSettings,
+                    Target::Widget(self.settings.panel_widget_id),
+                ));
             }
             LapceWorkbenchCommand::OpenSettingsFile => {
                 if let Some(path) = Config::settings_file() {
@@ -1026,6 +1031,11 @@ impl LapceTabData {
             LapceWorkbenchCommand::OpenKeyboardShortcuts => {
                 let settings = Arc::make_mut(&mut self.settings);
                 settings.shown = true;
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ShowKeybindings,
+                    Target::Widget(self.settings.panel_widget_id),
+                ));
             }
             LapceWorkbenchCommand::OpenKeyboardShortcutsFile => {
                 if let Some(path) = KeyPressData::file() {

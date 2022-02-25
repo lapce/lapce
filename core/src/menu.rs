@@ -240,13 +240,18 @@ impl Widget<LapceWindowData> for Menu {
                 .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
         );
 
-        let line_rect = Rect::ZERO
-            .with_origin(Point::new(0.0, data.menu.active as f64 * self.line_height))
-            .with_size(Size::new(ctx.size().width, self.line_height));
-        ctx.fill(
-            line_rect,
-            data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
-        );
+        if ctx.is_hot() {
+            let line_rect = Rect::ZERO
+                .with_origin(Point::new(
+                    0.0,
+                    data.menu.active as f64 * self.line_height,
+                ))
+                .with_size(Size::new(ctx.size().width, self.line_height));
+            ctx.fill(
+                line_rect,
+                data.config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+            );
+        }
 
         for (i, item) in data.menu.items.iter().enumerate() {
             let text_layout = ctx

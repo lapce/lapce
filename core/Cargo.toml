@@ -5,6 +5,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+Inflector = "0.11.4"
 rayon = "1.5.1"
 diff = "0.1.12"
 libloading = "0.7"

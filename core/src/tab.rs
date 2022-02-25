@@ -538,6 +538,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                         );
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateSettingsFile(key, value) => {
+                        if let Ok(value) =
+                            serde_json::from_value::<toml::Value>(value.clone())
+                        {
+                            Config::update_file(key, value);
+                        }
+                    }
                     LapceUICommand::OpenFileDiff(path, history) => {
                         let editor_view_id = data.main_split.active.clone();
                         let editor_view_id = data.main_split.jump_to_location(

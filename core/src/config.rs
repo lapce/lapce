@@ -92,7 +92,7 @@ pub struct LapceConfig {
     pub color_theme: String,
 }
 
-#[derive(FieldNames, Debug, Clone, Deserialize, Default)]
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct EditorConfig {
     #[field_names(desc = "Set the font family")]
