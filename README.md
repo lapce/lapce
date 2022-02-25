@@ -5,7 +5,7 @@
 
 <h4 align="center">Lightning-fast and Powerful Code Editor written in Rust</h4>
 
-[![chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://lapce.zulipchat.com)
+[![chat](https://img.shields.io/discord/946858761413328946?logo=discord)](https://discord.gg/n8tGJ6Rn6D)
 
 
 
@@ -40,5 +40,5 @@ The exectuable will be available at `target/release/lapce`
 
 ## Feedback
 
-* Chat on [Zulip](https://lapce.zulipchat.com)
+* Chat on [Discord](https://discord.gg/n8tGJ6Rn6D)
 * Join the discussion on [Reddit](https://www.reddit.com/r/lapce/)
