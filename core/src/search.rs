@@ -81,12 +81,14 @@ impl SearchData {
 
 pub struct SearchContent {
     mouse_pos: Point,
+    line_height: f64,
 }
 
 impl SearchContent {
     pub fn new() -> Self {
         Self {
             mouse_pos: Point::ZERO,
+            line_height: 25.0,
         }
     }
 
@@ -96,8 +98,7 @@ impl SearchContent {
         mouse_event: &MouseEvent,
         data: &LapceTabData,
     ) {
-        let line_height = data.config.editor.line_height as f64;
-        let n = (mouse_event.pos.y / line_height).floor() as usize;
+        let n = (mouse_event.pos.y / self.line_height).floor() as usize;
 
         let mut i = 0;
         for (path, matches) in data.search.matches.iter() {
@@ -182,38 +183,35 @@ impl Widget<LapceTabData> for SearchContent {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
         let n = data
             .search
             .matches
             .iter()
             .map(|(_, matches)| matches.len() + 1)
             .sum::<usize>();
-        let height = line_height * n as f64;
+        let height = self.line_height * n as f64;
         Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let line_height = data.config.editor.line_height as f64;
-
         if ctx.is_hot() {
             let size = ctx.size();
-            let n = (self.mouse_pos.y / line_height).floor() as usize;
+            let n = (self.mouse_pos.y / self.line_height).floor() as usize;
             ctx.fill(
-                Size::new(size.width, line_height)
+                Size::new(size.width, self.line_height)
                     .to_rect()
-                    .with_origin(Point::new(0.0, line_height * n as f64)),
+                    .with_origin(Point::new(0.0, self.line_height * n as f64)),
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
             );
         }
 
         let rect = ctx.region().bounding_box();
-        let min = (rect.y0 / line_height).floor() as usize;
-        let max = (rect.y1 / line_height) as usize + 2;
+        let min = (rect.y0 / self.line_height).floor() as usize;
+        let max = (rect.y1 / self.line_height) as usize + 2;
 
         let focus_color = data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
-        let padding = (line_height - 14.0) / 2.0;
+        let padding = (self.line_height - 14.0) / 2.0;
         let mut i = 0;
         for (path, matches) in data.search.matches.iter() {
             if matches.len() + 1 + i < min {
@@ -222,9 +220,9 @@ impl Widget<LapceTabData> for SearchContent {
             }
 
             let svg = file_svg_new(path);
-            let rect = Size::new(line_height, line_height)
+            let rect = Size::new(self.line_height, self.line_height)
                 .to_rect()
-                .with_origin(Point::new(0.0, line_height * i as f64))
+                .with_origin(Point::new(0.0, self.line_height * i as f64))
                 .inflate(-padding, -padding);
             ctx.draw_svg(&svg, rect, None);
 
@@ -244,9 +242,9 @@ impl Widget<LapceTabData> for SearchContent {
             ctx.draw_text(
                 &text_layout,
                 Point::new(
-                    line_height,
-                    line_height * i as f64
-                        + (line_height - text_layout.size().height) / 2.0,
+                    self.line_height,
+                    self.line_height * i as f64
+                        + (self.line_height - text_layout.size().height) / 2.0,
                 ),
             );
 
@@ -263,7 +261,7 @@ impl Widget<LapceTabData> for SearchContent {
                 .unwrap_or("")
                 .to_string();
             if folder != "" {
-                let x = text_layout.size().width + line_height + 5.0;
+                let x = text_layout.size().width + self.line_height + 5.0;
 
                 let text_layout = ctx
                     .text()
@@ -280,8 +278,8 @@ impl Widget<LapceTabData> for SearchContent {
                     &text_layout,
                     Point::new(
                         x,
-                        line_height * i as f64
-                            + (line_height - text_layout.size().height) / 2.0,
+                        self.line_height * i as f64
+                            + (self.line_height - text_layout.size().height) / 2.0,
                     ),
                 );
             }
@@ -315,9 +313,10 @@ impl Widget<LapceTabData> for SearchContent {
                     ctx.draw_text(
                         &text_layout,
                         Point::new(
-                            line_height,
-                            line_height * i as f64
-                                + (line_height - text_layout.size().height) / 2.0,
+                            self.line_height,
+                            self.line_height * i as f64
+                                + (self.line_height - text_layout.size().height)
+                                    / 2.0,
                         ),
                     );
                 }

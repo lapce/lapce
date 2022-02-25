@@ -31,11 +31,13 @@ pub enum PluginStatus {
     Upgrade,
 }
 
-pub struct Plugin {}
+pub struct Plugin {
+    line_height: f64,
+}
 
 impl Plugin {
     pub fn new() -> Self {
-        Self {}
+        Self { line_height: 25.0 }
     }
 
     fn hit_test<'a>(
@@ -44,8 +46,7 @@ impl Plugin {
         data: &'a LapceTabData,
         mouse_event: &MouseEvent,
     ) -> Option<(&'a PluginDescription, PluginStatus)> {
-        let line_height = data.config.editor.line_height as f64;
-        let index = (mouse_event.pos.y / (line_height * 3.0)) as usize;
+        let index = (mouse_event.pos.y / (self.line_height * 3.0)) as usize;
         let plugin = data.plugins.get(index)?;
         let status = match data
             .installed_plugins
@@ -73,8 +74,8 @@ impl Plugin {
 
         let text_size = text_layout.size();
         let x = ctx.size().width - text_size.width - text_padding * 2.0 - padding;
-        let y = 3.0 * line_height * index as f64 + line_height * 2.0;
-        let rect = Size::new(text_size.width + text_padding * 2.0, line_height)
+        let y = 3.0 * self.line_height * index as f64 + self.line_height * 2.0;
+        let rect = Size::new(text_size.width + text_padding * 2.0, self.line_height)
             .to_rect()
             .with_origin(Point::new(x, y));
         if rect.contains(mouse_event.pos) {
@@ -139,8 +140,6 @@ impl Widget<LapceTabData> for Plugin {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let line_height = data.config.editor.line_height as f64;
-
         let size = ctx.size();
         let padding = 10.0;
 
@@ -149,8 +148,8 @@ impl Widget<LapceTabData> for Plugin {
             ctx.clip(viewport);
 
             for (i, plugin) in data.plugins.iter().enumerate() {
-                let y = 3.0 * line_height * i as f64;
-                let x = 3.0 * line_height;
+                let y = 3.0 * self.line_height * i as f64;
+                let x = 3.0 * self.line_height;
                 let text_layout = ctx
                     .text()
                     .new_text_layout(plugin.display_name.clone())
@@ -167,7 +166,7 @@ impl Widget<LapceTabData> for Plugin {
                     &text_layout,
                     Point::new(
                         x,
-                        y + (line_height - text_layout.size().height) / 2.0,
+                        y + (self.line_height - text_layout.size().height) / 2.0,
                     ),
                 );
 
@@ -186,8 +185,8 @@ impl Widget<LapceTabData> for Plugin {
                     &text_layout,
                     Point::new(
                         x,
-                        y + line_height
-                            + (line_height - text_layout.size().height) / 2.0,
+                        y + self.line_height
+                            + (self.line_height - text_layout.size().height) / 2.0,
                     ),
                 );
 
@@ -206,8 +205,8 @@ impl Widget<LapceTabData> for Plugin {
                     &text_layout,
                     Point::new(
                         x,
-                        y + line_height * 2.0
-                            + (line_height - text_layout.size().height) / 2.0,
+                        y + self.line_height * 2.0
+                            + (self.line_height - text_layout.size().height) / 2.0,
                     ),
                 );
 
@@ -235,7 +234,7 @@ impl Widget<LapceTabData> for Plugin {
                 let text_size = text_layout.size();
                 let text_padding = 5.0;
                 let x = size.width - text_size.width - text_padding * 2.0 - padding;
-                let y = y + line_height * 2.0;
+                let y = y + self.line_height * 2.0;
                 let color = if status == PluginStatus::Installed {
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_DIM)
@@ -244,16 +243,19 @@ impl Widget<LapceTabData> for Plugin {
                     Color::rgb8(80, 161, 79)
                 };
                 ctx.fill(
-                    Size::new(text_size.width + text_padding * 2.0, line_height)
-                        .to_rect()
-                        .with_origin(Point::new(x, y)),
+                    Size::new(
+                        text_size.width + text_padding * 2.0,
+                        self.line_height,
+                    )
+                    .to_rect()
+                    .with_origin(Point::new(x, y)),
                     &color,
                 );
                 ctx.draw_text(
                     &text_layout,
                     Point::new(
                         x + text_padding,
-                        y + (line_height - text_layout.size().height) / 2.0,
+                        y + (self.line_height - text_layout.size().height) / 2.0,
                     ),
                 );
             }

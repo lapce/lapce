@@ -67,6 +67,7 @@ impl ProblemData {
 pub struct ProblemContent {
     severity: DiagnosticSeverity,
     mouse_pos: Point,
+    line_height: f64,
 }
 
 impl ProblemContent {
@@ -74,6 +75,7 @@ impl ProblemContent {
         Self {
             severity,
             mouse_pos: Point::ZERO,
+            line_height: 25.0,
         }
     }
 
@@ -107,8 +109,7 @@ impl ProblemContent {
         mouse_event: &MouseEvent,
         data: &LapceTabData,
     ) {
-        let line_height = data.config.editor.line_height as f64;
-        let n = (mouse_event.pos.y / line_height).floor() as usize;
+        let n = (mouse_event.pos.y / self.line_height).floor() as usize;
 
         let items = self.items(data);
         let mut i = 0;

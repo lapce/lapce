@@ -188,6 +188,7 @@ impl KeyPressFocus for SourceControlData {
 pub struct SourceControlFileList {
     widget_id: WidgetId,
     mouse_down: Option<usize>,
+    line_height: f64,
 }
 
 impl SourceControlFileList {
@@ -195,6 +196,7 @@ impl SourceControlFileList {
         Self {
             widget_id,
             mouse_down: None,
+            line_height: 25.0,
         }
     }
 
@@ -225,12 +227,11 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 ctx.set_handled();
             }
             Event::MouseUp(mouse_event) => {
-                let line_height = data.config.editor.line_height as f64;
                 let y = mouse_event.pos.y;
                 if y > 0.0 {
-                    let line = (y / line_height).floor() as usize;
+                    let line = (y / self.line_height).floor() as usize;
                     if line < data.source_control.file_diffs.len()
-                        && mouse_event.pos.x < line_height
+                        && mouse_event.pos.x < self.line_height
                     {
                         if let Some(mouse_down) = self.mouse_down {
                             if mouse_down == line {
@@ -248,13 +249,12 @@ impl Widget<LapceTabData> for SourceControlFileList {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down = None;
                 let source_control = Arc::make_mut(&mut data.source_control);
-                let line_height = data.config.editor.line_height as f64;
                 let y = mouse_event.pos.y;
                 if y > 0.0 {
-                    let line = (y / line_height).floor() as usize;
+                    let line = (y / self.line_height).floor() as usize;
                     if line < source_control.file_diffs.len() {
                         source_control.file_list_index = line;
-                        if mouse_event.pos.x < line_height {
+                        if mouse_event.pos.x < self.line_height {
                             self.mouse_down = Some(line);
                         } else {
                             ctx.submit_command(Command::new(
@@ -335,24 +335,21 @@ impl Widget<LapceTabData> for SourceControlFileList {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
-        let height = line_height * data.source_control.file_diffs.len() as f64;
+        let height = self.line_height * data.source_control.file_diffs.len() as f64;
         Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let self_size = ctx.size();
 
-        let line_height = data.config.editor.line_height as f64;
-
         let diffs = &data.source_control.file_diffs;
 
         if ctx.is_focused() && diffs.len() > 0 {
-            let rect = Size::new(ctx.size().width, line_height)
+            let rect = Size::new(ctx.size().width, self.line_height)
                 .to_rect()
                 .with_origin(Point::new(
                     0.0,
-                    data.source_control.file_list_index as f64 * line_height,
+                    data.source_control.file_list_index as f64 * self.line_height,
                 ));
             ctx.fill(
                 rect,
@@ -361,13 +358,13 @@ impl Widget<LapceTabData> for SourceControlFileList {
         }
 
         let rect = ctx.region().bounding_box();
-        let start_line = (rect.y0 / line_height).floor() as usize;
-        let end_line = (rect.y1 / line_height).ceil() as usize;
+        let start_line = (rect.y0 / self.line_height).floor() as usize;
+        let end_line = (rect.y1 / self.line_height).ceil() as usize;
         for line in start_line..end_line {
             if line >= diffs.len() {
                 break;
             }
-            let y = line_height * line as f64;
+            let y = self.line_height * line as f64;
             let (diff, checked) = diffs[line].clone();
             let mut path = diff.path().clone();
             if let Some(workspace_path) = data.workspace.path.as_ref() {
@@ -380,8 +377,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 let width = 13.0;
                 let height = 13.0;
                 let origin = Point::new(
-                    (line_height - width) / 2.0 + 5.0,
-                    (line_height - height) / 2.0 + y,
+                    (self.line_height - width) / 2.0 + 5.0,
+                    (self.line_height - height) / 2.0 + y,
                 );
                 let rect = Size::new(width, height).to_rect().with_origin(origin);
                 ctx.stroke(rect, &Color::rgb8(0, 0, 0), 1.0);
@@ -398,8 +395,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
             let width = 13.0;
             let height = 13.0;
             let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                (line_height - width) / 2.0 + line_height,
-                (line_height - height) / 2.0 + y,
+                (self.line_height - width) / 2.0 + self.line_height,
+                (self.line_height - height) / 2.0 + y,
             ));
             ctx.draw_svg(&svg, rect, None);
 
@@ -423,8 +420,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
             ctx.draw_text(
                 &text_layout,
                 Point::new(
-                    line_height * 2.0,
-                    y + (line_height - text_layout.size().height) / 2.0,
+                    self.line_height * 2.0,
+                    y + (self.line_height - text_layout.size().height) / 2.0,
                 ),
             );
             let folder = path
@@ -449,8 +446,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 ctx.draw_text(
                     &text_layout,
                     Point::new(
-                        line_height * 2.0 + x + 5.0,
-                        y + (line_height - text_layout.size().height) / 2.0,
+                        self.line_height * 2.0 + x + 5.0,
+                        y + (self.line_height - text_layout.size().height) / 2.0,
                     ),
                 );
             }
@@ -485,7 +482,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
                     .to_rect()
                     .with_origin(Point::new(
                         self_size.width - svg_size - 10.0,
-                        line as f64 * line_height + (line_height - svg_size) / 2.0,
+                        line as f64 * self.line_height
+                            + (self.line_height - svg_size) / 2.0,
                     ));
             ctx.draw_svg(&svg, rect, Some(&color.clone().with_alpha(0.9)));
         }

@@ -388,7 +388,6 @@ impl Widget<LapceTabData> for FileExplorer {
         env: &Env,
     ) -> Size {
         let self_size = bc.max();
-        let line_height = data.config.editor.line_height as f64;
         self.file_list.layout(ctx, bc, data, env);
         self.file_list
             .set_origin(ctx, data, env, Point::new(0.0, 0.0));
@@ -446,11 +445,13 @@ impl Widget<LapceTabData> for FileExplorer {
     }
 }
 
-pub struct FileExplorerFileList {}
+pub struct FileExplorerFileList {
+    line_height: f64,
+}
 
 impl FileExplorerFileList {
     pub fn new() -> Self {
-        Self {}
+        Self { line_height: 25.0 }
     }
 }
 
@@ -465,9 +466,8 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         match event {
             Event::MouseMove(mouse_event) => {
                 if let Some(workspace) = data.file_explorer.workspace.as_ref() {
-                    let line_height = data.config.editor.line_height as f64;
                     let y = mouse_event.pos.y;
-                    if y <= line_height
+                    if y <= self.line_height
                         * (workspace.children_open_count + 1 + 1) as f64
                     {
                         ctx.set_cursor(&Cursor::Pointer);
@@ -477,10 +477,9 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                 }
             }
             Event::MouseDown(mouse_event) => {
-                let line_height = data.config.editor.line_height as f64;
                 let file_explorer = Arc::make_mut(&mut data.file_explorer);
-                let index =
-                    ((mouse_event.pos.y + line_height) / line_height) as usize;
+                let index = ((mouse_event.pos.y + self.line_height)
+                    / self.line_height) as usize;
                 if let Some(node) = file_explorer.get_node_by_index(index) {
                     if node.is_dir {
                         if node.read {
@@ -568,25 +567,23 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let height = (data
+        let height = data
             .file_explorer
             .workspace
             .as_ref()
             .map(|w| w.children_open_count)
-            .unwrap_or(0)
-            * data.config.editor.line_height) as f64;
+            .unwrap_or(0) as f64
+            * self.line_height;
         Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let line_height = data.config.editor.line_height as f64;
-
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
         let width = size.width;
         let index = data.file_explorer.index;
-        let min = (rect.y0 / line_height).floor() as usize;
-        let max = (rect.y1 / line_height) as usize + 2;
+        let min = (rect.y0 / self.line_height).floor() as usize;
+        let max = (rect.y1 / self.line_height) as usize + 2;
         let level = 0;
 
         if let Some(item) = data.file_explorer.workspace.as_ref() {
@@ -597,7 +594,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     item,
                     min,
                     max,
-                    line_height,
+                    self.line_height,
                     width,
                     level + 1,
                     i + 1,

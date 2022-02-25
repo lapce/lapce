@@ -445,6 +445,7 @@ impl Widget<LapceTabData> for FilePickerPwd {
 pub struct FilePickerExplorer {
     toggle_rects: HashMap<usize, Rect>,
     last_left_click: Option<(usize, std::time::Instant)>,
+    line_height: f64,
 }
 
 impl FilePickerExplorer {
@@ -452,6 +453,7 @@ impl FilePickerExplorer {
         Self {
             toggle_rects: HashMap::new(),
             last_left_click: None,
+            line_height: 25.0,
         }
     }
 
@@ -462,10 +464,10 @@ impl FilePickerExplorer {
         mouse_event: &MouseEvent,
     ) {
         ctx.set_handled();
-        let line_height = data.config.editor.line_height as f64;
         let picker = Arc::make_mut(&mut data.picker);
         let pwd = picker.pwd.clone();
-        let index = ((mouse_event.pos.y + line_height) / line_height) as usize;
+        let index =
+            ((mouse_event.pos.y + self.line_height) / self.line_height) as usize;
         if let Some(item) = picker.get_file_node_mut(&pwd) {
             let (_, node) = get_item_children_mut(0, index, item);
             if let Some(node) = node {
@@ -606,11 +608,10 @@ impl Widget<LapceTabData> for FilePickerExplorer {
             }
             Event::MouseMove(mouse_event) => {
                 ctx.set_handled();
-                let line_height = data.config.editor.line_height as f64;
                 let picker = Arc::make_mut(&mut data.picker);
                 let pwd = picker.pwd.clone();
-                let index =
-                    ((mouse_event.pos.y + line_height) / line_height) as usize;
+                let index = ((mouse_event.pos.y + self.line_height)
+                    / self.line_height) as usize;
                 ctx.request_paint();
                 if let Some(item) = picker.get_file_node_mut(&pwd) {
                     let (_, node) = get_item_children(0, index, item);
@@ -663,7 +664,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
     ) -> Size {
         let height = if let Some(item) = data.picker.get_file_node(&data.picker.pwd)
         {
-            (item.children_open_count * data.config.editor.line_height) as f64
+            item.children_open_count as f64 * self.line_height
         } else {
             bc.max().height
         };
@@ -671,14 +672,12 @@ impl Widget<LapceTabData> for FilePickerExplorer {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let line_height = data.config.editor.line_height as f64;
-
         let size = ctx.size();
         let rect = ctx.region().bounding_box();
         let width = size.width;
         let index = data.picker.index;
-        let min = (rect.y0 / line_height).floor() as usize;
-        let max = (rect.y1 / line_height) as usize + 2;
+        let min = (rect.y0 / self.line_height).floor() as usize;
+        let max = (rect.y1 / self.line_height) as usize + 2;
         let level = 0;
 
         self.toggle_rects.clear();
@@ -691,7 +690,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
                     item,
                     min,
                     max,
-                    line_height,
+                    self.line_height,
                     width,
                     level + 1,
                     i + 1,
