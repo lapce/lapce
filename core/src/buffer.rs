@@ -1692,7 +1692,7 @@ impl BufferNew {
             if max_len > self.max_len {
                 self.max_len = max_len;
                 self.max_len_line = max_len_line;
-            } else if self.max_len >= inval_lines.start_line {
+            } else if self.max_len_line >= inval_lines.start_line {
                 self.max_len_line = self.max_len_line + inval_lines.new_count
                     - inval_lines.inval_count;
             }

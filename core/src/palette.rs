@@ -253,9 +253,9 @@ impl PaletteItemContent {
         ctx: &mut PaintCtx,
         line: usize,
         indices: &[usize],
+        line_height: f64,
         config: &Config,
     ) {
-        let line_height = config.editor.line_height as f64;
         let (svg, text, text_indices, hint, hint_indices) = match &self {
             PaletteItemContent::File(path, _) => file_paint_items(path, indices),
             PaletteItemContent::DocumentSymbol {
@@ -1378,6 +1378,7 @@ impl Widget<LapceTabData> for NewPalette {
 pub struct PaletteContainer {
     input_size: Size,
     content_size: Size,
+    line_height: f64,
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     content: WidgetPod<
         LapceTabData,
@@ -1409,6 +1410,7 @@ impl PaletteContainer {
             input: WidgetPod::new(input.boxed()),
             content: WidgetPod::new(content),
             preview: WidgetPod::new(preview.boxed()),
+            line_height: 25.0,
         }
     }
 
@@ -1419,10 +1421,13 @@ impl PaletteContainer {
         env: &Env,
     ) {
         let width = ctx.size().width;
-        let line_height = data.config.editor.line_height as f64;
-        let rect = Size::new(width, line_height)
-            .to_rect()
-            .with_origin(Point::new(0.0, data.palette.index as f64 * line_height));
+        let rect =
+            Size::new(width, self.line_height)
+                .to_rect()
+                .with_origin(Point::new(
+                    0.0,
+                    data.palette.index as f64 * self.line_height,
+                ));
         if self
             .content
             .widget_mut()
@@ -1497,8 +1502,7 @@ impl Widget<LapceTabData> for PaletteContainer {
 
         let max_items = 15;
         let height = max_items.min(data.palette.len());
-        let line_height = 25.0;
-        let height = line_height * height as f64;
+        let height = self.line_height * height as f64;
         let bc = BoxConstraints::tight(Size::new(width, height));
         let content_size = self.content.layout(ctx, &bc, data, env);
         self.content
@@ -1508,8 +1512,10 @@ impl Widget<LapceTabData> for PaletteContainer {
             content_height += 6.0;
         }
 
-        let max_preview_height =
-            max_height - input_size.height - max_items as f64 * line_height - 6.0;
+        let max_preview_height = max_height
+            - input_size.height
+            - max_items as f64 * self.line_height
+            - 6.0;
         let preview_height = if data.palette.palette_type.has_preview() {
             if content_height > 0.0 {
                 max_preview_height
@@ -1673,11 +1679,15 @@ impl Widget<PaletteViewData> for NewPaletteInput {
 
 pub struct NewPaletteContent {
     mouse_down: usize,
+    line_height: f64,
 }
 
 impl NewPaletteContent {
     pub fn new() -> Self {
-        Self { mouse_down: 0 }
+        Self {
+            mouse_down: 0,
+            line_height: 25.0,
+        }
     }
 }
 
@@ -1695,14 +1705,12 @@ impl Widget<PaletteViewData> for NewPaletteContent {
                 ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
-                let line_height = data.config.editor.line_height as f64;
-                let line = (mouse_event.pos.y / line_height).floor() as usize;
+                let line = (mouse_event.pos.y / self.line_height).floor() as usize;
                 self.mouse_down = line;
                 ctx.set_handled();
             }
             Event::MouseUp(mouse_event) => {
-                let line_height = data.config.editor.line_height as f64;
-                let line = (mouse_event.pos.y / line_height).floor() as usize;
+                let line = (mouse_event.pos.y / self.line_height).floor() as usize;
                 if line == self.mouse_down {
                     let palette = Arc::make_mut(&mut data.palette);
                     palette.index = line;
@@ -1739,20 +1747,18 @@ impl Widget<PaletteViewData> for NewPaletteContent {
         data: &PaletteViewData,
         env: &Env,
     ) -> Size {
-        let line_height = data.config.editor.line_height as f64;
-        let height = line_height * data.palette.len() as f64;
+        let height = self.line_height * data.palette.len() as f64;
         Size::new(bc.max().width, height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &PaletteViewData, env: &Env) {
-        let line_height = data.config.editor.line_height as f64;
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
 
         let items = data.palette.current_items();
 
-        let start_line = (rect.y0 / line_height).floor() as usize;
-        let end_line = (rect.y1 / line_height).ceil() as usize;
+        let start_line = (rect.y0 / self.line_height).floor() as usize;
+        let end_line = (rect.y1 / self.line_height).ceil() as usize;
 
         for line in start_line..end_line {
             if line >= items.len() {
@@ -1761,14 +1767,20 @@ impl Widget<PaletteViewData> for NewPaletteContent {
             if line == data.palette.index {
                 ctx.fill(
                     Rect::ZERO
-                        .with_origin(Point::new(0.0, line as f64 * line_height))
-                        .with_size(Size::new(size.width, line_height)),
+                        .with_origin(Point::new(0.0, line as f64 * self.line_height))
+                        .with_size(Size::new(size.width, self.line_height)),
                     data.config.get_color_unchecked(LapceTheme::PALETTE_CURRENT),
                 );
             }
 
             let item = &items[line];
-            item.content.paint(ctx, line, &item.indices, &data.config);
+            item.content.paint(
+                ctx,
+                line,
+                &item.indices,
+                self.line_height,
+                &data.config,
+            );
         }
     }
 }
