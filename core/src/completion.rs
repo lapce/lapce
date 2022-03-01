@@ -683,6 +683,9 @@ impl Widget<LapceTabData> for CompletionNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        if data.completion.status == CompletionStatus::Inactive {
+            return;
+        }
         let line_height = data.config.editor.line_height as f64;
         let rect = ctx.region().bounding_box();
         let size = ctx.size();

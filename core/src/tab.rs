@@ -39,7 +39,7 @@ use crate::{
     keypress::KeyPressData,
     menu::Menu,
     movement::{self, CursorMode, Selection},
-    palette::{NewPalette, PaletteViewLens},
+    palette::{NewPalette, PaletteStatus, PaletteViewLens},
     panel::{PanelHeaderKind, PanelPosition, PanelResizePosition},
     picker::FilePicker,
     plugin::Plugin,
@@ -1036,6 +1036,10 @@ impl Widget<LapceTabData> for LapceTabNew {
             ctx.request_layout();
         }
 
+        if old_data.settings.shown != data.settings.shown {
+            ctx.request_layout();
+        }
+
         self.palette.update(ctx, data, env);
         self.activity.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
@@ -1309,39 +1313,49 @@ impl Widget<LapceTabData> for LapceTabNew {
             .set_origin(ctx, data, env, main_split_origin);
         self.main_split_height = main_split_size.height;
 
-        let completion_origin =
-            data.completion_origin(ctx.text(), self_size.clone(), &data.config);
-        self.completion.layout(ctx, bc, data, env);
-        self.completion
-            .set_origin(ctx, data, env, completion_origin);
+        if data.completion.status != CompletionStatus::Inactive {
+            let completion_origin =
+                data.completion_origin(ctx.text(), self_size.clone(), &data.config);
+            self.completion.layout(ctx, bc, data, env);
+            self.completion
+                .set_origin(ctx, data, env, completion_origin);
+        }
 
-        let code_action_origin =
-            data.code_action_origin(ctx.text(), self_size.clone(), &data.config);
-        self.code_action.layout(ctx, bc, data, env);
-        self.code_action
-            .set_origin(ctx, data, env, code_action_origin);
+        if data.main_split.show_code_actions {
+            let code_action_origin =
+                data.code_action_origin(ctx.text(), self_size.clone(), &data.config);
+            self.code_action.layout(ctx, bc, data, env);
+            self.code_action
+                .set_origin(ctx, data, env, code_action_origin);
+        }
 
-        let palette_size = self.palette.layout(ctx, bc, data, env);
-        self.palette.set_origin(
-            ctx,
-            data,
-            env,
-            Point::new((self_size.width - palette_size.width) / 2.0, 0.0),
-        );
+        if data.palette.status != PaletteStatus::Inactive {
+            let palette_size = self.palette.layout(ctx, bc, data, env);
+            self.palette.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new((self_size.width - palette_size.width) / 2.0, 0.0),
+            );
+        }
 
-        let picker_size = self.picker.layout(ctx, bc, data, env);
-        self.picker.set_origin(
-            ctx,
-            data,
-            env,
-            Point::new(
-                (self_size.width - picker_size.width) / 2.0,
-                (self_size.height - picker_size.height) / 3.0,
-            ),
-        );
+        if data.picker.active {
+            let picker_size = self.picker.layout(ctx, bc, data, env);
+            self.picker.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new(
+                    (self_size.width - picker_size.width) / 2.0,
+                    (self_size.height - picker_size.height) / 3.0,
+                ),
+            );
+        }
 
-        self.settings.layout(ctx, bc, data, env);
-        self.settings.set_origin(ctx, data, env, Point::ZERO);
+        if data.settings.shown {
+            self.settings.layout(ctx, bc, data, env);
+            self.settings.set_origin(ctx, data, env, Point::ZERO);
+        }
 
         self_size
     }

@@ -4726,12 +4726,21 @@ impl Widget<LapceTabData> for LapceEditorTab {
         let header_size = self.header.layout(ctx, bc, data, env);
         self.header.set_origin(ctx, data, env, Point::ZERO);
 
+        let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         let child_size =
             Size::new(self_size.width, self_size.height - header_size.height);
-        for child in self.children.iter_mut() {
-            child.layout(ctx, &BoxConstraints::tight(child_size), data, env);
-            child.set_origin(ctx, data, env, Point::new(0.0, header_size.height));
-        }
+        self.children[tab.active].layout(
+            ctx,
+            &BoxConstraints::tight(child_size),
+            data,
+            env,
+        );
+        self.children[tab.active].set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(0.0, header_size.height),
+        );
         self_size
     }
 

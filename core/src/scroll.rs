@@ -1,5 +1,5 @@
-use std::f64::INFINITY;
 use std::time::Duration;
+use std::{f64::INFINITY, time::Instant};
 
 use druid::{
     kurbo::{Affine, Point, Rect, Size, Vec2},
@@ -445,11 +445,11 @@ pub struct ScrollComponentNew {
     pub opacity: f64,
     /// ID for the timer which schedules scrollbar fade out
     pub timer_id: TimerToken,
-    pub fade_interval_id: TimerToken,
     /// Which if any scrollbar is currently hovered by the mouse
     pub hovered: BarHoveredState,
     /// Which if any scrollbar is currently being dragged by the mouse
     pub held: BarHeldState,
+    pub fade_start: Option<Instant>,
 }
 
 impl Default for ScrollComponentNew {
@@ -457,9 +457,9 @@ impl Default for ScrollComponentNew {
         Self {
             opacity: 0.0,
             timer_id: TimerToken::INVALID,
-            fade_interval_id: TimerToken::INVALID,
             hovered: BarHoveredState::None,
             held: BarHeldState::None,
+            fade_start: None,
         }
     }
 }
@@ -481,6 +481,7 @@ impl ScrollComponentNew {
         F: FnOnce(Duration) -> TimerToken,
     {
         self.opacity = env.get(theme::SCROLLBAR_MAX_OPACITY);
+        self.fade_start = None;
         let fade_delay = 500;
         let deadline = Duration::from_millis(fade_delay);
         self.timer_id = request_timer(deadline);
@@ -771,39 +772,32 @@ impl ScrollComponentNew {
             }
         } else if !ctx.is_hot() {
             match event {
-                Event::MouseMove(_) => {
-                    // if we have just stopped hovering
-                    if self.hovered.is_hovered() && !scrollbar_is_hovered {
-                        self.hovered = BarHoveredState::None;
-                        self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                // Event::MouseMove(_) => {
+                //     // if we have just stopped hovering
+                //     if self.hovered.is_hovered() && !scrollbar_is_hovered {
+                //         self.hovered = BarHoveredState::None;
+                //         self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+                //     }
+                // }
+                Event::AnimFrame(_) => {
+                    if let Some(start) = self.fade_start {
+                        let elapsed = start.elapsed().subsec_millis();
+                        let diff = 0.02;
+                        self.opacity = env.get(theme::SCROLLBAR_MAX_OPACITY)
+                            - diff * (start.elapsed().subsec_millis() as f64 / 20.0);
+                        if self.opacity > 0.0 {
+                            ctx.request_anim_frame();
+                        } else {
+                            self.fade_start = None;
+                        }
                     }
                 }
                 Event::Timer(id) if *id == self.timer_id => {
                     // Schedule scroll bars animation
                     self.timer_id = TimerToken::INVALID;
-                    self.fade_interval_id =
-                        ctx.request_timer(Duration::from_millis(20));
+                    self.fade_start = Some(Instant::now());
+                    ctx.request_anim_frame();
                     ctx.set_handled();
-                }
-                Event::Timer(id) if *id == self.fade_interval_id => {
-                    if self.timer_id == TimerToken::INVALID {
-                        let diff = 0.02;
-                        self.opacity -= diff;
-                        if self.opacity > 0.0 {
-                            self.fade_interval_id =
-                                ctx.request_timer(Duration::from_millis(20));
-                            if let Some(bounds) =
-                                self.calc_horizontal_bar_bounds(port, env)
-                            {
-                                ctx.request_paint_rect(bounds - scroll_offset);
-                            }
-                            if let Some(bounds) =
-                                self.calc_vertical_bar_bounds(port, env)
-                            {
-                                ctx.request_paint_rect(bounds - scroll_offset);
-                            }
-                        }
-                    }
                 }
                 _ => (),
             }

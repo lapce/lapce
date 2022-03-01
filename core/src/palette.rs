@@ -464,7 +464,7 @@ impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
 pub struct PaletteData {
     pub widget_id: WidgetId,
     pub scroll_id: WidgetId,
-    status: PaletteStatus,
+    pub status: PaletteStatus,
     proxy: Arc<LapceProxy>,
     palette_type: PaletteType,
     sender: Sender<(String, String, Vec<NewPaletteItem>)>,
@@ -1236,6 +1236,17 @@ impl Widget<LapceTabData> for NewPalette {
         data: &mut LapceTabData,
         env: &Env,
     ) {
+        match event {
+            Event::MouseDown(_)
+            | Event::MouseMove(_)
+            | Event::Wheel(_)
+            | Event::MouseUp(_) => {
+                if data.palette.status == PaletteStatus::Inactive {
+                    return;
+                }
+            }
+            _ => (),
+        }
         match event {
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();

@@ -501,14 +501,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             (tab_size, Point::new(0.0, title_size.height))
         };
 
-        let start = std::time::SystemTime::now();
         let bc = BoxConstraints::tight(tab_size);
-        for tab in self.tabs.iter_mut() {
-            tab.layout(ctx, &bc, data, env);
-            tab.set_origin(ctx, data, env, tab_origin);
-        }
-        let end = std::time::SystemTime::now();
-        let duration = end.duration_since(start).unwrap().as_micros();
+        self.tabs[data.active].layout(ctx, &bc, data, env);
+        self.tabs[data.active].set_origin(ctx, data, env, tab_origin);
 
         self_size
     }
