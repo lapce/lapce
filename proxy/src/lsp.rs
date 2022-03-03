@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     io::BufRead,
     io::{BufReader, BufWriter, Write},
-    process::{self, Child, Command, Stdio},
+    process::{self, Child, ChildStdout, Command, Stdio},
     sync::{mpsc::channel, Arc},
     thread,
     time::Duration,
@@ -52,8 +52,10 @@ pub struct LspState {
     pub is_initialized: bool,
 }
 
+#[derive(Clone)]
 pub struct LspClient {
     language_id: String,
+    exec_path: String,
     options: Option<Value>,
     state: Arc<Mutex<LspState>>,
     dispatcher: Dispatcher,
@@ -339,20 +341,13 @@ impl LspClient {
         options: Option<Value>,
         dispatcher: Dispatcher,
     ) -> Arc<LspClient> {
-        let mut process = Command::new(exec_path);
-        #[cfg(target_os = "windows")]
-        let mut process = process.creation_flags(0x08000000);
-        let mut process = process
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Error Occurred");
-
+        let mut process = Self::process(exec_path);
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
         let lsp_client = Arc::new(LspClient {
             dispatcher,
+            exec_path: exec_path.to_string(),
             language_id,
             options,
             state: Arc::new(Mutex::new(LspState {
@@ -366,7 +361,14 @@ impl LspClient {
             })),
         });
 
-        let local_lsp_client = lsp_client.clone();
+        lsp_client.handle_stdout(stdout);
+        lsp_client.initialize();
+
+        lsp_client
+    }
+
+    fn handle_stdout(&self, stdout: ChildStdout) {
+        let local_lsp_client = self.clone();
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stdout));
             loop {
@@ -375,15 +377,42 @@ impl LspClient {
                         local_lsp_client.handle_message(message_str.as_ref());
                     }
                     Err(err) => {
+                        local_lsp_client.stop();
+                        local_lsp_client.reload();
                         return;
                     }
                 };
             }
         });
+    }
 
-        lsp_client.initialize();
+    fn process(exec_path: &str) -> Child {
+        let mut process = Command::new(exec_path);
+        #[cfg(target_os = "windows")]
+        let mut process = process.creation_flags(0x08000000);
+        process
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Error Occurred")
+    }
 
-        lsp_client
+    fn reload(&self) {
+        let mut process = Self::process(&self.exec_path);
+        let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
+        let stdout = process.stdout.take().unwrap();
+
+        let mut state = self.state.lock();
+        state.next_id = 0;
+        state.pending.clear();
+        state.opened_documents.clear();
+        state.server_capabilities = None;
+        state.is_initialized = false;
+        state.writer = writer;
+        state.process = process;
+
+        self.handle_stdout(stdout);
+        self.initialize();
     }
 
     fn stop(&self) {
@@ -469,13 +498,11 @@ impl LspClient {
         callback.call(self, result);
     }
 
-    pub fn write(&self, msg: &str) {
+    pub fn write(&self, msg: &str) -> Result<()> {
         let mut state = self.state.lock();
-        state
-            .writer
-            .write_all(msg.as_bytes())
-            .expect("error writing to stdin");
-        state.writer.flush().expect("error flushing child stdin");
+        state.writer.write_all(msg.as_bytes())?;
+        state.writer.flush()?;
+        Ok(())
     }
 
     fn send_rpc(&self, value: &Value) {
