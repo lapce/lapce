@@ -98,8 +98,8 @@ impl Cursor {
             buffer.offset_line_end(offset, true),
         );
 
-        let (_, x0) = buffer.offset_to_line_col(offset);
-        let (_, x1) = buffer.offset_to_line_col(next);
+        let (_, x0) = buffer.offset_to_line_col(offset, config.editor.tab_width);
+        let (_, x1) = buffer.offset_to_line_col(next, config.editor.tab_width);
         let width = config.editor_text_width(text, "W");
         let x0 = x0 as f64 * width;
         let x1 = x1 as f64 * width;
@@ -124,7 +124,7 @@ impl Cursor {
         }
     }
 
-    pub fn yank(&self, buffer: &BufferNew) -> RegisterData {
+    pub fn yank(&self, buffer: &BufferNew, tab_width: usize) -> RegisterData {
         let content = match &self.mode {
             CursorMode::Insert(selection) => selection
                 .regions()
@@ -158,13 +158,13 @@ impl Cursor {
                 VisualMode::Blockwise => {
                     let mut lines = Vec::new();
                     let (start_line, start_col) =
-                        buffer.offset_to_line_col(*start.min(end));
+                        buffer.offset_to_line_col(*start.min(end), tab_width);
                     let (end_line, end_col) =
-                        buffer.offset_to_line_col(*start.max(end));
+                        buffer.offset_to_line_col(*start.max(end), tab_width);
                     let left = start_col.min(end_col);
                     let right = start_col.max(end_col) + 1;
                     for line in start_line..end_line + 1 {
-                        let max_col = buffer.line_end_col(line, true);
+                        let max_col = buffer.line_end_col(line, true, tab_width);
                         if left > max_col {
                             lines.push("".to_string());
                         } else {
@@ -178,8 +178,10 @@ impl Cursor {
                                     }
                                 }
                             };
-                            let left = buffer.offset_of_line_col(line, left);
-                            let right = buffer.offset_of_line_col(line, right);
+                            let left =
+                                buffer.offset_of_line_col(line, left, tab_width);
+                            let right =
+                                buffer.offset_of_line_col(line, right, tab_width);
                             lines.push(buffer.slice_to_cow(left..right).to_string());
                         }
                     }
@@ -194,7 +196,7 @@ impl Cursor {
         RegisterData { content, mode }
     }
 
-    pub fn edit_selection(&self, buffer: &BufferNew) -> Selection {
+    pub fn edit_selection(&self, buffer: &BufferNew, tab_width: usize) -> Selection {
         match &self.mode {
             CursorMode::Insert(selection) => selection.clone(),
             CursorMode::Normal(offset) => Selection::region(
@@ -216,13 +218,13 @@ impl Cursor {
                 VisualMode::Blockwise => {
                     let mut selection = Selection::new();
                     let (start_line, start_col) =
-                        buffer.offset_to_line_col(*start.min(end));
+                        buffer.offset_to_line_col(*start.min(end), tab_width);
                     let (end_line, end_col) =
-                        buffer.offset_to_line_col(*start.max(end));
+                        buffer.offset_to_line_col(*start.max(end), tab_width);
                     let left = start_col.min(end_col);
                     let right = start_col.max(end_col) + 1;
                     for line in start_line..end_line + 1 {
-                        let max_col = buffer.line_end_col(line, true);
+                        let max_col = buffer.line_end_col(line, true, tab_width);
                         if left > max_col {
                             continue;
                         }
@@ -236,8 +238,9 @@ impl Cursor {
                                 }
                             }
                         };
-                        let left = buffer.offset_of_line_col(line, left);
-                        let right = buffer.offset_of_line_col(line, right);
+                        let left = buffer.offset_of_line_col(line, left, tab_width);
+                        let right =
+                            buffer.offset_of_line_col(line, right, tab_width);
                         selection.add_region(SelRegion::new(left, right, None));
                     }
                     selection

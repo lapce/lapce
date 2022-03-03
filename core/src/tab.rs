@@ -505,12 +505,23 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::DocumentFormatAndSave(path, rev, result) => {
-                        data.main_split
-                            .document_format_and_save(ctx, path, *rev, result);
+                        data.main_split.document_format_and_save(
+                            ctx,
+                            path,
+                            *rev,
+                            result,
+                            &data.config,
+                        );
                         ctx.set_handled();
                     }
                     LapceUICommand::DocumentFormat(path, rev, result) => {
-                        data.main_split.document_format(ctx, path, *rev, result);
+                        data.main_split.document_format(
+                            ctx,
+                            path,
+                            *rev,
+                            result,
+                            &data.config,
+                        );
                         ctx.set_handled();
                     }
                     LapceUICommand::BufferSave(path, rev) => {

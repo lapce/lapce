@@ -358,7 +358,9 @@ impl LapceEditorBufferData {
             let prev_offset = self.buffer.prev_code_boundary(offset);
             if self.buffer.code_actions.get(&prev_offset).is_none() {
                 let buffer_id = self.buffer.id;
-                let position = self.buffer.offset_to_position(prev_offset);
+                let position = self
+                    .buffer
+                    .offset_to_position(prev_offset, self.config.editor.tab_width);
                 let rev = self.buffer.rev;
                 let event_sink = ctx.get_external_handle();
                 self.proxy.get_code_actions(
@@ -390,7 +392,7 @@ impl LapceEditorBufferData {
     fn do_move(&mut self, movement: &Movement, count: usize) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer);
+            editor.save_jump_location(&self.buffer, self.config.editor.tab_width);
         }
         let editor = Arc::make_mut(&mut self.editor);
         editor.last_movement = movement.clone();
@@ -404,6 +406,7 @@ impl LapceEditorBufferData {
                     movement,
                     Mode::Normal,
                     compare,
+                    self.config.editor.tab_width,
                 );
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.cursor.mode = CursorMode::Normal(new_offset);
@@ -417,6 +420,7 @@ impl LapceEditorBufferData {
                     movement,
                     Mode::Visual,
                     compare,
+                    self.config.editor.tab_width,
                 );
                 let start = *start;
                 let mode = mode.clone();
@@ -436,6 +440,7 @@ impl LapceEditorBufferData {
                     Mode::Insert,
                     false,
                     compare,
+                    self.config.editor.tab_width,
                 );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }
@@ -462,8 +467,14 @@ impl LapceEditorBufferData {
                 .iter()
                 .map(|edit| {
                     let selection = Selection::region(
-                        self.buffer.offset_of_position(&edit.range.start),
-                        self.buffer.offset_of_position(&edit.range.end),
+                        self.buffer.offset_of_position(
+                            &edit.range.start,
+                            self.config.editor.tab_width,
+                        ),
+                        self.buffer.offset_of_position(
+                            &edit.range.end,
+                            self.config.editor.tab_width,
+                        ),
                     );
                     (selection, edit.new_text.clone())
                 })
@@ -485,9 +496,14 @@ impl LapceEditorBufferData {
                     let offset = self.editor.cursor.offset();
                     let start_offset = self.buffer.prev_code_boundary(offset);
                     let end_offset = self.buffer.next_code_boundary(offset);
-                    let edit_start =
-                        self.buffer.offset_of_position(&edit.range.start);
-                    let edit_end = self.buffer.offset_of_position(&edit.range.end);
+                    let edit_start = self.buffer.offset_of_position(
+                        &edit.range.start,
+                        self.config.editor.tab_width,
+                    );
+                    let edit_end = self.buffer.offset_of_position(
+                        &edit.range.end,
+                        self.config.editor.tab_width,
+                    );
                     let selection = Selection::region(
                         start_offset.min(edit_start),
                         end_offset.max(edit_end),
@@ -610,7 +626,10 @@ impl LapceEditorBufferData {
                     completion.request_id,
                     self.buffer.id,
                     "".to_string(),
-                    self.buffer.offset_to_position(start_offset),
+                    self.buffer.offset_to_position(
+                        start_offset,
+                        self.config.editor.tab_width,
+                    ),
                     completion.id,
                     event_sink,
                 );
@@ -623,7 +642,8 @@ impl LapceEditorBufferData {
                     completion.request_id,
                     self.buffer.id,
                     input,
-                    self.buffer.offset_to_position(offset),
+                    self.buffer
+                        .offset_to_position(offset, self.config.editor.tab_width),
                     completion.id,
                     event_sink,
                 );
@@ -644,7 +664,8 @@ impl LapceEditorBufferData {
             completion.request_id,
             self.buffer.id,
             "".to_string(),
-            self.buffer.offset_to_position(start_offset),
+            self.buffer
+                .offset_to_position(start_offset, self.config.editor.tab_width),
             completion.id,
             event_sink.clone(),
         );
@@ -654,7 +675,8 @@ impl LapceEditorBufferData {
                 completion.request_id,
                 self.buffer.id,
                 input,
-                self.buffer.offset_to_position(offset),
+                self.buffer
+                    .offset_to_position(offset, self.config.editor.tab_width),
                 completion.id,
                 event_sink,
             );
@@ -663,7 +685,9 @@ impl LapceEditorBufferData {
 
     fn cursor_region(&self, text: &mut PietText, config: &Config) -> Rect {
         let offset = self.editor.cursor.offset();
-        let (line, col) = self.buffer.offset_to_line_col(offset);
+        let (line, col) = self
+            .buffer
+            .offset_to_line_col(offset, self.config.editor.tab_width);
         let width = config.editor_text_width(text, "W");
         let cursor_x = col as f64 * width - width;
         let line_height = config.editor.line_height as f64;
@@ -845,9 +869,10 @@ impl LapceEditorBufferData {
                         let offset = (offset + 1).min(line_end);
                         Selection::caret(offset)
                     }
-                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => {
-                        self.editor.cursor.edit_selection(&self.buffer)
-                    }
+                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => self
+                        .editor
+                        .cursor
+                        .edit_selection(&self.buffer, self.config.editor.tab_width),
                 };
                 let after = !data.content.contains("\n");
                 let (selection, _) = self.edit(
@@ -890,12 +915,17 @@ impl LapceEditorBufferData {
                         (Selection::caret(offset), data.content.clone())
                     }
                     CursorMode::Insert { .. } => (
-                        self.editor.cursor.edit_selection(&self.buffer),
+                        self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        ),
                         "\n".to_string() + &data.content,
                     ),
                     CursorMode::Visual { mode, .. } => {
-                        let selection =
-                            self.editor.cursor.edit_selection(&self.buffer);
+                        let selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
                         let data = match mode {
                             VisualMode::Linewise => data.content.clone(),
                             _ => "\n".to_string() + &data.content,
@@ -977,13 +1007,19 @@ impl LapceEditorBufferData {
 
     fn initiate_diagnositcs_offset(&mut self) {
         let buffer = self.buffer.clone();
+        let tab_width = self.config.editor.tab_width;
         if let Some(diagnostics) = self.diagnostics_mut() {
             for diagnostic in diagnostics.iter_mut() {
                 if diagnostic.range.is_none() {
                     diagnostic.range = Some((
-                        buffer
-                            .offset_of_position(&diagnostic.diagnositc.range.start),
-                        buffer.offset_of_position(&diagnostic.diagnositc.range.end),
+                        buffer.offset_of_position(
+                            &diagnostic.diagnositc.range.start,
+                            tab_width,
+                        ),
+                        buffer.offset_of_position(
+                            &diagnostic.diagnositc.range.end,
+                            tab_width,
+                        ),
                     ));
                 }
             }
@@ -992,6 +1028,7 @@ impl LapceEditorBufferData {
 
     fn update_diagnositcs_offset(&mut self, delta: &RopeDelta) {
         let buffer = self.buffer.clone();
+        let tab_width = self.config.editor.tab_width;
         if let Some(diagnostics) = self.diagnostics_mut() {
             for diagnostic in diagnostics.iter_mut() {
                 let mut transformer = Transformer::new(delta);
@@ -1003,11 +1040,11 @@ impl LapceEditorBufferData {
                 diagnostic.range = Some((new_start, new_end));
                 if start != new_start {
                     diagnostic.diagnositc.range.start =
-                        buffer.offset_to_position(new_start);
+                        buffer.offset_to_position(new_start, tab_width);
                 }
                 if end != new_end {
                     diagnostic.diagnositc.range.end =
-                        buffer.offset_to_position(new_end);
+                        buffer.offset_to_position(new_end, tab_width);
                 }
             }
         }
@@ -1025,13 +1062,19 @@ impl LapceEditorBufferData {
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {
                 if !selection.is_caret() {
-                    let data = self.editor.cursor.yank(&self.buffer);
+                    let data = self
+                        .editor
+                        .cursor
+                        .yank(&self.buffer, self.config.editor.tab_width);
                     let register = Arc::make_mut(&mut self.main_split.register);
                     register.add_delete(data);
                 }
             }
             CursorMode::Visual { start, end, mode } => {
-                let data = self.editor.cursor.yank(&self.buffer);
+                let data = self
+                    .editor
+                    .cursor
+                    .yank(&self.buffer, self.config.editor.tab_width);
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_delete(data);
             }
@@ -1134,7 +1177,9 @@ impl LapceEditorBufferData {
             diff_files.sort();
 
             let offset = self.editor.cursor.offset();
-            let position = self.buffer.offset_to_position(offset);
+            let position = self
+                .buffer
+                .offset_to_position(offset, self.config.editor.tab_width);
             let (path, position) =
                 next_in_file_diff_offset(position, &buffer_path, &diff_files);
             let location = EditorLocationNew {
@@ -1186,7 +1231,9 @@ impl LapceEditorBufferData {
             file_diagnostics.sort_by(|a, b| a.0.cmp(b.0));
 
             let offset = self.editor.cursor.offset();
-            let position = self.buffer.offset_to_position(offset);
+            let position = self
+                .buffer
+                .offset_to_position(offset, self.config.editor.tab_width);
             let (path, position) = next_in_file_errors_offset(
                 position,
                 &buffer_path,
@@ -1238,7 +1285,7 @@ impl LapceEditorBufferData {
         }
         if self.editor.current_location >= self.editor.locations.len() {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer);
+            editor.save_jump_location(&self.buffer, self.config.editor.tab_width);
             editor.current_location -= 1;
         }
         let editor = Arc::make_mut(&mut self.editor);
@@ -1277,7 +1324,9 @@ impl LapceEditorBufferData {
         let diff = if down { diff } else { -diff };
 
         let offset = self.editor.cursor.offset();
-        let (line, col) = self.buffer.offset_to_line_col(offset);
+        let (line, col) = self
+            .buffer
+            .offset_to_line_col(offset, self.config.editor.tab_width);
         let top = self.editor.scroll_offset.y + diff;
         let bottom = top + self.editor.size.borrow().height;
 
@@ -1804,7 +1853,9 @@ impl LapceEditorBufferData {
             if actions.len() > 0 {
                 let line_height = self.config.editor.line_height as f64;
                 let offset = self.editor.cursor.offset();
-                let (line, _) = self.buffer.offset_to_line_col(offset);
+                let (line, _) = self
+                    .buffer
+                    .offset_to_line_col(offset, self.config.editor.tab_width);
                 let svg = get_svg("lightbulb.svg").unwrap();
                 let width = 16.0;
                 let height = 16.0;
@@ -1945,7 +1996,11 @@ impl LapceEditorBufferData {
                                         )
                                         .clone(),
                                 )
-                                .build_with_bounds([rect.x0, rect.x1]);
+                                .build_with_info(
+                                    true,
+                                    config.editor.tab_width,
+                                    Some([rect.x0, rect.x1]),
+                                );
                             ctx.draw_text(
                                 &text_layout,
                                 Point::new(0.0, line_height * line as f64 + y_shift),
@@ -2129,10 +2184,14 @@ impl LapceEditorBufferData {
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {}
             CursorMode::Visual { start, end, mode } => {
-                let (start_line, start_col) =
-                    self.buffer.offset_to_line_col(*start.min(end));
-                let (end_line, end_col) =
-                    self.buffer.offset_to_line_col(*start.max(end));
+                let (start_line, start_col) = self.buffer.offset_to_line_col(
+                    *start.min(end),
+                    self.config.editor.tab_width,
+                );
+                let (end_line, end_col) = self.buffer.offset_to_line_col(
+                    *start.max(end),
+                    self.config.editor.tab_width,
+                );
                 if actual_line < start_line || actual_line > end_line {
                     return;
                 }
@@ -2147,7 +2206,11 @@ impl LapceEditorBufferData {
                     }
                     VisualMode::Linewise => 0,
                     VisualMode::Blockwise => {
-                        let max_col = self.buffer.line_end_col(actual_line, false);
+                        let max_col = self.buffer.line_end_col(
+                            actual_line,
+                            false,
+                            self.config.editor.tab_width,
+                        );
                         let left = start_col.min(end_col);
                         if left > max_col {
                             return;
@@ -2159,18 +2222,33 @@ impl LapceEditorBufferData {
                 let right_col = match mode {
                     VisualMode::Normal => {
                         if actual_line == end_line {
-                            let max_col =
-                                self.buffer.line_end_col(actual_line, true);
+                            let max_col = self.buffer.line_end_col(
+                                actual_line,
+                                true,
+                                self.config.editor.tab_width,
+                            );
                             (end_col + 1).min(max_col)
                         } else {
-                            self.buffer.line_end_col(actual_line, true) + 1
+                            self.buffer.line_end_col(
+                                actual_line,
+                                true,
+                                self.config.editor.tab_width,
+                            ) + 1
                         }
                     }
                     VisualMode::Linewise => {
-                        self.buffer.line_end_col(actual_line, true) + 1
+                        self.buffer.line_end_col(
+                            actual_line,
+                            true,
+                            self.config.editor.tab_width,
+                        ) + 1
                     }
                     VisualMode::Blockwise => {
-                        let max_col = self.buffer.line_end_col(actual_line, true);
+                        let max_col = self.buffer.line_end_col(
+                            actual_line,
+                            true,
+                            self.config.editor.tab_width,
+                        );
                         let right = match self.editor.cursor.horiz.as_ref() {
                             Some(&ColPosition::End) => max_col,
                             _ => (end_col.max(start_col) + 1).min(max_col),
@@ -2216,7 +2294,10 @@ impl LapceEditorBufferData {
                 for region in regions {
                     if is_focused {
                         let (caret_actual_line, col) =
-                            self.buffer.offset_to_line_col(region.end());
+                            self.buffer.offset_to_line_col(
+                                region.end(),
+                                self.config.editor.tab_width,
+                            );
                         if caret_actual_line == actual_line {
                             let x = col as f64 * char_width;
                             let y = line as f64 * line_height;
@@ -2310,10 +2391,14 @@ impl LapceEditorBufferData {
             CursorMode::Visual { start, end, mode } => {
                 let paint_start_line = start_line;
                 let paint_end_line = end_line;
-                let (start_line, start_col) =
-                    self.buffer.offset_to_line_col(*start.min(end));
-                let (end_line, end_col) =
-                    self.buffer.offset_to_line_col(*start.max(end));
+                let (start_line, start_col) = self.buffer.offset_to_line_col(
+                    *start.min(end),
+                    self.config.editor.tab_width,
+                );
+                let (end_line, end_col) = self.buffer.offset_to_line_col(
+                    *start.max(end),
+                    self.config.editor.tab_width,
+                );
                 for line in paint_start_line..paint_end_line {
                     if line < start_line || line > end_line {
                         continue;
@@ -2326,7 +2411,11 @@ impl LapceEditorBufferData {
                         },
                         &VisualMode::Linewise => 0,
                         &VisualMode::Blockwise => {
-                            let max_col = self.buffer.line_end_col(line, false);
+                            let max_col = self.buffer.line_end_col(
+                                line,
+                                false,
+                                self.config.editor.tab_width,
+                            );
                             let left = start_col.min(end_col);
                             if left > max_col {
                                 continue;
@@ -2339,16 +2428,34 @@ impl LapceEditorBufferData {
                     let right_col = match mode {
                         &VisualMode::Normal => match line {
                             _ if line == end_line => {
-                                let max_col = self.buffer.line_end_col(line, true);
+                                let max_col = self.buffer.line_end_col(
+                                    line,
+                                    true,
+                                    self.config.editor.tab_width,
+                                );
                                 (end_col + 1).min(max_col)
                             }
-                            _ => self.buffer.line_end_col(line, true) + 1,
+                            _ => {
+                                self.buffer.line_end_col(
+                                    line,
+                                    true,
+                                    self.config.editor.tab_width,
+                                ) + 1
+                            }
                         },
                         &VisualMode::Linewise => {
-                            self.buffer.line_end_col(line, true) + 1
+                            self.buffer.line_end_col(
+                                line,
+                                true,
+                                self.config.editor.tab_width,
+                            ) + 1
                         }
                         &VisualMode::Blockwise => {
-                            let max_col = self.buffer.line_end_col(line, true);
+                            let max_col = self.buffer.line_end_col(
+                                line,
+                                true,
+                                self.config.editor.tab_width,
+                            );
                             let right = match self.editor.cursor.horiz.as_ref() {
                                 Some(&ColPosition::End) => max_col,
                                 _ => (end_col.max(start_col) + 1).min(max_col),
@@ -2412,9 +2519,14 @@ impl LapceEditorBufferData {
                         let paint_start_line = start_line;
                         let paint_end_line = end_line;
                         let (start_line, start_col) =
-                            self.buffer.offset_to_line_col(start.min(end));
-                        let (end_line, end_col) =
-                            self.buffer.offset_to_line_col(start.max(end));
+                            self.buffer.offset_to_line_col(
+                                start.min(end),
+                                self.config.editor.tab_width,
+                            );
+                        let (end_line, end_col) = self.buffer.offset_to_line_col(
+                            start.max(end),
+                            self.config.editor.tab_width,
+                        );
                         for line in paint_start_line..paint_end_line {
                             if line < start_line || line > end_line {
                                 continue;
@@ -2429,11 +2541,18 @@ impl LapceEditorBufferData {
 
                             let right_col = match line {
                                 _ if line == end_line => {
-                                    let max_col =
-                                        self.buffer.line_end_col(line, true);
+                                    let max_col = self.buffer.line_end_col(
+                                        line,
+                                        true,
+                                        self.config.editor.tab_width,
+                                    );
                                     end_col.min(max_col)
                                 }
-                                _ => self.buffer.line_end_col(line, true),
+                                _ => self.buffer.line_end_col(
+                                    line,
+                                    true,
+                                    self.config.editor.tab_width,
+                                ),
                             };
 
                             if line_content.len() > 0 {
@@ -2453,8 +2572,10 @@ impl LapceEditorBufferData {
 
                 for region in regions {
                     if is_focused {
-                        let (line, col) =
-                            self.buffer.offset_to_line_col(region.end());
+                        let (line, col) = self.buffer.offset_to_line_col(
+                            region.end(),
+                            self.config.editor.tab_width,
+                        );
                         let x = col as f64 * width;
                         let y = line as f64 * line_height;
                         ctx.stroke(
@@ -2522,14 +2643,22 @@ impl LapceEditorBufferData {
             {
                 let start = region.min();
                 let end = region.max();
-                let (start_line, start_col) = self.buffer.offset_to_line_col(start);
-                let (end_line, end_col) = self.buffer.offset_to_line_col(end);
+                let (start_line, start_col) = self
+                    .buffer
+                    .offset_to_line_col(start, self.config.editor.tab_width);
+                let (end_line, end_col) = self
+                    .buffer
+                    .offset_to_line_col(end, self.config.editor.tab_width);
                 for line in start_line..end_line + 1 {
                     let left_col = if line == start_line { start_col } else { 0 };
                     let right_col = if line == end_line {
                         end_col
                     } else {
-                        self.buffer.line_end_col(line, true) + 1
+                        self.buffer.line_end_col(
+                            line,
+                            true,
+                            self.config.editor.tab_width,
+                        ) + 1
                     };
                     let x0 = left_col as f64 * width;
                     let x1 = right_col as f64 * width;
@@ -2559,10 +2688,14 @@ impl LapceEditorBufferData {
             for (_, (start, end)) in snippet {
                 let paint_start_line = start_line;
                 let paint_end_line = end_line;
-                let (start_line, start_col) =
-                    self.buffer.offset_to_line_col(*start.min(end));
-                let (end_line, end_col) =
-                    self.buffer.offset_to_line_col(*start.max(end));
+                let (start_line, start_col) = self.buffer.offset_to_line_col(
+                    *start.min(end),
+                    self.config.editor.tab_width,
+                );
+                let (end_line, end_col) = self.buffer.offset_to_line_col(
+                    *start.max(end),
+                    self.config.editor.tab_width,
+                );
                 for line in paint_start_line..paint_end_line {
                     if line < start_line || line > end_line {
                         continue;
@@ -2576,10 +2709,18 @@ impl LapceEditorBufferData {
 
                     let right_col = match line {
                         _ if line == end_line => {
-                            let max_col = self.buffer.line_end_col(line, true);
+                            let max_col = self.buffer.line_end_col(
+                                line,
+                                true,
+                                self.config.editor.tab_width,
+                            );
                             end_col.min(max_col)
                         }
-                        _ => self.buffer.line_end_col(line, true),
+                        _ => self.buffer.line_end_col(
+                            line,
+                            true,
+                            self.config.editor.tab_width,
+                        ),
                     };
                     if line_content.len() > 0 {
                         let x1 = right_col as f64 * width;
@@ -2619,7 +2760,8 @@ impl LapceEditorBufferData {
                     let start_offset = if let Some(range) = diagnostic.range {
                         range.0
                     } else {
-                        self.buffer.offset_of_position(&start)
+                        self.buffer
+                            .offset_of_position(&start, self.config.editor.tab_width)
                     };
                     if start_offset == cursor_offset {
                         current = Some(diagnostic.clone());
@@ -2637,13 +2779,18 @@ impl LapceEditorBufferData {
                         } else {
                             let (_, col) = self.buffer.offset_to_line_col(
                                 self.buffer.first_non_blank_character_on_line(line),
+                                self.config.editor.tab_width,
                             );
                             col as f64 * width
                         };
                         let x1 = if line == end.line as usize {
                             end.character as f64 * width
                         } else {
-                            (self.buffer.line_end_col(line, false) + 1) as f64
+                            (self.buffer.line_end_col(
+                                line,
+                                false,
+                                self.config.editor.tab_width,
+                            ) + 1) as f64
                                 * width
                         };
                         let y1 = (line + 1) as f64 * line_height;
@@ -2921,6 +3068,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &Movement::Right,
                         Mode::Insert,
                         self.editor.compare.clone(),
+                        self.config.editor.tab_width,
                     )
                     .0;
                 self.buffer_mut().update_edit_type();
@@ -2937,6 +3085,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     &Movement::EndOfLine,
                     Mode::Insert,
                     self.editor.compare.clone(),
+                    self.config.editor.tab_width,
                 );
                 self.buffer_mut().update_edit_type();
                 self.set_cursor(Cursor::new(
@@ -2960,6 +3109,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &Movement::FirstNonBlank,
                             Mode::Normal,
                             self.editor.compare.clone(),
+                            self.config.editor.tab_width,
                         );
                         self.buffer_mut().update_edit_type();
                         self.set_cursor(Cursor::new(
@@ -2969,8 +3119,14 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                     CursorMode::Visual { start, end, mode } => {
                         let mut selection = Selection::new();
-                        for region in
-                            self.editor.cursor.edit_selection(&self.buffer).regions()
+                        for region in self
+                            .editor
+                            .cursor
+                            .edit_selection(
+                                &self.buffer,
+                                self.config.editor.tab_width,
+                            )
+                            .regions()
                         {
                             selection.add_region(SelRegion::caret(region.min()));
                         }
@@ -2999,12 +3155,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteToBeginningOfLine => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                        self.editor.cursor.edit_selection(&self.buffer)
-                    }
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
+                        .editor
+                        .cursor
+                        .edit_selection(&self.buffer, self.config.editor.tab_width),
                     CursorMode::Insert(_) => {
-                        let selection =
-                            self.editor.cursor.edit_selection(&self.buffer);
+                        let selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
                         let selection = self.buffer.update_selection(
                             &selection,
                             1,
@@ -3012,6 +3171,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.compare.clone(),
+                            self.config.editor.tab_width,
                         );
                         selection
                     }
@@ -3037,7 +3197,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::Yank => {
-                let data = self.editor.cursor.yank(&self.buffer);
+                let data = self
+                    .editor
+                    .cursor
+                    .yank(&self.buffer, self.config.editor.tab_width);
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_yank(data);
                 match &self.editor.cursor.mode {
@@ -3055,7 +3218,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::ClipboardCopy => {
-                let data = self.editor.cursor.yank(&self.buffer);
+                let data = self
+                    .editor
+                    .cursor
+                    .yank(&self.buffer, self.config.editor.tab_width);
                 Application::global().clipboard().put_string(data.content);
                 match &self.editor.cursor.mode {
                     CursorMode::Visual { start, end, mode } => {
@@ -3086,12 +3252,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteWordBackward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                        self.editor.cursor.edit_selection(&self.buffer)
-                    }
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
+                        .editor
+                        .cursor
+                        .edit_selection(&self.buffer, self.config.editor.tab_width),
                     CursorMode::Insert(_) => {
-                        let selection =
-                            self.editor.cursor.edit_selection(&self.buffer);
+                        let selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
                         let selection = self.buffer.update_selection(
                             &selection,
                             1,
@@ -3099,6 +3268,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.compare.clone(),
+                            self.config.editor.tab_width,
                         );
                         selection
                     }
@@ -3110,12 +3280,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteBackward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
-                        self.editor.cursor.edit_selection(&self.buffer)
-                    }
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
+                        .editor
+                        .cursor
+                        .edit_selection(&self.buffer, self.config.editor.tab_width),
                     CursorMode::Insert(_) => {
-                        let selection =
-                            self.editor.cursor.edit_selection(&self.buffer);
+                        let selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
                         let mut selection = self.buffer.update_selection(
                             &selection,
                             1,
@@ -3123,6 +3296,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.compare.clone(),
+                            self.config.editor.tab_width,
                         );
                         if selection.regions().len() == 1 {
                             let delete_str = self
@@ -3164,21 +3338,30 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::DeleteForeward => {
-                let selection = self.editor.cursor.edit_selection(&self.buffer);
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
                 let (selection, _) =
                     self.edit(ctx, &selection, "", None, true, EditType::Delete);
                 self.set_cursor_after_change(selection);
                 self.update_completion(ctx);
             }
             LapceCommand::DeleteForewardAndInsert => {
-                let selection = self.editor.cursor.edit_selection(&self.buffer);
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
                 let (selection, _) =
                     self.edit(ctx, &selection, "", None, true, EditType::Delete);
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
                 self.update_completion(ctx);
             }
             LapceCommand::InsertTab => {
-                let selection = self.editor.cursor.edit_selection(&self.buffer);
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
                 let (selection, _) = self.edit(
                     ctx,
                     &selection,
@@ -3191,7 +3374,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::InsertNewLine => {
-                let selection = self.editor.cursor.edit_selection(&self.buffer);
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
                 if selection.regions().len() > 1 {
                     let (selection, _) = self.edit(
                         ctx,
@@ -3315,7 +3501,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::ListSelect => {
-                let selection = self.editor.cursor.edit_selection(&self.buffer);
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
 
                 let count = self.completion.input.len();
                 let selection = if count > 0 {
@@ -3326,6 +3515,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         Mode::Insert,
                         true,
                         self.editor.compare.clone(),
+                        self.config.editor.tab_width,
                     )
                 } else {
                     selection
@@ -3379,6 +3569,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                 &Movement::Left,
                                 Mode::Normal,
                                 self.editor.compare.clone(),
+                                self.config.editor.tab_width,
                             )
                             .0
                     }
@@ -3399,10 +3590,14 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::GotoDefinition => {
                 let offset = self.editor.cursor.offset();
                 let start_offset = self.buffer.prev_code_boundary(offset);
-                let start_position = self.buffer.offset_to_position(start_offset);
+                let start_position = self
+                    .buffer
+                    .offset_to_position(start_offset, self.config.editor.tab_width);
                 let event_sink = ctx.get_external_handle();
                 let buffer_id = self.buffer.id;
-                let position = self.buffer.offset_to_position(offset);
+                let position = self
+                    .buffer
+                    .offset_to_position(offset, self.config.editor.tab_width);
                 let proxy = self.proxy.clone();
                 let editor_view_id = self.editor.view_id;
                 self.proxy.get_definition(
@@ -3539,7 +3734,9 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::JoinLines => {
                 let offset = self.editor.cursor.offset();
-                let (line, col) = self.buffer.offset_to_line_col(offset);
+                let (line, col) = self
+                    .buffer
+                    .offset_to_line_col(offset, self.config.editor.tab_width);
                 if line < self.buffer.last_line() {
                     let start = self.buffer.line_end_offset(line, true);
                     let end =
@@ -3625,7 +3822,10 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
-            let mut selection = self.editor.cursor.edit_selection(&self.buffer);
+            let mut selection = self
+                .editor
+                .cursor
+                .edit_selection(&self.buffer, self.config.editor.tab_width);
             let cursor_char =
                 self.buffer.char_at_offset(selection.get_cursor_offset());
 
@@ -5030,7 +5230,9 @@ impl LapceEditorView {
     ) {
         let line_height = data.config.editor.line_height as f64;
         let offset = data.editor.cursor.offset();
-        let (line, col) = data.buffer.offset_to_line_col(offset);
+        let (line, col) = data
+            .buffer
+            .offset_to_line_col(offset, data.config.editor.tab_width);
         let width = data.config.editor_text_width(ctx.text(), "W");
         let cursor_x = col as f64 * width - width;
         let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };

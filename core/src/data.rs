@@ -652,7 +652,7 @@ impl LapceTabData {
             .get(&self.main_split.split_id)
             .unwrap();
         WorkspaceInfo {
-            split: main_split_data.split_info(&self),
+            split: main_split_data.split_info(&self, self.config.editor.tab_width),
         }
     }
 
@@ -831,7 +831,8 @@ impl LapceTabData {
             BufferContent::File(path) => {
                 let buffer = self.main_split.open_files.get(path).unwrap();
                 let offset = editor.cursor.offset();
-                let (line, col) = buffer.offset_to_line_col(offset);
+                let (line, col) =
+                    buffer.offset_to_line_col(offset, self.config.editor.tab_width);
                 let width = config.editor_text_width(text, "W");
                 let x = col as f64 * width;
                 let y = (line + 1) as f64 * line_height;
@@ -863,7 +864,8 @@ impl LapceTabData {
             BufferContent::File(path) => {
                 let buffer = self.main_split.open_files.get(path).unwrap();
                 let offset = self.completion.offset;
-                let (line, col) = buffer.offset_to_line_col(offset);
+                let (line, col) =
+                    buffer.offset_to_line_col(offset, self.config.editor.tab_width);
                 let width = config.editor_text_width(text, "W");
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
@@ -1586,16 +1588,22 @@ impl SplitContent {
         }
     }
 
-    pub fn content_info(&self, data: &LapceTabData) -> SplitContentInfo {
+    pub fn content_info(
+        &self,
+        data: &LapceTabData,
+        tab_width: usize,
+    ) -> SplitContentInfo {
         match &self {
             SplitContent::EditorTab(widget_id) => {
                 let editor_tab_data =
                     data.main_split.editor_tabs.get(widget_id).unwrap();
-                SplitContentInfo::EditorTab(editor_tab_data.tab_info(data))
+                SplitContentInfo::EditorTab(
+                    editor_tab_data.tab_info(data, tab_width),
+                )
             }
             SplitContent::Split(split_id) => {
                 let split_data = data.main_split.splits.get(split_id).unwrap();
-                SplitContentInfo::Split(split_data.split_info(data))
+                SplitContentInfo::Split(split_data.split_info(data, tab_width))
             }
         }
     }
@@ -1676,13 +1684,13 @@ pub struct SplitData {
 }
 
 impl SplitData {
-    pub fn split_info(&self, data: &LapceTabData) -> SplitInfo {
+    pub fn split_info(&self, data: &LapceTabData, tab_width: usize) -> SplitInfo {
         let info = SplitInfo {
             direction: self.direction,
             children: self
                 .children
                 .iter()
-                .map(|child| child.content_info(data))
+                .map(|child| child.content_info(data, tab_width))
                 .collect(),
         };
         info
@@ -1785,6 +1793,7 @@ impl LapceMainSplitData {
         path: &PathBuf,
         rev: u64,
         result: &Result<Value>,
+        config: &Config,
     ) {
         let buffer = self.open_files.get(path).unwrap();
         if buffer.rev != rev {
@@ -1802,8 +1811,14 @@ impl LapceMainSplitData {
                         .iter()
                         .map(|edit| {
                             let selection = Selection::region(
-                                buffer.offset_of_position(&edit.range.start),
-                                buffer.offset_of_position(&edit.range.end),
+                                buffer.offset_of_position(
+                                    &edit.range.start,
+                                    config.editor.tab_width,
+                                ),
+                                buffer.offset_of_position(
+                                    &edit.range.end,
+                                    config.editor.tab_width,
+                                ),
                             );
                             (selection, edit.new_text.clone())
                         })
@@ -1814,6 +1829,7 @@ impl LapceMainSplitData {
                         &path,
                         edits.iter().map(|(s, c)| (s, c.as_ref())).collect(),
                         EditType::Other,
+                        config,
                     );
                 }
             }
@@ -1826,8 +1842,9 @@ impl LapceMainSplitData {
         path: &PathBuf,
         rev: u64,
         result: &Result<Value>,
+        config: &Config,
     ) {
-        self.document_format(ctx, path, rev, result);
+        self.document_format(ctx, path, rev, result, config);
 
         let buffer = self.open_files.get(path).unwrap();
         let rev = buffer.rev;
@@ -1849,7 +1866,7 @@ impl LapceMainSplitData {
         );
     }
 
-    fn initiate_diagnositcs_offset(&mut self, path: &PathBuf) {
+    fn initiate_diagnositcs_offset(&mut self, path: &PathBuf, config: &Config) {
         if let Some(diagnostics) = self.diagnostics.get_mut(path) {
             if let Some(buffer) = self.open_files.get(path) {
                 for diagnostic in Arc::make_mut(diagnostics).iter_mut() {
@@ -1857,9 +1874,11 @@ impl LapceMainSplitData {
                         diagnostic.range = Some((
                             buffer.offset_of_position(
                                 &diagnostic.diagnositc.range.start,
+                                config.editor.tab_width,
                             ),
                             buffer.offset_of_position(
                                 &diagnostic.diagnositc.range.end,
+                                config.editor.tab_width,
                             ),
                         ));
                     }
@@ -1868,7 +1887,12 @@ impl LapceMainSplitData {
         }
     }
 
-    fn update_diagnositcs_offset(&mut self, path: &PathBuf, delta: &RopeDelta) {
+    fn update_diagnositcs_offset(
+        &mut self,
+        path: &PathBuf,
+        delta: &RopeDelta,
+        config: &Config,
+    ) {
         if let Some(diagnostics) = self.diagnostics.get_mut(path) {
             if let Some(buffer) = self.open_files.get(path) {
                 let mut transformer = Transformer::new(delta);
@@ -1880,13 +1904,13 @@ impl LapceMainSplitData {
                     );
                     diagnostic.range = Some((new_start, new_end));
                     if start != new_start {
-                        diagnostic.diagnositc.range.start =
-                            buffer.offset_to_position(new_start);
+                        diagnostic.diagnositc.range.start = buffer
+                            .offset_to_position(new_start, config.editor.tab_width);
                     }
                     if end != new_end {
-                        diagnostic.diagnositc.range.end =
-                            buffer.offset_to_position(new_end);
-                        buffer.offset_to_position(new_end);
+                        diagnostic.diagnositc.range.end = buffer
+                            .offset_to_position(new_end, config.editor.tab_width);
+                        buffer.offset_to_position(new_end, config.editor.tab_width);
                     }
                 }
             }
@@ -1912,8 +1936,9 @@ impl LapceMainSplitData {
         path: &PathBuf,
         edits: Vec<(&Selection, &str)>,
         edit_type: EditType,
+        config: &Config,
     ) -> Option<RopeDelta> {
-        self.initiate_diagnositcs_offset(path);
+        self.initiate_diagnositcs_offset(path, config);
         let proxy = self.proxy.clone();
         let buffer = self.open_files.get_mut(path)?;
 
@@ -1933,7 +1958,7 @@ impl LapceMainSplitData {
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
-        self.update_diagnositcs_offset(path, &delta);
+        self.update_diagnositcs_offset(path, &delta, config);
         Some(delta)
     }
 
@@ -2178,7 +2203,7 @@ impl LapceMainSplitData {
             Some(location.path.clone()),
             config,
         );
-        editor.save_jump_location(&buffer);
+        editor.save_jump_location(&buffer, config.editor.tab_width);
         self.go_to_location(ctx, Some(editor_view_id), location, config);
         editor_view_id
     }
@@ -2240,7 +2265,8 @@ impl LapceMainSplitData {
 
             let (offset, scroll_offset) = match &location.position {
                 Some(position) => {
-                    let offset = buffer.offset_of_position(position);
+                    let offset =
+                        buffer.offset_of_position(position, config.editor.tab_width);
                     let buffer = self.open_files.get_mut(&path).unwrap();
                     let buffer = Arc::make_mut(buffer);
                     buffer.cursor_offset = offset;
@@ -2319,7 +2345,7 @@ impl LapceMainSplitData {
         } else {
             0
         });
-        let position = buffer.offset_to_position(offset);
+        let position = buffer.offset_to_position(offset, config.editor.tab_width);
         self.jump_to_position(ctx, Some(editor_view_id), position, config);
     }
 }
@@ -2804,11 +2830,15 @@ impl EditorTabChild {
         }
     }
 
-    pub fn child_info(&self, data: &LapceTabData) -> EditorTabChildInfo {
+    pub fn child_info(
+        &self,
+        data: &LapceTabData,
+        tab_width: usize,
+    ) -> EditorTabChildInfo {
         match &self {
             EditorTabChild::Editor(view_id) => {
                 let editor_data = data.main_split.editors.get(view_id).unwrap();
-                EditorTabChildInfo::Editor(editor_data.editor_info(data))
+                EditorTabChildInfo::Editor(editor_data.editor_info(data, tab_width))
             }
         }
     }
@@ -2835,14 +2865,14 @@ pub struct LapceEditorTabData {
 }
 
 impl LapceEditorTabData {
-    pub fn tab_info(&self, data: &LapceTabData) -> EditorTabInfo {
+    pub fn tab_info(&self, data: &LapceTabData, tab_width: usize) -> EditorTabInfo {
         let info = EditorTabInfo {
             active: self.active,
             is_focus: *data.main_split.active_tab == Some(self.widget_id),
             children: self
                 .children
                 .iter()
-                .map(|child| child.child_info(data))
+                .map(|child| child.child_info(data, tab_width))
                 .collect(),
         };
         info
@@ -2930,11 +2960,13 @@ impl LapceEditorData {
         placeholders.extend_from_slice(&v[1..]);
     }
 
-    pub fn save_jump_location(&mut self, buffer: &BufferNew) {
+    pub fn save_jump_location(&mut self, buffer: &BufferNew, tab_width: usize) {
         if let BufferContent::File(path) = &buffer.content {
             let location = EditorLocationNew {
                 path: path.clone(),
-                position: Some(buffer.offset_to_position(self.cursor.offset())),
+                position: Some(
+                    buffer.offset_to_position(self.cursor.offset(), tab_width),
+                ),
                 scroll_offset: Some(self.scroll_offset.clone()),
                 hisotry: None,
             };
@@ -2943,13 +2975,13 @@ impl LapceEditorData {
         }
     }
 
-    pub fn editor_info(&self, data: &LapceTabData) -> EditorInfo {
+    pub fn editor_info(&self, data: &LapceTabData, tab_width: usize) -> EditorInfo {
         let info = EditorInfo {
             content: self.content.clone(),
             scroll_offset: (self.scroll_offset.x, self.scroll_offset.y),
             position: if let BufferContent::File(path) = &self.content {
                 let buffer = data.main_split.open_files.get(path).unwrap().clone();
-                Some(buffer.offset_to_position(self.cursor.offset()))
+                Some(buffer.offset_to_position(self.cursor.offset(), tab_width))
             } else {
                 None
             },
@@ -2998,9 +3030,9 @@ impl LapceEditorViewData {
     ) {
     }
 
-    pub fn on_diagnostic(&self) -> Option<usize> {
+    pub fn on_diagnostic(&self, tab_width: usize) -> Option<usize> {
         let offset = self.editor.cursor.offset();
-        let position = self.buffer.offset_to_position(offset);
+        let position = self.buffer.offset_to_position(offset, tab_width);
         for diagnostic in self.diagnostics.iter() {
             if diagnostic.diagnositc.range.start == position {
                 return Some(offset);
@@ -3015,7 +3047,7 @@ impl LapceEditorViewData {
         self.buffer.code_actions.get(&prev_offset)
     }
 
-    pub fn get_code_actions(&mut self, ctx: &mut EventCtx) {
+    pub fn get_code_actions(&mut self, ctx: &mut EventCtx, tab_width: usize) {
         if !self.buffer.loaded {
             return;
         }
@@ -3028,7 +3060,8 @@ impl LapceEditorViewData {
             let prev_offset = self.buffer.prev_code_boundary(offset);
             if self.buffer.code_actions.get(&prev_offset).is_none() {
                 let buffer_id = self.buffer.id;
-                let position = self.buffer.offset_to_position(prev_offset);
+                let position =
+                    self.buffer.offset_to_position(prev_offset, tab_width);
                 let rev = self.buffer.rev;
                 let event_sink = ctx.get_external_handle();
                 self.proxy.get_code_actions(
@@ -3091,14 +3124,15 @@ impl LapceEditorViewData {
         &mut self,
         ctx: &mut EventCtx,
         item: &CompletionItem,
+        tab_width: usize,
     ) -> Result<()> {
         let additioal_edit = item.additional_text_edits.as_ref().map(|edits| {
             edits
                 .iter()
                 .map(|edit| {
                     let selection = Selection::region(
-                        self.buffer.offset_of_position(&edit.range.start),
-                        self.buffer.offset_of_position(&edit.range.end),
+                        self.buffer.offset_of_position(&edit.range.start, tab_width),
+                        self.buffer.offset_of_position(&edit.range.end, tab_width),
                     );
                     (selection, edit.new_text.clone())
                 })
@@ -3121,8 +3155,9 @@ impl LapceEditorViewData {
                     let start_offset = self.buffer.prev_code_boundary(offset);
                     let end_offset = self.buffer.next_code_boundary(offset);
                     let edit_start =
-                        self.buffer.offset_of_position(&edit.range.start);
-                    let edit_end = self.buffer.offset_of_position(&edit.range.end);
+                        self.buffer.offset_of_position(&edit.range.start, tab_width);
+                    let edit_end =
+                        self.buffer.offset_of_position(&edit.range.end, tab_width);
                     let selection = Selection::region(
                         start_offset.min(edit_start),
                         end_offset.max(edit_end),
@@ -3197,13 +3232,21 @@ impl LapceEditorViewData {
         Ok(())
     }
 
-    fn scroll(&mut self, ctx: &mut EventCtx, down: bool, count: usize, env: &Env) {
+    fn scroll(
+        &mut self,
+        ctx: &mut EventCtx,
+        down: bool,
+        count: usize,
+        config: &Config,
+    ) {
         let line_height = self.config.editor.line_height as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
 
         let offset = self.editor.cursor.offset();
-        let (line, col) = self.buffer.offset_to_line_col(offset);
+        let (line, col) = self
+            .buffer
+            .offset_to_line_col(offset, config.editor.tab_width);
         let top = self.editor.scroll_offset.y + diff;
         let bottom = top + self.editor.size.borrow().height;
 
@@ -3222,7 +3265,11 @@ impl LapceEditorViewData {
         };
 
         let offset = self.buffer.offset_of_line(line)
-            + col.min(self.buffer.line_end_col(line, false));
+            + col.min(self.buffer.line_end_col(
+                line,
+                false,
+                config.editor.tab_width,
+            ));
         self.set_cursor(Cursor::new(
             CursorMode::Normal(offset),
             self.editor.cursor.horiz.clone(),
@@ -3234,12 +3281,16 @@ impl LapceEditorViewData {
         ));
     }
 
-    fn page_move(&mut self, ctx: &mut EventCtx, down: bool, env: &Env) {
+    fn page_move(&mut self, ctx: &mut EventCtx, down: bool, config: &Config) {
         let line_height = self.config.editor.line_height as f64;
         let lines =
             (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
-        self.do_move(if down { &Movement::Down } else { &Movement::Up }, lines);
+        self.do_move(
+            if down { &Movement::Down } else { &Movement::Up },
+            lines,
+            config.editor.tab_width,
+        );
         let rect = Rect::ZERO
             .with_origin(
                 self.editor.scroll_offset.to_point()
@@ -3253,7 +3304,7 @@ impl LapceEditorViewData {
         ));
     }
 
-    pub fn next_error(&mut self, ctx: &mut EventCtx, env: &Env) {
+    pub fn next_error(&mut self, ctx: &mut EventCtx, config: &Config) {
         if let BufferContent::File(buffer_path) = &self.buffer.content {
             let mut file_diagnostics = self
                 .all_diagnostics
@@ -3287,7 +3338,9 @@ impl LapceEditorViewData {
             file_diagnostics.sort_by(|a, b| a.0.cmp(b.0));
 
             let offset = self.editor.cursor.offset();
-            let position = self.buffer.offset_to_position(offset);
+            let position = self
+                .buffer
+                .offset_to_position(offset, config.editor.tab_width);
             let (path, position) = next_in_file_errors_offset(
                 position,
                 &buffer_path,
@@ -3332,14 +3385,14 @@ impl LapceEditorViewData {
     pub fn jump_location_backward(
         &mut self,
         ctx: &mut EventCtx,
-        env: &Env,
+        config: &Config,
     ) -> Option<()> {
         if self.editor.current_location < 1 {
             return None;
         }
         if self.editor.current_location >= self.editor.locations.len() {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer);
+            editor.save_jump_location(&self.buffer, config.editor.tab_width);
             editor.current_location -= 1;
         }
         let editor = Arc::make_mut(&mut self.editor);
@@ -3353,10 +3406,10 @@ impl LapceEditorViewData {
         None
     }
 
-    pub fn do_move(&mut self, movement: &Movement, count: usize) {
+    pub fn do_move(&mut self, movement: &Movement, count: usize, tab_width: usize) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer);
+            editor.save_jump_location(&self.buffer, tab_width);
         }
         let editor = Arc::make_mut(&mut self.editor);
         editor.last_movement = movement.clone();
@@ -3369,6 +3422,7 @@ impl LapceEditorViewData {
                     movement,
                     Mode::Normal,
                     self.editor.compare.clone(),
+                    tab_width,
                 );
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.cursor.mode = CursorMode::Normal(new_offset);
@@ -3382,6 +3436,7 @@ impl LapceEditorViewData {
                     movement,
                     Mode::Visual,
                     self.editor.compare.clone(),
+                    tab_width,
                 );
                 let start = *start;
                 let mode = mode.clone();
@@ -3401,6 +3456,7 @@ impl LapceEditorViewData {
                     Mode::Insert,
                     false,
                     self.editor.compare.clone(),
+                    tab_width,
                 );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }
@@ -3490,9 +3546,11 @@ impl LapceEditorViewData {
         let (line, col) = if line > last_line {
             (last_line, 0)
         } else {
-            let line_end = self
-                .buffer
-                .line_end_col(line, !self.editor.cursor.is_normal());
+            let line_end = self.buffer.line_end_col(
+                line,
+                !self.editor.cursor.is_normal(),
+                config.editor.tab_width,
+            );
             let width = config.editor_text_width(text, "W");
 
             let col = (if self.editor.cursor.is_insert() {
@@ -3503,7 +3561,8 @@ impl LapceEditorViewData {
             .min(line_end);
             (line, col)
         };
-        self.buffer.offset_of_line_col(line, col)
+        self.buffer
+            .offset_of_line_col(line, col, config.editor.tab_width)
     }
 
     pub fn set_cursor(&mut self, cursor: Cursor) {
@@ -3521,9 +3580,10 @@ impl LapceEditorViewData {
                         let offset = (offset + 1).min(line_end);
                         Selection::caret(offset)
                     }
-                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => {
-                        self.editor.cursor.edit_selection(&self.buffer)
-                    }
+                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => self
+                        .editor
+                        .cursor
+                        .edit_selection(&self.buffer, self.config.editor.tab_width),
                 };
                 let after = !data.content.contains("\n");
                 let (selection, _) = self.edit(
@@ -3566,12 +3626,17 @@ impl LapceEditorViewData {
                         (Selection::caret(offset), data.content.clone())
                     }
                     CursorMode::Insert { .. } => (
-                        self.editor.cursor.edit_selection(&self.buffer),
+                        self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        ),
                         "\n".to_string() + &data.content,
                     ),
                     CursorMode::Visual { mode, .. } => {
-                        let selection =
-                            self.editor.cursor.edit_selection(&self.buffer);
+                        let selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
                         let data = match mode {
                             VisualMode::Linewise => data.content.clone(),
                             _ => "\n".to_string() + &data.content,
@@ -3620,9 +3685,14 @@ impl LapceEditorViewData {
             for diagnostic in Arc::make_mut(&mut self.diagnostics).iter_mut() {
                 if diagnostic.range.is_none() {
                     diagnostic.range = Some((
-                        buffer
-                            .offset_of_position(&diagnostic.diagnositc.range.start),
-                        buffer.offset_of_position(&diagnostic.diagnositc.range.end),
+                        buffer.offset_of_position(
+                            &diagnostic.diagnositc.range.start,
+                            self.config.editor.tab_width,
+                        ),
+                        buffer.offset_of_position(
+                            &diagnostic.diagnositc.range.end,
+                            self.config.editor.tab_width,
+                        ),
                     ));
                 }
             }
@@ -3641,12 +3711,12 @@ impl LapceEditorViewData {
                 );
                 diagnostic.range = Some((new_start, new_end));
                 if start != new_start {
-                    diagnostic.diagnositc.range.start =
-                        buffer.offset_to_position(new_start);
+                    diagnostic.diagnositc.range.start = buffer
+                        .offset_to_position(new_start, self.config.editor.tab_width);
                 }
                 if end != new_end {
-                    diagnostic.diagnositc.range.end =
-                        buffer.offset_to_position(new_end);
+                    diagnostic.diagnositc.range.end = buffer
+                        .offset_to_position(new_end, self.config.editor.tab_width);
                 }
             }
         }
@@ -3664,13 +3734,19 @@ impl LapceEditorViewData {
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {
                 if !selection.is_caret() {
-                    let data = self.editor.cursor.yank(&self.buffer);
+                    let data = self
+                        .editor
+                        .cursor
+                        .yank(&self.buffer, self.config.editor.tab_width);
                     let register = Arc::make_mut(&mut self.main_split.register);
                     register.add_delete(data);
                 }
             }
             CursorMode::Visual { start, end, mode } => {
-                let data = self.editor.cursor.yank(&self.buffer);
+                let data = self
+                    .editor
+                    .cursor
+                    .yank(&self.buffer, self.config.editor.tab_width);
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_delete(data);
             }

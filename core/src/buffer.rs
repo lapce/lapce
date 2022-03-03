@@ -882,7 +882,11 @@ impl BufferNew {
                 }
             }
         }
-        Some(layout_builder.build_with_bounds(bounds))
+        Some(layout_builder.build_with_info(
+            true,
+            config.editor.tab_width,
+            Some(bounds),
+        ))
     }
 
     pub fn new_text_layout(
@@ -928,7 +932,7 @@ impl BufferNew {
                 }
             }
         }
-        layout_builder.build_with_bounds(bounds)
+        layout_builder.build_with_info(true, config.editor.tab_width, Some(bounds))
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
@@ -943,16 +947,16 @@ impl BufferNew {
         self.rope.slice_to_cow(range)
     }
 
-    pub fn offset_to_position(&self, offset: usize) -> Position {
-        let (line, col) = self.offset_to_line_col(offset);
+    pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {
+        let (line, col) = self.offset_to_line_col(offset, tab_width);
         Position {
             line: line as u32,
             character: col as u32,
         }
     }
 
-    pub fn offset_of_position(&self, pos: &Position) -> usize {
-        self.offset_of_line_col(pos.line as usize, pos.character as usize)
+    pub fn offset_of_position(&self, pos: &Position, tab_width: usize) -> usize {
+        self.offset_of_line_col(pos.line as usize, pos.character as usize, tab_width)
     }
 
     pub fn offset_of_mouse(
@@ -976,7 +980,11 @@ impl BufferNew {
         let (line, col) = if line > last_line {
             (last_line, 0)
         } else {
-            let line_end = self.line_end_col(line, mode != Mode::Normal);
+            let line_end = self.line_end_col(
+                line,
+                mode != Mode::Normal,
+                config.editor.tab_width,
+            );
             let width = config.editor_text_width(text, "W");
 
             let col = (if mode == Mode::Insert {
@@ -987,11 +995,15 @@ impl BufferNew {
             .min(line_end);
             (line, col)
         };
-        self.offset_of_line_col(line, col)
+        self.offset_of_line_col(line, col, config.editor.tab_width)
     }
 
-    pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
-        let tab_width = 8;
+    pub fn offset_of_line_col(
+        &self,
+        line: usize,
+        col: usize,
+        tab_width: usize,
+    ) -> usize {
         let mut pos = 0;
         let mut offset = self.offset_of_line(line);
         for c in self
@@ -1020,7 +1032,11 @@ impl BufferNew {
         offset
     }
 
-    pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
+    pub fn offset_to_line_col(
+        &self,
+        offset: usize,
+        tab_width: usize,
+    ) -> (usize, usize) {
         let max = self.len();
         let offset = if offset > max { max } else { offset };
         let line = self.line_of_offset(offset);
@@ -1029,14 +1045,14 @@ impl BufferNew {
             return (line, 0);
         }
 
-        let col = str_col(&self.slice_to_cow(line_start..offset));
+        let col = str_col(&self.slice_to_cow(line_start..offset), tab_width);
         (line, col)
     }
 
-    pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
+    pub fn line_end_col(&self, line: usize, caret: bool, tab_width: usize) -> usize {
         let line_start = self.offset_of_line(line);
         let offset = self.line_end_offset(line, caret);
-        let col = str_col(&self.slice_to_cow(line_start..offset));
+        let col = str_col(&self.slice_to_cow(line_start..offset), tab_width);
         col
     }
 
@@ -1085,10 +1101,11 @@ impl BufferNew {
         line: usize,
         horiz: &ColPosition,
         caret: bool,
+        tab_width: usize,
     ) -> usize {
         match horiz {
-            &ColPosition::Col(n) => n.min(self.line_end_col(line, caret)),
-            &ColPosition::End => self.line_end_col(line, caret),
+            &ColPosition::Col(n) => n.min(self.line_end_col(line, caret, tab_width)),
+            &ColPosition::End => self.line_end_col(line, caret, tab_width),
             &ColPosition::Start => 0,
             &ColPosition::FirstNonBlank => {
                 self.first_non_blank_character_on_line(line)
@@ -1104,6 +1121,7 @@ impl BufferNew {
         mode: Mode,
         modify: bool,
         compare: Option<String>,
+        tab_width: usize,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
@@ -1114,6 +1132,7 @@ impl BufferNew {
                 mode,
                 modify,
                 compare.clone(),
+                tab_width,
             );
             new_selection.add_region(region);
         }
@@ -1128,6 +1147,7 @@ impl BufferNew {
         mode: Mode,
         modify: bool,
         compare: Option<String>,
+        tab_width: usize,
     ) -> SelRegion {
         let (end, horiz) = self.move_offset(
             region.end(),
@@ -1136,6 +1156,7 @@ impl BufferNew {
             movement,
             mode,
             compare,
+            tab_width,
         );
 
         let start = match modify {
@@ -1340,11 +1361,12 @@ impl BufferNew {
         movement: &Movement,
         mode: Mode,
         compare: Option<String>,
+        tab_width: usize,
     ) -> (usize, ColPosition) {
         let horiz = if let Some(horiz) = horiz {
             horiz.clone()
         } else {
-            let (_, col) = self.offset_to_line_col(offset);
+            let (_, col) = self.offset_to_line_col(offset, tab_width);
             ColPosition::Col(col)
         };
         match movement {
@@ -1360,7 +1382,7 @@ impl BufferNew {
 
                 let new_offset =
                     self.prev_grapheme_offset(offset, count, min_offset);
-                let (_, col) = self.offset_to_line_col(new_offset);
+                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::Right => {
@@ -1375,7 +1397,7 @@ impl BufferNew {
                 let new_offset =
                     self.next_grapheme_offset(offset, count, max_offset);
 
-                let (_, col) = self.offset_to_line_col(new_offset);
+                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::Up => {
@@ -1396,8 +1418,13 @@ impl BufferNew {
                     }
                 };
 
-                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
-                let new_offset = self.offset_of_line_col(line, col);
+                let col = self.line_horiz_col(
+                    line,
+                    &horiz,
+                    mode != Mode::Normal,
+                    tab_width,
+                );
+                let new_offset = self.offset_of_line_col(line, col, tab_width);
                 (new_offset, horiz)
             }
             Movement::Down => {
@@ -1415,8 +1442,13 @@ impl BufferNew {
                     line
                 };
 
-                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
-                let new_offset = self.offset_of_line_col(line, col);
+                let col = self.line_horiz_col(
+                    line,
+                    &horiz,
+                    mode != Mode::Normal,
+                    tab_width,
+                );
+                let new_offset = self.offset_of_line_col(line, col, tab_width);
                 (new_offset, horiz)
             }
             Movement::FirstNonBlank => {
@@ -1455,15 +1487,20 @@ impl BufferNew {
                     LinePosition::First => 0,
                     LinePosition::Last => self.last_line(),
                 };
-                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
-                let new_offset = self.offset_of_line_col(line, col);
+                let col = self.line_horiz_col(
+                    line,
+                    &horiz,
+                    mode != Mode::Normal,
+                    tab_width,
+                );
+                let new_offset = self.offset_of_line_col(line, col, tab_width);
                 (new_offset, horiz)
             }
             Movement::Offset(offset) => {
                 let new_offset = *offset;
                 let new_offset =
                     self.rope.prev_grapheme_offset(new_offset + 1).unwrap();
-                let (_, col) = self.offset_to_line_col(new_offset);
+                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::WordEndForward => {
@@ -1473,21 +1510,21 @@ impl BufferNew {
                 if mode != Mode::Insert {
                     new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
                 }
-                let (_, col) = self.offset_to_line_col(new_offset);
+                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::WordForward => {
                 let new_offset = WordCursor::new(&self.rope, offset)
                     .next_boundary()
                     .unwrap_or(offset);
-                let (_, col) = self.offset_to_line_col(new_offset);
+                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::WordBackward => {
                 let new_offset = WordCursor::new(&self.rope, offset)
                     .prev_boundary()
                     .unwrap_or(offset);
-                let (_, col) = self.offset_to_line_col(new_offset);
+                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::NextUnmatched(c) => {
@@ -1495,7 +1532,7 @@ impl BufferNew {
                     let new_offset = self
                         .find_tag(offset, false, &c.to_string())
                         .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
+                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                     (new_offset, ColPosition::Col(col))
                 } else {
                     let new_offset = match WordCursor::new(&self.rope, offset)
@@ -1504,7 +1541,7 @@ impl BufferNew {
                         Some(new_offset) => new_offset - 1,
                         None => offset,
                     };
-                    let (_, col) = self.offset_to_line_col(new_offset);
+                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                     (new_offset, ColPosition::Col(col))
                 }
             }
@@ -1513,13 +1550,13 @@ impl BufferNew {
                     let new_offset = self
                         .find_tag(offset, true, &c.to_string())
                         .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
+                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                     (new_offset, ColPosition::Col(col))
                 } else {
                     let new_offset = WordCursor::new(&self.rope, offset)
                         .previous_unmatched(*c)
                         .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
+                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                     (new_offset, ColPosition::Col(col))
                 }
             }
@@ -1527,13 +1564,13 @@ impl BufferNew {
                 if self.syntax_tree.is_some() {
                     let new_offset =
                         self.find_matching_pair(offset).unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
+                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                     (new_offset, ColPosition::Col(col))
                 } else {
                     let new_offset = WordCursor::new(&self.rope, offset)
                         .match_pairs()
                         .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
+                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
                     (new_offset, ColPosition::Col(col))
                 }
             }
@@ -2696,8 +2733,7 @@ pub fn char_width(c: char) -> usize {
     c.width().unwrap_or(0)
 }
 
-pub fn str_col(s: &str) -> usize {
-    let tab_width = 8;
+pub fn str_col(s: &str, tab_width: usize) -> usize {
     let mut total_width = 0;
 
     for c in s.chars() {

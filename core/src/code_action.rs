@@ -13,7 +13,7 @@ use lsp_types::{
 use crate::{
     buffer::{BufferContent, EditType},
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    config::{Config, LapceTheme},
     data::{EditorContent, LapceMainSplitData, LapceTabData},
     keypress::{KeyPressData, KeyPressFocus},
     movement::{Movement, Selection},
@@ -28,6 +28,7 @@ pub struct CodeAction {}
 pub struct CodeActionData {
     pub main_split: LapceMainSplitData,
     pub proxy: Arc<LapceProxy>,
+    pub config: Arc<Config>,
 }
 
 impl KeyPressFocus for CodeActionData {
@@ -143,9 +144,11 @@ impl CodeActionData {
                                             let selection = Selection::region(
                                                 buffer.offset_of_position(
                                                     &edit.range.start,
+                                                    self.config.editor.tab_width,
                                                 ),
                                                 buffer.offset_of_position(
                                                     &edit.range.end,
+                                                    self.config.editor.tab_width,
                                                 ),
                                             );
                                             (selection, edit.new_text.clone())
@@ -159,6 +162,7 @@ impl CodeActionData {
                                             .map(|(s, c)| (s, c.as_ref()))
                                             .collect(),
                                         EditType::Other,
+                                        &self.config,
                                     );
                                 }
                             }
@@ -218,6 +222,7 @@ impl Widget<LapceTabData> for CodeAction {
                 let mut code_action_data = CodeActionData {
                     main_split: data.main_split.clone(),
                     proxy: data.proxy.clone(),
+                    config: data.config.clone(),
                 };
                 mut_keypress.key_down(ctx, key_event, &mut code_action_data, env);
                 data.keypress = keypress;

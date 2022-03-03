@@ -101,6 +101,8 @@ pub struct EditorConfig {
     pub font_size: usize,
     #[field_names(desc = "Set the line height")]
     pub line_height: usize,
+    #[field_names(desc = "Set the tab width")]
+    pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
 }
