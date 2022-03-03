@@ -188,22 +188,42 @@ impl Config {
     }
 
     pub fn settings_file() -> Option<PathBuf> {
-        Self::dir().map(|d| {
+        let path = Self::dir().map(|d| {
             d.join(if !cfg!(debug_assertions) {
                 "settings.toml"
             } else {
                 "debug-settings.toml"
             })
-        })
+        })?;
+
+        if let Some(dir) = path.parent() {
+            if !dir.exists() {
+                std::fs::create_dir_all(dir);
+            }
+        }
+
+        if !path.exists() {
+            std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path);
+        }
+
+        Some(path)
+    }
+
+    fn get_file_table() -> Option<toml::value::Table> {
+        let path = Self::settings_file()?;
+        let content = std::fs::read(&path).ok()?;
+        let toml_value: toml::Value = toml::from_slice(&content).ok()?;
+        let table = toml_value.as_table()?.clone();
+        Some(table)
     }
 
     pub fn update_file(key: &str, value: toml::Value) -> Option<()> {
-        let path = Config::settings_file()?;
-        let content = std::fs::read(&path).ok()?;
-        let mut toml_value: toml::Value = toml::from_slice(&content)
-            .unwrap_or(toml::Value::Table(toml::value::Table::new()));
-
-        let mut table = toml_value.as_table_mut()?;
+        let mut main_table =
+            Self::get_file_table().unwrap_or_else(|| toml::value::Table::new());
+        let mut table = &mut main_table;
         let parts: Vec<&str> = key.split(".").collect();
         let n = parts.len();
         for (i, key) in parts.into_iter().enumerate() {
@@ -220,7 +240,8 @@ impl Config {
             }
         }
 
-        std::fs::write(&path, toml::to_string(&toml_value).ok()?.as_bytes()).ok()?;
+        let path = Self::settings_file()?;
+        std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
         None
     }
 

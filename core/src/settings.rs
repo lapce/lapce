@@ -857,8 +857,8 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                             self.name(ctx.text(), data).size().height
                                 + self.padding * 3.0,
                         ));
-                    self.value = serde_json::json!(!checked);
                     if rect.contains(mouse_event.pos) {
+                        self.value = serde_json::json!(!checked);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::UpdateSettingsFile(
