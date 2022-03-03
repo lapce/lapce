@@ -31,11 +31,22 @@ jobs:
           ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
             -out "./Lapce-windows.msi" -sice:ICE61 -sice:ICE91 \
             "./lapce.wixobj"
+      - name: Create portable 
+        run: |
+          cp ./target/release/lapce.exe Lapce-portable.exe
       - name: Upload msi installer
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ./Lapce-windows.msi
+          file_glob: true
+          tag: ${{ github.ref }}
+          overwrite: true
+      - name: Upload portable
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./Lapce-portable.exe
           file_glob: true
           tag: ${{ github.ref }}
           overwrite: true
