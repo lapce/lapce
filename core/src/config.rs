@@ -187,6 +187,31 @@ impl Config {
         ProjectDirs::from("", "", "Lapce").map(|d| PathBuf::from(d.config_dir()))
     }
 
+    pub fn log_file() -> Option<PathBuf> {
+        let path = Self::dir().map(|d| {
+            d.join(if !cfg!(debug_assertions) {
+                "lapce.log"
+            } else {
+                "debug-lapce.log"
+            })
+        })?;
+
+        if let Some(dir) = path.parent() {
+            if !dir.exists() {
+                std::fs::create_dir_all(dir);
+            }
+        }
+
+        if !path.exists() {
+            std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path);
+        }
+
+        Some(path)
+    }
+
     pub fn settings_file() -> Option<PathBuf> {
         let path = Self::dir().map(|d| {
             d.join(if !cfg!(debug_assertions) {

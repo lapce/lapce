@@ -125,6 +125,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Keyboard Shortcuts File")]
     OpenKeyboardShortcutsFile,
 
+    #[strum(serialize = "open_log_file")]
+    #[strum(message = "Open Log File")]
+    OpenLogFile,
+
     #[strum(serialize = "close_tab")]
     #[strum(message = "Close Current Tab")]
     CloseTab,

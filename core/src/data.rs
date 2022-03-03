@@ -995,6 +995,22 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
+            LapceWorkbenchCommand::OpenLogFile => {
+                if let Some(path) = Config::log_file() {
+                    let editor_view_id = self.main_split.active.clone();
+                    self.main_split.jump_to_location(
+                        ctx,
+                        *editor_view_id,
+                        EditorLocationNew {
+                            path: path.clone(),
+                            position: None,
+                            scroll_offset: None,
+                            hisotry: None,
+                        },
+                        &self.config,
+                    );
+                }
+            }
             LapceWorkbenchCommand::OpenSettings => {
                 let settings = Arc::make_mut(&mut self.settings);
                 settings.shown = true;
@@ -1006,14 +1022,6 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::OpenSettingsFile => {
                 if let Some(path) = Config::settings_file() {
-                    if let Some(parent) = path.parent() {
-                        std::fs::create_dir_all(parent);
-                        std::fs::OpenOptions::new()
-                            .create_new(true)
-                            .write(true)
-                            .open(&path);
-                    }
-
                     let editor_view_id = self.main_split.active.clone();
                     self.main_split.jump_to_location(
                         ctx,

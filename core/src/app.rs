@@ -5,6 +5,7 @@ use druid::{
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::Config,
     data::{LapceData, LapceWindowData, LapceWindowLens},
     db::{TabsInfo, WindowInfo},
     window::LapceWindowNew,
@@ -27,7 +28,7 @@ pub fn lanuch() {
         })
         .level(log::LevelFilter::Off)
         .level_for("piet_wgpu", log::LevelFilter::Info)
-        .chain(std::io::stdout())
+        .chain(fern::log_file(Config::log_file().unwrap()).unwrap())
         .apply()
         .unwrap();
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
