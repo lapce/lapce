@@ -522,7 +522,7 @@ dependencies = [
  "clicolors-control",
  "lazy_static 1.4.0",
  "libc",
- "parking_lot 0.11.2",
+ "parking_lot 0.6.4",
  "regex",
  "termios",
  "unicode-width",
@@ -3298,7 +3298,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu#e2600e23e1f2b5be433c8bcdd19b88ba45ab18f3"
+source = "git+https://github.com/lapce/piet-wgpu#400d4c9279dd4ca9966f7a211c9485f8bca01220"
 dependencies = [
  "bytemuck",
  "font-kit",
