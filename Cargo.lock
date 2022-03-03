@@ -388,6 +388,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
+name = "chrono"
+version = "0.4.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
+dependencies = [
+ "libc",
+ "num-integer",
+ "num-traits 0.2.14",
+ "time 0.1.44",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "clap"
 version = "2.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -509,7 +522,7 @@ dependencies = [
  "clicolors-control",
  "lazy_static 1.4.0",
  "libc",
- "parking_lot 0.6.4",
+ "parking_lot 0.11.2",
  "regex",
  "termios",
  "unicode-width",
@@ -1060,7 +1073,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "piet-wgpu",
  "raw-window-handle",
- "time",
+ "time 0.2.27",
  "tracing",
  "wasm-bindgen",
  "web-sys",
@@ -1162,6 +1175,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3fcf0cee53519c866c09b5de1f6c56ff9d647101f81c1964fa632e148896cdf"
 dependencies = [
  "instant",
+]
+
+[[package]]
+name = "fern"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c9a4820f0ccc8a7afd67c39a0f1a0f4b07ca1725164271a64939d7aeb9af065"
+dependencies = [
+ "log",
 ]
 
 [[package]]
@@ -2159,12 +2181,14 @@ dependencies = [
  "base64",
  "bit-vec 0.5.1",
  "cc",
+ "chrono",
  "config",
  "crossbeam-channel 0.5.1",
  "crossbeam-utils 0.8.5",
  "diff",
  "directories",
  "druid",
+ "fern",
  "flate2",
  "fuzzy-matcher",
  "fzyr",
@@ -2178,6 +2202,7 @@ dependencies = [
  "lapce-rpc",
  "lazy_static 1.4.0",
  "libloading",
+ "log",
  "lsp-types",
  "notify 5.0.0-pre.13",
  "parking_lot 0.11.2",
@@ -2944,6 +2969,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-integer"
+version = "0.1.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2cc698a63b549a70bc047073d2949cce27cd1c7b0a4a862d08a8031bc2801db"
+dependencies = [
+ "autocfg 1.0.1",
+ "num-traits 0.2.14",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3263,7 +3298,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu#2e970077c7c255e52db258aca68f476007686d6e"
+source = "git+https://github.com/lapce/piet-wgpu#856a0bf73c76a4edcb2fd6e9c5709b795d5a1d32"
 dependencies = [
  "bytemuck",
  "font-kit",
@@ -3272,6 +3307,7 @@ dependencies = [
  "hashbrown 0.11.2",
  "include_dir",
  "linked-hash-map",
+ "log",
  "lyon",
  "pathfinder_geometry",
  "piet",
@@ -4475,6 +4511,17 @@ dependencies = [
 
 [[package]]
 name = "time"
+version = "0.1.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6db9e6914ab8b1ae1c260a4ae7a49b6c5611b40328a735b21862567685e73255"
+dependencies = [
+ "libc",
+ "wasi",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "time"
 version = "0.2.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4752a97f8eebd6854ff91f1c1824cd6160626ac4bd44287f7f4ea2035a02a242"
@@ -4991,9 +5038,9 @@ dependencies = [
 
 [[package]]
 name = "wasi"
-version = "0.10.2+wasi-snapshot-preview1"
+version = "0.10.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
+checksum = "1a143597ca7c7793eff794def352d41792a93c481eb1042423ff7ff72ba2c31f"
 
 [[package]]
 name = "wasm-bindgen"
@@ -5287,7 +5334,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7731240c0ae536623414beb73091dddf68d1a080f49086fc31ec916536b1af98"
 dependencies = [
  "byteorder",
- "time",
+ "time 0.2.27",
  "wasmer-types",
 ]
 

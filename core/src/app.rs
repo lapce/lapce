@@ -15,6 +15,21 @@ pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
 }
 
 pub fn lanuch() {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Off)
+        .level_for("piet_wgpu", log::LevelFilter::Info)
+        .chain(std::io::stdout())
+        .apply()
+        .unwrap();
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
     let data = LapceData::load(launcher.get_external_handle());
     for (window_id, window_data) in data.windows.iter() {
