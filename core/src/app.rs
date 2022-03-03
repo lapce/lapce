@@ -16,7 +16,7 @@ pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
 }
 
 pub fn lanuch() {
-    fern::Dispatch::new()
+    let mut log_dispatch = fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
                 "{}[{}][{}] {}",
@@ -27,10 +27,12 @@ pub fn lanuch() {
             ))
         })
         .level(log::LevelFilter::Off)
-        .level_for("piet_wgpu", log::LevelFilter::Info)
-        .chain(fern::log_file(Config::log_file().unwrap()).unwrap())
-        .apply()
-        .unwrap();
+        .level_for("piet_wgpu", log::LevelFilter::Info);
+    if let Some(log_file) = Config::log_file().and_then(|f| fern::log_file(f).ok()) {
+        log_dispatch = log_dispatch.chain(log_file);
+    }
+    log_dispatch.apply();
+
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
     let data = LapceData::load(launcher.get_external_handle());
     for (window_id, window_data) in data.windows.iter() {
