@@ -1739,16 +1739,11 @@ impl LapceEditorBufferData {
                         current_line - line
                     }
                 };
-                let x = ((last_line + 1).to_string().len()
-                    - content.to_string().len()) as f64
-                    * width;
-                let y = line_height * line as f64 + 5.0 - scroll_offset.y;
-                let pos = Point::new(x, y);
                 let content = content.to_string();
 
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(content)
+                    .new_text_layout(content.clone())
                     .font(
                         self.config.editor.font_family(),
                         self.config.editor.font_size as f64,
@@ -1764,6 +1759,11 @@ impl LapceEditorBufferData {
                     })
                     .build()
                     .unwrap();
+                let x = ((last_line + 1).to_string().len() - content.len()) as f64
+                    * width;
+                let y = line_height * line as f64 - scroll_offset.y
+                    + (line_height - text_layout.size().height) / 2.0;
+                let pos = Point::new(x, y);
                 ctx.draw_text(&text_layout, pos);
             }
 
