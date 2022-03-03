@@ -33,7 +33,7 @@ jobs:
             "./lapce.wixobj"
       - name: Create portable 
         run: |
-          cp ./target/release/lapce.exe Lapce-portable.exe
+          cp ./target/release/lapce.exe ./Lapce-portable.exe
       - name: Upload msi installer
         uses: svenstaro/upload-release-action@v2
         with:
