@@ -980,6 +980,17 @@ impl LapceEditorBufferData {
         let offset = transformer.transform(offset, false);
         let (ins, del) = delta.clone().factor();
         let ins = ins.transform_shrink(&del);
+        for el in ins.els.iter() {
+            match el {
+                xi_rope::DeltaElement::Copy(b, e) => {
+                    // if b == e, ins.inserted_subset() will panic
+                    if b == e {
+                        return;
+                    }
+                }
+                xi_rope::DeltaElement::Insert(_) => {}
+            }
+        }
         let mut positions = ins
             .inserted_subset()
             .complement_iter()
