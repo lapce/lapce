@@ -32,6 +32,7 @@ jobs:
             -out "./Lapce-windows.msi" -sice:ICE61 -sice:ICE91 \
             "./lapce.wixobj"
       - name: Create portable 
+        shell: pwsh
         run: |
           Compress-Archive ./target/release/lapce.exe ./Lapce-portable.zip
       - name: Upload msi installer
