@@ -6,10 +6,10 @@
 <h4 align="center">Lightning-fast and Powerful Code Editor written in Rust</h4>
 
 <div align="center">
-  <a href="https://discord.gg/n8tGJ6Rn6D">
+  <a href="https://discord.gg/n8tGJ6Rn6D" target="_blank">
     <img src="https://img.shields.io/discord/946858761413328946?logo=discord" />
   </a>
-  <a href="https://docs.lapce.dev">
+  <a href="https://docs.lapce.dev" target="_blank">
       <img src="https://img.shields.io/static/v1?label=Docs&message=docs.lapce.dev&color=blue" alt="Lapce Docs">
   </a>
 </div>
