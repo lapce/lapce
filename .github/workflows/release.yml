@@ -33,7 +33,7 @@ jobs:
             "./lapce.wixobj"
       - name: Create portable 
         run: |
-          cp ./target/release/lapce.exe ./Lapce-portable.exe
+          Compress-Archive ./target/release/lapce.exe ./Lapce-portable.zip
       - name: Upload msi installer
         uses: svenstaro/upload-release-action@v2
         with:
@@ -46,7 +46,7 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./Lapce-portable.exe
+          file: ./Lapce-portable.zip
           file_glob: true
           tag: ${{ github.ref }}
           overwrite: true
