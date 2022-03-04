@@ -1,6 +1,59 @@
+# --------------------------------- General --------------------------------------------
+
 [[keymaps]]
-key = "meta+,"
+key = "ctrl+p"
+command = "palette"
+
+[[keymaps]]
+key = "Ctrl+P"
+command = "palette.command"
+
+[[keymaps]]
+key = "F1"
+command = "palette.command"
+
+[[keymaps]]
+key = ":"
+command = "palette.command"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+,"
 command = "open_settings"
+
+# --------------------------------- Basic editing ---------------------------------------
+
+[[keymaps]]
+key = "ctrl+x"
+command = "clipboard_cut"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+c"
+command = "clipboard_copy"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+v"
+command = "clipboard_paste"
+mode = "i"
+
+[[keymaps]]
+key = "alt+up"
+command = "move_line_up"
+mode = "i"
+
+[[keymaps]]
+key = "alt+down"
+command = "move_line_down"
+mode = "i"
+
+# ------------------------------------ Multi cursor -------------------------------------
+
+[[keymaps]]
+key = "alt+ctrl+up"
+command = "insert_cursor_above"
+mode = "i"
 
 [[keymaps]]
 key = "ctrl+m"
@@ -29,45 +82,16 @@ when = "list_focus"
 mode = "n"
 
 [[keymaps]]
-key = "meta+e"
-command = "file_explorer"
-mode = "n"
-
-[[keymaps]]
-key = "meta+l"
-command = "file_explorer.cancel"
-when = "file_explorer_focus"
-
-[[keymaps]]
-key = "meta+i"
-command = "source_control"
-mode = "n"
-
-[[keymaps]]
-key = "meta+l"
-command = "source_control.cancel"
-when = "source_control_focus"
-
-[[keymaps]]
 key = "/"
 command = "palette.line"
 mode = "n"
 
 [[keymaps]]
-key = ":"
-command = "palette.command"
-mode = "n"
-
-[[keymaps]]
-key = "meta+o"
+key = "alt+o"
 command = "palette.symbol"
 
 [[keymaps]]
-key = "meta+p"
-command = "palette"
-
-[[keymaps]]
-key = "meta+s"
+key = "ctrl+s"
 command = "save"
 
 [[keymaps]]
@@ -91,19 +115,19 @@ command = "right"
 mode = "i"
 
 [[keymaps]]
-key = "ArrowRight"
+key = "right"
 command = "right"
 
 [[keymaps]]
-key = "ArrowLeft"
+key = "left"
 command = "left"
 
 [[keymaps]]
-key = "ArrowUp"
+key = "up"
 command = "up"
 
 [[keymaps]]
-key = "ArrowDown"
+key = "down"
 command = "down"
 
 [[keymaps]]
@@ -132,11 +156,6 @@ command = "normal_mode"
 mode = "iv"
 
 [[keymaps]]
-key = "meta+j"
-command = "normal_mode"
-mode = "iv"
-
-[[keymaps]]
 key = "enter"
 command = "insert_new_line"
 mode = "i"
@@ -151,11 +170,6 @@ key = "ctrl+m"
 command = "insert_new_line"
 mode = "i"
 when = "!list_focus"
-
-[[keymaps]]
-key = "ctrl+x"
-command = "get_completion"
-mode = "i"
 
 [[keymaps]]
 key = "tab"
@@ -220,7 +234,7 @@ command = "undo"
 mode = "n"
 
 [[keymaps]]
-key = "meta+z"
+key = "ctrl+z"
 command = "undo"
 mode = "i"
 
@@ -258,16 +272,6 @@ mode = "n"
 key = "ctrl+p"
 command = "get_references"
 mode = "n"
-
-[[keymaps]]
-key = "meta+c"
-command = "clipboard_copy"
-mode = "inv"
-
-[[keymaps]]
-key = "meta+v"
-command = "clipboard_paste"
-mode = "inv"
 
 [[keymaps]]
 key = "p"
@@ -405,7 +409,7 @@ command = "previous_unmatched_left_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "] "
+key = "] }"
 command = "next_unmatched_right_curly_bracket"
 mode = "nv"
 
@@ -435,27 +439,7 @@ command = "toggle_comment"
 mode = "nv"
 
 [[keymaps]]
-key = "meta+f"
-command = "document_formatting"
-mode = "n"
-
-[[keymaps]]
-key = "meta+;"
-command = "split_vertical"
-mode = "n"
-
-[[keymaps]]
-key = "meta+g"
-command = "split_horizontal"
-mode = "n"
-
-[[keymaps]]
 key = "ctrl+w l"
-command = "split_right"
-mode = "n"
-
-[[keymaps]]
-key = "meta+l"
 command = "split_right"
 mode = "n"
 
@@ -465,18 +449,8 @@ command = "split_left"
 mode = "n"
 
 [[keymaps]]
-key = "meta+j"
-command = "split_down"
-mode = "n"
-
-[[keymaps]]
 key = "ctrl+w j"
 command = "split_down"
-mode = "n"
-
-[[keymaps]]
-key = "meta+k"
-command = "split_up"
 mode = "n"
 
 [[keymaps]]
@@ -485,32 +459,17 @@ command = "split_up"
 mode = "n"
 
 [[keymaps]]
-key = "meta+h"
-command = "split_left"
-mode = "n"
-
-[[keymaps]]
-key = "meta+x"
-command = "split_exchange"
-mode = "n"
-
-[[keymaps]]
-key = "meta+w"
-command = "split_close"
-mode = "n"
-
-[[keymaps]]
-key = "meta+t"
+key = "ctrl+t"
 command = "new_tab"
 mode = "n"
 
 [[keymaps]]
-key = "meta+m"
+key = "ctrl+m"
 command = "next_tab"
 mode = "n"
 
 [[keymaps]]
-key = "meta+n"
+key = "ctrl+n"
 command = "previous_tab"
 mode = "n"
 
@@ -520,6 +479,6 @@ command = "show_code_actions"
 mode = "n"
 
 [[keymaps]]
-key = "ctrl+meta+c"
+key = "ctrl+alt+c"
 command = "close_tab"
 mode = "n"

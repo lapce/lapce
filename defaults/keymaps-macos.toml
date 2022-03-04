@@ -60,6 +60,14 @@ command = "copy"
 mode = "i"
 
 [[keymaps]]
+key = "meta+c"
+command = "clipboard_copy"
+
+[[keymaps]]
+key = "meta+v"
+command = "clipboard_paste"
+
+[[keymaps]]
 key = "alt+up"
 command = "move_line_up"
 mode = "i"
@@ -312,14 +320,6 @@ mode = "n"
 key = "ctrl+p"
 command = "get_references"
 mode = "n"
-
-[[keymaps]]
-key = "meta+c"
-command = "clipboard_copy"
-
-[[keymaps]]
-key = "meta+v"
-command = "clipboard_paste"
 
 [[keymaps]]
 key = "p"
