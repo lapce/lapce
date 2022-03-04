@@ -132,11 +132,11 @@ impl Widget<LapceWindowData> for Title {
             LapceWorkspaceType::RemoteSSH(_, host) => {
                 let text = match *tab.proxy_status {
                     ProxyStatus::Connecting => {
-                        format!("Connecting to SSH: {host} ...")
+                        format!("Connecting to SSH: {} ...",host)
                     }
-                    ProxyStatus::Connected => format!("SSH: {host}"),
+                    ProxyStatus::Connected => format!("SSH: {}",host),
                     ProxyStatus::Disconnected => {
-                        format!("Disconnected SSH: {host}")
+                        format!("Disconnected SSH: {}",host)
                     }
                 };
                 let text_layout = ctx
