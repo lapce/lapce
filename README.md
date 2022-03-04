@@ -1,6 +1,8 @@
 <h1 align="center">
+  <a href="https://lapce.dev" target="_blank">
   <img src="extra/images/logo.png" width=200 height=200/><br>
   Lapce
+  </a>
 </h1>
 
 <h4 align="center">Lightning-fast and Powerful Code Editor written in Rust</h4>
