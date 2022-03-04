@@ -34,7 +34,7 @@ jobs:
       - name: Create portable 
         shell: pwsh
         run: |
-          Compress-Archive ./target/release/lapce.exe ./Lapce-portable.zip
+          Compress-Archive ./target/release/lapce.exe ./Lapce-windows-portable.zip
       - name: Upload msi installer
         uses: svenstaro/upload-release-action@v2
         with:
@@ -47,7 +47,7 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./Lapce-portable.zip
+          file: ./Lapce-windows-portable.zip
           file_glob: true
           tag: ${{ github.ref }}
           overwrite: true
