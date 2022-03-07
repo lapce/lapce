@@ -15,7 +15,7 @@ pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
     LapceWindowNew::new(data).lens(LapceWindowLens(data.window_id))
 }
 
-pub fn lanuch() {
+pub fn launch() {
     let mut log_dispatch = fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
