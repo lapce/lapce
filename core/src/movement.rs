@@ -84,6 +84,100 @@ impl Cursor {
         buffer.line_of_offset(self.offset())
     }
 
+    pub fn set_offset(&self, offset: usize, modify: bool) -> Self {
+        match &self.mode {
+            CursorMode::Normal(old_offset) => {
+                if modify {
+                    Cursor::new(
+                        CursorMode::Visual {
+                            start: *old_offset,
+                            end: offset,
+                            mode: VisualMode::Normal,
+                        },
+                        None,
+                    )
+                } else {
+                    Cursor::new(CursorMode::Normal(offset), None)
+                }
+            }
+            CursorMode::Visual { start, end, mode } => {
+                if modify {
+                    Cursor::new(
+                        CursorMode::Visual {
+                            start: *start,
+                            end: offset,
+                            mode: VisualMode::Normal,
+                        },
+                        None,
+                    )
+                } else {
+                    Cursor::new(CursorMode::Normal(offset), None)
+                }
+            }
+            CursorMode::Insert(selection) => {
+                if modify {
+                    let mut new_selection = Selection::new();
+                    if let Some(region) = selection.first() {
+                        let new_regoin =
+                            SelRegion::new(region.start(), offset, None);
+                        new_selection.add_region(new_regoin);
+                    } else {
+                        new_selection
+                            .add_region(SelRegion::new(offset, offset, None));
+                    }
+                    Cursor::new(CursorMode::Insert(new_selection), None)
+                } else {
+                    Cursor::new(CursorMode::Insert(Selection::caret(offset)), None)
+                }
+            }
+        }
+    }
+
+    pub fn add_region(&self, start: usize, end: usize, modify: bool) -> Self {
+        match &self.mode {
+            CursorMode::Normal(offset) => Cursor::new(
+                CursorMode::Visual {
+                    start,
+                    end: end - 1,
+                    mode: VisualMode::Normal,
+                },
+                None,
+            ),
+            CursorMode::Visual {
+                start: old_start,
+                end: old_end,
+                mode: _,
+            } => {
+                let forward = old_end >= old_start;
+                let new_start = (*old_start).min(*old_end).min(start).min(end - 1);
+                let new_end = (*old_start).max(*old_end).max(start).max(end - 1);
+                let (new_start, new_end) = if forward {
+                    (new_start, new_end)
+                } else {
+                    (new_end, new_start)
+                };
+                Cursor::new(
+                    CursorMode::Visual {
+                        start: new_start,
+                        end: new_end,
+                        mode: VisualMode::Normal,
+                    },
+                    None,
+                )
+            }
+            CursorMode::Insert(selection) => {
+                let new_selection = if modify {
+                    let mut new_selection = selection.clone();
+                    new_selection.add_region(SelRegion::new(start, end, None));
+                    new_selection
+                } else {
+                    Selection::region(start, end)
+                };
+                Cursor::new(CursorMode::Insert(new_selection), None)
+            }
+        }
+    }
+
     pub fn current_char(
         &self,
         text: &mut PietText,
@@ -334,7 +428,7 @@ impl SelRegion {
     }
 
     fn merge_with(self, other: SelRegion) -> SelRegion {
-        let is_forward = self.end > self.start || other.end > other.start;
+        let is_forward = self.end > self.start;
         let new_min = min(self.min(), other.min());
         let new_max = max(self.max(), other.max());
         let (start, end) = if is_forward {
@@ -471,7 +565,7 @@ impl Selection {
         while end_ix < self.regions.len()
             && region.should_merge(self.regions[end_ix])
         {
-            region = region.merge_with(self.regions[end_ix]);
+            region = self.regions[end_ix].merge_with(region);
             end_ix += 1;
         }
         if ix == end_ix {

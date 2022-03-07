@@ -63,7 +63,7 @@ use druid::{
 };
 use druid::{
     menu, Application, ExtEventSink, FileDialogOptions, InternalEvent,
-    InternalLifeCycle, Menu, Modifiers, MouseEvent,
+    InternalLifeCycle, Menu, Modifiers, MouseButton, MouseEvent,
 };
 use druid::{
     piet::{
@@ -83,6 +83,7 @@ use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
 use std::thread;
+use std::time::Instant;
 use std::{cmp::Ordering, iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
 use std::{str::FromStr, time::Duration};
@@ -2362,6 +2363,69 @@ impl LapceEditorBufferData {
                 CursorMode::Insert(_) => {}
             }
         }
+    }
+
+    fn single_click(
+        &mut self,
+        ctx: &mut EventCtx,
+        mouse_event: &MouseEvent,
+        config: &Config,
+    ) {
+        let new_offset = self.buffer.offset_of_mouse(
+            ctx.text(),
+            mouse_event.pos,
+            self.editor.cursor.get_mode(),
+            config,
+            self.editor.compare.clone(),
+        );
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.cursor = editor
+            .cursor
+            .set_offset(new_offset, mouse_event.mods.shift());
+    }
+
+    fn double_click(
+        &mut self,
+        ctx: &mut EventCtx,
+        mouse_event: &MouseEvent,
+        config: &Config,
+    ) {
+        let mouse_offset = self.buffer.offset_of_mouse(
+            ctx.text(),
+            mouse_event.pos,
+            self.editor.cursor.get_mode(),
+            config,
+            self.editor.compare.clone(),
+        );
+        let (start, end) = self.buffer.select_word(mouse_offset);
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.cursor =
+            editor
+                .cursor
+                .add_region(start, end, mouse_event.mods.shift());
+    }
+
+    fn triple_click(
+        &mut self,
+        ctx: &mut EventCtx,
+        mouse_event: &MouseEvent,
+        config: &Config,
+    ) {
+        let mouse_offset = self.buffer.offset_of_mouse(
+            ctx.text(),
+            mouse_event.pos,
+            self.editor.cursor.get_mode(),
+            config,
+            self.editor.compare.clone(),
+        );
+        let line = self.buffer.line_of_offset(mouse_offset);
+        let start = self.buffer.offset_of_line(line);
+        let end = self.buffer.offset_of_line(line + 1);
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.cursor =
+            editor
+                .cursor
+                .add_region(start, end, mouse_event.mods.shift());
     }
 
     fn paint_cursor(
@@ -6364,10 +6428,20 @@ impl Widget<LapceTabData> for LapceEditorGutter {
     }
 }
 
+#[derive(Clone, Copy)]
+enum ClickKind {
+    Single,
+    Double,
+    Triple,
+    Quadruple,
+}
+
 pub struct LapceEditor {
     view_id: WidgetId,
     placeholder: Option<String>,
     commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
+    last_left_click: Option<(Instant, ClickKind, Point)>,
+    mouse_pos: Point,
 }
 
 impl LapceEditor {
@@ -6376,8 +6450,66 @@ impl LapceEditor {
             view_id,
             placeholder: None,
             commands: vec![],
+            last_left_click: None,
+            mouse_pos: Point::ZERO,
         }
     }
+
+    fn mouse_down(
+        &mut self,
+        ctx: &mut EventCtx,
+        mouse_event: &MouseEvent,
+        editor_data: &mut LapceEditorBufferData,
+        config: &Config,
+    ) {
+        ctx.set_handled();
+        match mouse_event.button {
+            MouseButton::Left => {
+                self.left_click(ctx, mouse_event, editor_data, config);
+            }
+            MouseButton::Right => {
+                self.right_click(ctx, mouse_event);
+            }
+            MouseButton::Middle => {}
+            _ => (),
+        }
+    }
+
+    fn left_click(
+        &mut self,
+        ctx: &mut EventCtx,
+        mouse_event: &MouseEvent,
+        editor_data: &mut LapceEditorBufferData,
+        config: &Config,
+    ) {
+        ctx.set_active(true);
+        let mut click_kind = ClickKind::Single;
+        if let Some((instant, kind, pos)) = self.last_left_click.as_ref() {
+            if pos == &mouse_event.pos && instant.elapsed().as_millis() < 500 {
+                click_kind = match kind {
+                    ClickKind::Single => ClickKind::Double,
+                    ClickKind::Double => ClickKind::Triple,
+                    ClickKind::Triple => ClickKind::Quadruple,
+                    ClickKind::Quadruple => ClickKind::Quadruple,
+                };
+            }
+        }
+        self.last_left_click = Some((Instant::now(), click_kind, mouse_event.pos));
+        match click_kind {
+            ClickKind::Single => {
+                editor_data.single_click(ctx, mouse_event, config);
+            }
+            ClickKind::Double => {
+                editor_data.double_click(ctx, mouse_event, config);
+            }
+            ClickKind::Triple => {
+                editor_data.triple_click(ctx, mouse_event, config);
+            }
+            ClickKind::Quadruple => {}
+        }
+    }
+
+    fn right_click(&mut self, ctx: &mut EventCtx, mouse_event: &MouseEvent) {}
 }
 
 impl Widget<LapceTabData> for LapceEditor {
@@ -6393,161 +6525,66 @@ impl Widget<LapceTabData> for LapceEditor {
         match event {
             Event::MouseMove(mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::IBeam);
-                if ctx.is_active() {
-                    let new_offset = buffer.offset_of_mouse(
-                        ctx.text(),
-                        mouse_event.pos,
-                        editor.cursor.get_mode(),
-                        &data.config,
-                        editor.compare.clone(),
-                    );
-                    let editor = Arc::make_mut(editor);
-                    match editor.cursor.mode.clone() {
-                        CursorMode::Normal(offset) => {
-                            if new_offset != offset {
-                                editor.cursor = Cursor::new(
-                                    CursorMode::Visual {
-                                        start: offset,
-                                        end: new_offset,
-                                        mode: VisualMode::Normal,
-                                    },
-                                    None,
-                                );
-                            }
-                        }
-                        CursorMode::Visual { start, end, mode } => {
-                            let mode = mode.clone();
-                            editor.cursor.mode = CursorMode::Visual {
-                                start,
-                                end: new_offset,
-                                mode,
-                            };
-                            editor.cursor.horiz = None;
-                        }
-                        CursorMode::Insert(selection) => {
-                            let mut new_selection = Selection::new();
-                            if let Some(region) = selection.first() {
-                                let new_regoin =
-                                    SelRegion::new(region.start(), new_offset, None);
-                                new_selection.add_region(new_regoin);
-                            } else {
-                                new_selection.add_region(SelRegion::new(
-                                    new_offset, new_offset, None,
-                                ));
-                            }
-                            editor.cursor =
-                                Cursor::new(CursorMode::Insert(new_selection), None);
-                        }
+                if mouse_event.pos != self.mouse_pos {
+                    self.mouse_pos = mouse_event.pos;
+                    if ctx.is_active() {
+                        let editor = Arc::make_mut(editor);
+                        let new_offset = buffer.offset_of_mouse(
+                            ctx.text(),
+                            mouse_event.pos,
+                            editor.cursor.get_mode(),
+                            &data.config,
+                            editor.compare.clone(),
+                        );
+                        editor.cursor = editor.cursor.set_offset(new_offset, true);
                     }
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::EnsureCursorVisible(None),
-                        Target::Widget(self.view_id),
-                    ));
                 }
             }
             Event::MouseUp(mouse_event) => {
                 ctx.set_active(false);
             }
             Event::MouseDown(mouse_event) => {
-                ctx.set_handled();
-                ctx.set_active(true);
-                let new_offset = buffer.offset_of_mouse(
-                    ctx.text(),
-                    mouse_event.pos,
-                    editor.cursor.get_mode(),
-                    &data.config,
-                    editor.compare.clone(),
-                );
-                let editor = Arc::make_mut(editor);
-                match editor.cursor.mode.clone() {
-                    CursorMode::Normal(offset) => {
-                        if mouse_event.mods.shift() {
-                            editor.cursor = Cursor::new(
-                                CursorMode::Visual {
-                                    start: offset,
-                                    end: new_offset,
-                                    mode: VisualMode::Normal,
-                                },
-                                None,
-                            );
-                        } else {
-                            editor.cursor.mode = CursorMode::Normal(new_offset);
-                            editor.cursor.horiz = None;
-                        }
-                    }
-                    CursorMode::Visual { start, end, mode } => {
-                        if mouse_event.mods.shift() {
-                            editor.cursor = Cursor::new(
-                                CursorMode::Visual {
-                                    start,
-                                    end: new_offset,
-                                    mode: VisualMode::Normal,
-                                },
-                                None,
-                            );
-                        } else {
-                            editor.cursor =
-                                Cursor::new(CursorMode::Normal(new_offset), None);
-                        }
-                    }
-                    CursorMode::Insert(selection) => {
-                        if mouse_event.mods.shift() {
-                            let mut new_selection = Selection::new();
-                            if let Some(region) = selection.first() {
-                                let new_regoin =
-                                    SelRegion::new(region.start(), new_offset, None);
-                                new_selection.add_region(new_regoin);
-                            } else {
-                                new_selection.add_region(SelRegion::new(
-                                    new_offset, new_offset, None,
-                                ));
-                            }
-                            editor.cursor =
-                                Cursor::new(CursorMode::Insert(new_selection), None);
-                        } else {
-                            editor.cursor = Cursor::new(
-                                CursorMode::Insert(Selection::caret(new_offset)),
-                                None,
-                            );
-                        }
-                    }
-                }
-                match mouse_event.button {
-                    druid::MouseButton::Right => {
-                        let menu_items = vec![
-                            MenuItem {
-                                text: LapceCommand::GotoDefinition
-                                    .get_message()
-                                    .unwrap()
-                                    .to_string(),
-                                command: LapceCommandNew {
-                                    cmd: LapceCommand::GotoDefinition.to_string(),
-                                    palette_desc: None,
-                                    data: None,
-                                    target: CommandTarget::Focus,
-                                },
-                            },
-                            MenuItem {
-                                text: "Command Palette".to_string(),
-                                command: LapceCommandNew {
-                                    cmd: LapceWorkbenchCommand::PaletteCommand
-                                        .to_string(),
-                                    palette_desc: None,
-                                    data: None,
-                                    target: CommandTarget::Workbench,
-                                },
-                            },
-                        ];
-                        let point = mouse_event.pos + editor.window_origin.to_vec2();
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::ShowMenu(point, Arc::new(menu_items)),
-                            Target::Auto,
-                        ));
-                    }
-                    _ => {}
-                }
+                let buffer = data.main_split.editor_buffer(self.view_id);
+                let editor =
+                    data.main_split.editors.get(&self.view_id).unwrap().clone();
+                let mut editor_data = data.editor_view_content(self.view_id);
+                self.mouse_down(ctx, mouse_event, &mut editor_data, &data.config);
+                data.update_from_editor_buffer_data(editor_data, &editor, &buffer);
+                // match mouse_event.button {
+                //     druid::MouseButton::Right => {
+                //         let menu_items = vec![
+                //             MenuItem {
+                //                 text: LapceCommand::GotoDefinition
+                //                     .get_message()
+                //                     .unwrap()
+                //                     .to_string(),
+                //                 command: LapceCommandNew {
+                //                     cmd: LapceCommand::GotoDefinition.to_string(),
+                //                     palette_desc: None,
+                //                     data: None,
+                //                     target: CommandTarget::Focus,
+                //                 },
+                //             },
+                //             MenuItem {
+                //                 text: "Command Palette".to_string(),
+                //                 command: LapceCommandNew {
+                //                     cmd: LapceWorkbenchCommand::PaletteCommand
+                //                         .to_string(),
+                //                     palette_desc: None,
+                //                     data: None,
+                //                     target: CommandTarget::Workbench,
+                //                 },
+                //             },
+                //         ];
+                //         let point = mouse_event.pos + editor.window_origin.to_vec2();
+                //         ctx.submit_command(Command::new(
+                //             LAPCE_UI_COMMAND,
+                //             LapceUICommand::ShowMenu(point, Arc::new(menu_items)),
+                //             Target::Auto,
+                //         ));
+                //     }
+                //     _ => {}
+                // }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
