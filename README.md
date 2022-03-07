@@ -1,12 +1,21 @@
 <h1 align="center">
+  <a href="https://lapce.dev" target="_blank">
   <img src="extra/images/logo.png" width=200 height=200/><br>
   Lapce
+  </a>
 </h1>
 
 <h4 align="center">Lightning-fast and Powerful Code Editor written in Rust</h4>
 
-[![chat](https://img.shields.io/discord/946858761413328946?logo=discord)](https://discord.gg/n8tGJ6Rn6D)
-
+<div align="center">
+  <a href="https://discord.gg/n8tGJ6Rn6D" target="_blank">
+    <img src="https://img.shields.io/discord/946858761413328946?logo=discord" />
+  </a>
+  <a href="https://docs.lapce.dev" target="_blank">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=docs.lapce.dev&color=blue" alt="Lapce Docs">
+  </a>
+</div>
+<br/>
 
 
 Lapce is written in pure Rust, with UI in [Druid](https://github.com/linebender/druid). It's using [Xi-Editor](https://github.com/xi-editor/xi-editor)'s [Rope Science](https://xi-editor.io/docs/rope_science_00.html) for text editing, and using [Wgpu](https://github.com/gfx-rs/wgpu) for rendering. More information on the [website](https://lapce.dev).
