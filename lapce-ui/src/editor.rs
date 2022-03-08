@@ -9,7 +9,7 @@ use druid::{
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, InternalEvent,
     InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent,
     PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2,
-    Widget, WidgetId, WidgetPod,
+    Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     buffer::{matching_pair_direction, BufferContent, BufferId, LocalBufferKind},
@@ -953,6 +953,14 @@ impl LapceEditorTab {
     }
 }
 
+pub fn editor_tab_child_widget(
+    child: &EditorTabChild,
+) -> Box<dyn Widget<LapceTabData>> {
+    match child {
+        EditorTabChild::Editor(view_id) => LapceEditorView::new(*view_id).boxed(),
+    }
+}
+
 impl Widget<LapceTabData> for LapceEditorTab {
     fn id(&self) -> Option<WidgetId> {
         Some(self.widget_id)
@@ -977,8 +985,10 @@ impl Widget<LapceTabData> for LapceEditorTab {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::EditorTabAdd(index, content) => {
-                        self.children
-                            .insert(*index, WidgetPod::new(content.widget()));
+                        self.children.insert(
+                            *index,
+                            WidgetPod::new(editor_tab_child_widget(content)),
+                        );
                         ctx.children_changed();
                         return;
                     }

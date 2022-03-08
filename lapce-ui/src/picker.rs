@@ -34,7 +34,6 @@ pub struct FilePickerData {
     root: FileNodeItem,
     pub home: PathBuf,
     pub pwd: PathBuf,
-    index: usize,
 }
 
 impl FilePickerData {
@@ -56,7 +55,6 @@ impl FilePickerData {
             root,
             home,
             pwd,
-            index: 0,
         }
     }
 

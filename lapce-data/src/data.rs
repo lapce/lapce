@@ -49,10 +49,7 @@ use crate::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
-    editor::{
-        EditorLocationNew, LapceEditorBufferData, LapceEditorTab, LapceEditorView,
-        TabRect,
-    },
+    editor::{EditorLocationNew, LapceEditorBufferData, TabRect},
     explorer::FileExplorerData,
     find::Find,
     keypress::KeyPressData,
@@ -68,7 +65,7 @@ use crate::{
     search::SearchData,
     settings::LapceSettingsPanelData,
     source_control::SourceControlData,
-    split::{LapceSplitNew, SplitDirection, SplitMoveDirection},
+    split::{SplitDirection, SplitMoveDirection},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
     svg::get_svg,
     terminal::TerminalSplitData,
@@ -1613,34 +1610,6 @@ impl SplitContent {
             }
         }
     }
-
-    pub fn widget(&self, data: &LapceTabData) -> Box<dyn Widget<LapceTabData>> {
-        match &self {
-            SplitContent::EditorTab(widget_id) => {
-                let editor_tab_data =
-                    data.main_split.editor_tabs.get(widget_id).unwrap();
-                let mut editor_tab = LapceEditorTab::new(editor_tab_data.widget_id);
-                for child in editor_tab_data.children.iter() {
-                    match child {
-                        EditorTabChild::Editor(view_id) => {
-                            let editor = LapceEditorView::new(*view_id).boxed();
-                            editor_tab = editor_tab.with_child(editor);
-                        }
-                    }
-                }
-                editor_tab.boxed()
-            }
-            SplitContent::Split(widget_id) => {
-                let split_data = data.main_split.splits.get(widget_id).unwrap();
-                let mut split =
-                    LapceSplitNew::new(*widget_id).direction(split_data.direction);
-                for content in split_data.children.iter() {
-                    split = split.with_flex_child(content.widget(data), None, 1.0);
-                }
-                split.boxed()
-            }
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1673,15 +1642,6 @@ impl SplitData {
                 .collect(),
         };
         info
-    }
-
-    pub fn widget(&self, data: &LapceTabData) -> LapceSplitNew {
-        let mut split = LapceSplitNew::new(self.widget_id).direction(self.direction);
-        for child in self.children.iter() {
-            let child = child.widget(data);
-            split = split.with_flex_child(child, None, 1.0);
-        }
-        split
     }
 }
 
@@ -2799,14 +2759,6 @@ impl EditorTabChild {
     pub fn widget_id(&self) -> WidgetId {
         match &self {
             EditorTabChild::Editor(widget_id) => *widget_id,
-        }
-    }
-
-    pub fn widget(&self) -> Box<dyn Widget<LapceTabData>> {
-        match &self {
-            EditorTabChild::Editor(view_id) => {
-                LapceEditorView::new(*view_id).boxed()
-            }
         }
     }
 

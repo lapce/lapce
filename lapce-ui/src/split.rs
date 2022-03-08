@@ -1,4 +1,8 @@
-use crate::{editor::LapceEditorView, svg::logo_svg, terminal::LapceTerminalView};
+use crate::{
+    editor::{LapceEditorTab, LapceEditorView},
+    svg::logo_svg,
+    terminal::LapceTerminalView,
+};
 use std::sync::Arc;
 
 use druid::{
@@ -16,18 +20,68 @@ use lapce_data::{
         LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{FocusArea, LapceEditorData, LapceTabData, PanelKind, SplitContent},
+    data::{
+        EditorTabChild, FocusArea, LapceEditorData, LapceTabData, PanelKind,
+        SplitContent, SplitData,
+    },
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
 use lapce_proxy::terminal::TermId;
-use serde::{Deserialize, Serialize};
 use strum::EnumMessage;
 
 pub struct LapceDynamicSplit {
     widget_id: WidgetId,
     children: Vec<ChildWidgetNew>,
+}
+
+pub fn split_data_widget(
+    split_data: &SplitData,
+    data: &LapceTabData,
+) -> LapceSplitNew {
+    let mut split =
+        LapceSplitNew::new(split_data.widget_id).direction(split_data.direction);
+    for child in split_data.children.iter() {
+        let child = split_content_widget(child, data);
+        split = split.with_flex_child(child, None, 1.0);
+    }
+    split
+}
+
+pub fn split_content_widget(
+    content: &SplitContent,
+    data: &LapceTabData,
+) -> Box<dyn Widget<LapceTabData>> {
+    match content {
+        SplitContent::EditorTab(widget_id) => {
+            let editor_tab_data =
+                data.main_split.editor_tabs.get(widget_id).unwrap();
+            let mut editor_tab = LapceEditorTab::new(editor_tab_data.widget_id);
+            for child in editor_tab_data.children.iter() {
+                match child {
+                    EditorTabChild::Editor(view_id) => {
+                        let editor = LapceEditorView::new(*view_id).boxed();
+                        editor_tab = editor_tab.with_child(editor);
+                    }
+                }
+            }
+            editor_tab.boxed()
+        }
+        SplitContent::Split(widget_id) => {
+            let split_data = data.main_split.splits.get(widget_id).unwrap();
+            let mut split =
+                LapceSplitNew::new(*widget_id).direction(split_data.direction);
+            for content in split_data.children.iter() {
+                split = split.with_flex_child(
+                    split_content_widget(content, data),
+                    None,
+                    1.0,
+                );
+            }
+            split.boxed()
+        }
+    }
 }
 
 impl LapceDynamicSplit {
@@ -524,7 +578,7 @@ impl LapceSplitNew {
         index: usize,
         content: &SplitContent,
     ) {
-        let new_widget = content.widget(data);
+        let new_widget = split_content_widget(content, data);
         self.replace_child(index, new_widget.boxed());
         ctx.children_changed();
     }
@@ -663,7 +717,7 @@ impl LapceSplitNew {
         content: &SplitContent,
         focus_new: bool,
     ) {
-        let new_child = content.widget(data);
+        let new_child = split_content_widget(content, data);
         self.insert_flex_child(index, new_child, None, 1.0);
         self.even_flex_children();
         ctx.children_changed();

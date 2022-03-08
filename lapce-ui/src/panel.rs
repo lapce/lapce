@@ -1,10 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
-
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, FontFamily, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{

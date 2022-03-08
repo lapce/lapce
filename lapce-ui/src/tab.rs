@@ -27,7 +27,9 @@ use lsp_types::DiagnosticSeverity;
 use crate::{
     activity::ActivityBar, code_action::CodeAction, completion::CompletionContainer,
     explorer::FileExplorer, palette::NewPalette, picker::FilePicker, plugin::Plugin,
-    settings::LapceSettingsPanel, status::LapceStatusNew, terminal::TerminalPanel,
+    problem::new_problem_panel, search::new_search_panel,
+    settings::LapceSettingsPanel, source_control::new_source_control_panel,
+    split::split_data_widget, status::LapceStatusNew, terminal::TerminalPanel,
 };
 
 pub struct LapceIcon {
@@ -68,7 +70,7 @@ impl LapceTabNew {
             .splits
             .get(&*data.main_split.split_id)
             .unwrap();
-        let main_split = split_data.widget(data);
+        let main_split = split_data_widget(split_data, data);
 
         let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
@@ -89,7 +91,7 @@ impl LapceTabNew {
             WidgetPod::new(file_explorer.boxed()),
         );
 
-        let source_control = data.source_control.new_panel(data);
+        let source_control = new_source_control_panel(data);
         panels.insert(
             PanelKind::SourceControl,
             WidgetPod::new(source_control.boxed()),
@@ -101,10 +103,10 @@ impl LapceTabNew {
         let terminal = TerminalPanel::new(data);
         panels.insert(PanelKind::Terminal, WidgetPod::new(terminal.boxed()));
 
-        let search = data.search.new_panel(data);
+        let search = new_search_panel(data);
         panels.insert(PanelKind::Search, WidgetPod::new(search.boxed()));
 
-        let problem = data.problem.new_panel();
+        let problem = new_problem_panel(&data.problem);
         panels.insert(PanelKind::Problem, WidgetPod::new(problem.boxed()));
 
         let picker = FilePicker::new(data);

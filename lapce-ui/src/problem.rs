@@ -12,6 +12,7 @@ use lapce_data::{
     config::LapceTheme,
     data::{EditorDiagnostic, LapceTabData, PanelKind},
     editor::EditorLocationNew,
+    problem::ProblemData,
     split::SplitDirection,
 };
 use lsp_types::DiagnosticSeverity;
@@ -21,52 +22,28 @@ use crate::{
     svg::{file_svg_new, get_svg},
 };
 
-pub struct ProblemData {
-    pub widget_id: WidgetId,
-    pub split_id: WidgetId,
-    pub error_widget_id: WidgetId,
-    pub warning_widget_id: WidgetId,
-}
-
-impl ProblemData {
-    pub fn new() -> Self {
-        Self {
-            widget_id: WidgetId::next(),
-            split_id: WidgetId::next(),
-            error_widget_id: WidgetId::next(),
-            warning_widget_id: WidgetId::next(),
-        }
-    }
-
-    pub fn new_panel(&self) -> LapcePanel {
-        LapcePanel::new(
-            PanelKind::Problem,
-            self.widget_id,
-            self.split_id,
-            SplitDirection::Vertical,
-            PanelHeaderKind::Simple("Problem".to_string()),
-            vec![
-                (
-                    self.error_widget_id,
-                    PanelHeaderKind::Simple("Errors".to_string()),
-                    ProblemContent::new(DiagnosticSeverity::Error).boxed(),
-                    None,
-                ),
-                (
-                    self.warning_widget_id,
-                    PanelHeaderKind::Simple("Warnings".to_string()),
-                    ProblemContent::new(DiagnosticSeverity::Warning).boxed(),
-                    None,
-                ),
-            ],
-        )
-    }
-}
-
-impl Default for ProblemData {
-    fn default() -> Self {
-        Self::new()
-    }
+pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
+    LapcePanel::new(
+        PanelKind::Problem,
+        data.widget_id,
+        data.split_id,
+        SplitDirection::Vertical,
+        PanelHeaderKind::Simple("Problem".to_string()),
+        vec![
+            (
+                data.error_widget_id,
+                PanelHeaderKind::Simple("Errors".to_string()),
+                ProblemContent::new(DiagnosticSeverity::Error).boxed(),
+                None,
+            ),
+            (
+                data.warning_widget_id,
+                PanelHeaderKind::Simple("Warnings".to_string()),
+                ProblemContent::new(DiagnosticSeverity::Warning).boxed(),
+                None,
+            ),
+        ],
+    )
 }
 
 pub struct ProblemContent {

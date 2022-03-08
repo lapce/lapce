@@ -30,6 +30,41 @@ pub struct SearchData {
     pub matches: Arc<HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>>,
 }
 
+pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
+    let editor_data = data
+        .main_split
+        .editors
+        .get(&data.search.editor_view_id)
+        .unwrap();
+    let input = LapceEditorView::new(editor_data.view_id)
+        .hide_header()
+        .hide_gutter()
+        .padding((15.0, 15.0));
+    let split = LapceSplitNew::new(data.search.split_id)
+        .horizontal()
+        .with_child(input.boxed(), None, 55.0)
+        .with_flex_child(
+            LapceScrollNew::new(SearchContent::new().boxed())
+                .vertical()
+                .boxed(),
+            None,
+            1.0,
+        );
+    LapcePanel::new(
+        PanelKind::Search,
+        data.search.widget_id,
+        data.search.split_id,
+        SplitDirection::Vertical,
+        PanelHeaderKind::Simple("Search".to_string()),
+        vec![(
+            data.search.split_id,
+            PanelHeaderKind::None,
+            split.boxed(),
+            None,
+        )],
+    )
+}
+
 impl SearchData {
     pub fn new() -> Self {
         let editor_view_id = WidgetId::next();
