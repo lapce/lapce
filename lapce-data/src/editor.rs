@@ -2015,14 +2015,8 @@ impl LapceEditorBufferData {
 
         let cursor_offset = self.editor.cursor.offset();
         let cursor_line = self.buffer.line_of_offset(cursor_offset);
-        let start_offset = self
-            .buffer
-            .offset_of_line(start_line)
-            .min(self.buffer.len());
-        let end_offset = self
-            .buffer
-            .offset_of_line(end_line + 1)
-            .min(self.buffer.len());
+        let start_offset = self.buffer.offset_of_line(start_line);
+        let end_offset = self.buffer.offset_of_line(end_line + 1);
         let mode = self.editor.cursor.get_mode();
         for (i, line_content) in self
             .buffer
@@ -2039,9 +2033,7 @@ impl LapceEditorBufferData {
                         .min(self.buffer.len());
                     let index = self
                         .buffer
-                        .slice_to_cow(
-                            cursor_line_start..cursor_offset.min(self.buffer.len()),
-                        )
+                        .slice_to_cow(cursor_line_start..cursor_offset)
                         .len();
                     Some(index)
                 } else {

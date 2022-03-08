@@ -936,8 +936,9 @@ impl Buffer {
         indent.to_string()
     }
 
-    pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
-        self.rope.slice_to_cow(range)
+    pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
+        self.rope
+            .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
     }
 
     pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {
