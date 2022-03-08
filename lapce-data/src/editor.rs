@@ -1791,7 +1791,6 @@ impl LapceEditorBufferData {
         }
         let self_size = ctx.size();
         let rect = ctx.region().bounding_box();
-        let _last_line = self.buffer.last_line();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
 
@@ -2016,8 +2015,14 @@ impl LapceEditorBufferData {
 
         let cursor_offset = self.editor.cursor.offset();
         let cursor_line = self.buffer.line_of_offset(cursor_offset);
-        let start_offset = self.buffer.offset_of_line(start_line);
-        let end_offset = self.buffer.offset_of_line(end_line + 1);
+        let start_offset = self
+            .buffer
+            .offset_of_line(start_line)
+            .min(self.buffer.len());
+        let end_offset = self
+            .buffer
+            .offset_of_line(end_line + 1)
+            .min(self.buffer.len());
         let mode = self.editor.cursor.get_mode();
         for (i, line_content) in self
             .buffer
@@ -2028,10 +2033,15 @@ impl LapceEditorBufferData {
             let line = i + start_line;
             let cursor_index =
                 if is_focused && mode != Mode::Insert && line == cursor_line {
-                    let cursor_line_start = self.buffer.offset_of_line(cursor_line);
+                    let cursor_line_start = self
+                        .buffer
+                        .offset_of_line(cursor_line)
+                        .min(self.buffer.len());
                     let index = self
                         .buffer
-                        .slice_to_cow(cursor_line_start..cursor_offset)
+                        .slice_to_cow(
+                            cursor_line_start..cursor_offset.min(self.buffer.len()),
+                        )
                         .len();
                     Some(index)
                 } else {
