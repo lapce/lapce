@@ -1,0 +1,7 @@
+[package]
+name = "lapce-data"
+version = "0.1.0"
+authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
+edition = "2021"
+
+[dependencies]

@@ -2167,12 +2167,57 @@ dependencies = [
 name = "lapce"
 version = "0.0.10"
 dependencies = [
- "lapce-core",
  "lapce-proxy",
+ "lapce-ui",
 ]
 
 [[package]]
-name = "lapce-core"
+name = "lapce-proxy"
+version = "0.0.10"
+dependencies = [
+ "alacritty_terminal 0.16.0-rc2",
+ "anyhow",
+ "base64",
+ "crossbeam-channel 0.5.1",
+ "directories",
+ "git2",
+ "grep-matcher",
+ "grep-regex",
+ "grep-searcher",
+ "home",
+ "hotwatch",
+ "ignore",
+ "jsonrpc-lite",
+ "lapce-rpc",
+ "locale_config",
+ "lsp-types",
+ "mio 0.6.23",
+ "notify 5.0.0-pre.13",
+ "parking_lot 0.11.2",
+ "regex",
+ "reqwest",
+ "serde 1.0.130",
+ "serde_json",
+ "toml",
+ "wasmer",
+ "wasmer-wasi",
+ "xi-rope",
+]
+
+[[package]]
+name = "lapce-rpc"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel 0.5.1",
+ "jsonrpc-lite",
+ "parking_lot 0.11.2",
+ "serde 1.0.130",
+ "serde_json",
+]
+
+[[package]]
+name = "lapce-ui"
 version = "0.0.10"
 dependencies = [
  "Inflector",
@@ -2229,51 +2274,6 @@ dependencies = [
  "uuid",
  "xi-rope",
  "xi-unicode",
-]
-
-[[package]]
-name = "lapce-proxy"
-version = "0.0.10"
-dependencies = [
- "alacritty_terminal 0.16.0-rc2",
- "anyhow",
- "base64",
- "crossbeam-channel 0.5.1",
- "directories",
- "git2",
- "grep-matcher",
- "grep-regex",
- "grep-searcher",
- "home",
- "hotwatch",
- "ignore",
- "jsonrpc-lite",
- "lapce-rpc",
- "locale_config",
- "lsp-types",
- "mio 0.6.23",
- "notify 5.0.0-pre.13",
- "parking_lot 0.11.2",
- "regex",
- "reqwest",
- "serde 1.0.130",
- "serde_json",
- "toml",
- "wasmer",
- "wasmer-wasi",
- "xi-rope",
-]
-
-[[package]]
-name = "lapce-rpc"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "crossbeam-channel 0.5.1",
- "jsonrpc-lite",
- "parking_lot 0.11.2",
- "serde 1.0.130",
- "serde_json",
 ]
 
 [[package]]
