@@ -1,23 +1,12 @@
-use std::sync::Arc;
-
-use druid::{
-    kurbo::BezPath,
-    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId,
-};
+use druid::{Command, Env, EventCtx, Target, WidgetId};
 use lapce_proxy::dispatch::FileDiff;
 
 use crate::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
-    data::{FocusArea, LapceTabData, PanelKind},
     keypress::KeyPressFocus,
     movement::Movement,
     split::{SplitDirection, SplitMoveDirection},
     state::Mode,
-    svg::{file_svg_new, get_svg},
 };
 
 pub const SOURCE_CONTROL_BUFFER: &str = "[Source Control Buffer]";

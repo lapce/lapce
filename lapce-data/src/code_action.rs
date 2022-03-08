@@ -1,10 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use druid::{
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, TextLayout, UpdateCtx, Widget,
-};
+use druid::{Command, Data, Env, EventCtx, Target};
 use lsp_types::{
     CodeActionOrCommand, DocumentChangeOperation, DocumentChanges, OneOf, TextEdit,
     Url, WorkspaceEdit,
@@ -13,8 +9,8 @@ use lsp_types::{
 use crate::{
     buffer::{BufferContent, EditType},
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
-    data::{LapceMainSplitData, LapceTabData},
+    config::Config,
+    data::LapceMainSplitData,
     keypress::KeyPressFocus,
     movement::{Movement, Selection},
     proxy::LapceProxy,

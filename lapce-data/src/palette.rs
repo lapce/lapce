@@ -3,14 +3,12 @@ use anyhow::Result;
 use bit_vec::BitVec;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
-    kurbo::Rect,
     piet::{Svg, TextAttribute},
     Command, ExtEventSink, FontFamily, FontWeight, Lens, Target, WidgetId, WindowId,
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
+    Data, Env, EventCtx, PaintCtx, Point, RenderContext, Size,
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -31,15 +29,12 @@ use crate::{
     command::{CommandExecuted, LapceCommand, LAPCE_NEW_COMMAND},
     command::{LapceCommandNew, LapceUICommand},
     config::{Config, LapceTheme},
-    data::{
-        FocusArea, LapceEditorData, LapceMainSplitData, LapceTabData, PanelKind,
-    },
+    data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
     editor::EditorLocationNew,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
     proxy::LapceProxy,
-    scroll::{LapceIdentityWrapper, LapceScrollNew},
     state::LapceWorkspace,
     state::LapceWorkspaceType,
     state::Mode,

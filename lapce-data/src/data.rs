@@ -13,7 +13,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
     theme, Color, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
-    Point, Rect, Size, Target, Vec2, Widget, WidgetExt, WidgetId, WindowId,
+    Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
 use lapce_proxy::{

@@ -4,7 +4,7 @@ use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
-    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    Size, Target, UpdateCtx, Widget, WidgetExt,
 };
 use itertools::Itertools;
 use lapce_data::{

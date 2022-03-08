@@ -1,8 +1,8 @@
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use druid::{
     kurbo::Rect,
-    piet::{Svg, Text, TextLayoutBuilder},
+    piet::{Text, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
@@ -21,7 +21,6 @@ use usvg;
 use crate::{
     editor::LapceEditorView,
     scroll::{LapceIdentityWrapper, LapceScrollNew},
-    svg::file_svg_new,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -713,51 +712,6 @@ impl PaletteContent {
             max_items,
         }
     }
-}
-
-fn file_paint_items(
-    path: &Path,
-    indices: &[usize],
-) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>) {
-    let svg = file_svg_new(path);
-    let file_name = path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
-    let folder = path
-        .parent()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
-    let folder_len = folder.len();
-    let text_indices: Vec<usize> = indices
-        .iter()
-        .filter_map(|i| {
-            let i = *i;
-            if folder_len > 0 {
-                if i > folder_len {
-                    Some(i - folder_len - 1)
-                } else {
-                    None
-                }
-            } else {
-                Some(i)
-            }
-        })
-        .collect();
-    let hint_indices: Vec<usize> = indices
-        .iter()
-        .filter_map(|i| {
-            let i = *i;
-            if i < folder_len {
-                Some(i)
-            } else {
-                None
-            }
-        })
-        .collect();
-    (Some(svg), file_name, text_indices, folder, hint_indices)
 }
 
 pub fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {

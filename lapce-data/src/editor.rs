@@ -1,45 +1,31 @@
 use crate::buffer::get_word_property;
+use crate::buffer::matching_char;
 use crate::buffer::{
     has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
 };
-use crate::command::{
-    CommandExecuted, CommandTarget, LapceCommandNew, LAPCE_NEW_COMMAND,
-};
+use crate::buffer::{matching_pair_direction, BufferNew};
+use crate::command::CommandExecuted;
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme};
 use crate::data::{
-    DragContent, EditorDiagnostic, EditorTabChild, FocusArea, InlineFindDirection,
-    LapceEditorData, LapceEditorTabData, LapceMainSplitData, LapceTabData,
-    PanelData, PanelKind, RegisterData, SplitContent,
+    EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
+    LapceTabData, PanelData, PanelKind, RegisterData, SplitContent,
 };
-use crate::find::Find;
-use crate::keypress::KeyPressFocus;
-use crate::movement::Cursor;
-use crate::movement::InsertDrift;
-use crate::panel::PanelPosition;
-use crate::proxy::LapceProxy;
-use crate::scroll::LapceIdentityWrapper;
-use crate::scroll::LapcePadding;
-use crate::source_control::SourceControlData;
-use crate::split::SplitDirection;
 use crate::state::LapceWorkspace;
-use crate::svg::{file_svg_new, get_svg};
-use crate::{buffer::matching_char, data::LapceEditorViewData};
+use crate::svg::get_svg;
 use crate::{
     buffer::BufferId,
-    command::{
-        EnsureVisiblePosition, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
-    },
+    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     split::SplitMoveDirection,
     state::Mode,
     state::VisualMode,
 };
 use crate::{buffer::WordProperty, movement::CursorMode};
-use crate::{
-    buffer::{matching_pair_direction, BufferNew},
-    scroll::LapceScrollNew,
-};
+use crate::{find::Find, split::SplitDirection};
+use crate::{keypress::KeyPressFocus, movement::Cursor};
+use crate::{movement::InsertDrift, panel::PanelPosition};
+use crate::{proxy::LapceProxy, source_control::SourceControlData};
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
 use druid::kurbo::BezPath;
@@ -48,26 +34,18 @@ use druid::piet::{
     PietTextLayout, Text, TextLayout as TextLayoutTrait, TextLayoutBuilder,
 };
 use druid::{
-    kurbo::Line, piet::PietText, BoxConstraints, Color, Command, Data, Env, Event,
-    EventCtx, FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetId,
-    WidgetPod,
+    kurbo::Line, piet::PietText, Color, Command, Env, EventCtx, FontFamily,
+    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, Vec2, WidgetId,
 };
-use druid::{
-    Application, ExtEventSink, InternalEvent, InternalLifeCycle, MouseButton,
-    MouseEvent,
-};
+use druid::{Application, ExtEventSink, MouseEvent};
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
     CodeActionResponse, CompletionItem, DiagnosticSeverity, DocumentChanges,
     GotoDefinitionResponse, Location, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde_json::Value;
-use std::cell::RefCell;
 use std::path::Path;
-use std::rc::Rc;
 use std::thread;
-use std::time::Instant;
 use std::{collections::HashMap, sync::Arc};
 use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
@@ -3964,165 +3942,6 @@ impl TabRect {
             }
         }
     }
-}
-
-pub struct LapceEditorTabHeaderContent {
-    pub widget_id: WidgetId,
-    rects: Vec<TabRect>,
-    mouse_pos: Point,
-}
-
-impl LapceEditorTabHeaderContent {
-    pub fn new(widget_id: WidgetId) -> Self {
-        Self {
-            widget_id,
-            rects: Vec::new(),
-            mouse_pos: Point::ZERO,
-        }
-    }
-
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for tab_rect in self.rects.iter() {
-            if tab_rect.close_rect.contains(mouse_event.pos) {
-                return true;
-            }
-        }
-        false
-    }
-
-    fn mouse_down(
-        &mut self,
-        ctx: &mut EventCtx,
-        data: &mut LapceTabData,
-        mouse_event: &MouseEvent,
-    ) {
-        for (i, tab_rect) in self.rects.iter().enumerate() {
-            if tab_rect.rect.contains(mouse_event.pos) {
-                let editor_tab = data
-                    .main_split
-                    .editor_tabs
-                    .get_mut(&self.widget_id)
-                    .unwrap();
-                let editor_tab = Arc::make_mut(editor_tab);
-                if tab_rect.close_rect.contains(mouse_event.pos) {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::EditorTabRemove(i, true, true),
-                        Target::Widget(self.widget_id),
-                    ));
-                    return;
-                }
-                if editor_tab.active != i {
-                    editor_tab.active = i;
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(editor_tab.children[i].widget_id()),
-                    ));
-                }
-
-                let offset =
-                    mouse_event.pos.to_vec2() - tab_rect.rect.origin().to_vec2();
-                *Arc::make_mut(&mut data.drag) = Some((
-                    offset,
-                    DragContent::EditorTab(
-                        editor_tab.widget_id,
-                        i,
-                        editor_tab.children[i].clone(),
-                        tab_rect.clone(),
-                    ),
-                ));
-                return;
-            }
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum ClickKind {
-    Single,
-    Double,
-    Triple,
-    Quadruple,
-}
-
-pub struct LapceEditor {
-    view_id: WidgetId,
-    placeholder: Option<String>,
-
-    #[allow(dead_code)]
-    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
-
-    last_left_click: Option<(Instant, ClickKind, Point)>,
-    mouse_pos: Point,
-}
-
-impl LapceEditor {
-    pub fn new(view_id: WidgetId) -> Self {
-        Self {
-            view_id,
-            placeholder: None,
-            commands: vec![],
-            last_left_click: None,
-            mouse_pos: Point::ZERO,
-        }
-    }
-
-    fn mouse_down(
-        &mut self,
-        ctx: &mut EventCtx,
-        mouse_event: &MouseEvent,
-        editor_data: &mut LapceEditorBufferData,
-        config: &Config,
-    ) {
-        ctx.set_handled();
-        match mouse_event.button {
-            MouseButton::Left => {
-                self.left_click(ctx, mouse_event, editor_data, config);
-            }
-            MouseButton::Right => {
-                self.right_click(ctx, mouse_event);
-            }
-            MouseButton::Middle => {}
-            _ => (),
-        }
-    }
-
-    fn left_click(
-        &mut self,
-        ctx: &mut EventCtx,
-        mouse_event: &MouseEvent,
-        editor_data: &mut LapceEditorBufferData,
-        config: &Config,
-    ) {
-        ctx.set_active(true);
-        let mut click_kind = ClickKind::Single;
-        if let Some((instant, kind, pos)) = self.last_left_click.as_ref() {
-            if pos == &mouse_event.pos && instant.elapsed().as_millis() < 500 {
-                click_kind = match kind {
-                    ClickKind::Single => ClickKind::Double,
-                    ClickKind::Double => ClickKind::Triple,
-                    ClickKind::Triple => ClickKind::Quadruple,
-                    ClickKind::Quadruple => ClickKind::Quadruple,
-                };
-            }
-        }
-        self.last_left_click = Some((Instant::now(), click_kind, mouse_event.pos));
-        match click_kind {
-            ClickKind::Single => {
-                editor_data.single_click(ctx, mouse_event, config);
-            }
-            ClickKind::Double => {
-                editor_data.double_click(ctx, mouse_event, config);
-            }
-            ClickKind::Triple => {
-                editor_data.triple_click(ctx, mouse_event, config);
-            }
-            ClickKind::Quadruple => {}
-        }
-    }
-
-    fn right_click(&mut self, _ctx: &mut EventCtx, _mouse_event: &MouseEvent) {}
 }
 
 #[derive(Clone)]

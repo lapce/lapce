@@ -1,26 +1,6 @@
-use crate::{
-    command::{
-        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
-    },
-    config::{Config, LapceTheme},
-    data::{LapceTabData, PanelKind, SplitContent},
-    keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
-    svg::logo_svg,
-};
+use crate::keypress::KeyPress;
 
-use druid::{
-    kurbo::{Line, Rect},
-    piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    Command, FontFamily, Target, WidgetId,
-};
-use druid::{
-    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
-};
-use lapce_proxy::terminal::TermId;
 use serde::{Deserialize, Serialize};
-use strum::EnumMessage;
 
 #[derive(Debug)]
 pub enum SplitMoveDirection {
@@ -34,91 +14,6 @@ pub enum SplitMoveDirection {
 pub enum SplitDirection {
     Vertical,
     Horizontal,
-}
-
-pub struct ChildWidgetNew {
-    pub widget: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
-    flex: bool,
-    params: f64,
-    layout_rect: Rect,
-}
-
-fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNew> {
-    if !has_workspace {
-        vec![
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
-                data: None,
-                palette_desc: Some("Show All Commands".to_string()),
-                target: CommandTarget::Workbench,
-            },
-            if modal {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
-                    data: None,
-                    palette_desc: LapceWorkbenchCommand::DisableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
-                }
-            } else {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
-                    data: None,
-                    palette_desc: LapceWorkbenchCommand::EnableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
-                }
-            },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
-                data: None,
-                palette_desc: Some("Open Folder".to_string()),
-                target: CommandTarget::Workbench,
-            },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
-                data: None,
-                palette_desc: Some("Open Recent".to_string()),
-                target: CommandTarget::Workbench,
-            },
-        ]
-    } else {
-        vec![
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
-                data: None,
-                palette_desc: Some("Show All Commands".to_string()),
-                target: CommandTarget::Workbench,
-            },
-            if modal {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
-                    data: None,
-                    palette_desc: LapceWorkbenchCommand::DisableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
-                }
-            } else {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
-                    data: None,
-                    palette_desc: LapceWorkbenchCommand::EnableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
-                }
-            },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::Palette.to_string(),
-                data: None,
-                palette_desc: Some("Go To File".to_string()),
-                target: CommandTarget::Workbench,
-            },
-        ]
-    }
 }
 
 pub fn keybinding_to_string(keypress: &KeyPress) -> String {

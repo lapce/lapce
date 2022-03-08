@@ -6,39 +6,27 @@ use alacritty_terminal::{
     grid::{Dimensions, Scroll},
     index::{Direction, Side},
     selection::{Selection, SelectionType},
-    term::{cell::Flags, search::RegexSearch, SizeInfo, TermMode},
+    term::{search::RegexSearch, SizeInfo, TermMode},
     vi_mode::ViMotion,
     Term,
 };
 use druid::{
-    piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    Application, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
-    ExtEventSink, FontFamily, FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx,
-    Modifiers, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    Application, Color, Command, Env, EventCtx, ExtEventSink, Target, WidgetId,
 };
 use hashbrown::HashMap;
 use lapce_proxy::terminal::TermId;
 use parking_lot::Mutex;
-use unicode_width::UnicodeWidthChar;
 
 use crate::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::{FocusArea, LapceTabData, PanelKind},
     find::Find,
     keypress::KeyPressFocus,
     movement::{LinePosition, Movement},
     proxy::LapceProxy,
-    scroll::LapcePadding,
     split::SplitMoveDirection,
     state::{LapceWorkspace, Mode, VisualMode},
 };
-
-const CTRL_CHARS: &[char] = &[
-    '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
-];
 
 pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>>;
 

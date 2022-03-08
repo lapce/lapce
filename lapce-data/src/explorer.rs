@@ -4,19 +4,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use druid::ExtEventSink;
-use druid::{
-    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    FontFamily, PaintCtx, Point, Rect, RenderContext, Size, Target, WidgetId,
-    WindowId,
-};
+use druid::{Target, WidgetId, WindowId};
 
 use include_dir::{include_dir, Dir};
 use lapce_proxy::dispatch::FileNodeItem;
 
-use crate::config::{Config, LapceTheme};
 use crate::proxy::LapceProxy;
 use crate::state::LapceWorkspace;
-use crate::svg::{file_svg_new, get_svg};
+
 use crate::{
     command::LapceUICommand, command::LAPCE_UI_COMMAND, panel::PanelPosition,
 };
