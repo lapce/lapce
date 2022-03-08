@@ -102,7 +102,7 @@ pub struct BufferUIState {
 #[derive(Data, Clone)]
 pub enum BufferState {
     Loading,
-    Open(Arc<BufferNew>),
+    Open(Arc<Buffer>),
 }
 
 pub struct StyledTextLayout {
@@ -238,7 +238,7 @@ impl BufferContent {
 }
 
 #[derive(Clone)]
-pub struct BufferNew {
+pub struct Buffer {
     pub id: BufferId,
     pub rope: Rope,
     pub content: BufferContent,
@@ -290,7 +290,7 @@ pub struct BufferNew {
     event_sink: ExtEventSink,
 }
 
-impl BufferNew {
+impl Buffer {
     pub fn new(
         content: BufferContent,
         update_sender: Arc<Sender<UpdateEvent>>,

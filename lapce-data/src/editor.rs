@@ -3,7 +3,7 @@ use crate::buffer::matching_char;
 use crate::buffer::{
     has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
 };
-use crate::buffer::{matching_pair_direction, BufferNew};
+use crate::buffer::{matching_pair_direction, Buffer};
 use crate::command::CommandExecuted;
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme};
@@ -117,7 +117,7 @@ pub struct EditorLocation {
 pub struct LapceEditorBufferData {
     pub view_id: WidgetId,
     pub editor: Arc<LapceEditorData>,
-    pub buffer: Arc<BufferNew>,
+    pub buffer: Arc<Buffer>,
     pub completion: Arc<CompletionData>,
     pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
@@ -128,7 +128,7 @@ pub struct LapceEditorBufferData {
 }
 
 impl LapceEditorBufferData {
-    fn buffer_mut(&mut self) -> &mut BufferNew {
+    fn buffer_mut(&mut self) -> &mut Buffer {
         Arc::make_mut(&mut self.buffer)
     }
 

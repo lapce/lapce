@@ -14,7 +14,7 @@ use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    buffer::{BufferContent, BufferNew, UpdateEvent},
+    buffer::{Buffer, BufferContent, UpdateEvent},
     config::Config,
     data::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
@@ -288,7 +288,7 @@ impl EditorInfo {
                 ));
 
                 if !data.open_files.contains_key(path) {
-                    let buffer = Arc::new(BufferNew::new(
+                    let buffer = Arc::new(Buffer::new(
                         BufferContent::File(path.clone()),
                         update_sender,
                         tab_id,
@@ -500,11 +500,7 @@ impl LapceDb {
         Ok(())
     }
 
-    pub fn save_buffer_position(
-        &self,
-        workspace: &LapceWorkspace,
-        buffer: &BufferNew,
-    ) {
+    pub fn save_buffer_position(&self, workspace: &LapceWorkspace, buffer: &Buffer) {
         if let BufferContent::File(path) = &buffer.content {
             let info = BufferInfo {
                 workspace: workspace.clone(),

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use druid::ExtEventSink;
-use druid::{Target, WidgetId, WindowId};
+use druid::{Target, WidgetId};
 
 use include_dir::{include_dir, Dir};
 use lapce_proxy::dispatch::FileNodeItem;
@@ -12,34 +12,10 @@ use lapce_proxy::dispatch::FileNodeItem;
 use crate::proxy::LapceProxy;
 use crate::state::LapceWorkspace;
 
-use crate::{
-    command::LapceUICommand, command::LAPCE_UI_COMMAND, panel::PanelPosition,
-};
+use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND};
 
 #[allow(dead_code)]
 const ICONS_DIR: Dir = include_dir!("../icons");
-
-#[derive(Clone)]
-pub struct FileExplorerState {
-    // pub widget_id: WidgetId,
-    #[allow(dead_code)]
-    window_id: WindowId,
-
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-    pub widget_id: WidgetId,
-    // cwd: PathBuf,
-    pub items: Vec<FileNodeItem>,
-
-    #[allow(dead_code)]
-    index: usize,
-
-    #[allow(dead_code)]
-    count: usize,
-
-    #[allow(dead_code)]
-    position: PanelPosition,
-}
 
 #[derive(Clone)]
 pub struct FileExplorerData {

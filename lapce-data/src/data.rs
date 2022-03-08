@@ -36,8 +36,8 @@ use xi_rope::{spans::SpansBuilder, Interval, RopeDelta, Transformer};
 
 use crate::{
     buffer::{
-        has_unmatched_pair, matching_char, matching_pair_direction, BufferContent,
-        BufferNew, BufferUpdate, EditType, LocalBufferKind, Style, UpdateEvent,
+        has_unmatched_pair, matching_char, matching_pair_direction, Buffer,
+        BufferContent, BufferUpdate, EditType, LocalBufferKind, Style, UpdateEvent,
     },
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommandNew, LapceUICommand,
@@ -759,7 +759,7 @@ impl LapceTabData {
         &mut self,
         editor_buffer_data: LapceEditorBufferData,
         editor: &Arc<LapceEditorData>,
-        buffer: &Arc<BufferNew>,
+        buffer: &Arc<Buffer>,
     ) {
         self.completion = editor_buffer_data.completion.clone();
         self.main_split = editor_buffer_data.main_split.clone();
@@ -1688,9 +1688,9 @@ pub struct LapceMainSplitData {
     pub active: Arc<Option<WidgetId>>,
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub editor_tabs: im::HashMap<WidgetId, Arc<LapceEditorTabData>>,
-    pub open_files: im::HashMap<PathBuf, Arc<BufferNew>>,
+    pub open_files: im::HashMap<PathBuf, Arc<Buffer>>,
     pub splits: im::HashMap<WidgetId, Arc<SplitData>>,
-    pub local_buffers: im::HashMap<LocalBufferKind, Arc<BufferNew>>,
+    pub local_buffers: im::HashMap<LocalBufferKind, Arc<Buffer>>,
     pub update_sender: Arc<Sender<UpdateEvent>>,
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
@@ -1719,7 +1719,7 @@ impl LapceMainSplitData {
     //     Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
     // }
 
-    pub fn editor_buffer(&self, editor_view_id: WidgetId) -> Arc<BufferNew> {
+    pub fn editor_buffer(&self, editor_view_id: WidgetId) -> Arc<Buffer> {
         let editor = self.editors.get(&editor_view_id).unwrap();
         let buffer = match &editor.content {
             BufferContent::File(path) => self.open_files.get(path).unwrap().clone(),
@@ -2182,7 +2182,7 @@ impl LapceMainSplitData {
         let path = location.path.clone();
         let buffer_exists = self.open_files.contains_key(&path);
         if !buffer_exists {
-            let mut buffer = BufferNew::new(
+            let mut buffer = Buffer::new(
                 BufferContent::File(path.clone()),
                 self.update_sender.clone(),
                 *self.tab_id,
@@ -2316,7 +2316,7 @@ impl LapceMainSplitData {
             config,
         );
         editors.insert(editor.view_id, Arc::new(editor));
-        let mut buffer = BufferNew::new(
+        let mut buffer = Buffer::new(
             BufferContent::File(path.clone()),
             update_sender.clone(),
             tab_id,
@@ -2328,7 +2328,7 @@ impl LapceMainSplitData {
         let mut local_buffers = im::HashMap::new();
         local_buffers.insert(
             LocalBufferKind::Empty,
-            Arc::new(BufferNew::new(
+            Arc::new(Buffer::new(
                 BufferContent::Local(LocalBufferKind::Empty),
                 update_sender.clone(),
                 tab_id,
@@ -2406,7 +2406,7 @@ impl LapceMainSplitData {
         config: &Config,
         event_sink: ExtEventSink,
     ) {
-        let mut buffer = BufferNew::new(
+        let mut buffer = Buffer::new(
             BufferContent::Local(buffer_kind.clone()),
             self.update_sender.clone(),
             *self.tab_id,
@@ -2892,7 +2892,7 @@ impl LapceEditorData {
         placeholders.extend_from_slice(&v[1..]);
     }
 
-    pub fn save_jump_location(&mut self, buffer: &BufferNew, tab_width: usize) {
+    pub fn save_jump_location(&mut self, buffer: &Buffer, tab_width: usize) {
         if let BufferContent::File(path) = &buffer.content {
             let location = EditorLocationNew {
                 path: path.clone(),
@@ -2928,7 +2928,7 @@ pub struct LapceEditorViewData {
     pub workspace: Option<Arc<LapceWorkspace>>,
     pub proxy: Arc<LapceProxy>,
     pub editor: Arc<LapceEditorData>,
-    pub buffer: Arc<BufferNew>,
+    pub buffer: Arc<Buffer>,
     pub diagnostics: Arc<Vec<EditorDiagnostic>>,
     pub all_diagnostics: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
     pub keypress: Arc<KeyPressData>,
@@ -2939,7 +2939,7 @@ pub struct LapceEditorViewData {
 }
 
 impl LapceEditorViewData {
-    pub fn buffer_mut(&mut self) -> &mut BufferNew {
+    pub fn buffer_mut(&mut self) -> &mut Buffer {
         Arc::make_mut(&mut self.buffer)
     }
 

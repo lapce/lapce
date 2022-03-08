@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
-    buffer::BufferNew,
+    buffer::Buffer,
     config::Config,
     data::RegisterData,
     state::{Mode, VisualMode},
@@ -71,7 +71,7 @@ impl Cursor {
         }
     }
 
-    pub fn current_line(&self, buffer: &BufferNew) -> usize {
+    pub fn current_line(&self, buffer: &Buffer) -> usize {
         buffer.line_of_offset(self.offset())
     }
 
@@ -173,7 +173,7 @@ impl Cursor {
     pub fn current_char(
         &self,
         text: &mut PietText,
-        buffer: &BufferNew,
+        buffer: &Buffer,
         config: &Config,
     ) -> (f64, f64) {
         let offset = self.offset();
@@ -192,7 +192,7 @@ impl Cursor {
         (x0, x1)
     }
 
-    pub fn lines(&self, buffer: &BufferNew) -> (usize, usize) {
+    pub fn lines(&self, buffer: &Buffer) -> (usize, usize) {
         match &self.mode {
             CursorMode::Normal(offset) => {
                 let line = buffer.line_of_offset(*offset);
@@ -211,7 +211,7 @@ impl Cursor {
         }
     }
 
-    pub fn yank(&self, buffer: &BufferNew, tab_width: usize) -> RegisterData {
+    pub fn yank(&self, buffer: &Buffer, tab_width: usize) -> RegisterData {
         let content = match &self.mode {
             CursorMode::Insert(selection) => selection
                 .regions()
@@ -283,7 +283,7 @@ impl Cursor {
         RegisterData { content, mode }
     }
 
-    pub fn edit_selection(&self, buffer: &BufferNew, tab_width: usize) -> Selection {
+    pub fn edit_selection(&self, buffer: &Buffer, tab_width: usize) -> Selection {
         match &self.mode {
             CursorMode::Insert(selection) => selection.clone(),
             CursorMode::Normal(offset) => Selection::region(
