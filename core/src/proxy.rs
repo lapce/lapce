@@ -236,7 +236,7 @@ impl LapceProxy {
                         .ok_or(anyhow!("can't find config dir"))?
                         .join(format!("lapce-proxy-{}", VERSION));
                     if !local_proxy_file.exists() {
-                        let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
+                        let url = format!("https://github.com/lapce/lapce/releases/download/v{}/lapce-proxy-linux.gz",VERSION);
                         let mut resp =
                             reqwest::blocking::get(url).expect("request failed");
                         let mut out = std::fs::File::create(&local_proxy_file)
@@ -260,7 +260,7 @@ impl LapceProxy {
                     let cmd = cmd.creation_flags(0x08000000);
                     cmd.args(ssh_args)
                         .arg(&local_proxy_file)
-                        .arg(format!("{user}@{host}:~/.lapce/lapce-proxy-{VERSION}"))
+                        .arg(format!("{}@{}:~/.lapce/lapce-proxy-{}",user,host,VERSION))
                         .output()?;
 
                     let mut cmd = Command::new("ssh");

@@ -289,7 +289,7 @@ impl Widget<LapceTabData> for SearchContent {
                 if i >= min {
                     let mut text_layout = ctx
                         .text()
-                        .new_text_layout(format!("{line_number}: {line}"))
+                        .new_text_layout(format!("{}: {}",line_number,line))
                         .font(FontFamily::SYSTEM_UI, 13.0)
                         .text_color(
                             data.config

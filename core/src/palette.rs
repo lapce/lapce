@@ -320,7 +320,7 @@ impl PaletteItemContent {
             ),
             PaletteItemContent::SshHost(user, host) => (
                 None,
-                format!("{user}@{host}"),
+                format!("{}@{}",user,host),
                 indices.to_vec(),
                 "".to_string(),
                 vec![],
@@ -886,7 +886,7 @@ impl PaletteViewData {
                     user.to_string(),
                     host.to_string(),
                 ),
-                filter_text: format!("{user}@{host}"),
+                filter_text: format!("{}@{}",user,host),
                 score: 0,
                 indices: vec![],
             })
