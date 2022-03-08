@@ -1,16 +1,14 @@
-
-use std::collections::HashMap;
+use std::collections::HashMap;
 use std::path::Path;
-use std::{path::PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use druid::ExtEventSink;
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx,
-    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt,
-    WidgetId, WidgetPod, WindowId,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontFamily, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 
 use include_dir::{include_dir, Dir};
@@ -22,7 +20,9 @@ use crate::proxy::LapceProxy;
 use crate::scroll::LapceScrollNew;
 use crate::state::LapceWorkspace;
 use crate::svg::{file_svg_new, get_svg};
-use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND, panel::PanelPosition};
+use crate::{
+    command::LapceUICommand, command::LAPCE_UI_COMMAND, panel::PanelPosition,
+};
 
 #[allow(dead_code)]
 const ICONS_DIR: Dir = include_dir!("../icons");
@@ -32,19 +32,19 @@ pub struct FileExplorerState {
     // pub widget_id: WidgetId,
     #[allow(dead_code)]
     window_id: WindowId,
-    
+
     #[allow(dead_code)]
     tab_id: WidgetId,
     pub widget_id: WidgetId,
     // cwd: PathBuf,
     pub items: Vec<FileNodeItem>,
-    
+
     #[allow(dead_code)]
     index: usize,
-    
+
     #[allow(dead_code)]
     count: usize,
-    
+
     #[allow(dead_code)]
     position: PanelPosition,
 }
@@ -55,7 +55,7 @@ pub struct FileExplorerData {
     pub widget_id: WidgetId,
     pub workspace: Option<FileNodeItem>,
     index: usize,
-    
+
     #[allow(dead_code)]
     count: usize,
 }
@@ -119,7 +119,7 @@ impl FileExplorerData {
         }
     }
 
-    pub fn update_node_count(&mut self, path: &PathBuf) -> Option<()> {
+    pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
         let node = self.get_node_mut(path)?;
         if node.is_dir {
             if node.open {
@@ -135,7 +135,7 @@ impl FileExplorerData {
         None
     }
 
-    pub fn node_tree(&mut self, path: &PathBuf) -> Option<Vec<PathBuf>> {
+    pub fn node_tree(&mut self, path: &Path) -> Option<Vec<PathBuf>> {
         let root = &self.workspace.as_ref()?.path_buf;
         let path = path.strip_prefix(root).ok()?;
         Some(
@@ -150,15 +150,15 @@ impl FileExplorerData {
         node
     }
 
-    pub fn get_node_mut(&mut self, path: &PathBuf) -> Option<&mut FileNodeItem> {
+    pub fn get_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
         let mut node = self.workspace.as_mut()?;
-        if &node.path_buf == path {
+        if node.path_buf == path {
             return Some(node);
         }
         let root = node.path_buf.clone();
         let path = path.strip_prefix(&root).ok()?;
         for path in path.ancestors().collect::<Vec<&Path>>().iter().rev() {
-            if path.to_str()? == "" {
+            if path.to_str()?.is_empty() {
                 continue;
             }
             node = node.children.get_mut(&root.join(path))?;
@@ -217,7 +217,7 @@ pub fn paint_file_node_item(
                 rect,
                 Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
             );
-            toggle_rects.insert(i, rect.clone());
+            toggle_rects.insert(i, rect);
 
             let icon_name = if item.open {
                 "default_folder_opened.svg"
@@ -286,11 +286,11 @@ pub fn paint_file_node_item(
     i
 }
 
-pub fn get_item_children<'a>(
+pub fn get_item_children(
     i: usize,
     index: usize,
-    item: &'a FileNodeItem,
-) -> (usize, Option<&'a FileNodeItem>) {
+    item: &FileNodeItem,
+) -> (usize, Option<&FileNodeItem>) {
     if i == index {
         return (i, Some(item));
     }
@@ -310,11 +310,11 @@ pub fn get_item_children<'a>(
     (i, None)
 }
 
-pub fn get_item_children_mut<'a>(
+pub fn get_item_children_mut(
     i: usize,
     index: usize,
-    item: &'a mut FileNodeItem,
-) -> (usize, Option<&'a mut FileNodeItem>) {
+    item: &mut FileNodeItem,
+) -> (usize, Option<&mut FileNodeItem>) {
     if i == index {
         return (i, Some(item));
     }
@@ -456,6 +456,12 @@ pub struct FileExplorerFileList {
 impl FileExplorerFileList {
     pub fn new() -> Self {
         Self { line_height: 25.0 }
+    }
+}
+
+impl Default for FileExplorerFileList {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

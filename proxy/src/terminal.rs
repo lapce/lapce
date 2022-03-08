@@ -57,10 +57,10 @@ pub struct Terminal {
     term_id: TermId,
     poll: mio::Poll,
     pty: alacritty_terminal::tty::Pty,
-    
+
     #[allow(deprecated)]
     rx: Receiver<Msg>,
-    
+
     #[allow(deprecated)]
     pub tx: Sender<Msg>,
 }
@@ -78,7 +78,7 @@ impl Terminal {
             cwd.or_else(|| BaseDirs::new().map(|d| PathBuf::from(d.home_dir())));
         config.pty_config.shell =
             std::env::var("SHELL").ok().map(|shell| Program::WithArgs {
-                program: shell.to_string(),
+                program: shell,
                 args: vec!["-l".to_string()],
             });
         setup_env(&config);
@@ -88,7 +88,8 @@ impl Terminal {
 
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-        let pty = alacritty_terminal::tty::new(&config.pty_config, &size, None).unwrap();
+        let pty =
+            alacritty_terminal::tty::new(&config.pty_config, &size, None).unwrap();
 
         #[allow(deprecated)]
         let (tx, rx) = channel();
@@ -292,7 +293,7 @@ impl Writing {
 pub struct State {
     write_list: VecDeque<Cow<'static, [u8]>>,
     writing: Option<Writing>,
-    
+
     #[allow(dead_code)]
     parser: ansi::Processor,
 }

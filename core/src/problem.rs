@@ -61,6 +61,12 @@ impl ProblemData {
     }
 }
 
+impl Default for ProblemData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct ProblemContent {
     severity: DiagnosticSeverity,
     mouse_pos: Point,
@@ -142,7 +148,7 @@ impl ProblemContent {
                                             line: line as u32,
                                             character: col as u32,
                                         })
-                                        .unwrap_or(d.diagnositc.range.start.clone()),
+                                        .unwrap_or_else(|| d.diagnositc.range.start),
                                 ),
                                 scroll_offset: None,
                                 hisotry: None,
@@ -170,9 +176,7 @@ impl ProblemContent {
                                         .uri
                                         .to_file_path()
                                         .unwrap(),
-                                    position: Some(
-                                        related.location.range.start.clone(),
-                                    ),
+                                    position: Some(related.location.range.start),
                                     scroll_offset: None,
                                     hisotry: None,
                                 },
@@ -344,7 +348,7 @@ impl Widget<LapceTabData> for ProblemContent {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            if folder != "" {
+            if !folder.is_empty() {
                 let x = text_layout.size().width + line_height + 5.0;
 
                 let text_layout = ctx

@@ -20,7 +20,7 @@ impl SignatureState {
     pub fn update(&mut self, offset: usize, commas: Vec<usize>) -> Option<bool> {
         let signature = self.signature.as_ref()?;
         let params = signature.signatures[0].parameters.as_ref()?;
-        if params.len() == 0 {
+        if params.is_empty() {
             return None;
         }
         let mut index = commas.len();
@@ -55,5 +55,11 @@ impl SignatureState {
         self.offset = None;
         self.signature = None;
         self.active = None;
+    }
+}
+
+impl Default for SignatureState {
+    fn default() -> Self {
+        Self::new()
     }
 }

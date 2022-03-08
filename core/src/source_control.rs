@@ -2,25 +2,18 @@ use std::sync::Arc;
 
 use druid::{
     kurbo::BezPath,
-    piet::{
-        Text,
-        TextLayout as PietTextLayout, TextLayoutBuilder,
-    },
-    BoxConstraints, Color, Command, Env, Event, EventCtx,
-    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt,
-    WidgetId
+    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
+    BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_proxy::dispatch::FileDiff;
 
 use crate::{
-    command::{
-        CommandExecuted, LapceCommand, LapceUICommand,
-        LAPCE_UI_COMMAND,
-    },
+    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    editor::{LapceEditorView},
+    editor::LapceEditorView,
     keypress::KeyPressFocus,
     movement::Movement,
     panel::{LapcePanel, PanelHeaderKind},
@@ -29,8 +22,8 @@ use crate::{
     svg::{file_svg_new, get_svg},
 };
 
-pub const SOURCE_CONTROL_BUFFER: &'static str = "[Source Control Buffer]";
-pub const SEARCH_BUFFER: &'static str = "[Search Buffer]";
+pub const SOURCE_CONTROL_BUFFER: &str = "[Source Control Buffer]";
+pub const SEARCH_BUFFER: &str = "[Search Buffer]";
 
 #[derive(Clone)]
 pub struct SourceControlData {
@@ -100,6 +93,12 @@ impl SourceControlData {
     }
 }
 
+impl Default for SourceControlData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeyPressFocus for SourceControlData {
     fn get_mode(&self) -> Mode {
         Mode::Normal
@@ -155,13 +154,13 @@ impl KeyPressFocus for SourceControlData {
                 );
             }
             LapceCommand::ListExpand => {
-                if self.file_diffs.len() > 0 {
+                if !self.file_diffs.is_empty() {
                     self.file_diffs[self.file_list_index].1 =
                         !self.file_diffs[self.file_list_index].1;
                 }
             }
             LapceCommand::ListSelect => {
-                if self.file_diffs.len() > 0 {
+                if !self.file_diffs.is_empty() {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::OpenFileDiff(
@@ -282,12 +281,9 @@ impl Widget<LapceTabData> for SourceControlFileList {
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::Focus => {
-                        self.request_focus(ctx, data);
-                        ctx.set_handled();
-                    }
-                    _ => (),
+                if let LapceUICommand::Focus = command {
+                    self.request_focus(ctx, data);
+                    ctx.set_handled();
                 }
             }
             _ => (),
@@ -301,11 +297,8 @@ impl Widget<LapceTabData> for SourceControlFileList {
         _data: &LapceTabData,
         _env: &Env,
     ) {
-        match event {
-            LifeCycle::FocusChanged(_) => {
-                ctx.request_paint();
-            }
-            _ => (),
+        if let LifeCycle::FocusChanged(_) = event {
+            ctx.request_paint();
         }
     }
 
@@ -339,7 +332,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
 
         let diffs = &data.source_control.file_diffs;
 
-        if ctx.is_focused() && diffs.len() > 0 {
+        if ctx.is_focused() && !diffs.is_empty() {
             let rect = Size::new(ctx.size().width, self.line_height)
                 .to_rect()
                 .with_origin(Point::new(
@@ -424,7 +417,7 @@ impl Widget<LapceTabData> for SourceControlFileList {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            if folder != "" {
+            if !folder.is_empty() {
                 let x = text_layout.size().width;
 
                 let text_layout = ctx

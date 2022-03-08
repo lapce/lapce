@@ -232,10 +232,7 @@ impl BufferContent {
     pub fn is_search(&self) -> bool {
         match &self {
             BufferContent::File(_) => false,
-            BufferContent::Local(local) => match local {
-                LocalBufferKind::Search => true,
-                _ => false,
-            },
+            BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
         }
     }
 }
@@ -395,13 +392,13 @@ impl BufferNew {
     pub fn load_content(&mut self, content: &str) {
         self.reset_revs();
 
-        if content != "" {
+        if !content.is_empty() {
             let delta =
                 Delta::simple_edit(Interval::new(0, 0), Rope::from(content), 0);
             let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
-                self.mk_new_rev(0, delta.clone());
+                self.mk_new_rev(0, delta);
             self.revs.push(new_rev);
-            self.rope = new_text.clone();
+            self.rope = new_text;
             self.tombstones = new_tombstones;
             self.deletes_from_union = new_deletes_from_union;
         }
@@ -477,7 +474,7 @@ impl BufferNew {
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateHisotryChanges {
-                            id: id,
+                            id,
                             path,
                             rev,
                             history: "head".to_string(),
@@ -604,7 +601,7 @@ impl BufferNew {
         let mut find = self.find.borrow_mut();
         find.unset();
         find.search_string = current_find.search_string.clone();
-        find.case_matching = current_find.case_matching.clone();
+        find.case_matching = current_find.case_matching;
         find.regex = current_find.regex.clone();
         find.whole_words = current_find.whole_words;
         *self.find_progress.borrow_mut() = FindProgress::Started;
@@ -722,7 +719,7 @@ impl BufferNew {
     }
 
     pub fn char_at_offset(&self, offset: usize) -> Option<char> {
-        if self.len() == 0 {
+        if self.is_empty() {
             return None;
         }
         WordCursor::new(&self.rope, offset)
@@ -759,6 +756,10 @@ impl BufferNew {
 
     pub fn len(&self) -> usize {
         self.rope.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     fn get_hisotry_line_styles(
@@ -1052,11 +1053,11 @@ impl BufferNew {
         let mut offset = self.offset_of_line(line + 1);
         let line_content = self.line_content(line);
         let mut line_content = line_content.as_str();
-        if line_content.ends_with("\n") {
+        if line_content.ends_with('\n') {
             offset -= 1;
             line_content = &line_content[..line_content.len() - 1];
         }
-        if !caret && line_content.len() > 0 {
+        if !caret && !line_content.is_empty() {
             offset = self.prev_grapheme_offset(offset, 1, 0);
         }
         offset
@@ -1095,11 +1096,11 @@ impl BufferNew {
         caret: bool,
         tab_width: usize,
     ) -> usize {
-        match horiz {
-            &ColPosition::Col(n) => n.min(self.line_end_col(line, caret, tab_width)),
-            &ColPosition::End => self.line_end_col(line, caret, tab_width),
-            &ColPosition::Start => 0,
-            &ColPosition::FirstNonBlank => {
+        match *horiz {
+            ColPosition::Col(n) => n.min(self.line_end_col(line, caret, tab_width)),
+            ColPosition::End => self.line_end_col(line, caret, tab_width),
+            ColPosition::Start => 0,
+            ColPosition::FirstNonBlank => {
                 self.first_non_blank_character_on_line(line)
             }
         }
@@ -1356,7 +1357,7 @@ impl BufferNew {
         tab_width: usize,
     ) -> (usize, ColPosition) {
         let horiz = if let Some(horiz) = horiz {
-            horiz.clone()
+            *horiz
         } else {
             let (_, col) = self.offset_to_line_col(offset, tab_width);
             ColPosition::Col(col)
@@ -1402,12 +1403,10 @@ impl BufferNew {
                         0
                     };
                     self.diff_actual_line(compare, cursor_line)
+                } else if line > count {
+                    line - count
                 } else {
-                    if line > count {
-                        line - count
-                    } else {
-                        0
-                    }
+                    0
                 };
 
                 let col = self.line_horiz_col(
@@ -1426,12 +1425,16 @@ impl BufferNew {
                 let line = if let Some(compare) = compare.as_ref() {
                     let cursor_line = self.diff_cursor_line(compare, line);
                     let cursor_line = cursor_line + count;
-                    let line = self.diff_actual_line(compare, cursor_line);
-                    line
+
+                    self.diff_actual_line(compare, cursor_line)
                 } else {
                     let line = line + count;
-                    let line = if line > last_line { last_line } else { line };
-                    line
+
+                    if line > last_line {
+                        last_line
+                    } else {
+                        line
+                    }
                 };
 
                 let col = self.line_horiz_col(
@@ -1747,8 +1750,8 @@ impl BufferNew {
 
         let deletes_at_rev = &self.deletes_from_union;
 
-        let union_ins_delta = ins_delta.transform_expand(&deletes_at_rev, true);
-        let mut new_deletes = deletes.transform_expand(&deletes_at_rev);
+        let union_ins_delta = ins_delta.transform_expand(deletes_at_rev, true);
+        let mut new_deletes = deletes.transform_expand(deletes_at_rev);
 
         let new_inserts = union_ins_delta.inserted_subset();
         if !new_inserts.is_empty() {
@@ -1827,11 +1830,11 @@ impl BufferNew {
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
 
         if !self.local {
-            proxy.update(self.id, &delta, self.rev);
+            proxy.update(self.id, delta, self.rev);
         }
 
         self.revs.push(new_rev);
-        self.rope = new_text.clone();
+        self.rope = new_text;
         self.tombstones = new_tombstones;
         self.deletes_from_union = new_deletes_from_union;
         self.code_actions.clear();
@@ -1848,7 +1851,7 @@ impl BufferNew {
             new_count: new_hard_count,
         };
         self.update_size(&inval_lines);
-        self.update_line_styles(&delta, &inval_lines);
+        self.update_line_styles(delta, &inval_lines);
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.notify_update();
@@ -2036,7 +2039,7 @@ impl BufferNew {
     fn compute_undo(&self, groups: &BTreeSet<usize>) -> (Revision, Subset) {
         let toggled_groups = self
             .undone_groups
-            .symmetric_difference(&groups)
+            .symmetric_difference(groups)
             .cloned()
             .collect();
         let first_candidate = self.find_first_undo_candidate_index(&toggled_groups);
@@ -2215,7 +2218,7 @@ impl<'a> WordCursor<'a> {
             }
             candidate = self.inner.pos();
         }
-        return candidate;
+        candidate
     }
 
     pub fn next_code_boundary(&mut self) -> usize {
@@ -2227,7 +2230,7 @@ impl<'a> WordCursor<'a> {
             }
             candidate = self.inner.pos();
         }
-        return candidate;
+        candidate
     }
 
     pub fn match_pairs(&mut self) -> Option<usize> {
@@ -2263,10 +2266,8 @@ impl<'a> WordCursor<'a> {
         let other = matching_char(c)?;
         let mut n = 0;
         while let Some(current) = self.inner.prev_codepoint() {
-            if current == c {
-                if n == 0 {
-                    return Some(self.inner.pos());
-                }
+            if current == c && n == 0 {
+                return Some(self.inner.pos());
             }
             if current == other {
                 n += 1;
@@ -2442,9 +2443,7 @@ pub fn has_unmatched_pair(line: &str) -> bool {
         if let Some(left) = matching_pair_direction(c) {
             let key = if left { c } else { matching_char(c).unwrap() };
             let pair_count = *count.get(&key).unwrap_or(&0i32);
-            if !pair_first.contains_key(&key) {
-                pair_first.insert(key, left);
-            }
+            pair_first.entry(key).or_insert(left);
             if left {
                 count.insert(key, pair_count - 1);
             } else {
@@ -2472,9 +2471,7 @@ pub fn previous_has_unmatched_pair(line: &str, col: usize) -> bool {
         if let Some(left) = matching_pair_direction(c) {
             let key = if left { c } else { matching_char(c).unwrap() };
             let pair_count = *count.get(&key).unwrap_or(&0i32);
-            if !pair_first.contains_key(&key) {
-                pair_first.insert(key, left);
-            }
+            pair_first.entry(key).or_insert(left);
             if left {
                 count.insert(key, pair_count - 1);
             } else {
@@ -2500,9 +2497,7 @@ pub fn next_has_unmatched_pair(line: &str, col: usize) -> bool {
     for c in line[col..].chars() {
         if let Some(left) = matching_pair_direction(c) {
             let key = if left { c } else { matching_char(c).unwrap() };
-            if !count.contains_key(&key) {
-                count.insert(key, 0i32);
-            }
+            count.entry(key).or_insert(0i32);
             if left {
                 count.insert(key, count.get(&key).unwrap_or(&0i32) - 1);
             } else {
@@ -2780,8 +2775,8 @@ fn rope_styles(
             }
         }
     }
-    let highlights = highlights.build();
-    highlights
+
+    highlights.build()
 }
 
 #[allow(dead_code)]
@@ -2832,24 +2827,18 @@ fn buffer_diff(
         }
     }
     for (i, change) in changes.clone().iter().enumerate().rev() {
-        match change {
-            DiffLines::Both(l, r) => {
-                if r.len() > 6 {
-                    changes[i] = DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
-                    changes.insert(
-                        i,
-                        DiffLines::Skip(
-                            l.start + 3..l.end - 3,
-                            r.start + 3..r.end - 3,
-                        ),
-                    );
-                    changes.insert(
-                        i,
-                        DiffLines::Both(l.start..l.start + 3, r.start..r.start + 3),
-                    );
-                }
+        if let DiffLines::Both(l, r) = change {
+            if r.len() > 6 {
+                changes[i] = DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
+                changes.insert(
+                    i,
+                    DiffLines::Skip(l.start + 3..l.end - 3, r.start + 3..r.end - 3),
+                );
+                changes.insert(
+                    i,
+                    DiffLines::Both(l.start..l.start + 3, r.start..r.start + 3),
+                );
             }
-            _ => (),
         }
     }
     Some(changes)
@@ -2988,52 +2977,29 @@ fn rope_diff(
             right_count - trailing_equals..right_count,
         ));
     }
-    if changes.len() > 0 {
+    if !changes.is_empty() {
         let changes_last = changes.len() - 1;
         for (i, change) in changes.clone().iter().enumerate().rev() {
             if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                 return None;
             }
-            match change {
-                DiffLines::Both(l, r) => {
-                    if i == 0 || i == changes_last {
-                        if r.len() > 3 {
-                            if i == 0 {
-                                changes[i] = DiffLines::Both(
-                                    l.end - 3..l.end,
-                                    r.end - 3..r.end,
-                                );
-                                changes.insert(
-                                    i,
-                                    DiffLines::Skip(
-                                        l.start..l.end - 3,
-                                        r.start..r.end - 3,
-                                    ),
-                                );
-                            } else {
-                                changes[i] = DiffLines::Skip(
-                                    l.start + 3..l.end,
-                                    r.start + 3..r.end,
-                                );
-                                changes.insert(
-                                    i,
-                                    DiffLines::Both(
-                                        l.start..l.start + 3,
-                                        r.start..r.start + 3,
-                                    ),
-                                );
-                            }
-                        }
-                    } else {
-                        if r.len() > 6 {
+            if let DiffLines::Both(l, r) = change {
+                if i == 0 || i == changes_last {
+                    if r.len() > 3 {
+                        if i == 0 {
                             changes[i] =
                                 DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
                             changes.insert(
                                 i,
                                 DiffLines::Skip(
-                                    l.start + 3..l.end - 3,
-                                    r.start + 3..r.end - 3,
+                                    l.start..l.end - 3,
+                                    r.start..r.end - 3,
                                 ),
+                            );
+                        } else {
+                            changes[i] = DiffLines::Skip(
+                                l.start + 3..l.end,
+                                r.start + 3..r.end,
                             );
                             changes.insert(
                                 i,
@@ -3044,8 +3010,20 @@ fn rope_diff(
                             );
                         }
                     }
+                } else if r.len() > 6 {
+                    changes[i] = DiffLines::Both(l.end - 3..l.end, r.end - 3..r.end);
+                    changes.insert(
+                        i,
+                        DiffLines::Skip(
+                            l.start + 3..l.end - 3,
+                            r.start + 3..r.end - 3,
+                        ),
+                    );
+                    changes.insert(
+                        i,
+                        DiffLines::Both(l.start..l.start + 3, r.start..r.start + 3),
+                    );
                 }
-                _ => (),
             }
         }
     }
@@ -3083,7 +3061,7 @@ where
         let left_skip = left.clone().skip(leading_equals).take(left_diff_size);
         let right_skip = right.clone().skip(leading_equals).take(right_diff_size);
 
-        for (i, l) in left_skip.clone().enumerate() {
+        for (i, l) in left_skip.enumerate() {
             for (j, r) in right_skip.clone().enumerate() {
                 table[i + 1][j + 1] = if l == r {
                     table[i][j] + 1

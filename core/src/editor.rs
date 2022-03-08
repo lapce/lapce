@@ -65,6 +65,7 @@ use lsp_types::{
 };
 use serde_json::Value;
 use std::cell::RefCell;
+use std::path::Path;
 use std::rc::Rc;
 use std::thread;
 use std::time::Instant;
@@ -408,7 +409,7 @@ impl LapceEditorBufferData {
                     self.config.editor.tab_width,
                 );
                 let start = *start;
-                let mode = mode.clone();
+                let mode = *mode;
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.cursor.mode = CursorMode::Visual {
                     start,
@@ -434,10 +435,10 @@ impl LapceEditorBufferData {
 
     fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
         for (view_id, editor) in self.main_split.editors.iter_mut() {
-            if view_id != &self.editor.view_id {
-                if self.buffer.content == editor.content {
-                    Arc::make_mut(editor).cursor.apply_delta(delta);
-                }
+            if view_id != &self.editor.view_id
+                && self.buffer.content == editor.content
+            {
+                Arc::make_mut(editor).cursor.apply_delta(delta);
             }
         }
     }
@@ -467,7 +468,7 @@ impl LapceEditorBufferData {
         });
         let additioal_edit = additioal_edit.as_ref().map(|edits| {
             edits
-                .into_iter()
+                .iter()
                 .map(|(selection, c)| (selection, c.as_str()))
                 .collect()
         });
@@ -523,7 +524,7 @@ impl LapceEditorBufferData {
                                 .transform(start_offset.min(edit_start), false);
                             let snippet_tabs = snippet.tabs(offset);
 
-                            if snippet_tabs.len() == 0 {
+                            if snippet_tabs.is_empty() {
                                 self.set_cursor_after_change(selection);
                                 return Ok(());
                             }
@@ -593,7 +594,7 @@ impl LapceEditorBufferData {
                 .to_string()
         };
         let completion = Arc::make_mut(&mut self.completion);
-        if input == "" && char != "." && char != ":" {
+        if input.is_empty() && char != "." && char != ":" {
             completion.cancel();
             return;
         }
@@ -654,7 +655,7 @@ impl LapceEditorBufferData {
             completion.id,
             event_sink.clone(),
         );
-        if input != "" {
+        if !input.is_empty() {
             completion.request(
                 self.proxy.clone(),
                 completion.request_id,
@@ -691,17 +692,17 @@ impl LapceEditorBufferData {
     }
 
     pub fn update_global_search(&self, ctx: &mut EventCtx, pattern: String) {
-        let tab_id = (*self.main_split.tab_id).clone();
+        let tab_id = *self.main_split.tab_id;
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateSearch(pattern.to_string()),
             Target::Widget(tab_id),
         ));
-        if pattern == "" {
+        if pattern.is_empty() {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::GlobalSearchResult(
-                    pattern.clone(),
+                    pattern,
                     Arc::new(HashMap::new()),
                 ),
                 Target::Widget(tab_id),
@@ -736,7 +737,7 @@ impl LapceEditorBufferData {
             BufferContent::File(_) => {}
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Keymap => {
-                    let tab_id = (*self.main_split.tab_id).clone();
+                    let tab_id = *self.main_split.tab_id;
                     let pattern = self.buffer.rope.to_string();
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -746,7 +747,7 @@ impl LapceEditorBufferData {
                     return;
                 }
                 LocalBufferKind::Settings => {
-                    let tab_id = (*self.main_split.tab_id).clone();
+                    let tab_id = *self.main_split.tab_id;
                     let pattern = self.buffer.rope.to_string();
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -763,7 +764,7 @@ impl LapceEditorBufferData {
                 LocalBufferKind::FilePicker => {
                     let pwd = self.buffer.rope.to_string();
                     let pwd = PathBuf::from(pwd);
-                    let tab_id = (*self.main_split.tab_id).clone();
+                    let tab_id = *self.main_split.tab_id;
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdatePickerPwd(pwd),
@@ -859,7 +860,7 @@ impl LapceEditorBufferData {
                         .cursor
                         .edit_selection(&self.buffer, self.config.editor.tab_width),
                 };
-                let after = !data.content.contains("\n");
+                let after = !data.content.contains('\n');
                 let (selection, _) = self.edit(
                     ctx,
                     &selection,
@@ -995,7 +996,7 @@ impl LapceEditorBufferData {
                 -p as usize
             }
         });
-        if let Some(new_offset) = positions.iter().next() {
+        if let Some(new_offset) = positions.get(0) {
             let selection = Selection::caret(*new_offset);
             self.set_cursor_after_change(selection);
         }
@@ -1028,7 +1029,7 @@ impl LapceEditorBufferData {
         if let Some(diagnostics) = self.diagnostics_mut() {
             for diagnostic in diagnostics.iter_mut() {
                 let mut transformer = Transformer::new(delta);
-                let (start, end) = diagnostic.range.clone().unwrap();
+                let (start, end) = diagnostic.range.unwrap();
                 let (new_start, new_end) = (
                     transformer.transform(start, false),
                     transformer.transform(end, true),
@@ -1087,7 +1088,7 @@ impl LapceEditorBufferData {
             edits.extend_from_slice(&additional_edit);
             buffer.edit_multiple(ctx, edits, proxy, edit_type)
         } else {
-            buffer.edit(ctx, &selection, c, proxy, edit_type)
+            buffer.edit(ctx, selection, c, proxy, edit_type)
         };
         self.inactive_apply_delta(&delta);
         let selection = selection.apply_delta(&delta, after, InsertDrift::Default);
@@ -1116,7 +1117,7 @@ impl LapceEditorBufferData {
 
     fn next_diff(&mut self, ctx: &mut EventCtx, _env: &Env) {
         if let BufferContent::File(buffer_path) = &self.buffer.content {
-            if self.source_control.file_diffs.len() == 0 {
+            if self.source_control.file_diffs.is_empty() {
                 return;
             }
             let mut diff_files: Vec<(PathBuf, Vec<Position>)> = self
@@ -1162,7 +1163,7 @@ impl LapceEditorBufferData {
                             }
                         }
                     }
-                    if positions.len() == 0 {
+                    if positions.is_empty() {
                         positions.push(Position {
                             line: 0,
                             character: 0,
@@ -1178,7 +1179,7 @@ impl LapceEditorBufferData {
                 .buffer
                 .offset_to_position(offset, self.config.editor.tab_width);
             let (path, position) =
-                next_in_file_diff_offset(position, &buffer_path, &diff_files);
+                next_in_file_diff_offset(position, buffer_path, &diff_files);
             let location = EditorLocationNew {
                 path,
                 position: Some(position),
@@ -1214,7 +1215,7 @@ impl LapceEditorBufferData {
                             Some(d.diagnositc.range.start)
                         })
                         .collect();
-                    if errors.len() == 0 {
+                    if errors.is_empty() {
                         None
                     } else {
                         errors.sort();
@@ -1222,7 +1223,7 @@ impl LapceEditorBufferData {
                     }
                 })
                 .collect::<Vec<(&PathBuf, Vec<Position>)>>();
-            if file_diagnostics.len() == 0 {
+            if file_diagnostics.is_empty() {
                 return;
             }
             file_diagnostics.sort_by(|a, b| a.0.cmp(b.0));
@@ -1231,11 +1232,8 @@ impl LapceEditorBufferData {
             let position = self
                 .buffer
                 .offset_to_position(offset, self.config.editor.tab_width);
-            let (path, position) = next_in_file_errors_offset(
-                position,
-                &buffer_path,
-                &file_diagnostics,
-            );
+            let (path, position) =
+                next_in_file_errors_offset(position, buffer_path, &file_diagnostics);
             let location = EditorLocationNew {
                 path,
                 position: Some(position),
@@ -1255,7 +1253,7 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         _env: &Env,
     ) -> Option<()> {
-        if self.editor.locations.len() == 0 {
+        if self.editor.locations.is_empty() {
             return None;
         }
         if self.editor.current_location >= self.editor.locations.len() - 1 {
@@ -1307,7 +1305,7 @@ impl LapceEditorBufferData {
                 self.editor.scroll_offset.to_point()
                     + Vec2::new(0.0, if down { distance } else { -distance }),
             )
-            .with_size(self.editor.size.borrow().clone());
+            .with_size(*self.editor.size.borrow());
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::EnsureRectVisible(rect),
@@ -1440,10 +1438,7 @@ impl LapceEditorBufferData {
 
     fn diagnostics_mut(&mut self) -> Option<&mut Vec<EditorDiagnostic>> {
         if let BufferContent::File(path) = &self.buffer.content {
-            self.main_split
-                .diagnostics
-                .get_mut(path)
-                .map(|d| Arc::make_mut(d))
+            self.main_split.diagnostics.get_mut(path).map(Arc::make_mut)
         } else {
             None
         }
@@ -1694,7 +1689,7 @@ impl LapceEditorBufferData {
     fn paint_gutter(&self, ctx: &mut PaintCtx, gutter_width: f64) {
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
-            let clip_rect = rect.clone();
+            let clip_rect = rect;
             ctx.clip(clip_rect);
             if let Some(compare) = self.editor.compare.as_ref() {
                 self.paint_gutter_inline_diff(ctx, compare, gutter_width);
@@ -1715,16 +1710,13 @@ impl LapceEditorBufferData {
                 }
                 let content = if *self.main_split.active != Some(self.view_id)
                     || self.editor.cursor.is_insert()
+                    || line == current_line
                 {
                     line + 1
+                } else if line > current_line {
+                    line - current_line
                 } else {
-                    if line == current_line {
-                        line + 1
-                    } else if line > current_line {
-                        line - current_line
-                    } else {
-                        current_line - line
-                    }
+                    current_line - line
                 };
                 let content = content.to_string();
 
@@ -1779,11 +1771,8 @@ impl LapceEditorBufferData {
                         }
                         DiffLines::Right(_range) => {
                             if let Some(last_change) = last_change.as_ref() {
-                                match last_change {
-                                    DiffLines::Left(_l) => {
-                                        modified = true;
-                                    }
-                                    _ => (),
+                                if let DiffLines::Left(_l) = last_change {
+                                    modified = true;
                                 }
                             }
                             if modified {
@@ -1848,7 +1837,7 @@ impl LapceEditorBufferData {
 
     fn paint_code_actions_hint(&self, ctx: &mut PaintCtx, gutter_width: f64) {
         if let Some(actions) = self.current_code_actions() {
-            if actions.len() > 0 {
+            if !actions.is_empty() {
                 let line_height = self.config.editor.line_height as f64;
                 let offset = self.editor.cursor.offset();
                 let (line, _) = self
@@ -2314,18 +2303,15 @@ impl LapceEditorBufferData {
             }
         }
         if cursor_line == actual_line {
-            match &self.editor.cursor.mode {
-                CursorMode::Normal(_) => {
-                    let size = ctx.size();
-                    ctx.fill(
-                        Rect::ZERO
-                            .with_origin(Point::new(0.0, line as f64 * line_height))
-                            .with_size(Size::new(size.width, line_height)),
-                        self.config
-                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-                    );
-                }
-                _ => (),
+            if let CursorMode::Normal(_) = &self.editor.cursor.mode {
+                let size = ctx.size();
+                ctx.fill(
+                    Rect::ZERO
+                        .with_origin(Point::new(0.0, line as f64 * line_height))
+                        .with_size(Size::new(size.width, line_height)),
+                    self.config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                );
             }
             match &self.editor.cursor.mode {
                 CursorMode::Normal(_) | CursorMode::Visual { .. } => {
@@ -2466,12 +2452,12 @@ impl LapceEditorBufferData {
                     }
                     let line_content = self.buffer.line_content(line);
                     let left_col = match mode {
-                        &VisualMode::Normal => match line {
+                        VisualMode::Normal => match line {
                             _ if line == start_line => start_col,
                             _ => 0,
                         },
-                        &VisualMode::Linewise => 0,
-                        &VisualMode::Blockwise => {
+                        VisualMode::Linewise => 0,
+                        VisualMode::Blockwise => {
                             let max_col = self.buffer.line_end_col(
                                 line,
                                 false,
@@ -2487,7 +2473,7 @@ impl LapceEditorBufferData {
                     let x0 = left_col as f64 * width;
 
                     let right_col = match mode {
-                        &VisualMode::Normal => match line {
+                        VisualMode::Normal => match line {
                             _ if line == end_line => {
                                 let max_col = self.buffer.line_end_col(
                                     line,
@@ -2504,14 +2490,14 @@ impl LapceEditorBufferData {
                                 ) + 1
                             }
                         },
-                        &VisualMode::Linewise => {
+                        VisualMode::Linewise => {
                             self.buffer.line_end_col(
                                 line,
                                 true,
                                 self.config.editor.tab_width,
                             ) + 1
                         }
-                        &VisualMode::Blockwise => {
+                        VisualMode::Blockwise => {
                             let max_col = self.buffer.line_end_col(
                                 line,
                                 true,
@@ -2524,7 +2510,7 @@ impl LapceEditorBufferData {
                             right
                         }
                     };
-                    if line_content.len() > 0 {
+                    if !line_content.is_empty() {
                         let x1 = right_col as f64 * width;
 
                         let y0 = line as f64 * line_height;
@@ -2616,7 +2602,7 @@ impl LapceEditorBufferData {
                                 ),
                             };
 
-                            if line_content.len() > 0 {
+                            if !line_content.is_empty() {
                                 let x1 = right_col as f64 * width;
                                 let y0 = line as f64 * line_height;
                                 let y1 = y0 + line_height;
@@ -2783,7 +2769,7 @@ impl LapceEditorBufferData {
                             self.config.editor.tab_width,
                         ),
                     };
-                    if line_content.len() > 0 {
+                    if !line_content.is_empty() {
                         let x1 = right_col as f64 * width;
                         let y0 = line as f64 * line_height;
                         let y1 = y0 + line_height;
@@ -2873,7 +2859,7 @@ impl LapceEditorBufferData {
                                 .config
                                 .get_color_unchecked(LapceTheme::LAPCE_WARN),
                         };
-                        paint_wave_line(ctx, Point::new(x0, y0), x1 - x0, &color);
+                        paint_wave_line(ctx, Point::new(x0, y0), x1 - x0, color);
                     }
                 }
             }
@@ -2924,7 +2910,7 @@ impl LapceEditorBufferData {
                             })
                             .collect::<Vec<PietTextLayout>>()
                     })
-                    .unwrap_or(Vec::new());
+                    .unwrap_or_else(Vec::new);
 
                 let start = diagnostic.diagnositc.range.start;
                 let rect = Rect::ZERO
@@ -3226,7 +3212,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &self.buffer,
                             self.config.editor.tab_width,
                         );
-                        let selection = self.buffer.update_selection(
+
+                        self.buffer.update_selection(
                             &selection,
                             1,
                             &Movement::StartOfLine,
@@ -3234,8 +3221,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             true,
                             self.editor.compare.clone(),
                             self.config.editor.tab_width,
-                        );
-                        selection
+                        )
                     }
                 };
                 let (selection, _) =
@@ -3304,7 +3290,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::ClipboardPaste => {
                 if let Some(s) = Application::global().clipboard().get_string() {
                     let data = RegisterData {
-                        content: s.to_string(),
+                        content: s,
                         mode: VisualMode::Normal,
                     };
                     self.paste(ctx, &data);
@@ -3325,7 +3311,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &self.buffer,
                             self.config.editor.tab_width,
                         );
-                        let selection = self.buffer.update_selection(
+
+                        self.buffer.update_selection(
                             &selection,
                             1,
                             &Movement::WordBackward,
@@ -3333,8 +3320,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             true,
                             self.editor.compare.clone(),
                             self.config.editor.tab_width,
-                        );
-                        selection
+                        )
                     }
                 };
                 let (selection, _) =
@@ -3679,7 +3665,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                         Some(location)
                                     }
                                     GotoDefinitionResponse::Array(locations) => {
-                                        if locations.len() > 0 {
+                                        if !locations.is_empty() {
                                             Some(locations[0].clone())
                                         } else {
                                             None
@@ -3748,7 +3734,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::ShowCodeActions => {
                 if let Some(actions) = self.current_code_actions() {
-                    if actions.len() > 0 {
+                    if !actions.is_empty() {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::ShowCodeActions,
@@ -3939,8 +3925,8 @@ impl KeyPressFocus for LapceEditorBufferData {
             editor.cursor.horiz = None;
             if c.chars().count() == 1 {
                 let c = c.chars().next().unwrap();
-                if matching_pair_direction(c).unwrap_or(false) {
-                    if cursor_char
+                if matching_pair_direction(c).unwrap_or(false)
+                    && cursor_char
                         .map(|c| {
                             let prop = get_word_property(c);
                             prop == WordProperty::Lf
@@ -3948,28 +3934,25 @@ impl KeyPressFocus for LapceEditorBufferData {
                                 || prop == WordProperty::Punctuation
                         })
                         .unwrap_or(true)
-                    {
-                        if let Some(c) = matching_char(c) {
-                            self.edit(
-                                ctx,
-                                &selection,
-                                &c.to_string(),
-                                None,
-                                false,
-                                EditType::InsertChars,
-                            );
-                        }
+                {
+                    if let Some(c) = matching_char(c) {
+                        self.edit(
+                            ctx,
+                            &selection,
+                            &c.to_string(),
+                            None,
+                            false,
+                            EditType::InsertChars,
+                        );
                     }
                 }
             }
             self.update_completion(ctx);
-        } else {
-            if let Some(direction) = self.editor.inline_find.clone() {
-                self.inline_find(direction.clone(), c);
-                let editor = Arc::make_mut(&mut self.editor);
-                editor.last_inline_find = Some((direction.clone(), c.to_string()));
-                editor.inline_find = None;
-            }
+        } else if let Some(direction) = self.editor.inline_find.clone() {
+            self.inline_find(direction.clone(), c);
+            let editor = Arc::make_mut(&mut self.editor);
+            editor.last_inline_find = Some((direction, c.to_string()));
+            editor.inline_find = None;
         }
     }
 }
@@ -4272,7 +4255,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     match &editor.content {
                         BufferContent::File(path) => {
-                            svg = file_svg_new(&path);
+                            svg = file_svg_new(path);
                             if let Some(file_name) = path.file_name() {
                                 if let Some(s) = file_name.to_str() {
                                     text = s.to_string();
@@ -4339,29 +4322,27 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             self.mouse_pos,
         );
 
-        if ctx.is_hot() {
-            if data.drag.is_some() {
-                let tab_rect = &self.rects[mouse_index];
-                let x = if self.mouse_pos.x
-                    <= tab_rect.rect.x0 + tab_rect.rect.size().width / 2.0
-                {
-                    if mouse_index == 0 {
-                        tab_rect.rect.x0 + 2.0
-                    } else {
-                        tab_rect.rect.x0
-                    }
+        if ctx.is_hot() && data.drag.is_some() {
+            let tab_rect = &self.rects[mouse_index];
+            let x = if self.mouse_pos.x
+                <= tab_rect.rect.x0 + tab_rect.rect.size().width / 2.0
+            {
+                if mouse_index == 0 {
+                    tab_rect.rect.x0 + 2.0
                 } else {
-                    tab_rect.rect.x1
-                };
-                ctx.stroke(
-                    Line::new(
-                        Point::new(x, tab_rect.rect.y0),
-                        Point::new(x, tab_rect.rect.y1),
-                    ),
-                    data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
-                    4.0,
-                );
-            }
+                    tab_rect.rect.x0
+                }
+            } else {
+                tab_rect.rect.x1
+            };
+            ctx.stroke(
+                Line::new(
+                    Point::new(x, tab_rect.rect.y0),
+                    Point::new(x, tab_rect.rect.y1),
+                ),
+                data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                4.0,
+            );
         }
     }
 }
@@ -4436,31 +4417,19 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::EnsureEditorTabActiveVisble => {
-                        let editor_tab = data
-                            .main_split
-                            .editor_tabs
-                            .get(&self.widget_id)
-                            .unwrap();
-                        let active = editor_tab.active;
-                        if active < self.content.widget().child().rects.len() {
-                            let rect = self.content.widget().child().rects[active]
-                                .rect
-                                .clone();
-                            if self.content.widget_mut().scroll_to_visible(rect, env)
-                            {
-                                self.content
-                                    .widget_mut()
-                                    .scroll_component
-                                    .reset_scrollbar_fade(
-                                        |d| ctx.request_timer(d),
-                                        env,
-                                    );
-                            }
+                if let LapceUICommand::EnsureEditorTabActiveVisble = command {
+                    let editor_tab =
+                        data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+                    let active = editor_tab.active;
+                    if active < self.content.widget().child().rects.len() {
+                        let rect = self.content.widget().child().rects[active].rect;
+                        if self.content.widget_mut().scroll_to_visible(rect, env) {
+                            self.content
+                                .widget_mut()
+                                .scroll_component
+                                .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
                         }
                     }
-                    _ => (),
                 }
             }
             _ => (),
@@ -4475,12 +4444,9 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
         data: &LapceTabData,
         env: &Env,
     ) {
-        match event {
-            LifeCycle::HotChanged(is_hot) => {
-                self.is_hot = *is_hot;
-                ctx.request_layout();
-            }
-            _ => (),
+        if let LifeCycle::HotChanged(is_hot) = event {
+            self.is_hot = *is_hot;
+            ctx.request_layout();
         }
         self.content.lifecycle(ctx, event, data, env);
     }
@@ -4604,7 +4570,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                 );
             }
         }
-        if self.icons.len() > 0 {
+        if !self.icons.is_empty() {
             let x = size.width - self.icons.len() as f64 * size.height - 0.5;
             ctx.stroke(
                 Line::new(Point::new(x, 0.0), Point::new(x, size.height)),
@@ -4646,7 +4612,7 @@ impl LapceEditorTab {
         for child in editor_tab.children.iter() {
             match child {
                 EditorTabChild::Editor(view_id) => {
-                    data.main_split.editors.remove(&view_id);
+                    data.main_split.editors.remove(view_id);
                 }
             }
         }
@@ -4685,28 +4651,26 @@ impl LapceEditorTab {
                 Target::Widget(editor_tab.split),
             ));
             editor_tab.children.remove(i)
-        } else {
-            if editor_tab.active == i {
-                let new_index = if i >= editor_tab.children.len() - 1 {
-                    editor_tab.active = i - 1;
-                    i - 1
-                } else {
-                    i
-                };
-                if focus {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(editor_tab.children[new_index].widget_id()),
-                    ));
-                }
-                editor_tab.children.remove(i)
+        } else if editor_tab.active == i {
+            let new_index = if i >= editor_tab.children.len() - 1 {
+                editor_tab.active = i - 1;
+                i - 1
             } else {
-                if editor_tab.active > i {
-                    editor_tab.active -= 1;
-                }
-                editor_tab.children.remove(i)
+                i
+            };
+            if focus {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(editor_tab.children[new_index].widget_id()),
+                ));
             }
+            editor_tab.children.remove(i)
+        } else {
+            if editor_tab.active > i {
+                editor_tab.active -= 1;
+            }
+            editor_tab.children.remove(i)
         };
         if delete {
             match removed_child {
@@ -5019,55 +4983,53 @@ impl Widget<LapceTabData> for LapceEditorTab {
         );
 
         self.header.paint(ctx, data, env);
-        if ctx.is_hot() {
-            if data.drag.is_some() {
-                let width = size.width;
-                let header_rect = self.header.layout_rect();
-                let header_height = header_rect.height();
-                let header_size = header_rect.size();
-                let content_height = size.height - header_height;
-                let content_rect = Size::new(width, content_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, header_height));
+        if ctx.is_hot() && data.drag.is_some() {
+            let width = size.width;
+            let header_rect = self.header.layout_rect();
+            let header_height = header_rect.height();
+            let header_size = header_rect.size();
+            let content_height = size.height - header_height;
+            let content_rect = Size::new(width, content_height)
+                .to_rect()
+                .with_origin(Point::new(0.0, header_height));
 
-                if content_rect.contains(self.mouse_pos) {
-                    let rect = if self.mouse_pos.x < size.width / 3.0 {
-                        Size::new(width / 2.0, content_height)
-                            .to_rect()
-                            .with_origin(Point::new(0.0, header_height))
-                    } else if self.mouse_pos.x > size.width / 3.0 * 2.0 {
-                        Size::new(width / 2.0, content_height)
-                            .to_rect()
-                            .with_origin(Point::new(width / 2.0, header_height))
-                    } else if self.mouse_pos.y
-                        < header_size.height + content_height / 3.0
-                    {
-                        Size::new(width, content_height / 2.0)
-                            .to_rect()
-                            .with_origin(Point::new(0.0, header_height))
-                    } else if self.mouse_pos.y
-                        > header_size.height + content_height / 3.0 * 2.0
-                    {
-                        Size::new(width, content_height / 2.0)
-                            .to_rect()
-                            .with_origin(Point::new(
-                                0.0,
-                                header_height + content_height / 2.0,
-                            ))
-                    } else {
-                        Size::new(width, content_height)
-                            .to_rect()
-                            .with_origin(Point::new(0.0, header_height))
-                    };
-                    ctx.fill(
-                        rect,
-                        &data
-                            .config
-                            .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
-                            .clone()
-                            .with_alpha(0.8),
-                    );
-                }
+            if content_rect.contains(self.mouse_pos) {
+                let rect = if self.mouse_pos.x < size.width / 3.0 {
+                    Size::new(width / 2.0, content_height)
+                        .to_rect()
+                        .with_origin(Point::new(0.0, header_height))
+                } else if self.mouse_pos.x > size.width / 3.0 * 2.0 {
+                    Size::new(width / 2.0, content_height)
+                        .to_rect()
+                        .with_origin(Point::new(width / 2.0, header_height))
+                } else if self.mouse_pos.y
+                    < header_size.height + content_height / 3.0
+                {
+                    Size::new(width, content_height / 2.0)
+                        .to_rect()
+                        .with_origin(Point::new(0.0, header_height))
+                } else if self.mouse_pos.y
+                    > header_size.height + content_height / 3.0 * 2.0
+                {
+                    Size::new(width, content_height / 2.0)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            0.0,
+                            header_height + content_height / 2.0,
+                        ))
+                } else {
+                    Size::new(width, content_height)
+                        .to_rect()
+                        .with_origin(Point::new(0.0, header_height))
+                };
+                ctx.fill(
+                    rect,
+                    &data
+                        .config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE)
+                        .clone()
+                        .with_alpha(0.8),
+                );
             }
         }
         let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
@@ -5124,7 +5086,7 @@ impl LapceEditorView {
         }
         data.focus = self.view_id;
         let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
-        if let Some(editor_tab_id) = editor.tab_id.clone() {
+        if let Some(editor_tab_id) = editor.tab_id {
             let editor_tab =
                 data.main_split.editor_tabs.get_mut(&editor_tab_id).unwrap();
             let editor_tab = Arc::make_mut(editor_tab);
@@ -5145,7 +5107,7 @@ impl LapceEditorView {
             BufferContent::File(_) => {
                 data.focus_area = FocusArea::Editor;
                 data.main_split.active = Arc::new(Some(self.view_id));
-                data.main_split.active_tab = Arc::new(editor.tab_id.clone());
+                data.main_split.active_tab = Arc::new(editor.tab_id);
             }
             BufferContent::Local(kind) => match kind {
                 LocalBufferKind::Keymap => {}
@@ -5163,7 +5125,7 @@ impl LapceEditorView {
                 LocalBufferKind::Empty => {
                     data.focus_area = FocusArea::Editor;
                     data.main_split.active = Arc::new(Some(self.view_id));
-                    data.main_split.active_tab = Arc::new(editor.tab_id.clone());
+                    data.main_split.active_tab = Arc::new(editor.tab_id);
                 }
             },
         }
@@ -5320,7 +5282,7 @@ impl LapceEditorView {
                 (data.editor.size.borrow().height / 2.0).ceil(),
             );
 
-        let editor_size = data.editor.size.borrow().clone();
+        let editor_size = *data.editor.size.borrow();
         let size = data.get_size(ctx.text(), editor_size, panels);
         let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
@@ -5342,7 +5304,7 @@ impl LapceEditorView {
         env: &Env,
     ) {
         let line_height = data.config.editor.line_height as f64;
-        let editor_size = data.editor.size.borrow().clone();
+        let editor_size = *data.editor.size.borrow();
         let size = data.get_size(ctx.text(), editor_size, panels.clone());
 
         let rect = data.cursor_region(ctx.text(), &data.config);
@@ -5359,14 +5321,14 @@ impl LapceEditorView {
             if let Some(position) = position {
                 match position {
                     EnsureVisiblePosition::CenterOfWindow => {
-                        self.ensure_cursor_center(ctx, data, panels.clone(), env);
+                        self.ensure_cursor_center(ctx, data, panels, env);
                     }
                 }
             } else {
                 let scroll_offset = scroll.offset();
                 if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
                 {
-                    self.ensure_cursor_center(ctx, data, panels.clone(), env);
+                    self.ensure_cursor_center(ctx, data, panels, env);
                 }
             }
         }
@@ -5399,11 +5361,8 @@ impl Widget<LapceTabData> for LapceEditorView {
             },
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::Focus => {
-                        self.request_focus(ctx, data, true);
-                    }
-                    _ => (),
+                if let LapceUICommand::Focus = command {
+                    self.request_focus(ctx, data, true);
                 }
             }
             _ => (),
@@ -5572,17 +5531,17 @@ impl Widget<LapceTabData> for LapceEditorView {
                 match kind {
                     LocalBufferKind::Search => {
                         let pattern = editor_data.buffer.rope.to_string();
-                        let tab_id = (*data.main_split.tab_id).clone();
+                        let tab_id = *data.main_split.tab_id;
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::UpdateSearch(pattern.clone()),
                             Target::Widget(tab_id),
                         ));
-                        if pattern == "" {
+                        if pattern.is_empty() {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::GlobalSearchResult(
-                                    pattern.clone(),
+                                    pattern,
                                     Arc::new(HashMap::new()),
                                 ),
                                 Target::Widget(tab_id),
@@ -5624,7 +5583,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LocalBufferKind::FilePicker => {
                         let pwd = editor_data.buffer.rope.to_string();
                         let pwd = PathBuf::from(pwd);
-                        let tab_id = (*data.main_split.tab_id).clone();
+                        let tab_id = *data.main_split.tab_id;
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::UpdatePickerPwd(pwd),
@@ -5632,7 +5591,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                         ));
                     }
                     LocalBufferKind::Keymap => {
-                        let tab_id = (*data.main_split.tab_id).clone();
+                        let tab_id = *data.main_split.tab_id;
                         let pattern = editor_data.buffer.rope.to_string();
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
@@ -5641,7 +5600,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                         ));
                     }
                     LocalBufferKind::Settings => {
-                        let tab_id = (*data.main_split.tab_id).clone();
+                        let tab_id = *data.main_split.tab_id;
                         let pattern = editor_data.buffer.rope.to_string();
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
@@ -6027,7 +5986,7 @@ impl Widget<LapceTabData> for LapceEditorContainer {
             .get(&self.view_id)
             .unwrap()
             .size
-            .borrow_mut() = editor_size.clone();
+            .borrow_mut() = editor_size;
         Size::new(
             if self.display_gutter {
                 gutter_size.width
@@ -6207,7 +6166,7 @@ impl LapceEditorHeader {
                     .and_then(|s| s.to_str())
                     .unwrap_or("")
                     .to_string();
-                if folder != "" {
+                if !folder.is_empty() {
                     let x = text_layout.size().width;
 
                     let text_layout = ctx
@@ -6583,16 +6542,13 @@ impl Widget<LapceTabData> for LapceEditor {
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::UpdateWindowOrigin => {
-                        let window_origin = ctx.window_origin();
-                        let editor =
-                            data.main_split.editors.get_mut(&self.view_id).unwrap();
-                        if editor.window_origin != window_origin {
-                            Arc::make_mut(editor).window_origin = window_origin;
-                        }
+                if let LapceUICommand::UpdateWindowOrigin = command {
+                    let window_origin = ctx.window_origin();
+                    let editor =
+                        data.main_split.editors.get_mut(&self.view_id).unwrap();
+                    if editor.window_origin != window_origin {
+                        Arc::make_mut(editor).window_origin = window_origin;
                     }
-                    _ => (),
                 }
             }
             _ => (),
@@ -6606,18 +6562,15 @@ impl Widget<LapceTabData> for LapceEditor {
         data: &LapceTabData,
         _env: &Env,
     ) {
-        match event {
-            LifeCycle::Internal(InternalLifeCycle::ParentWindowOrigin) => {
-                let editor = data.main_split.editors.get(&self.view_id).unwrap();
-                if ctx.window_origin() != editor.window_origin {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateWindowOrigin,
-                        Target::Widget(editor.view_id),
-                    ))
-                }
+        if let LifeCycle::Internal(InternalLifeCycle::ParentWindowOrigin) = event {
+            let editor = data.main_split.editors.get(&self.view_id).unwrap();
+            if ctx.window_origin() != editor.window_origin {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateWindowOrigin,
+                    Target::Widget(editor.view_id),
+                ))
             }
-            _ => (),
         }
     }
 
@@ -6728,10 +6681,10 @@ fn get_workspace_edit_edits<'a>(
     url: &Url,
     workspace_edit: &'a WorkspaceEdit,
 ) -> Option<Vec<&'a TextEdit>> {
-    if let Some(edits) = get_workspace_edit_changes_edits(&url, workspace_edit) {
+    if let Some(edits) = get_workspace_edit_changes_edits(url, workspace_edit) {
         Some(edits)
     } else {
-        get_workspace_edit_document_changes_edits(&url, workspace_edit)
+        get_workspace_edit_document_changes_edits(url, workspace_edit)
     }
 }
 
@@ -6740,7 +6693,7 @@ fn get_workspace_edit_changes_edits<'a>(
     workspace_edit: &'a WorkspaceEdit,
 ) -> Option<Vec<&'a TextEdit>> {
     let changes = workspace_edit.changes.as_ref()?;
-    changes.get(url).map(|c| c.iter().map(|t| t).collect())
+    changes.get(url).map(|c| c.iter().collect())
 }
 
 fn get_workspace_edit_document_changes_edits<'a>(
@@ -6771,8 +6724,8 @@ fn get_workspace_edit_document_changes_edits<'a>(
 
 fn next_in_file_diff_offset(
     position: Position,
-    path: &PathBuf,
-    file_diffs: &Vec<(PathBuf, Vec<Position>)>,
+    path: &Path,
+    file_diffs: &[(PathBuf, Vec<Position>)],
 ) -> (PathBuf, Position) {
     for (current_path, positions) in file_diffs {
         if path == current_path {
@@ -6794,8 +6747,8 @@ fn next_in_file_diff_offset(
 
 fn next_in_file_errors_offset(
     position: Position,
-    path: &PathBuf,
-    file_diagnostics: &Vec<(&PathBuf, Vec<Position>)>,
+    path: &Path,
+    file_diagnostics: &[(&PathBuf, Vec<Position>)],
 ) -> (PathBuf, Position) {
     for (current_path, positions) in file_diagnostics {
         if &path == current_path {
@@ -6850,7 +6803,7 @@ fn process_get_references(
 ) -> Result<()> {
     let res = result.map_err(|e| anyhow!("{:?}", e))?;
     let locations: Vec<Location> = serde_json::from_value(res)?;
-    if locations.len() == 0 {
+    if locations.is_empty() {
         return Ok(());
     }
     if locations.len() == 1 {
@@ -6862,7 +6815,7 @@ fn process_get_references(
                 offset,
                 EditorLocationNew {
                     path: PathBuf::from(location.uri.path()),
-                    position: Some(location.range.start.clone()),
+                    position: Some(location.range.start),
                     scroll_offset: None,
                     hisotry: None,
                 },

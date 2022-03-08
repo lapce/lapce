@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::BufReader;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::thread;
 use std::{path::PathBuf, sync::Arc};
@@ -9,12 +10,12 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
-use druid::{ExtEventSink, WidgetId};
 use druid::Target;
+use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
 use lapce_proxy::dispatch::FileDiff;
-use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
 use lapce_proxy::dispatch::FileNodeItem;
+use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
 use lapce_proxy::plugin::PluginDescription;
 use lapce_proxy::terminal::TermId;
 use lapce_rpc::RpcHandler;
@@ -125,7 +126,9 @@ impl Handler for LapceProxy {
                 );
             }
             Notification::UpdateTerminal { term_id, content } => {
-                let _ = self.term_tx.send((term_id, TermEvent::UpdateContent(content)));
+                let _ = self
+                    .term_tx
+                    .send((term_id, TermEvent::UpdateContent(content)));
             }
             Notification::CloseTerminal { term_id } => {
                 let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
@@ -154,7 +157,7 @@ impl Handler for LapceProxy {
     }
 
     fn handle_request(&mut self, _rpc: Self::Request) -> Result<Value, Value> {
-        return Err(json!("unimplemented"));
+        Err(json!("unimplemented"))
     }
 }
 
@@ -233,7 +236,7 @@ impl LapceProxy {
                     .output()?;
                 if !cmd.status.success() {
                     let local_proxy_file = Config::dir()
-                        .ok_or(anyhow!("can't find config dir"))?
+                        .ok_or_else(|| anyhow!("can't find config dir"))?
                         .join(format!("lapce-proxy-{}", VERSION));
                     if !local_proxy_file.exists() {
                         let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
@@ -284,9 +287,15 @@ impl LapceProxy {
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
                     .spawn()?;
-                let stdin = child.stdin.take().ok_or(anyhow!("can't find stdin"))?;
+                let stdin = child
+                    .stdin
+                    .take()
+                    .ok_or_else(|| anyhow!("can't find stdin"))?;
                 let stdout = BufReader::new(
-                    child.stdout.take().ok_or(anyhow!("can't find stdout"))?,
+                    child
+                        .stdout
+                        .take()
+                        .ok_or_else(|| anyhow!("can't find stdout"))?,
                 );
 
                 let proxy_reciever = (*self.proxy_receiver).clone();
@@ -502,7 +511,7 @@ impl LapceProxy {
         );
     }
 
-    pub fn read_dir(&self, path: &PathBuf, f: Box<dyn Callback>) {
+    pub fn read_dir(&self, path: &Path, f: Box<dyn Callback>) {
         self.rpc.send_rpc_request_async(
             "read_dir",
             &json!({
@@ -649,10 +658,10 @@ pub enum Request {}
 pub struct ProxyHandlerNew {
     #[allow(dead_code)]
     tab_id: WidgetId,
-    
+
     #[allow(dead_code)]
     term_tx: Sender<(TermId, TermEvent)>,
-    
+
     #[allow(dead_code)]
     event_sink: ExtEventSink,
 }

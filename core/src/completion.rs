@@ -85,7 +85,7 @@ impl Snippet {
 
         let m = caps.get(2)?;
         let content = m.as_str();
-        if content == "" {
+        if content.is_empty() {
             return Some((
                 SnippetElement::PlaceHolder(
                     tab,
@@ -109,14 +109,17 @@ impl Snippet {
         let mut ele = "".to_string();
         let mut end = pos;
 
-        while s.len() > 0 {
+        while !s.is_empty() {
             if s.len() >= 2 {
                 let esc = &s[..2];
                 let mut new_escs = escs.clone();
                 new_escs.extend_from_slice(&loose_escs);
-                let new_escs: Vec<String> =
-                    new_escs.iter().map(|e| format!("\\{}", e)).collect();
-                if new_escs.contains(&esc.to_string()) {
+
+                if new_escs
+                    .iter()
+                    .map(|e| format!("\\{}", e))
+                    .any(|x| x == *esc)
+                {
                     ele = ele + &s[1..2].to_string();
                     end += 2;
                     s = &s[2..];
@@ -130,7 +133,7 @@ impl Snippet {
             end += 1;
             s = &s[1..];
         }
-        if ele.len() == 0 {
+        if ele.is_empty() {
             return None;
         }
         Some((SnippetElement::Text(ele), end))
@@ -205,6 +208,10 @@ impl SnippetElement {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn text(&self) -> String {
         match &self {
             SnippetElement::Text(t) => t.to_string(),
@@ -275,6 +282,10 @@ impl CompletionData {
         self.current_items().len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn next(&mut self) {
         self.index = Movement::Down.update_index(self.index, self.len(), 1, true);
     }
@@ -284,7 +295,7 @@ impl CompletionData {
     }
 
     pub fn current_items(&self) -> &Arc<Vec<ScoredCompletionItem>> {
-        if self.input == "" {
+        if self.input.is_empty() {
             self.all_items()
         } else {
             &self.filtered_items
@@ -331,7 +342,6 @@ impl CompletionData {
                             ),
                             Target::Widget(completion_widget_id),
                         );
-                        return;
                     }
                 }
             }),
@@ -388,7 +398,7 @@ impl CompletionData {
     }
 
     pub fn filter_items(&mut self) {
-        if self.input == "" {
+        if self.input.is_empty() {
             return;
         }
 
@@ -430,6 +440,12 @@ impl CompletionData {
             },
         });
         self.filtered_items = Arc::new(items);
+    }
+}
+
+impl Default for CompletionData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -568,7 +584,7 @@ impl Widget<LapceTabData> for CompletionContainer {
             || !old_data
                 .completion
                 .current_items()
-                .same(&data.completion.current_items())
+                .same(data.completion.current_items())
             || !old_data
                 .completion
                 .filtered_items
@@ -601,7 +617,7 @@ impl Widget<LapceTabData> for CompletionContainer {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let size = data.completion.size.clone();
+        let size = data.completion.size;
         let bc = BoxConstraints::new(Size::ZERO, size);
         self.content_size = self.completion.layout(ctx, &bc, data, env);
         self.completion.set_origin(ctx, data, env, Point::ZERO);
@@ -631,6 +647,12 @@ pub struct CompletionNew {}
 impl CompletionNew {
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+impl Default for CompletionNew {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -716,11 +738,11 @@ impl Widget<LapceTabData> for CompletionNew {
 
             if let Some((svg, color)) = completion_svg(item.item.kind, &data.config)
             {
-                let color = color.unwrap_or(
+                let color = color.unwrap_or_else(|| {
                     data.config
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone(),
-                );
+                        .clone()
+                });
                 let rect = Size::new(line_height, line_height)
                     .to_rect()
                     .with_origin(Point::new(0.0, line_height * line as f64));
@@ -810,6 +832,10 @@ impl CompletionState {
         self.items.iter().filter(|i| i.score != 0).count()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn current_items(&self) -> Vec<&ScoredCompletionItem> {
         self.items.iter().filter(|i| i.score != 0).collect()
     }
@@ -839,29 +865,23 @@ impl CompletionState {
         self.items = completion_items
             .iter()
             .enumerate()
-            .map(|(index, item)| {
-                let item = ScoredCompletionItem {
-                    item: item.to_owned(),
-                    score: -1 - index as i64,
-                    label_score: -1 - index as i64,
-                    index: index,
-                    indices: Vec::new(),
-                };
-                if input != "" {
-                    // if let Some((score, indices)) =
-                    //     self.matcher.fuzzy_indices(&item.item.label, &self.input)
-                    // {
-                    //     item.score = score;
-                    // } else {
-                    //     item.score = 0;
-                    // }
-                }
-                item
+            .map(|(index, item)| ScoredCompletionItem {
+                item: item.to_owned(),
+                score: -1 - index as i64,
+                label_score: -1 - index as i64,
+                index,
+                indices: Vec::new(),
             })
             .collect();
         self.items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
         self.input = input;
+    }
+}
+
+impl Default for CompletionState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

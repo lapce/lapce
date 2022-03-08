@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use druid::piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder};
-use druid::{
-    Env, EventCtx, ExtEventSink, FontFamily, KeyEvent, Modifiers,
-    PaintCtx, Point, Rect, RenderContext, Size, Target
-};
 use druid::{Command, KbKey};
+use druid::{
+    Env, EventCtx, ExtEventSink, FontFamily, KeyEvent, Modifiers, PaintCtx, Point,
+    Rect, RenderContext, Size, Target,
+};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use indexmap::IndexMap;
@@ -21,16 +21,13 @@ use crate::command::{
     LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
 };
 use crate::config::{Config, LapceTheme};
-use crate::{
-    command::LapceCommand,
-    state::Mode
-};
+use crate::{command::LapceCommand, state::Mode};
 
-const DEFAULT_KEYMAPS_WINDOWS: &'static str =
+const DEFAULT_KEYMAPS_WINDOWS: &str =
     include_str!("../../defaults/keymaps-windows.toml");
-const DEFAULT_KEYMAPS_MACOS: &'static str =
+const DEFAULT_KEYMAPS_MACOS: &str =
     include_str!("../../defaults/keymaps-macos.toml");
-const DEFAULT_KEYMAPS_LINUX: &'static str =
+const DEFAULT_KEYMAPS_LINUX: &str =
     include_str!("../../defaults/keymaps-linux.toml");
 
 #[derive(PartialEq)]
@@ -67,14 +64,11 @@ impl Display for KeyPress {
 
 impl KeyPress {
     pub fn is_char(&self) -> bool {
-        let mut mods = self.mods.clone();
+        let mut mods = self.mods;
         mods.set(Modifiers::SHIFT, false);
         if mods.is_empty() {
-            match &self.key {
-                druid::KbKey::Character(_c) => {
-                    return true;
-                }
-                _ => (),
+            if let druid::KbKey::Character(_c) = &self.key {
+                return true;
             }
         }
         false
@@ -86,7 +80,7 @@ impl KeyPress {
         origin: Point,
         config: &Config,
     ) -> (Point, Vec<(Option<Rect>, PietTextLayout, Point)>) {
-        let mut origin = origin.clone();
+        let mut origin = origin;
         let mut keys = Vec::new();
         if self.mods.ctrl() {
             keys.push("Ctrl".to_string());
@@ -107,12 +101,11 @@ impl KeyPress {
         }
         match &self.key {
             druid::keyboard_types::Key::Character(c) => {
-                if c.to_string() == c.to_uppercase()
+                if *c == c.to_uppercase()
                     && c.to_lowercase() != c.to_uppercase()
+                    && !self.mods.shift()
                 {
-                    if !self.mods.shift() {
-                        keys.push("Shift".to_string());
-                    }
+                    keys.push("Shift".to_string());
                 }
                 keys.push(c.to_uppercase());
             }
@@ -120,8 +113,6 @@ impl KeyPress {
                 keys.push(self.key.to_string());
             }
         }
-
-        let _old_origin = origin.clone();
 
         let mut items = Vec::new();
         let keys_len = keys.len();
@@ -203,9 +194,9 @@ impl KeyMap {
         align: Alignment,
         config: &Config,
     ) {
-        let old_origin = origin.clone();
+        let old_origin = origin;
 
-        let mut origin = origin.clone();
+        let mut origin = origin;
         let mut items = Vec::new();
         for keypress in self.key.iter() {
             let (new_origin, mut new_items) = keypress.paint(ctx, origin, config);
@@ -316,7 +307,7 @@ impl KeyPressData {
 
         self.commands_with_keymap = Arc::new(commands_with_keymap);
         self.commands_without_keymap = Arc::new(commands_without_keymap);
-        if self.filter_pattern != "" {
+        if !self.filter_pattern.is_empty() {
             self.filter_commands(&self.filter_pattern.clone());
         }
     }
@@ -366,16 +357,13 @@ impl KeyPressData {
             return false;
         }
 
-        match &keypress.key {
-            druid::KbKey::Character(c) => {
-                if let Ok(n) = c.parse::<usize>() {
-                    if self.count.is_some() || n > 0 {
-                        self.count = Some(self.count.unwrap_or(0) * 10 + n);
-                        return true;
-                    }
+        if let druid::KbKey::Character(c) = &keypress.key {
+            if let Ok(n) = c.parse::<usize>() {
+                if self.count.is_some() || n > 0 {
+                    self.count = Some(self.count.unwrap_or(0) * 10 + n);
+                    return true;
                 }
             }
-            _ => (),
         }
 
         false
@@ -391,18 +379,15 @@ impl KeyPressData {
             _ => (),
         }
         if key_event.key == druid::KbKey::Shift {
-            let mut mods = key_event.mods.clone();
+            let mut mods = key_event.mods;
             mods.set(Modifiers::SHIFT, false);
             if mods.is_empty() {
                 return None;
             }
         }
-        let mut mods = key_event.mods.clone();
-        match &key_event.key {
-            druid::KbKey::Character(_c) => {
-                mods.set(Modifiers::SHIFT, false);
-            }
-            _ => (),
+        let mut mods = key_event.mods;
+        if let druid::KbKey::Character(_c) = &key_event.key {
+            mods.set(Modifiers::SHIFT, false);
         }
 
         let keypress = KeyPress {
@@ -420,18 +405,15 @@ impl KeyPressData {
         env: &Env,
     ) -> bool {
         if key_event.key == druid::KbKey::Shift {
-            let mut mods = key_event.mods.clone();
+            let mut mods = key_event.mods;
             mods.set(Modifiers::SHIFT, false);
             if mods.is_empty() {
                 return false;
             }
         }
-        let mut mods = key_event.mods.clone();
-        match &key_event.key {
-            druid::KbKey::Character(_c) => {
-                mods.set(Modifiers::SHIFT, false);
-            }
-            _ => (),
+        let mut mods = key_event.mods;
+        if let druid::KbKey::Character(_c) = &key_event.key {
+            mods.set(Modifiers::SHIFT, false);
         }
 
         let keypress = KeyPress {
@@ -448,7 +430,7 @@ impl KeyPressData {
         keypresses.push(keypress.clone());
 
         let matches = self.match_keymap(&keypresses, focus);
-        let keymatch = if matches.len() == 0 {
+        let keymatch = if matches.is_empty() {
             KeymapMatch::None
         } else if matches.len() == 1 && matches[0].key == keypresses {
             KeymapMatch::Full(matches[0].command.clone())
@@ -490,23 +472,22 @@ impl KeyPressData {
             }
         }
 
-        if mode != Mode::Insert && mode != Mode::Terminal && !focus.expect_char() {
-            if self.handle_count(focus, &keypress) {
-                return false;
-            }
+        if mode != Mode::Insert
+            && mode != Mode::Terminal
+            && !focus.expect_char()
+            && self.handle_count(focus, &keypress)
+        {
+            return false;
         }
 
         self.count = None;
 
-        let mut mods = keypress.mods.clone();
+        let mut mods = keypress.mods;
         mods.set(Modifiers::SHIFT, false);
         if mods.is_empty() {
-            match &key_event.key {
-                druid::KbKey::Character(c) => {
-                    focus.receive_char(ctx, c);
-                    return true;
-                }
-                _ => (),
+            if let druid::KbKey::Character(c) = &key_event.key {
+                focus.receive_char(ctx, c);
+                return true;
             }
         }
         false
@@ -514,7 +495,7 @@ impl KeyPressData {
 
     fn match_keymap<T: KeyPressFocus>(
         &self,
-        keypresses: &Vec<KeyPress>,
+        keypresses: &[KeyPress],
         check: &T,
     ) -> Vec<&KeyMap> {
         self.keymaps
@@ -529,7 +510,7 @@ impl KeyPressData {
                         {
                             return false;
                         }
-                        if keymap.modes.len() > 0
+                        if !keymap.modes.is_empty()
                             && !keymap.modes.contains(&check.get_mode())
                         {
                             return false;
@@ -543,7 +524,7 @@ impl KeyPressData {
                     })
                     .collect()
             })
-            .unwrap_or(Vec::new())
+            .unwrap_or_else(Vec::new)
     }
 
     fn check_one_condition<T: KeyPressFocus>(
@@ -552,11 +533,12 @@ impl KeyPressData {
         check: &T,
     ) -> bool {
         let condition = condition.trim();
-        let (reverse, condition) = if condition.starts_with("!") {
-            (true, &condition[1..])
-        } else {
-            (false, condition)
-        };
+        let (reverse, condition) =
+            if let Some(stripped) = condition.strip_prefix('!') {
+                (true, stripped)
+            } else {
+                (false, condition)
+            };
         let matched = check.check_condition(condition);
         if reverse {
             !matched
@@ -570,36 +552,20 @@ impl KeyPressData {
         let and_indics: Vec<_> = condition.match_indices("&&").collect();
         if and_indics.is_empty() {
             if or_indics.is_empty() {
-                return self.check_one_condition(&condition, check);
+                self.check_one_condition(condition, check)
             } else {
-                return self
-                    .check_one_condition(&condition[..or_indics[0].0], check)
-                    || self
-                        .check_condition(&condition[or_indics[0].0 + 2..], check);
+                self.check_one_condition(&condition[..or_indics[0].0], check)
+                    || self.check_condition(&condition[or_indics[0].0 + 2..], check)
             }
+        } else if or_indics.is_empty() {
+            self.check_one_condition(&condition[..and_indics[0].0], check)
+                && self.check_condition(&condition[and_indics[0].0 + 2..], check)
+        } else if or_indics[0].0 < and_indics[0].0 {
+            self.check_one_condition(&condition[..or_indics[0].0], check)
+                || self.check_condition(&condition[or_indics[0].0 + 2..], check)
         } else {
-            if or_indics.is_empty() {
-                return self
-                    .check_one_condition(&condition[..and_indics[0].0], check)
-                    && self
-                        .check_condition(&condition[and_indics[0].0 + 2..], check);
-            } else {
-                if or_indics[0].0 < and_indics[0].0 {
-                    return self
-                        .check_one_condition(&condition[..or_indics[0].0], check)
-                        || self.check_condition(
-                            &condition[or_indics[0].0 + 2..],
-                            check,
-                        );
-                } else {
-                    return self
-                        .check_one_condition(&condition[..and_indics[0].0], check)
-                        && self.check_condition(
-                            &condition[and_indics[0].0 + 2..],
-                            check,
-                        );
-                }
-            }
+            self.check_one_condition(&condition[..and_indics[0].0], check)
+                && self.check_condition(&condition[and_indics[0].0 + 2..], check)
         }
     }
 
@@ -614,7 +580,7 @@ impl KeyPressData {
         let toml_keymaps = toml_keymaps
             .get("keymaps")
             .and_then(|v| v.as_array())
-            .ok_or(anyhow!("no keymaps"))?;
+            .ok_or_else(|| anyhow!("no keymaps"))?;
 
         let mut keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>> = IndexMap::new();
         let mut command_keymaps: IndexMap<String, Vec<KeyMap>> = IndexMap::new();
@@ -622,7 +588,7 @@ impl KeyPressData {
             if let Ok(keymap) = Self::get_keymap(toml_keymap, modal) {
                 let mut command = keymap.command.clone();
                 let mut bind = true;
-                if command.starts_with("-") {
+                if command.starts_with('-') {
                     command = command[1..].to_string();
                     bind = false;
                 }
@@ -723,7 +689,7 @@ impl KeyPressData {
                     .sorted_by_key(|(_i, score)| -*score)
                     .map(|(i, _)| i.clone())
                     .collect();
-            
+
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::FilterKeymaps(
@@ -736,22 +702,22 @@ impl KeyPressData {
         });
     }
 
-    pub fn update_file(keymap: &KeyMap, keys: &Vec<KeyPress>) -> Option<()> {
+    pub fn update_file(keymap: &KeyMap, keys: &[KeyPress]) -> Option<()> {
         let mut array =
-            Self::get_file_array().unwrap_or_else(|| toml::value::Array::new());
+            Self::get_file_array().unwrap_or_else(toml::value::Array::new);
         if let Some(index) = array.iter().position(|value| {
             Some(keymap.command.as_str())
                 == value.get("command").and_then(|c| c.as_str())
-                && keymap.when.as_ref().map(|w| w.as_str())
+                && keymap.when.as_deref()
                     == value.get("when").and_then(|w| w.as_str())
                 && keymap.modes == Self::get_modes(value)
                 && Some(keymap.key.clone())
                     == value
                         .get("key")
                         .and_then(|v| v.as_str())
-                        .map(|s| Self::get_keypress(s))
+                        .map(Self::get_keypress)
         }) {
-            if keys.len() > 0 {
+            if !keys.is_empty() {
                 array[index].as_table_mut()?.insert(
                     "key".to_string(),
                     toml::Value::String(
@@ -767,7 +733,7 @@ impl KeyPressData {
                 "command".to_string(),
                 toml::Value::String(keymap.command.clone()),
             );
-            if keymap.modes.len() > 0 {
+            if !keymap.modes.is_empty() {
                 table.insert(
                     "mode".to_string(),
                     toml::Value::String(
@@ -782,7 +748,7 @@ impl KeyPressData {
                 );
             }
 
-            if keys.len() > 0 {
+            if !keys.is_empty() {
                 table.insert(
                     "key".to_string(),
                     toml::Value::String(
@@ -792,7 +758,7 @@ impl KeyPressData {
                 array.push(toml::Value::Table(table.clone()));
             }
 
-            if keymap.key.len() > 0 {
+            if !keymap.key.is_empty() {
                 table.insert(
                     "key".to_string(),
                     toml::Value::String(
@@ -858,7 +824,7 @@ impl KeyPressData {
 
         if let Some(path) = Self::file() {
             if let Ok(content) = std::fs::read_to_string(path) {
-                if content != "" {
+                if !content.is_empty() {
                     let result: Result<toml::Value, toml::de::Error> =
                         toml::from_str(&content);
                     if result.is_ok() {
@@ -871,13 +837,13 @@ impl KeyPressData {
         Self::keymaps_from_str(&keymaps_str, config.lapce.modal)
     }
 
-    fn get_keypress<'a>(key: &'a str) -> Vec<KeyPress> {
+    fn get_keypress(key: &str) -> Vec<KeyPress> {
         let mut keypresses = Vec::new();
-        for k in key.split(" ") {
+        for k in key.split(' ') {
             let mut mods = Modifiers::default();
 
-            let parts = k.split("+").collect::<Vec<&str>>();
-            if parts.len() == 0 {
+            let parts = k.split('+').collect::<Vec<&str>>();
+            if parts.is_empty() {
                 continue;
             }
             let key = match parts[parts.len() - 1].to_lowercase().as_str() {
@@ -919,13 +885,11 @@ impl KeyPressData {
         let key = toml_keymap
             .get("key")
             .and_then(|v| v.as_str())
-            .ok_or(anyhow!("no key in keymap"))?;
+            .ok_or_else(|| anyhow!("no key in keymap"))?;
 
         let modes = Self::get_modes(toml_keymap);
-        if !modal {
-            if modes.len() > 0 && !modes.contains(&Mode::Insert) {
-                return Err(anyhow!(""));
-            }
+        if !modal && !modes.is_empty() && !modes.contains(&Mode::Insert) {
+            return Err(anyhow!(""));
         }
 
         Ok(KeyMap {
@@ -939,7 +903,7 @@ impl KeyPressData {
                 .get("command")
                 .and_then(|c| c.as_str())
                 .map(|w| w.trim().to_string())
-                .unwrap_or("".to_string()),
+                .unwrap_or_else(|| "".to_string()),
         })
     }
 
@@ -958,7 +922,7 @@ impl KeyPressData {
                     })
                     .collect()
             })
-            .unwrap_or(Vec::new());
+            .unwrap_or_else(Vec::new);
         modes.sort();
         modes
     }
@@ -1013,6 +977,6 @@ impl KeyPressFocus for DefaultKeyPressHandler {
     ) -> CommandExecuted {
         CommandExecuted::Yes
     }
-    
+
     fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }

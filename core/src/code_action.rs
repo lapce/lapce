@@ -1,13 +1,13 @@
 use std::{collections::HashMap, sync::Arc};
 
 use druid::{
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontDescriptor,
-    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, UpdateCtx, Widget,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, TextLayout, UpdateCtx, Widget,
 };
 use lsp_types::{
-    CodeActionOrCommand, DocumentChangeOperation,
-    DocumentChanges, OneOf, TextEdit, Url, WorkspaceEdit,
+    CodeActionOrCommand, DocumentChangeOperation, DocumentChanges, OneOf, TextEdit,
+    Url, WorkspaceEdit,
 };
 
 use crate::{
@@ -15,7 +15,7 @@ use crate::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{LapceMainSplitData, LapceTabData},
-    keypress::{KeyPressFocus},
+    keypress::KeyPressFocus,
     movement::{Movement, Selection},
     proxy::LapceProxy,
     state::Mode,
@@ -36,11 +36,7 @@ impl KeyPressFocus for CodeActionData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        match condition {
-            "list_focus" => true,
-            "code_actions_focus" => true,
-            _ => false,
-        }
+        matches!(condition, "list_focus" | "code_actions_focus")
     }
 
     fn run_command(
@@ -172,7 +168,7 @@ impl CodeActionData {
             BufferContent::Local(_) => {}
         }
     }
-    
+
     #[allow(unused_variables)]
     pub fn previous(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
@@ -204,6 +200,12 @@ impl CodeActionData {
 impl CodeAction {
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+impl Default for CodeAction {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -350,8 +352,7 @@ impl Widget<LapceTabData> for CodeAction {
                                 action.title.to_string()
                             }
                         };
-                        let mut text_layout =
-                            TextLayout::<String>::from_text(title.clone());
+                        let mut text_layout = TextLayout::<String>::from_text(title);
                         text_layout.set_font(
                             FontDescriptor::new(FontFamily::SYSTEM_UI)
                                 .with_size(14.0),

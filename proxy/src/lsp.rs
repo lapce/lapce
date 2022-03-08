@@ -101,12 +101,7 @@ impl LspCatalog {
     ) {
         let document_uri = Url::from_file_path(path).unwrap();
         if let Some(client) = self.clients.get(language_id) {
-            client.send_did_open(
-                buffer_id,
-                document_uri.clone(),
-                language_id,
-                text.clone(),
-            );
+            client.send_did_open(buffer_id, document_uri, language_id, text);
         }
     }
 
@@ -177,7 +172,7 @@ impl LspCatalog {
                 .respond(id, Err(anyhow!("no document formatting")));
         }
     }
-    
+
     #[allow(unused_variables)]
     pub fn get_completion(
         &self,
@@ -333,6 +328,12 @@ impl LspCatalog {
         if let Some(client) = self.clients.get(&buffer.language_id) {
             client.update(buffer, content_change, rev);
         }
+    }
+}
+
+impl Default for LspCatalog {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -567,7 +568,7 @@ impl LspClient {
             let mut state = self.state.lock();
             state
                 .opened_documents
-                .insert(buffer_id.clone(), document_uri.clone());
+                .insert(*buffer_id, document_uri.clone());
             state.is_initialized
         };
 
@@ -676,10 +677,10 @@ impl LspClient {
             })),
             ..Default::default()
         };
-        
+
         #[allow(deprecated)]
         let init_params = InitializeParams {
-            process_id: Some(u32::from(process::id())),
+            process_id: Some(process::id()),
             root_uri,
             initialization_options: self.options.clone(),
             capabilities: client_capabilities,
@@ -878,9 +879,9 @@ impl LspClient {
             .server_capabilities
             .as_ref()
             .and_then(|c| c.text_document_sync.as_ref())?;
-        match &text_document_sync {
-            &TextDocumentSyncCapability::Kind(kind) => Some(kind.clone()),
-            &TextDocumentSyncCapability::Options(options) => options.clone().change,
+        match text_document_sync {
+            TextDocumentSyncCapability::Kind(kind) => Some(*kind),
+            TextDocumentSyncCapability::Options(options) => options.clone().change,
         }
     }
 
@@ -906,9 +907,9 @@ pub enum LspHeader {
 fn number_from_id(id: &Id) -> u64 {
     match *id {
         Id::Num(n) => n as u64,
-        Id::Str(ref s) => {
-            u64::from_str_radix(s, 10).expect("failed to convert string id to u64")
-        }
+        Id::Str(ref s) => s
+            .parse::<u64>()
+            .expect("failed to convert string id to u64"),
         _ => panic!("unexpected value for id: None"),
     }
 }
@@ -930,9 +931,9 @@ fn parse_header(s: &str) -> Result<LspHeader> {
     };
     match split[0].as_ref() {
         HEADER_CONTENT_TYPE => Ok(LspHeader::ContentType),
-        HEADER_CONTENT_LENGTH => Ok(LspHeader::ContentLength(
-            usize::from_str_radix(&split[1], 10)?,
-        )),
+        HEADER_CONTENT_LENGTH => {
+            Ok(LspHeader::ContentLength(split[1].parse::<usize>()?))
+        }
         _ => Err(anyhow!("Unknown parse error occurred")),
     }
 }

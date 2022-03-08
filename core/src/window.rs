@@ -11,9 +11,9 @@ use crate::{
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
-    BoxConstraints, Command, Env, Event, EventCtx,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext,
-    Size, Target, Widget, WidgetId, WidgetPod
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, Widget, WidgetId,
+    WidgetPod,
 };
 use std::sync::Arc;
 
@@ -68,7 +68,7 @@ impl LapceWindowNew {
     ) {
         if replace_current {
             let tab = data.tabs.get(&data.active_id).unwrap();
-            let _ = tab.db.save_workspace(&tab);
+            let _ = tab.db.save_workspace(tab);
         }
         let tab_id = WidgetId::next();
         let tab_data = LapceTabData::new(
@@ -94,7 +94,7 @@ impl LapceWindowNew {
                 .insert(data.active + 1, WidgetPod::new(tab.boxed()));
             self.tab_headers
                 .insert(data.active + 1, WidgetPod::new(tab_header));
-            data.active = data.active + 1;
+            data.active += 1;
             data.active_id = tab_id;
         }
         ctx.submit_command(Command::new(
@@ -107,7 +107,6 @@ impl LapceWindowNew {
         ctx.children_changed();
         ctx.set_handled();
         ctx.request_layout();
-        return;
     }
 
     pub fn close_index_tab(
@@ -219,7 +218,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     }
                     LapceUICommand::ReloadWindow => {
                         let tab = data.tabs.get(&data.active_id).unwrap();
-                        
+
                         #[allow(mutable_borrow_reservation_conflict)]
                         self.new_tab(ctx, data, (*tab.workspace).clone(), true);
                         return;
@@ -244,7 +243,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     }
                     LapceUICommand::SetWorkspace(workspace) => {
                         let mut workspaces =
-                            Config::recent_workspaces().unwrap_or(Vec::new());
+                            Config::recent_workspaces().unwrap_or_default();
 
                         let mut exits = false;
                         for w in workspaces.iter_mut() {

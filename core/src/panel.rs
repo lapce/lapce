@@ -10,10 +10,8 @@ use parking_lot::Mutex;
 use serde_json::json;
 
 use crate::{
-    command::{
-        CommandTarget, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
-    },
     command::LapceCommandNew,
+    command::{CommandTarget, LapceWorkbenchCommand, LAPCE_NEW_COMMAND},
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
     scroll::LapceScrollNew,
@@ -48,7 +46,7 @@ pub trait PanelProperty: Send {
 pub struct PanelState {
     #[allow(dead_code)]
     window_id: WindowId,
-    
+
     #[allow(dead_code)]
     tab_id: WidgetId,
     pub panels: HashMap<WidgetId, Arc<Mutex<dyn PanelProperty>>>,
@@ -94,7 +92,7 @@ impl PanelState {
     }
 
     pub fn widget_id(&self, position: &PanelPosition) -> WidgetId {
-        self.widgets.get(position).unwrap().clone()
+        *self.widgets.get(position).unwrap()
     }
 
     pub fn size(&self, position: &PanelPosition) -> Option<(f64, f64)> {
@@ -130,10 +128,8 @@ impl PanelState {
             if &current_position == position {
                 if active_panel.is_none() {
                     active_panel = Some(local_panel);
-                } else {
-                    if active > active_panel.as_ref().unwrap().lock().active() {
-                        active_panel = Some(local_panel)
-                    }
+                } else if active > active_panel.as_ref().unwrap().lock().active() {
+                    active_panel = Some(local_panel)
                 }
             }
         }
@@ -161,10 +157,8 @@ impl PanelState {
             if let Some(p) = shown_panels.get_mut(&position) {
                 if p.is_none() {
                     *p = Some(local_panel);
-                } else {
-                    if active > p.as_ref().unwrap().lock().active() {
-                        *p = Some(local_panel)
-                    }
+                } else if active > p.as_ref().unwrap().lock().active() {
+                    *p = Some(local_panel)
                 }
             }
         }
@@ -316,7 +310,7 @@ impl PanelSection {
         let content = LapceScrollNew::new(content).vertical().boxed();
         Self {
             widget_id,
-            header: header.map(|header| WidgetPod::new(header)),
+            header: header.map(WidgetPod::new),
             content: WidgetPod::new(content),
         }
     }
@@ -502,7 +496,7 @@ impl Widget<LapceTabData> for PanelSectionHeader {
 pub struct PanelMainHeader {
     text: String,
     icons: Vec<LapceIcon>,
-    
+
     #[allow(dead_code)]
     panel_widget_id: WidgetId,
     kind: PanelKind,

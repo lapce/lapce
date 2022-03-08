@@ -1,8 +1,6 @@
-
-use druid::{
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
-    UpdateCtx, Widget,
+use druid::{
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
 };
 use serde_json::json;
 
@@ -20,6 +18,12 @@ pub struct ActivityBar {}
 impl ActivityBar {
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+impl Default for ActivityBar {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

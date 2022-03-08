@@ -1,14 +1,11 @@
 use anyhow::{anyhow, Result};
-use druid::{
-    Color,
-    Modifiers
-};
+use druid::{Color, Modifiers};
 
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::PathBuf;
-use std::{sync::atomic::AtomicU64};
-use std::{sync::atomic};
+use std::sync::atomic;
+use std::sync::atomic::AtomicU64;
 
 #[derive(PartialEq)]
 enum KeymapMatch {
@@ -126,7 +123,7 @@ impl Display for LapceWorkspace {
                 .as_ref()
                 .and_then(|p| p.to_str())
                 .map(|p| p.to_string())
-                .unwrap_or("".to_string())
+                .unwrap_or_else(|| "".to_string())
         )
     }
 }
@@ -144,7 +141,7 @@ impl Counter {
 }
 
 pub fn hex_to_color(hex: &str) -> Result<Color> {
-    let hex = hex.trim_start_matches("#");
+    let hex = hex.trim_start_matches('#');
     let (r, g, b, a) = match hex.len() {
         3 => (
             format!("{}{}", &hex[0..0], &hex[0..0]),

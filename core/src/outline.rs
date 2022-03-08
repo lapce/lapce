@@ -12,3 +12,9 @@ impl OutlineState {
         }
     }
 }
+
+impl Default for OutlineState {
+    fn default() -> Self {
+        Self::new()
+    }
+}

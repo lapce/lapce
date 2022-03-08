@@ -6,11 +6,7 @@ use alacritty_terminal::{
     grid::{Dimensions, Scroll},
     index::{Direction, Side},
     selection::{Selection, SelectionType},
-    term::{
-        cell::Flags,
-        search::RegexSearch,
-        SizeInfo, TermMode,
-    },
+    term::{cell::Flags, search::RegexSearch, SizeInfo, TermMode},
     vi_mode::ViMotion,
     Term,
 };
@@ -18,8 +14,8 @@ use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     Application, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
     ExtEventSink, FontFamily, FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx,
-    Modifiers, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    Modifiers, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use hashbrown::HashMap;
 use lapce_proxy::terminal::TermId;
@@ -27,10 +23,7 @@ use parking_lot::Mutex;
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
-    command::{
-        CommandExecuted, LapceCommand,
-        LapceUICommand, LAPCE_UI_COMMAND,
-    },
+    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData, PanelKind},
     find::Find,
@@ -44,7 +37,7 @@ use crate::{
     tab::LapceIcon,
 };
 
-const CTRL_CHARS: &'static [char] = &[
+const CTRL_CHARS: &[char] = &[
     '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
 ];
@@ -140,7 +133,7 @@ impl TerminalSplitData {
                 if (*index as usize) < NAMED_COLORS.len() {
                     self.get_named_color(&NAMED_COLORS[*index as usize], config)
                 } else {
-                    self.indexed_colors.get(index).map(|c| c.clone()).unwrap()
+                    self.indexed_colors.get(index).cloned().unwrap()
                 }
             }
         }
@@ -257,11 +250,7 @@ impl KeyPressFocus for LapceTerminalViewData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        match condition {
-            "terminal_focus" => true,
-            "panel_focus" => true,
-            _ => false,
-        }
+        matches!(condition, "terminal_focus" | "panel_focus")
     }
 
     fn run_command(
@@ -360,8 +349,7 @@ impl KeyPressFocus for LapceTerminalViewData {
                 let mut raw = self.terminal.raw.lock();
                 let term = &mut raw.term;
                 let scroll_lines = term.screen_lines() as i32 / 2;
-                term.vi_mode_cursor =
-                    term.vi_mode_cursor.scroll(&term, scroll_lines);
+                term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, scroll_lines);
 
                 term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
                     scroll_lines,
@@ -371,8 +359,7 @@ impl KeyPressFocus for LapceTerminalViewData {
                 let mut raw = self.terminal.raw.lock();
                 let term = &mut raw.term;
                 let scroll_lines = -(term.screen_lines() as i32 / 2);
-                term.vi_mode_cursor =
-                    term.vi_mode_cursor.scroll(&term, scroll_lines);
+                term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, scroll_lines);
 
                 term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
                     scroll_lines,
@@ -481,12 +468,12 @@ impl RawTerminal {
         let config = TermConfig::default();
         let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
         let event_proxy = EventProxy {
-            proxy: proxy.clone(),
+            proxy,
             event_sink,
             term_id,
         };
 
-        let term = Term::new(&config, size, event_proxy.clone());
+        let term = Term::new(&config, size, event_proxy);
         let parser = ansi::Processor::new();
 
         Self {
@@ -517,7 +504,7 @@ impl LapceTerminalData {
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
     ) -> Self {
-        let cwd = workspace.path.as_ref().map(|p| p.clone());
+        let cwd = workspace.path.as_ref().cloned();
         let widget_id = WidgetId::next();
         let view_id = WidgetId::next();
         let term_id = TermId::next();
@@ -577,26 +564,20 @@ impl LapceTerminalData {
         search_string: &str,
         direction: Direction,
     ) {
-        if let Ok(dfas) = RegexSearch::new(&search_string) {
+        if let Ok(dfas) = RegexSearch::new(search_string) {
             let mut point = term.renderable_content().cursor.point;
             if direction == Direction::Right {
                 if point.column.0 < term.last_column() {
                     point.column.0 += 1;
-                } else {
-                    if point.line.0 < term.bottommost_line() {
-                        point.column.0 = 0;
-                        point.line.0 += 1;
-                    }
+                } else if point.line.0 < term.bottommost_line() {
+                    point.column.0 = 0;
+                    point.line.0 += 1;
                 }
-            } else {
-                if point.column.0 > 0 {
-                    point.column.0 -= 1;
-                } else {
-                    if point.line.0 > term.topmost_line() {
-                        point.column.0 = term.last_column().0;
-                        point.line.0 -= 1;
-                    }
-                }
+            } else if point.column.0 > 0 {
+                point.column.0 -= 1;
+            } else if point.line.0 > term.topmost_line() {
+                point.column.0 = term.last_column().0;
+                point.line.0 -= 1;
             }
             if let Some(m) =
                 term.search_next(&dfas, point, direction, Side::Left, None)
@@ -669,17 +650,14 @@ impl Widget<LapceTabData> for TerminalPanel {
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::Focus => {
-                        if data.terminal.terminals.len() > 0 {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::Focus,
-                                Target::Widget(data.terminal.active),
-                            ));
-                        }
+                if let LapceUICommand::Focus = command {
+                    if !data.terminal.terminals.is_empty() {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(data.terminal.active),
+                        ));
                     }
-                    _ => (),
                 }
             }
             _ => (),
@@ -704,7 +682,7 @@ impl Widget<LapceTabData> for TerminalPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
-        if data.terminal.terminals.len() == 0 {
+        if data.terminal.terminals.is_empty() {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::InitTerminalPanel(true),
@@ -769,12 +747,9 @@ impl Widget<LapceTabData> for LapceTerminalView {
         data: &LapceTabData,
         env: &Env,
     ) {
-        match event {
-            LifeCycle::HotChanged(is_hot) => {
-                self.header.widget_mut().view_is_hot = *is_hot;
-                ctx.request_paint();
-            }
-            _ => (),
+        if let LifeCycle::HotChanged(is_hot) = event {
+            self.header.widget_mut().view_is_hot = *is_hot;
+            ctx.request_paint();
         }
         self.header.lifecycle(ctx, event, data, env);
         self.terminal.lifecycle(ctx, event, data, env);
@@ -1119,7 +1094,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                     let s = match &key_event.key {
                         KbKey::Character(c) => {
                             let mut s = "".to_string();
-                            let mut mods = key_event.mods.clone();
+                            let mut mods = key_event.mods;
                             if mods.ctrl() {
                                 mods.set(Modifiers::CONTROL, false);
                                 if mods.is_empty() && c.chars().count() == 1 {
@@ -1142,7 +1117,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                         KbKey::Escape => "\x1b".to_string(),
                         _ => "".to_string(),
                     };
-                    if term_data.terminal.mode == Mode::Terminal && s != "" {
+                    if term_data.terminal.mode == Mode::Terminal && !s.is_empty() {
                         term_data.receive_char(ctx, &s);
                     }
                 }
@@ -1150,11 +1125,8 @@ impl Widget<LapceTabData> for LapceTerminal {
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::Focus => {
-                        self.request_focus(ctx, data);
-                    }
-                    _ => (),
+                if let LapceUICommand::Focus = command {
+                    self.request_focus(ctx, data);
                 }
             }
             _ => (),
@@ -1173,11 +1145,8 @@ impl Widget<LapceTabData> for LapceTerminal {
         _data: &LapceTabData,
         _env: &Env,
     ) {
-        match event {
-            LifeCycle::FocusChanged(_) => {
-                ctx.request_paint();
-            }
-            _ => (),
+        if let LifeCycle::FocusChanged(_) = event {
+            ctx.request_paint();
         }
     }
 
@@ -1243,23 +1212,15 @@ impl Widget<LapceTabData> for LapceTerminal {
             let end_col = selection.end.column.0;
 
             for line in start_line..end_line + 1 {
-                let left_col = if selection.is_block {
+                let left_col = if selection.is_block || line == start_line {
                     start_col
                 } else {
-                    if line == start_line {
-                        start_col
-                    } else {
-                        0
-                    }
+                    0
                 };
-                let right_col = if selection.is_block {
+                let right_col = if selection.is_block || line == end_line {
                     end_col + 1
                 } else {
-                    if line == end_line {
-                        end_col + 1
-                    } else {
-                        term.last_column().0
-                    }
+                    term.last_column().0
                 };
                 let x0 = left_col as f64 * char_width;
                 let x1 = right_col as f64 * char_width;
@@ -1271,18 +1232,16 @@ impl Widget<LapceTabData> for LapceTerminal {
                         .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
                 );
             }
-        } else {
-            if terminal.mode != Mode::Terminal {
-                let y = (content.cursor.point.line.0 as f64
-                    + content.display_offset as f64)
-                    * line_height;
-                let size = ctx.size();
-                ctx.fill(
-                    Rect::new(0.0, y, size.width, y + line_height),
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-                );
-            }
+        } else if terminal.mode != Mode::Terminal {
+            let y = (content.cursor.point.line.0 as f64
+                + content.display_offset as f64)
+                * line_height;
+            let size = ctx.size();
+            ctx.fill(
+                Rect::new(0.0, y, size.width, y + line_height),
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+            );
         }
 
         let cursor_point = &content.cursor.point;
@@ -1306,10 +1265,10 @@ impl Widget<LapceTabData> for LapceTerminal {
 
             let mut bg =
                 data.terminal
-                    .get_color(&cell.bg, &content.colors, &data.config);
+                    .get_color(&cell.bg, content.colors, &data.config);
             let mut fg =
                 data.terminal
-                    .get_color(&cell.fg, &content.colors, &data.config);
+                    .get_color(&cell.fg, content.colors, &data.config);
             if cell.flags.contains(Flags::DIM)
                 || cell.flags.contains(Flags::DIM_BOLD)
             {
@@ -1424,11 +1383,9 @@ impl Widget<LapceTabData> for LapceTerminal {
                     start = *m.end();
                     if start.column.0 < term.last_column() {
                         start.column.0 += 1;
-                    } else {
-                        if start.line.0 < term.bottommost_line() {
-                            start.column.0 = 0;
-                            start.line.0 += 1;
-                        }
+                    } else if start.line.0 < term.bottommost_line() {
+                        start.column.0 = 0;
+                        start.line.0 += 1;
                     }
                     max_lines = (end_line.0 - start.line.0) as usize;
                 }

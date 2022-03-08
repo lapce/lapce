@@ -158,7 +158,7 @@ impl RpcHandler {
     ) -> Result<Value, Value> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.send_rpc_request_common(method, params, ResponseHandler::Chan(tx));
-        rx.recv().unwrap_or(Err(json!("io error")))
+        rx.recv().unwrap_or_else(|_| Err(json!("io error")))
     }
 
     pub fn send_rpc_request_async(
@@ -175,9 +175,8 @@ impl RpcHandler {
             let mut pending = self.pending.lock();
             pending.remove(&id)
         };
-        match handler {
-            Some(responsehandler) => responsehandler.invoke(resp),
-            None => (),
+        if let Some(responsehandler) = handler {
+            responsehandler.invoke(resp)
         }
     }
 
@@ -187,7 +186,7 @@ impl RpcHandler {
             Ok(result) => response["result"] = result,
             Err(error) => response["error"] = json!(error),
         };
-        
+
         #[allow(deprecated)]
         let _ = self.sender.send(response);
     }

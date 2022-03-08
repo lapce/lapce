@@ -1,4 +1,10 @@
-use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::Arc,
+};
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
@@ -11,9 +17,8 @@ use crate::{
     buffer::{BufferContent, BufferNew, UpdateEvent},
     config::Config,
     data::{
-        EditorTabChild, LapceData, LapceEditorData,
-        LapceEditorTabData, LapceMainSplitData, LapceTabData, LapceWindowData,
-        SplitContent, SplitData,
+        EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
+        LapceMainSplitData, LapceTabData, LapceWindowData, SplitContent, SplitData,
     },
     editor::EditorLocationNew,
     split::SplitDirection,
@@ -273,7 +278,7 @@ impl EditorInfo {
                     editor_data.view_id,
                     EditorLocationNew {
                         path: path.clone(),
-                        position: self.position.clone(),
+                        position: self.position,
                         scroll_offset: Some(Vec2::new(
                             self.scroll_offset.0,
                             self.scroll_offset.1,
@@ -285,11 +290,11 @@ impl EditorInfo {
                 if !data.open_files.contains_key(path) {
                     let buffer = Arc::new(BufferNew::new(
                         BufferContent::File(path.clone()),
-                        update_sender.clone(),
+                        update_sender,
                         tab_id,
-                        event_sink.clone(),
+                        event_sink,
                     ));
-                    data.open_files.insert(path.clone(), buffer.clone());
+                    data.open_files.insert(path.clone(), buffer);
                 }
             }
             BufferContent::Local(_) => {}
@@ -303,7 +308,7 @@ impl EditorInfo {
 impl LapceDb {
     pub fn new() -> Result<Self> {
         let proj_dirs = ProjectDirs::from("", "", "Lapce")
-            .ok_or(anyhow!("can't find project dirs"))?;
+            .ok_or_else(|| anyhow!("can't find project dirs"))?;
         let path = proj_dirs.config_dir().join(if !cfg!(debug_assertions) {
             "lapce.db"
         } else {
@@ -339,7 +344,9 @@ impl LapceDb {
     }
 
     fn get_db(&self) -> Result<&sled::Db> {
-        self.sled_db.as_ref().ok_or(anyhow!("didn't open sled db"))
+        self.sled_db
+            .as_ref()
+            .ok_or_else(|| anyhow!("didn't open sled db"))
     }
 
     pub fn save_app(&self, data: &LapceData) -> Result<()> {
@@ -364,7 +371,9 @@ impl LapceDb {
 
     pub fn get_app(&self) -> Result<AppInfo> {
         let sled_db = self.get_db()?;
-        let info = sled_db.get("app")?.ok_or(anyhow!("can't find app info"))?;
+        let info = sled_db
+            .get("app")?
+            .ok_or_else(|| anyhow!("can't find app info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: AppInfo = serde_json::from_str(info)?;
         Ok(info)
@@ -386,7 +395,7 @@ impl LapceDb {
         let sled_db = self.get_db()?;
         let workspaces = sled_db
             .get(&key)?
-            .ok_or(anyhow!("can't find recent workspaces"))?;
+            .ok_or_else(|| anyhow!("can't find recent workspaces"))?;
         let workspaces = std::str::from_utf8(&workspaces)?;
         let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
         Ok(workspaces)
@@ -400,7 +409,7 @@ impl LapceDb {
         let sled_db = self.get_db()?;
         let info = sled_db
             .get(&workspace)?
-            .ok_or(anyhow!("can't find workspace info"))?;
+            .ok_or_else(|| anyhow!("can't find workspace info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: WorkspaceInfo = serde_json::from_str(info)?;
         Ok(info)
@@ -409,25 +418,20 @@ impl LapceDb {
     pub fn get_buffer_info(
         &self,
         workspace: &LapceWorkspace,
-        path: &PathBuf,
+        path: &Path,
     ) -> Result<BufferInfo> {
-        let key =
-            format!("{}:{}", workspace.to_string(), path.to_str().unwrap_or(""));
+        let key = format!("{}:{}", workspace, path.to_str().unwrap_or(""));
         let sled_db = self.get_db()?;
         let info = sled_db
             .get(key.as_str())?
-            .ok_or(anyhow!("can't find workspace info"))?;
+            .ok_or_else(|| anyhow!("can't find workspace info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: BufferInfo = serde_json::from_str(info)?;
         Ok(info)
     }
 
     fn insert_buffer(&self, info: &BufferInfo) -> Result<()> {
-        let key = format!(
-            "{}:{}",
-            info.workspace.to_string(),
-            info.path.to_str().unwrap_or("")
-        );
+        let key = format!("{}:{}", info.workspace, info.path.to_str().unwrap_or(""));
         let info = serde_json::to_string(info)?;
         let sled_db = self.get_db()?;
         sled_db.insert(key.as_str(), info.as_str())?;
@@ -460,7 +464,7 @@ impl LapceDb {
         let sled_db = self.get_db()?;
         let info = sled_db
             .get("last_window")?
-            .ok_or(anyhow!("can't find last window info"))?;
+            .ok_or_else(|| anyhow!("can't find last window info"))?;
         let info = std::str::from_utf8(&info)?;
         let info: WindowInfo = serde_json::from_str(info)?;
         Ok(info)
@@ -516,7 +520,7 @@ impl LapceDb {
         let sled_db = self.get_db()?;
         let tabs = sled_db
             .get(b"tabs")?
-            .ok_or(anyhow!("can't find tabs info"))?;
+            .ok_or_else(|| anyhow!("can't find tabs info"))?;
         let tabs = std::str::from_utf8(&tabs)?;
         let tabs = serde_json::from_str(tabs)?;
         Ok(tabs)

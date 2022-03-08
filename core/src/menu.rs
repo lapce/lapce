@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx,
-    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 
 use crate::{
@@ -39,26 +39,17 @@ impl KeyPressFocus for MenuData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        match condition {
-            "list_focus" => true,
-            "menu_focus" => true,
-            _ => false,
-        }
+        matches!(condition, "list_focus" | "menu_focus")
     }
 
     fn run_command(
         &mut self,
         _ctx: &mut EventCtx,
-        command: &LapceCommand,
+        _command: &LapceCommand,
         _count: Option<usize>,
         _env: &Env,
     ) -> CommandExecuted {
-        match command {
-            _ => return CommandExecuted::No,
-        }
-        
-        #[allow(unreachable_code)]
-        CommandExecuted::Yes
+        CommandExecuted::No
     }
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
@@ -73,6 +64,12 @@ impl MenuData {
             origin: Point::ZERO,
             shown: false,
         }
+    }
+}
+
+impl Default for MenuData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -155,11 +152,8 @@ impl Widget<LapceWindowData> for Menu {
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::Focus => {
-                        self.request_focus(ctx);
-                    }
-                    _ => (),
+                if let LapceUICommand::Focus = command {
+                    self.request_focus(ctx);
                 }
             }
             _ => (),
@@ -173,17 +167,14 @@ impl Widget<LapceWindowData> for Menu {
         _data: &LapceWindowData,
         _env: &Env,
     ) {
-        match event {
-            LifeCycle::FocusChanged(is_focused) => {
-                if !is_focused {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::HideMenu,
-                        Target::Auto,
-                    ));
-                }
+        if let LifeCycle::FocusChanged(is_focused) = event {
+            if !is_focused {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::HideMenu,
+                    Target::Auto,
+                ));
             }
-            _ => (),
         }
     }
 

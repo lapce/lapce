@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use std::path::PathBuf;
+use std::path::Path;
 use tree_sitter::Parser;
 use tree_sitter_highlight::HighlightConfiguration;
 
@@ -37,7 +37,7 @@ pub enum LapceLanguage {
 }
 
 impl LapceLanguage {
-    pub fn from_path(path: &PathBuf) -> Option<LapceLanguage> {
+    pub fn from_path(path: &Path) -> Option<LapceLanguage> {
         let extension = path.extension()?.to_str()?;
         Some(match extension {
             "rs" => LapceLanguage::Rust,

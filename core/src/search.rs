@@ -11,10 +11,9 @@ use crate::{
 };
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx,
-    FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, RenderContext, Size, Target, UpdateCtx,
-    Widget, WidgetExt, WidgetId,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
+    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 
 use crate::{
@@ -75,6 +74,12 @@ impl SearchData {
     }
 }
 
+impl Default for SearchData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct SearchContent {
     mouse_pos: Point,
     line_height: f64,
@@ -127,6 +132,12 @@ impl SearchContent {
             }
             i += 1;
         }
+    }
+}
+
+impl Default for SearchContent {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -256,7 +267,7 @@ impl Widget<LapceTabData> for SearchContent {
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            if folder != "" {
+            if !folder.is_empty() {
                 let x = text_layout.size().width + self.line_height + 5.0;
 
                 let text_layout = ctx

@@ -3,8 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use druid::{
     kurbo::BezPath,
     piet::{
-        PietText, PietTextLayout, Text, TextAttribute, TextLayout,
-        TextLayoutBuilder,
+        PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
     BoxConstraints, Command, Env, Event, EventCtx, FontFamily, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
@@ -15,7 +14,7 @@ use inflector::Inflector;
 
 use crate::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, EditorConfig, LapceConfig, LapceTheme},
+    config::{EditorConfig, LapceConfig, LapceTheme},
     data::LapceTabData,
     editor::LapceEditorView,
     keymap::LapceKeymap,
@@ -60,6 +59,12 @@ impl LapceSettingsPanelData {
     }
 }
 
+impl Default for LapceSettingsPanelData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct LapceSettingsPanel {
     widget_id: WidgetId,
     active: usize,
@@ -73,16 +78,11 @@ pub struct LapceSettingsPanel {
 
 impl LapceSettingsPanel {
     pub fn new(data: &LapceTabData) -> Self {
-        let mut children = Vec::new();
-        children.push(WidgetPod::new(LapceSettings::new(
-            LapceSettingsKind::Core,
-            data,
-        )));
-        children.push(WidgetPod::new(LapceSettings::new(
-            LapceSettingsKind::Editor,
-            data,
-        )));
-        children.push(WidgetPod::new(LapceKeymap::new(data)));
+        let children = vec![
+            WidgetPod::new(LapceSettings::new(LapceSettingsKind::Core, data)),
+            WidgetPod::new(LapceSettings::new(LapceSettingsKind::Editor, data)),
+            WidgetPod::new(LapceKeymap::new(data)),
+        ];
         Self {
             widget_id: data.settings.panel_widget_id,
             active: 0,
@@ -118,7 +118,6 @@ impl LapceSettingsPanel {
                 self.active = index;
                 ctx.request_layout();
             }
-            return;
         }
     }
 
@@ -460,73 +459,6 @@ impl LapceSettings {
                 .boxed(),
             ))
         }
-    }
-    
-    #[allow(dead_code)]
-    fn paint_setting(
-        &self,
-        ctx: &mut PaintCtx,
-        name: &str,
-        description: &str,
-        value: &serde_json::Value,
-        width: f64,
-        y: f64,
-        config: &Config,
-    ) -> f64 {
-        let mut y = y;
-        y += 20.0 + 10.0;
-
-        let text_layout = ctx
-            .text()
-            .new_text_layout(name.to_string())
-            .font(FontFamily::SYSTEM_UI, 14.0)
-            .text_color(
-                config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
-            .max_width(width)
-            .build()
-            .unwrap();
-        let text_size = text_layout.size();
-        ctx.draw_text(&text_layout, Point::new(10.0, y));
-        y += text_size.height + 10.0;
-
-        let text_layout = ctx
-            .text()
-            .new_text_layout(description.to_string())
-            .font(FontFamily::SYSTEM_UI, 13.0)
-            .text_color(
-                config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .max_width(width)
-            .build()
-            .unwrap();
-        let text_size = text_layout.size();
-        y += 10.0;
-        ctx.draw_text(&text_layout, Point::new(10.0, y));
-        y += text_size.height + 10.0;
-
-        let text_layout = ctx
-            .text()
-            .new_text_layout(serde_json::to_string(value).unwrap())
-            .font(FontFamily::SYSTEM_UI, 13.0)
-            .text_color(
-                config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .max_width(width)
-            .build()
-            .unwrap();
-        let text_size = text_layout.size();
-        y += 10.0;
-        ctx.draw_text(&text_layout, Point::new(10.0, y));
-        y += text_size.height + 10.0;
-        y
     }
 }
 
@@ -927,7 +859,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
-        
+
         let mut y = 0.0;
         let padding = self.padding;
 
@@ -982,7 +914,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         let text = ctx.text();
         let cursor = self.cursor;
         let input_max_width = self.input_max_width;
-        if let Some(text) = self.value(text, data).map(|t| t.clone()) {
+        if let Some(text) = self.value(text, data).cloned() {
             y += padding;
 
             let text_layout = ctx
@@ -1002,7 +934,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     .to_rect()
                     .with_origin(Point::new(0.0, y))
                     .inflate(0.0, 8.0);
-            self.input_rect = rect.clone();
+            self.input_rect = rect;
             ctx.stroke(
                 rect,
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
@@ -1019,10 +951,10 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     1.0,
                 );
             }
-            
+
             y += text.size().height + self.padding;
         }
-        
+
         // this fixes a warning related to y
         #[allow(unused_variables)]
         let a = y;

@@ -54,6 +54,12 @@ impl Title {
     }
 }
 
+impl Default for Title {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Widget<LapceWindowData> for Title {
     fn event(
         &mut self,
@@ -119,6 +125,7 @@ impl Widget<LapceWindowData> for Title {
 
         self.commands.clear();
 
+        #[cfg(not(target_os = "macos"))]
         let mut x = 0.0;
         #[cfg(target_os = "macos")]
         let mut x = 70.0;
@@ -316,7 +323,7 @@ impl Widget<LapceWindowData> for Title {
             x += size.height;
 
             let mut branch = tab.source_control.branch.clone();
-            if tab.source_control.file_diffs.len() > 0 {
+            if !tab.source_control.file_diffs.is_empty() {
                 branch += "*";
             }
             let text_layout = ctx

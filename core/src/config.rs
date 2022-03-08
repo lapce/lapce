@@ -16,12 +16,10 @@ use crate::{
     state::{LapceWorkspace, LapceWorkspaceType},
 };
 
-const DEFAULT_SETTINGS: &'static str = include_str!("../../defaults/settings.toml");
-const DEFAULT_LIGHT_THEME: &'static str =
-    include_str!("../../defaults/light-theme.toml");
-const DEFAULT_DARK_THEME: &'static str =
-    include_str!("../../defaults/dark-theme.toml");
-pub const LOGO: &'static str = include_str!("../../extra/images/logo.svg");
+const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
+const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
+const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
+pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 
 pub struct LapceTheme {}
 
@@ -159,14 +157,16 @@ impl Config {
         )?;
 
         if let Some(path) = Self::settings_file() {
-            let _ = settings.merge(config::File::from(path.as_path()).required(false));
+            let _ =
+                settings.merge(config::File::from(path.as_path()).required(false));
         }
 
         match workspace.kind {
             crate::state::LapceWorkspaceType::Local => {
                 if let Some(path) = workspace.path.as_ref() {
                     let path = path.join("./.lapce/settings.toml");
-                    let _ = settings.merge(config::File::from(path.as_path()).required(false));
+                    let _ = settings
+                        .merge(config::File::from(path.as_path()).required(false));
                 }
             }
             crate::state::LapceWorkspaceType::RemoteSSH(_, _) => {}
@@ -248,9 +248,9 @@ impl Config {
 
     pub fn update_file(key: &str, value: toml::Value) -> Option<()> {
         let mut main_table =
-            Self::get_file_table().unwrap_or_else(|| toml::value::Table::new());
+            Self::get_file_table().unwrap_or_else(toml::value::Table::new);
         let mut table = &mut main_table;
-        let parts: Vec<&str> = key.split(".").collect();
+        let parts: Vec<&str> = key.split('.').collect();
         let n = parts.len();
         for (i, key) in parts.into_iter().enumerate() {
             if i == n - 1 {
@@ -422,7 +422,7 @@ impl Config {
                     let kind = value.get("kind")?.as_str()?;
                     let kind = match kind {
                         s if kind.starts_with("ssh://") => {
-                            let mut parts = s[6..].split("@");
+                            let mut parts = s[6..].split('@');
                             let user = parts.next()?.to_string();
                             let host = parts.next()?.to_string();
                             LapceWorkspaceType::RemoteSSH(user, host)
@@ -463,17 +463,15 @@ fn get_theme(content: &str) -> Result<HashMap<String, Color>> {
         toml::from_str(content)?;
     let mut theme = HashMap::new();
     for (k, v) in theme_colors.iter() {
-        if v.starts_with("$") {
-            let var_name = &v[1..];
+        if let Some(stripped) = v.strip_prefix('$') {
+            let var_name = stripped;
             if let Some(hex) = theme_colors.get(var_name) {
                 if let Ok(color) = hex_to_color(hex) {
                     theme.insert(k.clone(), color);
                 }
             }
-        } else {
-            if let Ok(color) = hex_to_color(v) {
-                theme.insert(k.clone(), color);
-            }
+        } else if let Ok(color) = hex_to_color(v) {
+            theme.insert(k.clone(), color);
         }
     }
     Ok(theme)

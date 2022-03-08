@@ -4,10 +4,7 @@ use crate::{
         LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
-    data::{
-        FocusArea, LapceEditorData, LapceTabData,
-        PanelKind, SplitContent,
-    },
+    data::{FocusArea, LapceEditorData, LapceTabData, PanelKind, SplitContent},
     editor::LapceEditorView,
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
     svg::logo_svg,
@@ -18,12 +15,11 @@ use std::sync::Arc;
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    Command, FontFamily, Target, WidgetId
+    Command, FontFamily, Target, WidgetId,
 };
 use druid::{
-    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
-    WidgetExt, WidgetPod,
+    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
+    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
 };
 use lapce_proxy::terminal::TermId;
 use serde::{Deserialize, Serialize};
@@ -206,7 +202,7 @@ impl LapceSplitNew {
             layout_rect: Rect::ZERO,
         };
         self.children_ids
-            .push(child_id.unwrap_or(child.widget.id()));
+            .push(child_id.unwrap_or_else(|| child.widget.id()));
         self.children.push(child);
         self
     }
@@ -224,7 +220,7 @@ impl LapceSplitNew {
             layout_rect: Rect::ZERO,
         };
         self.children_ids
-            .push(child_id.unwrap_or(child.widget.id()));
+            .push(child_id.unwrap_or_else(|| child.widget.id()));
         self.children.push(child);
         self
     }
@@ -254,7 +250,7 @@ impl LapceSplitNew {
             params,
             layout_rect: Rect::ZERO,
         };
-        let child_id = child_id.unwrap_or(child.widget.id());
+        let child_id = child_id.unwrap_or_else(|| child.widget.id());
         self.children_ids.insert(index, child_id);
         self.children.insert(index, child);
         child_id
@@ -278,12 +274,12 @@ impl LapceSplitNew {
         for i in 1..children_len {
             let line = if self.direction == SplitDirection::Vertical {
                 let x = self.children[i].layout_rect.x0;
-                let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
-                line
+
+                Line::new(Point::new(x, 0.0), Point::new(x, size.height))
             } else {
                 let y = self.children[i].layout_rect.y0;
-                let line = Line::new(Point::new(0.0, y), Point::new(size.width, y));
-                line
+
+                Line::new(Point::new(0.0, y), Point::new(size.width, y))
             };
             ctx.stroke(
                 line,
@@ -299,7 +295,7 @@ impl LapceSplitNew {
         data: &mut LapceTabData,
         widget_id: WidgetId,
     ) {
-        if self.children.len() == 0 {
+        if self.children.is_empty() {
             return;
         }
 
@@ -480,7 +476,7 @@ impl LapceSplitNew {
         term_id: TermId,
         widget_id: WidgetId,
     ) {
-        if self.children.len() == 0 {
+        if self.children.is_empty() {
             return;
         }
 
@@ -619,7 +615,7 @@ impl LapceSplitNew {
         let split_data = data.main_split.splits.get_mut(&self.split_id).unwrap();
         let split_children_len = split_data.children.len();
         if split_children_len == 0 {
-            if let Some(parent_split) = split_data.parent_split.clone() {
+            if let Some(parent_split) = split_data.parent_split {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::SplitRemove(SplitContent::Split(self.split_id)),
@@ -649,7 +645,7 @@ impl LapceSplitNew {
             }
             if split_children_len == 1 {
                 let split_content = split_data.children[0].clone();
-                if let Some(parent_split_id) = split_data.parent_split.clone() {
+                if let Some(parent_split_id) = split_data.parent_split {
                     let parent_split =
                         data.main_split.splits.get_mut(&parent_split_id).unwrap();
                     let parent_split = Arc::make_mut(parent_split);
@@ -757,7 +753,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
-                if self.children.len() == 0 {
+                if self.children.is_empty() {
                     let mut on_command = false;
                     for (_, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
@@ -773,7 +769,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 }
             }
             Event::MouseDown(mouse_event) => {
-                if self.children.len() == 0 {
+                if self.children.is_empty() {
                     for (cmd, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
                             ctx.submit_command(Command::new(
@@ -787,7 +783,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 }
             }
             Event::KeyDown(key_event) => {
-                if self.children.len() == 0 {
+                if self.children.is_empty() {
                     ctx.set_handled();
                     let mut keypress = data.keypress.clone();
                     Arc::make_mut(&mut keypress).key_down(
@@ -805,7 +801,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                         if let Some(split_data) =
                             data.main_split.splits.get(&self.split_id)
                         {
-                            if split_data.children.len() > 0 {
+                            if !split_data.children.is_empty() {
                                 ctx.submit_command(Command::new(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::Focus,
@@ -854,7 +850,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                         self.split_terminal_close(ctx, data, *term_id, *widget_id);
                     }
                     LapceUICommand::InitTerminalPanel(focus) => {
-                        if data.terminal.terminals.len() == 0 {
+                        if data.terminal.terminals.is_empty() {
                             let terminal_data = Arc::new(LapceTerminalData::new(
                                 data.workspace.clone(),
                                 data.terminal.split_id,
@@ -962,7 +958,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     .command_keymaps
                     .get(&cmd.cmd)
                     .and_then(|keymaps| keymaps.get(0))
-                    .map(|keymap| keymap.clone());
+                    .cloned();
                 (cmd.clone(), text_layout, rect, keymap)
             })
             .collect();
@@ -1087,7 +1083,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        if self.children.len() == 0 {
+        if self.children.is_empty() {
             let rect = ctx.size().to_rect();
             ctx.fill(
                 rect,
@@ -1231,7 +1227,7 @@ pub fn keybinding_to_string(keypress: &KeyPress) -> String {
             "windows" => "Win",
             _ => "Meta",
         };
-        keymap_str += &keyname;
+        keymap_str += keyname;
         keymap_str += "+";
     }
     if keypress.mods.shift() {

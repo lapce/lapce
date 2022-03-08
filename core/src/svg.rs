@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc};
+use std::{collections::HashMap, path::Path, str::FromStr, sync::Arc};
 
 use druid::{piet::Svg, Color};
 use include_dir::{include_dir, Dir};
@@ -30,7 +30,7 @@ impl SvgStore {
             let svg = Svg::from_str(ICONS_DIR.get_file(name)?.contents_utf8()?).ok();
             svgs.insert(name.to_string(), svg);
         }
-        svgs.get(name).map(|s| s.clone()).unwrap()
+        svgs.get(name).cloned().unwrap()
     }
 }
 
@@ -41,14 +41,14 @@ pub fn logo_svg() -> Svg {
         let svg = Svg::from_str(LOGO).ok();
         svgs.insert(name.to_string(), svg);
     }
-    svgs.get(name).map(|s| s.clone()).unwrap().unwrap()
+    svgs.get(name).cloned().unwrap().unwrap()
 }
 
 pub fn get_svg(name: &str) -> Option<Svg> {
     SVG_STORE.get_svg(name)
 }
 
-pub fn file_svg_new(path: &PathBuf) -> Svg {
+pub fn file_svg_new(path: &Path) -> Svg {
     let file_type = match path.file_name().and_then(|f| f.to_str()).unwrap_or("") {
         "LICENSE" => "license",
         _ => match path.extension().and_then(|s| s.to_str()).unwrap_or("") {
@@ -124,6 +124,6 @@ pub fn completion_svg(
         get_svg(&format!("symbol-{}.svg", kind_str))?,
         config
             .get_color(&("style.".to_string() + theme_str))
-            .map(|c| c.clone()),
+            .cloned(),
     ))
 }

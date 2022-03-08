@@ -52,24 +52,15 @@ impl Cursor {
     }
 
     pub fn is_normal(&self) -> bool {
-        match &self.mode {
-            CursorMode::Normal(_) => true,
-            _ => false,
-        }
+        matches!(&self.mode, CursorMode::Normal(_))
     }
 
     pub fn is_insert(&self) -> bool {
-        match &self.mode {
-            CursorMode::Insert(_) => true,
-            _ => false,
-        }
+        matches!(&self.mode, CursorMode::Insert(_))
     }
 
     pub fn is_visual(&self) -> bool {
-        match &self.mode {
-            CursorMode::Visual { .. } => true,
-            _ => false,
-        }
+        matches!(&self.mode, CursorMode::Visual { .. })
     }
 
     pub fn get_mode(&self) -> Mode {
@@ -287,7 +278,7 @@ impl Cursor {
         };
         let mode = match &self.mode {
             CursorMode::Normal(_) | CursorMode::Insert { .. } => VisualMode::Normal,
-            CursorMode::Visual { mode, .. } => mode.clone(),
+            CursorMode::Visual { mode, .. } => *mode,
         };
         RegisterData { content, mode }
     }
@@ -359,7 +350,7 @@ impl Cursor {
                 self.mode = CursorMode::Visual {
                     start,
                     end,
-                    mode: mode.clone(),
+                    mode: *mode,
                 };
             }
             CursorMode::Insert(selection) => {
@@ -487,14 +478,14 @@ impl Selection {
     }
 
     pub fn first(&self) -> Option<&SelRegion> {
-        if self.len() == 0 {
+        if self.is_empty() {
             return None;
         }
         Some(&self.regions[0])
     }
 
     pub fn last(&self) -> Option<&SelRegion> {
-        if self.len() == 0 {
+        if self.is_empty() {
             return None;
         }
         Some(&self.regions[self.len() - 1])
@@ -502,6 +493,10 @@ impl Selection {
 
     pub fn len(&self) -> usize {
         self.regions.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn min_offset(&self) -> usize {
@@ -532,11 +527,8 @@ impl Selection {
     pub fn expand(&self) -> Selection {
         let mut selection = Self::new();
         for region in &self.regions {
-            let new_region = SelRegion::new(
-                region.min(),
-                region.max() + 1,
-                region.horiz.map(|h| h.clone()),
-            );
+            let new_region =
+                SelRegion::new(region.min(), region.max() + 1, region.horiz);
             selection.add_region(new_region);
         }
         selection
@@ -544,7 +536,7 @@ impl Selection {
 
     pub fn collapse(&self) -> Selection {
         let mut selection = Self::new();
-        selection.add_region(self.regions[0].clone());
+        selection.add_region(self.regions[0]);
         selection
     }
 
@@ -713,6 +705,12 @@ impl Selection {
     }
 }
 
+impl Default for Selection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum LinePosition {
     First,
@@ -747,25 +745,15 @@ impl PartialEq for Movement {
 
 impl Movement {
     pub fn is_vertical(&self) -> bool {
-        match self {
-            Movement::Up | Movement::Down | Movement::Line(_) => true,
-            _ => false,
-        }
+        matches!(self, Movement::Up | Movement::Down | Movement::Line(_))
     }
 
     pub fn is_inclusive(&self) -> bool {
-        match self {
-            Movement::WordEndForward => true,
-            _ => false,
-        }
+        matches!(self, Movement::WordEndForward)
     }
 
     pub fn is_jump(&self) -> bool {
-        match self {
-            Movement::Line(_) => true,
-            Movement::Offset(_) => true,
-            _ => false,
-        }
+        matches!(self, Movement::Line(_) | Movement::Offset(_))
     }
 
     pub fn update_index(
@@ -812,13 +800,11 @@ fn format_index(index: i64, len: usize, recursive: bool) -> usize {
         } else {
             index as usize
         }
+    } else if index >= len as i64 {
+        len - 1
+    } else if index < 0 {
+        0
     } else {
-        if index >= len as i64 {
-            len - 1
-        } else if index < 0 {
-            0
-        } else {
-            index as usize
-        }
+        index as usize
     }
 }

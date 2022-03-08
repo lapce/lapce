@@ -6,10 +6,7 @@ use druid::Command;
 use druid::EventCtx;
 use druid::MouseEvent;
 use druid::Target;
-use druid::{
-    Event, FontFamily, Point, RenderContext, Size,
-    Widget
-};
+use druid::{Event, FontFamily, Point, RenderContext, Size, Widget};
 
 use crate::command::CommandTarget;
 use crate::command::LapceCommandNew;
@@ -46,12 +43,12 @@ impl LapceStatusNew {
             .panels
             .get(&PanelPosition::BottomLeft)
             .map(|p| p.widgets.clone())
-            .unwrap_or(Vec::new());
+            .unwrap_or_default();
         let mut right_panels = data
             .panels
             .get(&PanelPosition::BottomRight)
             .map(|p| p.widgets.clone())
-            .unwrap_or(Vec::new());
+            .unwrap_or_default();
         let mut panels = left_panels;
         panels.append(&mut right_panels);
 
@@ -111,6 +108,12 @@ impl LapceStatusNew {
                 ctx.submit_command(icon.command.clone());
             }
         }
+    }
+}
+
+impl Default for LapceStatusNew {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -178,7 +181,6 @@ impl Widget<LapceTabData> for LapceStatusNew {
 
         if !old_data.progresses.ptr_eq(&data.progresses) {
             ctx.request_paint();
-            return;
         }
     }
 
@@ -276,8 +278,8 @@ impl Widget<LapceTabData> for LapceStatusNew {
 
         for progress in data.progresses.iter() {
             let mut text = progress.title.clone();
-            let message = progress.message.clone().unwrap_or("".to_string());
-            if message != "" {
+            let message = progress.message.clone().unwrap_or_else(|| "".to_string());
+            if !message.is_empty() {
                 text += ": ";
                 text += &message;
             }

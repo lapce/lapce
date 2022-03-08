@@ -2,12 +2,10 @@ use std::sync::Arc;
 
 use druid::{
     kurbo::Line,
-    piet::{
-        Text, TextAttribute, TextLayout, TextLayoutBuilder,
-    },
+    piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 
 use crate::{
@@ -73,13 +71,13 @@ impl LapceKeymap {
             }
             return;
         }
-        let commands_with_keymap = if data.keypress.filter_pattern == "" {
+        let commands_with_keymap = if data.keypress.filter_pattern.is_empty() {
             &data.keypress.commands_with_keymap
         } else {
             &data.keypress.filtered_commands_with_keymap
         };
 
-        let commands_without_keymap = if data.keypress.filter_pattern == "" {
+        let commands_without_keymap = if data.keypress.filter_pattern.is_empty() {
             &data.keypress.commands_without_keymap
         } else {
             &data.keypress.filtered_commands_without_keymap
@@ -126,11 +124,8 @@ impl Widget<LapceTabData> for LapceKeymap {
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::Focus => {
-                        self.request_focus(ctx, data);
-                    }
-                    _ => (),
+                if let LapceUICommand::Focus = command {
+                    self.request_focus(ctx, data);
                 }
             }
             Event::MouseMove(_mouse_event) => {
@@ -210,13 +205,13 @@ impl Widget<LapceTabData> for LapceKeymap {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        let commands_with_keymap = if data.keypress.filter_pattern == "" {
+        let commands_with_keymap = if data.keypress.filter_pattern.is_empty() {
             &data.keypress.commands_with_keymap
         } else {
             &data.keypress.filtered_commands_with_keymap
         };
 
-        let commands_without_keymap = if data.keypress.filter_pattern == "" {
+        let commands_without_keymap = if data.keypress.filter_pattern.is_empty() {
             &data.keypress.commands_without_keymap
         } else {
             &data.keypress.filtered_commands_without_keymap
@@ -238,13 +233,13 @@ impl Widget<LapceTabData> for LapceKeymap {
         let end = (rect.y1 / self.line_height).ceil() as usize;
         let keypress_width = 200.0;
 
-        let commands_with_keymap = if data.keypress.filter_pattern == "" {
+        let commands_with_keymap = if data.keypress.filter_pattern.is_empty() {
             &data.keypress.commands_with_keymap
         } else {
             &data.keypress.filtered_commands_with_keymap
         };
 
-        let commands_without_keymap = if data.keypress.filter_pattern == "" {
+        let commands_without_keymap = if data.keypress.filter_pattern.is_empty() {
             &data.keypress.commands_without_keymap
         } else {
             &data.keypress.filtered_commands_without_keymap
@@ -270,7 +265,9 @@ impl Widget<LapceTabData> for LapceKeymap {
                     let text_layout = ctx
                         .text()
                         .new_text_layout(
-                            cmd.palette_desc.clone().unwrap_or(cmd.cmd.clone()),
+                            cmd.palette_desc
+                                .clone()
+                                .unwrap_or_else(|| cmd.cmd.clone()),
                         )
                         .font(FontFamily::SYSTEM_UI, 13.0)
                         .text_color(
@@ -326,30 +323,28 @@ impl Widget<LapceTabData> for LapceKeymap {
                     )
                 }
 
-                if data.config.lapce.modal {
-                    if keymap.modes.len() > 0 {
-                        let mut origin = Point::new(
-                            size.width / 2.0 + 10.0,
-                            i as f64 * self.line_height + self.line_height / 2.0,
+                if data.config.lapce.modal && !keymap.modes.is_empty() {
+                    let mut origin = Point::new(
+                        size.width / 2.0 + 10.0,
+                        i as f64 * self.line_height + self.line_height / 2.0,
+                    );
+                    for mode in keymap.modes.iter() {
+                        let mode = match mode {
+                            Mode::Normal => "Normal",
+                            Mode::Insert => "Insert",
+                            Mode::Visual => "Visual",
+                            Mode::Terminal => "Terminal",
+                        };
+                        let (rect, text_layout, text_layout_pos) =
+                            paint_key(ctx, mode, origin, &data.config);
+                        ctx.draw_text(&text_layout, text_layout_pos);
+                        ctx.stroke(
+                            rect,
+                            data.config
+                                .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                            1.0,
                         );
-                        for mode in keymap.modes.iter() {
-                            let mode = match mode {
-                                Mode::Normal => "Normal",
-                                Mode::Insert => "Insert",
-                                Mode::Visual => "Visual",
-                                Mode::Terminal => "Terminal",
-                            };
-                            let (rect, text_layout, text_layout_pos) =
-                                paint_key(ctx, mode, origin, &data.config);
-                            ctx.draw_text(&text_layout, text_layout_pos);
-                            ctx.stroke(
-                                rect,
-                                data.config
-                                    .get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                                1.0,
-                            );
-                            origin += (rect.width() + 5.0, 0.0);
-                        }
+                        origin += (rect.width() + 5.0, 0.0);
                     }
                 }
             } else {
@@ -361,7 +356,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                             command
                                 .palette_desc
                                 .clone()
-                                .unwrap_or(command.cmd.clone()),
+                                .unwrap_or_else(|| command.cmd.clone()),
                         )
                         .font(FontFamily::SYSTEM_UI, 13.0)
                         .text_color(
@@ -406,7 +401,7 @@ impl Widget<LapceTabData> for LapceKeymap {
         }
 
         if let Some((keymap, keys)) = self.active_keymap.as_ref() {
-            let paint_rect = rect.clone();
+            let paint_rect = rect;
             let size = paint_rect.size();
             let active_width = 450.0;
             let active_height = 150.0;
@@ -456,7 +451,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                 let text = ctx
                     .text()
                     .new_text_layout(
-                        cmd.palette_desc.clone().unwrap_or(cmd.cmd.clone()),
+                        cmd.palette_desc.clone().unwrap_or_else(|| cmd.cmd.clone()),
                     )
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(
@@ -561,6 +556,12 @@ pub struct LapceKeymapHeader {}
 impl LapceKeymapHeader {
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+impl Default for LapceKeymapHeader {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

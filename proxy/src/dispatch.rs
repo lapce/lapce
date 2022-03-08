@@ -9,9 +9,9 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::BaseDirs;
 use git2::{DiffOptions, Repository};
 use grep_matcher::Matcher;
-use grep_regex::{RegexMatcherBuilder};
+use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
-use grep_searcher::{SearcherBuilder};
+use grep_searcher::SearcherBuilder;
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::{CompletionItem, Position, TextDocumentContentChangeEvent};
 use notify::Watcher;
@@ -20,12 +20,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use std::cmp::Ordering;
-use std::{cmp, fs};
 use std::collections::HashMap;
-use std::{collections::HashSet, io::BufRead};
-use std::path::PathBuf;
-use std::thread;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::thread;
+use std::{cmp, fs};
+use std::{collections::HashSet, io::BufRead};
 use xi_rope::RopeDelta;
 
 #[derive(Clone)]
@@ -34,10 +34,10 @@ pub struct Dispatcher {
     pub git_sender: Sender<(BufferId, u64)>,
     pub workspace: Arc<Mutex<Option<PathBuf>>>,
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
-    
+
     #[allow(deprecated)]
     pub terminals: Arc<Mutex<HashMap<TermId, mio::channel::Sender<Msg>>>>,
-    
+
     open_files: Arc<Mutex<HashMap<String, BufferId>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
@@ -269,10 +269,10 @@ impl std::cmp::PartialOrd for FileNodeItem {
 
         let self_file_name = self.path_buf.file_name()?.to_str()?.to_lowercase();
         let other_file_name = other.path_buf.file_name()?.to_str()?.to_lowercase();
-        if self_file_name.starts_with(".") && !other_file_name.starts_with(".") {
+        if self_file_name.starts_with('.') && !other_file_name.starts_with('.') {
             return Some(cmp::Ordering::Less);
         }
-        if !self_file_name.starts_with(".") && other_file_name.starts_with(".") {
+        if !self_file_name.starts_with('.') && other_file_name.starts_with('.') {
             return Some(cmp::Ordering::Greater);
         }
         self_file_name.partial_cmp(&other_file_name)
@@ -392,20 +392,17 @@ impl Dispatcher {
                         self.handle_request(id, request);
                     }
                     Ok(Call::Notification(notification)) => {
-                        match &notification {
-                            Notification::Shutdown {} => {
-                                for (_, sender) in self.terminals.lock().iter() {
-                                    #[allow(deprecated)]
-                                    let _ = sender.send(Msg::Shutdown);
-                                }
-                                self.open_files.lock().clear();
-                                self.buffers.lock().clear();
-                                self.plugins.lock().stop();
-                                self.lsp.lock().stop();
-                                self.watcher.lock().take();
-                                return Ok(());
+                        if let Notification::Shutdown {} = &notification {
+                            for (_, sender) in self.terminals.lock().iter() {
+                                #[allow(deprecated)]
+                                let _ = sender.send(Msg::Shutdown);
                             }
-                            _ => (),
+                            self.open_files.lock().clear();
+                            self.buffers.lock().clear();
+                            self.plugins.lock().stop();
+                            self.lsp.lock().stop();
+                            self.watcher.lock().take();
+                            return Ok(());
                         }
                         self.handle_notification(notification);
                     }
@@ -457,7 +454,7 @@ impl Dispatcher {
     }
 
     fn parse(&self, s: &str) -> Result<RpcObject> {
-        let val = serde_json::from_str::<Value>(&s)?;
+        let val = serde_json::from_str::<Value>(s)?;
         if !val.is_object() {
             Err(anyhow!("not json object"))
         } else {
@@ -490,7 +487,8 @@ impl Dispatcher {
         match rpc {
             Notification::Initialize { workspace } => {
                 *self.workspace.lock() = Some(workspace.clone());
-                let _ = self.watcher
+                let _ = self
+                    .watcher
                     .lock()
                     .as_mut()
                     .unwrap()
@@ -553,7 +551,7 @@ impl Dispatcher {
             Notification::TerminalWrite { term_id, content } => {
                 let terminals = self.terminals.lock();
                 let tx = terminals.get(&term_id).unwrap();
-                
+
                 #[allow(deprecated)]
                 let _ = tx.send(Msg::Input(content.into_bytes().into()));
             }
@@ -573,7 +571,7 @@ impl Dispatcher {
                     0.0,
                     true,
                 );
-                
+
                 #[allow(deprecated)]
                 let _ = tx.send(Msg::Resize(size));
             }
@@ -588,7 +586,8 @@ impl Dispatcher {
     fn handle_request(&self, id: RequestId, rpc: Request) {
         match rpc {
             Request::NewBuffer { buffer_id, path } => {
-                let _ = self.watcher
+                let _ = self
+                    .watcher
                     .lock()
                     .as_mut()
                     .unwrap()
@@ -776,7 +775,7 @@ impl Dispatcher {
                                                     Ok(true)
                                                 }),
                                             );
-                                            if line_matches.len() > 0 {
+                                            if !line_matches.is_empty() {
                                                 matches.insert(
                                                     path.clone(),
                                                     line_matches,
@@ -806,14 +805,14 @@ pub struct DiffHunk {
 }
 
 fn git_commit(
-    workspace_path: &PathBuf,
+    workspace_path: &Path,
     message: &str,
     diffs: Vec<FileDiff>,
 ) -> Result<()> {
     let repo = Repository::open(
         workspace_path
             .to_str()
-            .ok_or(anyhow!("workspace path can't changed to str"))?,
+            .ok_or_else(|| anyhow!("workspace path can't changed to str"))?,
     )?;
     let mut index = repo.index()?;
     for diff in diffs {
@@ -847,7 +846,7 @@ fn git_commit(
 }
 
 fn git_delta_format(
-    workspace_path: &PathBuf,
+    workspace_path: &Path,
     delta: &git2::DiffDelta,
 ) -> Option<(git2::Delta, git2::Oid, PathBuf)> {
     match delta.status() {
@@ -870,7 +869,7 @@ fn git_delta_format(
     }
 }
 
-fn git_diff_new(workspace_path: &PathBuf) -> Option<DiffInfo> {
+fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     let repo = Repository::open(workspace_path.to_str()?).ok()?;
     let head = repo.head().ok()?;
     let name = head.shorthand()?.to_string();
@@ -952,12 +951,12 @@ fn git_diff_new(workspace_path: &PathBuf) -> Option<DiffInfo> {
     })
 }
 
-fn file_get_head(
-    workspace_path: &PathBuf,
-    path: &PathBuf,
-) -> Result<(String, String)> {
-    let repo =
-        Repository::open(workspace_path.to_str().ok_or(anyhow!("can't to str"))?)?;
+fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)> {
+    let repo = Repository::open(
+        workspace_path
+            .to_str()
+            .ok_or_else(|| anyhow!("can't to str"))?,
+    )?;
     let head = repo.head()?;
     let tree = head.peel_to_tree()?;
     let tree_entry = tree.get_path(path.strip_prefix(workspace_path)?)?;
@@ -971,8 +970,8 @@ fn file_get_head(
 
 #[allow(dead_code)]
 fn file_git_diff(
-    workspace_path: &PathBuf,
-    path: &PathBuf,
+    workspace_path: &Path,
+    path: &Path,
     content: &str,
 ) -> Option<(Vec<DiffHunk>, HashMap<usize, char>)> {
     let repo = Repository::open(workspace_path.to_str()?).ok()?;

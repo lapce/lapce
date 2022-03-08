@@ -1,9 +1,8 @@
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Color, Cursor, Env, Event, EventCtx,
-    FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, RenderContext, Size, UpdateCtx,
-    Widget, WidgetId
+    BoxConstraints, Color, Cursor, Env, Event, EventCtx, FontFamily, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
+    Size, UpdateCtx, Widget, WidgetId,
 };
 use lapce_proxy::plugin::PluginDescription;
 use strum_macros::Display;
@@ -19,6 +18,12 @@ impl PluginData {
         Self {
             widget_id: WidgetId::next(),
         }
+    }
+}
+
+impl Default for PluginData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -81,6 +86,12 @@ impl Plugin {
         } else {
             None
         }
+    }
+}
+
+impl Default for Plugin {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

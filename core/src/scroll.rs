@@ -418,7 +418,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBoxNew<T, W> {
     ) -> Size {
         bc.debug_check("ClipBox");
 
-        let content_size = self.child.layout(ctx, &bc, data, env);
+        let content_size = self.child.layout(ctx, bc, data, env);
         self.port.content_size = content_size;
         self.child.set_origin(ctx, data, env, Point::ORIGIN);
 
@@ -836,12 +836,12 @@ impl ScrollComponentNew {
     ) {
         match event {
             LifeCycle::HotChanged(_) => {
-                self.reset_scrollbar_fade(|d| ctx.request_timer(d), &env);
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
             }
             LifeCycle::Size(_) => {
                 // Show the scrollbars any time our size changes
                 ctx.request_paint();
-                self.reset_scrollbar_fade(|d| ctx.request_timer(d), &env);
+                self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);
             }
             _ => (),
         }
@@ -925,11 +925,7 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     /// portion that fits, prioritizing the portion closest to the origin.
     #[allow(unused_variables)]
     pub fn scroll_to_visible(&mut self, region: Rect, env: &Env) -> bool {
-        if self.clip.pan_to_visible(region) {
-            true
-        } else {
-            false
-        }
+        self.clip.pan_to_visible(region)
     }
 }
 
@@ -950,12 +946,9 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::ResetFade => {
-                        scroll_component
-                            .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
-                    }
-                    _ => (),
+                if let LapceUICommand::ResetFade = command {
+                    scroll_component
+                        .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
                 }
             }
             _ => (),
@@ -986,8 +979,8 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
     ) -> Size {
         bc.debug_check("Scroll");
 
-        let old_viewport = self.clip.port.clone();
-        let child_size = self.clip.layout(ctx, &bc, data, env);
+        let old_viewport = self.clip.port;
+        let child_size = self.clip.layout(ctx, bc, data, env);
 
         let self_size = bc.constrain(child_size);
         // The new size might have made the current scroll offset invalid. This makes it valid

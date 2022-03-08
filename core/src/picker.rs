@@ -60,7 +60,7 @@ impl FilePickerData {
 
     pub fn set_item_children(
         &mut self,
-        path: &PathBuf,
+        path: &Path,
         children: HashMap<PathBuf, FileNodeItem>,
     ) {
         if let Some(node) = self.get_file_node_mut(path) {
@@ -74,17 +74,17 @@ impl FilePickerData {
         }
     }
 
-    pub fn init_home(&mut self, home: &PathBuf) {
-        self.home = home.clone();
+    pub fn init_home(&mut self, home: &Path) {
+        self.home = home.to_path_buf();
         let mut current_file_node = FileNodeItem {
-            path_buf: home.clone(),
+            path_buf: home.to_path_buf(),
             is_dir: true,
             read: false,
             open: false,
             children: HashMap::new(),
             children_open_count: 0,
         };
-        let mut current_path = home.clone();
+        let mut current_path = home.to_path_buf();
 
         let mut ancestors = home.ancestors();
         ancestors.next();
@@ -105,13 +105,10 @@ impl FilePickerData {
             current_path = PathBuf::from(p);
         }
         self.root = current_file_node;
-        self.pwd = home.clone();
+        self.pwd = home.to_path_buf();
     }
 
-    pub fn get_file_node_mut(
-        &mut self,
-        path: &PathBuf,
-    ) -> Option<&mut FileNodeItem> {
+    pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
         let mut node = Some(&mut self.root);
 
         let ancestors = path.ancestors().collect::<Vec<&Path>>();
@@ -121,7 +118,7 @@ impl FilePickerData {
         node
     }
 
-    pub fn get_file_node(&self, path: &PathBuf) -> Option<&FileNodeItem> {
+    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
         let mut node = Some(&self.root);
 
         let ancestors = path.ancestors().collect::<Vec<&Path>>();
@@ -131,7 +128,7 @@ impl FilePickerData {
         node
     }
 
-    pub fn update_node_count(&mut self, path: &PathBuf) -> Option<()> {
+    pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
         let node = self.get_file_node_mut(path)?;
         if node.is_dir {
             if node.open {
@@ -145,6 +142,12 @@ impl FilePickerData {
             }
         }
         None
+    }
+}
+
+impl Default for FilePickerData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -310,15 +313,10 @@ impl FilePickerPwd {
         mouse_event: &MouseEvent,
     ) {
         for (i, (rect, _)) in self.icons.iter().enumerate() {
-            if rect.contains(mouse_event.pos) {
-                match i {
-                    0 => {
-                        if let Some(parent) = data.picker.pwd.parent() {
-                            let path = PathBuf::from(parent);
-                            data.set_picker_pwd(path);
-                        }
-                    }
-                    _ => (),
+            if rect.contains(mouse_event.pos) && i == 0 {
+                if let Some(parent) = data.picker.pwd.parent() {
+                    let path = PathBuf::from(parent);
+                    data.set_picker_pwd(path);
                 }
             }
         }
@@ -517,48 +515,46 @@ impl FilePickerExplorer {
                         Some((index, std::time::Instant::now()));
                     if !clicked_toogle {
                         if let Some((i, t)) = self.last_left_click.as_ref() {
-                            if *i == index {
-                                if t.elapsed().as_millis() < 500 {
-                                    // double click
-                                    self.last_left_click = None;
-                                    let tab_id = data.id;
-                                    let path = node.path_buf.clone();
-                                    let event_sink = ctx.get_external_handle();
-                                    data.proxy.read_dir(
-                                        &node.path_buf,
-                                        Box::new(move |result| {
-                                            if let Ok(res) = result {
-                                                let resp: Result<
-                                                    Vec<FileNodeItem>,
-                                                    serde_json::Error,
-                                                > = serde_json::from_value(res);
-                                                if let Ok(items) = resp {
-                                                    let _ = event_sink.submit_command(
-                                                        LAPCE_UI_COMMAND,
-                                                        LapceUICommand::UpdatePickerItems(
-                                                            path,
-                                                            items
-                                                                .iter()
-                                                                .map(|item| {
-                                                                    (
-                                                                        item.path_buf
-                                                                            .clone(),
-                                                                        item.clone(),
-                                                                    )
-                                                                })
-                                                                .collect(),
-                                                        ),
-                                                        Target::Widget(tab_id),
-                                                    );
-                                                }
+                            if *i == index && t.elapsed().as_millis() < 500 {
+                                // double click
+                                self.last_left_click = None;
+                                let tab_id = data.id;
+                                let path = node.path_buf.clone();
+                                let event_sink = ctx.get_external_handle();
+                                data.proxy.read_dir(
+                                    &node.path_buf,
+                                    Box::new(move |result| {
+                                        if let Ok(res) = result {
+                                            let resp: Result<
+                                                Vec<FileNodeItem>,
+                                                serde_json::Error,
+                                            > = serde_json::from_value(res);
+                                            if let Ok(items) = resp {
+                                                let _ = event_sink.submit_command(
+                                                    LAPCE_UI_COMMAND,
+                                                    LapceUICommand::UpdatePickerItems(
+                                                        path,
+                                                        items
+                                                            .iter()
+                                                            .map(|item| {
+                                                                (
+                                                                    item.path_buf
+                                                                        .clone(),
+                                                                    item.clone(),
+                                                                )
+                                                            })
+                                                            .collect(),
+                                                    ),
+                                                    Target::Widget(tab_id),
+                                                );
                                             }
-                                        }),
-                                    );
-                                    let pwd = node.path_buf.clone();
-                                    picker.index = 0;
-                                    data.set_picker_pwd(pwd);
-                                    return;
-                                }
+                                        }
+                                    }),
+                                );
+                                let pwd = node.path_buf.clone();
+                                picker.index = 0;
+                                data.set_picker_pwd(pwd);
+                                return;
                             }
                         }
                     } else {
@@ -567,17 +563,15 @@ impl FilePickerExplorer {
                     self.last_left_click = last_left_click;
                 } else {
                     if let Some((i, t)) = self.last_left_click.as_ref() {
-                        if *i == index {
-                            if t.elapsed().as_millis() < 500 {
-                                self.last_left_click = None;
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::OpenFile(node.path_buf.clone()),
-                                    Target::Widget(data.id),
-                                ));
-                                picker.active = false;
-                                return;
-                            }
+                        if *i == index && t.elapsed().as_millis() < 500 {
+                            self.last_left_click = None;
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::OpenFile(node.path_buf.clone()),
+                                Target::Widget(data.id),
+                            ));
+                            picker.active = false;
+                            return;
                         }
                     }
                     self.last_left_click = Some((index, std::time::Instant::now()));
@@ -589,6 +583,12 @@ impl FilePickerExplorer {
                 picker.index = index;
             }
         }
+    }
+}
+
+impl Default for FilePickerExplorer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -731,46 +731,51 @@ impl FilePickerControl {
         mouse_event: &MouseEvent,
     ) {
         for btn in self.buttons.iter() {
-            if btn.rect.contains(mouse_event.pos) {
-                if btn.command.is(LAPCE_UI_COMMAND) {
-                    let command = btn.command.get_unchecked(LAPCE_UI_COMMAND);
-                    match command {
-                        LapceUICommand::SetWorkspace(workspace) => {
-                            if let Some(item) =
-                                data.picker.get_file_node(&data.picker.pwd)
-                            {
-                                let (_, node) =
-                                    get_item_children(0, data.picker.index, item);
-                                if let Some(node) = node {
-                                    if node.is_dir {
-                                        let mut workspace = workspace.clone();
-                                        workspace.path = Some(node.path_buf.clone());
-                                        ctx.submit_command(Command::new(
-                                            LAPCE_UI_COMMAND,
-                                            LapceUICommand::SetWorkspace(workspace),
-                                            Target::Auto,
-                                        ));
-                                    } else {
-                                        ctx.submit_command(Command::new(
-                                            LAPCE_UI_COMMAND,
-                                            LapceUICommand::OpenFile(
-                                                node.path_buf.clone(),
-                                            ),
-                                            Target::Widget(data.id),
-                                        ));
-                                        let picker = Arc::make_mut(&mut data.picker);
-                                        picker.active = false;
-                                    }
+            if btn.rect.contains(mouse_event.pos) && btn.command.is(LAPCE_UI_COMMAND)
+            {
+                let command = btn.command.get_unchecked(LAPCE_UI_COMMAND);
+                match command {
+                    LapceUICommand::SetWorkspace(workspace) => {
+                        if let Some(item) =
+                            data.picker.get_file_node(&data.picker.pwd)
+                        {
+                            let (_, node) =
+                                get_item_children(0, data.picker.index, item);
+                            if let Some(node) = node {
+                                if node.is_dir {
+                                    let mut workspace = workspace.clone();
+                                    workspace.path = Some(node.path_buf.clone());
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::SetWorkspace(workspace),
+                                        Target::Auto,
+                                    ));
+                                } else {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::OpenFile(
+                                            node.path_buf.clone(),
+                                        ),
+                                        Target::Widget(data.id),
+                                    ));
+                                    let picker = Arc::make_mut(&mut data.picker);
+                                    picker.active = false;
                                 }
                             }
                         }
-                        _ => {
-                            ctx.submit_command(btn.command.clone());
-                        }
+                    }
+                    _ => {
+                        ctx.submit_command(btn.command.clone());
                     }
                 }
             }
         }
+    }
+}
+
+impl Default for FilePickerControl {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

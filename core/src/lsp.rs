@@ -1,15 +1,8 @@
-
 use anyhow::{anyhow, Result};
 use druid::{WidgetId, WindowId};
 use jsonrpc_lite::Id;
 use parking_lot::Mutex;
-use std::{
-    collections::HashMap,
-    io::BufRead,
-    io::Write,
-    process::Child,
-    sync::Arc,
-};
+use std::{collections::HashMap, io::BufRead, io::Write, process::Child, sync::Arc};
 
 use lsp_types::*;
 use serde_json::Value;
@@ -28,10 +21,10 @@ pub enum LspHeader {
 pub struct LspCatalog {
     #[allow(dead_code)]
     window_id: WindowId,
-    
+
     #[allow(dead_code)]
     tab_id: WidgetId,
-    
+
     clients: HashMap<String, Arc<LspClient>>,
 }
 
@@ -65,14 +58,14 @@ impl<F: Send + FnOnce(&LspClient, Result<Value>)> Callable for F {
 pub struct LspState {
     #[allow(dead_code)]
     next_id: u64,
-    
+
     #[allow(dead_code)]
     writer: Box<dyn Write + Send>,
     process: Child,
-    
+
     #[allow(dead_code)]
     pending: HashMap<u64, Callback>,
-    
+
     pub server_capabilities: Option<ServerCapabilities>,
     pub opened_documents: HashMap<BufferId, Url>,
     pub is_initialized: bool,
@@ -81,16 +74,16 @@ pub struct LspState {
 pub struct LspClient {
     #[allow(dead_code)]
     window_id: WindowId,
-    
+
     #[allow(dead_code)]
     tab_id: WidgetId,
-    
+
     #[allow(dead_code)]
     language_id: String,
-    
+
     #[allow(dead_code)]
     options: Option<Value>,
-    
+
     state: Arc<Mutex<LspState>>,
 }
 
@@ -112,9 +105,9 @@ fn parse_header(s: &str) -> Result<LspHeader> {
     };
     match split[0].as_ref() {
         HEADER_CONTENT_TYPE => Ok(LspHeader::ContentType),
-        HEADER_CONTENT_LENGTH => Ok(LspHeader::ContentLength(
-            usize::from_str_radix(&split[1], 10)?,
-        )),
+        HEADER_CONTENT_LENGTH => {
+            Ok(LspHeader::ContentLength(split[1].parse::<usize>()?))
+        }
         _ => Err(anyhow!("Unknown parse error occurred")),
     }
 }
@@ -152,9 +145,9 @@ pub fn read_message<T: BufRead>(reader: &mut T) -> Result<String> {
 fn number_from_id(id: &Id) -> u64 {
     match *id {
         Id::Num(n) => n as u64,
-        Id::Str(ref s) => {
-            u64::from_str_radix(s, 10).expect("failed to convert string id to u64")
-        }
+        Id::Str(ref s) => s
+            .parse::<u64>()
+            .expect("failed to convert string id to u64"),
         _ => panic!("unexpected value for id: None"),
     }
 }

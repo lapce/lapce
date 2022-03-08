@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use std::ffi::OsString;
+use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
 use std::{borrow::Cow, path::Path, time::SystemTime};
-use std::fs;
 
 use lsp_types::*;
 use serde::{Deserialize, Serialize};
@@ -143,16 +143,20 @@ impl Buffer {
     pub fn len(&self) -> usize {
         self.rope.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
-fn load_file(path: &PathBuf) -> Result<Rope> {
+fn load_file(path: &Path) -> Result<Rope> {
     let mut f = File::open(path)?;
     let mut bytes = Vec::new();
     f.read_to_end(&mut bytes)?;
     Ok(Rope::from(std::str::from_utf8(&bytes)?))
 }
 
-fn language_id_from_path(path: &PathBuf) -> Option<&str> {
+fn language_id_from_path(path: &Path) -> Option<&str> {
     Some(match path.extension()?.to_str()? {
         "rs" => "rust",
         "go" => "go",

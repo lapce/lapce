@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
@@ -146,16 +146,16 @@ impl PluginCatalog {
             std::io::copy(&mut resp, &mut file)?;
         }
 
-        let mut plugin = plugin.clone();
+        let mut plugin = plugin;
         plugin.dir = Some(path.clone());
         plugin.wasm = path
             .join(&plugin.wasm)
             .to_str()
-            .ok_or(anyhow!("path can't to string"))?
+            .ok_or_else(|| anyhow!("path can't to string"))?
             .to_string();
         let p = self.start_plugin(dispatcher, plugin.clone())?;
         self.items.insert(plugin.name.clone(), plugin.clone());
-        self.plugins.insert(plugin.name.clone(), p);
+        self.plugins.insert(plugin.name, p);
         Ok(())
     }
 
@@ -221,6 +221,12 @@ impl PluginCatalog {
     }
 }
 
+impl Default for PluginCatalog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub(crate) fn lapce_exports(store: &Store, plugin_env: &PluginEnv) -> ImportObject {
     macro_rules! lapce_export {
         ($($host_function:ident),+ $(,)?) => {
@@ -279,7 +285,7 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                         .to_str()
                         .unwrap(),
                     &language_id,
-                    options.clone(),
+                    options,
                 );
             }
             PluginNotification::DownloadFile { url, path } => {
@@ -331,7 +337,7 @@ pub fn wasi_read_string(wasi_env: &WasiEnv) -> Result<String> {
         .fs
         .stdout_mut()?
         .as_mut()
-        .ok_or(anyhow!("can't get stdout"))?;
+        .ok_or_else(|| anyhow!("can't get stdout"))?;
     let mut buf = String::new();
     wasi_file.read_to_string(&mut buf)?;
     Ok(buf)
@@ -373,7 +379,7 @@ fn find_all_plugins() -> Vec<PathBuf> {
     plugin_paths
 }
 
-fn load_plugin(path: &PathBuf) -> Result<PluginDescription> {
+fn load_plugin(path: &Path) -> Result<PluginDescription> {
     let mut file = fs::File::open(&path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -385,7 +391,7 @@ fn load_plugin(path: &PathBuf) -> Result<PluginDescription> {
         .join(&plugin.wasm)
         .canonicalize()?
         .to_str()
-        .ok_or(anyhow!("path can't to string"))?
+        .ok_or_else(|| anyhow!("path can't to string"))?
         .to_string();
     Ok(plugin)
 }
