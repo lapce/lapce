@@ -1,32 +1,20 @@
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
-    widget::SvgData, Color, Data, Env, EventCtx, ExtEventSink, KeyEvent, Lens,
-    Modifiers, Target, WidgetId, WindowId,
+    Color,
+    Modifiers
 };
-use im;
-use lapce_proxy::dispatch::NewBufferResponse;
-use lazy_static::lazy_static;
-use lsp_types::Position;
-use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::json;
-use serde_json::Value;
+
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::process::Child;
-use std::process::Command;
-use std::process::Stdio;
-use std::{
-    collections::HashMap, fs::File, io::Read, path::PathBuf, str::FromStr,
-    sync::Arc, thread,
-};
-use std::{io::BufReader, sync::atomic::AtomicU64};
-use std::{path::Path, sync::atomic};
-use toml;
+use std::path::PathBuf;
+use std::{sync::atomic::AtomicU64};
+use std::{sync::atomic};
 
 #[derive(PartialEq)]
 enum KeymapMatch {
+    #[allow(dead_code)]
     Full,
+    #[allow(dead_code)]
     Prefix,
 }
 
@@ -188,9 +176,6 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
 
 #[cfg(test)]
 mod tests {
-    use xi_rope::Rope;
-
-    use super::*;
 
     #[test]
     fn test_check_condition() {}

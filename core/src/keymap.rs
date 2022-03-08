@@ -3,16 +3,15 @@ use std::sync::Arc;
 use druid::{
     kurbo::Line,
     piet::{
-        PietTextLayout, Svg, Text, TextAttribute, TextLayout, TextLayoutBuilder,
+        Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    text::Attribute,
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId
 };
 
 use crate::{
-    command::{LapceCommandNew, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
     editor::LapceEditorView,
@@ -20,7 +19,7 @@ use crate::{
         paint_key, Alignment, DefaultKeyPressHandler, KeyMap, KeyPress, KeyPressData,
     },
     scroll::LapceScrollNew,
-    split::{keybinding_to_string, LapceSplitNew},
+    split::LapceSplitNew,
     state::Mode,
 };
 
@@ -134,7 +133,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                     _ => (),
                 }
             }
-            Event::MouseMove(mouse_event) => {
+            Event::MouseMove(_mouse_event) => {
                 ctx.set_handled();
             }
             Event::MouseDown(mouse_event) => {
@@ -144,7 +143,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                 ctx.request_paint();
             }
             Event::KeyDown(key_event) => {
-                if let Some((keymap, keys)) = self.active_keymap.as_mut() {
+                if let Some((_keymap, keys)) = self.active_keymap.as_mut() {
                     if let Some(keypress) = KeyPressData::keypress(key_event) {
                         if keys.len() == 2 {
                             keys.clear();
@@ -168,10 +167,10 @@ impl Widget<LapceTabData> for LapceKeymap {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -180,7 +179,7 @@ impl Widget<LapceTabData> for LapceKeymap {
         ctx: &mut UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         if !data
             .keypress
@@ -206,10 +205,10 @@ impl Widget<LapceTabData> for LapceKeymap {
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let commands_with_keymap = if data.keypress.filter_pattern == "" {
             &data.keypress.commands_with_keymap
@@ -232,7 +231,7 @@ impl Widget<LapceTabData> for LapceKeymap {
         )
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
         let rect = ctx.region().bounding_box();
         let start = (rect.y0 / self.line_height).floor() as usize;
@@ -568,42 +567,42 @@ impl LapceKeymapHeader {
 impl Widget<LapceTabData> for LapceKeymapHeader {
     fn event(
         &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceTabData,
-        env: &Env,
+        _data: &LapceTabData,
+        _env: &Env,
     ) -> Size {
         Size::new(bc.max().width, 40.0)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
         let keypress_width = 200.0;
 

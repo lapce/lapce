@@ -1,18 +1,17 @@
 use std::{collections::HashMap, sync::Arc};
 
 use druid::{
-    kurbo::{BezPath, Line},
+    kurbo::BezPath,
     piet::{
-        PietText, PietTextLayout, Svg, Text, TextAttribute, TextLayout,
+        PietText, PietTextLayout, Text, TextAttribute, TextLayout,
         TextLayoutBuilder,
     },
-    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
+    BoxConstraints, Command, Env, Event, EventCtx, FontFamily, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
     RenderContext, Size, Target, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
 use inflector::Inflector;
-use notify::event;
 
 use crate::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
@@ -158,7 +157,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event, data);
             }
-            Event::MouseUp(mouse_event) => {
+            Event::MouseUp(_mouse_event) => {
                 ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -192,7 +191,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -402,7 +401,7 @@ impl LapceSettings {
             .boxed(),
         );
 
-        let input = LapceEditorView::new(data.settings.settings_view_id)
+        let _input = LapceEditorView::new(data.settings.settings_view_id)
             .hide_header()
             .hide_gutter()
             .padding((15.0, 15.0));
@@ -462,7 +461,8 @@ impl LapceSettings {
             ))
         }
     }
-
+    
+    #[allow(dead_code)]
     fn paint_setting(
         &self,
         ctx: &mut PaintCtx,
@@ -558,9 +558,9 @@ impl Widget<LapceTabData> for LapceSettings {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         if self.children.is_empty() {
             self.update_children(data);
@@ -734,16 +734,16 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         Mode::Insert
     }
 
-    fn check_condition(&self, condition: &str) -> bool {
+    fn check_condition(&self, _condition: &str) -> bool {
         false
     }
 
     fn run_command(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         command: &LapceCommand,
-        count: Option<usize>,
-        env: &Env,
+        _count: Option<usize>,
+        _env: &Env,
     ) -> CommandExecuted {
         match command {
             LapceCommand::Right => {
@@ -770,7 +770,7 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
+    fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         self.input.insert_str(self.cursor, c);
         self.cursor += c.len();
     }
@@ -796,14 +796,14 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                 if f.input != self.input {
                     self.input = f.input.clone();
                     let new_value = match &self.value {
-                        serde_json::Value::Number(n) => {
+                        serde_json::Value::Number(_n) => {
                             if let Ok(new_n) = self.input.parse::<i64>() {
                                 serde_json::json!(new_n)
                             } else {
                                 return;
                             }
                         }
-                        serde_json::Value::String(s) => {
+                        serde_json::Value::String(_s) => {
                             serde_json::json!(self.input.clone())
                         }
                         _ => return,
@@ -821,7 +821,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
             Event::MouseDown(mouse_event) => {
                 ctx.request_focus();
                 let input = self.input.clone();
-                if let Some(text) = self.value(ctx.text(), data) {
+                if let Some(_text) = self.value(ctx.text(), data) {
                     let text = ctx
                         .text()
                         .new_text_layout(input)
@@ -886,19 +886,19 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -907,7 +907,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         self.width = bc.max().width;
         let text = ctx.text();
@@ -925,8 +925,9 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         Size::new(self.width, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
+        
         let mut y = 0.0;
         let padding = self.padding;
 
@@ -1018,8 +1019,12 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     1.0,
                 );
             }
-
+            
             y += text.size().height + self.padding;
         }
+        
+        // this fixes a warning related to y
+        #[allow(unused_variables)]
+        let a = y;
     }
 }

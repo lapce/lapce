@@ -16,6 +16,7 @@ pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
 }
 
 pub fn lanuch() {
+
     let mut log_dispatch = fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -28,14 +29,16 @@ pub fn lanuch() {
         })
         .level(log::LevelFilter::Off)
         .level_for("piet_wgpu", log::LevelFilter::Info);
+    
     if let Some(log_file) = Config::log_file().and_then(|f| fern::log_file(f).ok()) {
         log_dispatch = log_dispatch.chain(log_file);
     }
-    log_dispatch.apply();
+    
+    let _ = log_dispatch.apply();
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());
     let data = LapceData::load(launcher.get_external_handle());
-    for (window_id, window_data) in data.windows.iter() {
+    for (_window_id, window_data) in data.windows.iter() {
         let root = build_window(window_data);
         let window = WindowDesc::new_with_id(window_data.window_id, root)
             .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
@@ -61,24 +64,24 @@ impl LapceAppDelegate {
 impl AppDelegate<LapceData> for LapceAppDelegate {
     fn event(
         &mut self,
-        ctx: &mut druid::DelegateCtx,
+        _ctx: &mut druid::DelegateCtx,
         window_id: WindowId,
         event: druid::Event,
         data: &mut LapceData,
-        env: &Env,
+        _env: &Env,
     ) -> Option<Event> {
         match event {
             Event::WindowCloseRequested => {
                 if let Some(window) = data.windows.remove(&window_id) {
                     for (_, tab) in window.tabs.iter() {
-                        data.db.save_workspace(tab);
+                        let _ = data.db.save_workspace(tab);
                     }
                     data.db.save_last_window(&window);
                 }
                 return None;
             }
             Event::ApplicationQuit => {
-                data.db.save_app(data);
+                let _ = data.db.save_app(data);
                 return None;
             }
             _ => (),
@@ -89,10 +92,10 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
     fn command(
         &mut self,
         ctx: &mut druid::DelegateCtx,
-        target: druid::Target,
+        _target: druid::Target,
         cmd: &Command,
         data: &mut LapceData,
-        env: &Env,
+        _env: &Env,
     ) -> druid::Handled {
         if cmd.is(LAPCE_UI_COMMAND) {
             let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -139,19 +142,19 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
 
     fn window_added(
         &mut self,
-        id: WindowId,
-        data: &mut LapceData,
-        env: &Env,
-        ctx: &mut druid::DelegateCtx,
+        _id: WindowId,
+        _data: &mut LapceData,
+        _env: &Env,
+        _ctx: &mut druid::DelegateCtx,
     ) {
     }
 
     fn window_removed(
         &mut self,
-        id: WindowId,
-        data: &mut LapceData,
-        env: &Env,
-        ctx: &mut druid::DelegateCtx,
+        _id: WindowId,
+        _data: &mut LapceData,
+        _env: &Env,
+        _ctx: &mut druid::DelegateCtx,
     ) {
     }
 }

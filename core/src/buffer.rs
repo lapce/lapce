@@ -1,21 +1,18 @@
-use anyhow::{anyhow, Result};
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use druid::piet::{Piet, TextLayout};
-use druid::{piet::PietTextLayout, FontWeight, Key, Vec2};
+use crossbeam_channel::Sender;
+use druid::{piet::PietTextLayout, Vec2};
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
-    Color, Command, Data, EventCtx, ExtEventSink, Target, UpdateCtx, WidgetId,
+    Data, EventCtx, ExtEventSink, Target, WidgetId,
     WindowId,
 };
-use druid::{Env, PaintCtx, Point};
+use druid::{PaintCtx, Point};
 use language::{new_highlight_config, LapceLanguage};
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
 use lsp_types::SemanticTokensServerCapabilities;
-use lsp_types::{CallHierarchyOptions, SemanticTokensLegend};
+use lsp_types::{SemanticTokensLegend};
 use lsp_types::{CodeActionResponse, Position};
 use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::cmp::{self, Ordering};
 use std::ops::Range;
@@ -24,26 +21,23 @@ use std::sync::atomic::{self, AtomicU64};
 use std::{
     borrow::Cow,
     collections::BTreeSet,
-    ffi::OsString,
-    io::{self, Read, Write},
-    path::{Path, PathBuf},
+    path::{PathBuf},
     sync::Arc,
     thread,
 };
-use std::{collections::HashMap, fs::File};
-use std::{fs, str::FromStr};
-use tree_sitter::{Node, Parser, Tree};
+use std::collections::HashMap;
+use std::str::FromStr;
+use tree_sitter::{Node, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthChar;
 use xi_rope::{
     interval::IntervalBounds,
     multiset::Subset,
     rope::Rope,
-    spans::{Spans, SpansBuilder, SpansInfo},
-    Cursor, Delta, DeltaBuilder, Interval, LinesMetric, RopeDelta, RopeInfo,
-    Transformer,
+    spans::{Spans, SpansBuilder},
+    Cursor, Delta, DeltaBuilder, Interval, RopeDelta, RopeInfo,
 };
 use xi_unicode::EmojiExt;
 
@@ -61,6 +55,7 @@ use crate::{
     state::{Counter, Mode},
 };
 
+#[allow(dead_code)]
 const FIND_BATCH_SIZE: usize = 500000;
 
 #[derive(Debug, Clone)]
@@ -97,8 +92,12 @@ impl BufferId {
 
 #[derive(Clone)]
 pub struct BufferUIState {
+    #[allow(dead_code)]
     window_id: WindowId,
+    
+    #[allow(dead_code)]
     tab_id: WidgetId,
+    
     pub id: BufferId,
     pub text_layouts: Vec<Arc<Option<Arc<HighlightTextLayout>>>>,
     pub line_changes: HashMap<usize, char>,
@@ -441,7 +440,8 @@ impl BufferNew {
                         &mut highlighter,
                         &mut highlight_config,
                     );
-                    event_sink.submit_command(
+                    
+                    let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateHistoryStyle {
                             id,
@@ -480,7 +480,8 @@ impl BufferNew {
                     if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                         return;
                     }
-                    event_sink.submit_command(
+                    
+                    let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateHisotryChanges {
                             id: id,
@@ -499,7 +500,7 @@ impl BufferNew {
     pub fn notify_update(&self) {
         if let Some(language) = self.language {
             if let BufferContent::File(path) = &self.content {
-                self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
+                let _ = self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
                     id: self.id,
                     path: path.clone(),
                     rope: self.rope.clone(),
@@ -531,7 +532,7 @@ impl BufferNew {
                             if let Ok(resp) =
                                 serde_json::from_value::<BufferHeadResponse>(res)
                             {
-                                event_sink.submit_command(
+                                let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::LoadBufferHead {
                                         path,
@@ -575,7 +576,7 @@ impl BufferNew {
                             if let Ok(resp) =
                                 serde_json::from_value::<NewBufferResponse>(res)
                             {
-                                event_sink.submit_command(
+                                let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::LoadBuffer {
                                         path,
@@ -849,7 +850,10 @@ impl BufferNew {
         ctx: &mut PaintCtx,
         history: &str,
         line: usize,
+        
+        #[allow(unused_variables)]
         cursor_index: Option<usize>,
+        
         bounds: [f64; 2],
         config: &Config,
     ) -> Option<PietTextLayout> {
@@ -1175,7 +1179,7 @@ impl BufferNew {
     ) -> usize {
         let mut cursor = Cursor::new(&self.rope, offset);
         let mut new_offset = offset;
-        for i in 0..count {
+        for _i in 0..count {
             if let Some(prev_offset) = cursor.prev_grapheme() {
                 if prev_offset < limit {
                     return new_offset;
@@ -1202,7 +1206,7 @@ impl BufferNew {
         };
         let mut cursor = Cursor::new(&self.rope, offset);
         let mut new_offset = offset;
-        for i in 0..count {
+        for _i in 0..count {
             if let Some(next_offset) = cursor.next_grapheme() {
                 if next_offset > limit {
                     return new_offset;
@@ -1219,7 +1223,7 @@ impl BufferNew {
     pub fn diff_visual_line(&self, compare: &str, line: usize) -> usize {
         let mut visual_line = 0;
         if let Some(changes) = self.history_changes.get(compare) {
-            for (i, change) in changes.iter().enumerate() {
+            for (_i, change) in changes.iter().enumerate() {
                 match change {
                     DiffLines::Left(range) => {
                         visual_line += range.len();
@@ -1307,9 +1311,9 @@ impl BufferNew {
     fn diff_cursor_line(&self, compare: &str, line: usize) -> usize {
         let mut cursor_line = 0;
         if let Some(changes) = self.history_changes.get(compare) {
-            for (i, change) in changes.iter().enumerate() {
+            for (_i, change) in changes.iter().enumerate() {
                 match change {
-                    DiffLines::Left(range) => {}
+                    DiffLines::Left(_range) => {}
                     DiffLines::Both(_, r) | DiffLines::Right(r) => {
                         if r.contains(&line) {
                             cursor_line += line - r.start;
@@ -1332,10 +1336,10 @@ impl BufferNew {
         let mut current_cursor_line = 0;
         let mut line = 0;
         if let Some(changes) = self.history_changes.get(compare) {
-            for (i, change) in changes.iter().enumerate() {
+            for (_i, change) in changes.iter().enumerate() {
                 match change {
-                    DiffLines::Left(range) => {}
-                    DiffLines::Skip(_, r) => {}
+                    DiffLines::Left(_range) => {}
+                    DiffLines::Skip(_, _r) => {}
                     DiffLines::Both(_, r) | DiffLines::Right(r) => {
                         current_cursor_line += r.len();
                         if current_cursor_line > cursor_line {
@@ -1739,13 +1743,13 @@ impl BufferNew {
     fn update_line_styles(&mut self, delta: &RopeDelta, inval_lines: &InvalLines) {
         Arc::make_mut(&mut self.styles).apply_shape(delta);
         let mut line_styles = self.line_styles.borrow_mut();
-        let mut right = line_styles.split_off(inval_lines.start_line);
+        let right = line_styles.split_off(inval_lines.start_line);
         let right = &right[inval_lines.inval_count..];
         let mut new = vec![None; inval_lines.new_count];
         line_styles.append(&mut new);
         line_styles.extend_from_slice(right);
     }
-
+    
     fn mk_new_rev(
         &self,
         undo_group: usize,
@@ -1868,7 +1872,10 @@ impl BufferNew {
 
     pub fn edit_multiple(
         &mut self,
+        
+        #[allow(unused_variables)]
         ctx: &mut EventCtx,
+        
         edits: Vec<(&Selection, &str)>,
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
@@ -2401,8 +2408,6 @@ fn classify_boundary_initial(
     prev: WordProperty,
     next: WordProperty,
 ) -> WordBoundary {
-    use self::WordBoundary::*;
-    use self::WordProperty::*;
     match (prev, next) {
         // (Lf, Other) => Start,
         // (Other, Lf) => End,
@@ -2700,6 +2705,7 @@ pub struct DiffHunk {
 //    }
 //}
 
+#[allow(dead_code)]
 fn language_id_from_path(path: &str) -> Option<&str> {
     let path_buf = PathBuf::from_str(path).ok()?;
     Some(match path_buf.extension()?.to_str()? {
@@ -2709,6 +2715,7 @@ fn language_id_from_path(path: &str) -> Option<&str> {
     })
 }
 
+#[allow(dead_code)]
 fn semantic_tokens_lengend(
     semantic_tokens_provider: &SemanticTokensServerCapabilities,
 ) -> SemanticTokensLegend {
@@ -2790,6 +2797,7 @@ fn rope_styles(
     highlights
 }
 
+#[allow(dead_code)]
 fn buffer_diff(
     left_rope: Rope,
     right_rope: Rope,
@@ -3057,6 +3065,7 @@ fn rope_diff(
     Some(changes)
 }
 
+#[allow(dead_code)]
 fn iter_diff<I, T>(left: I, right: I) -> Vec<DiffResult<T>>
 where
     I: Clone + Iterator<Item = T> + DoubleEndedIterator,

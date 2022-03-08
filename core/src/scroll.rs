@@ -1,5 +1,5 @@
 use std::time::Duration;
-use std::{f64::INFINITY, time::Instant};
+use std::time::Instant;
 
 use druid::{
     kurbo::{Affine, Point, Rect, Size, Vec2},
@@ -82,8 +82,11 @@ impl Viewport {
 
 #[derive(Debug, Clone)]
 enum ScrollDirection {
+    #[allow(dead_code)]
     Bidirectional,
+    #[allow(dead_code)]
     Vertical,
+    #[allow(dead_code)]
     Horizontal,
 }
 
@@ -596,7 +599,7 @@ impl ScrollComponentNew {
                 .with_alpha(self.opacity),
         );
 
-        let radius = env.get(theme::SCROLLBAR_RADIUS);
+        let _radius = env.get(theme::SCROLLBAR_RADIUS);
         let edge_width = env.get(theme::SCROLLBAR_EDGE_WIDTH);
 
         // Vertical bar
@@ -781,7 +784,7 @@ impl ScrollComponentNew {
                 // }
                 Event::AnimFrame(_) => {
                     if let Some(start) = self.fade_start {
-                        let elapsed = start.elapsed().subsec_millis();
+                        let _elapsed = start.elapsed().subsec_millis();
                         let diff = 0.02;
                         self.opacity = env.get(theme::SCROLLBAR_MAX_OPACITY)
                             - diff * (start.elapsed().subsec_millis() as f64 / 20.0);
@@ -920,6 +923,7 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     ///
     /// If the target region is larger than the viewport, we will display the
     /// portion that fits, prioritizing the portion closest to the origin.
+    #[allow(unused_variables)]
     pub fn scroll_to_visible(&mut self, region: Rect, env: &Env) -> bool {
         if self.clip.pan_to_visible(region) {
             true

@@ -1,22 +1,17 @@
-use std::{cmp::Ordering, collections::HashMap, fmt::Display, sync::Arc};
+use std::{cmp::Ordering, fmt::Display, sync::Arc};
 
 use anyhow::Error;
-use bit_vec::BitVec;
 use druid::{
-    piet::{Svg, Text, TextAttribute, TextLayoutBuilder},
-    scroll_component::ScrollComponent,
-    theme,
-    widget::SvgData,
-    Affine, BoxConstraints, Color, Command, Data, Env, Event, EventCtx,
-    ExtEventSink, FontFamily, FontWeight, Insets, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout,
-    UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    piet::{Text, TextAttribute, TextLayoutBuilder},
+    BoxConstraints, Command, Data, Env, Event, EventCtx,
+    ExtEventSink, FontFamily, FontWeight, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
-use lsp_types::{CompletionItem, CompletionItemKind, CompletionResponse, Position};
+use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
-use serde::Serialize;
 use std::str::FromStr;
 
 use crate::{
@@ -28,7 +23,6 @@ use crate::{
     proxy::LapceProxy,
     scroll::{LapceIdentityWrapper, LapceScrollNew},
     svg::completion_svg,
-    theme::OldLapceTheme,
 };
 
 #[derive(Debug)]
@@ -331,7 +325,7 @@ impl CompletionData {
                     if let Ok(resp) =
                         serde_json::from_value::<CompletionResponse>(res)
                     {
-                        event_sink.submit_command(
+                        let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::UpdateCompletion(
                                 request_id, input, resp,
@@ -604,7 +598,7 @@ impl Widget<LapceTabData> for CompletionContainer {
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
+        _bc: &BoxConstraints,
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
@@ -644,37 +638,37 @@ impl CompletionNew {
 impl Widget<LapceTabData> for CompletionNew {
     fn event(
         &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceTabData,
-        env: &Env,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let line_height = data.config.editor.line_height as f64;
         let height = data.completion.len();
@@ -682,7 +676,7 @@ impl Widget<LapceTabData> for CompletionNew {
         Size::new(bc.max().width, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         if data.completion.status == CompletionStatus::Inactive {
             return;
         }
@@ -690,7 +684,7 @@ impl Widget<LapceTabData> for CompletionNew {
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
 
-        let input = &data.completion.input;
+        let _input = &data.completion.input;
         let items: &Vec<ScoredCompletionItem> = data.completion.current_items();
 
         ctx.fill(
@@ -782,7 +776,10 @@ impl Widget<LapceTabData> for CompletionNew {
 #[derive(Clone)]
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
+    
+    #[allow(dead_code)]
     index: usize,
+    
     score: i64,
     label_score: i64,
     indices: Vec<usize>,
@@ -844,7 +841,7 @@ impl CompletionState {
             .iter()
             .enumerate()
             .map(|(index, item)| {
-                let mut item = ScoredCompletionItem {
+                let item = ScoredCompletionItem {
                     item: item.to_owned(),
                     score: -1 - index as i64,
                     label_score: -1 - index as i64,
@@ -869,7 +866,7 @@ impl CompletionState {
     }
 
     pub fn update_input(&mut self, ctx: &mut EventCtx, input: String) {
-        for item in self.items.iter_mut() {
+        for _item in self.items.iter_mut() {
             if input != "" {
                 // if has_match(&input, &item.item.label) {
                 //     let result = locate(&input, &item.item.label);

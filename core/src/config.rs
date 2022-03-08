@@ -4,10 +4,10 @@ use anyhow::Result;
 use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
-    theme, Color, Env, ExtEventSink, FontDescriptor, FontFamily, Key, Size, Target,
+    theme, Color, Env, ExtEventSink, FontFamily, Size, Target,
 };
 use hashbrown::HashMap;
-use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 
 use crate::{
@@ -16,10 +16,10 @@ use crate::{
     state::{LapceWorkspace, LapceWorkspaceType},
 };
 
-const default_settings: &'static str = include_str!("../../defaults/settings.toml");
-const default_light_theme: &'static str =
+const DEFAULT_SETTINGS: &'static str = include_str!("../../defaults/settings.toml");
+const DEFAULT_LIGHT_THEME: &'static str =
     include_str!("../../defaults/light-theme.toml");
-const default_dark_theme: &'static str =
+const DEFAULT_DARK_THEME: &'static str =
     include_str!("../../defaults/dark-theme.toml");
 pub const LOGO: &'static str = include_str!("../../extra/images/logo.svg");
 
@@ -140,7 +140,7 @@ impl notify::EventHandler for ConfigWatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    self.event_sink.submit_command(
+                    let _ = self.event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::ReloadConfig,
                         Target::Auto,
@@ -155,19 +155,18 @@ impl notify::EventHandler for ConfigWatcher {
 impl Config {
     pub fn load(workspace: &LapceWorkspace) -> Result<Self> {
         let mut settings = config::Config::default().with_merged(
-            config::File::from_str(default_settings, config::FileFormat::Toml),
+            config::File::from_str(DEFAULT_SETTINGS, config::FileFormat::Toml),
         )?;
 
         if let Some(path) = Self::settings_file() {
-            settings.merge(config::File::from(path.as_path()).required(false));
+            let _ = settings.merge(config::File::from(path.as_path()).required(false));
         }
 
         match workspace.kind {
             crate::state::LapceWorkspaceType::Local => {
                 if let Some(path) = workspace.path.as_ref() {
                     let path = path.join("./.lapce/settings.toml");
-                    settings
-                        .merge(config::File::from(path.as_path()).required(false));
+                    let _ = settings.merge(config::File::from(path.as_path()).required(false));
                 }
             }
             crate::state::LapceWorkspaceType::RemoteSSH(_, _) => {}
@@ -175,11 +174,11 @@ impl Config {
 
         let mut config: Config = settings.try_into()?;
 
-        config.theme = get_theme(default_light_theme)?;
+        config.theme = get_theme(DEFAULT_LIGHT_THEME)?;
 
         let mut themes = HashMap::new();
-        themes.insert("Lapce Light".to_string(), get_theme(default_light_theme)?);
-        themes.insert("Lapce Dark".to_string(), get_theme(default_dark_theme)?);
+        themes.insert("Lapce Light".to_string(), get_theme(DEFAULT_LIGHT_THEME)?);
+        themes.insert("Lapce Dark".to_string(), get_theme(DEFAULT_DARK_THEME)?);
         config.themes = themes;
 
         Ok(config)
@@ -200,12 +199,12 @@ impl Config {
 
         if let Some(dir) = path.parent() {
             if !dir.exists() {
-                std::fs::create_dir_all(dir);
+                let _ = std::fs::create_dir_all(dir);
             }
         }
 
         if !path.exists() {
-            std::fs::OpenOptions::new()
+            let _ = std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
                 .open(&path);
@@ -225,12 +224,12 @@ impl Config {
 
         if let Some(dir) = path.parent() {
             if !dir.exists() {
-                std::fs::create_dir_all(dir);
+                let _ = std::fs::create_dir_all(dir);
             }
         }
 
         if !path.exists() {
-            std::fs::OpenOptions::new()
+            let _ = std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
                 .open(&path);
@@ -447,10 +446,10 @@ impl Config {
 
     pub fn recent_workspaces_file() -> Option<PathBuf> {
         let proj_dirs = ProjectDirs::from("", "", "Lapce")?;
-        std::fs::create_dir_all(proj_dirs.config_dir());
+        let _ = std::fs::create_dir_all(proj_dirs.config_dir());
         let path = proj_dirs.config_dir().join("workspaces.toml");
         {
-            std::fs::OpenOptions::new()
+            let _ = std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
                 .open(&path);

@@ -1,49 +1,51 @@
-use std::cmp::Ordering;
+
 use std::collections::HashMap;
 use std::path::Path;
-use std::{cmp, path::PathBuf};
-use std::{str::FromStr, sync::Arc};
+use std::{path::PathBuf};
+use std::sync::Arc;
 
 use druid::ExtEventSink;
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    theme,
-    widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll, SvgData},
-    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx,
     FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetExt,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt,
     WidgetId, WidgetPod, WindowId,
 };
 
 use include_dir::{include_dir, Dir};
 use lapce_proxy::dispatch::FileNodeItem;
-use parking_lot::Mutex;
 
 use crate::config::{Config, LapceTheme};
-use crate::data::{LapceData, LapceTabData};
+use crate::data::LapceTabData;
 use crate::proxy::LapceProxy;
 use crate::scroll::LapceScrollNew;
-use crate::state::{LapceWorkspace, LapceWorkspaceType};
+use crate::state::LapceWorkspace;
 use crate::svg::{file_svg_new, get_svg};
-use crate::theme::OldLapceTheme;
-use crate::{
-    command::LapceCommand, command::LapceUICommand, command::LAPCE_UI_COMMAND,
-    movement::LinePosition, movement::Movement, palette::svg_tree_size,
-    panel::PanelPosition, panel::PanelProperty, state::LapceFocus,
-};
+use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND, panel::PanelPosition};
 
+#[allow(dead_code)]
 const ICONS_DIR: Dir = include_dir!("../icons");
 
 #[derive(Clone)]
 pub struct FileExplorerState {
     // pub widget_id: WidgetId,
+    #[allow(dead_code)]
     window_id: WindowId,
+    
+    #[allow(dead_code)]
     tab_id: WidgetId,
     pub widget_id: WidgetId,
     // cwd: PathBuf,
     pub items: Vec<FileNodeItem>,
+    
+    #[allow(dead_code)]
     index: usize,
+    
+    #[allow(dead_code)]
     count: usize,
+    
+    #[allow(dead_code)]
     position: PanelPosition,
 }
 
@@ -53,6 +55,8 @@ pub struct FileExplorerData {
     pub widget_id: WidgetId,
     pub workspace: Option<FileNodeItem>,
     index: usize,
+    
+    #[allow(dead_code)]
     count: usize,
 }
 
@@ -84,7 +88,7 @@ impl FileExplorerData {
                             let resp: Result<Vec<FileNodeItem>, serde_json::Error> =
                                 serde_json::from_value(res);
                             if let Ok(items) = resp {
-                                event_sink.submit_command(
+                                let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::UpdateExplorerItems(
                                         index,
@@ -373,7 +377,7 @@ impl Widget<LapceTabData> for FileExplorer {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -461,7 +465,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -497,7 +501,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                                             serde_json::Error,
                                         > = serde_json::from_value(res);
                                         if let Ok(items) = resp {
-                                            event_sink.submit_command(
+                                            let _ = event_sink.submit_command(
                                                 LAPCE_UI_COMMAND,
                                                 LapceUICommand::UpdateExplorerItems(
                                                     index, path, items,
@@ -531,10 +535,10 @@ impl Widget<LapceTabData> for FileExplorerFileList {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -543,7 +547,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         ctx: &mut UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         if data
             .file_explorer
@@ -562,10 +566,10 @@ impl Widget<LapceTabData> for FileExplorerFileList {
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let height = data
             .file_explorer
@@ -577,7 +581,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         Size::new(bc.max().width, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
         let width = size.width;

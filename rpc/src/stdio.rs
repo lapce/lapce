@@ -1,9 +1,8 @@
-use anyhow::{anyhow, Result};
-use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
-use jsonrpc_lite::JsonRpc;
+use anyhow::Result;
+use crossbeam_channel::{Receiver, Sender};
 use serde_json::Value;
 use std::{
-    io::{self, stdin, stdout, BufRead, BufReader, Read, Stdin, Stdout, Write},
+    io::{self, BufRead, Write},
     thread,
 };
 
@@ -45,11 +44,12 @@ where
     R: BufRead,
 {
     let mut buf = String::new();
-    let s = inp.read_line(&mut buf)?;
+    let _s = inp.read_line(&mut buf)?;
     let value: Value = serde_json::from_str(&buf)?;
     Ok(value)
 }
 
+#[allow(dead_code)]
 pub(crate) fn make_io_threads(
     reader: thread::JoinHandle<io::Result<()>>,
     writer: thread::JoinHandle<io::Result<()>>,
@@ -58,11 +58,15 @@ pub(crate) fn make_io_threads(
 }
 
 pub struct IoThreads {
+    #[allow(dead_code)]
     reader: thread::JoinHandle<io::Result<()>>,
+    
+    #[allow(dead_code)]
     writer: thread::JoinHandle<io::Result<()>>,
 }
 
 impl IoThreads {
+    #[allow(dead_code)]
     pub fn join(self) -> io::Result<()> {
         match self.reader.join() {
             Ok(r) => r?,

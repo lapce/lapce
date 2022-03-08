@@ -3,16 +3,12 @@ use home::home_dir;
 use hotwatch::Hotwatch;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::Child;
 use std::process::Command;
-use std::process::Stdio;
-use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 use toml;
@@ -108,7 +104,7 @@ impl PluginCatalog {
         let all_plugins = find_all_plugins();
         for plugin_path in &all_plugins {
             match load_plugin(plugin_path) {
-                Err(e) => (),
+                Err(_e) => (),
                 Ok(plugin) => {
                     self.items.insert(plugin.name.clone(), plugin);
                 }
@@ -123,7 +119,7 @@ impl PluginCatalog {
     ) -> Result<()> {
         let home = home_dir().unwrap();
         let path = home.join(".lapce").join("plugins").join(&plugin.name);
-        std::fs::remove_dir_all(&path);
+        let _ = std::fs::remove_dir_all(&path);
 
         std::fs::create_dir_all(&path)?;
 
@@ -298,7 +294,7 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                 let path = plugin_env.desc.dir.clone().unwrap().join(path);
                 let mut n = 0;
                 loop {
-                    if let Ok(file) = std::fs::OpenOptions::new()
+                    if let Ok(_file) = std::fs::OpenOptions::new()
                         .write(true)
                         .create_new(true)
                         .open(&path)
@@ -312,14 +308,15 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                     let mut hotwatch =
                         Hotwatch::new().expect("hotwatch failed to initialize!");
                     let (tx, rx) = crossbeam_channel::bounded(1);
-                    hotwatch.watch(&path, move |event| {
-                        tx.send(0);
+                    let _ = hotwatch.watch(&path, move |_event| {
+                        #[allow(deprecated)]
+                        let _ = tx.send(0);
                     });
-                    rx.recv_timeout(Duration::from_secs(10));
+                    let _ = rx.recv_timeout(Duration::from_secs(10));
                 }
             }
             PluginNotification::MakeFileExecutable { path } => {
-                Command::new("chmod")
+                let _ = Command::new("chmod")
                     .arg("+x")
                     .arg(&plugin_env.desc.dir.clone().unwrap().join(path))
                     .output();
@@ -359,6 +356,7 @@ pub fn wasi_write_object(wasi_env: &WasiEnv, object: &(impl Serialize + ?Sized))
 pub enum PluginRequest {}
 
 pub struct PluginHandler {
+    #[allow(dead_code)]
     dispatcher: Dispatcher,
 }
 
@@ -366,7 +364,7 @@ fn find_all_plugins() -> Vec<PathBuf> {
     let mut plugin_paths = Vec::new();
     let home = home_dir().unwrap();
     let path = home.join(".lapce").join("plugins");
-    path.read_dir().map(|dir| {
+    let _ = path.read_dir().map(|dir| {
         dir.flat_map(|item| item.map(|p| p.path()).ok())
             .map(|dir| dir.join("plugin.toml"))
             .filter(|f| f.exists())

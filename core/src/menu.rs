@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
-    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
-    FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx,
+    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
     PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 
@@ -13,7 +13,7 @@ use crate::{
         LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::{LapceTabData, LapceWindowData},
+    data::LapceWindowData,
     keypress::{Alignment, KeyPressFocus},
     state::Mode,
 };
@@ -48,18 +48,20 @@ impl KeyPressFocus for MenuData {
 
     fn run_command(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         command: &LapceCommand,
-        count: Option<usize>,
-        env: &Env,
+        _count: Option<usize>,
+        _env: &Env,
     ) -> CommandExecuted {
         match command {
             _ => return CommandExecuted::No,
         }
+        
+        #[allow(unreachable_code)]
         CommandExecuted::Yes
     }
 
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl MenuData {
@@ -138,7 +140,7 @@ impl Widget<LapceWindowData> for Menu {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceWindowData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -168,8 +170,8 @@ impl Widget<LapceWindowData> for Menu {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceWindowData,
-        env: &Env,
+        _data: &LapceWindowData,
+        _env: &Env,
     ) {
         match event {
             LifeCycle::FocusChanged(is_focused) => {
@@ -190,7 +192,7 @@ impl Widget<LapceWindowData> for Menu {
         ctx: &mut UpdateCtx,
         old_data: &LapceWindowData,
         data: &LapceWindowData,
-        env: &Env,
+        _env: &Env,
     ) {
         if !old_data.menu.items.same(&data.menu.items) {
             ctx.request_layout();
@@ -207,17 +209,17 @@ impl Widget<LapceWindowData> for Menu {
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
+        _ctx: &mut LayoutCtx,
+        _bc: &BoxConstraints,
         data: &LapceWindowData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let height = self.line_height * data.menu.items.len() as f64;
 
         Size::new(300.0, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, _env: &Env) {
         if !data.menu.shown {
             return;
         }
