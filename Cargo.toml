@@ -6,16 +6,16 @@ edition = "2021"
 resolver = "2"
 
 [dependencies]
-lapce-core = { path = "./core" }
-lapce-proxy = { path = "./proxy" }
+lapce-core = { path = "./lapce-core" }
+lapce-proxy = { path = "./lapce-proxy" }
 
 [[bin]]
 name = "lapce"
-path = "core/src/bin/lapce.rs"
+path = "lapce-core/src/bin/lapce.rs"
 
 [[bin]]
 name = "lapce-proxy"
-path = "proxy/src/bin/lapce-proxy.rs"
+path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["core", "proxy", "rpc"]
+members = ["lapce-core", "lapce-proxy", "lapce-rpc"]

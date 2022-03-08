@@ -20,7 +20,7 @@ alacritty_terminal = "0.16.0-rc2"
 mio = "0.6.20"
 hotwatch = "0.4.6"
 notify = "5.0.0-pre.13"
-lapce-rpc = { path = "../rpc" }
+lapce-rpc = { path = "../lapce-rpc" }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 lsp-types = { version = "0.89.2", features = ["proposed"] }
