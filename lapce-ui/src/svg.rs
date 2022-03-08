@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 use lsp_types::{CompletionItemKind, SymbolKind};
 use parking_lot::Mutex;
 
-use crate::config::{Config, LOGO};
+use lapce_data::config::{Config, LOGO};
 
 pub const ICONS_DIR: Dir = include_dir!("../icons");
 lazy_static! {

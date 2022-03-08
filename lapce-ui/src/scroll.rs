@@ -10,7 +10,7 @@ use druid::{
     LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget, WidgetPod,
 };
 
-use crate::{
+use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, GetConfig, LapceTheme},
 };

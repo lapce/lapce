@@ -2,9 +2,7 @@
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
 };
-use serde_json::json;
-
-use crate::{
+use lapce_data::{
     command::{
         CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
     },
@@ -12,6 +10,7 @@ use crate::{
     data::LapceTabData,
     panel::PanelPosition,
 };
+use serde_json::json;
 
 pub struct ActivityBar {}
 

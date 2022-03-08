@@ -1,25 +1,24 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
-
-use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
-    data::PanelKind,
-    editor::{EditorLocationNew, LapceEditorView},
-    scroll::LapceScrollNew,
-    split::SplitDirection,
-    svg::file_svg_new,
-};
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
     FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
+use lapce_data::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceTheme,
+    data::{LapceTabData, PanelKind},
+    editor::EditorLocationNew,
+    split::SplitDirection,
+};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
-    data::LapceTabData,
+    editor::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind},
+    scroll::LapceScrollNew,
     split::LapceSplitNew,
+    svg::file_svg_new,
 };
 
 #[derive(Clone)]

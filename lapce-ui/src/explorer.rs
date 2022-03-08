@@ -1,171 +1,29 @@
 use std::collections::HashMap;
-use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use druid::ExtEventSink;
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, FontFamily, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-
 use include_dir::{include_dir, Dir};
+use lapce_data::explorer::FileExplorerData;
+use lapce_data::{
+    command::LapceUICommand,
+    command::LAPCE_UI_COMMAND,
+    config::{Config, LapceTheme},
+    data::LapceTabData,
+};
 use lapce_proxy::dispatch::FileNodeItem;
 
-use crate::config::{Config, LapceTheme};
-use crate::data::LapceTabData;
-use crate::proxy::LapceProxy;
-use crate::scroll::LapceScrollNew;
-use crate::state::LapceWorkspace;
-use crate::svg::{file_svg_new, get_svg};
 use crate::{
-    command::LapceUICommand, command::LAPCE_UI_COMMAND, panel::PanelPosition,
+    scroll::LapceScrollNew,
+    svg::{file_svg_new, get_svg},
 };
 
 #[allow(dead_code)]
 const ICONS_DIR: Dir = include_dir!("../icons");
-
-#[derive(Clone)]
-pub struct FileExplorerState {
-    // pub widget_id: WidgetId,
-    #[allow(dead_code)]
-    window_id: WindowId,
-
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-    pub widget_id: WidgetId,
-    // cwd: PathBuf,
-    pub items: Vec<FileNodeItem>,
-
-    #[allow(dead_code)]
-    index: usize,
-
-    #[allow(dead_code)]
-    count: usize,
-
-    #[allow(dead_code)]
-    position: PanelPosition,
-}
-
-#[derive(Clone)]
-pub struct FileExplorerData {
-    pub tab_id: WidgetId,
-    pub widget_id: WidgetId,
-    pub workspace: Option<FileNodeItem>,
-    index: usize,
-
-    #[allow(dead_code)]
-    count: usize,
-}
-
-impl FileExplorerData {
-    pub fn new(
-        tab_id: WidgetId,
-        workspace: LapceWorkspace,
-        proxy: Arc<LapceProxy>,
-        event_sink: ExtEventSink,
-    ) -> Self {
-        let mut items = Vec::new();
-        let widget_id = WidgetId::next();
-        if let Some(path) = workspace.path.as_ref() {
-            items.push(FileNodeItem {
-                path_buf: path.clone(),
-                is_dir: true,
-                read: false,
-                open: false,
-                children: HashMap::new(),
-                children_open_count: 0,
-            });
-            let index = 0;
-            let path = path.clone();
-            std::thread::spawn(move || {
-                proxy.read_dir(
-                    &path.clone(),
-                    Box::new(move |result| {
-                        if let Ok(res) = result {
-                            let resp: Result<Vec<FileNodeItem>, serde_json::Error> =
-                                serde_json::from_value(res);
-                            if let Ok(items) = resp {
-                                let _ = event_sink.submit_command(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::UpdateExplorerItems(
-                                        index,
-                                        path.clone(),
-                                        items,
-                                    ),
-                                    Target::Widget(tab_id),
-                                );
-                            }
-                        }
-                    }),
-                );
-            });
-        }
-        Self {
-            tab_id,
-            widget_id,
-            workspace: workspace.path.as_ref().map(|p| FileNodeItem {
-                path_buf: p.clone(),
-                is_dir: true,
-                read: false,
-                open: false,
-                children: HashMap::new(),
-                children_open_count: 0,
-            }),
-            index: 0,
-            count: 0,
-        }
-    }
-
-    pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
-        let node = self.get_node_mut(path)?;
-        if node.is_dir {
-            if node.open {
-                node.children_open_count = node
-                    .children
-                    .iter()
-                    .map(|(_, item)| item.children_open_count + 1)
-                    .sum::<usize>();
-            } else {
-                node.children_open_count = 0;
-            }
-        }
-        None
-    }
-
-    pub fn node_tree(&mut self, path: &Path) -> Option<Vec<PathBuf>> {
-        let root = &self.workspace.as_ref()?.path_buf;
-        let path = path.strip_prefix(root).ok()?;
-        Some(
-            path.ancestors()
-                .map(|p| root.join(p))
-                .collect::<Vec<PathBuf>>(),
-        )
-    }
-
-    pub fn get_node_by_index(&mut self, index: usize) -> Option<&mut FileNodeItem> {
-        let (_, node) = get_item_children_mut(0, index, self.workspace.as_mut()?);
-        node
-    }
-
-    pub fn get_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let mut node = self.workspace.as_mut()?;
-        if node.path_buf == path {
-            return Some(node);
-        }
-        let root = node.path_buf.clone();
-        let path = path.strip_prefix(&root).ok()?;
-        for path in path.ancestors().collect::<Vec<&Path>>().iter().rev() {
-            if path.to_str()?.is_empty() {
-                continue;
-            }
-            node = node.children.get_mut(&root.join(path))?;
-        }
-        Some(node)
-    }
-}
 
 pub fn paint_file_node_item(
     ctx: &mut PaintCtx,

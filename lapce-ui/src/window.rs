@@ -1,13 +1,3 @@
-use crate::{
-    command::LapceUICommand,
-    command::LAPCE_UI_COMMAND,
-    config::{Config, LapceTheme},
-    data::{LapceTabData, LapceTabLens, LapceWindowData},
-    menu::Menu,
-    state::LapceWorkspace,
-    tab::{LapceTabHeader, LapceTabNew},
-    title::Title,
-};
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
@@ -15,7 +5,19 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, Widget, WidgetId,
     WidgetPod,
 };
+use lapce_data::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::{Config, LapceTheme},
+    data::{LapceTabData, LapceTabLens, LapceWindowData},
+    state::LapceWorkspace,
+};
 use std::sync::Arc;
+
+use crate::{
+    menu::Menu,
+    tab::{LapceTabHeader, LapceTabNew},
+    title::Title,
+};
 
 pub struct LapceWindowNew {
     pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,

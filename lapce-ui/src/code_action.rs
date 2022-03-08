@@ -5,12 +5,7 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
     Target, TextLayout, UpdateCtx, Widget,
 };
-use lsp_types::{
-    CodeActionOrCommand, DocumentChangeOperation, DocumentChanges, OneOf, TextEdit,
-    Url, WorkspaceEdit,
-};
-
-use crate::{
+use lapce_data::{
     buffer::{BufferContent, EditType},
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
@@ -19,6 +14,10 @@ use crate::{
     movement::{Movement, Selection},
     proxy::LapceProxy,
     state::Mode,
+};
+use lsp_types::{
+    CodeActionOrCommand, DocumentChangeOperation, DocumentChanges, OneOf, TextEdit,
+    Url, WorkspaceEdit,
 };
 
 pub struct CodeAction {}
@@ -31,7 +30,7 @@ pub struct CodeActionData {
 }
 
 impl KeyPressFocus for CodeActionData {
-    fn get_mode(&self) -> crate::state::Mode {
+    fn get_mode(&self) -> Mode {
         Mode::Insert
     }
 

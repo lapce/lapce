@@ -9,28 +9,25 @@ use druid::{
     WindowConfig,
 };
 use itertools::Itertools;
-use lsp_types::DiagnosticSeverity;
-
-use crate::{
-    activity::ActivityBar,
+use lapce_data::{
     buffer::{BufferContent, BufferUpdate, LocalBufferKind, UpdateEvent},
-    code_action::CodeAction,
     command::{LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND},
-    completion::{CompletionContainer, CompletionStatus},
+    completion::CompletionStatus,
     config::{Config, LapceTheme},
     data::{DragContent, EditorDiagnostic, LapceTabData, PanelKind, WorkProgress},
     editor::EditorLocationNew,
-    explorer::FileExplorer,
     keypress::KeyPressData,
     movement::{self, CursorMode, Selection},
-    palette::{NewPalette, PaletteStatus},
+    palette::PaletteStatus,
     panel::{PanelPosition, PanelResizePosition},
-    picker::FilePicker,
-    plugin::Plugin,
-    settings::LapceSettingsPanel,
     state::LapceWorkspaceType,
-    status::LapceStatusNew,
-    terminal::TerminalPanel,
+};
+use lsp_types::DiagnosticSeverity;
+
+use crate::{
+    activity::ActivityBar, code_action::CodeAction, completion::CompletionContainer,
+    explorer::FileExplorer, palette::NewPalette, picker::FilePicker, plugin::Plugin,
+    settings::LapceSettingsPanel, status::LapceStatusNew, terminal::TerminalPanel,
 };
 
 pub struct LapceIcon {

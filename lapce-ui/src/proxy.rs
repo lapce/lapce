@@ -13,6 +13,12 @@ use crossbeam_channel::Sender;
 use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
+use lapce_data::{
+    buffer::BufferId,
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::Config,
+    state::{LapceWorkspace, LapceWorkspaceType},
+};
 use lapce_proxy::dispatch::FileDiff;
 use lapce_proxy::dispatch::FileNodeItem;
 use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
@@ -31,12 +37,7 @@ use serde_json::json;
 use serde_json::Value;
 use xi_rope::RopeDelta;
 
-use crate::command::LapceUICommand;
-use crate::config::Config;
-use crate::state::LapceWorkspace;
-use crate::state::LapceWorkspaceType;
 use crate::terminal::RawTerminal;
-use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

@@ -2,14 +2,14 @@ use druid::{
     AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
     Widget, WidgetExt, WindowDesc, WindowId,
 };
-
-use crate::{
+use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::Config,
     data::{LapceData, LapceWindowData, LapceWindowLens},
     db::{TabsInfo, WindowInfo},
-    window::LapceWindowNew,
 };
+
+use crate::window::LapceWindowNew;
 
 pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
     LapceWindowNew::new(data).lens(LapceWindowLens(data.window_id))

@@ -11,17 +11,19 @@ use druid::{
     WidgetPod,
 };
 use inflector::Inflector;
-
-use crate::{
+use lapce_data::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::LapceTabData,
+    keypress::KeyPressFocus,
+    state::Mode,
+};
+
+use crate::{
     editor::LapceEditorView,
     keymap::LapceKeymap,
-    keypress::KeyPressFocus,
     scroll::{LapcePadding, LapceScrollNew},
     split::LapceSplitNew,
-    state::Mode,
     svg::get_svg,
 };
 

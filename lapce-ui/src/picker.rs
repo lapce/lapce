@@ -11,12 +11,14 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use lapce_proxy::dispatch::FileNodeItem;
-
-use crate::{
+use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
+};
+use lapce_proxy::dispatch::FileNodeItem;
+
+use crate::{
     editor::LapceEditorView,
     explorer::{get_item_children, get_item_children_mut, paint_file_node_item},
     scroll::LapceScrollNew,

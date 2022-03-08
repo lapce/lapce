@@ -7,10 +7,7 @@ use druid::{
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
     Target, UpdateCtx, Widget,
 };
-use serde_json::json;
-use strum::EnumMessage;
-
-use crate::{
+use lapce_data::{
     command::{
         CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
@@ -20,8 +17,11 @@ use crate::{
     menu::MenuItem,
     proxy::ProxyStatus,
     state::LapceWorkspaceType,
-    svg::get_svg,
 };
+use serde_json::json;
+use strum::EnumMessage;
+
+use crate::svg::get_svg;
 
 pub struct Title {
     mouse_pos: Point,

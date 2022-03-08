@@ -1,25 +1,19 @@
-use druid::piet::Text;
-use druid::piet::TextLayout;
-use druid::piet::TextLayoutBuilder;
-use druid::Color;
-use druid::Command;
-use druid::EventCtx;
-use druid::MouseEvent;
-use druid::Target;
-use druid::{Event, FontFamily, Point, RenderContext, Size, Widget};
+use druid::{
+    piet::{Text, TextLayout, TextLayoutBuilder},
+    Color, Command, Event, EventCtx, FontFamily, MouseEvent, Point, RenderContext,
+    Size, Target, Widget,
+};
+use lapce_data::{
+    command::{
+        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+    },
+    config::LapceTheme,
+    data::{FocusArea, LapceTabData, PanelKind},
+    panel::PanelPosition,
+    state::Mode,
+};
 
-use crate::command::CommandTarget;
-use crate::command::LapceCommandNew;
-use crate::command::LapceWorkbenchCommand;
-use crate::command::LAPCE_NEW_COMMAND;
-use crate::config::LapceTheme;
-use crate::data::FocusArea;
-use crate::data::LapceTabData;
-use crate::data::PanelKind;
-use crate::panel::PanelPosition;
-use crate::state::Mode;
-use crate::svg::get_svg;
-use crate::tab::LapceIcon;
+use crate::{svg::get_svg, tab::LapceIcon};
 
 pub struct LapceStatusNew {
     height: f64,

@@ -1,15 +1,4 @@
-use crate::{
-    command::{
-        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
-    },
-    config::{Config, LapceTheme},
-    data::{FocusArea, LapceEditorData, LapceTabData, PanelKind, SplitContent},
-    editor::LapceEditorView,
-    keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
-    svg::logo_svg,
-    terminal::{LapceTerminalData, LapceTerminalView},
-};
+use crate::{editor::LapceEditorView, svg::logo_svg, terminal::LapceTerminalView};
 use std::sync::Arc;
 
 use druid::{
@@ -21,23 +10,20 @@ use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
 };
+use lapce_data::{
+    command::{
+        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    },
+    config::{Config, LapceTheme},
+    data::{FocusArea, LapceEditorData, LapceTabData, PanelKind, SplitContent},
+    keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
+    split::{SplitDirection, SplitMoveDirection},
+    terminal::LapceTerminalData,
+};
 use lapce_proxy::terminal::TermId;
 use serde::{Deserialize, Serialize};
 use strum::EnumMessage;
-
-#[derive(Debug)]
-pub enum SplitMoveDirection {
-    Up,
-    Down,
-    Right,
-    Left,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum SplitDirection {
-    Vertical,
-    Horizontal,
-}
 
 pub struct LapceDynamicSplit {
     widget_id: WidgetId,

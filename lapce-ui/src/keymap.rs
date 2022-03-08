@@ -7,19 +7,17 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
-
-use crate::{
+use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
-    editor::LapceEditorView,
     keypress::{
         paint_key, Alignment, DefaultKeyPressHandler, KeyMap, KeyPress, KeyPressData,
     },
-    scroll::LapceScrollNew,
-    split::LapceSplitNew,
     state::Mode,
 };
+
+use crate::{editor::LapceEditorView, scroll::LapceScrollNew, split::LapceSplitNew};
 
 pub struct LapceKeymap {
     widget_id: WidgetId,

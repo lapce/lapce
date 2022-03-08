@@ -18,11 +18,7 @@ use druid::{
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use hashbrown::HashMap;
-use lapce_proxy::terminal::TermId;
-use parking_lot::Mutex;
-use unicode_width::UnicodeWidthChar;
-
-use crate::{
+use lapce_data::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{FocusArea, LapceTabData, PanelKind},
@@ -30,11 +26,16 @@ use crate::{
     keypress::KeyPressFocus,
     movement::{LinePosition, Movement},
     proxy::LapceProxy,
-    scroll::LapcePadding,
-    split::{LapceSplitNew, SplitMoveDirection},
+    split::SplitMoveDirection,
     state::{LapceWorkspace, Mode, VisualMode},
-    svg::get_svg,
-    tab::LapceIcon,
+    terminal::LapceTerminalData,
+};
+use lapce_proxy::terminal::TermId;
+use parking_lot::Mutex;
+use unicode_width::UnicodeWidthChar;
+
+use crate::{
+    scroll::LapcePadding, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
 };
 
 const CTRL_CHARS: &[char] = &[
@@ -480,142 +481,6 @@ impl RawTerminal {
             parser,
             term,
             scroll_delta: 0.0,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct LapceTerminalData {
-    pub term_id: TermId,
-    pub view_id: WidgetId,
-    pub widget_id: WidgetId,
-    pub split_id: WidgetId,
-    pub title: String,
-    pub mode: Mode,
-    pub visual_mode: VisualMode,
-    pub raw: Arc<Mutex<RawTerminal>>,
-    pub proxy: Arc<LapceProxy>,
-}
-
-impl LapceTerminalData {
-    pub fn new(
-        workspace: Arc<LapceWorkspace>,
-        split_id: WidgetId,
-        event_sink: ExtEventSink,
-        proxy: Arc<LapceProxy>,
-    ) -> Self {
-        let cwd = workspace.path.as_ref().cloned();
-        let widget_id = WidgetId::next();
-        let view_id = WidgetId::next();
-        let term_id = TermId::next();
-        let raw = Arc::new(Mutex::new(RawTerminal::new(
-            term_id,
-            proxy.clone(),
-            event_sink,
-        )));
-
-        let local_proxy = proxy.clone();
-        let local_raw = raw.clone();
-        std::thread::spawn(move || {
-            local_proxy.new_terminal(term_id, cwd, local_raw);
-        });
-
-        Self {
-            term_id,
-            widget_id,
-            view_id,
-            split_id,
-            title: "".to_string(),
-            mode: Mode::Terminal,
-            visual_mode: VisualMode::Normal,
-            raw,
-            proxy,
-        }
-    }
-
-    pub fn resize(&self, width: usize, height: usize) {
-        let size =
-            SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-
-        let raw = self.raw.clone();
-        let proxy = self.proxy.clone();
-        let term_id = self.term_id;
-        std::thread::spawn(move || {
-            raw.lock().term.resize(size);
-            proxy.terminal_resize(term_id, width, height);
-        });
-    }
-
-    pub fn wheel_scroll(&self, delta: f64) {
-        let mut raw = self.raw.lock();
-        let step = 25.0;
-        raw.scroll_delta -= delta;
-        let delta = (raw.scroll_delta / step) as i32;
-        raw.scroll_delta -= delta as f64 * step;
-        if delta != 0 {
-            let scroll = alacritty_terminal::grid::Scroll::Delta(delta);
-            raw.term.scroll_display(scroll);
-        }
-    }
-
-    fn search_next(
-        &self,
-        term: &mut Term<EventProxy>,
-        search_string: &str,
-        direction: Direction,
-    ) {
-        if let Ok(dfas) = RegexSearch::new(search_string) {
-            let mut point = term.renderable_content().cursor.point;
-            if direction == Direction::Right {
-                if point.column.0 < term.last_column() {
-                    point.column.0 += 1;
-                } else if point.line.0 < term.bottommost_line() {
-                    point.column.0 = 0;
-                    point.line.0 += 1;
-                }
-            } else if point.column.0 > 0 {
-                point.column.0 -= 1;
-            } else if point.line.0 > term.topmost_line() {
-                point.column.0 = term.last_column().0;
-                point.line.0 -= 1;
-            }
-            if let Some(m) =
-                term.search_next(&dfas, point, direction, Side::Left, None)
-            {
-                term.vi_goto_point(*m.start());
-            }
-        }
-    }
-
-    fn clear_selection(&self, term: &mut Term<EventProxy>) {
-        term.selection = None;
-    }
-
-    fn start_selection(
-        &self,
-        term: &mut Term<EventProxy>,
-        ty: SelectionType,
-        point: alacritty_terminal::index::Point,
-        side: alacritty_terminal::index::Side,
-    ) {
-        term.selection = Some(Selection::new(ty, point, side));
-    }
-
-    fn toggle_selection(
-        &self,
-        term: &mut Term<EventProxy>,
-        ty: SelectionType,
-        point: alacritty_terminal::index::Point,
-        side: alacritty_terminal::index::Side,
-    ) {
-        match &mut term.selection {
-            Some(selection) if selection.ty == ty && !selection.is_empty() => {
-                self.clear_selection(term);
-            }
-            Some(selection) if !selection.is_empty() => {
-                selection.ty = ty;
-            }
-            _ => self.start_selection(term, ty, point, side),
         }
     }
 }

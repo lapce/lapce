@@ -2172,6 +2172,70 @@ dependencies = [
 ]
 
 [[package]]
+name = "lapce-core"
+version = "0.0.10"
+
+[[package]]
+name = "lapce-data"
+version = "0.0.10"
+dependencies = [
+ "Inflector",
+ "alacritty_terminal 0.15.0",
+ "anyhow",
+ "base64",
+ "bit-vec 0.5.1",
+ "cc",
+ "chrono",
+ "config",
+ "crossbeam-channel 0.5.1",
+ "crossbeam-utils 0.8.5",
+ "diff",
+ "directories",
+ "druid",
+ "fern",
+ "flate2",
+ "fuzzy-matcher",
+ "fzyr",
+ "hashbrown 0.11.2",
+ "im",
+ "include_dir",
+ "indexmap",
+ "itertools 0.10.1",
+ "jsonrpc-lite",
+ "lapce-proxy",
+ "lapce-rpc",
+ "lazy_static 1.4.0",
+ "libloading",
+ "log",
+ "lsp-types",
+ "notify 5.0.0-pre.13",
+ "parking_lot 0.11.2",
+ "rayon",
+ "regex",
+ "reqwest",
+ "serde 1.0.130",
+ "serde_json",
+ "sled",
+ "structdesc",
+ "strum",
+ "strum_macros",
+ "threadpool",
+ "tinyfiledialogs",
+ "toml",
+ "tree-sitter",
+ "tree-sitter-go",
+ "tree-sitter-highlight",
+ "tree-sitter-javascript",
+ "tree-sitter-rust",
+ "unicode-segmentation",
+ "unicode-width",
+ "usvg",
+ "uuid",
+ "xi-rope",
+ "xi-unicode",
+]
+
+[[package]]
 name = "lapce-proxy"
 version = "0.0.10"
 dependencies = [
@@ -2243,6 +2307,7 @@ dependencies = [
  "indexmap",
  "itertools 0.10.1",
  "jsonrpc-lite",
+ "lapce-data",
  "lapce-proxy",
  "lapce-rpc",
  "lazy_static 1.4.0",

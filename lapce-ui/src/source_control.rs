@@ -7,18 +7,20 @@ use druid::{
     LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId,
 };
-use lapce_proxy::dispatch::FileDiff;
-
-use crate::{
+use lapce_data::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    editor::LapceEditorView,
     keypress::KeyPressFocus,
     movement::Movement,
-    panel::{LapcePanel, PanelHeaderKind},
     split::{SplitDirection, SplitMoveDirection},
     state::Mode,
+};
+use lapce_proxy::dispatch::FileDiff;
+
+use crate::{
+    editor::LapceEditorView,
+    panel::{LapcePanel, PanelHeaderKind},
     svg::{file_svg_new, get_svg},
 };
 

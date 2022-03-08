@@ -7,15 +7,17 @@ use druid::{
     Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use itertools::Itertools;
-use lsp_types::DiagnosticSeverity;
-
-use crate::{
+use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{EditorDiagnostic, LapceTabData, PanelKind},
     editor::EditorLocationNew,
-    panel::{LapcePanel, PanelHeaderKind},
     split::SplitDirection,
+};
+use lsp_types::DiagnosticSeverity;
+
+use crate::{
+    panel::{LapcePanel, PanelHeaderKind},
     svg::{file_svg_new, get_svg},
 };
 
