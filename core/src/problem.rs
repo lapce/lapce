@@ -2,10 +2,9 @@ use std::path::PathBuf;
 
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx,
-    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, RenderContext, Size, Target, UpdateCtx,
-    Widget, WidgetExt, WidgetId,
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
+    Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
@@ -16,7 +15,7 @@ use crate::{
     data::{EditorDiagnostic, LapceTabData, PanelKind},
     editor::EditorLocationNew,
     panel::{LapcePanel, PanelHeaderKind},
-    split::{SplitDirection},
+    split::SplitDirection,
     svg::{file_svg_new, get_svg},
 };
 
@@ -90,13 +89,13 @@ impl ProblemContent {
                     .iter()
                     .filter(|d| d.diagnositc.severity == Some(self.severity))
                     .collect();
-                if diagnostics.len() > 0 {
+                if !diagnostics.is_empty() {
                     Some((path, diagnostics))
                 } else {
                     None
                 }
             })
-            .sorted_by_key(|(path, _)| path.clone())
+            .sorted_by_key(|(path, _)| (*path).clone())
             .collect();
         items
     }

@@ -3,10 +3,9 @@ use std::{cmp::Ordering, fmt::Display, sync::Arc};
 use anyhow::Error;
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx,
-    ExtEventSink, FontFamily, FontWeight, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetId, WidgetPod,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, FontFamily,
+    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
@@ -776,10 +775,10 @@ impl Widget<LapceTabData> for CompletionNew {
 #[derive(Clone)]
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
-    
+
     #[allow(dead_code)]
     index: usize,
-    
+
     score: i64,
     label_score: i64,
     indices: Vec<usize>,
@@ -863,28 +862,6 @@ impl CompletionState {
         self.items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
         self.input = input;
-    }
-
-    pub fn update_input(&mut self, ctx: &mut EventCtx, input: String) {
-        for _item in self.items.iter_mut() {
-            if input != "" {
-                // if has_match(&input, &item.item.label) {
-                //     let result = locate(&input, &item.item.label);
-                //     item.score = result.score;
-                //     item.match_mask = result.match_mask;
-                // } else {
-                //     item.score = f64::NEG_INFINITY;
-                // }
-            } else {
-                // item.score = -1.0 - item.index as f64;
-            }
-        }
-        self.items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        self.input = input;
-        self.index = 0;
-        self.scroll_offset = 0.0;
-        self.request_paint(ctx);
     }
 }
 

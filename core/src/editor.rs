@@ -1,37 +1,31 @@
+use crate::buffer::get_word_property;
 use crate::buffer::{
     has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
 };
 use crate::command::{
-    CommandExecuted, CommandTarget, LapceCommandNew,
-    LAPCE_NEW_COMMAND,
+    CommandExecuted, CommandTarget, LapceCommandNew, LAPCE_NEW_COMMAND,
 };
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme};
 use crate::data::{
-    DragContent, EditorDiagnostic, EditorTabChild, FocusArea,
-    InlineFindDirection, LapceEditorData, LapceEditorTabData, LapceMainSplitData,
-    LapceTabData, PanelData, PanelKind, RegisterData, SplitContent,
+    DragContent, EditorDiagnostic, EditorTabChild, FocusArea, InlineFindDirection,
+    LapceEditorData, LapceEditorTabData, LapceMainSplitData, LapceTabData,
+    PanelData, PanelKind, RegisterData, SplitContent,
 };
 use crate::find::Find;
 use crate::keypress::KeyPressFocus;
+use crate::movement::Cursor;
 use crate::movement::InsertDrift;
 use crate::panel::PanelPosition;
 use crate::proxy::LapceProxy;
 use crate::scroll::LapceIdentityWrapper;
+use crate::scroll::LapcePadding;
 use crate::source_control::SourceControlData;
 use crate::split::{LapceSplitNew, SplitDirection};
 use crate::state::LapceWorkspace;
 use crate::svg::{file_svg_new, get_svg};
 use crate::tab::LapceIcon;
-use crate::{buffer::get_word_property};
 use crate::{buffer::matching_char, data::LapceEditorViewData};
-use crate::movement::Cursor;
-use crate::{buffer::WordProperty, movement::CursorMode};
-use crate::{
-    buffer::{matching_pair_direction, BufferNew},
-    scroll::LapceScrollNew,
-};
-use crate::scroll::LapcePadding;
 use crate::{
     buffer::BufferId,
     command::{
@@ -42,39 +36,40 @@ use crate::{
     state::Mode,
     state::VisualMode,
 };
+use crate::{buffer::WordProperty, movement::CursorMode};
+use crate::{
+    buffer::{matching_pair_direction, BufferNew},
+    scroll::LapceScrollNew,
+};
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
 use druid::kurbo::BezPath;
 use druid::piet::Svg;
-use druid::{
-    kurbo::Line, piet::PietText,
-    BoxConstraints, Color,
-    Command, Data, Env, Event, EventCtx, FontFamily,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget,
-    WidgetId, WidgetPod,
-};
-use druid::{
-    Application, ExtEventSink, InternalEvent,
-    InternalLifeCycle, MouseButton, MouseEvent,
-};
 use druid::piet::{
-    PietTextLayout, Text, TextLayout as TextLayoutTrait,
-    TextLayoutBuilder
+    PietTextLayout, Text, TextLayout as TextLayoutTrait, TextLayoutBuilder,
+};
+use druid::{
+    kurbo::Line, piet::PietText, BoxConstraints, Color, Command, Data, Env, Event,
+    EventCtx, FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetId,
+    WidgetPod,
+};
+use druid::{
+    Application, ExtEventSink, InternalEvent, InternalLifeCycle, MouseButton,
+    MouseEvent,
 };
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
-    CodeActionResponse, CompletionItem,
-    DiagnosticSeverity, DocumentChanges, GotoDefinitionResponse,
-    Location, Position, TextEdit, Url, WorkspaceEdit,
+    CodeActionResponse, CompletionItem, DiagnosticSeverity, DocumentChanges,
+    GotoDefinitionResponse, Location, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde_json::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::thread;
 use std::time::Instant;
-use std::{iter::Iterator, path::PathBuf};
 use std::{collections::HashMap, sync::Arc};
+use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
 use xi_rope::{RopeDelta, Transformer};
 
@@ -121,7 +116,7 @@ pub struct EditorState {
     pub saved_buffer_id: BufferId,
     pub saved_selection: Selection,
     pub saved_scroll_offset: Vec2,
-    
+
     #[allow(dead_code)]
     last_movement: Movement,
 }
@@ -1387,7 +1382,7 @@ impl LapceEditorBufferData {
             }
         }
     }
-    
+
     #[allow(dead_code)]
     fn move_command(
         &self,
@@ -1718,9 +1713,9 @@ impl LapceEditorBufferData {
                 if line > last_line {
                     break;
                 }
-                let content = if *self.main_split.active != Some(self.view_id) {
-                    line + 1
-                } else if self.editor.cursor.is_insert() {
+                let content = if *self.main_split.active != Some(self.view_id)
+                    || self.editor.cursor.is_insert()
+                {
                     line + 1
                 } else {
                     if line == current_line {
@@ -3690,9 +3685,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                                             None
                                         }
                                     }
-                                    GotoDefinitionResponse::Link(_location_links) => {
-                                        None
-                                    }
+                                    GotoDefinitionResponse::Link(
+                                        _location_links,
+                                    ) => None,
                                 } {
                                     if location.range.start == start_position {
                                         proxy.get_references(
@@ -3843,7 +3838,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                 |e| Err(anyhow!("{}", e)),
                                 |v| v.map_err(|e| anyhow!("{:?}", e)),
                             );
-                            let _ = event_sink.submit_command(
+                        let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::DocumentFormat(path, rev, result),
                             Target::Auto,
@@ -3877,7 +3872,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                 |e| Err(anyhow!("{}", e)),
                                 |v| v.map_err(|e| anyhow!("{:?}", e)),
                             );
-                        
+
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::DocumentFormatAndSave(path, rev, result),
@@ -5879,7 +5874,7 @@ impl LapceEditorContainer {
     //         ));
     //     }
     // }
-    
+
     #[allow(unused_variables)]
     pub fn ensure_rect_visible(
         &mut self,
@@ -6436,10 +6431,10 @@ enum ClickKind {
 pub struct LapceEditor {
     view_id: WidgetId,
     placeholder: Option<String>,
-    
+
     #[allow(dead_code)]
     commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
-    
+
     last_left_click: Option<(Instant, ClickKind, Point)>,
     mouse_pos: Point,
 }
@@ -6710,7 +6705,7 @@ impl Widget<LapceTabData> for LapceEditor {
 pub struct RegisterContent {
     #[allow(dead_code)]
     kind: VisualMode,
-    
+
     #[allow(dead_code)]
     content: Vec<String>,
 }

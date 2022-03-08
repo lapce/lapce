@@ -2,31 +2,24 @@ use crossbeam_channel::Sender;
 use druid::{piet::PietTextLayout, Vec2};
 use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
-    Data, EventCtx, ExtEventSink, Target, WidgetId,
-    WindowId,
+    Data, EventCtx, ExtEventSink, Target, WidgetId, WindowId,
 };
 use druid::{PaintCtx, Point};
 use language::{new_highlight_config, LapceLanguage};
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
+use lsp_types::SemanticTokensLegend;
 use lsp_types::SemanticTokensServerCapabilities;
-use lsp_types::{SemanticTokensLegend};
 use lsp_types::{CodeActionResponse, Position};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::cmp::{self, Ordering};
+use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
-use std::sync::atomic::{self, AtomicU64};
-use std::{
-    borrow::Cow,
-    collections::BTreeSet,
-    path::{PathBuf},
-    sync::Arc,
-    thread,
-};
-use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::atomic::{self, AtomicU64};
+use std::{borrow::Cow, collections::BTreeSet, path::PathBuf, sync::Arc, thread};
 use tree_sitter::{Node, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
@@ -94,10 +87,10 @@ impl BufferId {
 pub struct BufferUIState {
     #[allow(dead_code)]
     window_id: WindowId,
-    
+
     #[allow(dead_code)]
     tab_id: WidgetId,
-    
+
     pub id: BufferId,
     pub text_layouts: Vec<Arc<Option<Arc<HighlightTextLayout>>>>,
     pub line_changes: HashMap<usize, char>,
@@ -440,7 +433,7 @@ impl BufferNew {
                         &mut highlighter,
                         &mut highlight_config,
                     );
-                    
+
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateHistoryStyle {
@@ -480,7 +473,7 @@ impl BufferNew {
                     if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                         return;
                     }
-                    
+
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateHisotryChanges {
@@ -789,9 +782,7 @@ impl BufferNew {
             .filter_map(|(iv, style)| {
                 let start = iv.start();
                 let end = iv.end();
-                if start > end_offset {
-                    None
-                } else if end < start_offset {
+                if start > end_offset || end < start_offset {
                     None
                 } else {
                     Some((
@@ -823,9 +814,7 @@ impl BufferNew {
             .filter_map(|(iv, style)| {
                 let start = iv.start();
                 let end = iv.end();
-                if start > end_offset {
-                    None
-                } else if end < start_offset {
+                if start > end_offset || end < start_offset {
                     None
                 } else {
                     Some((
@@ -850,10 +839,9 @@ impl BufferNew {
         ctx: &mut PaintCtx,
         history: &str,
         line: usize,
-        
-        #[allow(unused_variables)]
-        cursor_index: Option<usize>,
-        
+
+        #[allow(unused_variables)] cursor_index: Option<usize>,
+
         bounds: [f64; 2],
         config: &Config,
     ) -> Option<PietTextLayout> {
@@ -1749,7 +1737,7 @@ impl BufferNew {
         line_styles.append(&mut new);
         line_styles.extend_from_slice(right);
     }
-    
+
     fn mk_new_rev(
         &self,
         undo_group: usize,
@@ -1872,10 +1860,9 @@ impl BufferNew {
 
     pub fn edit_multiple(
         &mut self,
-        
-        #[allow(unused_variables)]
-        ctx: &mut EventCtx,
-        
+
+        #[allow(unused_variables)] ctx: &mut EventCtx,
+
         edits: Vec<(&Selection, &str)>,
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
