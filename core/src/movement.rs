@@ -1,4 +1,4 @@
-use druid::{piet::PietText, Env, Point, Rect, Size};
+use druid::piet::PietText;
 use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 
@@ -7,7 +7,6 @@ use crate::{
     config::Config,
     data::RegisterData,
     state::{Mode, VisualMode},
-    theme::OldLapceTheme,
 };
 use std::cmp::{max, min};
 
@@ -46,6 +45,7 @@ impl Cursor {
     pub fn offset(&self) -> usize {
         match &self.mode {
             CursorMode::Normal(offset) => *offset,
+            #[allow(unused_variables)]
             CursorMode::Visual { start, end, mode } => *end,
             CursorMode::Insert(selection) => selection.get_cursor_offset(),
         }
@@ -100,6 +100,7 @@ impl Cursor {
                     Cursor::new(CursorMode::Normal(offset), None)
                 }
             }
+            #[allow(unused_variables)]
             CursorMode::Visual { start, end, mode } => {
                 if modify {
                     Cursor::new(
@@ -135,7 +136,7 @@ impl Cursor {
 
     pub fn add_region(&self, start: usize, end: usize, modify: bool) -> Self {
         match &self.mode {
-            CursorMode::Normal(offset) => Cursor::new(
+            CursorMode::Normal(_offset) => Cursor::new(
                 CursorMode::Visual {
                     start,
                     end: end - 1,
@@ -185,7 +186,7 @@ impl Cursor {
         config: &Config,
     ) -> (f64, f64) {
         let offset = self.offset();
-        let line = buffer.line_of_offset(self.offset());
+        let _line = buffer.line_of_offset(self.offset());
         let next = buffer.next_grapheme_offset(
             offset,
             1,
@@ -206,6 +207,7 @@ impl Cursor {
                 let line = buffer.line_of_offset(*offset);
                 (line, line)
             }
+            #[allow(unused_variables)]
             CursorMode::Visual { start, end, mode } => {
                 let start_line = buffer.line_of_offset(*start.min(end));
                 let end_line = buffer.line_of_offset(*start.max(end));

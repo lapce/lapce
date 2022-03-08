@@ -21,7 +21,6 @@ use serde_json::{json, to_value, Value};
 use crate::buffer::Buffer;
 use crate::buffer::BufferId;
 use crate::dispatch::Dispatcher;
-use crate::dispatch::Request;
 
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";
@@ -54,6 +53,7 @@ pub struct LspState {
 
 #[derive(Clone)]
 pub struct LspClient {
+    #[allow(dead_code)]
     language_id: String,
     exec_path: String,
     options: Option<Value>,
@@ -177,7 +177,8 @@ impl LspCatalog {
                 .respond(id, Err(anyhow!("no document formatting")));
         }
     }
-
+    
+    #[allow(unused_variables)]
     pub fn get_completion(
         &self,
         id: RequestId,
@@ -198,7 +199,7 @@ impl LspCatalog {
                         })
                     }
                 }
-                lsp_client.dispatcher.sender.send(resp);
+                let _ = lsp_client.dispatcher.sender.send(resp);
             });
         }
     }
@@ -221,7 +222,7 @@ impl LspCatalog {
                         })
                     }
                 }
-                lsp_client.dispatcher.sender.send(resp);
+                let _ = lsp_client.dispatcher.sender.send(resp);
             });
         }
     }
@@ -240,7 +241,7 @@ impl LspCatalog {
                         })
                     }
                 }
-                lsp_client.dispatcher.sender.send(resp);
+                let _ = lsp_client.dispatcher.sender.send(resp);
             });
         }
     }
@@ -264,7 +265,7 @@ impl LspCatalog {
                         })
                     }
                 }
-                lsp_client.dispatcher.sender.send(resp);
+                let _ = lsp_client.dispatcher.sender.send(resp);
             });
         }
     }
@@ -292,11 +293,12 @@ impl LspCatalog {
                         })
                     }
                 }
-                lsp_client.dispatcher.sender.send(resp);
+                let _ = lsp_client.dispatcher.sender.send(resp);
             });
         }
     }
 
+    #[allow(unused_variables)]
     pub fn get_definition(
         &self,
         id: RequestId,
@@ -317,7 +319,7 @@ impl LspCatalog {
                         })
                     }
                 }
-                lsp_client.dispatcher.sender.send(resp);
+                let _ = lsp_client.dispatcher.sender.send(resp);
             });
         }
     }
@@ -376,7 +378,7 @@ impl LspClient {
                     Ok(message_str) => {
                         local_lsp_client.handle_message(message_str.as_ref());
                     }
-                    Err(err) => {
+                    Err(_err) => {
                         local_lsp_client.stop();
                         local_lsp_client.reload();
                         return;
@@ -389,7 +391,7 @@ impl LspClient {
     fn process(exec_path: &str) -> Child {
         let mut process = Command::new(exec_path);
         #[cfg(target_os = "windows")]
-        let mut process = process.creation_flags(0x08000000);
+        let process = process.creation_flags(0x08000000);
         process
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -416,7 +418,7 @@ impl LspClient {
     }
 
     fn stop(&self) {
-        self.state.lock().process.kill();
+        let _ = self.state.lock().process.kill();
     }
 
     pub fn get_uri(&self, buffer: &Buffer) -> Url {
@@ -443,7 +445,7 @@ impl LspClient {
 
     pub fn handle_message(&self, message: &str) {
         match JsonRpc::parse(message) {
-            Ok(JsonRpc::Request(obj)) => {
+            Ok(JsonRpc::Request(_obj)) => {
                 // trace!("client received unexpected request: {:?}", obj)
             }
             Ok(value @ JsonRpc::Notification(_)) => {
@@ -462,7 +464,7 @@ impl LspClient {
                 let error = value.get_error().unwrap();
                 self.handle_response(id, Err(anyhow!("{}", error)));
             }
-            Err(err) => {}
+            Err(_err) => {}
         }
     }
 
@@ -511,7 +513,7 @@ impl LspClient {
             Err(err) => panic!("Encoding Error {:?}", err),
         };
 
-        self.write(rpc.as_ref());
+        let _ = self.write(rpc.as_ref());
     }
 
     pub fn send_notification(&self, method: &str, params: Params) {
@@ -548,9 +550,9 @@ impl LspClient {
                     }
                     lsp_client.send_initialized();
                 }
-                sender.send(true);
+                let _ = sender.send(true);
             });
-            receiver.recv_timeout(Duration::from_millis(1000));
+            let _ = receiver.recv_timeout(Duration::from_millis(1000));
         }
     }
 
@@ -674,7 +676,8 @@ impl LspClient {
             })),
             ..Default::default()
         };
-
+        
+        #[allow(deprecated)]
         let init_params = InitializeParams {
             process_id: Some(u32::from(process::id())),
             root_uri,

@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
-    collections::{HashMap, VecDeque},
-    fs::File,
+    collections::VecDeque,
     io::{self, ErrorKind, Read, Write},
     path::PathBuf,
     sync::atomic::{self, AtomicU64},
@@ -18,11 +17,12 @@ use alacritty_terminal::{
 use directories::BaseDirs;
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
+#[allow(deprecated)]
 use mio::{
     channel::{channel, Receiver, Sender},
     Events, PollOpt, Ready,
 };
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::dispatch::Dispatcher;
@@ -57,7 +57,11 @@ pub struct Terminal {
     term_id: TermId,
     poll: mio::Poll,
     pty: alacritty_terminal::tty::Pty,
+    
+    #[allow(deprecated)]
     rx: Receiver<Msg>,
+    
+    #[allow(deprecated)]
     pub tx: Sender<Msg>,
 }
 
@@ -84,9 +88,9 @@ impl Terminal {
 
         let size =
             SizeInfo::new(width as f32, height as f32, 1.0, 1.0, 0.0, 0.0, true);
-        let mut pty =
-            alacritty_terminal::tty::new(&config.pty_config, &size, None).unwrap();
+        let pty = alacritty_terminal::tty::new(&config.pty_config, &size, None).unwrap();
 
+        #[allow(deprecated)]
         let (tx, rx) = channel();
 
         Terminal {
@@ -116,7 +120,7 @@ impl Terminal {
         let mut state = State::default();
 
         'event_loop: loop {
-            self.poll.poll(&mut events, None);
+            let _ = self.poll.poll(&mut events, None);
             for event in events.iter() {
                 match event.token() {
                     token if token == channel_token => {
@@ -159,12 +163,12 @@ impl Terminal {
                                         }),
                                     );
                                 }
-                                Err(e) => (),
+                                Err(_e) => (),
                             }
                         }
 
                         if event.readiness().is_writable() {
-                            if let Err(err) = self.pty_write(&mut state) {}
+                            if let Err(_err) = self.pty_write(&mut state) {}
                         }
                     }
 
@@ -189,6 +193,7 @@ impl Terminal {
     ///
     /// Returns `false` when a shutdown message was received.
     fn drain_recv_channel(&mut self, state: &mut State) -> bool {
+        #[allow(deprecated)]
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 Msg::Input(input) => state.write_list.push_back(input),
@@ -287,6 +292,8 @@ impl Writing {
 pub struct State {
     write_list: VecDeque<Cow<'static, [u8]>>,
     writing: Option<Writing>,
+    
+    #[allow(dead_code)]
     parser: ansi::Processor,
 }
 
@@ -319,6 +326,7 @@ impl State {
     }
 }
 
+#[allow(dead_code)]
 fn set_locale_environment() {
     let locale = locale_config::Locale::global_default()
         .to_string()

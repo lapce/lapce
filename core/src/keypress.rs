@@ -1,16 +1,13 @@
 use std::fmt::Display;
 use std::path::PathBuf;
-use std::slice::SliceIndex;
 use std::str::FromStr;
-use std::{collections::HashMap, io::Read};
-use std::{fs::File, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
-use directories::ProjectDirs;
 use druid::piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder};
 use druid::{
-    Color, Data, Env, EventCtx, ExtEventSink, FontFamily, KeyEvent, Modifiers,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, WidgetId, WindowId,
+    Env, EventCtx, ExtEventSink, FontFamily, KeyEvent, Modifiers,
+    PaintCtx, Point, Rect, RenderContext, Size, Target
 };
 use druid::{Command, KbKey};
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -24,17 +21,16 @@ use crate::command::{
     LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
 };
 use crate::config::{Config, LapceTheme};
-use crate::data::LapceTabData;
 use crate::{
     command::LapceCommand,
-    state::{LapceFocus, Mode},
+    state::Mode
 };
 
-const default_keymaps_windows: &'static str =
+const DEFAULT_KEYMAPS_WINDOWS: &'static str =
     include_str!("../../defaults/keymaps-windows.toml");
-const default_keymaps_macos: &'static str =
+const DEFAULT_KEYMAPS_MACOS: &'static str =
     include_str!("../../defaults/keymaps-macos.toml");
-const default_keymaps_linux: &'static str =
+const DEFAULT_KEYMAPS_LINUX: &'static str =
     include_str!("../../defaults/keymaps-linux.toml");
 
 #[derive(PartialEq)]
@@ -54,16 +50,16 @@ pub struct KeyPress {
 impl Display for KeyPress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.mods.ctrl() {
-            f.write_str("Ctrl+");
+            let _ = f.write_str("Ctrl+");
         }
         if self.mods.alt() {
-            f.write_str("Alt+");
+            let _ = f.write_str("Alt+");
         }
         if self.mods.meta() {
-            f.write_str("Meta+");
+            let _ = f.write_str("Meta+");
         }
         if self.mods.shift() {
-            f.write_str("Shift+");
+            let _ = f.write_str("Shift+");
         }
         f.write_str(&self.key.to_string())
     }
@@ -75,7 +71,7 @@ impl KeyPress {
         mods.set(Modifiers::SHIFT, false);
         if mods.is_empty() {
             match &self.key {
-                druid::KbKey::Character(c) => {
+                druid::KbKey::Character(_c) => {
                     return true;
                 }
                 _ => (),
@@ -125,7 +121,7 @@ impl KeyPress {
             }
         }
 
-        let old_origin = origin.clone();
+        let _old_origin = origin.clone();
 
         let mut items = Vec::new();
         let keys_len = keys.len();
@@ -306,7 +302,7 @@ impl KeyPressData {
         let mut commands_without_keymap = Vec::new();
         for (_, keymaps) in self.command_keymaps.iter() {
             for keymap in keymaps.iter() {
-                if let Some(cmd) = self.commands.get(&keymap.command) {
+                if let Some(_cmd) = self.commands.get(&keymap.command) {
                     commands_with_keymap.push(keymap.clone());
                 }
             }
@@ -403,7 +399,7 @@ impl KeyPressData {
         }
         let mut mods = key_event.mods.clone();
         match &key_event.key {
-            druid::KbKey::Character(c) => {
+            druid::KbKey::Character(_c) => {
                 mods.set(Modifiers::SHIFT, false);
             }
             _ => (),
@@ -432,7 +428,7 @@ impl KeyPressData {
         }
         let mut mods = key_event.mods.clone();
         match &key_event.key {
-            druid::KbKey::Character(c) => {
+            druid::KbKey::Character(_c) => {
                 mods.set(Modifiers::SHIFT, false);
             }
             _ => (),
@@ -698,7 +694,7 @@ impl KeyPressData {
                     let cmd = commands.get(&i.command).unwrap();
                     let text =
                         cmd.palette_desc.clone().unwrap_or_else(|| cmd.cmd.clone());
-                    if let Some((score, mut indices)) =
+                    if let Some((score, _indices)) =
                         matcher.fuzzy_indices(&text, &pattern)
                     {
                         Some((i, score))
@@ -706,7 +702,7 @@ impl KeyPressData {
                         None
                     }
                 })
-                .sorted_by_key(|(i, score)| -*score)
+                .sorted_by_key(|(_i, score)| -*score)
                 .map(|(i, _)| i.clone())
                 .collect();
 
@@ -716,7 +712,7 @@ impl KeyPressData {
                     .filter_map(|i| {
                         let text =
                             i.palette_desc.clone().unwrap_or_else(|| i.cmd.clone());
-                        if let Some((score, mut indices)) =
+                        if let Some((score, _indices)) =
                             matcher.fuzzy_indices(&text, &pattern)
                         {
                             Some((i, score))
@@ -724,10 +720,11 @@ impl KeyPressData {
                             None
                         }
                     })
-                    .sorted_by_key(|(i, score)| -*score)
+                    .sorted_by_key(|(_i, score)| -*score)
                     .map(|(i, _)| i.clone())
                     .collect();
-            event_sink.submit_command(
+            
+            let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::FilterKeymaps(
                     pattern,
@@ -830,12 +827,12 @@ impl KeyPressData {
 
         if let Some(dir) = path.parent() {
             if !dir.exists() {
-                std::fs::create_dir_all(dir);
+                let _ = std::fs::create_dir_all(dir);
             }
         }
 
         if !path.exists() {
-            std::fs::OpenOptions::new()
+            let _ = std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
                 .open(&path);
@@ -851,11 +848,11 @@ impl KeyPressData {
         IndexMap<String, Vec<KeyMap>>,
     )> {
         let mut keymaps_str = if std::env::consts::OS == "macos" {
-            default_keymaps_macos
+            DEFAULT_KEYMAPS_MACOS
         } else if std::env::consts::OS == "linux" {
-            default_keymaps_linux
+            DEFAULT_KEYMAPS_LINUX
         } else {
-            default_keymaps_windows
+            DEFAULT_KEYMAPS_WINDOWS
         }
         .to_string();
 
@@ -1003,19 +1000,19 @@ impl KeyPressFocus for DefaultKeyPressHandler {
         Mode::Normal
     }
 
-    fn check_condition(&self, condition: &str) -> bool {
+    fn check_condition(&self, _condition: &str) -> bool {
         false
     }
 
     fn run_command(
         &mut self,
-        ctx: &mut EventCtx,
-        command: &LapceCommand,
-        count: Option<usize>,
-        env: &Env,
+        _ctx: &mut EventCtx,
+        _command: &LapceCommand,
+        _count: Option<usize>,
+        _env: &Env,
     ) -> CommandExecuted {
         CommandExecuted::Yes
     }
-
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
+    
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }

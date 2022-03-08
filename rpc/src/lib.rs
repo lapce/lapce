@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
-use jsonrpc_lite::JsonRpc;
 use parking_lot::Mutex;
 pub use parse::Call;
 pub use parse::RequestId;
@@ -19,7 +18,6 @@ pub use parse::RpcObject;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use serde_json::Value;
-use stdio::IoThreads;
 
 pub use stdio::stdio_transport;
 
@@ -117,14 +115,14 @@ impl RpcHandler {
                             return;
                         }
                     }
-                    Err(e) => {}
+                    Err(_e) => {}
                 }
             }
         }
     }
 
     pub fn send_rpc_notification(&self, method: &str, params: &Value) {
-        if let Err(e) = self.sender.send(json!({
+        if let Err(_e) = self.sender.send(json!({
             "method": method,
             "params": params,
         })) {}
@@ -141,7 +139,7 @@ impl RpcHandler {
             let mut pending = self.pending.lock();
             pending.insert(id, rh);
         }
-        if let Err(e) = self.sender.send(json!({
+        if let Err(_e) = self.sender.send(json!({
             "id": id,
             "method": method,
             "params": params,
@@ -189,6 +187,8 @@ impl RpcHandler {
             Ok(result) => response["result"] = result,
             Err(error) => response["error"] = json!(error),
         };
-        self.sender.send(response);
+        
+        #[allow(deprecated)]
+        let _ = self.sender.send(response);
     }
 }

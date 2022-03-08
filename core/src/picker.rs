@@ -14,14 +14,12 @@ use druid::{
 use lapce_proxy::dispatch::FileNodeItem;
 
 use crate::{
-    buffer::LocalBufferKind,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
     editor::LapceEditorView,
     explorer::{get_item_children, get_item_children_mut, paint_file_node_item},
     scroll::LapceScrollNew,
-    state::LapceWorkspace,
     svg::get_svg,
     tab::LapceButton,
 };
@@ -205,7 +203,7 @@ impl Widget<LapceTabData> for FilePicker {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -217,7 +215,7 @@ impl Widget<LapceTabData> for FilePicker {
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
+        _bc: &BoxConstraints,
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
@@ -307,7 +305,7 @@ impl FilePickerPwd {
 
     fn mouse_down(
         &self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         data: &mut LapceTabData,
         mouse_event: &MouseEvent,
     ) {
@@ -368,7 +366,7 @@ impl Widget<LapceTabData> for FilePickerPwd {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -491,23 +489,23 @@ impl FilePickerExplorer {
                                                 serde_json::Error,
                                             > = serde_json::from_value(res);
                                             if let Ok(items) = resp {
-                                                event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::UpdatePickerItems(
-                                                    path,
-                                                    items
-                                                        .iter()
-                                                        .map(|item| {
-                                                            (
-                                                                item.path_buf
-                                                                    .clone(),
-                                                                item.clone(),
-                                                            )
-                                                        })
-                                                        .collect(),
-                                                ),
-                                                Target::Widget(tab_id),
-                                            );
+                                                let _ = event_sink.submit_command(
+                                                    LAPCE_UI_COMMAND,
+                                                    LapceUICommand::UpdatePickerItems(
+                                                        path,
+                                                        items
+                                                            .iter()
+                                                            .map(|item| {
+                                                                (
+                                                                    item.path_buf
+                                                                        .clone(),
+                                                                    item.clone(),
+                                                                )
+                                                            })
+                                                            .collect(),
+                                                    ),
+                                                    Target::Widget(tab_id),
+                                                );
                                             }
                                         }
                                     }),
@@ -535,23 +533,23 @@ impl FilePickerExplorer {
                                                     serde_json::Error,
                                                 > = serde_json::from_value(res);
                                                 if let Ok(items) = resp {
-                                                    event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::UpdatePickerItems(
-                                                    path,
-                                                    items
-                                                        .iter()
-                                                        .map(|item| {
-                                                            (
-                                                                item.path_buf
-                                                                    .clone(),
-                                                                item.clone(),
-                                                            )
-                                                        })
-                                                        .collect(),
-                                                ),
-                                                Target::Widget(tab_id),
-                                            );
+                                                    let _ = event_sink.submit_command(
+                                                        LAPCE_UI_COMMAND,
+                                                        LapceUICommand::UpdatePickerItems(
+                                                            path,
+                                                            items
+                                                                .iter()
+                                                                .map(|item| {
+                                                                    (
+                                                                        item.path_buf
+                                                                            .clone(),
+                                                                        item.clone(),
+                                                                    )
+                                                                })
+                                                                .collect(),
+                                                        ),
+                                                        Target::Widget(tab_id),
+                                                    );
                                                 }
                                             }
                                         }),
@@ -600,7 +598,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseDown(mouse_event) => {
@@ -615,7 +613,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
                 ctx.request_paint();
                 if let Some(item) = picker.get_file_node_mut(&pwd) {
                     let (_, node) = get_item_children(0, index, item);
-                    if let Some(node) = node {
+                    if let Some(_node) = node {
                         ctx.set_cursor(&druid::Cursor::Pointer);
                     } else {
                         ctx.clear_cursor();
@@ -630,10 +628,10 @@ impl Widget<LapceTabData> for FilePickerExplorer {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -642,7 +640,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
         ctx: &mut UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         if data.picker.root.children_open_count
             != old_data.picker.root.children_open_count
@@ -657,10 +655,10 @@ impl Widget<LapceTabData> for FilePickerExplorer {
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let height = if let Some(item) = data.picker.get_file_node(&data.picker.pwd)
         {
@@ -671,7 +669,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
         Size::new(bc.max().width, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
         let rect = ctx.region().bounding_box();
         let width = size.width;
@@ -782,7 +780,7 @@ impl Widget<LapceTabData> for FilePickerControl {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -805,19 +803,19 @@ impl Widget<LapceTabData> for FilePickerControl {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -826,7 +824,7 @@ impl Widget<LapceTabData> for FilePickerControl {
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let self_size = Size::new(bc.max().width, 50.0);
 
@@ -891,7 +889,7 @@ impl Widget<LapceTabData> for FilePickerControl {
         self_size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let size = ctx.size();
         ctx.stroke(
             Line::new(Point::new(0.0, 0.5), Point::new(size.width, 0.5)),

@@ -1,12 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use druid::{
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, FontDescriptor,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, FontDescriptor,
     FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
     RenderContext, Size, Target, TextLayout, UpdateCtx, Widget,
 };
 use lsp_types::{
-    CodeActionDisabled, CodeActionOrCommand, DocumentChangeOperation,
+    CodeActionOrCommand, DocumentChangeOperation,
     DocumentChanges, OneOf, TextEdit, Url, WorkspaceEdit,
 };
 
@@ -14,12 +14,11 @@ use crate::{
     buffer::{BufferContent, EditType},
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::{EditorContent, LapceMainSplitData, LapceTabData},
-    keypress::{KeyPressData, KeyPressFocus},
+    data::{LapceMainSplitData, LapceTabData},
+    keypress::{KeyPressFocus},
     movement::{Movement, Selection},
     proxy::LapceProxy,
     state::Mode,
-    theme::OldLapceTheme,
 };
 
 pub struct CodeAction {}
@@ -48,8 +47,8 @@ impl KeyPressFocus for CodeActionData {
         &mut self,
         ctx: &mut EventCtx,
         command: &LapceCommand,
-        count: Option<usize>,
-        env: &Env,
+        _count: Option<usize>,
+        _env: &Env,
     ) -> CommandExecuted {
         match command {
             LapceCommand::CodeActionsCancel => {
@@ -78,11 +77,11 @@ impl KeyPressFocus for CodeActionData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl CodeActionData {
-    pub fn next(&mut self, ctx: &mut EventCtx) {
+    pub fn next(&mut self, _ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,
@@ -125,7 +124,7 @@ impl CodeActionData {
 
                 let action = &code_actions[self.main_split.current_code_actions];
                 match action {
-                    CodeActionOrCommand::Command(cmd) => {}
+                    CodeActionOrCommand::Command(_cmd) => {}
                     CodeActionOrCommand::CodeAction(action) => {
                         if let Some(edit) = action.edit.as_ref() {
                             if let Some(edits) = workspce_edits(edit) {
@@ -173,7 +172,8 @@ impl CodeActionData {
             BufferContent::Local(_) => {}
         }
     }
-
+    
+    #[allow(unused_variables)]
     pub fn previous(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
@@ -252,10 +252,10 @@ impl Widget<LapceTabData> for CodeAction {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -264,7 +264,7 @@ impl Widget<LapceTabData> for CodeAction {
         ctx: &mut UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         let old_editor = old_data.main_split.active_editor();
         let old_editor = match old_editor {
@@ -297,7 +297,7 @@ impl Widget<LapceTabData> for CodeAction {
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
+        _bc: &BoxConstraints,
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
@@ -414,7 +414,7 @@ fn workspce_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {
         DocumentChanges::Operations(ops) => ops
             .iter()
             .filter_map(|o| match o {
-                DocumentChangeOperation::Op(op) => None,
+                DocumentChangeOperation::Op(_op) => None,
                 DocumentChangeOperation::Edit(e) => Some((
                     e.text_document.uri.clone(),
                     e.edits

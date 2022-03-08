@@ -1,7 +1,6 @@
-use std::sync::Arc;
 
 use druid::{
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LensExt,
+    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
     UpdateCtx, Widget,
 };
@@ -14,7 +13,6 @@ use crate::{
     config::LapceTheme,
     data::LapceTabData,
     panel::PanelPosition,
-    svg::get_svg,
 };
 
 pub struct ActivityBar {}
@@ -31,7 +29,7 @@ impl Widget<LapceTabData> for ActivityBar {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseDown(mouse) => {
@@ -87,33 +85,33 @@ impl Widget<LapceTabData> for ActivityBar {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceTabData,
-        env: &Env,
+        _data: &LapceTabData,
+        _env: &Env,
     ) -> Size {
         Size::new(50.0, bc.max().height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let rect = ctx.size().to_rect();
 
         let size = 50.0;

@@ -9,5 +9,5 @@ use dispatch::Dispatcher;
 pub fn mainloop() {
     let (sender, receiver) = lapce_rpc::stdio();
     let dispatcher = Dispatcher::new(sender);
-    dispatcher.mainloop(receiver);
+    let _ = dispatcher.mainloop(receiver);
 }

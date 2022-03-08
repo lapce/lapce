@@ -1,20 +1,20 @@
 use std::collections::HashMap;
-use std::io::{BufReader, Stdin, Stdout};
+use std::io::BufReader;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::thread;
-use std::{path::PathBuf, process::Child, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use druid::{ExtEventSink, WidgetId};
-use druid::{Target, WindowId};
+use druid::Target;
 use flate2::read::GzDecoder;
 use lapce_proxy::dispatch::FileDiff;
 use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
-use lapce_proxy::dispatch::{FileNodeItem, NewBufferResponse};
+use lapce_proxy::dispatch::FileNodeItem;
 use lapce_proxy::plugin::PluginDescription;
 use lapce_proxy::terminal::TermId;
 use lapce_rpc::RpcHandler;
@@ -24,9 +24,8 @@ use lsp_types::CompletionItem;
 use lsp_types::Position;
 use lsp_types::ProgressParams;
 use lsp_types::PublishDiagnosticsParams;
-use lsp_types::WorkDoneProgress;
 use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use xi_rope::RopeDelta;
@@ -74,7 +73,7 @@ impl Handler for LapceProxy {
                 path,
                 tokens,
             } => {
-                self.event_sink.submit_command(
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateSemanticTokens(
                         buffer_id, path, rev, tokens,
@@ -87,63 +86,64 @@ impl Handler for LapceProxy {
                 new_content,
                 rev,
             } => {
-                self.event_sink.submit_command(
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
                     Target::Widget(self.tab_id),
                 );
             }
             Notification::PublishDiagnostics { diagnostics } => {
-                self.event_sink.submit_command(
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::PublishDiagnostics(diagnostics),
                     Target::Widget(self.tab_id),
                 );
             }
             Notification::WorkDoneProgress { progress } => {
-                self.event_sink.submit_command(
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::WorkDoneProgress(progress),
                     Target::Widget(self.tab_id),
                 );
             }
             Notification::InstalledPlugins { plugins } => {
-                self.event_sink.submit_command(
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateInstalledPlugins(plugins),
                     Target::Widget(self.tab_id),
                 );
             }
+            #[allow(unused_variables)]
             Notification::ListDir { items } => {}
+            #[allow(unused_variables)]
             Notification::DiffFiles { files } => {}
             Notification::DiffInfo { diff } => {
-                self.event_sink.submit_command(
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateDiffInfo(diff),
                     Target::Widget(self.tab_id),
                 );
             }
             Notification::UpdateTerminal { term_id, content } => {
-                self.term_tx
-                    .send((term_id, TermEvent::UpdateContent(content)));
+                let _ = self.term_tx.send((term_id, TermEvent::UpdateContent(content)));
             }
             Notification::CloseTerminal { term_id } => {
-                self.term_tx.send((term_id, TermEvent::CloseTerminal));
-                self.event_sink.submit_command(
+                let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::CloseTerminal(term_id),
                     Target::Widget(self.tab_id),
                 );
             }
             Notification::ProxyConnected {} => {
-                self.event_sink.submit_command(
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connected),
                     Target::Widget(self.tab_id),
                 );
             }
             Notification::HomeDir { path } => {
-                self.event_sink.submit_command(
+                let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::HomeDir(path),
                     Target::Widget(self.tab_id),
@@ -153,7 +153,7 @@ impl Handler for LapceProxy {
         ControlFlow::Continue
     }
 
-    fn handle_request(&mut self, rpc: Self::Request) -> Result<Value, Value> {
+    fn handle_request(&mut self, _rpc: Self::Request) -> Result<Value, Value> {
         return Err(json!("unimplemented"));
     }
 }
@@ -177,13 +177,13 @@ impl LapceProxy {
 
         let local_proxy = proxy.clone();
         thread::spawn(move || {
-            event_sink.submit_command(
+            let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connecting),
                 Target::Widget(tab_id),
             );
-            local_proxy.start(workspace.clone());
-            event_sink.submit_command(
+            let _ = local_proxy.start(workspace.clone());
+            let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Disconnected),
                 Target::Widget(tab_id),
@@ -203,7 +203,7 @@ impl LapceProxy {
                 let proxy_reciever = (*self.proxy_receiver).clone();
                 thread::spawn(move || {
                     let dispatcher = Dispatcher::new(core_sender);
-                    dispatcher.mainloop(proxy_reciever);
+                    let _ = dispatcher.mainloop(proxy_reciever);
                 });
 
                 let mut proxy = self.clone();
@@ -223,7 +223,7 @@ impl LapceProxy {
                 ];
                 let mut cmd = Command::new("ssh");
                 #[cfg(target_os = "windows")]
-                let mut cmd = cmd.creation_flags(0x08000000);
+                let cmd = cmd.creation_flags(0x08000000);
                 let cmd = cmd
                     .arg(format!("{}@{}", user, host))
                     .args(ssh_args)
@@ -248,7 +248,7 @@ impl LapceProxy {
 
                     let mut cmd = Command::new("ssh");
                     #[cfg(target_os = "windows")]
-                    let mut cmd = cmd.creation_flags(0x08000000);
+                    let cmd = cmd.creation_flags(0x08000000);
                     cmd.arg(format!("{}@{}", user, host))
                         .args(ssh_args)
                         .arg("mkdir")
@@ -257,7 +257,7 @@ impl LapceProxy {
 
                     let mut cmd = Command::new("scp");
                     #[cfg(target_os = "windows")]
-                    let mut cmd = cmd.creation_flags(0x08000000);
+                    let cmd = cmd.creation_flags(0x08000000);
                     cmd.args(ssh_args)
                         .arg(&local_proxy_file)
                         .arg(format!("{user}@{host}:~/.lapce/lapce-proxy-{VERSION}"))
@@ -265,7 +265,7 @@ impl LapceProxy {
 
                     let mut cmd = Command::new("ssh");
                     #[cfg(target_os = "windows")]
-                    let mut cmd = cmd.creation_flags(0x08000000);
+                    let cmd = cmd.creation_flags(0x08000000);
                     cmd.arg(format!("{}@{}", user, host))
                         .args(ssh_args)
                         .arg("chmod")
@@ -276,7 +276,7 @@ impl LapceProxy {
 
                 let mut child = Command::new("ssh");
                 #[cfg(target_os = "windows")]
-                let mut child = child.creation_flags(0x08000000);
+                let child = child.creation_flags(0x08000000);
                 let mut child = child
                     .arg(format!("{}@{}", user, host))
                     .args(ssh_args)
@@ -345,7 +345,7 @@ impl LapceProxy {
         cwd: Option<PathBuf>,
         raw: Arc<Mutex<RawTerminal>>,
     ) {
-        self.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
+        let _ = self.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
         self.rpc.send_rpc_notification(
             "new_terminal",
             &json!({
@@ -647,8 +647,13 @@ pub enum Notification {
 pub enum Request {}
 
 pub struct ProxyHandlerNew {
+    #[allow(dead_code)]
     tab_id: WidgetId,
+    
+    #[allow(dead_code)]
     term_tx: Sender<(TermId, TermEvent)>,
+    
+    #[allow(dead_code)]
     event_sink: ExtEventSink,
 }
 //

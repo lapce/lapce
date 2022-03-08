@@ -1,23 +1,21 @@
 use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::{unbounded, Sender};
 use directories::ProjectDirs;
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 use lsp_types::Position;
-use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     buffer::{BufferContent, BufferNew, UpdateEvent},
     config::Config,
     data::{
-        EditorContent, EditorTabChild, LapceData, LapceEditorData,
+        EditorTabChild, LapceData, LapceEditorData,
         LapceEditorTabData, LapceMainSplitData, LapceTabData, LapceWindowData,
         SplitContent, SplitData,
     },
     editor::EditorLocationNew,
-    movement::Cursor,
     split::SplitDirection,
     state::LapceWorkspace,
 };
@@ -326,13 +324,13 @@ impl LapceDb {
                 let event = save_rx.recv()?;
                 match event {
                     SaveEvent::Workspace(workspace, info) => {
-                        local_db.insert_workspace(&workspace, &info);
+                        let _ = local_db.insert_workspace(&workspace, &info);
                     }
                     SaveEvent::Tabs(info) => {
-                        local_db.insert_tabs(&info);
+                        let _ = local_db.insert_tabs(&info);
                     }
                     SaveEvent::Buffer(info) => {
-                        local_db.insert_buffer(&info);
+                        let _ = local_db.insert_buffer(&info);
                     }
                 }
             }
@@ -347,7 +345,7 @@ impl LapceDb {
     pub fn save_app(&self, data: &LapceData) -> Result<()> {
         for (_, window) in data.windows.iter() {
             for (_, tab) in window.tabs.iter() {
-                self.save_workspace(tab);
+                let _ = self.save_workspace(tab);
             }
         }
         let info = AppInfo {
@@ -447,7 +445,7 @@ impl LapceDb {
 
     pub fn save_last_window(&self, window: &LapceWindowData) {
         let info = window.info();
-        self.insert_last_window_info(info);
+        let _ = self.insert_last_window_info(info);
     }
 
     fn insert_last_window_info(&self, info: WindowInfo) -> Result<()> {
@@ -510,7 +508,7 @@ impl LapceDb {
                 scroll_offset: (buffer.scroll_offset.x, buffer.scroll_offset.y),
                 cursor_offset: buffer.cursor_offset,
             };
-            self.save_tx.send(SaveEvent::Buffer(info));
+            let _ = self.save_tx.send(SaveEvent::Buffer(info));
         }
     }
 

@@ -1,13 +1,11 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use druid::{
-    piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
-    theme,
-    widget::{CrossAxisAlignment, Flex, FlexParams, Label, Scroll, SvgData},
-    Affine, BoxConstraints, Color, Command, Cursor, Data, Env, Event, EventCtx,
-    FontFamily, FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2,
-    Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
+    BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx,
+    FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
+    PaintCtx, Point, RenderContext, Size, Target, UpdateCtx,
+    Widget, WidgetExt, WidgetId,
 };
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
@@ -15,10 +13,10 @@ use lsp_types::DiagnosticSeverity;
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{EditorDiagnostic, FocusArea, LapceTabData, PanelKind},
+    data::{EditorDiagnostic, LapceTabData, PanelKind},
     editor::EditorLocationNew,
-    panel::{LapcePanel, PanelHeaderKind, PanelSection},
-    split::{LapceSplitNew, SplitDirection},
+    panel::{LapcePanel, PanelHeaderKind},
+    split::{SplitDirection},
     svg::{file_svg_new, get_svg},
 };
 
@@ -197,7 +195,7 @@ impl Widget<LapceTabData> for ProblemContent {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
@@ -214,10 +212,10 @@ impl Widget<LapceTabData> for ProblemContent {
 
     fn lifecycle(
         &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -226,7 +224,7 @@ impl Widget<LapceTabData> for ProblemContent {
         ctx: &mut UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         if !data
             .main_split
@@ -239,10 +237,10 @@ impl Widget<LapceTabData> for ProblemContent {
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) -> Size {
         let items = self.items(data);
         let n = items
@@ -267,7 +265,7 @@ impl Widget<LapceTabData> for ProblemContent {
         Size::new(bc.max().width, height)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let line_height = data.config.editor.line_height as f64;
 
         if ctx.is_hot() {

@@ -1,52 +1,47 @@
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
-    thread,
 };
 
-use directories::ProjectDirs;
 use druid::{
     kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    theme, Application, BoxConstraints, Color, Command, Cursor, Data, Env, Event,
-    EventCtx, FontFamily, Insets, InternalLifeCycle, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, Vec2, Widget,
+    BoxConstraints, Command, Cursor, Data, Env, Event,
+    EventCtx, FontFamily, InternalLifeCycle, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, Widget,
     WidgetExt, WidgetId, WidgetPod, WindowConfig,
 };
 use itertools::Itertools;
-use lsp_types::{CallHierarchyOptions, DiagnosticSeverity};
+use lsp_types::DiagnosticSeverity;
 
 use crate::{
     activity::ActivityBar,
     buffer::{
-        BufferContent, BufferId, BufferNew, BufferState, BufferUpdate,
+        BufferContent, BufferUpdate,
         LocalBufferKind, UpdateEvent,
     },
     code_action::CodeAction,
     command::{
-        LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_NEW_COMMAND,
+        LapceUICommand, LAPCE_NEW_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    completion::{CompletionContainer, CompletionNew, CompletionStatus},
+    completion::{CompletionContainer, CompletionStatus},
     config::{Config, LapceTheme},
     data::{
-        DragContent, EditorContent, EditorDiagnostic, EditorTabChild,
-        LapceMainSplitData, LapceTabData, PanelKind, SplitContent, WorkProgress,
+        DragContent, EditorDiagnostic,
+        LapceTabData, PanelKind, WorkProgress,
     },
-    editor::{EditorLocationNew, LapceEditorTab, LapceEditorView},
+    editor::EditorLocationNew,
     explorer::FileExplorer,
     keypress::KeyPressData,
-    menu::Menu,
     movement::{self, CursorMode, Selection},
-    palette::{NewPalette, PaletteStatus, PaletteViewLens},
-    panel::{PanelHeaderKind, PanelPosition, PanelResizePosition},
+    palette::{NewPalette, PaletteStatus},
+    panel::{PanelPosition, PanelResizePosition},
     picker::FilePicker,
     plugin::Plugin,
-    scroll::LapceScrollNew,
     settings::LapceSettingsPanel,
-    split::LapceSplitNew,
-    state::{LapceWorkspace, LapceWorkspaceType},
+    state::LapceWorkspaceType,
     status::LapceStatusNew,
     terminal::TerminalPanel,
 };
@@ -203,7 +198,7 @@ impl LapceTabNew {
             .map(|p| p.is_shown())
             .unwrap_or(false);
         if panel_bottom_left_shown || panel_bottom_right_shown {
-            let bottom = data.panel_size.bottom;
+            let _bottom = data.panel_size.bottom;
             let y = self.main_split_height;
             if mouse_pos.x > left && mouse_pos.y >= y - 3.0 && mouse_pos.y <= y + 3.0
             {
@@ -425,7 +420,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             })
                             .collect();
 
-                        for (path, buffer) in data.main_split.open_files.iter() {
+                        for (_path, buffer) in data.main_split.open_files.iter() {
                             buffer.retrieve_file_head(
                                 data.id,
                                 data.proxy.clone(),
@@ -455,7 +450,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                             }
                                         }
                                     }
-                                    lsp_types::WorkDoneProgress::End(end) => {
+                                    lsp_types::WorkDoneProgress::End(_end) => {
                                         for i in data
                                             .progresses
                                             .iter()
@@ -781,13 +776,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateSemanticTokens(id, path, rev, tokens) => {
+                    LapceUICommand::UpdateSemanticTokens(_id, path, rev, tokens) => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         if buffer.rev == *rev {
                             if let Some(language) = buffer.language.as_ref() {
                                 if let BufferContent::File(path) = &buffer.content {
-                                    data.update_sender.send(
+                                    let _ = data.update_sender.send(
                                         UpdateEvent::SemanticTokens(
                                             BufferUpdate {
                                                 id: buffer.id,
@@ -834,6 +829,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ));
                         ctx.set_handled();
                     }
+                    #[allow(unused_variables)]
                     LapceUICommand::UpdateStyle {
                         id,
                         path,
@@ -877,6 +873,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    #[allow(unused_variables)]
                     LapceUICommand::UpdateSyntaxTree {
                         id,
                         path,
@@ -889,6 +886,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .update_syntax_tree(*rev, tree.to_owned());
                         ctx.set_handled();
                     }
+                    #[allow(unused_variables)]
                     LapceUICommand::UpdateHisotryChanges {
                         id,
                         path,
@@ -905,6 +903,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             changes.clone(),
                         );
                     }
+                    #[allow(unused_variables)]
                     LapceUICommand::UpdateHistoryStyle {
                         id,
                         path,
@@ -933,7 +932,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .set_item_children(path, items.clone());
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateExplorerItems(index, path, items) => {
+                    LapceUICommand::UpdateExplorerItems(_index, path, items) => {
                         let file_explorer = Arc::make_mut(&mut data.file_explorer);
                         if let Some(node) = file_explorer.get_node_mut(path) {
                             node.children = items
@@ -1470,12 +1469,12 @@ impl Widget<LapceTabData> for LapceTabHeader {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceTabData,
-        env: &Env,
+        _env: &Env,
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
                 if ctx.is_active() {
-                    if let Some(pos) = self.drag_start {
+                    if let Some(_pos) = self.drag_start {
                         self.mouse_pos = ctx.to_window(mouse_event.pos);
                         ctx.request_layout();
                     }
@@ -1506,7 +1505,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     ));
                 }
             }
-            Event::MouseUp(mouse_event) => {
+            Event::MouseUp(_mouse_event) => {
                 ctx.set_active(false);
                 self.drag_start = None;
             }
@@ -1518,11 +1517,11 @@ impl Widget<LapceTabData> for LapceTabHeader {
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &LapceTabData,
-        env: &Env,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
         match event {
-            LifeCycle::HotChanged(is_hot) => {
+            LifeCycle::HotChanged(_is_hot) => {
                 ctx.request_paint();
             }
             _ => (),
@@ -1531,19 +1530,19 @@ impl Widget<LapceTabData> for LapceTabHeader {
 
     fn update(
         &mut self,
-        ctx: &mut druid::UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut druid::UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
     fn layout(
         &mut self,
-        ctx: &mut LayoutCtx,
+        _ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &LapceTabData,
-        env: &Env,
+        _data: &LapceTabData,
+        _env: &Env,
     ) -> Size {
         let size = bc.max();
 
@@ -1557,7 +1556,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         let dir = data
             .workspace
             .path

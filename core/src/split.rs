@@ -5,25 +5,23 @@ use crate::{
     },
     config::{Config, LapceTheme},
     data::{
-        EditorContent, FocusArea, LapceEditorData, LapceTabData, PanelData,
+        FocusArea, LapceEditorData, LapceTabData,
         PanelKind, SplitContent,
     },
-    editor::{EditorLocation, LapceEditorView},
+    editor::LapceEditorView,
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
-    scroll::LapcePadding,
     svg::logo_svg,
-    terminal::{LapceTerminal, LapceTerminalData, LapceTerminalView},
+    terminal::{LapceTerminalData, LapceTerminalView},
 };
-use std::{cmp::Ordering, sync::Arc};
+use std::sync::Arc;
 
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    widget::IdentityWrapper,
-    Command, FontFamily, Target, WidgetId, WindowId,
+    Command, FontFamily, Target, WidgetId
 };
 use druid::{
-    theme, BoxConstraints, Cursor, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget,
     WidgetExt, WidgetPod,
 };
@@ -86,10 +84,10 @@ impl Widget<LapceTabData> for LapceDynamicSplit {
 
     fn update(
         &mut self,
-        ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
-        env: &Env,
+        _ctx: &mut UpdateCtx,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
+        _env: &Env,
     ) {
     }
 
@@ -236,7 +234,7 @@ impl LapceSplitNew {
         index: usize,
         child: Box<dyn Widget<LapceTabData>>,
     ) {
-        let old_id = self.children[index].widget.id();
+        let _old_id = self.children[index].widget.id();
         let old_child = &mut self.children[index];
         old_child.widget = WidgetPod::new(child);
         let new_id = old_child.widget.id();
@@ -345,7 +343,7 @@ impl LapceSplitNew {
     pub fn split_editor_exchange(
         &mut self,
         ctx: &mut EventCtx,
-        data: &mut LapceTabData,
+        _data: &mut LapceTabData,
         widget_id: WidgetId,
     ) {
         if self.children.len() <= 1 {
@@ -379,7 +377,7 @@ impl LapceSplitNew {
     pub fn split_editor_move(
         &mut self,
         ctx: &mut EventCtx,
-        data: &mut LapceTabData,
+        _data: &mut LapceTabData,
         direction: &SplitMoveDirection,
         widget_id: WidgetId,
     ) {
@@ -443,7 +441,7 @@ impl LapceSplitNew {
         &mut self,
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
-        vertical: bool,
+        _vertical: bool,
         widget_id: WidgetId,
     ) {
         let mut index = 0;
@@ -493,7 +491,7 @@ impl LapceSplitNew {
 
             self.even_flex_children();
             ctx.children_changed();
-            for (pos, panel) in data.panels.iter_mut() {
+            for (_pos, panel) in data.panels.iter_mut() {
                 if panel.active == PanelKind::Terminal {
                     Arc::make_mut(panel).shown = false;
                 }
@@ -521,7 +519,7 @@ impl LapceSplitNew {
         } else {
             index + 1
         };
-        let terminal_id = self.children_ids[index];
+        let _terminal_id = self.children_ids[index];
         let new_terminal_id = self.children_ids[new_index];
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
@@ -700,7 +698,7 @@ impl LapceSplitNew {
         &mut self,
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
-        vertical: bool,
+        _vertical: bool,
         widget_id: WidgetId,
     ) {
         let mut index = 0;
@@ -912,7 +910,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
     fn update(
         &mut self,
         ctx: &mut druid::UpdateCtx,
-        old_data: &LapceTabData,
+        _old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
@@ -1120,7 +1118,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     ),
                 );
 
-                for (cmd, text, rect, keymap) in &self.commands {
+                for (_cmd, text, rect, keymap) in &self.commands {
                     ctx.draw_text(text, rect.origin());
                     if let Some(keymap) = keymap {
                         let origin = rect.origin()

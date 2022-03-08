@@ -1,30 +1,29 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use alacritty_terminal::ansi::CursorShape;
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
 use lapce_proxy::{
-    dispatch::{DiffInfo, FileDiff, FileNodeItem},
+    dispatch::{DiffInfo, FileNodeItem},
     plugin::PluginDescription,
     terminal::TermId,
 };
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
-    ProgressParams, PublishDiagnosticsParams, Range, TextEdit, WorkDoneProgress,
+    ProgressParams, PublishDiagnosticsParams, TextEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
-use strum_macros::{Display, EnumIter, EnumMessage, EnumProperty, EnumString};
+use strum_macros::{Display, EnumIter, EnumMessage, EnumString};
 use tree_sitter::Tree;
 use tree_sitter_highlight::Highlight;
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     buffer::BufferId,
-    buffer::{DiffLines, InvalLines, Style},
+    buffer::{DiffLines, Style},
     data::{EditorTabChild, SplitContent},
-    editor::{EditorLocation, EditorLocationNew, HighlightTextLayout},
+    editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},
     menu::MenuItem,
     movement::{LinePosition, Movement},

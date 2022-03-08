@@ -6,14 +6,11 @@ use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
 use std::{borrow::Cow, path::Path, time::SystemTime};
-use std::{fs, str::FromStr};
+use std::fs;
 
 use lsp_types::*;
-use serde::{Deserialize, Deserializer, Serialize};
-use xi_rope::{
-    interval::IntervalBounds, rope::Rope, Cursor, Delta, DeltaBuilder, Interval,
-    LinesMetric, RopeDelta, RopeInfo, Transformer,
-};
+use serde::{Deserialize, Serialize};
+use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct BufferId(pub usize);
@@ -87,7 +84,7 @@ impl Buffer {
 
         self.rope = rope;
         self.rev += 1;
-        self.sender.send((self.id, self.rev));
+        let _ = self.sender.send((self.id, self.rev));
     }
 
     pub fn update(
@@ -110,7 +107,7 @@ impl Buffer {
                 text: self.get_document(),
             },
         };
-        self.sender.send((self.id, self.rev));
+        let _ = self.sender.send((self.id, self.rev));
         Some(content_change)
     }
 
@@ -188,7 +185,7 @@ fn get_document_content_changes(
     }
     // Or a simple delete
     else if delta.is_simple_delete() {
-        let mut end_position = buffer.offset_to_position(end);
+        let end_position = buffer.offset_to_position(end);
 
         let text_document_content_change_event = TextDocumentContentChangeEvent {
             range: Some(Range {

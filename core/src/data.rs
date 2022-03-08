@@ -1,68 +1,58 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
-    fs::File,
-    io::{BufReader, Read},
     path::PathBuf,
-    process::{self, Stdio},
     rc::Rc,
-    slice::SliceIndex,
     str::FromStr,
-    sync::{atomic::AtomicU64, Arc},
+    sync::Arc,
     thread,
-    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
-use crossbeam_utils::sync::WaitGroup;
-use directories::{ProjectDirs, UserDirs};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
     theme,
-    widget::{Label, LabelText},
-    Application, Color, Command, Data, Env, EventCtx, ExtEventSink, FontDescriptor,
-    FontFamily, Insets, KeyEvent, Lens, LocalizedString, Point, Rect, Size, Target,
-    Vec2, Widget, WidgetExt, WidgetId, WindowDesc, WindowId,
+    Color, Command, Data, Env, EventCtx, ExtEventSink,
+    FontFamily, Lens, Point, Rect, Size, Target,
+    Vec2, Widget, WidgetExt, WidgetId, WindowId,
 };
-use im::{self, hashmap};
-use itertools::Itertools;
+use im;
 use lapce_proxy::{
     dispatch::{FileDiff, FileNodeItem},
     plugin::PluginDescription,
     terminal::TermId,
 };
 use lsp_types::{
-    CodeActionOrCommand, CodeActionResponse, CompletionItem, CompletionResponse,
-    CompletionTextEdit, Diagnostic, DiagnosticSeverity, GotoDefinitionResponse,
-    Location, Position, ProgressToken, TextEdit, WorkspaceClientCapabilities,
+    CodeActionOrCommand, CodeActionResponse, CompletionItem,
+    CompletionTextEdit, Diagnostic, DiagnosticSeverity,
+    Location, Position, ProgressToken, TextEdit,
 };
 use notify::Watcher;
-use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tree_sitter::{Node, Parser};
+use tree_sitter::Parser;
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
 };
 use xi_rope::{
-    spans::SpansBuilder, DeltaBuilder, Interval, Rope, RopeDelta, Transformer,
+    spans::SpansBuilder, Interval, RopeDelta, Transformer,
 };
 
 use crate::{
     buffer::{
-        get_word_property, has_unmatched_pair, matching_char,
-        matching_pair_direction, previous_has_unmatched_pair, BufferContent,
-        BufferId, BufferNew, BufferState, BufferUpdate, EditType, LocalBufferKind,
-        Style, UpdateEvent, WordProperty,
+        has_unmatched_pair, matching_char,
+        matching_pair_direction, BufferContent,
+        BufferNew, BufferUpdate, EditType, LocalBufferKind,
+        Style, UpdateEvent,
     },
     command::{
-        CommandTarget, EnsureVisiblePosition, LapceCommand, LapceCommandNew,
-        LapceUICommand, LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_NEW_COMMAND,
+        CommandTarget, EnsureVisiblePosition, LapceCommandNew,
+        LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    completion::{CompletionData, CompletionStatus, Snippet},
-    config::{Config, ConfigWatcher, GetConfig, LapceTheme},
+    completion::{CompletionData, Snippet},
+    config::{Config, ConfigWatcher, GetConfig},
     db::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
@@ -73,12 +63,11 @@ use crate::{
     },
     explorer::FileExplorerData,
     find::Find,
-    keymap::LapceKeymap,
-    keypress::{KeyPressData, KeyPressFocus},
+    keypress::{KeyPressData},
     language::{new_highlight_config, new_parser, LapceLanguage, SCOPES},
     menu::MenuData,
     movement::{
-        Cursor, CursorMode, InsertDrift, LinePosition, Movement, SelRegion,
+        Cursor, CursorMode, InsertDrift, Movement, SelRegion,
         Selection,
     },
     palette::{PaletteData, PaletteType, PaletteViewData},
@@ -86,13 +75,13 @@ use crate::{
     picker::FilePickerData,
     plugin::PluginData,
     problem::ProblemData,
-    proxy::{LapceProxy, ProxyHandlerNew, ProxyStatus, TermEvent},
+    proxy::{LapceProxy, ProxyStatus, TermEvent},
     search::SearchData,
     settings::LapceSettingsPanelData,
-    source_control::{SourceControlData, SEARCH_BUFFER, SOURCE_CONTROL_BUFFER},
-    split::{LapceDynamicSplit, LapceSplitNew, SplitDirection, SplitMoveDirection},
+    source_control::SourceControlData,
+    split::{LapceSplitNew, SplitDirection, SplitMoveDirection},
     state::{LapceWorkspace, LapceWorkspaceType, Mode, VisualMode},
-    svg::{file_svg_new, get_svg},
+    svg::get_svg,
     terminal::TerminalSplitData,
 };
 
@@ -142,7 +131,7 @@ impl LapceData {
 
         thread::spawn(move || {
             if let Ok(plugins) = LapceData::load_plugin_descriptions() {
-                event_sink.submit_command(
+                let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdatePluginDescriptions(plugins),
                     Target::Auto,
@@ -265,7 +254,7 @@ impl LapceWindowData {
             })
             .unwrap_or_default(),
         );
-        event_sink.submit_command(
+        let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::Focus,
             Target::Widget(active_tab_id),
@@ -275,10 +264,10 @@ impl LapceWindowData {
             notify::recommended_watcher(ConfigWatcher::new(event_sink.clone()))
                 .unwrap();
         if let Some(path) = Config::settings_file() {
-            watcher.watch(&path, notify::RecursiveMode::Recursive);
+            let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         if let Some(path) = KeyPressData::file() {
-            watcher.watch(&path, notify::RecursiveMode::Recursive);
+            let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
         let menu = MenuData::new();
 
@@ -721,7 +710,8 @@ impl LapceTabData {
             workspace: self.workspace.clone(),
         }
     }
-
+    
+    #[allow(unused_variables)]
     pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
         let editor = self.main_split.active_editor();
         let editor = match editor {
@@ -810,7 +800,8 @@ impl LapceTabData {
             }
         }
     }
-
+    
+    #[allow(unused_variables)]
     pub fn code_action_origin(
         &self,
         text: &mut PietText,
@@ -905,7 +896,8 @@ impl LapceTabData {
             terminal: self.terminal.clone(),
         }
     }
-
+    
+    #[allow(unused_variables)]
     pub fn run_workbench_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -932,7 +924,7 @@ impl LapceTabData {
                                         serde_json::Error,
                                     > = serde_json::from_value(res);
                                     if let Ok(items) = resp {
-                                        event_sink.submit_command(
+                                        let _ = event_sink.submit_command(
                                             LAPCE_UI_COMMAND,
                                             LapceUICommand::UpdatePickerItems(
                                                 path,
@@ -1293,7 +1285,8 @@ impl LapceTabData {
             )),
         }
     }
-
+    
+    #[allow(unused_variables)]
     pub fn terminal_update_process(
         tab_id: WidgetId,
         palette_widget_id: WidgetId,
@@ -1329,7 +1322,7 @@ impl LapceTabData {
                         if last_event.is_some() {
                             if last_redraw.elapsed().as_millis() > 10 {
                                 last_redraw = std::time::Instant::now();
-                                event_sink.submit_command(
+                                let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::RequestPaint,
                                     Target::Widget(tab_id),
@@ -1337,7 +1330,7 @@ impl LapceTabData {
                             }
                         } else {
                             last_redraw = std::time::Instant::now();
-                            event_sink.submit_command(
+                            let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::RequestPaint,
                                 Target::Widget(tab_id),
@@ -1435,7 +1428,7 @@ impl LapceTabData {
                                 );
                             }
                             let highlights = highlights.build();
-                            event_sink.submit_command(
+                            let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::UpdateStyle {
                                     id: update.id,
@@ -1464,7 +1457,7 @@ impl LapceTabData {
                     let resp: Result<Vec<FileNodeItem>, serde_json::Error> =
                         serde_json::from_value(res);
                     if let Ok(items) = resp {
-                        event_sink.submit_command(
+                        let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::UpdatePickerItems(
                                 path,
@@ -1716,7 +1709,11 @@ pub struct RegisterData {
 pub struct Register {
     pub unamed: RegisterData,
     last_yank: RegisterData,
+    
+    #[allow(dead_code)]
     last_deletes: [RegisterData; 10],
+    
+    #[allow(dead_code)]
     newest_delete: usize,
 }
 
@@ -1855,8 +1852,8 @@ impl LapceMainSplitData {
             rev,
             buffer_id,
             Box::new(move |result| {
-                if let Ok(r) = result {
-                    event_sink.submit_command(
+                if let Ok(_r) = result {
+                    let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::BufferSave(path, rev),
                         Target::Auto,
@@ -1918,7 +1915,7 @@ impl LapceMainSplitData {
     }
 
     fn cursor_apply_delta(&mut self, path: &PathBuf, delta: &RopeDelta) {
-        for (view_id, editor) in self.editors.iter_mut() {
+        for (_view_id, editor) in self.editors.iter_mut() {
             match &editor.content {
                 BufferContent::File(current_path) => {
                     if current_path == path {
@@ -1970,7 +1967,7 @@ impl LapceMainSplitData {
             let split = self.splits.get_mut(&self.split_id).unwrap();
             let split = Arc::make_mut(split);
 
-            let mut editor_tab = LapceEditorTabData {
+            let editor_tab = LapceEditorTabData {
                 widget_id: WidgetId::next(),
                 split: *self.split_id,
                 active: 0,
@@ -2485,7 +2482,8 @@ impl LapceMainSplitData {
         );
         self.editors.insert(editor.view_id, Arc::new(editor));
     }
-
+    
+    #[allow(unused_variables)]
     pub fn split_close(
         &mut self,
         ctx: &mut EventCtx,
@@ -3021,7 +3019,8 @@ impl LapceEditorViewData {
             buffer.scroll_offset = scroll_offset;
         }
     }
-
+    
+    #[allow(unused_variables)]
     pub fn fill_text_layouts(
         &mut self,
         ctx: &mut EventCtx,
@@ -3072,7 +3071,7 @@ impl LapceEditorViewData {
                             if let Ok(resp) =
                                 serde_json::from_value::<CodeActionResponse>(res)
                             {
-                                event_sink.submit_command(
+                                let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
                                     LapceUICommand::UpdateCodeActions(
                                         path,
@@ -3089,7 +3088,8 @@ impl LapceEditorViewData {
             }
         }
     }
-
+    
+    #[allow(dead_code)]
     fn toggle_visual(&mut self, visual_mode: VisualMode) {
         if !self.config.lapce.modal {
             return;
@@ -3198,7 +3198,7 @@ impl LapceEditorViewData {
                             }
 
                             let mut selection = Selection::new();
-                            let (tab, (start, end)) = &snippet_tabs[0];
+                            let (_tab, (start, end)) = &snippet_tabs[0];
                             let region = SelRegion::new(*start, *end, None);
                             selection.add_region(region);
                             self.set_cursor(Cursor::new(
@@ -3231,7 +3231,8 @@ impl LapceEditorViewData {
         self.set_cursor_after_change(selection);
         Ok(())
     }
-
+    
+    #[allow(dead_code)]
     fn scroll(
         &mut self,
         ctx: &mut EventCtx,
@@ -3280,7 +3281,8 @@ impl LapceEditorViewData {
             Target::Widget(self.editor.view_id),
         ));
     }
-
+    
+    #[allow(dead_code)]
     fn page_move(&mut self, ctx: &mut EventCtx, down: bool, config: &Config) {
         let line_height = self.config.editor.line_height as f64;
         let lines =
@@ -3359,7 +3361,8 @@ impl LapceEditorViewData {
             ));
         }
     }
-
+    
+    #[allow(unused_variables)]
     pub fn jump_location_forward(
         &mut self,
         ctx: &mut EventCtx,
@@ -3569,7 +3572,8 @@ impl LapceEditorViewData {
         let editor = Arc::make_mut(&mut self.editor);
         editor.cursor = cursor;
     }
-
+    
+    #[allow(dead_code)]
     fn paste(&mut self, ctx: &mut EventCtx, data: &RegisterData) {
         match data.mode {
             VisualMode::Normal => {
@@ -3742,6 +3746,7 @@ impl LapceEditorViewData {
                     register.add_delete(data);
                 }
             }
+            #[allow(unused_variables)]
             CursorMode::Visual { start, end, mode } => {
                 let data = self
                     .editor
@@ -3828,6 +3833,7 @@ fn next_in_file_errors_offset(
     ((*file_diagnostics[0].0).clone(), file_diagnostics[0].1[0])
 }
 
+#[allow(dead_code)]
 fn process_get_references(
     editor_view_id: WidgetId,
     offset: usize,
@@ -3841,7 +3847,7 @@ fn process_get_references(
     }
     if locations.len() == 1 {
         let location = &locations[0];
-        event_sink.submit_command(
+        let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::GotoReference(
                 editor_view_id,
@@ -3856,7 +3862,7 @@ fn process_get_references(
             Target::Auto,
         );
     }
-    event_sink.submit_command(
+    let _ = event_sink.submit_command(
         LAPCE_UI_COMMAND,
         LapceUICommand::PaletteReferences(offset, locations),
         Target::Auto,
@@ -3913,7 +3919,7 @@ fn buffer_receive_update(
         update.rope.slice_to_cow(0..update.rope.len()).as_bytes(),
         None,
     ) {
-        event_sink.submit_command(
+        let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateSyntaxTree {
                 id: update.id,
@@ -3964,7 +3970,7 @@ fn buffer_receive_update(
             }
         }
         let highlights = highlights.build();
-        event_sink.submit_command(
+        let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
             LapceUICommand::UpdateStyle {
                 id: update.id,
@@ -3978,6 +3984,7 @@ fn buffer_receive_update(
     }
 }
 
+#[allow(dead_code)]
 fn str_is_pair_left(c: &str) -> bool {
     if c.chars().count() == 1 {
         let c = c.chars().next().unwrap();
@@ -3988,6 +3995,7 @@ fn str_is_pair_left(c: &str) -> bool {
     false
 }
 
+#[allow(dead_code)]
 fn str_is_pair_right(c: &str) -> bool {
     if c.chars().count() == 1 {
         let c = c.chars().next().unwrap();
@@ -3996,6 +4004,7 @@ fn str_is_pair_right(c: &str) -> bool {
     false
 }
 
+#[allow(dead_code)]
 fn str_matching_pair(c: &str) -> Option<char> {
     if c.chars().count() == 1 {
         let c = c.chars().next().unwrap();
@@ -4004,4 +4013,5 @@ fn str_matching_pair(c: &str) -> Option<char> {
     None
 }
 
+#[allow(dead_code)]
 fn progress_term_event() {}

@@ -7,27 +7,26 @@ use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::BaseDirs;
-use git2::{DiffOptions, Oid, Repository};
+use git2::{DiffOptions, Repository};
 use grep_matcher::Matcher;
-use grep_regex::{RegexMatcher, RegexMatcherBuilder};
+use grep_regex::{RegexMatcherBuilder};
 use grep_searcher::sinks::UTF8;
-use grep_searcher::{Searcher, SearcherBuilder};
-use jsonrpc_lite::{self, JsonRpc};
+use grep_searcher::{SearcherBuilder};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::{CompletionItem, Position, TextDocumentContentChangeEvent};
 use notify::Watcher;
 use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use std::cmp::Ordering;
 use std::{cmp, fs};
-use std::{collections::HashMap, io};
+use std::collections::HashMap;
 use std::{collections::HashSet, io::BufRead};
-use std::{path::PathBuf, sync::atomic::AtomicBool};
-use std::{sync::atomic, thread};
-use std::{sync::Arc, time::Duration};
-use xi_rope::{RopeDelta, RopeInfo};
+use std::path::PathBuf;
+use std::thread;
+use std::sync::Arc;
+use xi_rope::RopeDelta;
 
 #[derive(Clone)]
 pub struct Dispatcher {
@@ -35,7 +34,10 @@ pub struct Dispatcher {
     pub git_sender: Sender<(BufferId, u64)>,
     pub workspace: Arc<Mutex<Option<PathBuf>>>,
     pub buffers: Arc<Mutex<HashMap<BufferId, Buffer>>>,
+    
+    #[allow(deprecated)]
     pub terminals: Arc<Mutex<HashMap<TermId, mio::channel::Sender<Msg>>>>,
+    
     open_files: Arc<Mutex<HashMap<String, BufferId>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
@@ -70,7 +72,7 @@ impl notify::EventHandler for Dispatcher {
                                             },
                                             buffer.rev,
                                         );
-                                        self.sender.send(json!({
+                                        let _ = self.sender.send(json!({
                                             "method": "reload_buffer",
                                             "params": {
                                                 "buffer_id": buffer_id,
@@ -393,7 +395,8 @@ impl Dispatcher {
                         match &notification {
                             Notification::Shutdown {} => {
                                 for (_, sender) in self.terminals.lock().iter() {
-                                    sender.send(Msg::Shutdown);
+                                    #[allow(deprecated)]
+                                    let _ = sender.send(Msg::Shutdown);
                                 }
                                 self.open_files.lock().clear();
                                 self.buffers.lock().clear();
@@ -406,7 +409,7 @@ impl Dispatcher {
                         }
                         self.handle_notification(notification);
                     }
-                    Err(e) => {}
+                    Err(_e) => {}
                 }
             }
         }
@@ -421,7 +424,7 @@ impl Dispatcher {
                 Ok((buffer_id, rev)) => {
                     let buffers = buffers.lock();
                     let buffer = buffers.get(&buffer_id).unwrap();
-                    let (path, content) = if buffer.rev != rev {
+                    let (_path, _content) = if buffer.rev != rev {
                         continue;
                     } else {
                         (
@@ -473,11 +476,11 @@ impl Dispatcher {
                 })
             }
         }
-        self.sender.send(resp);
+        let _ = self.sender.send(resp);
     }
 
     pub fn send_notification(&self, method: &str, params: Value) {
-        self.sender.send(json!({
+        let _ = self.sender.send(json!({
             "method": method,
             "params": params,
         }));
@@ -487,7 +490,7 @@ impl Dispatcher {
         match rpc {
             Notification::Initialize { workspace } => {
                 *self.workspace.lock() = Some(workspace.clone());
-                self.watcher
+                let _ = self.watcher
                     .lock()
                     .as_mut()
                     .unwrap()
@@ -518,7 +521,7 @@ impl Dispatcher {
                 let catalog = self.plugins.clone();
                 let dispatcher = self.clone();
                 std::thread::spawn(move || {
-                    if let Err(e) =
+                    if let Err(_e) =
                         catalog.lock().install_plugin(dispatcher.clone(), plugin)
                     {
                     }
@@ -543,13 +546,16 @@ impl Dispatcher {
             Notification::TerminalClose { term_id } => {
                 let mut terminals = self.terminals.lock();
                 if let Some(tx) = terminals.remove(&term_id) {
-                    tx.send(Msg::Shutdown);
+                    #[allow(deprecated)]
+                    let _ = tx.send(Msg::Shutdown);
                 }
             }
             Notification::TerminalWrite { term_id, content } => {
                 let terminals = self.terminals.lock();
                 let tx = terminals.get(&term_id).unwrap();
-                tx.send(Msg::Input(content.into_bytes().into()));
+                
+                #[allow(deprecated)]
+                let _ = tx.send(Msg::Input(content.into_bytes().into()));
             }
             Notification::TerminalResize {
                 term_id,
@@ -567,11 +573,13 @@ impl Dispatcher {
                     0.0,
                     true,
                 );
-                tx.send(Msg::Resize(size));
+                
+                #[allow(deprecated)]
+                let _ = tx.send(Msg::Resize(size));
             }
             Notification::GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
-                    if let Err(e) = git_commit(&workspace, &message, diffs) {}
+                    if let Err(_e) = git_commit(&workspace, &message, diffs) {}
                 }
             }
         }
@@ -580,7 +588,7 @@ impl Dispatcher {
     fn handle_request(&self, id: RequestId, rpc: Request) {
         match rpc {
             Request::NewBuffer { buffer_id, path } => {
-                self.watcher
+                let _ = self.watcher
                     .lock()
                     .as_mut()
                     .unwrap()
@@ -591,22 +599,23 @@ impl Dispatcher {
                 let buffer = Buffer::new(buffer_id, path, self.git_sender.clone());
                 let content = buffer.rope.to_string();
                 self.buffers.lock().insert(buffer_id, buffer);
-                self.git_sender.send((buffer_id, 0));
+                let _ = self.git_sender.send((buffer_id, 0));
                 let resp = NewBufferResponse { content };
-                self.sender.send(json!({
+                let _ = self.sender.send(json!({
                     "id": id,
                     "result": resp,
                 }));
             }
+            #[allow(unused_variables)]
             Request::BufferHead { buffer_id, path } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     let result = file_get_head(&workspace, &path);
-                    if let Ok((blob_id, content)) = result {
+                    if let Ok((_blob_id, content)) = result {
                         let resp = BufferHeadResponse {
                             id: "head".to_string(),
                             content,
                         };
-                        self.sender.send(json!({
+                        let _ = self.sender.send(json!({
                             "id": id,
                             "result": resp,
                         }));
@@ -705,6 +714,7 @@ impl Dispatcher {
                     local_dispatcher.respond(id, result);
                 });
             }
+            #[allow(unused_variables)]
             Request::GetFiles { path } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     let local_dispatcher = self.clone();
@@ -727,7 +737,7 @@ impl Dispatcher {
             Request::Save { rev, buffer_id } => {
                 let mut buffers = self.buffers.lock();
                 let buffer = buffers.get_mut(&buffer_id).unwrap();
-                let resp = buffer.save(rev).map(|r| json!({}));
+                let resp = buffer.save(rev).map(|_r| json!({}));
                 self.lsp.lock().save_buffer(buffer);
                 self.respond(id, resp);
             }
@@ -748,7 +758,7 @@ impl Dispatcher {
                                         if file_type.is_file() {
                                             let path = path.into_path();
                                             let mut line_matches = Vec::new();
-                                            searcher.search_path(
+                                            let _ = searcher.search_path(
                                                 &matcher,
                                                 path.clone(),
                                                 UTF8(|lnum, line| {
@@ -959,6 +969,7 @@ fn file_get_head(
     Ok((id, content))
 }
 
+#[allow(dead_code)]
 fn file_git_diff(
     workspace_path: &PathBuf,
     path: &PathBuf,
@@ -971,7 +982,7 @@ fn file_git_diff(
         .get_path(path.strip_prefix(workspace_path).ok()?)
         .ok()?;
     let blob = repo.find_blob(tree_entry.id()).ok()?;
-    let mut patch = git2::Patch::from_blob_and_buffer(
+    let patch = git2::Patch::from_blob_and_buffer(
         &blob,
         None,
         content.as_bytes(),

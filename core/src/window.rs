@@ -3,27 +3,19 @@ use crate::{
     command::LAPCE_UI_COMMAND,
     config::{Config, LapceTheme},
     data::{LapceTabData, LapceTabLens, LapceWindowData},
-    editor::EditorUIState,
-    explorer::{FileExplorer, FileExplorerState},
     menu::Menu,
-    panel::{LapcePanel, PanelPosition, PanelProperty},
-    state::{LapceWorkspace, LapceWorkspaceType},
+    state::LapceWorkspace,
     tab::{LapceTabHeader, LapceTabNew},
-    theme::OldLapceTheme,
     title::Title,
 };
 use druid::{
     kurbo::Line,
-    piet::{Text, TextLayout, TextLayoutBuilder},
-    theme,
-    widget::IdentityWrapper,
     widget::{LensWrap, WidgetExt},
-    BoxConstraints, Command, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext,
-    Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod, WindowId,
+    BoxConstraints, Command, Env, Event, EventCtx,
+    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext,
+    Size, Target, Widget, WidgetId, WidgetPod
 };
-use parking_lot::Mutex;
-use std::{collections::HashMap, ops::Index, sync::Arc};
+use std::sync::Arc;
 
 pub struct LapceWindowNew {
     pub title: WidgetPod<LapceWindowData, Box<dyn Widget<LapceWindowData>>>,
@@ -76,7 +68,7 @@ impl LapceWindowNew {
     ) {
         if replace_current {
             let tab = data.tabs.get(&data.active_id).unwrap();
-            tab.db.save_workspace(&tab);
+            let _ = tab.db.save_workspace(&tab);
         }
         let tab_id = WidgetId::next();
         let tab_data = LapceTabData::new(
@@ -111,7 +103,7 @@ impl LapceWindowNew {
             Target::Widget(data.active_id),
         ));
         data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());
-        data.db.save_tabs_async(data);
+        let _ = data.db.save_tabs_async(data);
         ctx.children_changed();
         ctx.set_handled();
         ctx.request_layout();
@@ -132,7 +124,7 @@ impl LapceWindowNew {
         self.tabs.remove(index);
         self.tab_headers.remove(index);
         if let Some(tab) = data.tabs.remove(&id) {
-            tab.db.save_workspace(&tab);
+            let _ = tab.db.save_workspace(&tab);
             tab.proxy.stop();
         }
 
@@ -151,7 +143,7 @@ impl LapceWindowNew {
         }
 
         data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());
-        data.db.save_tabs_async(data);
+        let _ = data.db.save_tabs_async(data);
         ctx.children_changed();
         ctx.set_handled();
         ctx.request_layout();
@@ -227,6 +219,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     }
                     LapceUICommand::ReloadWindow => {
                         let tab = data.tabs.get(&data.active_id).unwrap();
+                        
+                        #[allow(mutable_borrow_reservation_conflict)]
                         self.new_tab(ctx, data, (*tab.workspace).clone(), true);
                         return;
                     }
@@ -300,7 +294,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                                 if i != data.active {
                                     data.active = i;
                                     data.active_id = tab.id();
-                                    data.db.save_tabs_async(data);
+                                    let _ = data.db.save_tabs_async(data);
                                     ctx.submit_command(Command::new(
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::Focus,
@@ -318,7 +312,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         data.active = *index;
                         data.tabs_order =
                             Arc::new(self.tabs.iter().map(|t| t.id()).collect());
-                        data.db.save_tabs_async(data);
+                        let _ = data.db.save_tabs_async(data);
                         return;
                     }
                     LapceUICommand::NextTab => {
@@ -327,12 +321,12 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         } else {
                             data.active + 1
                         };
-                        data.db.save_workspace_async(
+                        let _ = data.db.save_workspace_async(
                             data.tabs.get(&data.active_id).unwrap(),
                         );
                         data.active = new_index;
                         data.active_id = self.tabs[new_index].id();
-                        data.db.save_tabs_async(data);
+                        let _ = data.db.save_tabs_async(data);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
@@ -347,12 +341,12 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         } else {
                             data.active - 1
                         };
-                        data.db.save_workspace_async(
+                        let _ = data.db.save_workspace_async(
                             data.tabs.get(&data.active_id).unwrap(),
                         );
                         data.active = new_index;
                         data.active_id = self.tabs[new_index].id();
-                        data.db.save_tabs_async(data);
+                        let _ = data.db.save_tabs_async(data);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
@@ -486,7 +480,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
 
             (tab_size, tab_origin)
         } else {
-            for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
+            for (_i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 let bc = BoxConstraints::tight(Size::new(self_size.width, 0.0));
                 tab_header.layout(ctx, &bc, data, env);
                 tab_header.set_origin(
@@ -509,7 +503,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
-        let start = std::time::SystemTime::now();
+        let _start = std::time::SystemTime::now();
 
         let title_height = self.title.layout_rect().height();
 

@@ -1,8 +1,7 @@
-use druid::{Env, PaintCtx, WidgetId};
-
-use crate::panel::{PanelPosition, PanelProperty};
+use druid::WidgetId;
 
 pub struct OutlineState {
+    #[allow(dead_code)]
     widget_id: WidgetId,
 }
 
