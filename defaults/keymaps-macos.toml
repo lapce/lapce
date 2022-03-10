@@ -47,6 +47,11 @@ key = "ctrl+."
 command = "show_code_actions"
 mode = "n"
 
+[[keymaps]]
+key = "space"
+command = "toggle_code_lens"
+mode = "nv"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]

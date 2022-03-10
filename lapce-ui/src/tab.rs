@@ -870,6 +870,15 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .update_syntax_tree(*rev, tree.to_owned());
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateSyntax { path, rev, syntax } => {
+                        ctx.set_handled();
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        let buffer = Arc::make_mut(buffer);
+                        if buffer.rev == *rev {
+                            buffer.syntax = Some(syntax.clone());
+                        }
+                    }
                     #[allow(unused_variables)]
                     LapceUICommand::UpdateHisotryChanges {
                         id,

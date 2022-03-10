@@ -6,6 +6,7 @@ use druid::{
 };
 use druid::{PaintCtx, Point};
 use language::{new_highlight_config, LapceLanguage};
+use lapce_core::syntax::Syntax;
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
 use lsp_types::SemanticTokensLegend;
 use lsp_types::SemanticTokensServerCapabilities;
@@ -246,6 +247,7 @@ pub struct Buffer {
     pub styles: Arc<Spans<Style>>,
     pub semantic_tokens: bool,
     pub language: Option<LapceLanguage>,
+    pub syntax: Option<Syntax>,
     pub highlighter: Arc<Mutex<Highlighter>>,
     pub highlight: Option<Arc<Mutex<HighlightConfiguration>>>,
     pub max_len: usize,
@@ -302,6 +304,10 @@ impl Buffer {
             BufferContent::File(path) => LapceLanguage::from_path(path),
             BufferContent::Local(_) => None,
         };
+        let syntax = match &content {
+            BufferContent::File(path) => Syntax::init(path),
+            BufferContent::Local(_) => None,
+        };
         let buffer = Self {
             id: BufferId::next(),
             rope,
@@ -309,6 +315,7 @@ impl Buffer {
             highlight: language
                 .map(|l| Arc::new(Mutex::new(new_highlight_config(l)))),
             language,
+            syntax,
             content,
             styles: Arc::new(SpansBuilder::new(0).build()),
             line_styles: Rc::new(RefCell::new(Vec::new())),
@@ -410,7 +417,7 @@ impl Buffer {
         self.num_lines = self.num_lines();
         *self.line_styles.borrow_mut() = vec![None; self.num_lines()];
         self.loaded = true;
-        self.notify_update();
+        self.notify_update(None);
     }
 
     fn retrieve_history_styles(&self, version: &str, content: Rope) {
@@ -487,7 +494,7 @@ impl Buffer {
         }
     }
 
-    pub fn notify_update(&self) {
+    pub fn notify_update(&self, delta: Option<&RopeDelta>) {
         if let Some(language) = self.language {
             if let BufferContent::File(path) = &self.content {
                 let _ = self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
@@ -501,7 +508,40 @@ impl Buffer {
                 }));
             }
         }
+        self.trigger_syntax_change(delta);
         self.trigger_history_change();
+    }
+
+    fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
+        if let BufferContent::File(path) = &self.content {
+            if let Some(syntax) = self.syntax.clone() {
+                let path = path.clone();
+                let rev = self.rev;
+                let text = self.rope.clone();
+                let delta = delta.cloned();
+                let atomic_rev = self.atomic_rev.clone();
+                let event_sink = self.event_sink.clone();
+                let tab_id = self.tab_id;
+                rayon::spawn(move || {
+                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                        return;
+                    }
+                    let new_syntax = syntax.parse(rev, text, delta);
+                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                        return;
+                    }
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSyntax {
+                            path,
+                            rev,
+                            syntax: new_syntax,
+                        },
+                        Target::Widget(tab_id),
+                    );
+                });
+            }
+        }
     }
 
     pub fn retrieve_file_head(
@@ -699,9 +739,8 @@ impl Buffer {
         self.slice_to_cow(start_offset..offset)
     }
 
-    pub fn line_content(&self, line: usize) -> String {
+    pub fn line_content(&self, line: usize) -> Cow<str> {
         self.slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
-            .to_string()
     }
 
     pub fn offset_of_line(&self, line: usize) -> usize {
@@ -889,13 +928,19 @@ impl Buffer {
         line_content: &str,
         cursor_index: Option<usize>,
         bounds: [f64; 2],
+        code_lens: bool,
         config: &Config,
     ) -> PietTextLayout {
         let styles = self.get_line_styles(line);
+        let font_size = if code_lens {
+            config.editor.code_lens_font_size as f64
+        } else {
+            config.editor.font_size as f64
+        };
         let mut layout_builder = ctx
             .text()
             .new_text_layout(line_content.to_string())
-            .font(config.editor.font_family(), config.editor.font_size as f64)
+            .font(config.editor.font_family(), font_size)
             .text_color(
                 config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -1052,8 +1097,7 @@ impl Buffer {
 
     pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
         let mut offset = self.offset_of_line(line + 1);
-        let line_content = self.line_content(line);
-        let mut line_content = line_content.as_str();
+        let mut line_content: &str = &self.line_content(line);
         if line_content.ends_with('\n') {
             offset -= 1;
             line_content = &line_content[..line_content.len() - 1];
@@ -1855,7 +1899,7 @@ impl Buffer {
         self.update_line_styles(delta, &inval_lines);
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
-        self.notify_update();
+        self.notify_update(Some(delta));
     }
 
     pub fn update_edit_type(&mut self) {

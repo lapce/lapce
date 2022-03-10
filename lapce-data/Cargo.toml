@@ -57,6 +57,7 @@ druid = { git = "https://github.com/lapce/druid", features = [ "svg", "im", "ser
 toml = { version = "0.5.8", features = ["preserve_order"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 #structdesc = { path = "../../structdesc" }
+lapce-core = { path = "../lapce-core" }
 lapce-rpc = { path = "../lapce-rpc" }
 lapce-proxy = { path = "../lapce-proxy" }
 

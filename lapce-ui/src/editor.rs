@@ -1385,31 +1385,12 @@ impl LapceEditorView {
         panels: im::HashMap<PanelPosition, Arc<PanelData>>,
         env: &Env,
     ) {
-        let line_height = data.config.editor.line_height as f64;
-        let offset = data.editor.cursor.offset();
-        let (line, col) = data
-            .buffer
-            .offset_to_line_col(offset, data.config.editor.tab_width);
-        let width = data.config.editor_text_width(ctx.text(), "W");
-        let cursor_x = col as f64 * width - width;
-        let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
+        let center = data.cursor_region(ctx.text(), &data.config).center();
 
-        let line = if let Some(compare) = data.editor.compare.as_ref() {
-            data.buffer.diff_visual_line(compare, line)
-        } else {
-            line
-        };
-
-        let rect = Rect::ZERO
-            .with_origin(Point::new(
-                cursor_x.floor(),
-                line as f64 * line_height + line_height / 2.0,
-            ))
-            .with_size(Size::new((width * 3.0).ceil(), 0.0))
-            .inflate(
-                (data.editor.size.borrow().width / 2.0).ceil(),
-                (data.editor.size.borrow().height / 2.0).ceil(),
-            );
+        let rect = Rect::ZERO.with_origin(center).inflate(
+            (data.editor.size.borrow().width / 2.0).ceil(),
+            (data.editor.size.borrow().height / 2.0).ceil(),
+        );
 
         let editor_size = *data.editor.size.borrow();
         let size = data.get_size(ctx.text(), editor_size, panels);
@@ -1630,6 +1611,9 @@ impl Widget<LapceTabData> for LapceEditorView {
             ctx.request_layout();
         }
         if editor_data.editor.compare != old_editor_data.editor.compare {
+            ctx.request_layout();
+        }
+        if editor_data.editor.code_lens != old_editor_data.editor.code_lens {
             ctx.request_layout();
         }
         if editor_data.editor.compare.is_some() {

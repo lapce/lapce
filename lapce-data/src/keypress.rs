@@ -849,6 +849,7 @@ impl KeyPressData {
             let key = match parts[parts.len() - 1].to_lowercase().as_str() {
                 "escape" => druid::KbKey::Escape,
                 "esc" => druid::KbKey::Escape,
+                "space" => druid::KbKey::Character(" ".to_string()),
                 "backspace" => druid::KbKey::Backspace,
                 "bs" => druid::KbKey::Backspace,
                 "arrowup" => druid::KbKey::ArrowUp,

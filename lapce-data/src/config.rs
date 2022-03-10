@@ -97,6 +97,8 @@ pub struct EditorConfig {
     pub font_family: String,
     #[field_names(desc = "Set the font size")]
     pub font_size: usize,
+    #[field_names(desc = "Set the font size in the code lens")]
+    pub code_lens_font_size: usize,
     #[field_names(desc = "Set the line height")]
     pub line_height: usize,
     #[field_names(desc = "Set the tab width")]

@@ -3,6 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
+use lapce_core::syntax::Syntax;
 use lapce_proxy::{
     dispatch::{DiffInfo, FileNodeItem},
     plugin::PluginDescription,
@@ -346,6 +347,11 @@ pub enum LapceCommand {
     Undo,
     #[strum(serialize = "redo")]
     Redo,
+
+    #[strum(message = "Toggle Code Lens")]
+    #[strum(serialize = "toggle_code_lens")]
+    ToggleCodeLens,
+
     #[strum(serialize = "center_of_window")]
     CenterOfWindow,
 
@@ -547,6 +553,11 @@ pub enum LapceUICommand {
         path: PathBuf,
         rev: u64,
         tree: Tree,
+    },
+    UpdateSyntax {
+        path: PathBuf,
+        rev: u64,
+        syntax: Syntax,
     },
     UpdateHisotryChanges {
         id: BufferId,
