@@ -451,7 +451,6 @@ pub enum EnsureVisiblePosition {
     CenterOfWindow,
 }
 
-#[derive(Debug)]
 pub enum LapceUICommand {
     InitTerminalPanel(bool),
     ReloadConfig,

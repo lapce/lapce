@@ -17,50 +17,16 @@ thread_local! {
    static PARSER: RefCell<HashMap<LapceLanguage, Parser>> = RefCell::new(HashMap::new());
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Syntax {
     rev: u64,
     language: LapceLanguage,
     pub text: Rope,
     tree: Option<Tree>,
+    pub lens: Lens,
     pub normal_lines: Vec<usize>,
-}
-
-pub struct CodeLens {
-    lens: Lens,
-    line_height: usize,
-    lens_height: usize,
-    normal_lines: Vec<usize>,
-}
-
-impl CodeLens {
-    pub fn from_normal_lines(
-        total_lines: usize,
-        line_height: usize,
-        lens_height: usize,
-        normal_lines: Vec<usize>,
-    ) -> Self {
-        let mut builder = LensBuilder::new();
-        let mut current_line = 0;
-        for normal_line in normal_lines.iter() {
-            let normal_line = *normal_line;
-            if normal_line > current_line {
-                builder.add_section(normal_line - current_line, lens_height);
-            }
-            builder.add_section(1, line_height);
-            current_line = normal_line + 1;
-        }
-        if current_line < total_lines {
-            builder.add_section(total_lines - current_line, lens_height);
-        }
-        let lens = builder.build();
-        Self {
-            lens,
-            line_height,
-            lens_height,
-            normal_lines,
-        }
-    }
+    pub line_height: usize,
+    pub lens_height: usize,
 }
 
 impl Syntax {
@@ -70,6 +36,9 @@ impl Syntax {
             language: l,
             text: Rope::from(""),
             tree: None,
+            lens: Self::lens_from_normal_lines(0, 0, 0, &Vec::new()),
+            line_height: 0,
+            lens_height: 0,
             normal_lines: Vec::new(),
         })
     }
@@ -180,13 +149,55 @@ impl Syntax {
             Vec::new()
         };
 
+        let lens = Self::lens_from_normal_lines(
+            new_text.line_of_offset(new_text.len()),
+            0,
+            0,
+            &normal_lines,
+        );
         Syntax {
             rev: new_rev,
             language: self.language,
-            text: new_text,
             tree: new_tree,
+            text: new_text,
+            lens,
+            line_height: 0,
+            lens_height: 0,
             normal_lines,
         }
+    }
+
+    pub fn update_lens_height(&mut self, line_height: usize, lens_height: usize) {
+        self.lens = Self::lens_from_normal_lines(
+            self.text.line_of_offset(self.text.len()),
+            line_height,
+            lens_height,
+            &self.normal_lines,
+        );
+        self.line_height = line_height;
+        self.lens_height = lens_height;
+    }
+
+    fn lens_from_normal_lines(
+        total_lines: usize,
+        line_height: usize,
+        lens_height: usize,
+        normal_lines: &[usize],
+    ) -> Lens {
+        let mut builder = LensBuilder::new();
+        let mut current_line = 0;
+        for normal_line in normal_lines.iter() {
+            let normal_line = *normal_line;
+            if normal_line > current_line {
+                builder.add_section(normal_line - current_line, lens_height);
+            }
+            builder.add_section(1, line_height);
+            current_line = normal_line + 1;
+        }
+        if current_line < total_lines {
+            builder.add_section(total_lines - current_line, lens_height);
+        }
+        builder.build()
     }
 }
 
@@ -196,15 +207,15 @@ mod tests {
 
     #[test]
     fn test_lens() {
-        let lens = CodeLens::from_normal_lines(5, 25, 2, vec![4]);
-        assert_eq!(5, lens.lens.len());
-        assert_eq!(8, lens.lens.height_of_line(4));
-        assert_eq!(33, lens.lens.height_of_line(5));
+        let lens = Syntax::lens_from_normal_lines(5, 25, 2, &[4]);
+        assert_eq!(5, lens.len());
+        assert_eq!(8, lens.height_of_line(4));
+        assert_eq!(33, lens.height_of_line(5));
 
-        let lens = CodeLens::from_normal_lines(5, 25, 2, vec![3]);
-        assert_eq!(5, lens.lens.len());
-        assert_eq!(6, lens.lens.height_of_line(3));
-        assert_eq!(31, lens.lens.height_of_line(4));
-        assert_eq!(33, lens.lens.height_of_line(5));
+        let lens = Syntax::lens_from_normal_lines(5, 25, 2, &[3]);
+        assert_eq!(5, lens.len());
+        assert_eq!(6, lens.height_of_line(3));
+        assert_eq!(31, lens.height_of_line(4));
+        assert_eq!(33, lens.height_of_line(5));
     }
 }

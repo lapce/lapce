@@ -1607,6 +1607,30 @@ impl Widget<LapceTabData> for LapceEditorView {
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
 
+        if let Some(syntax) = editor_data.buffer.syntax.as_ref() {
+            if syntax.line_height != data.config.editor.line_height
+                || syntax.lens_height != data.config.editor.code_lens_font_size
+            {
+                if let BufferContent::File(path) = &editor_data.buffer.content {
+                    let tab_id = data.id;
+                    let event_sink = ctx.get_external_handle();
+                    let mut syntax = syntax.clone();
+                    let line_height = data.config.editor.line_height;
+                    let lens_height = data.config.editor.code_lens_font_size;
+                    let rev = editor_data.buffer.rev;
+                    let path = path.clone();
+                    rayon::spawn(move || {
+                        syntax.update_lens_height(line_height, lens_height);
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSyntax { path, rev, syntax },
+                            Target::Widget(tab_id),
+                        );
+                    });
+                }
+            }
+        }
+
         if editor_data.editor.content != old_editor_data.editor.content {
             ctx.request_layout();
         }

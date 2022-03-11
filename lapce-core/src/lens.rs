@@ -1,15 +1,17 @@
 use std::mem;
 
 use xi_rope::{
+    interval::IntervalBounds,
     tree::{DefaultMetric, Leaf, Node, NodeInfo, TreeBuilder},
-    Interval, Metric,
+    Cursor, Interval, Metric,
 };
 
-const MIN_LEAF: usize = 1;
-const MAX_LEAF: usize = 2;
+const MIN_LEAF: usize = 5;
+const MAX_LEAF: usize = 10;
 
 pub type LensNode = Node<LensInfo>;
 
+#[derive(Clone)]
 pub struct Lens(LensNode);
 
 #[derive(Clone, Debug)]
@@ -26,6 +28,12 @@ pub struct LensLeaf {
     len: usize,
     data: Vec<LensData>,
     total_height: usize,
+}
+
+pub struct LensIter<'a> {
+    cursor: Cursor<'a, LensInfo>,
+    ix: usize,
+    end: usize,
 }
 
 impl Lens {
@@ -51,6 +59,24 @@ impl Lens {
             return self.0.count::<LensMetric>(self.0.len());
         }
         self.0.count::<LensMetric>(line)
+    }
+
+    pub fn iter(&self) -> LensIter {
+        LensIter {
+            cursor: Cursor::new(&self.0, 0),
+            ix: 0,
+            end: self.len(),
+        }
+    }
+
+    pub fn iter_chunks<I: IntervalBounds>(&self, range: I) -> LensIter {
+        let Interval { start, end } = range.into_interval(self.len());
+
+        LensIter {
+            cursor: Cursor::new(&self.0, start),
+            ix: 0,
+            end,
+        }
     }
 }
 
@@ -174,47 +200,27 @@ impl Metric<LensInfo> for LensMetric {
     }
 
     fn is_boundary(l: &LensLeaf, offset: usize) -> bool {
-        let mut line = 0;
-        for data in l.data.iter() {
-            if line + data.len == offset {
-                return true;
-            }
-            if line + data.len > offset {
-                return false;
-            }
-            line += data.len;
-        }
-        false
+        true
     }
 
     fn prev(l: &LensLeaf, offset: usize) -> Option<usize> {
-        let mut line = 0;
-        for (i, data) in l.data.iter().enumerate() {
-            if offset <= line + data.len {
-                if i == 0 {
-                    return None;
-                } else {
-                    return Some(line);
-                }
-            }
-            line += data.len;
+        if offset == 0 {
+            None
+        } else {
+            Some(offset - 1)
         }
-        Some(line)
     }
 
     fn next(l: &LensLeaf, offset: usize) -> Option<usize> {
-        let mut line = 0;
-        for data in l.data.iter() {
-            if offset <= line + data.len {
-                return Some(line + data.len);
-            }
-            line += data.len;
+        if offset < l.len {
+            Some(offset + 1)
+        } else {
+            None
         }
-        None
     }
 
     fn can_fragment() -> bool {
-        true
+        false
     }
 }
 
@@ -251,7 +257,7 @@ impl Metric<LensInfo> for LensBaseMetric {
     }
 
     fn can_fragment() -> bool {
-        true
+        false
     }
 }
 
@@ -290,6 +296,33 @@ impl LensBuilder {
     }
 }
 
+impl<'a> Iterator for LensIter<'a> {
+    type Item = (usize, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cursor.pos() >= self.end {
+            return None;
+        }
+        if let Some((leaf, leaf_pos)) = self.cursor.get_leaf() {
+            if leaf.data.is_empty() {
+                return None;
+            }
+            let line = self.cursor.pos();
+            self.cursor.next::<LensMetric>();
+
+            let mut lines = 0;
+            for data in leaf.data.iter() {
+                if leaf_pos < data.len + lines {
+                    return Some((line, data.line_height));
+                }
+                lines += data.len;
+            }
+            return None;
+        }
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,5 +358,32 @@ mod tests {
         assert_eq!(11, lens.line_of_height(46));
         assert_eq!(31, lens.line_of_height(105));
         assert_eq!(31, lens.line_of_height(106));
+    }
+
+    #[test]
+    fn test_lens_iter() {
+        let mut builder = LensBuilder::new();
+        builder.add_section(10, 2);
+        builder.add_section(1, 25);
+        builder.add_section(2, 3);
+        let lens = builder.build();
+
+        let mut iter = lens.iter();
+        assert_eq!(Some((0, 2)), iter.next());
+        assert_eq!(Some((1, 2)), iter.next());
+        assert_eq!(Some((2, 2)), iter.next());
+        for _ in 0..7 {
+            iter.next();
+        }
+        assert_eq!(Some((10, 25)), iter.next());
+        assert_eq!(Some((11, 3)), iter.next());
+        assert_eq!(Some((12, 3)), iter.next());
+        assert_eq!(None, iter.next());
+
+        let mut iter = lens.iter_chunks(9..12);
+        assert_eq!(Some((9, 2)), iter.next());
+        assert_eq!(Some((10, 25)), iter.next());
+        assert_eq!(Some((11, 3)), iter.next());
+        assert_eq!(None, iter.next());
     }
 }
