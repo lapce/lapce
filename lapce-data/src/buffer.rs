@@ -843,7 +843,9 @@ impl Buffer {
     }
 
     fn get_line_styles(&self, line: usize) -> Arc<Vec<(usize, usize, Style)>> {
-        if let Some(line_styles) = self.line_styles.borrow()[line].as_ref() {
+        if let Some(line_styles) =
+            self.line_styles.borrow().get(line).and_then(|s| s.as_ref())
+        {
             return line_styles.clone();
         }
         let start_offset = self.offset_of_line(line);
@@ -927,20 +929,15 @@ impl Buffer {
         line: usize,
         line_content: &str,
         cursor_index: Option<usize>,
+        font_size: usize,
         bounds: [f64; 2],
-        code_lens: bool,
         config: &Config,
     ) -> PietTextLayout {
         let styles = self.get_line_styles(line);
-        let font_size = if code_lens {
-            config.editor.code_lens_font_size as f64
-        } else {
-            config.editor.font_size as f64
-        };
         let mut layout_builder = ctx
             .text()
             .new_text_layout(line_content.to_string())
-            .font(config.editor.font_family(), font_size)
+            .font(config.editor.font_family(), font_size as f64)
             .text_color(
                 config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -996,45 +993,6 @@ impl Buffer {
 
     pub fn offset_of_position(&self, pos: &Position, tab_width: usize) -> usize {
         self.offset_of_line_col(pos.line as usize, pos.character as usize, tab_width)
-    }
-
-    pub fn offset_of_mouse(
-        &self,
-        text: &mut PietText,
-        pos: Point,
-        mode: Mode,
-        config: &Config,
-        compare: Option<String>,
-    ) -> usize {
-        let line_height = config.editor.line_height as f64;
-        let line = (pos.y / line_height).floor() as usize;
-
-        let line = if let Some(compare) = compare.as_ref() {
-            self.diff_actual_line_from_visual(compare, line)
-        } else {
-            line
-        };
-
-        let last_line = self.last_line();
-        let (line, col) = if line > last_line {
-            (last_line, 0)
-        } else {
-            let line_end = self.line_end_col(
-                line,
-                mode != Mode::Normal,
-                config.editor.tab_width,
-            );
-            let width = config.editor_text_width(text, "W");
-
-            let col = (if mode == Mode::Insert {
-                (pos.x / width).round() as usize
-            } else {
-                (pos.x / width).floor() as usize
-            })
-            .min(line_end);
-            (line, col)
-        };
-        self.offset_of_line_col(line, col, config.editor.tab_width)
     }
 
     pub fn offset_of_line_col(
@@ -1098,7 +1056,10 @@ impl Buffer {
     pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
         let mut offset = self.offset_of_line(line + 1);
         let mut line_content: &str = &self.line_content(line);
-        if line_content.ends_with('\n') {
+        if line_content.ends_with("\r\n") {
+            offset -= 2;
+            line_content = &line_content[..line_content.len() - 2];
+        } else if line_content.ends_with('\n') {
             offset -= 1;
             line_content = &line_content[..line_content.len() - 1];
         }
@@ -1158,8 +1119,9 @@ impl Buffer {
         movement: &Movement,
         mode: Mode,
         modify: bool,
+        code_lens: bool,
         compare: Option<String>,
-        tab_width: usize,
+        config: &Config,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
@@ -1169,8 +1131,9 @@ impl Buffer {
                 movement,
                 mode,
                 modify,
+                code_lens,
                 compare.clone(),
-                tab_width,
+                config,
             );
             new_selection.add_region(region);
         }
@@ -1184,8 +1147,9 @@ impl Buffer {
         movement: &Movement,
         mode: Mode,
         modify: bool,
+        code_lens: bool,
         compare: Option<String>,
-        tab_width: usize,
+        config: &Config,
     ) -> SelRegion {
         let (end, horiz) = self.move_offset(
             region.end(),
@@ -1193,8 +1157,9 @@ impl Buffer {
             count,
             movement,
             mode,
+            code_lens,
             compare,
-            tab_width,
+            config,
         );
 
         let start = match modify {
@@ -1398,13 +1363,14 @@ impl Buffer {
         count: usize,
         movement: &Movement,
         mode: Mode,
+        code_lens: bool,
         compare: Option<String>,
-        tab_width: usize,
+        config: &Config,
     ) -> (usize, ColPosition) {
         let horiz = if let Some(horiz) = horiz {
             *horiz
         } else {
-            let (_, col) = self.offset_to_line_col(offset, tab_width);
+            let (_, col) = self.offset_to_line_col(offset, config.editor.tab_width);
             ColPosition::Col(col)
         };
         match movement {
@@ -1420,7 +1386,8 @@ impl Buffer {
 
                 let new_offset =
                     self.prev_grapheme_offset(offset, count, min_offset);
-                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                let (_, col) =
+                    self.offset_to_line_col(new_offset, config.editor.tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::Right => {
@@ -1435,12 +1402,15 @@ impl Buffer {
                 let new_offset =
                     self.next_grapheme_offset(offset, count, max_offset);
 
-                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                let (_, col) =
+                    self.offset_to_line_col(new_offset, config.editor.tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::Up => {
                 let line = self.line_of_offset(offset);
-                let line = if let Some(compare) = compare.as_ref() {
+                let line = if line == 0 {
+                    0
+                } else if let Some(compare) = compare.as_ref() {
                     let cursor_line = self.diff_cursor_line(compare, line);
                     let cursor_line = if cursor_line > count {
                         cursor_line - count
@@ -1448,6 +1418,32 @@ impl Buffer {
                         0
                     };
                     self.diff_actual_line(compare, cursor_line)
+                } else if code_lens && count == 1 {
+                    let empty_lens = Syntax::lens_from_normal_lines(
+                        self.len(),
+                        config.editor.line_height,
+                        config.editor.code_lens_font_size,
+                        &[],
+                    );
+                    let lens = if let Some(syntax) = self.syntax.as_ref() {
+                        &syntax.lens
+                    } else {
+                        &empty_lens
+                    };
+                    let mut line = line - 1;
+                    loop {
+                        if line == 0 {
+                            break;
+                        }
+
+                        let line_height = lens.height_of_line(line + 1)
+                            - lens.height_of_line(line);
+                        if line_height == config.editor.line_height {
+                            break;
+                        }
+                        line -= 1;
+                    }
+                    line
                 } else if line > count {
                     line - count
                 } else {
@@ -1458,9 +1454,10 @@ impl Buffer {
                     line,
                     &horiz,
                     mode != Mode::Normal,
-                    tab_width,
+                    config.editor.tab_width,
                 );
-                let new_offset = self.offset_of_line_col(line, col, tab_width);
+                let new_offset =
+                    self.offset_of_line_col(line, col, config.editor.tab_width);
                 (new_offset, horiz)
             }
             Movement::Down => {
@@ -1472,6 +1469,32 @@ impl Buffer {
                     let cursor_line = cursor_line + count;
 
                     self.diff_actual_line(compare, cursor_line)
+                } else if code_lens && count == 1 {
+                    let empty_lens = Syntax::lens_from_normal_lines(
+                        self.len(),
+                        config.editor.line_height,
+                        config.editor.code_lens_font_size,
+                        &[],
+                    );
+                    let lens = if let Some(syntax) = self.syntax.as_ref() {
+                        &syntax.lens
+                    } else {
+                        &empty_lens
+                    };
+                    let mut line = (line + 1).min(last_line);
+                    loop {
+                        if line == last_line {
+                            break;
+                        }
+
+                        let line_height = lens.height_of_line(line + 1)
+                            - lens.height_of_line(line);
+                        if line_height == config.editor.line_height {
+                            break;
+                        }
+                        line += 1;
+                    }
+                    line
                 } else {
                     let line = line + count;
 
@@ -1486,9 +1509,10 @@ impl Buffer {
                     line,
                     &horiz,
                     mode != Mode::Normal,
-                    tab_width,
+                    config.editor.tab_width,
                 );
-                let new_offset = self.offset_of_line_col(line, col, tab_width);
+                let new_offset =
+                    self.offset_of_line_col(line, col, config.editor.tab_width);
                 (new_offset, horiz)
             }
             Movement::FirstNonBlank => {
@@ -1531,16 +1555,18 @@ impl Buffer {
                     line,
                     &horiz,
                     mode != Mode::Normal,
-                    tab_width,
+                    config.editor.tab_width,
                 );
-                let new_offset = self.offset_of_line_col(line, col, tab_width);
+                let new_offset =
+                    self.offset_of_line_col(line, col, config.editor.tab_width);
                 (new_offset, horiz)
             }
             Movement::Offset(offset) => {
                 let new_offset = *offset;
                 let new_offset =
                     self.rope.prev_grapheme_offset(new_offset + 1).unwrap();
-                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                let (_, col) =
+                    self.offset_to_line_col(new_offset, config.editor.tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::WordEndForward => {
@@ -1550,21 +1576,24 @@ impl Buffer {
                 if mode != Mode::Insert {
                     new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
                 }
-                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                let (_, col) =
+                    self.offset_to_line_col(new_offset, config.editor.tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::WordForward => {
                 let new_offset = WordCursor::new(&self.rope, offset)
                     .next_boundary()
                     .unwrap_or(offset);
-                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                let (_, col) =
+                    self.offset_to_line_col(new_offset, config.editor.tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::WordBackward => {
                 let new_offset = WordCursor::new(&self.rope, offset)
                     .prev_boundary()
                     .unwrap_or(offset);
-                let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                let (_, col) =
+                    self.offset_to_line_col(new_offset, config.editor.tab_width);
                 (new_offset, ColPosition::Col(col))
             }
             Movement::NextUnmatched(c) => {
@@ -1572,7 +1601,8 @@ impl Buffer {
                     let new_offset = self
                         .find_tag(offset, false, &c.to_string())
                         .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                    let (_, col) =
+                        self.offset_to_line_col(new_offset, config.editor.tab_width);
                     (new_offset, ColPosition::Col(col))
                 } else {
                     let new_offset = match WordCursor::new(&self.rope, offset)
@@ -1581,7 +1611,8 @@ impl Buffer {
                         Some(new_offset) => new_offset - 1,
                         None => offset,
                     };
-                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                    let (_, col) =
+                        self.offset_to_line_col(new_offset, config.editor.tab_width);
                     (new_offset, ColPosition::Col(col))
                 }
             }
@@ -1590,13 +1621,15 @@ impl Buffer {
                     let new_offset = self
                         .find_tag(offset, true, &c.to_string())
                         .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                    let (_, col) =
+                        self.offset_to_line_col(new_offset, config.editor.tab_width);
                     (new_offset, ColPosition::Col(col))
                 } else {
                     let new_offset = WordCursor::new(&self.rope, offset)
                         .previous_unmatched(*c)
                         .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                    let (_, col) =
+                        self.offset_to_line_col(new_offset, config.editor.tab_width);
                     (new_offset, ColPosition::Col(col))
                 }
             }
@@ -1604,13 +1637,15 @@ impl Buffer {
                 if self.syntax_tree.is_some() {
                     let new_offset =
                         self.find_matching_pair(offset).unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                    let (_, col) =
+                        self.offset_to_line_col(new_offset, config.editor.tab_width);
                     (new_offset, ColPosition::Col(col))
                 } else {
                     let new_offset = WordCursor::new(&self.rope, offset)
                         .match_pairs()
                         .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset, tab_width);
+                    let (_, col) =
+                        self.offset_to_line_col(new_offset, config.editor.tab_width);
                     (new_offset, ColPosition::Col(col))
                 }
             }

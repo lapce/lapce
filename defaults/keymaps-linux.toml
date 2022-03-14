@@ -21,6 +21,16 @@ mode = "n"
 key = "ctrl+,"
 command = "open_settings"
 
+[[keymaps]]
+key = "space"
+command = "toggle_code_lens"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+e"
+command = "toggle_code_lens"
+mode = "i"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]

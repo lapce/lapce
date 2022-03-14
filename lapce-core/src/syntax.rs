@@ -178,7 +178,7 @@ impl Syntax {
         self.lens_height = lens_height;
     }
 
-    fn lens_from_normal_lines(
+    pub fn lens_from_normal_lines(
         total_lines: usize,
         line_height: usize,
         lens_height: usize,

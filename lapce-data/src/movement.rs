@@ -78,7 +78,7 @@ impl Cursor {
     pub fn set_offset(&self, offset: usize, modify: bool) -> Self {
         match &self.mode {
             CursorMode::Normal(old_offset) => {
-                if modify {
+                if modify && *old_offset != offset {
                     Cursor::new(
                         CursorMode::Visual {
                             start: *old_offset,
@@ -91,8 +91,11 @@ impl Cursor {
                     Cursor::new(CursorMode::Normal(offset), None)
                 }
             }
-            #[allow(unused_variables)]
-            CursorMode::Visual { start, end, mode } => {
+            CursorMode::Visual {
+                start,
+                end: _,
+                mode: _,
+            } => {
                 if modify {
                     Cursor::new(
                         CursorMode::Visual {
@@ -172,8 +175,8 @@ impl Cursor {
 
     pub fn current_char(
         &self,
-        text: &mut PietText,
         buffer: &Buffer,
+        char_width: f64,
         config: &Config,
     ) -> (f64, f64) {
         let offset = self.offset();
@@ -186,9 +189,8 @@ impl Cursor {
 
         let (_, x0) = buffer.offset_to_line_col(offset, config.editor.tab_width);
         let (_, x1) = buffer.offset_to_line_col(next, config.editor.tab_width);
-        let width = config.editor_text_width(text, "W");
-        let x0 = x0 as f64 * width;
-        let x1 = x1 as f64 * width;
+        let x0 = x0 as f64 * char_width;
+        let x1 = x1 as f64 * char_width;
         (x0, x1)
     }
 

@@ -52,6 +52,11 @@ key = "space"
 command = "toggle_code_lens"
 mode = "nv"
 
+[[keymaps]]
+key = "cmd+e"
+command = "toggle_code_lens"
+mode = "i"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]

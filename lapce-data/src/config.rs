@@ -300,6 +300,15 @@ impl Config {
         theme.get(name)
     }
 
+    pub fn char_width(&self, text: &mut PietText, font_size: f64) -> f64 {
+        let text_layout = text
+            .new_text_layout("W")
+            .font(self.editor.font_family(), font_size)
+            .build()
+            .unwrap();
+        text_layout.size().width
+    }
+
     pub fn editor_text_width(&self, text: &mut PietText, c: &str) -> f64 {
         let text_layout = text
             .new_text_layout(c.to_string())

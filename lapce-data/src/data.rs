@@ -3227,7 +3227,7 @@ impl LapceEditorViewData {
         self.do_move(
             if down { &Movement::Down } else { &Movement::Up },
             lines,
-            config.editor.tab_width,
+            config,
         );
         let rect = Rect::ZERO
             .with_origin(
@@ -3342,10 +3342,10 @@ impl LapceEditorViewData {
         None
     }
 
-    pub fn do_move(&mut self, movement: &Movement, count: usize, tab_width: usize) {
+    pub fn do_move(&mut self, movement: &Movement, count: usize, config: &Config) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer, tab_width);
+            editor.save_jump_location(&self.buffer, config.editor.tab_width);
         }
         let editor = Arc::make_mut(&mut self.editor);
         editor.last_movement = movement.clone();
@@ -3357,8 +3357,9 @@ impl LapceEditorViewData {
                     count,
                     movement,
                     Mode::Normal,
+                    self.editor.code_lens,
                     self.editor.compare.clone(),
-                    tab_width,
+                    config,
                 );
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.cursor.mode = CursorMode::Normal(new_offset);
@@ -3371,8 +3372,9 @@ impl LapceEditorViewData {
                     count,
                     movement,
                     Mode::Visual,
+                    self.editor.code_lens,
                     self.editor.compare.clone(),
-                    tab_width,
+                    config,
                 );
                 let start = *start;
                 let mode = *mode;
@@ -3391,8 +3393,9 @@ impl LapceEditorViewData {
                     movement,
                     Mode::Insert,
                     false,
+                    self.editor.code_lens,
                     self.editor.compare.clone(),
-                    tab_width,
+                    &self.config,
                 );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }

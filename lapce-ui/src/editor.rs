@@ -15,7 +15,7 @@ use lapce_data::{
     buffer::{matching_pair_direction, BufferContent, BufferId, LocalBufferKind},
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommand, LapceCommandNew,
-        LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{
@@ -24,12 +24,14 @@ use lapce_data::{
     },
     editor::{EditorLocation, LapceEditorBufferData, TabRect},
     keypress::KeyPressFocus,
+    menu::MenuItem,
     movement::{Movement, Selection},
     panel::PanelPosition,
     split::{SplitDirection, SplitMoveDirection},
     state::{Mode, VisualMode},
 };
 use lsp_types::{DocumentChanges, TextEdit, Url, WorkspaceEdit};
+use strum::EnumMessage;
 
 use crate::{
     scroll::{LapceIdentityWrapper, LapcePadding, LapceScrollNew},
@@ -2559,7 +2561,7 @@ impl LapceEditor {
                 self.left_click(ctx, mouse_event, editor_data, config);
             }
             MouseButton::Right => {
-                self.right_click(ctx, mouse_event);
+                self.right_click(ctx, editor_data, mouse_event, config);
             }
             MouseButton::Middle => {}
             _ => (),
@@ -2600,7 +2602,44 @@ impl LapceEditor {
         }
     }
 
-    fn right_click(&mut self, _ctx: &mut EventCtx, _mouse_event: &MouseEvent) {}
+    fn right_click(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_data: &mut LapceEditorBufferData,
+        mouse_event: &MouseEvent,
+        config: &Config,
+    ) {
+        editor_data.single_click(ctx, mouse_event, config);
+        let menu_items = vec![
+            MenuItem {
+                text: LapceCommand::GotoDefinition
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceCommand::GotoDefinition.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Focus,
+                },
+            },
+            MenuItem {
+                text: "Command Palette".to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            },
+        ];
+        let point = mouse_event.pos + editor_data.editor.window_origin.to_vec2();
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::ShowMenu(point, Arc::new(menu_items)),
+            Target::Auto,
+        ));
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditor {
@@ -2611,22 +2650,21 @@ impl Widget<LapceTabData> for LapceEditor {
         data: &mut LapceTabData,
         _env: &Env,
     ) {
-        let buffer = data.main_split.editor_buffer(self.view_id);
-        let editor = data.main_split.editors.get_mut(&self.view_id).unwrap();
         match event {
             Event::MouseMove(mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::IBeam);
                 if mouse_event.pos != self.mouse_pos {
                     self.mouse_pos = mouse_event.pos;
                     if ctx.is_active() {
-                        let editor = Arc::make_mut(editor);
-                        let new_offset = buffer.offset_of_mouse(
+                        let editor_data = data.editor_view_content(self.view_id);
+                        let new_offset = editor_data.offset_of_mouse(
                             ctx.text(),
                             mouse_event.pos,
-                            editor.cursor.get_mode(),
                             &data.config,
-                            editor.compare.clone(),
                         );
+                        let editor =
+                            data.main_split.editors.get_mut(&self.view_id).unwrap();
+                        let editor = Arc::make_mut(editor);
                         editor.cursor = editor.cursor.set_offset(new_offset, true);
                     }
                 }

@@ -38,6 +38,8 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, Vec2, WidgetId,
 };
 use druid::{Application, ExtEventSink, MouseEvent};
+use lapce_core::lens::Lens;
+use lapce_core::syntax::Syntax;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
     CodeActionResponse, CompletionItem, DiagnosticSeverity, DocumentChanges,
@@ -180,7 +182,27 @@ impl LapceEditorBufferData {
         let width = self.config.editor_text_width(text, "W");
         match &self.editor.content {
             BufferContent::File(_) => {
-                if let Some(compare) = self.editor.compare.as_ref() {
+                if self.editor.code_lens {
+                    if let Some(syntax) = self.buffer.syntax.as_ref() {
+                        let height =
+                            syntax.lens.height_of_line(syntax.lens.len() + 1);
+                        Size::new(
+                            (width * self.buffer.max_len as f64)
+                                .max(editor_size.width),
+                            (height as f64 - line_height).max(0.0)
+                                + editor_size.height,
+                        )
+                    } else {
+                        let height = self.buffer.num_lines
+                            * self.config.editor.code_lens_font_size;
+                        Size::new(
+                            (width * self.buffer.max_len as f64)
+                                .max(editor_size.width),
+                            (height as f64 - line_height).max(0.0)
+                                + editor_size.height,
+                        )
+                    }
+                } else if let Some(compare) = self.editor.compare.as_ref() {
                     let mut lines = 0;
                     if let Some(changes) = self.buffer.history_changes.get(compare) {
                         for change in changes.iter() {
@@ -306,8 +328,9 @@ impl LapceEditorBufferData {
                     count,
                     movement,
                     Mode::Normal,
+                    self.editor.code_lens,
                     compare,
-                    self.config.editor.tab_width,
+                    &self.config,
                 );
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.cursor.mode = CursorMode::Normal(new_offset);
@@ -320,8 +343,9 @@ impl LapceEditorBufferData {
                     count,
                     movement,
                     Mode::Visual,
+                    self.editor.code_lens,
                     compare,
-                    self.config.editor.tab_width,
+                    &self.config,
                 );
                 let start = *start;
                 let mode = *mode;
@@ -340,8 +364,9 @@ impl LapceEditorBufferData {
                     movement,
                     Mode::Insert,
                     false,
+                    self.editor.code_lens,
                     compare,
-                    self.config.editor.tab_width,
+                    &self.config,
                 );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }
@@ -1335,47 +1360,6 @@ impl LapceEditorBufferData {
         }
     }
 
-    #[allow(dead_code)]
-    fn move_command(
-        &self,
-        count: Option<usize>,
-        cmd: &LapceCommand,
-    ) -> Option<Movement> {
-        match cmd {
-            LapceCommand::Left => Some(Movement::Left),
-            LapceCommand::Right => Some(Movement::Right),
-            LapceCommand::Up => Some(Movement::Up),
-            LapceCommand::Down => Some(Movement::Down),
-            LapceCommand::LineStart => Some(Movement::StartOfLine),
-            LapceCommand::LineEnd => Some(Movement::EndOfLine),
-            LapceCommand::GotoLineDefaultFirst => Some(match count {
-                Some(n) => Movement::Line(LinePosition::Line(n)),
-                None => Movement::Line(LinePosition::First),
-            }),
-            LapceCommand::GotoLineDefaultLast => Some(match count {
-                Some(n) => Movement::Line(LinePosition::Line(n)),
-                None => Movement::Line(LinePosition::Last),
-            }),
-            LapceCommand::WordBackward => Some(Movement::WordBackward),
-            LapceCommand::WordFoward => Some(Movement::WordForward),
-            LapceCommand::WordEndForward => Some(Movement::WordEndForward),
-            LapceCommand::MatchPairs => Some(Movement::MatchPairs),
-            LapceCommand::NextUnmatchedRightBracket => {
-                Some(Movement::NextUnmatched(')'))
-            }
-            LapceCommand::PreviousUnmatchedLeftBracket => {
-                Some(Movement::PreviousUnmatched('('))
-            }
-            LapceCommand::NextUnmatchedRightCurlyBracket => {
-                Some(Movement::NextUnmatched('}'))
-            }
-            LapceCommand::PreviousUnmatchedLeftCurlyBracket => {
-                Some(Movement::PreviousUnmatched('{'))
-            }
-            _ => None,
-        }
-    }
-
     pub fn current_code_actions(&self) -> Option<&CodeActionResponse> {
         let offset = self.editor.cursor.offset();
         let prev_offset = self.buffer.prev_code_boundary(offset);
@@ -1640,6 +1624,90 @@ impl LapceEditorBufferData {
         }
     }
 
+    fn paint_gutter_code_lens(&self, ctx: &mut PaintCtx, gutter_width: f64) {
+        let rect = ctx.size().to_rect();
+        let scroll_offset = self.editor.scroll_offset;
+        let empty_lens = Syntax::lens_from_normal_lines(
+            self.buffer.len(),
+            self.config.editor.line_height,
+            self.config.editor.code_lens_font_size,
+            &[],
+        );
+        let (rope, lens) = if let Some(syntax) = self.buffer.syntax.as_ref() {
+            (&syntax.text, &syntax.lens)
+        } else {
+            (&self.buffer.rope, &empty_lens)
+        };
+
+        let cursor_line =
+            rope.line_of_offset(self.editor.cursor.offset().min(rope.len()));
+        let last_line = rope.line_of_offset(rope.len());
+        let start_line = lens
+            .line_of_height(scroll_offset.y.floor() as usize)
+            .min(last_line);
+        let end_line = lens
+            .line_of_height(
+                (scroll_offset.y + rect.height()).ceil() as usize
+                    + self.config.editor.line_height,
+            )
+            .min(last_line);
+        let char_width = self
+            .config
+            .char_width(ctx.text(), self.config.editor.font_size as f64);
+        let max_line_width = (last_line + 1).to_string().len() as f64 * char_width;
+
+        let mut y = lens.height_of_line(start_line) as f64;
+        for (line, line_height) in lens.iter_chunks(start_line..end_line) {
+            let content = if *self.main_split.active != Some(self.view_id)
+                || self.editor.cursor.is_insert()
+                || line == cursor_line
+            {
+                line + 1
+            } else if line > cursor_line {
+                line - cursor_line
+            } else {
+                cursor_line - line
+            };
+            let content = content.to_string();
+            let is_small = line_height < self.config.editor.line_height;
+            let text_layout = ctx
+                .text()
+                .new_text_layout(content.clone())
+                .font(
+                    self.config.editor.font_family(),
+                    if is_small {
+                        self.config.editor.code_lens_font_size as f64
+                    } else {
+                        self.config.editor.font_size as f64
+                    },
+                )
+                .text_color(if line == cursor_line {
+                    self.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone()
+                } else {
+                    self.config
+                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                        .clone()
+                })
+                .build()
+                .unwrap();
+            let x = max_line_width - text_layout.size().width;
+            let pos = Point::new(
+                x,
+                y - scroll_offset.y
+                    + if is_small {
+                        0.0
+                    } else {
+                        (line_height as f64 - text_layout.size().height) / 2.0
+                    },
+            );
+            ctx.draw_text(&text_layout, pos);
+
+            y += line_height as f64;
+        }
+    }
+
     pub fn paint_gutter(&self, ctx: &mut PaintCtx, gutter_width: f64) {
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
@@ -1647,6 +1715,10 @@ impl LapceEditorBufferData {
             ctx.clip(clip_rect);
             if let Some(compare) = self.editor.compare.as_ref() {
                 self.paint_gutter_inline_diff(ctx, compare, gutter_width);
+                return;
+            }
+            if self.editor.code_lens {
+                self.paint_gutter_code_lens(ctx, gutter_width);
                 return;
             }
             let line_height = self.config.editor.line_height as f64;
@@ -1892,8 +1964,8 @@ impl LapceEditorBufferData {
             line,
             &line_content[start_char..],
             None,
+            12,
             bounds,
-            code_lens,
             config,
         );
         ctx.draw_text(
@@ -1905,13 +1977,12 @@ impl LapceEditorBufferData {
     pub fn paint_code_lens_content(
         &self,
         ctx: &mut PaintCtx,
-        normal_lines: &[usize],
         is_focused: bool,
         config: &Config,
     ) {
         let rect = ctx.region().bounding_box();
-        let line_height = self.config.editor.line_height as f64;
-        let text_layout = ctx
+
+        let ref_text_layout = ctx
             .text()
             .new_text_layout("W")
             .font(
@@ -1920,99 +1991,88 @@ impl LapceEditorBufferData {
             )
             .build()
             .unwrap();
-        let char_width = text_layout.size().width;
-        let y_shift = (line_height - text_layout.size().height) / 2.0;
-        let code_lens_char_width = ctx
-            .text()
-            .new_text_layout("W")
-            .font(
-                self.config.editor.font_family(),
-                self.config.editor.code_lens_font_size as f64,
-            )
-            .build()
-            .unwrap()
-            .size()
-            .width;
-        let cursor_line = self.buffer.line_of_offset(self.editor.cursor.offset());
+        let char_width = ref_text_layout.size().width;
+        let y_shift =
+            (config.editor.line_height as f64 - ref_text_layout.size().height) / 2.0;
+        let small_char_width =
+            config.char_width(ctx.text(), config.editor.code_lens_font_size as f64);
 
-        let mut y = 0.0;
-        let mut current_line = 0;
-        let mut normal_lines = normal_lines.iter();
-        loop {
-            match normal_lines.next() {
-                Some(next_normal_line) => {
-                    let next_normal_line = *next_normal_line;
-                    let chunk_height = config.editor.code_lens_font_size as f64
-                        * (next_normal_line - current_line) as f64
-                        + line_height;
-                    if y + chunk_height < rect.y0 {
-                        y += chunk_height;
-                        current_line = next_normal_line + 1;
-                        continue;
-                    }
+        let empty_lens = Syntax::lens_from_normal_lines(
+            self.buffer.len(),
+            config.editor.line_height,
+            config.editor.code_lens_font_size,
+            &[],
+        );
+        let (rope, lens) = if let Some(syntax) = self.buffer.syntax.as_ref() {
+            (&syntax.text, &syntax.lens)
+        } else {
+            (&self.buffer.rope, &empty_lens)
+        };
 
-                    for line in current_line..next_normal_line {
-                        self.paint_code_lens_line(
-                            ctx,
-                            line,
-                            is_focused,
-                            cursor_line,
-                            y,
-                            y_shift,
-                            [rect.x0, rect.x1],
-                            true,
-                            char_width,
-                            code_lens_char_width,
-                            config,
-                        );
-                        y += config.editor.code_lens_font_size as f64;
-                        if y > rect.y1 {
-                            return;
-                        }
-                    }
+        let cursor_line =
+            rope.line_of_offset(self.editor.cursor.offset().min(rope.len()));
+        let last_line = rope.line_of_offset(rope.len());
+        let start_line =
+            lens.line_of_height(rect.y0.floor() as usize).min(last_line);
+        let end_line = lens
+            .line_of_height(rect.y1.ceil() as usize + config.editor.line_height)
+            .min(last_line);
+        let start_offset = rope.offset_of_line(start_line);
+        let end_offset = rope.offset_of_line(end_line + 1);
+        let mut lines_iter = rope.lines(start_offset..end_offset);
 
-                    self.paint_code_lens_line(
-                        ctx,
-                        next_normal_line,
-                        is_focused,
-                        cursor_line,
-                        y,
-                        y_shift,
-                        [rect.x0, rect.x1],
-                        false,
-                        char_width,
-                        code_lens_char_width,
-                        config,
-                    );
-                    y += line_height;
-                    if y > rect.y1 {
-                        return;
+        let mut y = lens.height_of_line(start_line) as f64;
+        for (line, line_height) in lens.iter_chunks(start_line..end_line) {
+            let is_small = line_height < config.editor.line_height;
+            let line_content = lines_iter.next().unwrap();
+
+            let mut x = 0.0;
+            if is_small {
+                for ch in line_content.chars() {
+                    if ch == ' ' {
+                        x += char_width - small_char_width;
+                    } else if ch == '\t' {
+                        x += (char_width - small_char_width)
+                            * config.editor.tab_width as f64;
+                    } else {
+                        break;
                     }
-                    current_line = next_normal_line + 1;
-                }
-                None => {
-                    for line in current_line..self.buffer.last_line() + 1 {
-                        self.paint_code_lens_line(
-                            ctx,
-                            line,
-                            is_focused,
-                            cursor_line,
-                            y,
-                            y_shift,
-                            [rect.x0, rect.x1],
-                            true,
-                            char_width,
-                            code_lens_char_width,
-                            config,
-                        );
-                        y += config.editor.code_lens_font_size as f64;
-                        if y > rect.y1 {
-                            return;
-                        }
-                    }
-                    break;
                 }
             }
+
+            self.paint_cursor_on_line(
+                ctx,
+                is_focused,
+                cursor_line,
+                line,
+                x,
+                y,
+                if is_small {
+                    small_char_width
+                } else {
+                    char_width
+                },
+                line_height as f64,
+                config,
+            );
+            let text_layout = self.buffer.new_text_layout(
+                ctx,
+                line,
+                &line_content,
+                None,
+                if is_small {
+                    config.editor.code_lens_font_size
+                } else {
+                    config.editor.font_size
+                },
+                [rect.x0, rect.x1],
+                config,
+            );
+            ctx.draw_text(
+                &text_layout,
+                Point::new(x, if is_small { y } else { y + y_shift }),
+            );
+            y += line_height as f64;
         }
     }
 
@@ -2046,17 +2106,7 @@ impl LapceEditorBufferData {
         let y_shift = (line_height - text_layout.size().height) / 2.0;
 
         if self.editor.code_lens {
-            let empty_vec = Vec::new();
-            self.paint_code_lens_content(
-                ctx,
-                self.buffer
-                    .syntax
-                    .as_ref()
-                    .map(|s| &s.normal_lines)
-                    .unwrap_or(&empty_vec),
-                is_focused,
-                config,
-            );
+            self.paint_code_lens_content(ctx, is_focused, config);
         } else if let Some(compare) = self.editor.compare.as_ref() {
             if let Some(changes) = self.buffer.history_changes.get(compare) {
                 let cursor_line =
@@ -2186,8 +2236,8 @@ impl LapceEditorBufferData {
                                     rope_line,
                                     &self.buffer.line_content(rope_line),
                                     None,
+                                    config.editor.font_size,
                                     [rect.x0, rect.x1],
-                                    false,
                                     &self.config,
                                 );
                                 ctx.draw_text(
@@ -2248,8 +2298,8 @@ impl LapceEditorBufferData {
                                     rope_line,
                                     &self.buffer.line_content(rope_line),
                                     None,
+                                    config.editor.font_size,
                                     [rect.x0, rect.x1],
-                                    false,
                                     &self.config,
                                 );
                                 ctx.draw_text(
@@ -2300,8 +2350,8 @@ impl LapceEditorBufferData {
                     line,
                     line_content,
                     cursor_index,
+                    config.editor.font_size,
                     [rect.x0, rect.x1],
-                    false,
                     &self.config,
                 );
                 ctx.draw_text(
@@ -2343,7 +2393,6 @@ impl LapceEditorBufferData {
         line_height: f64,
         config: &Config,
     ) {
-        if cursor_line == actual_line {}
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {}
             CursorMode::Visual { start, end, mode } => {
@@ -2449,6 +2498,46 @@ impl LapceEditorBufferData {
                                 ),
                             );
                         }
+                    } else {
+                        let start = region.start();
+                        let end = region.end();
+                        let (start_line, start_col) =
+                            self.buffer.offset_to_line_col(
+                                start.min(end),
+                                self.config.editor.tab_width,
+                            );
+                        let (end_line, end_col) = self.buffer.offset_to_line_col(
+                            start.max(end),
+                            self.config.editor.tab_width,
+                        );
+                        let left_col = match actual_line {
+                            _ if actual_line == start_line => start_col,
+                            _ => 0,
+                        };
+                        let right_col = match actual_line {
+                            _ if actual_line == end_line => {
+                                let max_col = self.buffer.line_end_col(
+                                    actual_line,
+                                    true,
+                                    self.config.editor.tab_width,
+                                );
+                                end_col.min(max_col)
+                            }
+                            _ => self.buffer.line_end_col(
+                                actual_line,
+                                true,
+                                self.config.editor.tab_width,
+                            ),
+                        };
+                        let x0 = left_col as f64 * char_width + x_shift;
+                        let x1 = right_col as f64 * char_width + x_shift;
+                        let y0 = y;
+                        let y1 = y0 + line_height;
+                        ctx.fill(
+                            Rect::new(x0, y0, x1, y1),
+                            self.config
+                                .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                        );
                     }
                 }
                 for region in regions {
@@ -2489,15 +2578,16 @@ impl LapceEditorBufferData {
                 CursorMode::Normal(_) | CursorMode::Visual { .. } => {
                     if is_focused {
                         let (x0, x1) = self.editor.cursor.current_char(
-                            ctx.text(),
                             &self.buffer,
+                            char_width,
                             config,
                         );
-                        let char_width = if x1 > x0 { x1 - x0 } else { char_width };
+                        let cursor_width =
+                            if x1 > x0 { x1 - x0 } else { char_width };
                         ctx.fill(
                             Rect::ZERO
-                                .with_origin(Point::new(x0, y))
-                                .with_size(Size::new(char_width, line_height)),
+                                .with_origin(Point::new(x0 + x_shift, y))
+                                .with_size(Size::new(cursor_width, line_height)),
                             self.config
                                 .get_color_unchecked(LapceTheme::EDITOR_CARET),
                         );
@@ -2508,19 +2598,79 @@ impl LapceEditorBufferData {
         }
     }
 
+    pub fn offset_of_mouse(
+        &self,
+        text: &mut PietText,
+        pos: Point,
+        config: &Config,
+    ) -> usize {
+        let (line, char_width) = if self.editor.code_lens {
+            let (line, font_size) = if let Some(syntax) = self.buffer.syntax.as_ref()
+            {
+                let line = syntax.lens.line_of_height(pos.y.floor() as usize);
+                let line_height = syntax.lens.height_of_line(line + 1)
+                    - syntax.lens.height_of_line(line);
+
+                let font_size = if line_height < config.editor.line_height {
+                    config.editor.code_lens_font_size
+                } else {
+                    config.editor.font_size
+                };
+
+                (line, font_size)
+            } else {
+                (
+                    (pos.y / config.editor.code_lens_font_size as f64).floor()
+                        as usize,
+                    config.editor.code_lens_font_size,
+                )
+            };
+
+            (line, config.char_width(text, font_size as f64))
+        } else if let Some(compare) = self.editor.compare.as_ref() {
+            let line = (pos.y / config.editor.line_height as f64).floor() as usize;
+            let line = self.buffer.diff_actual_line_from_visual(compare, line);
+            (
+                line,
+                config.char_width(text, config.editor.font_size as f64),
+            )
+        } else {
+            let line = (pos.y / config.editor.line_height as f64).floor() as usize;
+            (
+                line,
+                config.char_width(text, config.editor.font_size as f64),
+            )
+        };
+
+        let last_line = self.buffer.last_line();
+        let (line, col) = if line > last_line {
+            (last_line, 0)
+        } else {
+            let line_end = self.buffer.line_end_col(
+                line,
+                self.editor.cursor.get_mode() != Mode::Normal,
+                config.editor.tab_width,
+            );
+
+            let col = (if self.editor.cursor.get_mode() == Mode::Insert {
+                (pos.x / char_width).round() as usize
+            } else {
+                (pos.x / char_width).floor() as usize
+            })
+            .min(line_end);
+            (line, col)
+        };
+        self.buffer
+            .offset_of_line_col(line, col, config.editor.tab_width)
+    }
+
     pub fn single_click(
         &mut self,
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
         config: &Config,
     ) {
-        let new_offset = self.buffer.offset_of_mouse(
-            ctx.text(),
-            mouse_event.pos,
-            self.editor.cursor.get_mode(),
-            config,
-            self.editor.compare.clone(),
-        );
+        let new_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
         let editor = Arc::make_mut(&mut self.editor);
         editor.cursor = editor
             .cursor
@@ -2533,13 +2683,7 @@ impl LapceEditorBufferData {
         mouse_event: &MouseEvent,
         config: &Config,
     ) {
-        let mouse_offset = self.buffer.offset_of_mouse(
-            ctx.text(),
-            mouse_event.pos,
-            self.editor.cursor.get_mode(),
-            config,
-            self.editor.compare.clone(),
-        );
+        let mouse_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
         let (start, end) = self.buffer.select_word(mouse_offset);
         let editor = Arc::make_mut(&mut self.editor);
         editor.cursor =
@@ -2554,13 +2698,7 @@ impl LapceEditorBufferData {
         mouse_event: &MouseEvent,
         config: &Config,
     ) {
-        let mouse_offset = self.buffer.offset_of_mouse(
-            ctx.text(),
-            mouse_event.pos,
-            self.editor.cursor.get_mode(),
-            config,
-            self.editor.compare.clone(),
-        );
+        let mouse_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
         let line = self.buffer.line_of_offset(mouse_offset);
         let start = self.buffer.offset_of_line(line);
         let end = self.buffer.offset_of_line(line + 1);
@@ -2592,11 +2730,8 @@ impl LapceEditorBufferData {
                 self.paint_cursor_line(ctx, line, is_focused, placeholder);
 
                 if is_focused {
-                    let (x0, x1) = self.editor.cursor.current_char(
-                        ctx.text(),
-                        &self.buffer,
-                        config,
-                    );
+                    let (x0, x1) =
+                        self.editor.cursor.current_char(&self.buffer, width, config);
                     let char_width = if x1 > x0 { x1 - x0 } else { width };
                     ctx.fill(
                         Rect::ZERO
@@ -2697,8 +2832,8 @@ impl LapceEditorBufferData {
                         let line = self.buffer.line_of_offset(*end);
 
                         let (x0, x1) = self.editor.cursor.current_char(
-                            ctx.text(),
                             &self.buffer,
+                            width,
                             config,
                         );
                         let char_width = if x1 > x0 { x1 - x0 } else { width };
@@ -3285,8 +3420,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                         1,
                         &Movement::Right,
                         Mode::Insert,
+                        self.editor.code_lens,
                         self.editor.compare.clone(),
-                        self.config.editor.tab_width,
+                        &self.config,
                     )
                     .0;
                 self.buffer_mut().update_edit_type();
@@ -3302,8 +3438,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                     1,
                     &Movement::EndOfLine,
                     Mode::Insert,
+                    self.editor.code_lens,
                     self.editor.compare.clone(),
-                    self.config.editor.tab_width,
+                    &self.config,
                 );
                 self.buffer_mut().update_edit_type();
                 self.set_cursor(Cursor::new(
@@ -3326,8 +3463,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                             1,
                             &Movement::FirstNonBlank,
                             Mode::Normal,
+                            self.editor.code_lens,
                             self.editor.compare.clone(),
-                            self.config.editor.tab_width,
+                            &self.config,
                         );
                         self.buffer_mut().update_edit_type();
                         self.set_cursor(Cursor::new(
@@ -3390,8 +3528,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &Movement::StartOfLine,
                             Mode::Insert,
                             true,
+                            self.editor.code_lens,
                             self.editor.compare.clone(),
-                            self.config.editor.tab_width,
+                            &self.config,
                         )
                     }
                 };
@@ -3489,8 +3628,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &Movement::WordBackward,
                             Mode::Insert,
                             true,
+                            self.editor.code_lens,
                             self.editor.compare.clone(),
-                            self.config.editor.tab_width,
+                            &self.config,
                         )
                     }
                 };
@@ -3516,8 +3656,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &Movement::Left,
                             Mode::Insert,
                             true,
+                            self.editor.code_lens,
                             self.editor.compare.clone(),
-                            self.config.editor.tab_width,
+                            &self.config,
                         );
                         if selection.regions().len() == 1 {
                             let delete_str = self
@@ -3735,8 +3876,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &Movement::Left,
                         Mode::Insert,
                         true,
+                        self.editor.code_lens,
                         self.editor.compare.clone(),
-                        self.config.editor.tab_width,
+                        &self.config,
                     )
                 } else {
                     selection
@@ -3789,8 +3931,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                                 1,
                                 &Movement::Left,
                                 Mode::Normal,
+                                self.editor.code_lens,
                                 self.editor.compare.clone(),
-                                self.config.editor.tab_width,
+                                &self.config,
                             )
                             .0
                     }
@@ -4213,29 +4356,11 @@ pub struct RegisterContent {
     content: Vec<String>,
 }
 
-#[allow(dead_code)]
-struct EditorTextLayout {
-    layout: TextLayout<String>,
-    text: String,
-}
-
 #[derive(Clone)]
 pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,
     pub highlights: Vec<(usize, usize, String)>,
-}
-
-#[allow(dead_code)]
-fn get_workspace_edit_edits<'a>(
-    url: &Url,
-    workspace_edit: &'a WorkspaceEdit,
-) -> Option<Vec<&'a TextEdit>> {
-    if let Some(edits) = get_workspace_edit_changes_edits(url, workspace_edit) {
-        Some(edits)
-    } else {
-        get_workspace_edit_document_changes_edits(url, workspace_edit)
-    }
 }
 
 fn get_workspace_edit_changes_edits<'a>(
