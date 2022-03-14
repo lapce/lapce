@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/discord/946858761413328946?logo=discord" />
   </a>
   <a href="https://matrix.to/#/#lapce-editor:matrix.org" target="_blank">
-    <img src="  https://img.shields.io/matrix/lapce-editor:matrix.org?color=turquoise&label=Matrix&logo=Matrix&style=for-the-badge" />
+    <img src="https://img.shields.io/matrix/lapce-editor:matrix.org?color=turquoise&label=Matrix&logo=Matrix" />
   </a>
   <a href="https://docs.lapce.dev" target="_blank">
       <img src="https://img.shields.io/static/v1?label=Docs&message=docs.lapce.dev&color=blue" alt="Lapce Docs">
