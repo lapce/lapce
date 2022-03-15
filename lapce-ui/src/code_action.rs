@@ -2,8 +2,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use druid::{
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontDescriptor, FontFamily,
-    LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, TextLayout, UpdateCtx, Widget,
+    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Widget,
 };
 use lapce_data::{
     buffer::{BufferContent, EditType},
@@ -43,6 +43,7 @@ impl KeyPressFocus for CodeActionData {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         match command {

@@ -7,9 +7,9 @@ use druid::{
     kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, InternalEvent,
-    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2,
-    Widget, WidgetExt, WidgetId, WidgetPod,
+    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseButton,
+    MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout,
+    UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     buffer::{matching_pair_direction, BufferContent, BufferId, LocalBufferKind},
@@ -1512,7 +1512,13 @@ impl Widget<LapceTabData> for LapceEditorView {
             Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
                 if let Ok(command) = LapceCommand::from_str(&command.cmd) {
-                    editor_data.run_command(ctx, &command, None, env);
+                    editor_data.run_command(
+                        ctx,
+                        &command,
+                        None,
+                        Modifiers::empty(),
+                        env,
+                    );
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {

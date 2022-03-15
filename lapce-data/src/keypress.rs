@@ -233,6 +233,7 @@ pub trait KeyPressFocus {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         count: Option<usize>,
+        mods: Modifiers,
         env: &Env,
     ) -> CommandExecuted;
     fn expect_char(&self) -> bool {
@@ -317,13 +318,14 @@ impl KeyPressData {
         ctx: &mut EventCtx,
         command: &str,
         count: Option<usize>,
+        mods: Modifiers,
         focus: &mut T,
         env: &Env,
     ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
             if let CommandTarget::Focus = cmd.target {
                 if let Ok(cmd) = LapceCommand::from_str(command) {
-                    focus.run_command(ctx, &cmd, count, env)
+                    focus.run_command(ctx, &cmd, count, mods, env)
                 } else {
                     CommandExecuted::No
                 }
@@ -412,7 +414,7 @@ impl KeyPressData {
             }
         }
         let mut mods = key_event.mods;
-        if let druid::KbKey::Character(_c) = &key_event.key {
+        if let druid::KbKey::Character(_) = &key_event.key {
             mods.set(Modifiers::SHIFT, false);
         }
 
@@ -429,24 +431,11 @@ impl KeyPressData {
         let mut keypresses: Vec<KeyPress> = self.pending_keypress.clone();
         keypresses.push(keypress.clone());
 
-        let matches = self.match_keymap(&keypresses, focus);
-        let keymatch = if matches.is_empty() {
-            KeymapMatch::None
-        } else if matches.len() == 1 && matches[0].key == keypresses {
-            KeymapMatch::Full(matches[0].command.clone())
-        } else if matches.len() > 1
-            && matches.iter().filter(|m| m.key != keypresses).count() == 0
-        {
-            KeymapMatch::Multiple(
-                matches.iter().rev().map(|m| m.command.clone()).collect(),
-            )
-        } else {
-            KeymapMatch::Prefix
-        };
+        let keymatch = self.match_keymap(&keypresses, focus);
         match keymatch {
             KeymapMatch::Full(command) => {
                 let count = self.count.take();
-                self.run_command(ctx, &command, count, focus, env);
+                self.run_command(ctx, &command, count, mods, focus, env);
                 self.pending_keypress = Vec::new();
                 return true;
             }
@@ -454,7 +443,7 @@ impl KeyPressData {
                 self.pending_keypress = Vec::new();
                 let count = self.count.take();
                 for command in commands {
-                    if self.run_command(ctx, &command, count, focus, env)
+                    if self.run_command(ctx, &command, count, mods, focus, env)
                         == CommandExecuted::Yes
                     {
                         return true;
@@ -469,6 +458,20 @@ impl KeyPressData {
             }
             KeymapMatch::None => {
                 self.pending_keypress = Vec::new();
+                if focus.get_mode() == Mode::Insert {
+                    let mut keypress = keypress.clone();
+                    keypress.mods.set(Modifiers::SHIFT, false);
+                    if let KeymapMatch::Full(command) =
+                        self.match_keymap(&[keypress], focus)
+                    {
+                        if let Ok(cmd) = LapceCommand::from_str(&command) {
+                            if let Some(_) = cmd.move_command(None) {
+                                focus.run_command(ctx, &cmd, None, mods, env);
+                                return true;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -497,8 +500,9 @@ impl KeyPressData {
         &self,
         keypresses: &[KeyPress],
         check: &T,
-    ) -> Vec<&KeyMap> {
-        self.keymaps
+    ) -> KeymapMatch {
+        let matches = self
+            .keymaps
             .get(keypresses)
             .map(|keymaps| {
                 keymaps
@@ -524,7 +528,21 @@ impl KeyPressData {
                     })
                     .collect()
             })
-            .unwrap_or_else(Vec::new)
+            .unwrap_or_else(Vec::new);
+        let keymatch = if matches.is_empty() {
+            KeymapMatch::None
+        } else if matches.len() == 1 && matches[0].key == keypresses {
+            KeymapMatch::Full(matches[0].command.clone())
+        } else if matches.len() > 1
+            && matches.iter().filter(|m| m.key != keypresses).count() == 0
+        {
+            KeymapMatch::Multiple(
+                matches.iter().rev().map(|m| m.command.clone()).collect(),
+            )
+        } else {
+            KeymapMatch::Prefix
+        };
+        keymatch
     }
 
     fn check_one_condition<T: KeyPressFocus>(
@@ -974,6 +992,7 @@ impl KeyPressFocus for DefaultKeyPressHandler {
         _ctx: &mut EventCtx,
         _command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         CommandExecuted::Yes

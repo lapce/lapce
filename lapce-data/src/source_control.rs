@@ -1,4 +1,4 @@
-use druid::{Command, Env, EventCtx, Target, WidgetId};
+use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
 use lapce_proxy::dispatch::FileDiff;
 
 use crate::{
@@ -69,6 +69,7 @@ impl KeyPressFocus for SourceControlData {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         match command {

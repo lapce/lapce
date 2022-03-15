@@ -1,4 +1,4 @@
-use druid::{Env, EventCtx, WidgetId};
+use druid::{Env, EventCtx, Modifiers, WidgetId};
 
 use crate::{
     command::{CommandExecuted, LapceCommand},
@@ -69,6 +69,7 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         _ctx: &mut EventCtx,
         command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         match command {

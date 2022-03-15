@@ -4,7 +4,8 @@ use bit_vec::BitVec;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
     piet::{Svg, TextAttribute},
-    Command, ExtEventSink, FontFamily, FontWeight, Lens, Target, WidgetId, WindowId,
+    Command, ExtEventSink, FontFamily, FontWeight, Lens, Modifiers, Target,
+    WidgetId, WindowId,
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -471,6 +472,7 @@ impl KeyPressFocus for PaletteViewData {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         match command {

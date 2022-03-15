@@ -11,7 +11,8 @@ use alacritty_terminal::{
     Term,
 };
 use druid::{
-    Application, Color, Command, Env, EventCtx, ExtEventSink, Target, WidgetId,
+    Application, Color, Command, Env, EventCtx, ExtEventSink, Modifiers, Target,
+    WidgetId,
 };
 use hashbrown::HashMap;
 use lapce_proxy::terminal::TermId;
@@ -244,6 +245,7 @@ impl KeyPressFocus for LapceTerminalViewData {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         ctx.request_paint();

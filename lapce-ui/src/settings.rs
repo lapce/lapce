@@ -6,8 +6,8 @@ use druid::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
     BoxConstraints, Command, Env, Event, EventCtx, FontFamily, FontWeight,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId,
+    LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, UpdateCtx, Vec2, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
 use inflector::Inflector;
@@ -677,6 +677,7 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         _ctx: &mut EventCtx,
         command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         match command {

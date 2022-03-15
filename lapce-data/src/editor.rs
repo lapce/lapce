@@ -33,6 +33,7 @@ use druid::piet::Svg;
 use druid::piet::{
     PietTextLayout, Text, TextLayout as TextLayoutTrait, TextLayoutBuilder,
 };
+use druid::Modifiers;
 use druid::{
     kurbo::Line, piet::PietText, Color, Command, Env, EventCtx, FontFamily,
     PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, Vec2, WidgetId,
@@ -168,7 +169,11 @@ impl LapceEditorBufferData {
                 }
             }
         } {
-            self.do_move(&Movement::Offset(new_index + line_start_offset), 1);
+            self.do_move(
+                &Movement::Offset(new_index + line_start_offset),
+                1,
+                Modifiers::empty(),
+            );
         }
     }
 
@@ -312,7 +317,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn do_move(&mut self, movement: &Movement, count: usize) {
+    fn do_move(&mut self, movement: &Movement, count: usize, mods: Modifiers) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
             editor.save_jump_location(&self.buffer, self.config.editor.tab_width);
@@ -363,7 +368,7 @@ impl LapceEditorBufferData {
                     count,
                     movement,
                     Mode::Insert,
-                    false,
+                    mods.shift(),
                     self.editor.code_lens,
                     compare,
                     &self.config,
@@ -1273,12 +1278,22 @@ impl LapceEditorBufferData {
         None
     }
 
-    fn page_move(&mut self, ctx: &mut EventCtx, down: bool, _env: &Env) {
+    fn page_move(
+        &mut self,
+        ctx: &mut EventCtx,
+        down: bool,
+        mods: Modifiers,
+        _env: &Env,
+    ) {
         let line_height = self.config.editor.line_height as f64;
         let lines =
             (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
-        self.do_move(if down { &Movement::Down } else { &Movement::Up }, lines);
+        self.do_move(
+            if down { &Movement::Down } else { &Movement::Up },
+            lines,
+            mods,
+        );
         let rect = Rect::ZERO
             .with_origin(
                 self.editor.scroll_offset.to_point()
@@ -1292,7 +1307,14 @@ impl LapceEditorBufferData {
         ));
     }
 
-    fn scroll(&mut self, ctx: &mut EventCtx, down: bool, count: usize, _env: &Env) {
+    fn scroll(
+        &mut self,
+        ctx: &mut EventCtx,
+        down: bool,
+        count: usize,
+        mods: Modifiers,
+        _env: &Env,
+    ) {
         let line_height = self.config.editor.line_height as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
@@ -1319,9 +1341,9 @@ impl LapceEditorBufferData {
         };
 
         if new_line > line {
-            self.do_move(&Movement::Down, new_line - line);
+            self.do_move(&Movement::Down, new_line - line, mods);
         } else if new_line < line {
-            self.do_move(&Movement::Up, line - new_line);
+            self.do_move(&Movement::Up, line - new_line, mods);
         }
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
@@ -3313,10 +3335,11 @@ impl KeyPressFocus for LapceEditorBufferData {
         ctx: &mut EventCtx,
         cmd: &LapceCommand,
         count: Option<usize>,
+        mods: Modifiers,
         env: &Env,
     ) -> CommandExecuted {
         if let Some(movement) = cmd.move_command(count) {
-            self.do_move(&movement, count.unwrap_or(1));
+            self.do_move(&movement, count.unwrap_or(1), mods);
             if let Some(snippet) = self.editor.snippet.as_ref() {
                 let offset = self.editor.cursor.offset();
                 let mut within_region = false;
@@ -3775,16 +3798,16 @@ impl KeyPressFocus for LapceEditorBufferData {
                 ));
             }
             LapceCommand::ScrollDown => {
-                self.scroll(ctx, true, count.unwrap_or(1), env);
+                self.scroll(ctx, true, count.unwrap_or(1), mods, env);
             }
             LapceCommand::ScrollUp => {
-                self.scroll(ctx, false, count.unwrap_or(1), env);
+                self.scroll(ctx, false, count.unwrap_or(1), mods, env);
             }
             LapceCommand::PageDown => {
-                self.page_move(ctx, true, env);
+                self.page_move(ctx, true, mods, env);
             }
             LapceCommand::PageUp => {
-                self.page_move(ctx, false, env);
+                self.page_move(ctx, false, mods, env);
             }
             LapceCommand::JumpLocationBackward => {
                 self.jump_location_backward(ctx, env);
@@ -4068,21 +4091,21 @@ impl KeyPressFocus for LapceEditorBufferData {
                 Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
                 let next = self.find.next(&self.buffer.rope, offset, false, true);
                 if let Some((start, _end)) = next {
-                    self.do_move(&Movement::Offset(start), 1);
+                    self.do_move(&Movement::Offset(start), 1, mods);
                 }
             }
             LapceCommand::SearchForward => {
                 let offset = self.editor.cursor.offset();
                 let next = self.find.next(&self.buffer.rope, offset, false, true);
                 if let Some((start, _end)) = next {
-                    self.do_move(&Movement::Offset(start), 1);
+                    self.do_move(&Movement::Offset(start), 1, mods);
                 }
             }
             LapceCommand::SearchBackward => {
                 let offset = self.editor.cursor.offset();
                 let next = self.find.next(&self.buffer.rope, offset, true, true);
                 if let Some((start, _end)) = next {
-                    self.do_move(&Movement::Offset(start), 1);
+                    self.do_move(&Movement::Offset(start), 1, mods);
                 }
             }
             LapceCommand::ClearSearch => {
@@ -4204,7 +4227,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let c = c.chars().next().unwrap();
                 if !matching_pair_direction(c).unwrap_or(true) {
                     if cursor_char == Some(c) {
-                        self.do_move(&Movement::Right, 1);
+                        self.do_move(&Movement::Right, 1, Modifiers::empty());
                         return;
                     } else {
                         let offset = selection.get_cursor_offset();

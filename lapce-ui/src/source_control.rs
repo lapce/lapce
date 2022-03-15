@@ -4,8 +4,8 @@ use druid::{
     kurbo::BezPath,
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId,
+    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
@@ -154,6 +154,7 @@ impl KeyPressFocus for SourceControlData {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         match command {

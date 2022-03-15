@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use druid::{Env, EventCtx, Point, WidgetId};
+use druid::{Env, EventCtx, Modifiers, Point, WidgetId};
 
 use crate::{
     command::{CommandExecuted, LapceCommand, LapceCommandNew},
@@ -37,6 +37,7 @@ impl KeyPressFocus for MenuData {
         _ctx: &mut EventCtx,
         _command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         CommandExecuted::No

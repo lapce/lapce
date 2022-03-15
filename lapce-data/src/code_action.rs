@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use druid::{Command, Data, Env, EventCtx, Target};
+use druid::{Command, Data, Env, EventCtx, Modifiers, Target};
 use lsp_types::{
     CodeActionOrCommand, DocumentChangeOperation, DocumentChanges, OneOf, TextEdit,
     Url, WorkspaceEdit,
@@ -38,6 +38,7 @@ impl KeyPressFocus for CodeActionData {
         ctx: &mut EventCtx,
         command: &LapceCommand,
         _count: Option<usize>,
+        _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
         match command {
