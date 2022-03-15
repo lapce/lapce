@@ -47,6 +47,7 @@ use lsp_types::{
     GotoDefinitionResponse, Location, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde_json::Value;
+use std::collections::HashSet;
 use std::path::Path;
 use std::thread;
 use std::{collections::HashMap, sync::Arc};
@@ -938,9 +939,24 @@ impl LapceEditorBufferData {
         }
     }
 
+    fn check_selection_history(&mut self) {
+        if self.editor.content != self.editor.selection_history.content
+            || self.buffer.rev != self.editor.selection_history.rev
+        {
+            let editor = Arc::make_mut(&mut self.editor);
+            editor.selection_history.content = editor.content.clone();
+            editor.selection_history.rev = self.buffer.rev;
+            editor.selection_history.selections.clear();
+        }
+    }
+
     fn set_cursor(&mut self, cursor: Cursor) {
+        self.check_selection_history();
         let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor = cursor;
+        editor.cursor = cursor.clone();
+        if let CursorMode::Insert(selection) = cursor.mode {
+            editor.selection_history.selections.push_back(selection);
+        }
     }
 
     fn jump_to_nearest_delta(&mut self, delta: &RopeDelta) {
@@ -2693,12 +2709,11 @@ impl LapceEditorBufferData {
         config: &Config,
     ) {
         let new_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
-        let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor = editor.cursor.set_offset(
+        self.set_cursor(self.editor.cursor.set_offset(
             new_offset,
             mouse_event.mods.shift(),
             mouse_event.mods.alt(),
-        );
+        ));
     }
 
     pub fn double_click(
@@ -2709,13 +2724,12 @@ impl LapceEditorBufferData {
     ) {
         let mouse_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
         let (start, end) = self.buffer.select_word(mouse_offset);
-        let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor = editor.cursor.add_region(
+        self.set_cursor(self.editor.cursor.add_region(
             start,
             end,
             mouse_event.mods.shift(),
             mouse_event.mods.alt(),
-        );
+        ));
     }
 
     pub fn triple_click(
@@ -3942,6 +3956,145 @@ impl KeyPressFocus for LapceEditorBufferData {
                         CursorMode::Insert(new_selection),
                         None,
                     ));
+                }
+            }
+            LapceCommand::SelectAllCurrent => {
+                println!("select all current selection");
+                if let CursorMode::Insert(selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    let mut new_selection = Selection::new();
+                    if !selection.is_empty() {
+                        let first = selection.first().unwrap();
+                        let (start, end) = if first.is_caret() {
+                            self.buffer.select_word(first.start())
+                        } else {
+                            (first.min(), first.max())
+                        };
+                        let search_str = self.buffer.slice_to_cow(start..end);
+                        let mut find = Find::new(0);
+                        find.set_find(&search_str, false, false, false);
+                        let mut offset = 0;
+                        while let Some((start, end)) =
+                            find.next(&self.buffer.rope, offset, false, false)
+                        {
+                            offset = end;
+                            new_selection
+                                .add_region(SelRegion::new(start, end, None));
+                        }
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(new_selection),
+                        None,
+                    ));
+                }
+            }
+            LapceCommand::SelectNextCurrent => {
+                if let CursorMode::Insert(mut selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    if !selection.is_empty() {
+                        let mut had_caret = false;
+                        for region in selection.regions_mut() {
+                            if region.is_caret() {
+                                had_caret = true;
+                                let (start, end) =
+                                    self.buffer.select_word(region.start());
+                                region.start = start;
+                                region.end = end;
+                            }
+                        }
+                        if !had_caret {
+                            let r = selection.last_inserted().unwrap();
+                            let search_str =
+                                self.buffer.slice_to_cow(r.min()..r.max());
+                            let mut find = Find::new(0);
+                            find.set_find(&search_str, false, false, false);
+                            let mut offset = r.max();
+                            let mut seen = HashSet::new();
+                            while let Some((start, end)) =
+                                find.next(&self.buffer.rope, offset, false, true)
+                            {
+                                if !selection
+                                    .regions()
+                                    .iter()
+                                    .any(|r| r.min() == start && r.max() == end)
+                                {
+                                    selection.add_region(SelRegion::new(
+                                        start, end, None,
+                                    ));
+                                    break;
+                                }
+                                if seen.contains(&end) {
+                                    break;
+                                }
+                                offset = end;
+                                seen.insert(offset);
+                            }
+                        }
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(selection),
+                        None,
+                    ));
+                }
+            }
+            LapceCommand::SelectSkipCurrent => {
+                if let CursorMode::Insert(mut selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    if !selection.is_empty() {
+                        let r = selection.last_inserted().unwrap();
+                        if r.is_caret() {
+                            let (start, end) = self.buffer.select_word(r.start());
+                            selection.replace_last_inserted_region(SelRegion::new(
+                                start, end, None,
+                            ));
+                        } else {
+                            let search_str =
+                                self.buffer.slice_to_cow(r.min()..r.max());
+                            let mut find = Find::new(0);
+                            find.set_find(&search_str, false, false, false);
+                            let mut offset = r.max();
+                            let mut seen = HashSet::new();
+                            while let Some((start, end)) =
+                                find.next(&self.buffer.rope, offset, false, true)
+                            {
+                                if !selection
+                                    .regions()
+                                    .iter()
+                                    .any(|r| r.min() == start && r.max() == end)
+                                {
+                                    selection.replace_last_inserted_region(
+                                        SelRegion::new(start, end, None),
+                                    );
+                                    break;
+                                }
+                                if seen.contains(&end) {
+                                    break;
+                                }
+                                offset = end;
+                                seen.insert(offset);
+                            }
+                        }
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(selection),
+                        None,
+                    ));
+                }
+            }
+            LapceCommand::SelectUndo => {
+                if let CursorMode::Insert(_) = self.editor.cursor.mode.clone() {
+                    self.check_selection_history();
+                    let editor = Arc::make_mut(&mut self.editor);
+                    editor.selection_history.selections.pop_back();
+                    if let Some(selection) =
+                        editor.selection_history.selections.last().cloned()
+                    {
+                        editor.cursor =
+                            Cursor::new(CursorMode::Insert(selection), None);
+                    }
                 }
             }
             LapceCommand::NextError => {

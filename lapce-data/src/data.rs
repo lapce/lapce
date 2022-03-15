@@ -2812,6 +2812,13 @@ impl LapceEditorTabData {
 }
 
 #[derive(Clone, Debug)]
+pub struct SelectionHistory {
+    pub rev: u64,
+    pub content: BufferContent,
+    pub selections: im::Vector<Selection>,
+}
+
+#[derive(Clone, Debug)]
 pub struct LapceEditorData {
     pub tab_id: Option<WidgetId>,
     pub view_id: WidgetId,
@@ -2820,6 +2827,7 @@ pub struct LapceEditorData {
     pub code_lens: bool,
     pub scroll_offset: Vec2,
     pub cursor: Cursor,
+    pub selection_history: SelectionHistory,
     pub size: Rc<RefCell<Size>>,
     pub window_origin: Point,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
@@ -2840,6 +2848,11 @@ impl LapceEditorData {
         Self {
             tab_id,
             view_id: view_id.unwrap_or_else(WidgetId::next),
+            selection_history: SelectionHistory {
+                rev: 0,
+                content: content.clone(),
+                selections: im::Vector::new(),
+            },
             content,
             scroll_offset: Vec2::ZERO,
             cursor: if config.lapce.modal {

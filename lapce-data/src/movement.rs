@@ -410,8 +410,8 @@ pub enum ColPosition {
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct SelRegion {
-    start: usize,
-    end: usize,
+    pub start: usize,
+    pub end: usize,
     horiz: Option<ColPosition>,
 }
 
@@ -533,7 +533,7 @@ impl Selection {
         Some(&self.regions[self.len() - 1])
     }
 
-    fn last_inserted(&self) -> Option<&SelRegion> {
+    pub fn last_inserted(&self) -> Option<&SelRegion> {
         if self.is_empty() {
             return None;
         }
@@ -639,7 +639,10 @@ impl Selection {
     }
 
     pub fn get_cursor_offset(&self) -> usize {
-        self.regions[0].end
+        if self.is_empty() {
+            return 0;
+        }
+        self.regions[self.last_inserted].end
     }
 
     pub fn is_caret(&self) -> bool {
@@ -657,6 +660,10 @@ impl Selection {
 
     pub fn regions(&self) -> &[SelRegion] {
         &self.regions
+    }
+
+    pub fn regions_mut(&mut self) -> &mut [SelRegion] {
+        &mut self.regions
     }
 
     pub fn to_start_caret(&self) -> Selection {

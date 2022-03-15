@@ -104,6 +104,26 @@ key = "meta+l"
 command = "select_current_line"
 mode = "i"
 
+[[keymaps]]
+key = "meta+L"
+command = "select_all_current"
+mode = "i"
+
+[[keymaps]]
+key = "meta+u"
+command = "select_undo"
+mode = "i"
+
+[[keymaps]]
+key = "meta+d"
+command = "select_next_current"
+mode = "i"
+
+[[keymaps]]
+key = "meta+k meta+d"
+command = "select_skip_current"
+mode = "i"
+
 # ------------------------------------ ------------ -------------------------------------
 
 [[keymaps]]

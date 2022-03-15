@@ -225,8 +225,16 @@ pub enum LapceCommand {
     InsertCursorBelow,
     #[strum(serialize = "insert_cursor_end_of_line")]
     InsertCursorEndOfLine,
+    #[strum(serialize = "select_undo")]
+    SelectUndo,
     #[strum(serialize = "select_current_line")]
     SelectCurrentLine,
+    #[strum(serialize = "select_all_current")]
+    SelectAllCurrent,
+    #[strum(serialize = "select_next_current")]
+    SelectNextCurrent,
+    #[strum(serialize = "select_skip_current")]
+    SelectSkipCurrent,
     #[strum(serialize = "file_explorer")]
     FileExplorer,
     #[strum(serialize = "file_explorer.cancel")]
