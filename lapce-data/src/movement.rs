@@ -75,7 +75,7 @@ impl Cursor {
         buffer.line_of_offset(self.offset())
     }
 
-    pub fn set_offset(&self, offset: usize, modify: bool) -> Self {
+    pub fn set_offset(&self, offset: usize, modify: bool, new_cursor: bool) -> Self {
         match &self.mode {
             CursorMode::Normal(old_offset) => {
                 if modify && *old_offset != offset {
@@ -110,7 +110,21 @@ impl Cursor {
                 }
             }
             CursorMode::Insert(selection) => {
-                if modify {
+                if new_cursor {
+                    let mut new_selection = selection.clone();
+                    if modify {
+                        if let Some(region) = new_selection.last_inserted_mut() {
+                            region.end = offset;
+                        } else {
+                            new_selection.add_region(SelRegion::caret(offset));
+                        }
+                        Cursor::new(CursorMode::Insert(new_selection), None)
+                    } else {
+                        let mut new_selection = selection.clone();
+                        new_selection.add_region(SelRegion::caret(offset));
+                        Cursor::new(CursorMode::Insert(new_selection), None)
+                    }
+                } else if modify {
                     let mut new_selection = Selection::new();
                     if let Some(region) = selection.first() {
                         let new_regoin =
@@ -128,7 +142,13 @@ impl Cursor {
         }
     }
 
-    pub fn add_region(&self, start: usize, end: usize, modify: bool) -> Self {
+    pub fn add_region(
+        &self,
+        start: usize,
+        end: usize,
+        modify: bool,
+        new_cursor: bool,
+    ) -> Self {
         match &self.mode {
             CursorMode::Normal(_offset) => Cursor::new(
                 CursorMode::Visual {
@@ -161,7 +181,22 @@ impl Cursor {
                 )
             }
             CursorMode::Insert(selection) => {
-                let new_selection = if modify {
+                let new_selection = if new_cursor {
+                    let mut new_selection = selection.clone();
+                    if modify {
+                        let new_region =
+                            if let Some(last_inserted) = selection.last_inserted() {
+                                last_inserted
+                                    .merge_with(SelRegion::new(start, end, None))
+                            } else {
+                                SelRegion::new(start, end, None)
+                            };
+                        new_selection.replace_last_inserted_region(new_region);
+                    } else {
+                        new_selection.add_region(SelRegion::new(start, end, None));
+                    }
+                    new_selection
+                } else if modify {
                     let mut new_selection = selection.clone();
                     new_selection.add_region(SelRegion::new(start, end, None));
                     new_selection
@@ -423,7 +458,7 @@ impl SelRegion {
     }
 
     fn merge_with(self, other: SelRegion) -> SelRegion {
-        let is_forward = self.end > self.start;
+        let is_forward = self.end >= self.start;
         let new_min = min(self.min(), other.min());
         let new_max = max(self.max(), other.max());
         let (start, end) = if is_forward {
@@ -440,12 +475,14 @@ impl SelRegion {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Selection {
     regions: Vec<SelRegion>,
+    last_inserted: usize,
 }
 
 impl Selection {
     pub fn new() -> Selection {
         Selection {
             regions: Vec::new(),
+            last_inserted: 0,
         }
     }
 
@@ -456,6 +493,7 @@ impl Selection {
                 end: 0,
                 horiz: None,
             }],
+            last_inserted: 0,
         }
     }
 
@@ -466,6 +504,7 @@ impl Selection {
                 end: offset,
                 horiz: None,
             }],
+            last_inserted: 0,
         }
     }
 
@@ -476,6 +515,7 @@ impl Selection {
                 end,
                 horiz: None,
             }],
+            last_inserted: 0,
         }
     }
 
@@ -491,6 +531,20 @@ impl Selection {
             return None;
         }
         Some(&self.regions[self.len() - 1])
+    }
+
+    fn last_inserted(&self) -> Option<&SelRegion> {
+        if self.is_empty() {
+            return None;
+        }
+        Some(&self.regions[self.last_inserted])
+    }
+
+    fn last_inserted_mut(&mut self) -> Option<&mut SelRegion> {
+        if self.is_empty() {
+            return None;
+        }
+        Some(&mut self.regions[self.last_inserted])
     }
 
     pub fn len(&self) -> usize {
@@ -542,10 +596,21 @@ impl Selection {
         selection
     }
 
+    pub fn replace_last_inserted_region(&mut self, region: SelRegion) {
+        if self.is_empty() {
+            self.add_region(region);
+            return;
+        }
+
+        self.regions.remove(self.last_inserted);
+        self.add_region(region);
+    }
+
     pub fn add_region(&mut self, region: SelRegion) {
         let mut ix = self.search(region.min());
         if ix == self.regions.len() {
             self.regions.push(region);
+            self.last_inserted = self.regions.len() - 1;
             return;
         }
         let mut region = region;
@@ -566,6 +631,7 @@ impl Selection {
         }
         if ix == end_ix {
             self.regions.insert(ix, region);
+            self.last_inserted = ix;
         } else {
             self.regions[ix] = region;
             remove_n_at(&mut self.regions, ix + 1, end_ix - ix - 1);
@@ -601,6 +667,7 @@ impl Selection {
                 end: region.start,
                 horiz: None,
             }],
+            last_inserted: 0,
         }
     }
 
@@ -612,6 +679,7 @@ impl Selection {
                 end: region.end,
                 horiz: region.horiz,
             }],
+            last_inserted: 0,
         }
     }
 

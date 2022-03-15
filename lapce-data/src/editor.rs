@@ -2694,9 +2694,11 @@ impl LapceEditorBufferData {
     ) {
         let new_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
         let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor = editor
-            .cursor
-            .set_offset(new_offset, mouse_event.mods.shift());
+        editor.cursor = editor.cursor.set_offset(
+            new_offset,
+            mouse_event.mods.shift(),
+            mouse_event.mods.alt(),
+        );
     }
 
     pub fn double_click(
@@ -2708,10 +2710,12 @@ impl LapceEditorBufferData {
         let mouse_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
         let (start, end) = self.buffer.select_word(mouse_offset);
         let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor =
-            editor
-                .cursor
-                .add_region(start, end, mouse_event.mods.shift());
+        editor.cursor = editor.cursor.add_region(
+            start,
+            end,
+            mouse_event.mods.shift(),
+            mouse_event.mods.alt(),
+        );
     }
 
     pub fn triple_click(
@@ -2725,10 +2729,12 @@ impl LapceEditorBufferData {
         let start = self.buffer.offset_of_line(line);
         let end = self.buffer.offset_of_line(line + 1);
         let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor =
-            editor
-                .cursor
-                .add_region(start, end, mouse_event.mods.shift());
+        editor.cursor = editor.cursor.add_region(
+            start,
+            end,
+            mouse_event.mods.shift(),
+            mouse_event.mods.alt(),
+        );
     }
 
     fn paint_cursor(
@@ -3831,6 +3837,112 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::JumpLocationForward => {
                 self.jump_location_forward(ctx, env);
+            }
+            LapceCommand::InsertCursorAbove => {
+                if let CursorMode::Insert(mut selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    let offset = selection.first().map(|s| s.end()).unwrap_or(0);
+                    let (new_offset, _) = self.buffer.move_offset(
+                        offset,
+                        self.editor.cursor.horiz.as_ref(),
+                        1,
+                        &Movement::Up,
+                        Mode::Insert,
+                        self.editor.code_lens,
+                        self.editor.compare.clone(),
+                        &self.config,
+                    );
+                    if new_offset != offset {
+                        selection.add_region(SelRegion::new(
+                            new_offset, new_offset, None,
+                        ));
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(selection),
+                        None,
+                    ));
+                }
+            }
+            LapceCommand::InsertCursorBelow => {
+                if let CursorMode::Insert(mut selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    let offset = selection.last().map(|s| s.end()).unwrap_or(0);
+                    let (new_offset, _) = self.buffer.move_offset(
+                        offset,
+                        self.editor.cursor.horiz.as_ref(),
+                        1,
+                        &Movement::Down,
+                        Mode::Insert,
+                        self.editor.code_lens,
+                        self.editor.compare.clone(),
+                        &self.config,
+                    );
+                    if new_offset != offset {
+                        selection.add_region(SelRegion::new(
+                            new_offset, new_offset, None,
+                        ));
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(selection),
+                        None,
+                    ));
+                }
+            }
+            LapceCommand::InsertCursorEndOfLine => {
+                println!("insert curosr end of line");
+                if let CursorMode::Insert(selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    let mut new_selection = Selection::new();
+                    for region in selection.regions() {
+                        let (start_line, _) = self.buffer.offset_to_line_col(
+                            region.min(),
+                            self.config.editor.tab_width,
+                        );
+                        let (end_line, end_col) = self.buffer.offset_to_line_col(
+                            region.max(),
+                            self.config.editor.tab_width,
+                        );
+                        for line in start_line..end_line + 1 {
+                            let offset = if line == end_line {
+                                self.buffer.offset_of_line_col(
+                                    line,
+                                    end_col,
+                                    self.config.editor.tab_width,
+                                )
+                            } else {
+                                self.buffer.line_end_offset(line, true)
+                            };
+                            new_selection
+                                .add_region(SelRegion::new(offset, offset, None));
+                        }
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(new_selection),
+                        None,
+                    ));
+                }
+            }
+            LapceCommand::SelectCurrentLine => {
+                println!("select current line");
+                if let CursorMode::Insert(selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    let mut new_selection = Selection::new();
+                    for region in selection.regions() {
+                        let start_line = self.buffer.line_of_offset(region.min());
+                        let start = self.buffer.offset_of_line(start_line);
+                        let end_line = self.buffer.line_of_offset(region.max());
+                        let end = self.buffer.offset_of_line(end_line + 1);
+                        new_selection.add_region(SelRegion::new(start, end, None));
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(new_selection),
+                        None,
+                    ));
+                }
             }
             LapceCommand::NextError => {
                 self.next_error(ctx, env);

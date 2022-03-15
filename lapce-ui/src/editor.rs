@@ -2671,7 +2671,11 @@ impl Widget<LapceTabData> for LapceEditor {
                         let editor =
                             data.main_split.editors.get_mut(&self.view_id).unwrap();
                         let editor = Arc::make_mut(editor);
-                        editor.cursor = editor.cursor.set_offset(new_offset, true);
+                        editor.cursor = editor.cursor.set_offset(
+                            new_offset,
+                            true,
+                            mouse_event.mods.alt(),
+                        );
                     }
                 }
             }

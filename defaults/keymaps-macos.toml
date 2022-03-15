@@ -53,7 +53,7 @@ command = "toggle_code_lens"
 mode = "nv"
 
 [[keymaps]]
-key = "cmd+e"
+key = "meta+e"
 command = "toggle_code_lens"
 mode = "i"
 
@@ -89,14 +89,22 @@ key = "alt+meta+up"
 command = "insert_cursor_above"
 mode = "i"
 
+[[keymaps]]
+key = "alt+meta+down"
+command = "insert_cursor_below"
+mode = "i"
 
+[[keymaps]]
+key = "alt+I"
+command = "insert_cursor_end_of_line"
+mode = "i"
 
+[[keymaps]]
+key = "meta+l"
+command = "select_current_line"
+mode = "i"
 
-
-
-
-
-
+# ------------------------------------ ------------ -------------------------------------
 
 [[keymaps]]
 key = "ctrl+m"

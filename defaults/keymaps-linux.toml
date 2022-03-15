@@ -61,9 +61,26 @@ mode = "i"
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
-key = "alt+ctrl+up"
+key = "alt+shift+up"
 command = "insert_cursor_above"
 mode = "i"
+
+[[keymaps]]
+key = "alt+shift+down"
+command = "insert_cursor_below"
+mode = "i"
+
+[[keymaps]]
+key = "alt+I"
+command = "insert_cursor_end_of_line"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+l"
+command = "select_current_line"
+mode = "i"
+
+# ------------------------------------ ------------ -------------------------------------
 
 [[keymaps]]
 key = "ctrl+m"

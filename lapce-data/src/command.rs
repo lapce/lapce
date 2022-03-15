@@ -219,6 +219,14 @@ pub enum LapceWorkbenchCommand {
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
 pub enum LapceCommand {
+    #[strum(serialize = "insert_cursor_above")]
+    InsertCursorAbove,
+    #[strum(serialize = "insert_cursor_below")]
+    InsertCursorBelow,
+    #[strum(serialize = "insert_cursor_end_of_line")]
+    InsertCursorEndOfLine,
+    #[strum(serialize = "select_current_line")]
+    SelectCurrentLine,
     #[strum(serialize = "file_explorer")]
     FileExplorer,
     #[strum(serialize = "file_explorer.cancel")]
