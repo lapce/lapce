@@ -219,6 +219,10 @@ pub enum LapceWorkbenchCommand {
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
 pub enum LapceCommand {
+    #[strum(serialize = "move_line_up")]
+    MoveLineUp,
+    #[strum(serialize = "move_line_down")]
+    MoveLineDown,
     #[strum(serialize = "insert_cursor_above")]
     InsertCursorAbove,
     #[strum(serialize = "insert_cursor_below")]

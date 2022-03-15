@@ -845,7 +845,8 @@ impl LapceEditorBufferData {
                         .cursor
                         .edit_selection(&self.buffer, self.config.editor.tab_width),
                 };
-                let after = !data.content.contains('\n');
+                let after =
+                    self.editor.cursor.is_insert() || !data.content.contains('\n');
                 let (selection, _) = self.edit(
                     ctx,
                     &selection,
@@ -885,13 +886,18 @@ impl LapceEditorBufferData {
                         let offset = self.buffer.offset_of_line(line + 1);
                         (Selection::caret(offset), data.content.clone())
                     }
-                    CursorMode::Insert { .. } => (
-                        self.editor.cursor.edit_selection(
-                            &self.buffer,
-                            self.config.editor.tab_width,
-                        ),
-                        "\n".to_string() + &data.content,
-                    ),
+                    CursorMode::Insert(selection) => {
+                        let mut selection = selection.clone();
+                        for region in selection.regions_mut() {
+                            if region.is_caret() {
+                                let line = self.buffer.line_of_offset(region.start);
+                                let start = self.buffer.offset_of_line(line);
+                                region.start = start;
+                                region.end = start;
+                            }
+                        }
+                        (selection, data.content.clone())
+                    }
                     CursorMode::Visual { mode, .. } => {
                         let selection = self.editor.cursor.edit_selection(
                             &self.buffer,
@@ -909,7 +915,7 @@ impl LapceEditorBufferData {
                     &selection,
                     &content,
                     None,
-                    false,
+                    self.editor.cursor.is_insert(),
                     EditType::InsertChars,
                 );
                 match self.editor.cursor.mode {
@@ -3625,10 +3631,26 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .cursor
                     .yank(&self.buffer, self.config.editor.tab_width);
                 Application::global().clipboard().put_string(data.content);
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+
+                let selection = if let CursorMode::Insert(mut selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    for region in selection.regions_mut() {
+                        if region.is_caret() {
+                            let line = self.buffer.line_of_offset(region.start);
+                            let start = self.buffer.offset_of_line(line);
+                            let end = self.buffer.offset_of_line(line + 1);
+                            region.start = start;
+                            region.end = end;
+                        }
+                    }
+                    selection
+                } else {
+                    self.editor
+                        .cursor
+                        .edit_selection(&self.buffer, self.config.editor.tab_width)
+                };
+
                 let (selection, _) =
                     self.edit(ctx, &selection, "", None, true, EditType::Delete);
                 self.set_cursor_after_change(selection);
@@ -3659,10 +3681,12 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::ClipboardPaste => {
                 if let Some(s) = Application::global().clipboard().get_string() {
-                    let data = RegisterData {
-                        content: s,
-                        mode: VisualMode::Normal,
+                    let mode = if s.ends_with('\n') {
+                        VisualMode::Linewise
+                    } else {
+                        VisualMode::Normal
                     };
+                    let data = RegisterData { content: s, mode };
                     self.paste(ctx, &data);
                 }
             }
@@ -3851,6 +3875,93 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::JumpLocationForward => {
                 self.jump_location_forward(ctx, env);
+            }
+            LapceCommand::MoveLineUp => {
+                if let CursorMode::Insert(mut selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    for region in selection.regions_mut() {
+                        let start_line = self.buffer.line_of_offset(region.min());
+                        if start_line > 0 {
+                            let previous_line_len =
+                                self.buffer.line_content(start_line - 1).len();
+
+                            let end_line = self.buffer.line_of_offset(region.max());
+                            let start = self.buffer.offset_of_line(start_line);
+                            let end = self.buffer.offset_of_line(end_line + 1);
+                            let content =
+                                self.buffer.slice_to_cow(start..end).to_string();
+                            self.edit(
+                                ctx,
+                                &Selection::region(start, end),
+                                "",
+                                None,
+                                true,
+                                EditType::InsertChars,
+                            );
+                            self.edit(
+                                ctx,
+                                &Selection::caret(
+                                    self.buffer.offset_of_line(start_line - 1),
+                                ),
+                                &content,
+                                None,
+                                true,
+                                EditType::InsertChars,
+                            );
+                            region.start -= previous_line_len;
+                            region.end -= previous_line_len;
+                        }
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(selection),
+                        None,
+                    ));
+                }
+            }
+            LapceCommand::MoveLineDown => {
+                if let CursorMode::Insert(mut selection) =
+                    self.editor.cursor.mode.clone()
+                {
+                    for region in selection.regions_mut().iter_mut().rev() {
+                        let last_line = self.buffer.last_line();
+                        let start_line = self.buffer.line_of_offset(region.min());
+                        let end_line = self.buffer.line_of_offset(region.max());
+                        if end_line < last_line {
+                            let next_line_len =
+                                self.buffer.line_content(end_line + 1).len();
+
+                            let start = self.buffer.offset_of_line(start_line);
+                            let end = self.buffer.offset_of_line(end_line + 1);
+                            let content =
+                                self.buffer.slice_to_cow(start..end).to_string();
+                            self.edit(
+                                ctx,
+                                &Selection::caret(
+                                    self.buffer.offset_of_line(end_line + 2),
+                                ),
+                                &content,
+                                None,
+                                true,
+                                EditType::InsertChars,
+                            );
+                            self.edit(
+                                ctx,
+                                &Selection::region(start, end),
+                                "",
+                                None,
+                                true,
+                                EditType::InsertChars,
+                            );
+                            region.start += next_line_len;
+                            region.end += next_line_len;
+                        }
+                    }
+                    self.set_cursor(Cursor::new(
+                        CursorMode::Insert(selection),
+                        None,
+                    ));
+                }
             }
             LapceCommand::InsertCursorAbove => {
                 if let CursorMode::Insert(mut selection) =
@@ -4097,6 +4208,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                 }
             }
+            LapceCommand::MoveLineUp => {}
             LapceCommand::NextError => {
                 self.next_error(ctx, env);
             }

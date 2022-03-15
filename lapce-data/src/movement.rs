@@ -249,35 +249,60 @@ impl Cursor {
     }
 
     pub fn yank(&self, buffer: &Buffer, tab_width: usize) -> RegisterData {
-        let content = match &self.mode {
-            CursorMode::Insert(selection) => selection
-                .regions()
-                .iter()
-                .map(|r| buffer.slice_to_cow(r.min()..r.max()).to_string())
-                .collect::<Vec<String>>()
-                .join("\n"),
+        let (content, mode) = match &self.mode {
+            CursorMode::Insert(selection) => {
+                let mut mode = VisualMode::Normal;
+                let mut content = "".to_string();
+                for region in selection.regions() {
+                    let region_content = if region.is_caret() {
+                        mode = VisualMode::Linewise;
+                        let line = buffer.line_of_offset(region.start);
+                        buffer.line_content(line)
+                    } else {
+                        buffer.slice_to_cow(region.min()..region.max())
+                    };
+                    if content.is_empty() {
+                        content = region_content.to_string();
+                    } else if content.ends_with('\n') {
+                        content += &region_content;
+                    } else {
+                        content += "\n";
+                        content += &region_content;
+                    }
+                }
+                (content, mode)
+            }
             CursorMode::Normal(offset) => {
                 let new_offset =
                     buffer.next_grapheme_offset(*offset, 1, buffer.len());
-                buffer.slice_to_cow(*offset..new_offset).to_string()
+                (
+                    buffer.slice_to_cow(*offset..new_offset).to_string(),
+                    VisualMode::Normal,
+                )
             }
             CursorMode::Visual { start, end, mode } => match mode {
-                VisualMode::Normal => buffer
-                    .slice_to_cow(
-                        *start.min(end)
-                            ..buffer.next_grapheme_offset(
-                                *start.max(end),
-                                1,
-                                buffer.len(),
-                            ),
-                    )
-                    .to_string(),
+                VisualMode::Normal => (
+                    buffer
+                        .slice_to_cow(
+                            *start.min(end)
+                                ..buffer.next_grapheme_offset(
+                                    *start.max(end),
+                                    1,
+                                    buffer.len(),
+                                ),
+                        )
+                        .to_string(),
+                    VisualMode::Normal,
+                ),
                 VisualMode::Linewise => {
                     let start_offset = buffer
                         .offset_of_line(buffer.line_of_offset(*start.min(end)));
                     let end_offset = buffer
                         .offset_of_line(buffer.line_of_offset(*start.max(end)) + 1);
-                    buffer.slice_to_cow(start_offset..end_offset).to_string()
+                    (
+                        buffer.slice_to_cow(start_offset..end_offset).to_string(),
+                        VisualMode::Linewise,
+                    )
                 }
                 VisualMode::Blockwise => {
                     let mut lines = Vec::new();
@@ -309,13 +334,9 @@ impl Cursor {
                             lines.push(buffer.slice_to_cow(left..right).to_string());
                         }
                     }
-                    lines.join("\n") + "\n"
+                    (lines.join("\n") + "\n", VisualMode::Blockwise)
                 }
             },
-        };
-        let mode = match &self.mode {
-            CursorMode::Normal(_) | CursorMode::Insert { .. } => VisualMode::Normal,
-            CursorMode::Visual { mode, .. } => *mode,
         };
         RegisterData { content, mode }
     }
