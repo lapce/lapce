@@ -52,8 +52,8 @@ fzyr = "0.1.2"
 fuzzy-matcher = "0.3.7"
 uuid = { version = "0.7.4", features = ["v4"] }
 lsp-types = { version = "0.89.2", features = ["proposed"] }
-#druid = { git = "https://github.com/lapce/druid", features = [ "svg", "im", "serde", ] }
-druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
+druid = { git = "https://github.com/lapce/druid", features = [ "svg", "im", "serde", ] }
+#druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 toml = { version = "0.5.8", features = ["preserve_order"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 #structdesc = { path = "../../structdesc" }
