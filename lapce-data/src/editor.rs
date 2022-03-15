@@ -3599,6 +3599,20 @@ impl KeyPressFocus for LapceEditorBufferData {
                     CursorMode::Insert(_) => {}
                 }
             }
+            LapceCommand::ClipboardCut => {
+                let data = self
+                    .editor
+                    .cursor
+                    .yank(&self.buffer, self.config.editor.tab_width);
+                Application::global().clipboard().put_string(data.content);
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let (selection, _) =
+                    self.edit(ctx, &selection, "", None, true, EditType::Delete);
+                self.set_cursor_after_change(selection);
+            }
             LapceCommand::ClipboardCopy => {
                 let data = self
                     .editor
@@ -3606,8 +3620,11 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .yank(&self.buffer, self.config.editor.tab_width);
                 Application::global().clipboard().put_string(data.content);
                 match &self.editor.cursor.mode {
-                    #[allow(unused_variables)]
-                    CursorMode::Visual { start, end, mode } => {
+                    CursorMode::Visual {
+                        start,
+                        end,
+                        mode: _,
+                    } => {
                         let offset = *start.min(end);
                         let offset =
                             self.buffer.offset_line_end(offset, false).min(offset);

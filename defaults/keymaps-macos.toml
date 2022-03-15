@@ -61,12 +61,7 @@ mode = "i"
 
 [[keymaps]]
 key = "meta+x"
-command = "cut"
-mode = "i"
-
-[[keymaps]]
-key = "meta+c"
-command = "copy"
+command = "clipboard_cut"
 mode = "i"
 
 [[keymaps]]
