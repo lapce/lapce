@@ -3784,6 +3784,37 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.set_cursor_after_change(selection);
                 self.update_completion(ctx);
             }
+            LapceCommand::DeleteLine => {
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+
+                self.buffer.update_selection(
+                    &selection,
+                    1,
+                    &Movement::StartOfLine,
+                    Mode::Insert,
+                    true,
+                    self.editor.code_lens,
+                    self.editor.compare.clone(),
+                    &self.config,
+                );
+                self.buffer.update_selection(
+                    &selection,
+                    1,
+                    &Movement::EndOfLine,
+                    Mode::Insert,
+                    true,
+                    self.editor.code_lens,
+                    self.editor.compare.clone(),
+                    &self.config,
+                );
+                let (selection, _) =
+                    self.edit(ctx, &selection, "", None, true, EditType::Delete);
+                let offset = selection.min_offset();
+                self.set_cursor(Cursor::new(CursorMode::Normal(offset), None));
+            }
             LapceCommand::DeleteForward => {
                 let selection = self
                     .editor
