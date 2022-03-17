@@ -1,10 +1,26 @@
 use std::{collections::HashSet, path::Path};
 
-use tree_sitter::{Parser, TreeCursor};
+use tree_sitter::{Parser, Query, TreeCursor};
+use tree_sitter_highlight::HighlightConfiguration;
+
+const RUST_CODE_LENS_LIST: &[&str] =
+    &["source_file", "impl_item", "trait_item", "declaration_list"];
+const RUST_CODE_LENS_IGNORE_LIST: &[&str] =
+    &["source_file", "use_declaration", "line_comment"];
+const GO_CODE_LENS_LIST: &[&str] = &[
+    "source_file",
+    "type_declaration",
+    "type_spec",
+    "interface_type",
+    "method_spec_list",
+];
+const GO_CODE_LENS_IGNORE_LIST: &[&str] =
+    &["source_file", "comment", "line_comment"];
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub enum LapceLanguage {
     Rust,
+    Go,
 }
 
 impl LapceLanguage {
@@ -14,7 +30,7 @@ impl LapceLanguage {
             "rs" => LapceLanguage::Rust,
             // "js" => LapceLanguage::Javascript,
             // "jsx" => LapceLanguage::Javascript,
-            // "go" => LapceLanguage::Go,
+            "go" => LapceLanguage::Go,
             // "toml" => LapceLanguage::Toml,
             // "yaml" => LapceLanguage::Yaml,
             // "yml" => LapceLanguage::Yaml,
@@ -22,13 +38,29 @@ impl LapceLanguage {
         })
     }
 
-    pub(crate) fn new_parser(&self) -> Parser {
-        let language = match self {
+    fn tree_sitter_language(&self) -> tree_sitter::Language {
+        match self {
             LapceLanguage::Rust => tree_sitter_rust::language(),
-        };
+            LapceLanguage::Go => tree_sitter_go::language(),
+        }
+    }
+
+    pub(crate) fn new_parser(&self) -> Parser {
+        let language = self.tree_sitter_language();
         let mut parser = Parser::new();
         parser.set_language(language).unwrap();
         parser
+    }
+
+    pub(crate) fn new_highlight_query(&self) -> Query {
+        let language = self.tree_sitter_language();
+        let query = match self {
+            LapceLanguage::Rust => tree_sitter_rust::HIGHLIGHT_QUERY,
+            LapceLanguage::Go => tree_sitter_go::HIGHLIGHT_QUERY,
+        };
+        HighlightConfiguration::new(language, query, "", "")
+            .unwrap()
+            .query
     }
 
     pub(crate) fn walk_tree(
@@ -36,31 +68,33 @@ impl LapceLanguage {
         cursor: &mut TreeCursor,
         normal_lines: &mut HashSet<usize>,
     ) {
-        match self {
-            LapceLanguage::Rust => rust_walk_tree(cursor, 0, normal_lines),
+        let (list, ignore_list) = match self {
+            LapceLanguage::Rust => (RUST_CODE_LENS_LIST, RUST_CODE_LENS_IGNORE_LIST),
+            LapceLanguage::Go => (GO_CODE_LENS_LIST, GO_CODE_LENS_IGNORE_LIST),
         };
+        walk_tree(cursor, 0, normal_lines, list, ignore_list);
     }
 }
 
-fn rust_walk_tree(
+fn walk_tree(
     cursor: &mut TreeCursor,
     level: usize,
     normal_lines: &mut HashSet<usize>,
+    list: &[&str],
+    ignore_list: &[&str],
 ) {
     let node = cursor.node();
     let start_pos = node.start_position();
     let end_pos = node.end_position();
-    let kind = node.kind();
-    if !["source_file", "use_declaration", "line_comment"].contains(&kind) {
+    let kind = node.kind().trim();
+    if !ignore_list.contains(&kind) && !kind.is_empty() {
         normal_lines.insert(start_pos.row);
         normal_lines.insert(end_pos.row);
     }
 
-    if ["source_file", "impl_item", "trait_item", "declaration_list"].contains(&kind)
-        && cursor.goto_first_child()
-    {
+    if list.contains(&kind) && cursor.goto_first_child() {
         loop {
-            rust_walk_tree(cursor, level + 1, normal_lines);
+            walk_tree(cursor, level + 1, normal_lines, list, ignore_list);
             if !cursor.goto_next_sibling() {
                 break;
             }

@@ -1,11 +1,12 @@
 use std::{
+    borrow::BorrowMut,
     cell::RefCell,
     collections::{HashMap, HashSet},
     path::Path,
 };
 
 use itertools::Itertools;
-use tree_sitter::{Parser, Point, Tree};
+use tree_sitter::{Parser, Point, Query, QueryCursor, Tree};
 use xi_rope::{Rope, RopeDelta};
 
 use crate::{
@@ -15,6 +16,7 @@ use crate::{
 
 thread_local! {
    static PARSER: RefCell<HashMap<LapceLanguage, Parser>> = RefCell::new(HashMap::new());
+   static QUERY: RefCell<HashMap<LapceLanguage, Query>> = RefCell::new(HashMap::new());
 }
 
 #[derive(Clone)]
@@ -137,6 +139,21 @@ impl Syntax {
                 old_tree.as_ref(),
             )
         });
+
+        if let Some(tree) = new_tree.as_ref() {
+            // QUERY.with(|queries| {
+            //     let mut queries = queries.borrow_mut();
+            //     queries
+            //         .entry(self.language)
+            //         .or_insert_with(|| self.language.new_highlight_query());
+            //     let query = queries.get(&self.language).unwrap();
+            //     let mut cursor = QueryCursor::new();
+            //     let text = &new_text.slice_to_cow(..);
+            //     let bytes = text.as_bytes();
+            //     let captures = cursor.captures(query, tree.root_node(), bytes);
+            //     for (capture, index) in captures {}
+            // });
+        }
 
         let normal_lines = if let Some(tree) = new_tree.as_ref() {
             let mut cursor = tree.walk();

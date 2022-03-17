@@ -872,7 +872,9 @@ impl Buffer {
             })
             .collect();
         let line_styles = Arc::new(line_styles);
-        self.line_styles.borrow_mut()[line] = Some(line_styles.clone());
+        if let Some(style) = self.line_styles.borrow_mut().get_mut(line) {
+            *style = Some(line_styles.clone());
+        }
         line_styles
     }
 

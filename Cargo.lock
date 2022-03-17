@@ -522,7 +522,7 @@ dependencies = [
  "clicolors-control",
  "lazy_static 1.4.0",
  "libc",
- "parking_lot 0.11.2",
+ "parking_lot 0.6.4",
  "regex",
  "termios",
  "unicode-width",
@@ -2177,7 +2177,11 @@ version = "0.0.10"
 dependencies = [
  "itertools 0.10.3",
  "serde_json",
+ "thiserror",
  "tree-sitter",
+ "tree-sitter-go",
+ "tree-sitter-highlight",
+ "tree-sitter-javascript",
  "tree-sitter-rust",
  "xi-rope",
 ]
@@ -3371,7 +3375,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu#400d4c9279dd4ca9966f7a211c9485f8bca01220"
+source = "git+https://github.com/lapce/piet-wgpu#c82d19a481ed79cf6c1deb3b7f75ae5285306c83"
 dependencies = [
  "bytemuck",
  "font-kit",
@@ -5739,7 +5743,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "winit"
 version = "0.26.1"
-source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#d66f9403a3c0cf80348c45708f821ed1f7276d98"
+source = "git+https://github.com/lapce/winit?branch=new-keyboard-all#75e9569593223823e9191686368d196de9df6581"
 dependencies = [
  "bitflags",
  "cocoa",
