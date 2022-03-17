@@ -3783,7 +3783,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.set_cursor_after_change(selection);
                 self.update_completion(ctx);
             }
-            LapceCommand::DeleteForeward => {
+            LapceCommand::DeleteForward => {
                 let selection = self
                     .editor
                     .cursor
@@ -3793,7 +3793,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.set_cursor_after_change(selection);
                 self.update_completion(ctx);
             }
-            LapceCommand::DeleteForewardAndInsert => {
+            LapceCommand::DeleteForwardAndInsert => {
                 let selection = self
                     .editor
                     .cursor

@@ -371,12 +371,12 @@ mode = "v"
 
 [[keymaps]]
 key = "x"
-command = "delete_foreward"
+command = "delete_forward"
 mode = "nv"
 
 [[keymaps]]
 key = "s"
-command = "delete_foreward_and_insert"
+command = "delete_forward_and_insert"
 mode = "nv"
 
 [[keymaps]]
