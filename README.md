@@ -42,7 +42,7 @@ Lapce is written in pure Rust, with UI in [Druid](https://github.com/linebender/
 ### Dependencies
 #### Ubuntu
 ```sh
-sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev
+sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
 ```
 ### Building
 ```sh
