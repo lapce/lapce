@@ -7,6 +7,7 @@ use crate::buffer::{matching_pair_direction, Buffer};
 use crate::command::CommandExecuted;
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme};
+use crate::data::EditorTabChild;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     LapceTabData, PanelData, PanelKind, RegisterData, SplitContent,
@@ -4756,6 +4757,29 @@ impl TabRect {
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
                     ),
                 );
+            }
+        }
+
+        // Only display dirty icon if focus is not on tab bar, so that the close svg can be shown
+        if !(ctx.is_hot() && self.rect.contains(mouse_pos)) {
+            // See if any of the children are dirty
+            let is_dirty = match &editor_tab.children[i] {
+                EditorTabChild::Editor(editor_id) => {
+                    let buffer = data.main_split.editor_buffer(*editor_id);
+                    buffer.dirty
+                }
+            };
+
+            if is_dirty {
+                let svg = get_svg("unsaved.svg").unwrap();
+                ctx.draw_svg(
+                    &svg,
+                    self.close_rect.inflate(-4.0, -4.0),
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                    ),
+                )
             }
         }
     }
