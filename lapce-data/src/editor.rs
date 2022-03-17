@@ -4016,7 +4016,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::InsertCursorEndOfLine => {
-                println!("insert curosr end of line");
                 if let CursorMode::Insert(selection) =
                     self.editor.cursor.mode.clone()
                 {
@@ -4051,7 +4050,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::SelectCurrentLine => {
-                println!("select current line");
                 if let CursorMode::Insert(selection) =
                     self.editor.cursor.mode.clone()
                 {
@@ -4070,7 +4068,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::SelectAllCurrent => {
-                println!("select all current selection");
                 if let CursorMode::Insert(selection) =
                     self.editor.cursor.mode.clone()
                 {
