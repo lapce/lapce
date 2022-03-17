@@ -347,9 +347,9 @@ pub enum LapceCommand {
     LineEnd,
     #[strum(serialize = "line_start")]
     LineStart,
-    #[strum(serialize = "go_to_line_deault_last")]
+    #[strum(serialize = "go_to_line_default_last")]
     GotoLineDefaultLast,
-    #[strum(serialize = "go_to_line_deault_first")]
+    #[strum(serialize = "go_to_line_default_first")]
     GotoLineDefaultFirst,
     #[strum(serialize = "append")]
     Append,
