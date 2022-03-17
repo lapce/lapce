@@ -1,0 +1,22 @@
+on: [push]
+
+name: CI
+
+jobs:
+  build_and_test:
+    name: Rust project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --all-features
