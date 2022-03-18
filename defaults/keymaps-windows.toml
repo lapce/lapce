@@ -118,7 +118,17 @@ command = "list.previous"
 when = "list_focus"
 
 [[keymaps]]
+key = "up"
+command = "list.previous"
+when = "list_focus"
+
+[[keymaps]]
 key = "ctrl+n"
+command = "list.next"
+when = "list_focus"
+
+[[keymaps]]
+key = "down"
 command = "list.next"
 when = "list_focus"
 
@@ -206,6 +216,7 @@ mode = "iv"
 key = "enter"
 command = "insert_new_line"
 mode = "i"
+when = "!list_focus"
 
 [[keymaps]]
 key = "tab"

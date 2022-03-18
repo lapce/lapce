@@ -866,8 +866,8 @@ impl KeyPressData {
     fn map_str_to_key(key_part: &str) -> Option<druid::KbKey> {
         // Import into scope to reduce noise
         use druid::keyboard_types::Key::*;
-        Some(match key_part {
-            s if KeyPressData::is_key_string(s) => Character(s.to_string()),
+        Some(match key_part.to_lowercase().as_str() {
+            s if KeyPressData::is_key_string(s) => Character(key_part.to_string()),
             "unidentified" => Unidentified,
             "alt" => Alt,
             "altgraph" => AltGraph,
@@ -1178,8 +1178,7 @@ impl KeyPressData {
             }
 
             let last_part = parts[parts.len() - 1];
-            let key =
-                KeyPressData::map_str_to_key(last_part.to_lowercase().as_str());
+            let key = KeyPressData::map_str_to_key(last_part);
             let key = if let Some(key) = key {
                 key
             } else {
