@@ -3562,10 +3562,23 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteToBeginningOfLine => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        let selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
+
+                        self.buffer.update_selection(
+                            &selection,
+                            1,
+                            &Movement::StartOfLine,
+                            Mode::Insert,
+                            true,
+                            self.editor.code_lens,
+                            self.editor.compare.clone(),
+                            &self.config,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
                             &self.buffer,
@@ -3784,36 +3797,45 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.set_cursor_after_change(selection);
                 self.update_completion(ctx);
             }
-            LapceCommand::DeleteLine => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
-
-                self.buffer.update_selection(
-                    &selection,
-                    1,
-                    &Movement::StartOfLine,
-                    Mode::Insert,
-                    true,
-                    self.editor.code_lens,
-                    self.editor.compare.clone(),
-                    &self.config,
-                );
-                self.buffer.update_selection(
-                    &selection,
-                    1,
-                    &Movement::EndOfLine,
-                    Mode::Insert,
-                    true,
-                    self.editor.code_lens,
-                    self.editor.compare.clone(),
-                    &self.config,
-                );
+            LapceCommand::DeleteToEndOfLine => {
+                let selection = match self.editor.cursor.mode {
+                    CursorMode::Normal(_) => {
+                        let mut selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
+                        self.buffer.update_selection(
+                            &selection,
+                            1,
+                            &Movement::EndOfLine,
+                            Mode::Insert,
+                            true,
+                            self.editor.code_lens,
+                            self.editor.compare.clone(),
+                            &self.config,
+                        )
+                    }
+                    _ => todo!(),
+                };
                 let (selection, _) =
                     self.edit(ctx, &selection, "", None, true, EditType::Delete);
-                let offset = selection.min_offset();
-                self.set_cursor(Cursor::new(CursorMode::Normal(offset), None));
+                match self.editor.cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        let offset = selection.min_offset();
+                        let offset =
+                            self.buffer.offset_line_end(offset, false).min(offset);
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Normal(offset),
+                            None,
+                        ));
+                    }
+                    CursorMode::Insert(_) => {
+                        self.set_cursor(Cursor::new(
+                            CursorMode::Insert(selection),
+                            None,
+                        ));
+                    }
+                }
             }
             LapceCommand::DeleteForward => {
                 let selection = self

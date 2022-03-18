@@ -431,6 +431,17 @@ command = "delete_line"
 mode = "n"
 
 [[keymaps]]
+key = "d $"
+command = "delete_to_end_of_line"
+mode = "n"
+
+[[keymaps]]
+key = "d 0"
+command = "delete_to_beginning_of_line"
+mode = "n"
+
+
+[[keymaps]]
 key = "*"
 command = "search_whole_word_forward"
 mode = "nv"

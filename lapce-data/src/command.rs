@@ -253,8 +253,8 @@ pub enum LapceCommand {
     PaletteCancel,
     #[strum(serialize = "delete_backward")]
     DeleteBackward,
-    #[strum(serialize = "delete_line")]
-    DeleteLine,
+    #[strum(serialize = "delete_to_end_of_line")]
+    DeleteToEndOfLine,
     #[strum(serialize = "delete_forward")]
     DeleteForward,
     #[strum(serialize = "delete_forward_and_insert")]
