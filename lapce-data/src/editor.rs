@@ -1,5 +1,6 @@
 use crate::buffer::get_word_property;
 use crate::buffer::matching_char;
+use crate::buffer::Edit;
 use crate::buffer::{
     has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
 };
@@ -1092,14 +1093,16 @@ impl LapceEditorBufferData {
         let delta = if let Some(additional_edit) = additional_edit {
             buffer.edit_multiple(
                 ctx,
-                std::iter::once(&(selection, c))
-                    .chain(&additional_edit)
-                    .copied(),
+                std::iter::once(Edit(selection, c)).chain(
+                    additional_edit
+                        .iter()
+                        .map(|(selection, content)| Edit(*selection, *content)),
+                ),
                 proxy,
                 edit_type,
             )
         } else {
-            buffer.edit(ctx, selection, c, proxy, edit_type)
+            buffer.edit(ctx, Edit(selection, c), proxy, edit_type)
         };
         self.inactive_apply_delta(&delta);
         let selection = selection.apply_delta(&delta, after, InsertDrift::Default);

@@ -108,6 +108,8 @@ pub struct HighlightTextLayout {
     pub highlights: Vec<(usize, usize, String)>,
 }
 
+pub struct Edit<'a>(pub &'a Selection, pub &'a str);
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EditType {
     Other,
@@ -1766,13 +1768,13 @@ impl Buffer {
 
         _ctx: &mut EventCtx,
 
-        edits: impl IntoIterator<Item = (&'a Selection, &'a str)>,
+        edits: impl IntoIterator<Item = Edit<'a>>,
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
         let mut interval_rope = Vec::new();
-        for (selection, content) in edits {
+        for Edit(selection, content) in edits {
             let rope = Rope::from(content);
             for region in selection.regions() {
                 interval_rope.push((region.min(), region.max(), rope.clone()));
@@ -1813,17 +1815,11 @@ impl Buffer {
     pub fn edit(
         &mut self,
         ctx: &mut EventCtx,
-        selection: &Selection,
-        content: &str,
+        edit: Edit<'_>,
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
-        self.edit_multiple(
-            ctx,
-            std::iter::once((selection, content)),
-            proxy,
-            edit_type,
-        )
+        self.edit_multiple(ctx, std::iter::once(edit), proxy, edit_type)
     }
 
     pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {

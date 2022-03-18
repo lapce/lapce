@@ -33,7 +33,7 @@ use xi_rope::{RopeDelta, Transformer};
 use crate::{
     buffer::{
         has_unmatched_pair, matching_char, matching_pair_direction, Buffer,
-        BufferContent, EditType, LocalBufferKind,
+        BufferContent, Edit, EditType, LocalBufferKind,
     },
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommandNew, LapceUICommand,
@@ -1824,7 +1824,7 @@ impl LapceMainSplitData {
             ctx,
             edits
                 .iter()
-                .map(|(selection, replace)| (selection, *replace)),
+                .map(|(selection, replace)| Edit(selection, *replace)),
             proxy,
             edit_type,
         );
@@ -3637,13 +3637,16 @@ impl LapceEditorViewData {
         let delta = if let Some(additional_edit) = additional_edit {
             buffer.edit_multiple(
                 ctx,
-                std::iter::once((selection, c))
-                    .chain(additional_edit.iter().copied()),
+                std::iter::once(Edit(selection, c)).chain(
+                    additional_edit
+                        .iter()
+                        .map(|(selection, content)| Edit(*selection, *content)),
+                ),
                 proxy,
                 edit_type,
             )
         } else {
-            buffer.edit(ctx, selection, c, proxy, edit_type)
+            buffer.edit(ctx, Edit(selection, c), proxy, edit_type)
         };
         self.inactive_apply_delta(&delta);
         let selection = selection.apply_delta(&delta, after, InsertDrift::Default);
