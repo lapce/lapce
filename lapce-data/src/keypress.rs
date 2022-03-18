@@ -1263,6 +1263,7 @@ keymaps = [
     { key = "ctrl+w h", command = "left", when = "n" },
     { key = "ctrl+w",   command = "left", when = "n" },
     { key = "End", command = "line_end", when = "n" },
+    { key = "I", command = "insert_first_non_blank", when = "n" },
 ]
         "###;
         let (keymaps, _) = KeyPressData::keymaps_from_str(keymaps, true).unwrap();
@@ -1279,6 +1280,9 @@ keymaps = [
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         let keypress = KeyPressData::get_keypress("end");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        let keypress = KeyPressData::get_keypress("I");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
 }

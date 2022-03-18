@@ -352,6 +352,11 @@ command = "delete_foreward"
 mode = "nv"
 
 [[keymaps]]
+key = "Delete"
+command = "delete_foreward"
+mode = "i"
+
+[[keymaps]]
 key = "s"
 command = "delete_foreward_and_insert"
 mode = "nv"
