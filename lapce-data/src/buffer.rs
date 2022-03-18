@@ -1774,20 +1774,20 @@ impl Buffer {
         for Edit(selection, content) in edits {
             let rope = Rope::from(content);
             for region in selection.regions() {
-                interval_rope.push((region.min(), region.max(), rope.clone()));
+                interval_rope.push((region.into_range(), rope.clone()));
             }
         }
-        interval_rope.sort_by(|a, b| {
-            if a.0 == b.0 && a.1 == b.1 {
+        interval_rope.sort_by(|(a, _), (b, _)| {
+            if a == b {
                 Ordering::Equal
-            } else if a.1 == b.0 {
+            } else if a.end == b.start {
                 Ordering::Less
             } else {
-                a.1.cmp(&b.0)
+                a.end.cmp(&b.start)
             }
         });
-        for (start, end, rope) in interval_rope.into_iter() {
-            builder.replace(start..end, rope);
+        for (range, rope) in interval_rope.into_iter() {
+            builder.replace(range, rope);
         }
         let delta = builder.build();
         let undo_group = self.calculate_undo_group(edit_type);

@@ -7,7 +7,10 @@ use crate::{
     data::RegisterData,
     state::{Mode, VisualMode},
 };
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    ops::Range,
+};
 
 #[derive(Copy, Clone)]
 pub enum InsertDrift {
@@ -454,6 +457,10 @@ impl SelRegion {
 
     pub fn max(self) -> usize {
         max(self.start, self.end)
+    }
+
+    pub fn into_range(self) -> Range<usize> {
+        self.min()..self.max()
     }
 
     pub fn start(self) -> usize {
