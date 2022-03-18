@@ -1,0 +1,32 @@
+on: 
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+name: Pull request checks
+
+jobs:
+  check:
+    name: Rust (${{ matrix.toolchain }}) on ${{ matrix.os }}
+    if: github.event.pull_request.draft == false
+
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        toolchain: [ stable ]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies on Ubuntu
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
+          
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
