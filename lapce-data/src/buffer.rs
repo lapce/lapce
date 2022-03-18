@@ -1761,12 +1761,12 @@ impl Buffer {
         self.last_edit_type = EditType::Other;
     }
 
-    pub fn edit_multiple(
+    pub fn edit_multiple<'a>(
         &mut self,
 
         _ctx: &mut EventCtx,
 
-        edits: &[(&Selection, &str)],
+        edits: impl IntoIterator<Item = (&'a Selection, impl AsRef<str> + 'a)>,
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
@@ -1818,7 +1818,12 @@ impl Buffer {
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
-        self.edit_multiple(ctx, &[(selection, content)], proxy, edit_type)
+        self.edit_multiple(
+            ctx,
+            std::iter::once((selection, content)),
+            proxy,
+            edit_type,
+        )
     }
 
     pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {

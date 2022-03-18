@@ -1090,10 +1090,13 @@ impl LapceEditorBufferData {
         let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
         let delta = if let Some(additional_edit) = additional_edit {
-            let mut edits = Vec::with_capacity(1 + additional_edit.len());
-            edits.push((selection, c));
-            edits.extend_from_slice(&additional_edit);
-            buffer.edit_multiple(ctx, &edits, proxy, edit_type)
+            buffer.edit_multiple(
+                ctx,
+                std::iter::once((selection, c))
+                    .chain(additional_edit.iter().copied()),
+                proxy,
+                edit_type,
+            )
         } else {
             buffer.edit(ctx, selection, c, proxy, edit_type)
         };
