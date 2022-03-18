@@ -128,7 +128,7 @@ impl CodeActionData {
                                         .open_files
                                         .get_mut(&path)
                                         .unwrap();
-                                    let edits: Vec<(Selection, String)> = edits
+                                    let edits: Vec<_> = edits
                                         .iter()
                                         .map(|edit| {
                                             let selection = Selection::region(
@@ -141,16 +141,13 @@ impl CodeActionData {
                                                     self.config.editor.tab_width,
                                                 ),
                                             );
-                                            (selection, edit.new_text.clone())
+                                            (selection, edit.new_text.as_str())
                                         })
                                         .collect();
                                     self.main_split.edit(
                                         ctx,
                                         &path,
-                                        &edits
-                                            .iter()
-                                            .map(|(s, c)| (s, c.as_ref()))
-                                            .collect::<Vec<_>>(),
+                                        &edits,
                                         EditType::Other,
                                         &self.config,
                                     );

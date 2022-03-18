@@ -1680,7 +1680,7 @@ impl LapceMainSplitData {
                 if !edits.is_empty() {
                     let buffer = self.open_files.get_mut(path).unwrap();
 
-                    let edits: Vec<(Selection, String)> = edits
+                    let edits: Vec<_> = edits
                         .iter()
                         .map(|edit| {
                             let selection = Selection::region(
@@ -1693,20 +1693,11 @@ impl LapceMainSplitData {
                                     config.editor.tab_width,
                                 ),
                             );
-                            (selection, edit.new_text.clone())
+                            (selection, edit.new_text.as_str())
                         })
                         .collect();
 
-                    self.edit(
-                        ctx,
-                        path,
-                        &edits
-                            .iter()
-                            .map(|(s, c)| (s, c.as_ref()))
-                            .collect::<Vec<_>>(),
-                        EditType::Other,
-                        config,
-                    );
+                    self.edit(ctx, path, &edits, EditType::Other, config);
                 }
             }
         }
@@ -1810,7 +1801,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         path: &Path,
-        edits: &[(&Selection, &str)],
+        edits: &[(Selection, &str)],
         edit_type: EditType,
         config: &Config,
     ) -> Option<RopeDelta> {
@@ -1820,7 +1811,7 @@ impl LapceMainSplitData {
 
         let buffer_len = buffer.len();
         let mut move_cursor = true;
-        for (selection, _) in edits.iter() {
+        for (selection, _) in edits {
             if selection.min_offset() == 0
                 && selection.max_offset() >= buffer_len - 1
             {
@@ -1831,7 +1822,9 @@ impl LapceMainSplitData {
 
         let delta = Arc::make_mut(buffer).edit_multiple(
             ctx,
-            edits.iter().copied(),
+            edits
+                .iter()
+                .map(|(selection, replace)| (selection, *replace)),
             proxy,
             edit_type,
         );

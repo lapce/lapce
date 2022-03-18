@@ -1092,8 +1092,9 @@ impl LapceEditorBufferData {
         let delta = if let Some(additional_edit) = additional_edit {
             buffer.edit_multiple(
                 ctx,
-                std::iter::once((selection, c))
-                    .chain(additional_edit.iter().copied()),
+                std::iter::once(&(selection, c))
+                    .chain(&additional_edit)
+                    .copied(),
                 proxy,
                 edit_type,
             )

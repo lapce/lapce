@@ -1766,7 +1766,7 @@ impl Buffer {
 
         _ctx: &mut EventCtx,
 
-        edits: impl IntoIterator<Item = (&'a Selection, impl AsRef<str> + 'a)>,
+        edits: impl IntoIterator<Item = (&'a Selection, &'a str)>,
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
