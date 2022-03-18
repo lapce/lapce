@@ -1766,7 +1766,7 @@ impl Buffer {
 
         _ctx: &mut EventCtx,
 
-        edits: Vec<(&Selection, &str)>,
+        edits: &[(&Selection, &str)],
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
@@ -1818,7 +1818,7 @@ impl Buffer {
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
-        self.edit_multiple(ctx, vec![(selection, content)], proxy, edit_type)
+        self.edit_multiple(ctx, &[(selection, content)], proxy, edit_type)
     }
 
     pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {

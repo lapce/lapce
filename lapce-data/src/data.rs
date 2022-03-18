@@ -1700,7 +1700,10 @@ impl LapceMainSplitData {
                     self.edit(
                         ctx,
                         path,
-                        edits.iter().map(|(s, c)| (s, c.as_ref())).collect(),
+                        &edits
+                            .iter()
+                            .map(|(s, c)| (s, c.as_ref()))
+                            .collect::<Vec<_>>(),
                         EditType::Other,
                         config,
                     );
@@ -1807,7 +1810,7 @@ impl LapceMainSplitData {
         &mut self,
         ctx: &mut EventCtx,
         path: &Path,
-        edits: Vec<(&Selection, &str)>,
+        edits: &[(&Selection, &str)],
         edit_type: EditType,
         config: &Config,
     ) -> Option<RopeDelta> {
@@ -3638,7 +3641,7 @@ impl LapceEditorViewData {
             let mut edits = Vec::with_capacity(1 + additional_edit.len());
             edits.push((selection, c));
             edits.extend_from_slice(&additional_edit);
-            buffer.edit_multiple(ctx, edits, proxy, edit_type)
+            buffer.edit_multiple(ctx, &edits, proxy, edit_type)
         } else {
             buffer.edit(ctx, selection, c, proxy, edit_type)
         };

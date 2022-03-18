@@ -1093,7 +1093,7 @@ impl LapceEditorBufferData {
             let mut edits = Vec::with_capacity(1 + additional_edit.len());
             edits.push((selection, c));
             edits.extend_from_slice(&additional_edit);
-            buffer.edit_multiple(ctx, edits, proxy, edit_type)
+            buffer.edit_multiple(ctx, &edits, proxy, edit_type)
         } else {
             buffer.edit(ctx, selection, c, proxy, edit_type)
         };
