@@ -1764,7 +1764,7 @@ impl Buffer {
     pub fn edit_multiple(
         &mut self,
 
-        #[allow(unused_variables)] ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
 
         edits: Vec<(&Selection, &str)>,
         proxy: Arc<LapceProxy>,
