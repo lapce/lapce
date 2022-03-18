@@ -257,6 +257,8 @@ pub enum LapceCommand {
     DeleteToEndOfLine,
     #[strum(serialize = "delete_forward")]
     DeleteForward,
+    #[strum(serialize = "delete_line")]
+    DeleteLine,
     #[strum(serialize = "delete_forward_and_insert")]
     DeleteForwardAndInsert,
     #[strum(serialize = "delete_visual")]
