@@ -361,27 +361,28 @@ impl Config {
     }
 
     pub fn update_file(key: &str, value: toml::Value) -> Option<()> {
-        let mut main_table =
-            Self::get_file_table().unwrap_or_else(toml::value::Table::new);
+        let mut main_table = Self::get_file_table().unwrap_or_default();
+
+        // Separate key from container path
+        let (path, key) = key.rsplit_once('.').unwrap_or(("", key));
+
+        // Find the container table
         let mut table = &mut main_table;
-        let parts: Vec<&str> = key.split('.').collect();
-        let n = parts.len();
-        for (i, key) in parts.into_iter().enumerate() {
-            if i == n - 1 {
-                table.insert(key.to_string(), value.clone());
-            } else {
-                if !table.contains_key(key) {
-                    table.insert(
-                        key.to_string(),
-                        toml::Value::Table(toml::value::Table::new()),
-                    );
-                }
-                table = table.get_mut(key)?.as_table_mut()?;
+        for key in path.split('.') {
+            if !table.contains_key(key) {
+                table
+                    .insert(key.to_string(), toml::Value::Table(Default::default()));
             }
+            table = table.get_mut(key)?.as_table_mut()?;
         }
 
+        // Update key
+        table.insert(key.to_string(), value);
+
+        // Store
         let path = Self::settings_file()?;
         std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
+
         None
     }
 
