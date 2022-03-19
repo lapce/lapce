@@ -13,7 +13,6 @@ use druid::{
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use fzyr::Score;
 use itertools::Itertools;
 use lsp_types::{DocumentSymbolResponse, Location, Position, Range, SymbolKind};
 use serde_json;
@@ -1194,9 +1193,6 @@ pub struct PaletteItem {
 
     #[allow(dead_code)]
     hint: Option<String>,
-
-    #[allow(dead_code)]
-    score: Score,
 
     #[allow(dead_code)]
     index: usize,
