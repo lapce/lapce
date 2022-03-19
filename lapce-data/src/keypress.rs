@@ -126,7 +126,7 @@ impl KeyPress {
             if i < keys_len - 1 {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout("+".to_string())
+                    .new_text_layout("+")
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(
                         config
