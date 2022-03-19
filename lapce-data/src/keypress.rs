@@ -611,20 +611,12 @@ impl KeyPressData {
                     None => (keymap.command.clone(), true),
                 };
 
-                if !command_keymaps.contains_key(&command) {
-                    command_keymaps.insert(command.clone(), vec![]);
-                }
-                let current_keymaps = command_keymaps.get_mut(&command).unwrap();
+                let current_keymaps = command_keymaps.entry(command).or_default();
                 if bind {
                     current_keymaps.push(keymap.clone());
                     for i in 1..keymap.key.len() + 1 {
                         let key = keymap.key[..i].to_vec();
-                        match keymaps.get_mut(&key) {
-                            Some(keymaps) => keymaps.push(keymap.clone()),
-                            None => {
-                                keymaps.insert(key, vec![keymap.clone()]);
-                            }
-                        }
+                        keymaps.entry(key).or_default().push(keymap.clone());
                     }
                 } else {
                     if let Some(index) = current_keymaps.iter().position(|k| {
