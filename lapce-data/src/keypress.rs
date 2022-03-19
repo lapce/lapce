@@ -1257,6 +1257,8 @@ keymaps = [
 ]
         "###;
         let (keymaps, _) = KeyPressData::keymaps_from_str(keymaps, true).unwrap();
+
+        // Lower case modifiers
         let keypress = KeyPressData::get_keypress("ctrl+w");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 4);
 
@@ -1272,6 +1274,23 @@ keymaps = [
         let keypress = KeyPressData::get_keypress("end");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
+        // Upper case modifiers
+        let keypress = KeyPressData::get_keypress("Ctrl+w");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 4);
+
+        let keypress = KeyPressData::get_keypress("Ctrl+w l");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 2);
+
+        let keypress = KeyPressData::get_keypress("Ctrl+w h");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        let keypress = KeyPressData::get_keypress("Ctrl+w l l");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        let keypress = KeyPressData::get_keypress("End");
+        assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        // No modifier
         let keypress = KeyPressData::get_keypress("I");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
