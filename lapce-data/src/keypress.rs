@@ -1155,7 +1155,7 @@ impl KeyPressData {
 
             // Custom key name mappings
             "esc" => Escape,
-            "space" => druid::KbKey::Character(" ".to_string()),
+            "space" => Character(" ".to_string()),
             "bs" => Backspace,
             "up" => ArrowUp,
             "down" => ArrowDown,
