@@ -825,10 +825,44 @@ impl Widget<LapceTabData> for LapceSettingsItem {
     ) {
         if let Some(input) = self.input_widget.as_mut() {
             match event {
-                Event::Wheel(_) => {}
-                _ => {
-                    input.event(ctx, event, data, env);
+            Event::KeyDown(key_event) => {
+                let mut f = LapceSettingsItemKeypress {
+                    input: self.input.clone(), // Clone so we can check for change
+                    cursor: self.cursor,
+                };
+                let mut_keypress = Arc::make_mut(&mut data.keypress);
+                mut_keypress.key_down(ctx, key_event, &mut f, env);
+                self.cursor = f.cursor;
+                if f.input != self.input {
+                    self.input = f.input;
+                    let new_value = match &self.value {
+                        serde_json::Value::Number(_n) => {
+                            if let Ok(new_n) = self.input.parse::<i64>() {
+                                serde_json::json!(new_n)
+                            } else {
+                                return;
+                            }
+                        }
+                        serde_json::Value::String(_s) => {
+                            serde_json::json!(self.input)
+                        }
+                        _ => return,
+                    };
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSettingsFile(
+                            self.get_key(),
+                            new_value,
+                        ),
+                        Target::Widget(data.id),
+                    ));
                 }
+            }
+            
+            Event::Wheel(_) => {}
+            
+            _ => {
+                input.event(ctx, event, data, env);
             }
         }
         match event {
