@@ -23,6 +23,7 @@ use lapce_data::{
     state::LapceWorkspaceType,
 };
 use lsp_types::DiagnosticSeverity;
+use serde::Deserialize;
 
 use crate::{
     activity::ActivityBar, code_action::CodeAction, completion::CompletionContainer,
@@ -530,9 +531,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSettingsFile(key, value) => {
-                        if let Ok(value) =
-                            serde_json::from_value::<toml::Value>(value.clone())
-                        {
+                        if let Ok(value) = toml::Value::deserialize(value) {
                             Config::update_file(key, value);
                         }
                     }
