@@ -1158,39 +1158,36 @@ impl KeyPressData {
     }
 
     fn get_keypress(key: &str) -> Vec<KeyPress> {
-        let mut keypresses = Vec::new();
-        for k in key.split(' ') {
-            let mut mods = Modifiers::default();
+        key.split(' ')
+            .filter_map(|k| {
+                let (modifiers, key) = match k.rsplit_once('+') {
+                    Some(pair) => pair,
+                    None => ("", k),
+                };
 
-            let parts = k.split('+').collect::<Vec<&str>>();
-            if parts.is_empty() {
-                continue;
-            }
+                let key = match KeyPressData::map_str_to_key(key) {
+                    Some(key) => key,
+                    None => {
+                        // Skip past unrecognized key definitions
+                        log::warn!("Unrecognized key: {key}");
+                        return None;
+                    }
+                };
 
-            let last_part = parts[parts.len() - 1];
-            let key = KeyPressData::map_str_to_key(last_part);
-            let key = if let Some(key) = key {
-                key
-            } else {
-                // Skip past unrecognized key definitions
-                log::warn!("Unrecognized key: {}", last_part);
-                continue;
-            };
-
-            for part in &parts[..parts.len() - 1] {
-                match part.to_lowercase().as_ref() {
-                    "ctrl" => mods.set(Modifiers::CONTROL, true),
-                    "meta" => mods.set(Modifiers::META, true),
-                    "shift" => mods.set(Modifiers::SHIFT, true),
-                    "alt" => mods.set(Modifiers::ALT, true),
-                    _ => (),
+                let mut mods = Modifiers::default();
+                for part in modifiers.split('+') {
+                    match part.to_lowercase().as_ref() {
+                        "ctrl" => mods.set(Modifiers::CONTROL, true),
+                        "meta" => mods.set(Modifiers::META, true),
+                        "shift" => mods.set(Modifiers::SHIFT, true),
+                        "alt" => mods.set(Modifiers::ALT, true),
+                        _ => (),
+                    }
                 }
-            }
 
-            let keypress = KeyPress { mods, key };
-            keypresses.push(keypress);
-        }
-        keypresses
+                Some(KeyPress { mods, key })
+            })
+            .collect()
     }
 
     fn get_keymap(toml_keymap: &toml::Value, modal: bool) -> Result<KeyMap> {
