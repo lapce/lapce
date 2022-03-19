@@ -628,8 +628,7 @@ impl KeyPressData {
                         current_keymaps.remove(index);
                     }
                     for i in 1..keymap.key.len() + 1 {
-                        let key = keymap.key[..i].to_vec();
-                        if let Some(keymaps) = keymaps.get_mut(&key) {
+                        if let Some(keymaps) = keymaps.get_mut(&keymap.key[..i]) {
                             if let Some(index) = keymaps.iter().position(is_keymap) {
                                 keymaps.remove(index);
                             }
