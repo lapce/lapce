@@ -17,7 +17,7 @@ use crate::svg::get_svg;
 use crate::{
     buffer::BufferId,
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
+    movement::{ColPosition, Movement, SelRegion, Selection},
     split::SplitMoveDirection,
     state::Mode,
     state::VisualMode,
@@ -37,10 +37,9 @@ use druid::piet::{
 use druid::Modifiers;
 use druid::{
     kurbo::Line, piet::PietText, Color, Command, Env, EventCtx, FontFamily,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, Vec2, WidgetId,
+    PaintCtx, Point, Rect, RenderContext, Size, Target, Vec2, WidgetId,
 };
 use druid::{Application, ExtEventSink, MouseEvent};
-use lapce_core::lens::Lens;
 use lapce_core::syntax::Syntax;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
@@ -1669,7 +1668,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn paint_gutter_code_lens(&self, ctx: &mut PaintCtx, gutter_width: f64) {
+    fn paint_gutter_code_lens(&self, ctx: &mut PaintCtx, _gutter_width: f64) {
         let rect = ctx.size().to_rect();
         let scroll_offset = self.editor.scroll_offset;
         let empty_lens = Syntax::lens_from_normal_lines(
@@ -1933,7 +1932,8 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn paint_code_lens_line(
+    // TODO: Use or remove
+    fn _paint_code_lens_line(
         &self,
         ctx: &mut PaintCtx,
         line: usize,
@@ -4243,7 +4243,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                 }
             }
-            LapceCommand::MoveLineUp => {}
             LapceCommand::NextError => {
                 self.next_error(ctx, env);
             }
@@ -4838,7 +4837,8 @@ pub struct HighlightTextLayout {
     pub highlights: Vec<(usize, usize, String)>,
 }
 
-fn get_workspace_edit_changes_edits<'a>(
+// TODO: Use or remove
+fn _get_workspace_edit_changes_edits<'a>(
     url: &Url,
     workspace_edit: &'a WorkspaceEdit,
 ) -> Option<Vec<&'a TextEdit>> {
@@ -4846,7 +4846,8 @@ fn get_workspace_edit_changes_edits<'a>(
     changes.get(url).map(|c| c.iter().collect())
 }
 
-fn get_workspace_edit_document_changes_edits<'a>(
+// TODO: Use or remove
+fn _get_workspace_edit_document_changes_edits<'a>(
     url: &Url,
     workspace_edit: &'a WorkspaceEdit,
 ) -> Option<Vec<&'a TextEdit>> {

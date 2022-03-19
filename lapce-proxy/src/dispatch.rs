@@ -153,6 +153,7 @@ pub enum Notification {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
+#[allow(clippy::large_enum_variant)]
 pub enum Request {
     NewBuffer {
         buffer_id: BufferId,
@@ -719,12 +720,10 @@ impl Dispatcher {
                     let local_dispatcher = self.clone();
                     thread::spawn(move || {
                         let mut items = Vec::new();
-                        for result in ignore::Walk::new(workspace) {
-                            if let Ok(path) = result {
-                                if let Some(file_type) = path.file_type() {
-                                    if file_type.is_file() {
-                                        items.push(path.into_path());
-                                    }
+                        for path in ignore::Walk::new(workspace).flatten() {
+                            if let Some(file_type) = path.file_type() {
+                                if file_type.is_file() {
+                                    items.push(path.into_path());
                                 }
                             }
                         }
@@ -751,36 +750,29 @@ impl Dispatcher {
                             .build_literals(&[&pattern])
                         {
                             let mut searcher = SearcherBuilder::new().build();
-                            for result in ignore::Walk::new(workspace) {
-                                if let Ok(path) = result {
-                                    if let Some(file_type) = path.file_type() {
-                                        if file_type.is_file() {
-                                            let path = path.into_path();
-                                            let mut line_matches = Vec::new();
-                                            let _ = searcher.search_path(
-                                                &matcher,
-                                                path.clone(),
-                                                UTF8(|lnum, line| {
-                                                    let mymatch = matcher
-                                                        .find(line.as_bytes())?
-                                                        .unwrap();
-                                                    line_matches.push((
-                                                        lnum,
-                                                        (
-                                                            mymatch.start(),
-                                                            mymatch.end(),
-                                                        ),
-                                                        line.to_string(),
-                                                    ));
-                                                    Ok(true)
-                                                }),
-                                            );
-                                            if !line_matches.is_empty() {
-                                                matches.insert(
-                                                    path.clone(),
-                                                    line_matches,
-                                                );
-                                            }
+                            for path in ignore::Walk::new(workspace).flatten() {
+                                if let Some(file_type) = path.file_type() {
+                                    if file_type.is_file() {
+                                        let path = path.into_path();
+                                        let mut line_matches = Vec::new();
+                                        let _ = searcher.search_path(
+                                            &matcher,
+                                            path.clone(),
+                                            UTF8(|lnum, line| {
+                                                let mymatch = matcher
+                                                    .find(line.as_bytes())?
+                                                    .unwrap();
+                                                line_matches.push((
+                                                    lnum,
+                                                    (mymatch.start(), mymatch.end()),
+                                                    line.to_string(),
+                                                ));
+                                                Ok(true)
+                                            }),
+                                        );
+                                        if !line_matches.is_empty() {
+                                            matches
+                                                .insert(path.clone(), line_matches);
                                         }
                                     }
                                 }

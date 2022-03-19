@@ -32,7 +32,8 @@ pub struct LensLeaf {
 
 pub struct LensIter<'a> {
     cursor: Cursor<'a, LensInfo>,
-    ix: usize,
+    // TODO: Use or remove
+    _ix: usize,
     end: usize,
 }
 
@@ -64,7 +65,7 @@ impl Lens {
     pub fn iter(&self) -> LensIter {
         LensIter {
             cursor: Cursor::new(&self.0, 0),
-            ix: 0,
+            _ix: 0,
             end: self.len(),
         }
     }
@@ -74,7 +75,7 @@ impl Lens {
 
         LensIter {
             cursor: Cursor::new(&self.0, start),
-            ix: 0,
+            _ix: 0,
             end,
         }
     }
@@ -199,11 +200,11 @@ impl Metric<LensInfo> for LensMetric {
         accum
     }
 
-    fn is_boundary(l: &LensLeaf, offset: usize) -> bool {
+    fn is_boundary(_l: &LensLeaf, _offset: usize) -> bool {
         true
     }
 
-    fn prev(l: &LensLeaf, offset: usize) -> Option<usize> {
+    fn prev(_l: &LensLeaf, offset: usize) -> Option<usize> {
         if offset == 0 {
             None
         } else {

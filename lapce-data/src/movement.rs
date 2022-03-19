@@ -1,4 +1,3 @@
-use druid::piet::PietText;
 use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 

@@ -914,11 +914,14 @@ impl LapceTabData {
                                     .as_secs(),
                             };
 
-                            event_sink.submit_command(
+                            if let Err(err) = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::SetWorkspace(workspace),
                                 Target::Auto,
-                            );
+                            ) {
+                                // TODO! Handle or log `err`
+                                todo!()
+                            }
                         }
                     });
                 } else {

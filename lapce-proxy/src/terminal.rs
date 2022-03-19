@@ -331,6 +331,6 @@ impl State {
 fn set_locale_environment() {
     let locale = locale_config::Locale::global_default()
         .to_string()
-        .replace("-", "_");
+        .replace('-', "_");
     std::env::set_var("LC_ALL", locale + ".UTF-8");
 }

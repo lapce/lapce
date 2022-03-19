@@ -1,10 +1,10 @@
 use crossbeam_channel::Sender;
+use druid::PaintCtx;
 use druid::{piet::PietTextLayout, Vec2};
 use druid::{
-    piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
+    piet::{Text, TextAttribute, TextLayoutBuilder},
     Data, EventCtx, ExtEventSink, Target, WidgetId, WindowId,
 };
-use druid::{PaintCtx, Point};
 use language::{new_highlight_config, LapceLanguage};
 use lapce_core::syntax::Syntax;
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
@@ -27,7 +27,6 @@ use tree_sitter_highlight::{
 };
 use unicode_width::UnicodeWidthChar;
 use xi_rope::{
-    interval::IntervalBounds,
     multiset::Subset,
     rope::Rope,
     spans::{Spans, SpansBuilder},
@@ -237,7 +236,7 @@ impl BufferContent {
         }
     }
 }
-
+#[allow(clippy::type_complexity)]
 #[derive(Clone)]
 pub struct Buffer {
     pub id: BufferId,

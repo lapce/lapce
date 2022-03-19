@@ -27,6 +27,7 @@ pub type PluginName = String;
 #[derive(Clone, Debug, Default)]
 pub struct Counter(usize);
 
+#[allow(clippy::should_implement_trait)]
 impl Counter {
     pub fn next(&mut self) -> usize {
         let n = self.0;

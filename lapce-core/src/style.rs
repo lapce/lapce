@@ -65,6 +65,7 @@ pub struct Highlighter {
 }
 
 /// Converts a general-purpose syntax highlighting iterator into a sequence of lines of HTML.
+#[derive(Debug, Default)]
 pub struct HtmlRenderer {
     pub html: Vec<u8>,
     pub line_offsets: Vec<u32>,
@@ -332,11 +333,12 @@ impl<'a> HighlightIterLayer<'a> {
     /// In the even that the new layer contains "combined injections" (injections where multiple
     /// disjoint ranges are parsed as one syntax tree), these will be eagerly processed and
     /// added to the returned vector.
+    #[allow(clippy::too_many_arguments)]
     fn new<F: FnMut(&str) -> Option<&'a HighlightConfiguration> + 'a>(
         tree: Tree,
         source: &'a [u8],
         highlighter: &mut Highlighter,
-        cancellation_flag: Option<&'a AtomicUsize>,
+        _cancellation_flag: Option<&'a AtomicUsize>,
         injection_callback: &mut F,
         mut config: &'a HighlightConfiguration,
         mut depth: usize,
@@ -765,14 +767,11 @@ where
                     for prop in
                         layer.config.query.property_settings(match_.pattern_index)
                     {
-                        match prop.key.as_ref() {
-                            "local.scope-inherits" => {
-                                scope.inherits = prop
-                                    .value
-                                    .as_ref()
-                                    .map_or(true, |r| r.as_ref() == "true");
-                            }
-                            _ => {}
+                        if prop.key.as_ref() == "local.scope-inherits" {
+                            scope.inherits = prop
+                                .value
+                                .as_ref()
+                                .map_or(true, |r| r.as_ref() == "true");
                         }
                     }
                     layer.scope_stack.push(scope);
@@ -807,29 +806,27 @@ where
                 // If the node represents a reference, then try to find the corresponding
                 // definition in the scope stack.
                 else if Some(capture.index) == layer.config.local_ref_capture_index
+                    && definition_highlight.is_none()
                 {
-                    if definition_highlight.is_none() {
-                        definition_highlight = None;
-                        if let Ok(name) = str::from_utf8(&self.source[range.clone()])
-                        {
-                            for scope in layer.scope_stack.iter().rev() {
-                                if let Some(highlight) =
-                                    scope.local_defs.iter().rev().find_map(|def| {
-                                        if def.name == name
-                                            && range.start >= def.value_range.end
-                                        {
-                                            Some(def.highlight)
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                {
-                                    reference_highlight = highlight;
-                                    break;
-                                }
-                                if !scope.inherits {
-                                    break;
-                                }
+                    definition_highlight = None;
+                    if let Ok(name) = str::from_utf8(&self.source[range.clone()]) {
+                        for scope in layer.scope_stack.iter().rev() {
+                            if let Some(highlight) =
+                                scope.local_defs.iter().rev().find_map(|def| {
+                                    if def.name == name
+                                        && range.start >= def.value_range.end
+                                    {
+                                        Some(def.highlight)
+                                    } else {
+                                        None
+                                    }
+                                })
+                            {
+                                reference_highlight = highlight;
+                                break;
+                            }
+                            if !scope.inherits {
+                                break;
                             }
                         }
                     }

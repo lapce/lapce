@@ -52,7 +52,8 @@ impl LapceLanguage {
         parser
     }
 
-    pub(crate) fn new_highlight_query(&self) -> Query {
+    // TODO: Use or remove
+    pub(crate) fn _new_highlight_query(&self) -> Query {
         let language = self.tree_sitter_language();
         let query = match self {
             LapceLanguage::Rust => tree_sitter_rust::HIGHLIGHT_QUERY,

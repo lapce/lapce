@@ -1,12 +1,11 @@
 use std::{
-    borrow::BorrowMut,
     cell::RefCell,
     collections::{HashMap, HashSet},
     path::Path,
 };
 
 use itertools::Itertools;
-use tree_sitter::{Parser, Point, Query, QueryCursor, Tree};
+use tree_sitter::{Parser, Point, Query, Tree};
 use xi_rope::{Rope, RopeDelta};
 
 use crate::{
@@ -140,7 +139,7 @@ impl Syntax {
             )
         });
 
-        if let Some(tree) = new_tree.as_ref() {
+        if let Some(_tree) = new_tree.as_ref() {
             // QUERY.with(|queries| {
             //     let mut queries = queries.borrow_mut();
             //     queries
