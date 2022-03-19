@@ -156,7 +156,7 @@ pub struct KeyPressData {
 
     count: Option<usize>,
 
-    event_sink: Arc<ExtEventSink>,
+    event_sink: ExtEventSink,
 }
 
 impl KeyPressData {
@@ -174,7 +174,7 @@ impl KeyPressData {
             filtered_commands_with_keymap: Arc::new(Vec::new()),
             filtered_commands_without_keymap: Arc::new(Vec::new()),
             count: None,
-            event_sink: Arc::new(event_sink),
+            event_sink,
         };
         keypress.load_commands();
         keypress
