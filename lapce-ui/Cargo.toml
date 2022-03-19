@@ -23,7 +23,7 @@ itertools = "0.10.1"
 unicode-width = "0.1.8"
 im = { version = "15.0.0", features = ["serde"] }
 regex = "1.4.2"
-usvg = "0.14.0"
+usvg = "0.22.0"
 jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
