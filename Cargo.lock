@@ -190,14 +190,8 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e11e16035ea35e4e5997b393eacbf6f63983188f7a2ad25bfb13465f5ad59de"
 dependencies = [
- "bit-vec 0.6.3",
+ "bit-vec",
 ]
-
-[[package]]
-name = "bit-vec"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f59bbe95d4e52a6398ec21238d31577f2b28a9d86807f06ca59d191d8440d0bb"
 
 [[package]]
 name = "bit-vec"
@@ -2187,7 +2181,7 @@ dependencies = [
  "alacritty_terminal",
  "anyhow",
  "base64",
- "bit-vec 0.5.1",
+ "bit-vec",
  "cc",
  "chrono",
  "config",
@@ -2289,7 +2283,7 @@ dependencies = [
  "alacritty_terminal",
  "anyhow",
  "base64",
- "bit-vec 0.5.1",
+ "bit-vec",
  "cc",
  "chrono",
  "config",
