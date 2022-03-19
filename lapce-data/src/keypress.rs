@@ -588,22 +588,32 @@ impl KeyPressData {
                 && self.check_condition(&condition[and_indics[0].0 + 2..], check)
         }
     }
+}
 
-    fn keymaps_from_str(
+pub struct KeyMapLoader {
+    keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
+    command_keymaps: IndexMap<String, Vec<KeyMap>>,
+}
+
+impl KeyMapLoader {
+    pub fn new() -> Self {
+        Self {
+            keymaps: Default::default(),
+            command_keymaps: Default::default(),
+        }
+    }
+
+    pub fn load_from_str<'a>(
+        &'a mut self,
         s: &str,
         modal: bool,
-    ) -> Result<(
-        IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
-        IndexMap<String, Vec<KeyMap>>,
-    )> {
+    ) -> Result<&'a mut Self> {
         let toml_keymaps: toml::Value = toml::from_str(s)?;
         let toml_keymaps = toml_keymaps
             .get("keymaps")
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow!("no keymaps"))?;
 
-        let mut keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>> = IndexMap::new();
-        let mut command_keymaps: IndexMap<String, Vec<KeyMap>> = IndexMap::new();
         for toml_keymap in toml_keymaps {
             let keymap = match Self::get_keymap(toml_keymap, modal) {
                 Ok(keymap) => keymap,
@@ -618,12 +628,12 @@ impl KeyPressData {
                 None => (keymap.command.clone(), true),
             };
 
-            let current_keymaps = command_keymaps.entry(command).or_default();
+            let current_keymaps = self.command_keymaps.entry(command).or_default();
             if bind {
                 current_keymaps.push(keymap.clone());
                 for i in 1..keymap.key.len() + 1 {
                     let key = keymap.key[..i].to_vec();
-                    keymaps.entry(key).or_default().push(keymap.clone());
+                    self.keymaps.entry(key).or_default().push(keymap.clone());
                 }
             } else {
                 let is_keymap = |k: &KeyMap| -> bool {
@@ -635,7 +645,7 @@ impl KeyPressData {
                     current_keymaps.remove(index);
                 }
                 for i in 1..keymap.key.len() + 1 {
-                    if let Some(keymaps) = keymaps.get_mut(&keymap.key[..i]) {
+                    if let Some(keymaps) = self.keymaps.get_mut(&keymap.key[..i]) {
                         if let Some(index) = keymaps.iter().position(is_keymap) {
                             keymaps.remove(index);
                         }
@@ -644,9 +654,25 @@ impl KeyPressData {
             }
         }
 
-        Ok((keymaps, command_keymaps))
+        Ok(self)
     }
 
+    pub fn finalize(
+        self,
+    ) -> (
+        IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
+        IndexMap<String, Vec<KeyMap>>,
+    ) {
+        let Self {
+            keymaps: map,
+            command_keymaps: command_map,
+        } = self;
+
+        (map, command_map)
+    }
+}
+
+impl KeyPressData {
     fn get_file_array() -> Option<toml::value::Array> {
         let path = Self::file()?;
         let content = std::fs::read(&path).ok()?;
@@ -723,12 +749,12 @@ impl KeyPressData {
                 == value.get("command").and_then(|c| c.as_str())
                 && keymap.when.as_deref()
                     == value.get("when").and_then(|w| w.as_str())
-                && keymap.modes == Self::get_modes(value)
+                && keymap.modes == get_modes(value)
                 && Some(keymap.key.clone())
                     == value
                         .get("key")
                         .and_then(|v| v.as_str())
-                        .map(Self::get_keypress)
+                        .map(KeyPress::parse)
         }) {
             if !keys.is_empty() {
                 array[index].as_table_mut()?.insert(
@@ -826,9 +852,15 @@ impl KeyPressData {
         IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
         IndexMap<String, Vec<KeyMap>>,
     )> {
-        let mut keymaps_str = DEFAULT_KEYMAPS_COMMON.to_string();
+        let is_modal = config.lapce.modal;
 
-        keymaps_str += if std::env::consts::OS == "macos" {
+        let mut loader = KeyMapLoader::new();
+
+        if let Err(err) = loader.load_from_str(DEFAULT_KEYMAPS_COMMON, is_modal) {
+            log::error!("Failed to load common defaults: {err}");
+        }
+
+        let os_keymaps = if std::env::consts::OS == "macos" {
             DEFAULT_KEYMAPS_MACOS
         } else if std::env::consts::OS == "linux" {
             DEFAULT_KEYMAPS_LINUX
@@ -836,34 +868,36 @@ impl KeyPressData {
             DEFAULT_KEYMAPS_WINDOWS
         };
 
+        if let Err(err) = loader.load_from_str(os_keymaps, is_modal) {
+            log::error!("Failed to load OS defaults: {err}");
+        }
+
         if let Some(path) = Self::file() {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                if !content.is_empty() {
-                    let result: Result<toml::Value, toml::de::Error> =
-                        toml::from_str(&content);
-                    if result.is_ok() {
-                        keymaps_str += &content;
-                    }
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Err(err) = loader.load_from_str(&content, is_modal) {
+                    log::error!("Failed to load from {path:?}: {err}");
                 }
             }
         }
 
-        Self::keymaps_from_str(&keymaps_str, config.lapce.modal)
+        Ok(loader.finalize())
     }
+}
 
-    // Checks if it is a character key
-    fn is_key_string(s: &str) -> bool {
-        s.chars().all(|c| !c.is_control())
-            && s.chars().skip(1).all(|c| !c.is_ascii())
-    }
-
+impl KeyPress {
     /// Convert a piece of text representing a key in a keymaps file to the actual key
     /// Returns `None` if it was not able to find a key with that name
     fn map_str_to_key(key_part: &str) -> Option<druid::KbKey> {
+        // Checks if it is a character key
+        fn is_key_string(s: &str) -> bool {
+            s.chars().all(|c| !c.is_control())
+                && s.chars().skip(1).all(|c| !c.is_ascii())
+        }
+
         // Import into scope to reduce noise
         use druid::keyboard_types::Key::*;
         Some(match key_part.to_lowercase().as_str() {
-            s if KeyPressData::is_key_string(s) => Character(key_part.to_string()),
+            s if is_key_string(s) => Character(key_part.to_string()),
             "unidentified" => Unidentified,
             "alt" => Alt,
             "altgraph" => AltGraph,
@@ -1162,8 +1196,10 @@ impl KeyPressData {
             _ => return None,
         })
     }
+}
 
-    fn get_keypress(key: &str) -> Vec<KeyPress> {
+impl KeyPress {
+    pub fn parse(key: &str) -> Vec<Self> {
         key.split(' ')
             .filter_map(|k| {
                 let (modifiers, key) = match k.rsplit_once('+') {
@@ -1171,7 +1207,7 @@ impl KeyPressData {
                     None => ("", k),
                 };
 
-                let key = match KeyPressData::map_str_to_key(key) {
+                let key = match Self::map_str_to_key(key) {
                     Some(key) => key,
                     None => {
                         // Skip past unrecognized key definitions
@@ -1195,21 +1231,23 @@ impl KeyPressData {
             })
             .collect()
     }
+}
 
+impl KeyMapLoader {
     fn get_keymap(toml_keymap: &toml::Value, modal: bool) -> Result<KeyMap> {
         let key = toml_keymap
             .get("key")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("no key in keymap"))?;
 
-        let modes = Self::get_modes(toml_keymap);
+        let modes = get_modes(toml_keymap);
         if !modal && !modes.is_empty() && !modes.contains(&Mode::Insert) {
             return Err(anyhow!(""));
         }
 
         Ok(KeyMap {
-            key: Self::get_keypress(key),
-            modes: Self::get_modes(toml_keymap),
+            key: KeyPress::parse(key),
+            modes: get_modes(toml_keymap),
             when: toml_keymap
                 .get("when")
                 .and_then(|w| w.as_str())
@@ -1221,26 +1259,26 @@ impl KeyPressData {
                 .unwrap_or_else(|| "".to_string()),
         })
     }
+}
 
-    fn get_modes(toml_keymap: &toml::Value) -> Vec<Mode> {
-        let mut modes = toml_keymap
-            .get("mode")
-            .and_then(|v| v.as_str())
-            .map(|m| {
-                m.chars()
-                    .filter_map(|c| match c.to_lowercase().to_string().as_ref() {
-                        "i" => Some(Mode::Insert),
-                        "n" => Some(Mode::Normal),
-                        "v" => Some(Mode::Visual),
-                        "t" => Some(Mode::Terminal),
-                        _ => None,
-                    })
-                    .collect()
-            })
-            .unwrap_or_else(Vec::new);
-        modes.sort();
-        modes
-    }
+fn get_modes(toml_keymap: &toml::Value) -> Vec<Mode> {
+    let mut modes = toml_keymap
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .map(|m| {
+            m.chars()
+                .filter_map(|c| match c.to_lowercase().to_string().as_ref() {
+                    "i" => Some(Mode::Insert),
+                    "n" => Some(Mode::Normal),
+                    "v" => Some(Mode::Visual),
+                    "t" => Some(Mode::Terminal),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_else(Vec::new);
+    modes.sort();
+    modes
 }
 
 #[cfg(test)]
@@ -1259,42 +1297,45 @@ keymaps = [
     { key = "I", command = "insert_first_non_blank", when = "n" },
 ]
         "###;
-        let (keymaps, _) = KeyPressData::keymaps_from_str(keymaps, true).unwrap();
+        let mut loader = KeyMapLoader::new();
+        loader.load_from_str(keymaps, true).unwrap();
+
+        let (keymaps, _) = loader.finalize();
 
         // Lower case modifiers
-        let keypress = KeyPressData::get_keypress("ctrl+w");
+        let keypress = KeyPress::parse("ctrl+w");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 4);
 
-        let keypress = KeyPressData::get_keypress("ctrl+w l");
+        let keypress = KeyPress::parse("ctrl+w l");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 2);
 
-        let keypress = KeyPressData::get_keypress("ctrl+w h");
+        let keypress = KeyPress::parse("ctrl+w h");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPressData::get_keypress("ctrl+w l l");
+        let keypress = KeyPress::parse("ctrl+w l l");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPressData::get_keypress("end");
+        let keypress = KeyPress::parse("end");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // Upper case modifiers
-        let keypress = KeyPressData::get_keypress("Ctrl+w");
+        let keypress = KeyPress::parse("Ctrl+w");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 4);
 
-        let keypress = KeyPressData::get_keypress("Ctrl+w l");
+        let keypress = KeyPress::parse("Ctrl+w l");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 2);
 
-        let keypress = KeyPressData::get_keypress("Ctrl+w h");
+        let keypress = KeyPress::parse("Ctrl+w h");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPressData::get_keypress("Ctrl+w l l");
+        let keypress = KeyPress::parse("Ctrl+w l l");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPressData::get_keypress("End");
+        let keypress = KeyPress::parse("End");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // No modifier
-        let keypress = KeyPressData::get_keypress("I");
+        let keypress = KeyPress::parse("I");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
 }
