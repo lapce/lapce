@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.32"
-alacritty_terminal = "0.15.0"
+alacritty_terminal = "0.16"
 base64 = "0.13.0"
 bit-vec = "0.5.0"
 chrono = "0.4.19"

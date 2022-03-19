@@ -36,7 +36,7 @@ const CTRL_CHARS: &[char] = &[
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
 ];
 
-pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>>;
+pub type TermConfig = alacritty_terminal::config::Config;
 
 pub struct RawTerminal {
     pub parser: ansi::Processor,

@@ -28,7 +28,7 @@ use crate::{
     state::{LapceWorkspace, Mode, VisualMode},
 };
 
-pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>>;
+pub type TermConfig = alacritty_terminal::config::Config;
 
 #[derive(Clone)]
 pub struct TerminalSplitData {
