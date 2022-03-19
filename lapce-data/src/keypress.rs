@@ -619,21 +619,18 @@ impl KeyPressData {
                         keymaps.entry(key).or_default().push(keymap.clone());
                     }
                 } else {
-                    if let Some(index) = current_keymaps.iter().position(|k| {
+                    let is_keymap = |k: &KeyMap| -> bool {
                         k.when == keymap.when
                             && k.modes == keymap.modes
                             && k.key == keymap.key
-                    }) {
+                    };
+                    if let Some(index) = current_keymaps.iter().position(is_keymap) {
                         current_keymaps.remove(index);
                     }
                     for i in 1..keymap.key.len() + 1 {
                         let key = keymap.key[..i].to_vec();
                         if let Some(keymaps) = keymaps.get_mut(&key) {
-                            if let Some(index) = keymaps.iter().position(|k| {
-                                k.when == keymap.when
-                                    && k.modes == keymap.modes
-                                    && k.key == keymap.key
-                            }) {
+                            if let Some(index) = keymaps.iter().position(is_keymap) {
                                 keymaps.remove(index);
                             }
                         }
