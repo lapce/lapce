@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf};
+use std::{collections::HashMap, io::Write, path::PathBuf};
 
 use anyhow::Result;
 use directories::ProjectDirs;
@@ -6,7 +6,6 @@ use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
     theme, Color, Env, ExtEventSink, FontFamily, Size, Target,
 };
-use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 

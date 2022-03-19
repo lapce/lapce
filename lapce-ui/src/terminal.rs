@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use alacritty_terminal::{
     ansi,
@@ -15,7 +15,6 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
     WidgetExt, WidgetId, WidgetPod,
 };
-use hashbrown::HashMap;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,

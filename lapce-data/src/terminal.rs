@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use alacritty_terminal::{
     ansi,
@@ -14,7 +14,6 @@ use druid::{
     Application, Color, Command, Env, EventCtx, ExtEventSink, Modifiers, Target,
     WidgetId,
 };
-use hashbrown::HashMap;
 use lapce_proxy::terminal::TermId;
 use parking_lot::Mutex;
 
