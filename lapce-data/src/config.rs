@@ -376,7 +376,7 @@ impl Config {
         let path = Self::settings_file()?;
         std::fs::write(&path, toml::to_string(&main_table).ok()?.as_bytes()).ok()?;
 
-        None
+        Some(())
     }
 
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> Option<()> {

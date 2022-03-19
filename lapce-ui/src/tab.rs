@@ -532,7 +532,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::UpdateSettingsFile(key, value) => {
                         if let Ok(value) = toml::Value::deserialize(value) {
-                            Config::update_file(key, value);
+                            let update_result = Config::update_file(key, value);
+                            debug_assert!(update_result.is_some());
                         }
                     }
                     LapceUICommand::OpenFileDiff(path, history) => {
