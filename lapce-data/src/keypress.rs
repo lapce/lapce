@@ -607,7 +607,10 @@ impl KeyPressData {
         for toml_keymap in toml_keymaps {
             let keymap = match Self::get_keymap(toml_keymap, modal) {
                 Ok(keymap) => keymap,
-                Err(_) => continue,
+                Err(err) => {
+                    log::error!("Could not parse keymap: {err}");
+                    continue;
+                }
             };
 
             let (command, bind) = match keymap.command.strip_prefix('-') {
