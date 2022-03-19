@@ -606,12 +606,11 @@ impl KeyPressData {
         let mut command_keymaps: IndexMap<String, Vec<KeyMap>> = IndexMap::new();
         for toml_keymap in toml_keymaps {
             if let Ok(keymap) = Self::get_keymap(toml_keymap, modal) {
-                let mut command = keymap.command.clone();
-                let mut bind = true;
-                if command.starts_with('-') {
-                    command = command[1..].to_string();
-                    bind = false;
-                }
+                let (command, bind) = match keymap.command.strip_prefix('-') {
+                    Some(cmd) => (cmd.to_string(), false),
+                    None => (keymap.command.clone(), true),
+                };
+
                 if !command_keymaps.contains_key(&command) {
                     command_keymaps.insert(command.clone(), vec![]);
                 }
