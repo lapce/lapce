@@ -5,56 +5,57 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.32"
+alacritty_terminal = "0.15.0"
+base64 = "0.13.0"
+bit-vec = "0.5.0"
 chrono = "0.4.19"
-log = "0.4.14"
+config = "0.11"
+directories = "4.0.1"
+druid = { git = "https://github.com/lapce/druid", features = [ "svg", "im", "serde", ] }
+#druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 fern = "0.6.0"
-Inflector = "0.11.4"
-rayon = "1.5.1"
 flate2 = "1.0.22"
+fuzzy-matcher = "0.3.7"
+fzyr = "0.1.2"
+include_dir = "0.6.0"
+indexmap = "1.7.0"
+Inflector = "0.11.4"
+im = { version = "15.0.0", features = ["serde"] }
+itertools = "0.10.1"
+jsonrpc-lite = "0.5.0"
+lapce-data = { path = "../lapce-data" }
+lapce-proxy = { path = "../lapce-proxy" }
+lapce-rpc = { path = "../lapce-rpc" }
+lazy_static = "1.4.0"
+log = "0.4.14"
+lsp-types = { version = "0.89.2", features = ["proposed"] }
+notify = "5.0.0-pre.13"
+parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
+rayon = "1.5.1"
+regex = "1.4.2"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 sled = "0.34.7"
-base64 = "0.13.0"
-alacritty_terminal = "0.15.0"
-config = "0.11"
-indexmap = "1.7.0"
-directories = "4.0.1"
+serde = "1.0"
+serde_json = "1.0"
+structdesc = { git = "https://github.com/lapce/structdesc" }
+#structdesc = { path = "../../structdesc" }
+strum = "0.19"
+strum_macros = "0.19"
 tinyfiledialogs = "3.8.3"
-itertools = "0.10.1"
-unicode-width = "0.1.8"
-im = { version = "15.0.0", features = ["serde"] }
-regex = "1.4.2"
-usvg = "0.22.0"
-jsonrpc-lite = "0.5.0"
-bit-vec = "0.5.0"
-parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
-include_dir = "0.6.0"
+toml = { version = "0.5.8", features = ["preserve_order"] }
 tree-sitter = "0.20.2"
 tree-sitter-highlight = "0.20.1"
 tree-sitter-rust = "0.20.0"
 tree-sitter-go = "0.19.1"
 tree-sitter-javascript = "0.20.0"
-anyhow = "1.0.32"
-strum = "0.19"
-strum_macros = "0.19"
-lazy_static = "1.4.0"
-serde = "1.0"
-serde_json = "1.0"
-notify = "5.0.0-pre.13"
+unicode-width = "0.1.8"
+usvg = "0.22.0"
+uuid = { version = "0.7.4", features = ["v4"] }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 xi-unicode = "0.3.0"
-fuzzy-matcher = "0.3.7"
-uuid = { version = "0.7.4", features = ["v4"] }
-lsp-types = { version = "0.89.2", features = ["proposed"] }
-druid = { git = "https://github.com/lapce/druid", features = [ "svg", "im", "serde", ] }
-#druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
-toml = { version = "0.5.8", features = ["preserve_order"] }
-structdesc = { git = "https://github.com/lapce/structdesc" }
-#structdesc = { path = "../../structdesc" }
-lapce-data = { path = "../lapce-data" }
-lapce-rpc = { path = "../lapce-rpc" }
-lapce-proxy = { path = "../lapce-proxy" }
 
 [build-dependencies]
-cc = "1"
 anyhow = "1.0.32"
+cc = "1"
 threadpool = "1.0"
