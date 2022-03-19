@@ -10,7 +10,7 @@ anyhow = "1.0.32"
 base64 = "0.13.0"
 bit-vec = "0.6"
 chrono = "0.4.19"
-config = "0.11"
+config = { version = "0.11", default-features = false, features = ["toml"] }
 crossbeam-channel = "0.5.0"
 diff = "0.1.12"
 directories = "4.0.1"
