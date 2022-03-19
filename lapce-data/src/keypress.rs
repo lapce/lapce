@@ -605,33 +605,36 @@ impl KeyPressData {
         let mut keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>> = IndexMap::new();
         let mut command_keymaps: IndexMap<String, Vec<KeyMap>> = IndexMap::new();
         for toml_keymap in toml_keymaps {
-            if let Ok(keymap) = Self::get_keymap(toml_keymap, modal) {
-                let (command, bind) = match keymap.command.strip_prefix('-') {
-                    Some(cmd) => (cmd.to_string(), false),
-                    None => (keymap.command.clone(), true),
-                };
+            let keymap = match Self::get_keymap(toml_keymap, modal) {
+                Ok(keymap) => keymap,
+                Err(_) => continue,
+            };
 
-                let current_keymaps = command_keymaps.entry(command).or_default();
-                if bind {
-                    current_keymaps.push(keymap.clone());
-                    for i in 1..keymap.key.len() + 1 {
-                        let key = keymap.key[..i].to_vec();
-                        keymaps.entry(key).or_default().push(keymap.clone());
-                    }
-                } else {
-                    let is_keymap = |k: &KeyMap| -> bool {
-                        k.when == keymap.when
-                            && k.modes == keymap.modes
-                            && k.key == keymap.key
-                    };
-                    if let Some(index) = current_keymaps.iter().position(is_keymap) {
-                        current_keymaps.remove(index);
-                    }
-                    for i in 1..keymap.key.len() + 1 {
-                        if let Some(keymaps) = keymaps.get_mut(&keymap.key[..i]) {
-                            if let Some(index) = keymaps.iter().position(is_keymap) {
-                                keymaps.remove(index);
-                            }
+            let (command, bind) = match keymap.command.strip_prefix('-') {
+                Some(cmd) => (cmd.to_string(), false),
+                None => (keymap.command.clone(), true),
+            };
+
+            let current_keymaps = command_keymaps.entry(command).or_default();
+            if bind {
+                current_keymaps.push(keymap.clone());
+                for i in 1..keymap.key.len() + 1 {
+                    let key = keymap.key[..i].to_vec();
+                    keymaps.entry(key).or_default().push(keymap.clone());
+                }
+            } else {
+                let is_keymap = |k: &KeyMap| -> bool {
+                    k.when == keymap.when
+                        && k.modes == keymap.modes
+                        && k.key == keymap.key
+                };
+                if let Some(index) = current_keymaps.iter().position(is_keymap) {
+                    current_keymaps.remove(index);
+                }
+                for i in 1..keymap.key.len() + 1 {
+                    if let Some(keymaps) = keymaps.get_mut(&keymap.key[..i]) {
+                        if let Some(index) = keymaps.iter().position(is_keymap) {
+                            keymaps.remove(index);
                         }
                     }
                 }
