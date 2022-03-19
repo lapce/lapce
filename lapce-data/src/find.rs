@@ -12,7 +12,7 @@ use crate::{
     movement::{InsertDrift, SelRegion, Selection},
 };
 
-const REGEX_SIZE_LIMIT: usize = 1000000;
+const REGEX_SIZE_LIMIT: usize = 1_000_000;
 
 /// Indicates what changed in the find state.
 #[derive(PartialEq, Debug, Clone)]

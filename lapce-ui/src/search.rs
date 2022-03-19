@@ -21,6 +21,7 @@ use crate::{
     svg::file_svg_new,
 };
 
+#[allow(clippy::type_complexity)]
 #[derive(Clone)]
 pub struct SearchData {
     pub active: WidgetId,
