@@ -23,6 +23,8 @@ use crate::command::{
 use crate::config::{Config, LapceTheme};
 use crate::{command::LapceCommand, state::Mode};
 
+const DEFAULT_KEYMAPS_COMMON: &str =
+    include_str!("../../defaults/keymaps-common.toml");
 const DEFAULT_KEYMAPS_WINDOWS: &str =
     include_str!("../../defaults/keymaps-windows.toml");
 const DEFAULT_KEYMAPS_MACOS: &str =
@@ -831,14 +833,15 @@ impl KeyPressData {
         IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
         IndexMap<String, Vec<KeyMap>>,
     )> {
-        let mut keymaps_str = if std::env::consts::OS == "macos" {
+        let mut keymaps_str = DEFAULT_KEYMAPS_COMMON.to_string();
+
+        keymaps_str += if std::env::consts::OS == "macos" {
             DEFAULT_KEYMAPS_MACOS
         } else if std::env::consts::OS == "linux" {
             DEFAULT_KEYMAPS_LINUX
         } else {
             DEFAULT_KEYMAPS_WINDOWS
-        }
-        .to_string();
+        };
 
         if let Some(path) = Self::file() {
             if let Ok(content) = std::fs::read_to_string(path) {
