@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Result};
+use bitflags::bitflags;
 use druid::{Color, Modifiers};
 
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::fmt::{Display, Write};
 use std::path::PathBuf;
 use std::sync::atomic;
 use std::sync::atomic::AtomicU64;
@@ -44,15 +45,59 @@ pub enum Mode {
     Terminal,
 }
 
-impl Mode {
-    pub fn short(&self) -> String {
-        match &self {
-            Mode::Normal => "n",
-            Mode::Insert => "i",
-            Mode::Visual => "v",
-            Mode::Terminal => "t",
+bitflags! {
+    pub struct Modes: u32 {
+        const NORMAL = 0x01;
+        const INSERT = 0x2;
+        const VISUAL = 0x4;
+        const TERMINAL = 0x8;
+    }
+}
+
+impl From<Mode> for Modes {
+    fn from(mode: Mode) -> Self {
+        match mode {
+            Mode::Normal => Self::NORMAL,
+            Mode::Insert => Self::INSERT,
+            Mode::Visual => Self::VISUAL,
+            Mode::Terminal => Self::TERMINAL,
         }
-        .to_string()
+    }
+}
+
+impl Modes {
+    pub fn parse(modes_str: &str) -> Self {
+        let mut this = Self::empty();
+
+        for c in modes_str.chars() {
+            match c {
+                'i' | 'I' => this.set(Self::INSERT, true),
+                'n' | 'N' => this.set(Self::NORMAL, true),
+                'v' | 'V' => this.set(Self::VISUAL, true),
+                't' | 'T' => this.set(Self::TERMINAL, true),
+                _ => log::warn!("Not an editor mode: {c}"),
+            }
+        }
+
+        this
+    }
+}
+
+impl std::fmt::Display for Modes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let bits = [
+            (Self::INSERT, 'i'),
+            (Self::NORMAL, 'n'),
+            (Self::VISUAL, 'v'),
+            (Self::TERMINAL, 't'),
+        ];
+        for (bit, chr) in bits {
+            if self.contains(bit) {
+                f.write_char(chr)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -65,7 +110,7 @@ pub struct KeyPress {
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct KeyMap {
     pub key: Vec<KeyPress>,
-    pub modes: Vec<Mode>,
+    pub modes: Modes,
     pub when: Option<String>,
     pub command: String,
 }

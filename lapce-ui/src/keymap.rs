@@ -14,7 +14,7 @@ use lapce_data::{
     keypress::{
         paint_key, Alignment, DefaultKeyPressHandler, KeyMap, KeyPress, KeyPressData,
     },
-    state::Mode,
+    state::Modes,
 };
 
 use crate::{editor::LapceEditorView, scroll::LapceScrollNew, split::LapceSplitNew};
@@ -92,7 +92,7 @@ impl LapceKeymap {
                     KeyMap {
                         command: command.cmd.clone(),
                         key: Vec::new(),
-                        modes: Vec::new(),
+                        modes: Modes::empty(),
                         when: None,
                     },
                     Vec::new(),
@@ -326,23 +326,25 @@ impl Widget<LapceTabData> for LapceKeymap {
                         size.width / 2.0 + 10.0,
                         i as f64 * self.line_height + self.line_height / 2.0,
                     );
-                    for mode in keymap.modes.iter() {
-                        let mode = match mode {
-                            Mode::Normal => "Normal",
-                            Mode::Insert => "Insert",
-                            Mode::Visual => "Visual",
-                            Mode::Terminal => "Terminal",
-                        };
-                        let (rect, text_layout, text_layout_pos) =
-                            paint_key(ctx, mode, origin, &data.config);
-                        ctx.draw_text(&text_layout, text_layout_pos);
-                        ctx.stroke(
-                            rect,
-                            data.config
-                                .get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                            1.0,
-                        );
-                        origin += (rect.width() + 5.0, 0.0);
+                    let bits = [
+                        (Modes::INSERT, "Normal"),
+                        (Modes::NORMAL, "Insert"),
+                        (Modes::VISUAL, "Visual"),
+                        (Modes::TERMINAL, "Terminal"),
+                    ];
+                    for (bit, mode) in bits {
+                        if keymap.modes.contains(bit) {
+                            let (rect, text_layout, text_layout_pos) =
+                                paint_key(ctx, mode, origin, &data.config);
+                            ctx.draw_text(&text_layout, text_layout_pos);
+                            ctx.stroke(
+                                rect,
+                                data.config
+                                    .get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                                1.0,
+                            );
+                            origin += (rect.width() + 5.0, 0.0);
+                        }
                     }
                 }
             } else {

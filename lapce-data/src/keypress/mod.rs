@@ -24,6 +24,7 @@ use crate::command::{
 };
 use crate::config::{Config, LapceTheme};
 use crate::keypress::loader::KeyMapLoader;
+use crate::state::Modes;
 use crate::{command::LapceCommand, state::Mode};
 
 pub use keypress::KeyPress;
@@ -74,7 +75,7 @@ pub fn paint_key(
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct KeyMap {
     pub key: Vec<KeyPress>,
-    pub modes: Vec<Mode>,
+    pub modes: Modes,
     pub when: Option<String>,
     pub command: String,
 }
@@ -418,7 +419,7 @@ impl KeyPressData {
                             return false;
                         }
                         if !keymap.modes.is_empty()
-                            && !keymap.modes.contains(&check.get_mode())
+                            && !keymap.modes.contains(check.get_mode().into())
                         {
                             return false;
                         }
@@ -592,9 +593,7 @@ impl KeyPressData {
             if !keymap.modes.is_empty() {
                 table.insert(
                     "mode".to_string(),
-                    toml::Value::String(
-                        keymap.modes.iter().map(|m| m.short()).join(""),
-                    ),
+                    toml::Value::String(keymap.modes.to_string()),
                 );
             }
             if let Some(when) = keymap.when.as_ref() {
@@ -726,22 +725,10 @@ impl KeyPressFocus for DefaultKeyPressHandler {
     fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
-fn get_modes(toml_keymap: &toml::Value) -> Vec<Mode> {
-    let mut modes = toml_keymap
+fn get_modes(toml_keymap: &toml::Value) -> Modes {
+    toml_keymap
         .get("mode")
         .and_then(|v| v.as_str())
-        .map(|m| {
-            m.chars()
-                .filter_map(|c| match c.to_lowercase().to_string().as_ref() {
-                    "i" => Some(Mode::Insert),
-                    "n" => Some(Mode::Normal),
-                    "v" => Some(Mode::Visual),
-                    "t" => Some(Mode::Terminal),
-                    _ => None,
-                })
-                .collect()
-        })
-        .unwrap_or_else(Vec::new);
-    modes.sort();
-    modes
+        .map(Modes::parse)
+        .unwrap_or_else(Modes::empty)
 }
