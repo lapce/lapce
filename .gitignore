@@ -4,3 +4,6 @@
 lib/
 target/
 core/languages/
+
+prime/
+*.snap
