@@ -5,30 +5,30 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-regex = "1.5.4"
-grep-searcher = "0.1.8"
+alacritty_terminal = "0.16.0-rc2"
+anyhow = "1.0.32"
+base64 = "0.13.0"
+crossbeam-channel = "0.5.0"
+directories = "4.0.1"
+git2 = { version = "0.13.23", features = ["vendored-openssl"] }
 grep-matcher = "0.1.5"
 grep-regex = "0.1.9"
+grep-searcher = "0.1.8"
+home = "0.5.3"
+hotwatch = "0.4.6"
 ignore = "0.4.18"
+jsonrpc-lite = "0.5.0"
+lapce-rpc = { path = "../lapce-rpc" }
+locale_config = "0.3.0"
+lsp-types = { version = "0.89.2", features = ["proposed"] }
+mio = "0.6.20"
+notify = "5.0.0-pre.13"
+parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
+regex = "1.5.4"
 reqwest = { version = "0.11", features = ["blocking"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.59"
+toml = "0.5.6"
 wasmer = "2.1.1"
 wasmer-wasi = "2.1.1"
-directories = "4.0.1"
-locale_config = "0.3.0"
-base64 = "0.13.0"
-alacritty_terminal = "0.16.0-rc2"
-mio = "0.6.20"
-hotwatch = "0.4.6"
-notify = "5.0.0-pre.13"
-lapce-rpc = { path = "../lapce-rpc" }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
-serde = { version = "1.0", features = ["derive"] }
-lsp-types = { version = "0.89.2", features = ["proposed"] }
-parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
-crossbeam-channel = "0.5.0"
-jsonrpc-lite = "0.5.0"
-serde_json = "1.0.59"
-anyhow = "1.0.32"
-home = "0.5.3"
-toml = "0.5.6"
-git2 = { version = "0.13.23", features = ["vendored-openssl"] }

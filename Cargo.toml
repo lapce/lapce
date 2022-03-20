@@ -7,8 +7,8 @@ rust-version = "1.58"
 resolver = "2"
 
 [dependencies]
-lapce-ui = { path = "./lapce-ui" }
 lapce-proxy = { path = "./lapce-proxy" }
+lapce-ui = { path = "./lapce-ui" }
 
 [[bin]]
 name = "lapce"
@@ -19,4 +19,4 @@ name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
+members = ["lapce-core", "lapce-data", "lapce-proxy", "lapce-rpc", "lapce-ui"]
