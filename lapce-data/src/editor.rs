@@ -3855,16 +3855,26 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &self.buffer,
                             self.config.editor.tab_width,
                         );
-                        let mut selection = self.buffer.update_selection(
-                            &selection,
-                            1,
-                            &Movement::Left,
-                            Mode::Insert,
-                            true,
-                            self.editor.code_lens,
-                            self.editor.compare.clone(),
-                            &self.config,
-                        );
+                        let mut new_selection = Selection::new();
+                        for region in selection.regions() {
+                            let new_region = if region.is_caret() {
+                                self.buffer.update_region(
+                                    region,
+                                    1,
+                                    &Movement::Left,
+                                    Mode::Insert,
+                                    true,
+                                    self.editor.code_lens,
+                                    self.editor.compare.clone(),
+                                    &self.config,
+                                )
+                            } else {
+                                *region
+                            };
+                            new_selection.add_region(new_region);
+                        }
+
+                        let mut selection = new_selection;
                         if selection.regions().len() == 1 {
                             let delete_str = self
                                 .buffer
@@ -3905,25 +3915,20 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::DeleteToEndOfLine => {
-                let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) => {
-                        let mut selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
-                            self.config.editor.tab_width,
-                        );
-                        self.buffer.update_selection(
-                            &selection,
-                            1,
-                            &Movement::EndOfLine,
-                            Mode::Insert,
-                            true,
-                            self.editor.code_lens,
-                            self.editor.compare.clone(),
-                            &self.config,
-                        )
-                    }
-                    _ => todo!(),
-                };
+                let mut selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                selection = self.buffer.update_selection(
+                    &selection,
+                    1,
+                    &Movement::EndOfLine,
+                    Mode::Insert,
+                    true,
+                    self.editor.code_lens,
+                    self.editor.compare.clone(),
+                    &self.config,
+                );
                 let (selection, _) =
                     self.edit(ctx, &selection, "", None, true, EditType::Delete);
                 match self.editor.cursor.mode {
@@ -3945,10 +3950,37 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::DeleteForward => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = match self.editor.cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
+                        .editor
+                        .cursor
+                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Insert(_) => {
+                        let selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
+                        let mut new_selection = Selection::new();
+                        for region in selection.regions() {
+                            let new_region = if region.is_caret() {
+                                self.buffer.update_region(
+                                    region,
+                                    1,
+                                    &Movement::Right,
+                                    Mode::Insert,
+                                    true,
+                                    self.editor.code_lens,
+                                    self.editor.compare.clone(),
+                                    &self.config,
+                                )
+                            } else {
+                                *region
+                            };
+                            new_selection.add_region(new_region);
+                        }
+                        new_selection
+                    }
+                };
                 let (selection, _) =
                     self.edit(ctx, &selection, "", None, true, EditType::Delete);
                 self.set_cursor_after_change(selection);
