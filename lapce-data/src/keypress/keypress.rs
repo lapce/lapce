@@ -135,8 +135,8 @@ impl KeyPress {
                 };
 
                 let mut mods = Modifiers::default();
-                for part in modifiers.split('+') {
-                    match part.to_lowercase().as_ref() {
+                for part in modifiers.to_lowercase().split('+') {
+                    match part {
                         "ctrl" => mods.set(Modifiers::CONTROL, true),
                         "meta" => mods.set(Modifiers::META, true),
                         "shift" => mods.set(Modifiers::SHIFT, true),
