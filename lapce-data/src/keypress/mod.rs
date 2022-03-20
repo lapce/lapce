@@ -305,6 +305,8 @@ impl KeyPressData {
         focus: &mut T,
         env: &Env,
     ) -> bool {
+        log::info!("Keypress: {key_event:?}");
+
         if key_event.key == druid::KbKey::Shift {
             let mut mods = key_event.mods;
             mods.set(Modifiers::SHIFT, false);
@@ -312,6 +314,8 @@ impl KeyPressData {
                 return false;
             }
         }
+
+        // We are removing Shift modifier since the character is already upper case.
         let mut mods = key_event.mods;
         if let druid::KbKey::Character(_) = &key_event.key {
             mods.set(Modifiers::SHIFT, false);

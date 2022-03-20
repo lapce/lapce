@@ -1,9 +1,8 @@
 use anyhow::{anyhow, Result};
 use indexmap::IndexMap;
-use toml;
 
 use crate::{
-    keypress::{get_modes, KeyMap, KeyPress},
+    keypress::{get_modes, keypress::KeyPress, KeyMap},
     state::Mode,
 };
 
@@ -33,7 +32,11 @@ impl KeyMapLoader {
 
         for toml_keymap in toml_keymaps {
             let keymap = match Self::get_keymap(toml_keymap, modal) {
-                Ok(keymap) => keymap,
+                Ok(Some(keymap)) => keymap,
+                Ok(None) => {
+                    // Keymap ignored
+                    continue;
+                }
                 Err(err) => {
                     log::error!("Could not parse keymap: {err}");
                     continue;
@@ -88,18 +91,20 @@ impl KeyMapLoader {
         (map, command_map)
     }
 
-    fn get_keymap(toml_keymap: &toml::Value, modal: bool) -> Result<KeyMap> {
+    fn get_keymap(toml_keymap: &toml::Value, modal: bool) -> Result<Option<KeyMap>> {
         let key = toml_keymap
             .get("key")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("no key in keymap"))?;
 
         let modes = get_modes(toml_keymap);
+        // If not using modal editing, remove keymaps that only make sense in modal.
         if !modal && !modes.is_empty() && !modes.contains(&Mode::Insert) {
-            return Err(anyhow!(""));
+            log::debug!("Keymap ignored: {}", key);
+            return Ok(None);
         }
 
-        Ok(KeyMap {
+        Ok(Some(KeyMap {
             key: KeyPress::parse(key),
             modes: get_modes(toml_keymap),
             when: toml_keymap
@@ -111,7 +116,7 @@ impl KeyMapLoader {
                 .and_then(|c| c.as_str())
                 .map(|w| w.trim().to_string())
                 .unwrap_or_else(|| "".to_string()),
-        })
+        }))
     }
 }
 
