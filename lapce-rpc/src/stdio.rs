@@ -60,7 +60,7 @@ pub(crate) fn make_io_threads(
 pub struct IoThreads {
     #[allow(dead_code)]
     reader: thread::JoinHandle<io::Result<()>>,
-    
+
     #[allow(dead_code)]
     writer: thread::JoinHandle<io::Result<()>>,
 }

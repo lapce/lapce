@@ -1,4 +1,3 @@
-
 pub struct OldLapceTheme {}
 
 impl OldLapceTheme {

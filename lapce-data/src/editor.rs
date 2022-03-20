@@ -3808,25 +3808,20 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::DeleteToEndOfLine => {
-                let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) => {
-                        let mut selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
-                            self.config.editor.tab_width,
-                        );
-                        self.buffer.update_selection(
-                            &selection,
-                            1,
-                            &Movement::EndOfLine,
-                            Mode::Insert,
-                            true,
-                            self.editor.code_lens,
-                            self.editor.compare.clone(),
-                            &self.config,
-                        )
-                    }
-                    _ => todo!(),
-                };
+                let mut selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                selection = self.buffer.update_selection(
+                    &selection,
+                    1,
+                    &Movement::EndOfLine,
+                    Mode::Insert,
+                    true,
+                    self.editor.code_lens,
+                    self.editor.compare.clone(),
+                    &self.config,
+                );
                 let (selection, _) =
                     self.edit(ctx, &selection, "", None, true, EditType::Delete);
                 match self.editor.cursor.mode {
