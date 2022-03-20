@@ -271,32 +271,28 @@ impl KeyPressData {
         false
     }
 
-    pub fn keypress(key_event: &KeyEvent) -> Option<KeyPress> {
-        match key_event.key {
-            druid::KbKey::Shift
-            | KbKey::Meta
-            | KbKey::Super
-            | KbKey::Alt
-            | KbKey::Control => return None,
-            _ => (),
-        }
-        if key_event.key == druid::KbKey::Shift {
-            let mut mods = key_event.mods;
-            mods.set(Modifiers::SHIFT, false);
-            if mods.is_empty() {
-                return None;
-            }
-        }
+    fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
         let mut mods = key_event.mods;
-        if let druid::KbKey::Character(_c) = &key_event.key {
+
+        if matches!(key_event.key, KbKey::Shift | KbKey::Character(_)) {
             mods.set(Modifiers::SHIFT, false);
         }
 
-        let keypress = KeyPress {
-            key: key_event.key.clone(),
-            mods,
-        };
-        Some(keypress)
+        mods
+    }
+
+    pub fn keypress(key_event: &KeyEvent) -> Option<KeyPress> {
+        match key_event.key {
+            KbKey::Shift
+            | KbKey::Meta
+            | KbKey::Super
+            | KbKey::Alt
+            | KbKey::Control => None,
+            ref key => Some(KeyPress {
+                key: key.clone(),
+                mods: Self::get_key_modifiers(key_event),
+            }),
+        }
     }
 
     pub fn key_down<T: KeyPressFocus>(
@@ -308,18 +304,11 @@ impl KeyPressData {
     ) -> bool {
         log::info!("Keypress: {key_event:?}");
 
-        if key_event.key == druid::KbKey::Shift {
-            let mut mods = key_event.mods;
-            mods.set(Modifiers::SHIFT, false);
-            if mods.is_empty() {
-                return false;
-            }
-        }
-
         // We are removing Shift modifier since the character is already upper case.
-        let mut mods = key_event.mods;
-        if let druid::KbKey::Character(_) = &key_event.key {
-            mods.set(Modifiers::SHIFT, false);
+        let mods = Self::get_key_modifiers(key_event);
+
+        if key_event.key == KbKey::Shift && mods.is_empty() {
+            return false;
         }
 
         let keypress = KeyPress {
