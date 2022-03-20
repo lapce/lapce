@@ -27,8 +27,8 @@ Inflector = "0.11.4"
 itertools = "0.10.1"
 jsonrpc-lite = "0.5.0"
 lapce-core = { path = "../lapce-core" }
-lapce-rpc = { path = "../lapce-rpc" }
 lapce-proxy = { path = "../lapce-proxy" }
+lapce-rpc = { path = "../lapce-rpc" }
 lazy_static = "1.4.0"
 log = "0.4.14"
 lsp-types = { version = "0.89.2", features = ["proposed"] }
@@ -47,10 +47,10 @@ strum_macros = "0.19"
 tinyfiledialogs = "3.8.3"
 toml = { version = "0.5.8", features = ["preserve_order"] }
 tree-sitter = "0.20.2"
-tree-sitter-highlight = "0.20.1"
-tree-sitter-rust = "0.20.0"
 tree-sitter-go = "0.19.1"
+tree-sitter-highlight = "0.20.1"
 tree-sitter-javascript = "0.20.0"
+tree-sitter-rust = "0.20.0"
 unicode-width = "0.1.8"
 usvg = "0.22.0"
 uuid = { version = "0.7.4", features = ["v4"] }

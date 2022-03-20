@@ -5,8 +5,8 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.32"
 alacritty_terminal = "0.16"
+anyhow = "1.0.32"
 base64 = "0.13.0"
 crossbeam-channel = "0.5.0"
 directories = "4.0.1"
