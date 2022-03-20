@@ -106,7 +106,7 @@ impl KeyMapLoader {
 
         Ok(Some(KeyMap {
             key: KeyPress::parse(key),
-            modes: get_modes(toml_keymap),
+            modes,
             when: toml_keymap
                 .get("when")
                 .and_then(|w| w.as_str())
