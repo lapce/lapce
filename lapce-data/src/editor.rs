@@ -3622,7 +3622,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .editor
                     .cursor
                     .edit_selection(&self.buffer, self.config.editor.tab_width);
-                self.buffer.update_selection(
+                selection = self.buffer.update_selection(
                     &selection,
                     1,
                     &Movement::EndOfLine,
