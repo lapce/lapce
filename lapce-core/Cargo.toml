@@ -5,12 +5,12 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-thiserror = "1.0"
 itertools = "0.10.3"
 serde_json = "1.0"
+thiserror = "1.0"
 tree-sitter = "0.20.6"
-tree-sitter-highlight = "0.20.1"
-tree-sitter-rust = "0.20.0"
 tree-sitter-go = "0.19.1"
+tree-sitter-highlight = "0.20.1"
 tree-sitter-javascript = "0.20.0"
+tree-sitter-rust = "0.20.0"
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }

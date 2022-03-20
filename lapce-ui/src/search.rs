@@ -1,8 +1,5 @@
-<<<<<<< HEAD
-=======
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
->>>>>>> 2377632 (dedup `use`s, sort and order (std, deps then local crate `use`s))
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
@@ -16,10 +13,6 @@ use lapce_data::{
     editor::EditorLocationNew,
     split::SplitDirection,
 };
-<<<<<<< HEAD
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
-=======
->>>>>>> 2377632 (dedup `use`s, sort and order (std, deps then local crate `use`s))
 
 use crate::{
     editor::LapceEditorView,
