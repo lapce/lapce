@@ -142,7 +142,17 @@ command = "list.previous"
 when = "list_focus"
 
 [[keymaps]]
+key = "up"
+command = "list.previous"
+when = "list_focus"
+
+[[keymaps]]
 key = "ctrl+n"
+command = "list.next"
+when = "list_focus"
+
+[[keymaps]]
+key = "down"
 command = "list.next"
 when = "list_focus"
 
@@ -196,10 +206,12 @@ command = "left"
 [[keymaps]]
 key = "up"
 command = "up"
+when = "!list_focus"
 
 [[keymaps]]
 key = "down"
 command = "down"
+when = "!list_focus"
 
 [[keymaps]]
 key = "ctrl+u"
@@ -235,6 +247,7 @@ mode = "ivt"
 key = "enter"
 command = "insert_new_line"
 mode = "i"
+when = "!list_focus"
 
 [[keymaps]]
 key = "tab"
@@ -380,6 +393,11 @@ command = "delete_forward"
 mode = "nv"
 
 [[keymaps]]
+key = "Delete"
+command = "delete_forward"
+mode = "i"
+
+[[keymaps]]
 key = "s"
 command = "delete_forward_and_insert"
 mode = "nv"
@@ -400,9 +418,22 @@ command = "line_start"
 mode = "nv"
 
 [[keymaps]]
+key = "^"
+command = "line_start_non_blank"
+mode = "nv"
+
+[[keymaps]]
+key = "Home"
+command = "line_start_non_blank"
+
+[[keymaps]]
 key = "$"
 command = "line_end"
 mode = "nv"
+
+[[keymaps]]
+key = "End"
+command = "line_end"
 
 [[keymaps]]
 key = "w"

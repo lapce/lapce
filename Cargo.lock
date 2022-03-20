@@ -522,7 +522,7 @@ dependencies = [
  "clicolors-control",
  "lazy_static 1.4.0",
  "libc",
- "parking_lot 0.6.4",
+ "parking_lot 0.11.2",
  "regex",
  "termios",
  "unicode-width",
