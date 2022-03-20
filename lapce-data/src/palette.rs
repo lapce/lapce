@@ -1,34 +1,32 @@
+use std::{
+    cmp::Ordering, collections::HashSet, path::Path, path::PathBuf, sync::Arc,
+};
+
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
 use bit_vec::BitVec;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
-    piet::{Svg, TextAttribute},
-    Command, ExtEventSink, FontFamily, FontWeight, Lens, Modifiers, Target,
-    WidgetId, WindowId,
+    piet::{
+        Svg, Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder,
+    },
+    Command, Data, Env, EventCtx, ExtEventSink, FontFamily, FontWeight, Lens,
+    Modifiers, PaintCtx, Point, RenderContext, Size, Target, WidgetId, WindowId,
 };
-use druid::{
-    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    Data, Env, EventCtx, PaintCtx, Point, RenderContext, Size,
-};
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use fzyr::Score;
 use itertools::Itertools;
 use lsp_types::{DocumentSymbolResponse, Location, Position, Range, SymbolKind};
 use serde_json;
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::{cmp::Ordering, path::Path};
 use usvg;
 use uuid::Uuid;
 
 use crate::{
     buffer::BufferContent,
-    command::LAPCE_UI_COMMAND,
-    command::{CommandExecuted, LapceCommand, LAPCE_NEW_COMMAND},
-    command::{LapceCommandNew, LapceUICommand},
+    command::{
+        CommandExecuted, LapceCommand, LapceCommandNew, LapceUICommand,
+        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::{Config, LapceTheme},
     data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
     editor::EditorLocationNew,
@@ -36,9 +34,7 @@ use crate::{
     keypress::{KeyPressData, KeyPressFocus},
     movement::Movement,
     proxy::LapceProxy,
-    state::LapceWorkspace,
-    state::LapceWorkspaceType,
-    state::Mode,
+    state::{LapceWorkspace, LapceWorkspaceType, Mode},
     svg::{file_svg_new, symbol_svg_new},
     terminal::TerminalSplitData,
 };

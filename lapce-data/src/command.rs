@@ -21,8 +21,7 @@ use tree_sitter_highlight::Highlight;
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
-    buffer::BufferId,
-    buffer::{DiffLines, Style},
+    buffer::{BufferId, DiffLines, Style},
     data::{EditorTabChild, SplitContent},
     editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},

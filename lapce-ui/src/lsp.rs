@@ -1,3 +1,4 @@
+// TODO: This file is not included in compilation and duplicates `lapce-data::lsp.rs`; Document rationale or remove
 use anyhow::{anyhow, Result};
 use druid::{WidgetId, WindowId};
 use jsonrpc_lite::Id;

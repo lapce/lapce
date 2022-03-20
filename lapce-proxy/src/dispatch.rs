@@ -1,32 +1,35 @@
-use crate::buffer::{get_mod_time, Buffer, BufferId};
-use crate::lsp::LspCatalog;
-use crate::plugin::{PluginCatalog, PluginDescription};
-use crate::terminal::{TermId, Terminal};
-use alacritty_terminal::event_loop::Msg;
-use alacritty_terminal::term::SizeInfo;
+use std::{
+    cmp::{self, Ordering},
+    collections::{HashMap, HashSet},
+    fs,
+    io::BufRead,
+    path::{Path, PathBuf},
+    sync::Arc,
+    thread,
+};
+
+use alacritty_terminal::{event_loop::Msg, term::SizeInfo};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use directories::BaseDirs;
 use git2::{DiffOptions, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
-use grep_searcher::sinks::UTF8;
-use grep_searcher::SearcherBuilder;
+use grep_searcher::{sinks::UTF8, SearcherBuilder};
 use lapce_rpc::{self, Call, RequestId, RpcObject};
 use lsp_types::{CompletionItem, Position, TextDocumentContentChangeEvent};
 use notify::Watcher;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use serde_json::Value;
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::thread;
-use std::{cmp, fs};
-use std::{collections::HashSet, io::BufRead};
+use serde_json::{json, Value};
 use xi_rope::RopeDelta;
+
+use crate::{
+    buffer::{get_mod_time, Buffer, BufferId},
+    lsp::LspCatalog,
+    plugin::{PluginCatalog, PluginDescription},
+    terminal::{TermId, Terminal},
+};
 
 #[derive(Clone)]
 pub struct Dispatcher {

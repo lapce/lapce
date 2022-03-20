@@ -15,7 +15,6 @@ use druid::{
     theme, Color, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
     Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
-
 use lapce_proxy::{
     dispatch::{FileDiff, FileNodeItem},
     plugin::PluginDescription,

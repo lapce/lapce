@@ -1,18 +1,17 @@
+use std::sync::Arc;
+
 use crate::{
     editor::{LapceEditorTab, LapceEditorView},
     svg::logo_svg,
     terminal::LapceTerminalView,
 };
-use std::sync::Arc;
 
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    Command, FontFamily, Target, WidgetId,
-};
-use druid::{
-    BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
+    BoxConstraints, Command, Env, Event, EventCtx, FontFamily, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
+    WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{

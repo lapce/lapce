@@ -1,5 +1,5 @@
-use lsp_types::ParameterLabel;
-use lsp_types::SignatureHelp;
+// TODO: This file duplicates `lapce-data::signature.rs`; Document rationale or remove
+use lsp_types::{ParameterLabel, SignatureHelp};
 
 #[derive(Clone)]
 pub struct SignatureState {

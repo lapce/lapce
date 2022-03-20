@@ -1,6 +1,6 @@
-use crate::keypress::KeyPress;
-
 use serde::{Deserialize, Serialize};
+
+use crate::keypress::KeyPress;
 
 #[derive(Debug)]
 pub enum SplitMoveDirection {

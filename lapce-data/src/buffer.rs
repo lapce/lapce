@@ -1,26 +1,33 @@
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    cmp::{self, Ordering},
+    collections::{BTreeSet, HashMap},
+    ops::Range,
+    path::PathBuf,
+    rc::Rc,
+    str::FromStr,
+    sync::{
+        atomic::{self, AtomicU64},
+        Arc,
+    },
+    thread,
+};
+
 use crossbeam_channel::Sender;
-use druid::PaintCtx;
-use druid::{piet::PietTextLayout, Vec2};
 use druid::{
-    piet::{Text, TextAttribute, TextLayoutBuilder},
-    Data, EventCtx, ExtEventSink, Target, WidgetId, WindowId,
+    piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
+    Data, EventCtx, ExtEventSink, PaintCtx, Target, Vec2, WidgetId, WindowId,
 };
 use language::{new_highlight_config, LapceLanguage};
 use lapce_core::syntax::Syntax;
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
-use lsp_types::SemanticTokensLegend;
-use lsp_types::SemanticTokensServerCapabilities;
-use lsp_types::{CodeActionResponse, Position};
+use lsp_types::{
+    CodeActionResponse, Position, SemanticTokensLegend,
+    SemanticTokensServerCapabilities,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
-use std::cmp::{self, Ordering};
-use std::collections::HashMap;
-use std::ops::Range;
-use std::rc::Rc;
-use std::str::FromStr;
-use std::sync::atomic::{self, AtomicU64};
-use std::{borrow::Cow, collections::BTreeSet, path::PathBuf, sync::Arc, thread};
 use tree_sitter::{Node, Tree};
 use tree_sitter_highlight::{
     Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
@@ -34,15 +41,12 @@ use xi_rope::{
 };
 use xi_unicode::EmojiExt;
 
-use crate::config::{Config, LapceTheme};
-use crate::editor::EditorLocationNew;
-use crate::find::FindProgress;
-use crate::language::SCOPES;
 use crate::{
-    command::LapceUICommand,
-    command::LAPCE_UI_COMMAND,
-    find::Find,
-    language,
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::{Config, LapceTheme},
+    editor::EditorLocationNew,
+    find::{Find, FindProgress},
+    language::{self, SCOPES},
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     proxy::LapceProxy,
     state::{Counter, Mode},

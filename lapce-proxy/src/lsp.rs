@@ -1,15 +1,13 @@
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::{
     collections::HashMap,
-    io::BufRead,
-    io::{BufReader, BufWriter, Write},
+    io::{BufRead, BufReader, BufWriter, Write},
     process::{self, Child, ChildStdout, Command, Stdio},
     sync::{mpsc::channel, Arc},
     thread,
     time::Duration,
 };
-
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
 
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
@@ -18,9 +16,10 @@ use lsp_types::*;
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 
-use crate::buffer::Buffer;
-use crate::buffer::BufferId;
-use crate::dispatch::Dispatcher;
+use crate::{
+    buffer::{Buffer, BufferId},
+    dispatch::Dispatcher,
+};
 
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";

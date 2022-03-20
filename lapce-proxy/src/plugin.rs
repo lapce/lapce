@@ -1,24 +1,20 @@
 use anyhow::{anyhow, Result};
 use home::home_dir;
 use hotwatch::Hotwatch;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::fs;
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::thread;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    fs,
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    process::Command,
+    thread,
+    time::Duration,
+};
 use toml;
-use wasmer::ChainableNamedResolver;
-use wasmer::ImportObject;
-use wasmer::Store;
-use wasmer::WasmerEnv;
-use wasmer_wasi::Pipe;
-use wasmer_wasi::WasiEnv;
-use wasmer_wasi::WasiState;
+use wasmer::{ChainableNamedResolver, ImportObject, Store, WasmerEnv};
+use wasmer_wasi::{Pipe, WasiEnv, WasiState};
 
 use crate::dispatch::Dispatcher;
 

@@ -1,59 +1,54 @@
-use crate::buffer::get_word_property;
-use crate::buffer::matching_char;
-use crate::buffer::{
-    has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
+use std::{
+    collections::HashMap, collections::HashSet, iter::Iterator, path::Path,
+    path::PathBuf, str::FromStr, sync::Arc, thread, time::Duration,
 };
-use crate::buffer::{matching_pair_direction, Buffer};
-use crate::command::CommandExecuted;
-use crate::completion::{CompletionData, CompletionStatus, Snippet};
-use crate::config::{Config, LapceTheme};
-use crate::data::EditorTabChild;
-use crate::data::{
-    EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
-    LapceTabData, PanelData, PanelKind, RegisterData, SplitContent,
-};
-use crate::state::LapceWorkspace;
-use crate::svg::get_svg;
-use crate::{
-    buffer::BufferId,
-    command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    movement::{ColPosition, Movement, SelRegion, Selection},
-    split::SplitMoveDirection,
-    state::Mode,
-    state::VisualMode,
-};
-use crate::{buffer::WordProperty, movement::CursorMode};
-use crate::{find::Find, split::SplitDirection};
-use crate::{keypress::KeyPressFocus, movement::Cursor};
-use crate::{movement::InsertDrift, panel::PanelPosition};
-use crate::{proxy::LapceProxy, source_control::SourceControlData};
+
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
-use druid::kurbo::BezPath;
-use druid::piet::Svg;
-use druid::piet::{
-    PietTextLayout, Text, TextLayout as TextLayoutTrait, TextLayoutBuilder,
-};
-use druid::Modifiers;
 use druid::{
-    kurbo::Line, piet::PietText, Color, Command, Env, EventCtx, FontFamily,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, Vec2, WidgetId,
+    kurbo::{BezPath, Line},
+    piet::{
+        PietText, PietTextLayout, Svg, Text, TextLayout as TextLayoutTrait,
+        TextLayoutBuilder,
+    },
+    Application, Color, Command, Env, EventCtx, ExtEventSink, FontFamily, Modifiers,
+    MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target, Vec2, WidgetId,
 };
-use druid::{Application, ExtEventSink, MouseEvent};
 use lapce_core::syntax::Syntax;
-use lsp_types::CompletionTextEdit;
 use lsp_types::{
-    CodeActionResponse, CompletionItem, DiagnosticSeverity, DocumentChanges,
-    GotoDefinitionResponse, Location, Position, TextEdit, Url, WorkspaceEdit,
+    CodeActionResponse, CompletionItem, CompletionTextEdit, DiagnosticSeverity,
+    DocumentChanges, GotoDefinitionResponse, Location, Position, TextEdit, Url,
+    WorkspaceEdit,
 };
 use serde_json::Value;
-use std::collections::HashSet;
-use std::path::Path;
-use std::thread;
-use std::{collections::HashMap, sync::Arc};
-use std::{iter::Iterator, path::PathBuf};
-use std::{str::FromStr, time::Duration};
 use xi_rope::{RopeDelta, Transformer};
+
+use crate::{
+    buffer::{
+        get_word_property, has_unmatched_pair, matching_char,
+        matching_pair_direction, Buffer, BufferContent, BufferId, DiffLines,
+        EditType, LocalBufferKind, WordProperty,
+    },
+    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    completion::{CompletionData, CompletionStatus, Snippet},
+    config::{Config, LapceTheme},
+    data::{
+        EditorDiagnostic, EditorTabChild, InlineFindDirection, LapceEditorData,
+        LapceMainSplitData, LapceTabData, PanelData, PanelKind, RegisterData,
+        SplitContent,
+    },
+    find::Find,
+    keypress::KeyPressFocus,
+    movement::{
+        ColPosition, Cursor, CursorMode, InsertDrift, Movement, SelRegion, Selection,
+    },
+    panel::PanelPosition,
+    proxy::LapceProxy,
+    source_control::SourceControlData,
+    split::{SplitDirection, SplitMoveDirection},
+    state::{LapceWorkspace, Mode, VisualMode},
+    svg::get_svg,
+};
 
 pub struct LapceUI {}
 
