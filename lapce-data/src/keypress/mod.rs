@@ -24,13 +24,13 @@ use crate::config::{Config, LapceTheme};
 use crate::{command::LapceCommand, state::Mode};
 
 const DEFAULT_KEYMAPS_COMMON: &str =
-    include_str!("../../defaults/keymaps-common.toml");
+    include_str!("../../../defaults/keymaps-common.toml");
 const DEFAULT_KEYMAPS_WINDOWS: &str =
-    include_str!("../../defaults/keymaps-windows.toml");
+    include_str!("../../../defaults/keymaps-windows.toml");
 const DEFAULT_KEYMAPS_MACOS: &str =
-    include_str!("../../defaults/keymaps-macos.toml");
+    include_str!("../../../defaults/keymaps-macos.toml");
 const DEFAULT_KEYMAPS_LINUX: &str =
-    include_str!("../../defaults/keymaps-linux.toml");
+    include_str!("../../../defaults/keymaps-linux.toml");
 
 #[derive(PartialEq)]
 enum KeymapMatch {
