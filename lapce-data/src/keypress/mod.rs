@@ -370,7 +370,6 @@ impl KeyPressData {
 
         if mode != Mode::Insert
             && mode != Mode::Terminal
-            && !focus.expect_char()
             && self.handle_count(focus, &keypress)
         {
             return false;
@@ -378,9 +377,7 @@ impl KeyPressData {
 
         self.count = None;
 
-        let mut mods = keypress.mods;
-        mods.set(Modifiers::SHIFT, false);
-        if mods.is_empty() {
+        if keypress.mods.is_empty() {
             if let druid::KbKey::Character(c) = &key_event.key {
                 focus.receive_char(ctx, c);
                 return true;
