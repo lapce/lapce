@@ -1,13 +1,10 @@
-use std::time::Duration;
-use std::time::Instant;
+use std::{time::Duration, time::Instant};
 
 use druid::{
     kurbo::{Affine, Point, Rect, Size, Vec2},
-    Insets, WidgetId,
-};
-use druid::{
-    theme, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget, WidgetPod,
+    theme, BoxConstraints, Data, Env, Event, EventCtx, Insets, LayoutCtx, LifeCycle,
+    LifeCycleCtx, PaintCtx, RenderContext, TimerToken, UpdateCtx, Widget, WidgetId,
+    WidgetPod,
 };
 
 use lapce_data::{

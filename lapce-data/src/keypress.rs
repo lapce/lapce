@@ -1,27 +1,24 @@
-use std::fmt::Display;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{fmt::Display, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, Result};
-use druid::piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder};
-use druid::{Command, KbKey};
 use druid::{
-    Env, EventCtx, ExtEventSink, FontFamily, KeyEvent, Modifiers, PaintCtx, Point,
-    Rect, RenderContext, Size, Target,
+    piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
+    Command, Env, EventCtx, ExtEventSink, FontFamily, KbKey, KeyEvent, Modifiers,
+    PaintCtx, Point, Rect, RenderContext, Size, Target,
 };
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use toml;
 
-use crate::command::{
-    lapce_internal_commands, CommandExecuted, CommandTarget, LapceCommandNew,
-    LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+use crate::{
+    command::{
+        lapce_internal_commands, CommandExecuted, CommandTarget, LapceCommand,
+        LapceCommandNew, LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    },
+    config::{Config, LapceTheme},
+    state::Mode,
 };
-use crate::config::{Config, LapceTheme};
-use crate::{command::LapceCommand, state::Mode};
 
 const DEFAULT_KEYMAPS_WINDOWS: &str =
     include_str!("../../defaults/keymaps-windows.toml");

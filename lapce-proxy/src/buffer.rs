@@ -1,13 +1,10 @@
+use std::{
+    borrow::Cow, ffi::OsString, fs, fs::File, io::Read, io::Write, path::Path,
+    path::PathBuf, time::SystemTime,
+};
+
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use std::ffi::OsString;
-use std::fs;
-use std::fs::File;
-use std::io::Read;
-use std::io::Write;
-use std::path::PathBuf;
-use std::{borrow::Cow, path::Path, time::SystemTime};
-
 use lsp_types::*;
 use serde::{Deserialize, Serialize};
 use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};

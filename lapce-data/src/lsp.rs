@@ -1,8 +1,9 @@
+use std::{collections::HashMap, io::BufRead, io::Write, process::Child, sync::Arc};
+
 use anyhow::{anyhow, Result};
 use druid::{WidgetId, WindowId};
 use jsonrpc_lite::Id;
 use parking_lot::Mutex;
-use std::{collections::HashMap, io::BufRead, io::Write, process::Child, sync::Arc};
 
 use lsp_types::*;
 use serde_json::Value;

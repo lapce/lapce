@@ -1,5 +1,6 @@
-use lazy_static::lazy_static;
 use std::path::Path;
+
+use lazy_static::lazy_static;
 use tree_sitter::Parser;
 use tree_sitter_highlight::HighlightConfiguration;
 

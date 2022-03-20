@@ -1,11 +1,8 @@
+use std::{fmt::Display, path::PathBuf, sync::atomic, sync::atomic::AtomicU64};
+
 use anyhow::{anyhow, Result};
 use druid::{Color, Modifiers};
-
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
-use std::path::PathBuf;
-use std::sync::atomic;
-use std::sync::atomic::AtomicU64;
 
 #[derive(PartialEq)]
 enum KeymapMatch {

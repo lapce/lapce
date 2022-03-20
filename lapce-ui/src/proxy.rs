@@ -1,17 +1,17 @@
-use std::collections::HashMap;
-use std::io::BufReader;
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-use std::path::Path;
-use std::process::{Command, Stdio};
-use std::thread;
-use std::{path::PathBuf, sync::Arc};
+// TODO: This file is not included in compilation and duplicates `lapce-data::proxy.rs`; Document rationale or remove
+use std::{
+    collections::HashMap,
+    io::BufReader,
+    os::windows::process::CommandExt,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    sync::Arc,
+    thread,
+};
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::Receiver;
-use crossbeam_channel::Sender;
-use druid::Target;
-use druid::{ExtEventSink, WidgetId};
+use crossbeam_channel::{Receiver, Sender};
+use druid::{ExtEventSink, Target, WidgetId};
 use flate2::read::GzDecoder;
 use lapce_data::{
     buffer::BufferId,
@@ -19,22 +19,18 @@ use lapce_data::{
     config::Config,
     state::{LapceWorkspace, LapceWorkspaceType},
 };
-use lapce_proxy::dispatch::FileDiff;
-use lapce_proxy::dispatch::FileNodeItem;
-use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
-use lapce_proxy::plugin::PluginDescription;
-use lapce_proxy::terminal::TermId;
-use lapce_rpc::RpcHandler;
-use lapce_rpc::{stdio_transport, Callback};
-use lapce_rpc::{ControlFlow, Handler};
-use lsp_types::CompletionItem;
-use lsp_types::Position;
-use lsp_types::ProgressParams;
-use lsp_types::PublishDiagnosticsParams;
+use lapce_proxy::{
+    dispatch::{DiffInfo, Dispatcher, FileDiff, FileNodeItem},
+    plugin::PluginDescription,
+    terminal::TermId,
+};
+use lapce_rpc::{stdio_transport, Callback, ControlFlow, Handler, RpcHandler};
+use lsp_types::{
+    CompletionItem, Position, ProgressParams, PublishDiagnosticsParams,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use serde_json::Value;
+use serde_json::{json, Value};
 use xi_rope::RopeDelta;
 
 use crate::terminal::RawTerminal;

@@ -1,23 +1,21 @@
 mod parse;
 mod stdio;
 
-use std::collections::HashMap;
-use std::io::stdin;
-use std::io::stdout;
-use std::io::BufReader;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    io::{stdin, stdout, BufReader},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
-pub use parse::Call;
-pub use parse::RequestId;
-pub use parse::RpcObject;
+pub use parse::{Call, RequestId, RpcObject};
 use serde::de::DeserializeOwned;
-use serde_json::json;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub use stdio::stdio_transport;
 

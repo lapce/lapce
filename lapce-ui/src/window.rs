@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
@@ -11,7 +13,6 @@ use lapce_data::{
     data::{LapceTabData, LapceTabLens, LapceWindowData},
     state::LapceWorkspace,
 };
-use std::sync::Arc;
 
 use crate::{
     menu::Menu,

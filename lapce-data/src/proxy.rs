@@ -1,11 +1,14 @@
-use std::collections::HashMap;
-use std::io::BufReader;
+use std::{
+    collections::HashMap,
+    io::BufReader,
+    path::Path,
+    path::PathBuf,
+    process::{Command, Stdio},
+    sync::Arc,
+    thread,
+};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-use std::path::Path;
-use std::process::{Command, Stdio};
-use std::thread;
-use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Receiver;

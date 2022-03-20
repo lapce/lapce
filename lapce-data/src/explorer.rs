@@ -1,19 +1,19 @@
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use std::collections::HashMap;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-
-use druid::ExtEventSink;
-use druid::{Target, WidgetId};
+use druid::{ExtEventSink, Target, WidgetId};
 
 use include_dir::{include_dir, Dir};
 use lapce_proxy::dispatch::FileNodeItem;
 
-use crate::proxy::LapceProxy;
-use crate::state::LapceWorkspace;
-
-use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND};
+use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    proxy::LapceProxy,
+    state::LapceWorkspace,
+};
 
 #[allow(dead_code)]
 const ICONS_DIR: Dir = include_dir!("../icons");

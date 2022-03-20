@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+
 use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 
@@ -7,7 +9,6 @@ use crate::{
     data::RegisterData,
     state::{Mode, VisualMode},
 };
-use std::cmp::{max, min};
 
 #[derive(Copy, Clone)]
 pub enum InsertDrift {

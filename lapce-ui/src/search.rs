@@ -1,3 +1,5 @@
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
@@ -11,7 +13,6 @@ use lapce_data::{
     editor::EditorLocationNew,
     split::SplitDirection,
 };
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
     editor::LapceEditorView,
@@ -21,6 +22,7 @@ use crate::{
     svg::file_svg_new,
 };
 
+#[allow(clippy::type_complexity)]
 #[derive(Clone)]
 pub struct SearchData {
     pub active: WidgetId,
