@@ -352,10 +352,8 @@ impl KeyPressData {
             KeymapMatch::None => {
                 self.pending_keypress.clear();
                 if focus.get_mode() == Mode::Insert {
-                    let mut keypress = keypress.clone();
-                    keypress.mods.set(Modifiers::SHIFT, false);
                     if let KeymapMatch::Full(command) =
-                        self.match_keymap(&[keypress], focus)
+                        self.match_keymap(std::slice::from_ref(&keypress), focus)
                     {
                         if let Ok(cmd) = LapceCommand::from_str(&command) {
                             if cmd.move_command(None).is_some() {
