@@ -321,19 +321,18 @@ impl KeyPressData {
             return false;
         }
 
-        let mut keypresses: Vec<KeyPress> = self.pending_keypress.clone();
-        keypresses.push(keypress.clone());
+        self.pending_keypress.push(keypress.clone());
 
-        let keymatch = self.match_keymap(&keypresses, focus);
+        let keymatch = self.match_keymap(&self.pending_keypress, focus);
         match keymatch {
             KeymapMatch::Full(command) => {
+                self.pending_keypress.clear();
                 let count = self.count.take();
                 self.run_command(ctx, &command, count, mods, focus, env);
-                self.pending_keypress = Vec::new();
                 return true;
             }
             KeymapMatch::Multiple(commands) => {
-                self.pending_keypress = Vec::new();
+                self.pending_keypress.clear();
                 let count = self.count.take();
                 for command in commands {
                     if self.run_command(ctx, &command, count, mods, focus, env)
@@ -346,11 +345,12 @@ impl KeyPressData {
                 return true;
             }
             KeymapMatch::Prefix => {
-                self.pending_keypress.push(keypress);
+                // Here pending_keypress contains only a prefix of some keymap, so let's keep
+                // collecting key presses.
                 return false;
             }
             KeymapMatch::None => {
-                self.pending_keypress = Vec::new();
+                self.pending_keypress.clear();
                 if focus.get_mode() == Mode::Insert {
                     let mut keypress = keypress.clone();
                     keypress.mods.set(Modifiers::SHIFT, false);
