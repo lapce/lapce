@@ -907,6 +907,15 @@ impl Buffer {
             .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
     }
 
+    pub fn slice_to_chars<'a>(
+        &'a self,
+        range: Range<usize>,
+    ) -> impl Iterator<Item = char> + 'a {
+        self.rope
+            .iter_chunks(range.start.min(self.len())..range.end.min(self.len()))
+            .flat_map(|chunk| chunk.chars())
+    }
+
     pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {
         let (line, col) = self.offset_to_line_col(offset, tab_width);
         Position {
@@ -928,8 +937,7 @@ impl Buffer {
         let mut pos = 0;
         let mut offset = self.offset_of_line(line);
         for c in self
-            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
-            .chars()
+            .slice_to_chars(self.offset_of_line(line)..self.offset_of_line(line + 1))
         {
             if c == '\n' {
                 return offset;
@@ -966,14 +974,14 @@ impl Buffer {
             return (line, 0);
         }
 
-        let col = str_col(&self.slice_to_cow(line_start..offset), tab_width);
+        let col = str_col(self.slice_to_chars(line_start..offset), tab_width);
         (line, col)
     }
 
     pub fn line_end_col(&self, line: usize, caret: bool, tab_width: usize) -> usize {
         let line_start = self.offset_of_line(line);
         let offset = self.line_end_offset(line, caret);
-        let col = str_col(&self.slice_to_cow(line_start..offset), tab_width);
+        let col = str_col(self.slice_to_chars(line_start..offset), tab_width);
         col
     }
 
@@ -2627,10 +2635,10 @@ pub fn char_width(c: char) -> usize {
     c.width().unwrap_or(0)
 }
 
-pub fn str_col(s: &str, tab_width: usize) -> usize {
+pub fn str_col(s: impl Iterator<Item = char>, tab_width: usize) -> usize {
     let mut total_width = 0;
 
-    for c in s.chars() {
+    for c in s {
         let width = if c == '\t' {
             tab_width - total_width % tab_width
         } else {
