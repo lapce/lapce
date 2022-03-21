@@ -3608,6 +3608,35 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let data = self.main_split.register.unamed.clone();
                 self.paste(ctx, &data);
             }
+            LapceCommand::DeleteWordForward => {
+                let selection = match self.editor.cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
+                        .editor
+                        .cursor
+                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Insert(_) => {
+                        let selection = self.editor.cursor.edit_selection(
+                            &self.buffer,
+                            self.config.editor.tab_width,
+                        );
+
+                        self.buffer.update_selection(
+                            &selection,
+                            1,
+                            &Movement::WordForward,
+                            Mode::Insert,
+                            true,
+                            self.editor.code_lens,
+                            self.editor.compare.clone(),
+                            &self.config,
+                        )
+                    }
+                };
+                let (selection, _) =
+                    self.edit(ctx, &selection, "", None, true, EditType::Delete);
+                self.set_cursor_after_change(selection);
+                self.update_completion(ctx);
+            }
             LapceCommand::DeleteWordBackward => {
                 let selection = match self.editor.cursor.mode {
                     CursorMode::Normal(_) | CursorMode::Visual { .. } => self

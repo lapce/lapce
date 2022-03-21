@@ -261,6 +261,8 @@ pub enum LapceCommand {
     DeleteOperator,
     #[strum(serialize = "delete_word_backward")]
     DeleteWordBackward,
+    #[strum(serialize = "delete_word_forward")]
+    DeleteWordForward,
     #[strum(serialize = "delete_to_beginning_of_line")]
     DeleteToBeginningOfLine,
     #[strum(serialize = "inline_find_right")]

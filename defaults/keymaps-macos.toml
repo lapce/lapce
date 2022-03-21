@@ -64,6 +64,11 @@ command = "delete_word_backward"
 mode = "i"
 
 [[keymaps]]
+key = "meta+delete"
+command = "delete_word_forward"
+mode = "i"
+
+[[keymaps]]
 key = "meta+|"
 command = "match_pairs"
 mode = "i"
