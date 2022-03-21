@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Display, sync::Arc};
+use std::{cmp::Ordering, sync::Arc};
 
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
@@ -6,7 +6,6 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use itertools::Itertools;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
@@ -19,52 +18,6 @@ use crate::{
     scroll::{LapceIdentityWrapper, LapceScrollNew},
     svg::completion_svg,
 };
-
-#[derive(Debug)]
-pub enum SnippetElement {
-    Text(String),
-    PlaceHolder(usize, Vec<SnippetElement>),
-    Tabstop(usize),
-}
-
-impl SnippetElement {
-    pub fn len(&self) -> usize {
-        match &self {
-            SnippetElement::Text(text) => text.len(),
-            SnippetElement::PlaceHolder(_, elements) => {
-                elements.iter().map(|e| e.len()).sum()
-            }
-            SnippetElement::Tabstop(_) => 0,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn text(&self) -> String {
-        match &self {
-            SnippetElement::Text(t) => t.to_string(),
-            SnippetElement::PlaceHolder(_, elements) => {
-                elements.iter().map(|e| e.text()).join("")
-            }
-            SnippetElement::Tabstop(_) => "".to_string(),
-        }
-    }
-}
-
-impl Display for SnippetElement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            SnippetElement::Text(text) => f.write_str(text),
-            SnippetElement::PlaceHolder(tab, elements) => {
-                let elements = elements.iter().map(|e| e.to_string()).join("");
-                write!(f, "${{{}:{}}}", tab, elements)
-            }
-            SnippetElement::Tabstop(tab) => write!(f, "${}", tab),
-        }
-    }
-}
 
 pub struct CompletionContainer {
     id: WidgetId,

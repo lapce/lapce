@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, fmt::Display, sync::Arc};
 
 use anyhow::Error;
-use druid::{Command, EventCtx, ExtEventSink, Size, Target, WidgetId};
+use druid::{ExtEventSink, Size, Target, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_rpc::buffer::BufferId;
@@ -440,20 +440,6 @@ impl Default for CompletionData {
     }
 }
 
-pub struct CompletionNew {}
-
-impl CompletionNew {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for CompletionNew {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[derive(Clone)]
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
@@ -464,85 +450,6 @@ pub struct ScoredCompletionItem {
     pub score: i64,
     pub label_score: i64,
     pub indices: Vec<usize>,
-}
-
-#[derive(Clone)]
-pub struct CompletionState {
-    pub widget_id: WidgetId,
-    pub items: Vec<ScoredCompletionItem>,
-    pub input: String,
-    pub offset: usize,
-    pub index: usize,
-    pub scroll_offset: f64,
-}
-
-impl CompletionState {
-    pub fn new() -> CompletionState {
-        CompletionState {
-            widget_id: WidgetId::next(),
-            items: Vec::new(),
-            input: "".to_string(),
-            offset: 0,
-            index: 0,
-            scroll_offset: 0.0,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.items.iter().filter(|i| i.score != 0).count()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn current_items(&self) -> Vec<&ScoredCompletionItem> {
-        self.items.iter().filter(|i| i.score != 0).collect()
-    }
-
-    pub fn clear(&mut self) {
-        self.input = "".to_string();
-        self.items = Vec::new();
-        self.offset = 0;
-        self.index = 0;
-        self.scroll_offset = 0.0;
-    }
-
-    pub fn cancel(&mut self, ctx: &mut EventCtx) {
-        self.clear();
-        self.request_paint(ctx);
-    }
-
-    pub fn request_paint(&self, ctx: &mut EventCtx) {
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::RequestPaint,
-            Target::Widget(self.widget_id),
-        ));
-    }
-
-    pub fn update(&mut self, input: String, completion_items: Vec<CompletionItem>) {
-        self.items = completion_items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| ScoredCompletionItem {
-                item: item.to_owned(),
-                score: -1 - index as i64,
-                label_score: -1 - index as i64,
-                index,
-                indices: Vec::new(),
-            })
-            .collect();
-        self.items
-            .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
-        self.input = input;
-    }
-}
-
-impl Default for CompletionState {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[cfg(test)]
