@@ -2008,7 +2008,9 @@ dependencies = [
  "tree-sitter-go",
  "tree-sitter-highlight",
  "tree-sitter-javascript",
+ "tree-sitter-python",
  "tree-sitter-rust",
+ "tree-sitter-typescript",
  "xi-rope",
 ]
 
@@ -4487,10 +4489,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-python"
+version = "0.19.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83c46916553ebc2a5b23763cd2da8d2b104c515c8f828eb678d1477ccd8c379c"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-rust"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3df540a493d754015d22eaf57c38f58804be3713a22f6062db983ec15f85c3c9"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-typescript"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8935efd97c92067c9b2b6d7acb647607590996ba80f3a7be09a197f9c1fdab73"
 dependencies = [
  "cc",
  "tree-sitter",

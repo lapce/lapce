@@ -4,6 +4,8 @@ use tree_sitter::{Parser, TreeCursor};
 
 use crate::style::HighlightConfiguration;
 
+const DEFAULT_CODE_LENS_LIST: &[&str] = &["source_file"];
+const DEFAULT_CODE_LENS_IGNORE_LIST: &[&str] = &["source_file"];
 const RUST_CODE_LENS_LIST: &[&str] =
     &["source_file", "impl_item", "trait_item", "declaration_list"];
 const RUST_CODE_LENS_IGNORE_LIST: &[&str] =
@@ -22,6 +24,11 @@ const GO_CODE_LENS_IGNORE_LIST: &[&str] =
 pub enum LapceLanguage {
     Rust,
     Go,
+    Javascript,
+    Jsx,
+    Typescript,
+    Tsx,
+    Python,
 }
 
 impl LapceLanguage {
@@ -29,12 +36,12 @@ impl LapceLanguage {
         let extension = path.extension()?.to_str()?;
         Some(match extension {
             "rs" => LapceLanguage::Rust,
-            // "js" => LapceLanguage::Javascript,
-            // "jsx" => LapceLanguage::Javascript,
+            "js" => LapceLanguage::Javascript,
+            "jsx" => LapceLanguage::Jsx,
+            "ts" => LapceLanguage::Typescript,
+            "tsx" => LapceLanguage::Tsx,
             "go" => LapceLanguage::Go,
-            // "toml" => LapceLanguage::Toml,
-            // "yaml" => LapceLanguage::Yaml,
-            // "yml" => LapceLanguage::Yaml,
+            "py" => LapceLanguage::Python,
             _ => return None,
         })
     }
@@ -43,6 +50,13 @@ impl LapceLanguage {
         match self {
             LapceLanguage::Rust => tree_sitter_rust::language(),
             LapceLanguage::Go => tree_sitter_go::language(),
+            LapceLanguage::Javascript => tree_sitter_javascript::language(),
+            LapceLanguage::Jsx => tree_sitter_javascript::language(),
+            LapceLanguage::Typescript => {
+                tree_sitter_typescript::language_typescript()
+            }
+            LapceLanguage::Tsx => tree_sitter_typescript::language_tsx(),
+            LapceLanguage::Python => tree_sitter_python::language(),
         }
     }
 
@@ -58,6 +72,11 @@ impl LapceLanguage {
         let query = match self {
             LapceLanguage::Rust => tree_sitter_rust::HIGHLIGHT_QUERY,
             LapceLanguage::Go => tree_sitter_go::HIGHLIGHT_QUERY,
+            LapceLanguage::Javascript => tree_sitter_javascript::HIGHLIGHT_QUERY,
+            LapceLanguage::Jsx => tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
+            LapceLanguage::Typescript => tree_sitter_typescript::HIGHLIGHT_QUERY,
+            LapceLanguage::Tsx => tree_sitter_typescript::HIGHLIGHT_QUERY,
+            LapceLanguage::Python => tree_sitter_python::HIGHLIGHT_QUERY,
         };
 
         HighlightConfiguration::new(language, query, "", "").unwrap()
@@ -71,6 +90,7 @@ impl LapceLanguage {
         let (list, ignore_list) = match self {
             LapceLanguage::Rust => (RUST_CODE_LENS_LIST, RUST_CODE_LENS_IGNORE_LIST),
             LapceLanguage::Go => (GO_CODE_LENS_LIST, GO_CODE_LENS_IGNORE_LIST),
+            _ => (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         };
         walk_tree(cursor, 0, normal_lines, list, ignore_list);
     }
