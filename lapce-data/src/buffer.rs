@@ -661,15 +661,8 @@ impl Buffer {
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
+        let offset = self.len().min(offset);
         self.rope.line_of_offset(offset)
-    }
-
-    pub fn offset_line_content(&self, offset: usize) -> Cow<str> {
-        let line = self.line_of_offset(offset);
-        let start_offset = self.offset_of_line(line);
-        self.slice_to_cow(start_offset..offset)
     }
 
     fn line_range(&self, line: usize) -> Range<usize> {
@@ -932,16 +925,6 @@ impl Buffer {
         self.rope
             .iter_chunks(self.range_bounded(range))
             .flat_map(|chunk| chunk.chars())
-    }
-
-    pub fn slice_to_bytes<'a>(
-        &'a self,
-        range: Range<usize>,
-    ) -> impl Iterator<Item = u8> + 'a {
-        self.rope
-            .iter_chunks(self.range_bounded(range))
-            .flat_map(|chunk| chunk.as_bytes())
-            .copied()
     }
 
     pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {
