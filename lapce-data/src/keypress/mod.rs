@@ -194,7 +194,7 @@ impl KeyPressData {
         let mut commands_without_keymap = Vec::new();
         for (_, keymaps) in self.command_keymaps.iter() {
             for keymap in keymaps.iter() {
-                if let Some(_cmd) = self.commands.get(&keymap.command) {
+                if self.commands.get(&keymap.command).is_some() {
                     commands_with_keymap.push(keymap.clone());
                 }
             }
