@@ -538,14 +538,14 @@ impl LapceEditorBufferData {
             .slice_to_cow(start_offset..end_offset)
             .to_string();
         let char = if start_offset == 0 {
-            "".to_string()
+            None
         } else {
             self.buffer
-                .slice_to_cow(start_offset - 1..start_offset)
-                .to_string()
+                .slice_to_chars(start_offset - 1..start_offset)
+                .next()
         };
         let completion = Arc::make_mut(&mut self.completion);
-        if input.is_empty() && char != "." && char != ":" {
+        if input.is_empty() && char != Some('.') && char != Some(':') {
             completion.cancel();
             return;
         }
