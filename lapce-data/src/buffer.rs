@@ -918,13 +918,18 @@ impl Buffer {
         self.rope.slice_to_cow(self.range_bounded(range))
     }
 
+    pub fn slice_to_chunks<'a>(
+        &'a self,
+        range: Range<usize>,
+    ) -> impl Iterator<Item = &'a str> + 'a {
+        self.rope.iter_chunks(self.range_bounded(range))
+    }
+
     pub fn slice_to_chars<'a>(
         &'a self,
         range: Range<usize>,
     ) -> impl Iterator<Item = char> + 'a {
-        self.rope
-            .iter_chunks(self.range_bounded(range))
-            .flat_map(|chunk| chunk.chars())
+        self.slice_to_chunks(range).flat_map(|chunk| chunk.chars())
     }
 
     pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {

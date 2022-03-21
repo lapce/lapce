@@ -2306,8 +2306,9 @@ impl LapceEditorBufferData {
                             .min(self.buffer.len());
                         let index = self
                             .buffer
-                            .slice_to_cow(cursor_line_start..cursor_offset)
-                            .len();
+                            .slice_to_chunks(cursor_line_start..cursor_offset)
+                            .map(|str| str.len())
+                            .sum::<usize>();
                         Some(index)
                     } else {
                         None
@@ -4619,7 +4620,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                         let offset = selection.get_cursor_offset();
                         let line = self.buffer.line_of_offset(offset);
                         let line_start = self.buffer.offset_of_line(line);
-                        if self.buffer.slice_to_cow(line_start..offset).trim() == ""
+                        if !self
+                            .buffer
+                            .slice_to_chars(line_start..offset)
+                            .any(|char| !char.is_whitespace())
                         {
                             if let Some(c) = matching_char(c) {
                                 if let Some(previous_offset) =
