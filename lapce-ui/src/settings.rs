@@ -583,6 +583,9 @@ pub struct LapceSettingsItem {
 }
 
 impl LapceSettingsItem {
+    /// The amount of time to wait for the next key press before storing settings.
+    const SAVE_DELAY: Duration = Duration::from_millis(300);
+
     pub fn new(
         data: &mut LapceTabData,
         kind: String,
@@ -836,8 +839,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     if rect.contains(mouse_event.pos) {
                         self.value = serde_json::json!(!checked);
                         self.value_changed = true;
-                        self.last_idle_timer =
-                            ctx.request_timer(Duration::from_millis(300));
+                        self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY);
                     }
                 }
             }
@@ -931,8 +933,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
                     self.value = new_value;
                     self.value_changed = true;
-                    self.last_idle_timer =
-                        ctx.request_timer(Duration::from_millis(300));
+                    self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY);
                 }
             }
         }
