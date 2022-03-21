@@ -419,7 +419,8 @@ impl KeyPressData {
                     .collect()
             })
             .unwrap_or_else(Vec::new);
-        let keymatch = if matches.is_empty() {
+
+        if matches.is_empty() {
             KeymapMatch::None
         } else if matches.len() == 1 && matches[0].key == keypresses {
             KeymapMatch::Full(matches[0].command.clone())
@@ -431,48 +432,38 @@ impl KeyPressData {
             )
         } else {
             KeymapMatch::Prefix
-        };
-        keymatch
-    }
-
-    fn check_one_condition<T: KeyPressFocus>(
-        &self,
-        condition: &str,
-        check: &T,
-    ) -> bool {
-        let condition = condition.trim();
-        let (reverse, condition) =
-            if let Some(stripped) = condition.strip_prefix('!') {
-                (true, stripped)
-            } else {
-                (false, condition)
-            };
-        let matched = check.check_condition(condition);
-        if reverse {
-            !matched
-        } else {
-            matched
         }
     }
 
     fn check_condition<T: KeyPressFocus>(&self, condition: &str, check: &T) -> bool {
+        fn check_one_condition<T: KeyPressFocus>(
+            condition: &str,
+            check: &T,
+        ) -> bool {
+            if let Some(stripped) = condition.trim().strip_prefix('!') {
+                !check.check_condition(stripped)
+            } else {
+                check.check_condition(condition)
+            }
+        }
+
         let or_indics: Vec<_> = condition.match_indices("||").collect();
         let and_indics: Vec<_> = condition.match_indices("&&").collect();
         if and_indics.is_empty() {
             if or_indics.is_empty() {
-                self.check_one_condition(condition, check)
+                check_one_condition(condition, check)
             } else {
-                self.check_one_condition(&condition[..or_indics[0].0], check)
+                check_one_condition(&condition[..or_indics[0].0], check)
                     || self.check_condition(&condition[or_indics[0].0 + 2..], check)
             }
         } else if or_indics.is_empty() {
-            self.check_one_condition(&condition[..and_indics[0].0], check)
+            check_one_condition(&condition[..and_indics[0].0], check)
                 && self.check_condition(&condition[and_indics[0].0 + 2..], check)
         } else if or_indics[0].0 < and_indics[0].0 {
-            self.check_one_condition(&condition[..or_indics[0].0], check)
+            check_one_condition(&condition[..or_indics[0].0], check)
                 || self.check_condition(&condition[or_indics[0].0 + 2..], check)
         } else {
-            self.check_one_condition(&condition[..and_indics[0].0], check)
+            check_one_condition(&condition[..and_indics[0].0], check)
                 && self.check_condition(&condition[and_indics[0].0 + 2..], check)
         }
     }
