@@ -33,21 +33,19 @@ impl Snippet {
         loop {
             if s.len() == pos {
                 break;
-            } else if let Some((ele, end)) = Self::extract_tabstop(s, pos) {
-                elements.push(ele);
-                pos = end;
-            } else if let Some((ele, end)) = Self::extract_placeholder(s, pos) {
-                elements.push(ele);
-                pos = end;
-            } else if let Some((ele, end)) =
-                Self::extract_text(s, pos, escs, loose_escs)
+            }
+
+            if let Some((ele, end)) = Self::extract_tabstop(s, pos)
+                .or_else(|| Self::extract_placeholder(s, pos))
+                .or_else(|| Self::extract_text(s, pos, escs, loose_escs))
             {
                 elements.push(ele);
                 pos = end;
             } else {
                 break;
-            }
+            };
         }
+
         (elements, pos)
     }
 
