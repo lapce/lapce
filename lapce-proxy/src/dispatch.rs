@@ -128,6 +128,7 @@ pub enum Notification {
     NewTerminal {
         term_id: TermId,
         cwd: Option<PathBuf>,
+        shell: String,
     },
     InstallPlugin {
         plugin: PluginDescription,
@@ -532,8 +533,12 @@ impl Dispatcher {
                     );
                 });
             }
-            Notification::NewTerminal { term_id, cwd } => {
-                let mut terminal = Terminal::new(term_id, cwd, 50, 10);
+            Notification::NewTerminal {
+                term_id,
+                cwd,
+                shell,
+            } => {
+                let mut terminal = Terminal::new(term_id, cwd, shell, 50, 10);
                 let tx = terminal.tx.clone();
                 self.terminals.lock().insert(term_id, tx);
                 let dispatcher = self.clone();

@@ -491,6 +491,7 @@ impl LapceTerminalData {
         split_id: WidgetId,
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
+        config: &Config,
     ) -> Self {
         let cwd = workspace.path.as_ref().cloned();
         let widget_id = WidgetId::next();
@@ -504,8 +505,9 @@ impl LapceTerminalData {
 
         let local_proxy = proxy.clone();
         let local_raw = raw.clone();
+        let shell = config.lapce.terminal_shell.clone();
         std::thread::spawn(move || {
-            local_proxy.new_terminal(term_id, cwd, local_raw);
+            local_proxy.new_terminal(term_id, cwd, shell, local_raw);
         });
 
         Self {

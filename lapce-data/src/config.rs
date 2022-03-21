@@ -102,6 +102,8 @@ pub struct LapceConfig {
     pub modal: bool,
     #[field_names(desc = "Set the color theme of Lapce")]
     pub color_theme: String,
+    #[field_names(desc = "Set the terminal Shell")]
+    pub terminal_shell: String,
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]

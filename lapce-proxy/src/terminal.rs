@@ -69,6 +69,7 @@ impl Terminal {
     pub fn new(
         term_id: TermId,
         cwd: Option<PathBuf>,
+        shell: String,
         width: usize,
         height: usize,
     ) -> Terminal {
@@ -76,11 +77,17 @@ impl Terminal {
         let mut config = TermConfig::default();
         config.pty_config.working_directory =
             cwd.or_else(|| BaseDirs::new().map(|d| PathBuf::from(d.home_dir())));
-        config.pty_config.shell =
-            std::env::var("SHELL").ok().map(|shell| Program::WithArgs {
-                program: shell,
-                args: vec!["-l".to_string()],
-            });
+        let shell = shell.trim();
+        if !shell.is_empty() {
+            let mut parts = shell.split(' ');
+            let program = parts.next().unwrap();
+            if let Ok(p) = which::which(program) {
+                config.pty_config.shell = Some(Program::WithArgs {
+                    program: p.to_str().unwrap().to_string(),
+                    args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
+                })
+            }
+        }
         setup_env(&config);
 
         #[cfg(target_os = "macos")]

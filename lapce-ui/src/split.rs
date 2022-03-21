@@ -493,6 +493,7 @@ impl LapceSplitNew {
             self.split_id,
             ctx.get_external_handle(),
             data.proxy.clone(),
+            &data.config,
         ));
         let terminal = LapceTerminalView::new(&terminal_data);
         Arc::make_mut(&mut data.terminal)
@@ -896,6 +897,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                                 data.terminal.split_id,
                                 ctx.get_external_handle(),
                                 data.proxy.clone(),
+                                &data.config,
                             ));
                             let terminal = LapceTerminalView::new(&terminal_data);
                             self.insert_flex_child(

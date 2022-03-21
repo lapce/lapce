@@ -370,6 +370,7 @@ impl LapceProxy {
         &self,
         term_id: TermId,
         cwd: Option<PathBuf>,
+        shell: String,
         raw: Arc<Mutex<RawTerminal>>,
     ) {
         let _ = self.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
@@ -378,6 +379,7 @@ impl LapceProxy {
             &json!({
                 "term_id": term_id,
                 "cwd": cwd,
+                "shell": shell,
             }),
         )
     }

@@ -199,9 +199,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         env: &Env,
     ) {
         if data.settings.shown {
-            for child in self.children.iter_mut() {
-                child.update(ctx, data, env);
-            }
+            self.children[self.active].update(ctx, data, env);
         }
     }
 
@@ -431,7 +429,6 @@ impl LapceSettings {
     }
 
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
-        println!("update settings children");
         self.children.clear();
 
         let (kind, fileds, descs, settings) = match self.kind {
