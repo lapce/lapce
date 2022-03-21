@@ -156,6 +156,10 @@ command = "toggle_search"
 key = "ctrl+X"
 command = "toggle_plugin"
 
+[[keymaps]]
+key = "ctrl+M"
+command = "toggle_problem"
+
 # ------------------------------------ Navigation -------------------------------------
 
 [[keymaps]]

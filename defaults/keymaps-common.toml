@@ -63,11 +63,31 @@ mode = "i"
 key = "F12"
 command = "goto_definition"
 
+# ------------------------------------ Navigation -------------------------------------
+
+[[keymaps]]
+key = "F8"
+command = "next_error"
+
+[[keymaps]]
+key = "shift+F8"
+command = "previous_error"
+
+[[keymaps]]
+key = "ctrl+-"
+command = "jump_location_backward"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+_"
+command = "jump_location_forward"
+mode = "i"
+
 # --------------------------------- Integrated Terminal ------------------------------
 
 [[keymaps]]
-key = "F12"
-command = "goto_definition"
+key = "Ctrl+`"
+command = "toggle_terminal"
 
 # ------------------------------------ ------------ -------------------------------------
 
