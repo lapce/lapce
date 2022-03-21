@@ -9,6 +9,7 @@ use druid::{
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
+use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -77,6 +78,19 @@ impl LapceTheme {
     pub const STATUS_BACKGROUND: &'static str = "status.background";
 }
 
+#[derive(Error, Debug)]
+pub enum LoadThemeError {
+    #[error("themes folder not found, possibly it could not be created")]
+    ThemesFolderNotFound,
+    #[error("theme file ({theme_name}.toml) was not found in {themes_folder:?}")]
+    FileNotFound {
+        themes_folder: PathBuf,
+        theme_name: String,
+    },
+    #[error("There was an error reading the theme file")]
+    Read(std::io::Error),
+}
+
 pub trait GetConfig {
     fn get_config(&self) -> &Config;
 }
@@ -113,14 +127,77 @@ impl EditorConfig {
     }
 }
 
+pub type Theme = HashMap<String, Color>;
+#[derive(Debug, Clone, Default)]
+pub struct Themes {
+    themes: HashMap<String, Theme>,
+}
+impl Themes {
+    pub fn get(&self, theme_name: &str) -> Option<&Theme> {
+        self.themes.get(theme_name)
+    }
+
+    pub fn insert(&mut self, theme_name: String, theme: Theme) -> Option<Theme> {
+        self.themes.insert(theme_name, theme)
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.themes.keys()
+    }
+
+    /// Load a theme by its name.
+    /// Does not load the theme if it has already been loaded.
+    /// If this returns `Ok(())` then it succeeded in loading the theme and it can
+    /// be expected to be in the `themes` field.
+    fn load_theme(&mut self, theme_name: &str) -> Result<()> {
+        if self.themes.contains_key(theme_name) {
+            // We already have the theme loaded, so we don't have to do anything
+            return Ok(());
+        }
+
+        let themes_folder =
+            Config::themes_folder().ok_or(LoadThemeError::ThemesFolderNotFound)?;
+        // TODO: Make sure that this cannot go up directories!
+
+        // Append {theme_name}.toml
+        let mut theme_path = themes_folder.join(theme_name);
+        theme_path.set_extension("toml");
+
+        // Check that it exists. We could just let the read error provide this, but this
+        // may be clearer
+        if !theme_path.exists() {
+            return Err(LoadThemeError::FileNotFound {
+                themes_folder,
+                theme_name: theme_name.to_string(),
+            }
+            .into());
+        }
+
+        let theme_content =
+            std::fs::read_to_string(theme_path).map_err(LoadThemeError::Read)?;
+
+        let theme = get_theme(&theme_content)?;
+
+        // Insert it into the themes hashmap
+        // Most users won't have an absurd amount of themes, so that we don't clean this
+        // up doesn't matter too much. Though, that could be added without much issue.
+
+        // We already checked early on that it was contained, so we simply insert without
+        // checking if it already exists
+        self.insert(theme_name.to_string(), theme);
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
     #[serde(skip)]
-    pub theme: HashMap<String, Color>,
+    pub theme: Theme,
     #[serde(skip)]
-    pub themes: HashMap<String, HashMap<String, Color>>,
+    pub themes: Themes,
 }
 
 pub struct ConfigWatcher {
@@ -178,10 +255,18 @@ impl Config {
 
         config.theme = get_theme(DEFAULT_LIGHT_THEME)?;
 
-        let mut themes = HashMap::new();
+        let mut themes = Themes::default();
         themes.insert("Lapce Light".to_string(), get_theme(DEFAULT_LIGHT_THEME)?);
         themes.insert("Lapce Dark".to_string(), get_theme(DEFAULT_DARK_THEME)?);
         config.themes = themes;
+
+        // Load the theme declared in the file, if there was one
+        // If there was an error, we don't stop creating the config, as that will let the user
+        // still rely on their other settings
+        if let Err(err) = config.themes.load_theme(config.lapce.color_theme.as_str())
+        {
+            log::warn!("Failed to load theme set in config: {:?}", err);
+        }
 
         Ok(config)
     }
@@ -240,6 +325,24 @@ impl Config {
         Some(path)
     }
 
+    /// Get the path to the themes folder
+    /// Themes are stored within as individual toml files
+    pub fn themes_folder() -> Option<PathBuf> {
+        let path = Self::dir()?.join("themes");
+
+        if let Some(dir) = path.parent() {
+            if !dir.exists() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+        }
+
+        if !path.exists() {
+            let _ = std::fs::create_dir(&path);
+        }
+
+        Some(path)
+    }
+
     fn get_file_table() -> Option<toml::value::Table> {
         let path = Self::settings_file()?;
         let content = std::fs::read(&path).ok()?;
@@ -275,6 +378,11 @@ impl Config {
 
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> Option<()> {
         self.lapce.color_theme = theme.to_string();
+
+        if let Err(err) = self.themes.load_theme(&theme) {
+            log::warn!("Failed to load theme: {:?}", err);
+        }
+
         if !preview {
             Config::update_file(
                 "lapce.color-theme",
@@ -284,12 +392,17 @@ impl Config {
         None
     }
 
+    /// Get the color by the name from the current theme if it exists
+    /// Otherwise, get the color from the base them
+    /// # Panics
+    /// If the color was not able to be found in either theme, which may be indicative that
+    /// it is mispelled or needs to be added to the base-theme.
     pub fn get_color_unchecked(&self, name: &str) -> &Color {
-        let theme = self
-            .themes
+        self.themes
             .get(&self.lapce.color_theme)
-            .unwrap_or(&self.theme);
-        theme.get(name).unwrap()
+            .and_then(|theme| theme.get(name))
+            .or_else(|| self.theme.get(name))
+            .unwrap()
     }
 
     pub fn get_color(&self, name: &str) -> Option<&Color> {
@@ -469,7 +582,7 @@ impl Config {
     }
 }
 
-fn get_theme(content: &str) -> Result<HashMap<String, Color>> {
+fn get_theme(content: &str) -> Result<Theme> {
     let theme_colors: std::collections::HashMap<String, String> =
         toml::from_str(content)?;
     let mut theme = HashMap::new();
