@@ -423,14 +423,11 @@ impl CompletionData {
                 }
             })
             .collect();
-        items.sort_by(|a, b| match b.score.cmp(&a.score) {
-            Ordering::Less => Ordering::Less,
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Equal => match b.label_score.cmp(&a.label_score) {
-                Ordering::Less => Ordering::Less,
-                Ordering::Greater => Ordering::Greater,
-                Ordering::Equal => a.item.label.len().cmp(&b.item.label.len()),
-            },
+        items.sort_by(|a, b| {
+            b.score
+                .cmp(&a.score)
+                .then_with(|| b.label_score.cmp(&a.label_score))
+                .then_with(|| a.item.label.len().cmp(&b.item.label.len()))
         });
         self.filtered_items = Arc::new(items);
     }
