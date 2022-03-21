@@ -16,6 +16,7 @@ use lapce_data::{
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::LapceTabData,
     keypress::KeyPressFocus,
+    proxy::VERSION,
     state::Mode,
 };
 
@@ -355,13 +356,24 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 .build()
                 .unwrap();
             let text_size = text_layout.size();
+            let x = self.header_rect.height() / 2.0 - text_size.height / 2.0;
+            let y = self.header_rect.height() / 2.0 - text_size.height / 2.0;
+            ctx.draw_text(&text_layout, self.header_rect.origin() + (x, y));
+
+            let version_text_layout = ctx
+                .text()
+                .new_text_layout(format!("v{VERSION}"))
+                .font(FontFamily::SYSTEM_UI, 10.0)
+                .text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                )
+                .build()
+                .unwrap();
             ctx.draw_text(
-                &text_layout,
-                self.header_rect.origin()
-                    + (
-                        self.header_rect.height() / 2.0 - text_size.height / 2.0,
-                        self.header_rect.height() / 2.0 - text_size.height / 2.0,
-                    ),
+                &version_text_layout,
+                self.header_rect.origin() + (x + text_size.width + 10.0, y + 5.0),
             );
 
             let svg = get_svg("close.svg").unwrap();

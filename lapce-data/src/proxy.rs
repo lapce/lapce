@@ -40,7 +40,7 @@ use crate::state::LapceWorkspaceType;
 use crate::terminal::RawTerminal;
 use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub enum TermEvent {
     NewTerminal(Arc<Mutex<RawTerminal>>),
