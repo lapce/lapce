@@ -117,6 +117,10 @@ mode = "i"
 key = "ctrl+F4"
 command = "split_close"
 
+[[keymaps]]
+key = "ctrl+\\"
+command = "split_vertical"
+
 # --------------------------------- Rich Lanaguage Editing ----------------------------
 
 [[keymaps]]

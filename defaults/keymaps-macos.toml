@@ -112,6 +112,10 @@ command = "save"
 key = "meta+w"
 command = "split_close"
 
+[[keymaps]]
+key = "meta+\\"
+command = "split_vertical"
+
 # --------------------------------- Rich Lanaguage Editing ----------------------------
 
 [[keymaps]]
