@@ -5,6 +5,7 @@ use druid::{Command, EventCtx, ExtEventSink, Size, Target, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_rpc::buffer::BufferId;
+use lazy_static::lazy_static;
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 use std::str::FromStr;
@@ -24,8 +25,8 @@ impl Snippet {
     fn extract_elements(
         s: &str,
         pos: usize,
-        escs: Vec<&str>,
-        loose_escs: Vec<&str>,
+        escs: &[&str],
+        loose_escs: &[&str],
     ) -> (Vec<SnippetElement>, usize) {
         let mut elements = Vec::new();
         let mut pos = pos;
@@ -39,7 +40,7 @@ impl Snippet {
                 elements.push(ele);
                 pos = end;
             } else if let Some((ele, end)) =
-                Self::extract_text(s, pos, escs.clone(), loose_escs.clone())
+                Self::extract_text(s, pos, escs, loose_escs)
             {
                 elements.push(ele);
                 pos = end;
@@ -51,10 +52,13 @@ impl Snippet {
     }
 
     fn extract_tabstop(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        for re in &[
-            Regex::new(r#"^\$(\d+)"#).unwrap(),
-            Regex::new(r#"^\$\{(\d+)\}"#).unwrap(),
-        ] {
+        lazy_static! {
+            static ref PATTERNS: [Regex; 2] = [
+                Regex::new(r#"^\$(\d+)"#).unwrap(),
+                Regex::new(r#"^\$\{(\d+)\}"#).unwrap(),
+            ];
+        }
+        for re in PATTERNS.iter() {
             if let Some(caps) = re.captures(&s[pos..]) {
                 let end = pos + re.find(&s[pos..])?.end();
                 let m = caps.get(1)?;
@@ -67,10 +71,12 @@ impl Snippet {
     }
 
     fn extract_placeholder(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        let re = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
-        let end = pos + re.find(&s[pos..])?.end();
+        lazy_static! {
+            static ref PATTERN: Regex = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
+        }
+        let end = pos + PATTERN.find(&s[pos..])?.end();
 
-        let caps = re.captures(&s[pos..])?;
+        let caps = PATTERN.captures(&s[pos..])?;
 
         let tab = caps.get(1)?.as_str().parse::<usize>().ok()?;
 
@@ -86,15 +92,15 @@ impl Snippet {
             ));
         }
         let (els, pos) =
-            Self::extract_elements(s, pos + m.start(), vec!["$", "}", "\\"], vec![]);
+            Self::extract_elements(s, pos + m.start(), &["$", "}", "\\"], &[]);
         Some((SnippetElement::PlaceHolder(tab, els), pos + 1))
     }
 
     fn extract_text(
         s: &str,
         pos: usize,
-        escs: Vec<&str>,
-        loose_escs: Vec<&str>,
+        escs: &[&str],
+        loose_escs: &[&str],
     ) -> Option<(SnippetElement, usize)> {
         let mut s = &s[pos..];
         let mut ele = "".to_string();
@@ -103,15 +109,11 @@ impl Snippet {
         while !s.is_empty() {
             if s.len() >= 2 {
                 let esc = &s[..2];
-                let mut new_escs = escs.clone();
-                new_escs.extend_from_slice(&loose_escs);
 
-                if new_escs
-                    .iter()
-                    .map(|e| format!("\\{}", e))
-                    .any(|x| x == *esc)
+                if esc.starts_with('\\')
+                    && escs.iter().chain(loose_escs).any(|e| *e == &esc[1..])
                 {
-                    ele = ele + &s[1..2].to_string();
+                    ele = ele + &s[1..2];
                     end += 2;
                     s = &s[2..];
                     continue;
@@ -120,7 +122,7 @@ impl Snippet {
             if escs.contains(&&s[0..1]) {
                 break;
             }
-            ele = ele + &s[0..1].to_string();
+            ele = ele + &s[0..1];
             end += 1;
             s = &s[1..];
         }
@@ -169,7 +171,7 @@ impl FromStr for Snippet {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (elements, _) = Self::extract_elements(s, 0, vec!["$", "\\"], vec!["}"]);
+        let (elements, _) = Self::extract_elements(s, 0, &["$", "\\"], &["}"]);
         Ok(Snippet { elements })
     }
 }

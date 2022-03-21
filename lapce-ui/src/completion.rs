@@ -1,6 +1,5 @@
 use std::{cmp::Ordering, fmt::Display, sync::Arc};
 
-use anyhow::Error;
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
@@ -14,186 +13,12 @@ use lapce_data::{
     config::LapceTheme,
     data::LapceTabData,
 };
-use lazy_static::lazy_static;
 use lsp_types::CompletionItem;
-use regex::Regex;
-use std::str::FromStr;
 
 use crate::{
     scroll::{LapceIdentityWrapper, LapceScrollNew},
     svg::completion_svg,
 };
-
-#[derive(Debug)]
-pub struct Snippet {
-    elements: Vec<SnippetElement>,
-}
-
-impl Snippet {
-    fn extract_elements(
-        s: &str,
-        pos: usize,
-        escs: Vec<&str>,
-        loose_escs: Vec<&str>,
-    ) -> (Vec<SnippetElement>, usize) {
-        let mut elements = Vec::new();
-        let mut pos = pos;
-        loop {
-            if s.len() == pos {
-                break;
-            } else if let Some((ele, end)) = Self::extract_tabstop(s, pos) {
-                elements.push(ele);
-                pos = end;
-            } else if let Some((ele, end)) = Self::extract_placeholder(s, pos) {
-                elements.push(ele);
-                pos = end;
-            } else if let Some((ele, end)) =
-                Self::extract_text(s, pos, escs.clone(), loose_escs.clone())
-            {
-                elements.push(ele);
-                pos = end;
-            } else {
-                break;
-            }
-        }
-        (elements, pos)
-    }
-
-    fn extract_tabstop(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        lazy_static! {
-            static ref PATTERNS: [Regex; 2] = [
-                Regex::new(r#"^\$(\d+)"#).unwrap(),
-                Regex::new(r#"^\$\{(\d+)\}"#).unwrap(),
-            ];
-        }
-        for re in PATTERNS.iter() {
-            if let Some(caps) = re.captures(&s[pos..]) {
-                let end = pos + re.find(&s[pos..])?.end();
-                let m = caps.get(1)?;
-                let n = m.as_str().parse::<usize>().ok()?;
-                return Some((SnippetElement::Tabstop(n), end));
-            }
-        }
-
-        None
-    }
-
-    fn extract_placeholder(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        lazy_static! {
-            static ref PATTERN: Regex = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
-        }
-        let end = pos + PATTERN.find(&s[pos..])?.end();
-
-        let caps = PATTERN.captures(&s[pos..])?;
-
-        let tab = caps.get(1)?.as_str().parse::<usize>().ok()?;
-
-        let m = caps.get(2)?;
-        let content = m.as_str();
-        if content.is_empty() {
-            return Some((
-                SnippetElement::PlaceHolder(
-                    tab,
-                    vec![SnippetElement::Text("".to_string())],
-                ),
-                end,
-            ));
-        }
-        let (els, pos) =
-            Self::extract_elements(s, pos + m.start(), vec!["$", "}", "\\"], vec![]);
-        Some((SnippetElement::PlaceHolder(tab, els), pos + 1))
-    }
-
-    fn extract_text(
-        s: &str,
-        pos: usize,
-        escs: Vec<&str>,
-        loose_escs: Vec<&str>,
-    ) -> Option<(SnippetElement, usize)> {
-        let mut s = &s[pos..];
-        let mut ele = "".to_string();
-        let mut end = pos;
-
-        while !s.is_empty() {
-            if s.len() >= 2 {
-                let esc = &s[..2];
-                let mut new_escs = escs.clone();
-                new_escs.extend_from_slice(&loose_escs);
-
-                if new_escs
-                    .iter()
-                    .map(|e| format!("\\{}", e))
-                    .any(|x| x == *esc)
-                {
-                    ele = ele + &s[1..2].to_string();
-                    end += 2;
-                    s = &s[2..];
-                    continue;
-                }
-            }
-            if escs.contains(&&s[0..1]) {
-                break;
-            }
-            ele = ele + &s[0..1].to_string();
-            end += 1;
-            s = &s[1..];
-        }
-        if ele.is_empty() {
-            return None;
-        }
-        Some((SnippetElement::Text(ele), end))
-    }
-
-    pub fn text(&self) -> String {
-        self.elements.iter().map(|e| e.text()).join("")
-    }
-
-    pub fn tabs(&self, pos: usize) -> Vec<(usize, (usize, usize))> {
-        Self::elements_tabs(&self.elements, pos)
-    }
-
-    pub fn elements_tabs(
-        elements: &[SnippetElement],
-        start: usize,
-    ) -> Vec<(usize, (usize, usize))> {
-        let mut tabs = Vec::new();
-        let mut pos = start;
-        for el in elements {
-            match el {
-                SnippetElement::Text(t) => {
-                    pos += t.len();
-                }
-                SnippetElement::PlaceHolder(tab, els) => {
-                    let placeholder_tabs = Self::elements_tabs(els, pos);
-                    let end = pos + els.iter().map(|e| e.len()).sum::<usize>();
-                    tabs.push((*tab, (pos, end)));
-                    tabs.extend_from_slice(&placeholder_tabs);
-                    pos = end;
-                }
-                SnippetElement::Tabstop(tab) => {
-                    tabs.push((*tab, (pos, pos)));
-                }
-            }
-        }
-        tabs
-    }
-}
-
-impl FromStr for Snippet {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (elements, _) = Self::extract_elements(s, 0, vec!["$", "\\"], vec!["}"]);
-        Ok(Snippet { elements })
-    }
-}
-
-impl Display for Snippet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let text = self.elements.iter().map(|e| e.to_string()).join("");
-        f.write_str(&text)
-    }
-}
 
 #[derive(Debug)]
 pub enum SnippetElement {
@@ -662,25 +487,5 @@ impl CompletionState {
 impl Default for CompletionState {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_snippet() {
-        let s = "start $1${2:second ${3:third}} $0";
-        let parsed = Snippet::from_str(s).unwrap();
-        assert_eq!(s, parsed.to_string());
-
-        let text = "start second third ";
-        assert_eq!(text, parsed.text());
-
-        assert_eq!(
-            vec![(1, (6, 6)), (2, (6, 18)), (3, (13, 18)), (0, (19, 19))],
-            parsed.tabs(0)
-        );
     }
 }
