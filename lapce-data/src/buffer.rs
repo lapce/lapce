@@ -6,6 +6,7 @@ use druid::{
 };
 use druid::{PaintCtx, Point};
 use language::{new_highlight_config, LapceLanguage};
+use lapce_core::style::{line_styles, LineStyle, LineStyles};
 use lapce_core::syntax::Syntax;
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
 use lsp_types::SemanticTokensLegend;
@@ -248,6 +249,8 @@ pub struct Buffer {
     pub semantic_tokens: bool,
     pub language: Option<LapceLanguage>,
     pub syntax: Option<Syntax>,
+    pub new_line_styles: Rc<RefCell<LineStyles>>,
+    pub semantic_styles: Option<Spans<lapce_core::style::Style>>,
     pub highlighter: Arc<Mutex<Highlighter>>,
     pub highlight: Option<Arc<Mutex<HighlightConfiguration>>>,
     pub max_len: usize,
@@ -316,6 +319,8 @@ impl Buffer {
                 .map(|l| Arc::new(Mutex::new(new_highlight_config(l)))),
             language,
             syntax,
+            new_line_styles: Rc::new(RefCell::new(HashMap::new())),
+            semantic_styles: None,
             content,
             styles: Arc::new(SpansBuilder::new(0).build()),
             line_styles: Rc::new(RefCell::new(Vec::new())),
@@ -842,6 +847,23 @@ impl Buffer {
         Some(line_styles)
     }
 
+    fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
+        if self.new_line_styles.borrow().get(&line).is_none() {
+            let styles = self
+                .semantic_styles
+                .as_ref()
+                .or_else(|| self.syntax.as_ref().and_then(|s| s.styles.as_ref()));
+
+            let line_styles = styles
+                .map(|styles| line_styles(&self.rope, line, styles))
+                .unwrap_or_default();
+            self.new_line_styles
+                .borrow_mut()
+                .insert(line, Arc::new(line_styles));
+        }
+        self.new_line_styles.borrow().get(&line).cloned().unwrap()
+    }
+
     fn get_line_styles(&self, line: usize) -> Arc<Vec<(usize, usize, Style)>> {
         if let Some(line_styles) =
             self.line_styles.borrow().get(line).and_then(|s| s.as_ref())
@@ -935,7 +957,7 @@ impl Buffer {
         bounds: [f64; 2],
         config: &Config,
     ) -> PietTextLayout {
-        let styles = self.get_line_styles(line);
+        let styles = self.line_style(line);
         let mut layout_builder = ctx
             .text()
             .new_text_layout(line_content.to_string())
@@ -957,13 +979,13 @@ impl Buffer {
             );
         }
 
-        for (start, end, style) in styles.iter() {
-            if let Some(fg_color) = style.fg_color.as_ref() {
+        for line_style in styles.iter() {
+            if let Some(fg_color) = line_style.style.fg_color.as_ref() {
                 if let Some(fg_color) =
                     config.get_color(&("style.".to_string() + fg_color))
                 {
                     layout_builder = layout_builder.range_attribute(
-                        start..end,
+                        line_style.start..line_style.end,
                         TextAttribute::TextColor(fg_color.clone()),
                     );
                 }
@@ -1814,6 +1836,15 @@ impl Buffer {
     }
 
     fn update_line_styles(&mut self, delta: &RopeDelta, inval_lines: &InvalLines) {
+        if let Some(styles) = self.semantic_styles.as_mut() {
+            styles.apply_shape(delta);
+        } else if let Some(syntax) = self.syntax.as_mut() {
+            if let Some(styles) = syntax.styles.as_mut() {
+                styles.apply_shape(delta);
+            }
+        }
+        self.new_line_styles.borrow_mut().clear();
+
         Arc::make_mut(&mut self.styles).apply_shape(delta);
         let mut line_styles = self.line_styles.borrow_mut();
         let right = line_styles.split_off(inval_lines.start_line);

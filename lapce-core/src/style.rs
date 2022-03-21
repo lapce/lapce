@@ -1,17 +1,46 @@
 use std::{
+    collections::HashMap,
     iter, mem, ops, str,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tree_sitter::{
     Language, LossyUtf8, Node, Point, Query, QueryCaptures, QueryCursor, QueryError,
     QueryMatch, Range, Tree,
 };
+use xi_rope::{spans::Spans, Rope};
 
 const CANCELLATION_CHECK_INTERVAL: usize = 100;
 const BUFFER_HTML_RESERVE_CAPACITY: usize = 10 * 1024;
 const BUFFER_LINES_RESERVE_CAPACITY: usize = 1000;
+pub const SCOPES: &[&str] = &[
+    "constant",
+    "constant.builtin",
+    "type",
+    "type.builtin",
+    "property",
+    "comment",
+    "constructor",
+    "function",
+    "function.method",
+    "function.macro",
+    "punctuation.bracket",
+    "punctuation.delimiter",
+    "label",
+    "keyword",
+    "string",
+    "variable.parameter",
+    "variable.builtin",
+    "variable.other.member",
+    "operator",
+    "attribute",
+    "escape",
+];
 
 /// Indicates which highlight should be applied to a region of source code.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -26,6 +55,20 @@ pub enum Error {
     InvalidLanguage,
     #[error("Unknown error")]
     Unknown,
+}
+
+pub type LineStyles = HashMap<usize, Arc<Vec<LineStyle>>>;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LineStyle {
+    pub start: usize,
+    pub end: usize,
+    pub style: Style,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Style {
+    pub fg_color: Option<String>,
 }
 
 /// Represents a single step in rendering a syntax-highlighted document.
@@ -110,6 +153,12 @@ struct HighlightIterLayer<'a> {
     scope_stack: Vec<LocalScope<'a>>,
     ranges: Vec<Range>,
     depth: usize,
+}
+
+impl Highlight {
+    pub fn str(&self) -> &str {
+        SCOPES[self.0]
+    }
 }
 
 impl Highlighter {
@@ -264,7 +313,7 @@ impl HighlightConfiguration {
         }
 
         let highlight_indices = vec![None; query.capture_names().len()];
-        Ok(HighlightConfiguration {
+        let mut conf = HighlightConfiguration {
             language,
             query,
             combined_injections_query,
@@ -278,7 +327,9 @@ impl HighlightConfiguration {
             local_def_value_capture_index,
             local_ref_capture_index,
             local_scope_capture_index,
-        })
+        };
+        conf.configure(SCOPES);
+        Ok(conf)
     }
 
     /// Get a slice containing all of the highlight names used in the configuration.
@@ -296,7 +347,7 @@ impl HighlightConfiguration {
     ///
     /// When highlighting, results are returned as `Highlight` values, which contain the index
     /// of the matched highlight this list of highlight names.
-    pub fn configure(&mut self, recognized_names: &[impl AsRef<str>]) {
+    fn configure(&mut self, recognized_names: &[impl AsRef<str>]) {
         let mut capture_parts = Vec::new();
         self.highlight_indices.clear();
         self.highlight_indices
@@ -345,6 +396,7 @@ impl<'a> HighlightIterLayer<'a> {
         let mut result = Vec::with_capacity(1);
         let mut queue = Vec::new();
         loop {
+            let tree = tree.clone();
             let mut cursor =
                 highlighter.cursors.pop().unwrap_or_else(QueryCursor::new);
 
@@ -419,7 +471,7 @@ impl<'a> HighlightIterLayer<'a> {
                 }],
                 cursor,
                 depth,
-                _tree: tree.clone(),
+                _tree: tree,
                 captures,
                 config,
                 ranges,
@@ -925,6 +977,35 @@ where
             self.sort_layers();
         }
     }
+}
+
+pub fn line_styles(
+    text: &Rope,
+    line: usize,
+    styles: &Spans<Style>,
+) -> Vec<LineStyle> {
+    let start_offset = text.offset_of_line(line);
+    let end_offset = text.offset_of_line(line + 1);
+    let line_styles: Vec<LineStyle> = styles
+        .iter_chunks(start_offset..end_offset)
+        .filter_map(|(iv, style)| {
+            let start = iv.start();
+            let end = iv.end();
+            if start > end_offset || end < start_offset {
+                None
+            } else {
+                let start = if start > start_offset {
+                    start - start_offset
+                } else {
+                    0
+                };
+                let end = end - start_offset;
+                let style = style.clone();
+                Some(LineStyle { start, end, style })
+            }
+        })
+        .collect();
+    line_styles
 }
 
 impl HtmlRenderer {

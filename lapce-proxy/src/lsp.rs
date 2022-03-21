@@ -13,6 +13,7 @@ use std::os::windows::process::CommandExt;
 
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
+use lapce_core::style::{LineStyle, Style};
 use lapce_rpc::RequestId;
 use lsp_types::*;
 use parking_lot::Mutex;
@@ -116,6 +117,7 @@ impl LspCatalog {
         let buffer_id = buffer.id;
         let path = buffer.path.clone();
         let rev = buffer.rev;
+        let len = buffer.len();
         if let Some(client) = self.clients.get(&buffer.language_id) {
             let uri = client.get_uri(buffer);
             let local_dispatcher = self.dispatcher.clone().unwrap();
@@ -132,6 +134,22 @@ impl LspCatalog {
                         .as_ref()
                         .unwrap()
                         .semantic_tokens_provider;
+                    if let Some(styles) = format_semantic_styles(
+                        buffer,
+                        semantic_tokens_provider,
+                        res.clone(),
+                    ) {
+                        local_dispatcher.send_notification(
+                            "semantic_styles",
+                            json!({
+                                "rev": rev,
+                                "buffer_id": buffer_id,
+                                "path": path,
+                                "styles": styles,
+                                "len": len,
+                            }),
+                        )
+                    }
                     if let Some(tokens) =
                         format_semantic_tokens(buffer, semantic_tokens_provider, res)
                     {
@@ -987,6 +1005,45 @@ pub fn get_change_for_sync_kind(
     }
 }
 
+fn format_semantic_styles(
+    buffer: &Buffer,
+    semantic_tokens_provider: &Option<SemanticTokensServerCapabilities>,
+    value: Value,
+) -> Option<Vec<LineStyle>> {
+    let semantic_tokens: SemanticTokens = serde_json::from_value(value).ok()?;
+    let semantic_tokens_provider = semantic_tokens_provider.as_ref()?;
+    let semantic_lengends = semantic_tokens_lengend(semantic_tokens_provider);
+
+    let mut highlights = Vec::new();
+    let mut line = 0;
+    let mut start = 0;
+    let mut last_start = 0;
+    for semantic_token in &semantic_tokens.data {
+        if semantic_token.delta_line > 0 {
+            line += semantic_token.delta_line as usize;
+            start = buffer.offset_of_line(line);
+        }
+        start += semantic_token.delta_start as usize;
+        let end = start + semantic_token.length as usize;
+        let kind = semantic_lengends.token_types[semantic_token.token_type as usize]
+            .as_str()
+            .to_string();
+        if start < last_start {
+            continue;
+        }
+        last_start = start;
+        highlights.push(LineStyle {
+            start,
+            end,
+            style: Style {
+                fg_color: Some(kind),
+            },
+        });
+    }
+
+    Some(highlights)
+}
+
 fn format_semantic_tokens(
     buffer: &Buffer,
     semantic_tokens_provider: &Option<SemanticTokensServerCapabilities>,
@@ -999,6 +1056,7 @@ fn format_semantic_tokens(
     let mut highlights = Vec::new();
     let mut line = 0;
     let mut start = 0;
+    let mut last_start = 0;
     for semantic_token in &semantic_tokens.data {
         if semantic_token.delta_line > 0 {
             line += semantic_token.delta_line as usize;
@@ -1009,6 +1067,10 @@ fn format_semantic_tokens(
         let kind = semantic_lengends.token_types[semantic_token.token_type as usize]
             .as_str()
             .to_string();
+        if start < last_start {
+            continue;
+        }
+        last_start = start;
         highlights.push((start, end, kind));
     }
 

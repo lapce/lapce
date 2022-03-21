@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
-use lapce_core::syntax::Syntax;
+use lapce_core::{style::LineStyle, syntax::Syntax};
 use lapce_proxy::{
     dispatch::{DiffInfo, FileNodeItem},
     plugin::PluginDescription,
@@ -553,6 +553,7 @@ pub enum LapceUICommand {
     DocumentFormat(PathBuf, u64, Result<Value>),
     DocumentFormatAndSave(PathBuf, u64, Result<Value>),
     BufferSave(PathBuf, u64),
+    UpdateSemanticStyles(BufferId, PathBuf, u64, Spans<lapce_core::style::Style>),
     UpdateSemanticTokens(BufferId, PathBuf, u64, Vec<(usize, usize, String)>),
     UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
     UpdateTerminalTitle(TermId, String),

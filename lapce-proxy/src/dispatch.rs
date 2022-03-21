@@ -561,19 +561,20 @@ impl Dispatcher {
                 height,
             } => {
                 let terminals = self.terminals.lock();
-                let tx = terminals.get(&term_id).unwrap();
-                let size = SizeInfo::new(
-                    width as f32,
-                    height as f32,
-                    1.0,
-                    1.0,
-                    0.0,
-                    0.0,
-                    true,
-                );
+                if let Some(tx) = terminals.get(&term_id) {
+                    let size = SizeInfo::new(
+                        width as f32,
+                        height as f32,
+                        1.0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        true,
+                    );
 
-                #[allow(deprecated)]
-                let _ = tx.send(Msg::Resize(size));
+                    #[allow(deprecated)]
+                    let _ = tx.send(Msg::Resize(size));
+                }
             }
             Notification::GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.lock().clone() {

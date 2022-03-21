@@ -1,22 +1,27 @@
 use std::{
-    borrow::BorrowMut,
     cell::RefCell,
     collections::{HashMap, HashSet},
     path::Path,
+    rc::Rc,
+    sync::Arc,
 };
 
 use itertools::Itertools;
 use tree_sitter::{Parser, Point, Query, QueryCursor, Tree};
-use xi_rope::{Rope, RopeDelta};
+use xi_rope::{
+    spans::{Spans, SpansBuilder},
+    Interval, Rope, RopeDelta,
+};
 
 use crate::{
     language::LapceLanguage,
     lens::{Lens, LensBuilder},
+    style::{Highlight, HighlightEvent, Highlighter, LineStyle, Style, SCOPES},
 };
 
 thread_local! {
    static PARSER: RefCell<HashMap<LapceLanguage, Parser>> = RefCell::new(HashMap::new());
-   static QUERY: RefCell<HashMap<LapceLanguage, Query>> = RefCell::new(HashMap::new());
+   static HIGHLIGHTS: RefCell<HashMap<LapceLanguage, crate::style::HighlightConfiguration>> = RefCell::new(HashMap::new());
 }
 
 #[derive(Clone)]
@@ -29,6 +34,7 @@ pub struct Syntax {
     pub normal_lines: Vec<usize>,
     pub line_height: usize,
     pub lens_height: usize,
+    pub styles: Option<Spans<Style>>,
 }
 
 impl Syntax {
@@ -42,6 +48,7 @@ impl Syntax {
             line_height: 0,
             lens_height: 0,
             normal_lines: Vec::new(),
+            styles: None,
         })
     }
 
@@ -140,20 +147,51 @@ impl Syntax {
             )
         });
 
-        if let Some(tree) = new_tree.as_ref() {
-            // QUERY.with(|queries| {
-            //     let mut queries = queries.borrow_mut();
-            //     queries
-            //         .entry(self.language)
-            //         .or_insert_with(|| self.language.new_highlight_query());
-            //     let query = queries.get(&self.language).unwrap();
-            //     let mut cursor = QueryCursor::new();
-            //     let text = &new_text.slice_to_cow(..);
-            //     let bytes = text.as_bytes();
-            //     let captures = cursor.captures(query, tree.root_node(), bytes);
-            //     for (capture, index) in captures {}
-            // });
-        }
+        let styles = if let Some(tree) = new_tree.as_ref() {
+            let styles = HIGHLIGHTS.with(|configs| {
+                let mut configs = configs.borrow_mut();
+                configs
+                    .entry(self.language)
+                    .or_insert_with(|| self.language.new_highlight_config());
+                let config = configs.get(&self.language).unwrap();
+                let mut current_hl: Option<Highlight> = None;
+                let mut highlights = SpansBuilder::new(new_text.len());
+                let mut highlighter = Highlighter::new();
+                for highlight in highlighter
+                    .highlight(
+                        tree.clone(),
+                        config,
+                        new_text.slice_to_cow(0..new_text.len()).as_bytes(),
+                        None,
+                        |_| None,
+                    )
+                    .flatten()
+                {
+                    match highlight {
+                        HighlightEvent::Source { start, end } => {
+                            if let Some(hl) = current_hl {
+                                if let Some(hl) = SCOPES.get(hl.0) {
+                                    highlights.add_span(
+                                        Interval::new(start, end),
+                                        Style {
+                                            fg_color: Some(hl.to_string()),
+                                        },
+                                    );
+                                }
+                            }
+                        }
+                        HighlightEvent::HighlightStart(hl) => {
+                            current_hl = Some(hl);
+                        }
+                        HighlightEvent::HighlightEnd => current_hl = None,
+                    }
+                }
+                highlights.build()
+            });
+            Some(styles)
+        } else {
+            None
+        };
 
         let normal_lines = if let Some(tree) = new_tree.as_ref() {
             let mut cursor = tree.walk();
@@ -181,6 +219,7 @@ impl Syntax {
             line_height: 0,
             lens_height: 0,
             normal_lines,
+            styles,
         }
     }
 

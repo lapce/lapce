@@ -760,6 +760,16 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::UpdateSemanticStyles(_id, path, rev, styles) => {
+                        let buffer =
+                            data.main_split.open_files.get_mut(path).unwrap();
+                        if buffer.rev == *rev {
+                            let buffer = Arc::make_mut(buffer);
+                            buffer.semantic_styles = Some(styles.clone());
+                            buffer.new_line_styles.borrow_mut().clear();
+                        }
+                        ctx.set_handled();
+                    }
                     LapceUICommand::UpdateSemanticTokens(_id, path, rev, tokens) => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
@@ -877,6 +887,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                         let buffer = Arc::make_mut(buffer);
                         if buffer.rev == *rev {
                             buffer.syntax = Some(syntax.clone());
+                            if buffer.semantic_styles.is_none() {
+                                buffer.new_line_styles.borrow_mut().clear();
+                            }
                         }
                     }
                     #[allow(unused_variables)]

@@ -13,6 +13,7 @@ use crossbeam_channel::Sender;
 use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
+use lapce_core::style::LineStyle;
 use lapce_proxy::dispatch::FileDiff;
 use lapce_proxy::dispatch::FileNodeItem;
 use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
@@ -29,7 +30,8 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
-use xi_rope::RopeDelta;
+use xi_rope::spans::SpansBuilder;
+use xi_rope::{Interval, RopeDelta};
 
 use crate::command::LapceUICommand;
 use crate::config::Config;
@@ -68,6 +70,36 @@ impl Handler for LapceProxy {
 
     fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow {
         match rpc {
+            Notification::SemanticStyles {
+                rev,
+                buffer_id,
+                path,
+                styles,
+                len,
+            } => {
+                let event_sink = self.event_sink.clone();
+                let tab_id = self.tab_id;
+                rayon::spawn(move || {
+                    let mut styles_span = SpansBuilder::new(len);
+                    for style in styles {
+                        styles_span.add_span(
+                            Interval::new(style.start, style.end),
+                            style.style,
+                        );
+                    }
+                    let styles_span = styles_span.build();
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSemanticStyles(
+                            buffer_id,
+                            path,
+                            rev,
+                            styles_span,
+                        ),
+                        Target::Widget(tab_id),
+                    );
+                });
+            }
             Notification::SemanticTokens {
                 rev,
                 buffer_id,
@@ -616,6 +648,13 @@ pub enum Notification {
         buffer_id: BufferId,
         path: PathBuf,
         tokens: Vec<(usize, usize, String)>,
+    },
+    SemanticStyles {
+        rev: u64,
+        buffer_id: BufferId,
+        path: PathBuf,
+        len: usize,
+        styles: Vec<LineStyle>,
     },
     ReloadBuffer {
         buffer_id: BufferId,
