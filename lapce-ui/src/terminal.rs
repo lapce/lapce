@@ -15,7 +15,6 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
     WidgetExt, WidgetId, WidgetPod,
 };
-use hashbrown::HashMap;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
@@ -37,7 +36,7 @@ const CTRL_CHARS: &[char] = &[
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
 ];
 
-pub type TermConfig = alacritty_terminal::config::Config<HashMap<String, String>>;
+pub type TermConfig = alacritty_terminal::config::Config;
 
 pub struct RawTerminal {
     pub parser: ansi::Processor,
