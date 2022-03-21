@@ -137,16 +137,12 @@ pub struct LapceEditorBufferData {
 }
 
 impl LapceEditorBufferData {
-    fn buffer_mut(&mut self) -> &mut Buffer {
-        Arc::make_mut(&mut self.buffer)
-    }
-
     pub fn sync_buffer_position(&mut self, scroll_offset: Vec2) {
         let cursor_offset = self.editor.cursor.offset();
         if self.buffer.cursor_offset != cursor_offset
             || self.buffer.scroll_offset != scroll_offset
         {
-            let buffer = self.buffer_mut();
+            let buffer = Arc::make_mut(&mut self.buffer);
             buffer.cursor_offset = cursor_offset;
             buffer.scroll_offset = scroll_offset;
         }
@@ -1312,9 +1308,8 @@ impl LapceEditorBufferData {
 
         self.initiate_diagnositcs_offset();
 
-        let proxy = self.proxy.clone();
-        let buffer = self.buffer_mut();
-        let delta = buffer.edit_multiple(edits, proxy, edit_type);
+        let buffer = Arc::make_mut(&mut self.buffer);
+        let delta = buffer.edit_multiple(edits, &self.proxy, edit_type);
         self.inactive_apply_delta(&delta);
         if let Some(snippet) = self.editor.snippet.clone() {
             let mut transformer = Transformer::new(&delta);
@@ -1920,9 +1915,8 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::Undo => {
                 self.initiate_diagnositcs_offset();
-                let proxy = self.proxy.clone();
-                let buffer = self.buffer_mut();
-                if let Some(delta) = buffer.do_undo(proxy) {
+                let buffer = Arc::make_mut(&mut self.buffer);
+                if let Some(delta) = buffer.do_undo(&self.proxy) {
                     self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
@@ -1930,9 +1924,8 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::Redo => {
                 self.initiate_diagnositcs_offset();
-                let proxy = self.proxy.clone();
-                let buffer = self.buffer_mut();
-                if let Some(delta) = buffer.do_redo(proxy) {
+                let buffer = Arc::make_mut(&mut self.buffer);
+                if let Some(delta) = buffer.do_redo(&self.proxy) {
                     self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
@@ -1952,7 +1945,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &self.config,
                     )
                     .0;
-                self.buffer_mut().update_edit_type();
+                Arc::make_mut(&mut self.buffer).update_edit_type();
                 self.set_cursor(Cursor::new(
                     CursorMode::Insert(Selection::caret(offset)),
                     None,
@@ -1969,7 +1962,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     self.editor.compare.clone(),
                     &self.config,
                 );
-                self.buffer_mut().update_edit_type();
+                Arc::make_mut(&mut self.buffer).update_edit_type();
                 self.set_cursor(Cursor::new(
                     CursorMode::Insert(Selection::caret(offset)),
                     Some(horiz),
@@ -1979,7 +1972,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 Arc::make_mut(&mut self.editor).cursor.mode = CursorMode::Insert(
                     Selection::caret(self.editor.cursor.offset()),
                 );
-                self.buffer_mut().update_edit_type();
+                Arc::make_mut(&mut self.buffer).update_edit_type();
             }
             LapceCommand::InsertFirstNonBlank => {
                 match &self.editor.cursor.mode {
@@ -1994,7 +1987,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             self.editor.compare.clone(),
                             &self.config,
                         );
-                        self.buffer_mut().update_edit_type();
+                        Arc::make_mut(&mut self.buffer).update_edit_type();
                         self.set_cursor(Cursor::new(
                             CursorMode::Insert(Selection::caret(offset)),
                             Some(horiz),
@@ -2014,7 +2007,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         {
                             selection.add_region(SelRegion::caret(region.min()));
                         }
-                        self.buffer_mut().update_edit_type();
+                        Arc::make_mut(&mut self.buffer).update_edit_type();
                         self.set_cursor(Cursor::new(
                             CursorMode::Insert(selection),
                             None,
@@ -3062,7 +3055,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                     CursorMode::Normal(offset) => *offset,
                 };
-                self.buffer_mut().update_edit_type();
+                Arc::make_mut(&mut self.buffer).update_edit_type();
 
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.cursor.mode = CursorMode::Normal(offset);

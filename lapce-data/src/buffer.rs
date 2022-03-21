@@ -1779,7 +1779,7 @@ impl Buffer {
 
     fn apply_edit(
         &mut self,
-        proxy: Arc<LapceProxy>,
+        proxy: &LapceProxy,
         delta: &RopeDelta,
         new_rev: Revision,
         new_text: Rope,
@@ -1831,7 +1831,7 @@ impl Buffer {
     pub fn edit_multiple(
         &mut self,
         edits: &[(&Selection, &str)],
-        proxy: Arc<LapceProxy>,
+        proxy: &LapceProxy,
         edit_type: EditType,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
@@ -1878,13 +1878,13 @@ impl Buffer {
         &mut self,
         selection: &Selection,
         content: &str,
-        proxy: Arc<LapceProxy>,
+        proxy: &LapceProxy,
         edit_type: EditType,
     ) -> RopeDelta {
         self.edit_multiple(&[(selection, content)], proxy, edit_type)
     }
 
-    pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {
+    pub fn do_undo(&mut self, proxy: &LapceProxy) -> Option<RopeDelta> {
         if self.cur_undo > 1 {
             self.cur_undo -= 1;
             self.undos.insert(self.live_undos[self.cur_undo]);
@@ -1895,7 +1895,7 @@ impl Buffer {
         }
     }
 
-    pub fn do_redo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {
+    pub fn do_redo(&mut self, proxy: &LapceProxy) -> Option<RopeDelta> {
         if self.cur_undo < self.live_undos.len() {
             self.undos.remove(&self.live_undos[self.cur_undo]);
             self.cur_undo += 1;
@@ -1906,11 +1906,7 @@ impl Buffer {
         }
     }
 
-    fn undo(
-        &mut self,
-        groups: BTreeSet<usize>,
-        proxy: Arc<LapceProxy>,
-    ) -> RopeDelta {
+    fn undo(&mut self, groups: BTreeSet<usize>, proxy: &LapceProxy) -> RopeDelta {
         let (new_rev, new_deletes_from_union) = self.compute_undo(&groups);
         let delta = Delta::synthesize(
             &self.tombstones,
@@ -1926,7 +1922,7 @@ impl Buffer {
         );
         self.undone_groups = groups;
         self.apply_edit(
-            proxy,
+            &proxy,
             &delta,
             new_rev,
             new_text,

@@ -2036,7 +2036,6 @@ impl LapceMainSplitData {
         config: &Config,
     ) -> Option<RopeDelta> {
         self.initiate_diagnositcs_offset(path, config);
-        let proxy = self.proxy.clone();
         let buffer = self.open_files.get_mut(path)?;
 
         let buffer_len = buffer.len();
@@ -2050,7 +2049,8 @@ impl LapceMainSplitData {
             }
         }
 
-        let delta = Arc::make_mut(buffer).edit_multiple(edits, proxy, edit_type);
+        let delta =
+            Arc::make_mut(buffer).edit_multiple(edits, &self.proxy, edit_type);
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
