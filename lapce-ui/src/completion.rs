@@ -14,6 +14,7 @@ use lapce_data::{
     config::LapceTheme,
     data::LapceTabData,
 };
+use lazy_static::lazy_static;
 use lsp_types::CompletionItem;
 use regex::Regex;
 use std::str::FromStr;
@@ -59,10 +60,13 @@ impl Snippet {
     }
 
     fn extract_tabstop(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        for re in &[
-            Regex::new(r#"^\$(\d+)"#).unwrap(),
-            Regex::new(r#"^\$\{(\d+)\}"#).unwrap(),
-        ] {
+        lazy_static! {
+            static ref PATTERNS: [Regex; 2] = [
+                Regex::new(r#"^\$(\d+)"#).unwrap(),
+                Regex::new(r#"^\$\{(\d+)\}"#).unwrap(),
+            ];
+        }
+        for re in PATTERNS.iter() {
             if let Some(caps) = re.captures(&s[pos..]) {
                 let end = pos + re.find(&s[pos..])?.end();
                 let m = caps.get(1)?;
@@ -75,10 +79,12 @@ impl Snippet {
     }
 
     fn extract_placeholder(s: &str, pos: usize) -> Option<(SnippetElement, usize)> {
-        let re = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
-        let end = pos + re.find(&s[pos..])?.end();
+        lazy_static! {
+            static ref PATTERN: Regex = Regex::new(r#"^\$\{(\d+):(.*?)\}"#).unwrap();
+        }
+        let end = pos + PATTERN.find(&s[pos..])?.end();
 
-        let caps = re.captures(&s[pos..])?;
+        let caps = PATTERN.captures(&s[pos..])?;
 
         let tab = caps.get(1)?.as_str().parse::<usize>().ok()?;
 
