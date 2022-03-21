@@ -137,6 +137,20 @@ mode = "i"
 key = "meta+."
 command = "show_code_actions"
 
+# --------------------------------- Display -------------------------------------------
+
+[[keymaps]]
+key = "meta+E"
+command = "toggle_file_explorer"
+
+[[keymaps]]
+key = "meta+F"
+command = "toggle_search"
+
+[[keymaps]]
+key = "meta+X"
+command = "toggle_plugin"
+
 # ------------------------------------ Navigation -------------------------------------
 
 [[keymaps]]

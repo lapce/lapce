@@ -142,6 +142,20 @@ mode = "i"
 key = "ctrl+."
 command = "show_code_actions"
 
+# --------------------------------- Display -------------------------------------------
+
+[[keymaps]]
+key = "ctrl+E"
+command = "toggle_file_explorer"
+
+[[keymaps]]
+key = "ctrl+F"
+command = "toggle_search"
+
+[[keymaps]]
+key = "ctrl+X"
+command = "toggle_plugin"
+
 # ------------------------------------ Navigation -------------------------------------
 
 [[keymaps]]

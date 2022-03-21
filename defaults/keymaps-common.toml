@@ -63,6 +63,12 @@ mode = "i"
 key = "F12"
 command = "goto_definition"
 
+# --------------------------------- Integrated Terminal ------------------------------
+
+[[keymaps]]
+key = "F12"
+command = "goto_definition"
+
 # ------------------------------------ ------------ -------------------------------------
 
 [[keymaps]]
