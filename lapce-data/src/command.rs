@@ -103,6 +103,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Folder")]
     OpenFolder,
 
+    #[strum(serialize = "close_folder")]
+    #[strum(message = "Close Folder")]
+    CloseFolder,
+
+    #[strum(serialize = "open_file")]
+    #[strum(message = "Open File")]
+    OpenFile,
+
     #[strum(serialize = "change_theme")]
     #[strum(message = "Change Theme")]
     ChangeTheme,

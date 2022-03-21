@@ -866,6 +866,17 @@ impl LapceTabData {
         env: &Env,
     ) {
         match command {
+            LapceWorkbenchCommand::CloseFolder => {
+                if self.workspace.path.is_some() {
+                    let mut workspace = (*self.workspace).clone();
+                    workspace.path = None;
+                    let _ = ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SetWorkspace(workspace),
+                        Target::Auto,
+                    ));
+                }
+            }
             LapceWorkbenchCommand::OpenFolder => {
                 if !self.workspace.kind.is_remote() {
                     let event_sink = ctx.get_external_handle();
@@ -894,6 +905,76 @@ impl LapceTabData {
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::SetWorkspace(workspace),
                                 Target::Auto,
+                            );
+                        }
+                    });
+                } else {
+                    let picker = Arc::make_mut(&mut self.picker);
+                    picker.active = true;
+                    if let Some(node) = picker.get_file_node(&picker.pwd) {
+                        if !node.read {
+                            let tab_id = self.id;
+                            let path = node.path_buf.clone();
+                            let event_sink = ctx.get_external_handle();
+                            self.proxy.read_dir(
+                                &node.path_buf,
+                                Box::new(move |result| {
+                                    if let Ok(res) = result {
+                                        let resp: Result<
+                                            Vec<FileNodeItem>,
+                                            serde_json::Error,
+                                        > = serde_json::from_value(res);
+                                        if let Ok(items) = resp {
+                                            let _ = event_sink.submit_command(
+                                                LAPCE_UI_COMMAND,
+                                                LapceUICommand::UpdatePickerItems(
+                                                    path,
+                                                    items
+                                                        .iter()
+                                                        .map(|item| {
+                                                            (
+                                                                item.path_buf
+                                                                    .clone(),
+                                                                item.clone(),
+                                                            )
+                                                        })
+                                                        .collect(),
+                                                ),
+                                                Target::Widget(tab_id),
+                                            );
+                                        }
+                                    }
+                                }),
+                            );
+                        }
+                    }
+                }
+            }
+            LapceWorkbenchCommand::OpenFile => {
+                if !self.workspace.kind.is_remote() {
+                    let workspace = self.workspace.clone();
+                    let event_sink = ctx.get_external_handle();
+                    let tab_id = self.id;
+                    thread::spawn(move || {
+                        let dir = workspace.path.clone().unwrap_or_else(|| {
+                            PathBuf::from(
+                                directories::UserDirs::new()
+                                    .and_then(|u| {
+                                        u.home_dir().to_str().map(|s| s.to_string())
+                                    })
+                                    .unwrap_or_else(|| ".".to_string()),
+                            )
+                        });
+                        if let Some(path) = tinyfiledialogs::open_file_dialog(
+                            "Open file",
+                            dir.to_str().unwrap(),
+                            None,
+                        ) {
+                            let path = PathBuf::from(path);
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::OpenFile(path),
+                                Target::Widget(tab_id),
                             );
                         }
                     });

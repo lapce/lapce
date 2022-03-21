@@ -116,11 +116,19 @@ mode = "i"
 key = "meta+s"
 command = "save"
 
+[[keymaps]]
+key = "meta+o"
+command = "open_file"
+
 # ----------------------------------- Editor Management -------------------------------
 
 [[keymaps]]
 key = "meta+w"
 command = "split_close"
+
+[[keymaps]]
+key = "meta+k f"
+command = "close_folder"
 
 [[keymaps]]
 key = "meta+\\"

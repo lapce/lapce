@@ -116,12 +116,20 @@ mode = "i"
 key = "ctrl+s"
 command = "save"
 
+[[keymaps]]
+key = "ctrl+o"
+command = "open_file"
+
 # ----------------------------------- Editor Management -------------------------------
 
 [[keymaps]]
 key = "ctrl+w"
 command = "split_close"
 mode = "i"
+
+[[keymaps]]
+key = "ctrl+k f"
+command = "close_folder"
 
 [[keymaps]]
 key = "ctrl+F4"
