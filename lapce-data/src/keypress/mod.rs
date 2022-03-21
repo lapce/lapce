@@ -31,12 +31,10 @@ pub use keypress::KeyPress;
 
 const DEFAULT_KEYMAPS_COMMON: &str =
     include_str!("../../../defaults/keymaps-common.toml");
-const DEFAULT_KEYMAPS_WINDOWS: &str =
-    include_str!("../../../defaults/keymaps-windows.toml");
 const DEFAULT_KEYMAPS_MACOS: &str =
     include_str!("../../../defaults/keymaps-macos.toml");
-const DEFAULT_KEYMAPS_LINUX: &str =
-    include_str!("../../../defaults/keymaps-linux.toml");
+const DEFAULT_KEYMAPS_NONMACOS: &str =
+    include_str!("../../../defaults/keymaps-nonmacos.toml");
 
 #[derive(PartialEq)]
 enum KeymapMatch {
@@ -664,10 +662,8 @@ impl KeyPressData {
 
         let os_keymaps = if std::env::consts::OS == "macos" {
             DEFAULT_KEYMAPS_MACOS
-        } else if std::env::consts::OS == "linux" {
-            DEFAULT_KEYMAPS_LINUX
         } else {
-            DEFAULT_KEYMAPS_WINDOWS
+            DEFAULT_KEYMAPS_NONMACOS
         };
 
         if let Err(err) = loader.load_from_str(os_keymaps, is_modal) {

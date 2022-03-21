@@ -4,16 +4,6 @@
 key = "F1"
 command = "palette.command"
 
-[[keymaps]]
-key = ":"
-command = "palette.command"
-mode = "n"
-
-[[keymaps]]
-key = "space"
-command = "toggle_code_lens"
-mode = "nv"
-
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -26,6 +16,16 @@ key = "alt+down"
 command = "move_line_down"
 mode = "i"
 
+[[keymaps]]
+key = "Delete"
+command = "delete_forward"
+mode = "i"
+
+[[keymaps]]
+key = "backspace"
+command = "delete_backward"
+mode = "i"
+
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
@@ -33,7 +33,25 @@ key = "alt+I"
 command = "insert_cursor_end_of_line"
 mode = "i"
 
+# --------------------------------- Rich Lanaguage Editing ----------------------------
+
+[[keymaps]]
+key = "F12"
+command = "goto_definition"
+
 # ------------------------------------ ------------ -------------------------------------
+
+[[keymaps]]
+key = "tab"
+command = "jump_to_next_snippet_placeholder"
+when = "in_snippet"
+mode = "i"
+
+[[keymaps]]
+key = "shift+tab"
+command = "jump_to_prev_snippet_placeholder"
+when = "in_snippet"
+mode = "i"
 
 [[keymaps]]
 key = "ctrl+m"
@@ -125,21 +143,6 @@ command = "delete_backward"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+w"
-command = "delete_word_backward"
-mode = "i"
-
-[[keymaps]]
-key = "backspace"
-command = "delete_backward"
-mode = "i"
-
-[[keymaps]]
-key = "esc"
-command = "normal_mode"
-mode = "iv"
-
-[[keymaps]]
 key = "enter"
 command = "insert_new_line"
 mode = "i"
@@ -155,3 +158,315 @@ key = "ctrl+m"
 command = "insert_new_line"
 mode = "i"
 when = "!list_focus"
+
+# ------------------------------------ Modal -----------------------------------------
+
+[[keymaps]]
+key = "esc"
+command = "normal_mode"
+mode = "iv"
+
+[[keymaps]]
+key = ":"
+command = "palette.command"
+mode = "n"
+
+[[keymaps]]
+key = "G"
+command = "go_to_line_deault_last"
+mode = "nv"
+
+[[keymaps]]
+key = "g g"
+command = "go_to_line_deault_first"
+mode = "nv"
+
+[[keymaps]]
+key = "h"
+command = "left"
+mode = "nv"
+
+[[keymaps]]
+key = "j"
+command = "down"
+mode = "nv"
+
+[[keymaps]]
+key = "k"
+command = "up"
+mode = "nv"
+
+[[keymaps]]
+key = "l"
+command = "right"
+mode = "nv"
+
+[[keymaps]]
+key = "a"
+command = "append"
+mode = "n"
+
+[[keymaps]]
+key = "A"
+command = "append_end_of_line"
+mode = "n"
+
+[[keymaps]]
+key = "i"
+command = "insert_mode"
+mode = "n"
+
+[[keymaps]]
+key = "u"
+command = "undo"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+r"
+command = "redo"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+i"
+command = "jump_location_forward"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+o"
+command = "jump_location_backward"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+n"
+command = "goto_definition"
+mode = "n"
+
+[[keymaps]]
+key = "g d"
+command = "goto_definition"
+mode = "n"
+
+[[keymaps]]
+key = "p"
+command = "paste"
+mode = "nv"
+
+[[keymaps]]
+key = "J"
+command = "join_lines"
+mode = "n"
+
+[[keymaps]]
+key = "y"
+command = "yank"
+mode = "v"
+
+[[keymaps]]
+key = "x"
+command = "delete_forward"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+p"
+command = "get_references"
+mode = "n"
+
+[[keymaps]]
+key = "s"
+command = "delete_forward_and_insert"
+mode = "nv"
+
+[[keymaps]]
+key = "I"
+command = "insert_first_non_blank"
+mode = "nv"
+
+[[keymaps]]
+key = "o"
+command = "new_line_below"
+mode = "nv"
+
+[[keymaps]]
+key = "0"
+command = "line_start"
+mode = "nv"
+
+[[keymaps]]
+key = "^"
+command = "line_start_non_blank"
+mode = "nv"
+
+[[keymaps]]
+key = "$"
+command = "line_end"
+mode = "nv"
+
+[[keymaps]]
+key = "w"
+command = "word_forward"
+mode = "nv"
+
+[[keymaps]]
+key = "e"
+command = "word_end_forward"
+mode = "nv"
+
+[[keymaps]]
+key = "b"
+command = "word_backward"
+mode = "nv"
+
+[[keymaps]]
+key = "O"
+command = "new_line_above"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+e"
+command = "scroll_down"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+y"
+command = "scroll_up"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+u"
+command = "page_up"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+d"
+command = "page_down"
+mode = "nv"
+
+[[keymaps]]
+key = "z z"
+command = "center_of_window"
+mode = "nv"
+
+[[keymaps]]
+key = "d"
+command = "delete_visual"
+mode = "v"
+
+[[keymaps]]
+key = "d"
+command = "delete_operator"
+mode = "n"
+
+[[keymaps]]
+key = "f"
+command = "inline_find_right"
+mode = "nv"
+
+[[keymaps]]
+key = "F"
+command = "inline_find_left"
+mode = "nv"
+
+[[keymaps]]
+key = ";"
+command = "repeat_last_inline_find"
+mode = "nv"
+
+[[keymaps]]
+key = "d d"
+command = "delete_line"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+/"
+command = "clear_search"
+mode = "n"
+
+[[keymaps]]
+key = "*"
+command = "search_whole_word_forward"
+mode = "nv"
+
+[[keymaps]]
+key = "n"
+command = "search_forward"
+mode = "nv"
+
+[[keymaps]]
+key = "N"
+command = "search_backward"
+mode = "nv"
+
+[[keymaps]]
+key = "%"
+command = "match_pairs"
+mode = "nv"
+
+[[keymaps]]
+key = "] )"
+command = "next_unmatched_right_bracket"
+mode = "nv"
+
+[[keymaps]]
+key = "[ ("
+command = "previous_unmatched_left_bracket"
+mode = "nv"
+
+[[keymaps]]
+key = "] }"
+command = "next_unmatched_right_curly_bracket"
+mode = "nv"
+
+[[keymaps]]
+key = "[ {"
+command = "previous_unmatched_left_curly_bracket"
+mode = "nv"
+
+[[keymaps]]
+key = "v"
+command = "toggle_visual_mode"
+mode = "nv"
+
+[[keymaps]]
+key = "V"
+command = "toggle_linewise_visual_mode"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+v"
+command = "toggle_blockwise_visual_mode"
+mode = "nv"
+
+[[keymaps]]
+key = "ctrl+w l"
+command = "split_right"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w h"
+command = "split_left"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w j"
+command = "split_down"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w k"
+command = "split_up"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w s"
+command = "split_horizontal"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w v"
+command = "split_vertical"
+mode = "n"
+
+[[keymaps]]
+key = "space"
+command = "toggle_code_lens"
+mode = "nv"

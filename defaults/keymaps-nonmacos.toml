@@ -1,115 +1,120 @@
 # --------------------------------- General --------------------------------------------
 
 [[keymaps]]
-key = "meta+p"
+key = "ctrl+p"
 command = "palette"
 
 [[keymaps]]
-key = "meta+P"
+key = "Ctrl+P"
 command = "palette.command"
 
 [[keymaps]]
-key = "meta+e"
+key = "ctrl+e"
 command = "toggle_code_lens"
 mode = "i"
 
 [[keymaps]]
-key = "meta+,"
+key = "ctrl+,"
 command = "open_settings"
 
 [[keymaps]]
-key = "meta+k meta+s"
+key = "ctrl+k ctrl+s"
 command = "open_keyboard_shortcuts"
 
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
-key = "meta+z"
+key = "ctrl+z"
 command = "undo"
 mode = "i"
 
 [[keymaps]]
-key = "meta+Z"
+key = "ctrl+Z"
 command = "redo"
 mode = "i"
 
 [[keymaps]]
-key = "meta+x"
+key = "ctrl+x"
 command = "clipboard_cut"
 mode = "i"
 
 [[keymaps]]
-key = "meta+c"
+key = "ctrl+c"
 command = "clipboard_copy"
 mode = "i"
 
 [[keymaps]]
-key = "meta+v"
+key = "ctrl+v"
 command = "clipboard_paste"
 mode = "i"
 
 [[keymaps]]
-key = "meta+right"
+key = "ctrl+right"
 command = "word_forward"
 mode = "i"
 
 [[keymaps]]
-key = "meta+left"
+key = "ctrl+left"
 command = "word_backward"
 mode = "i"
 
 [[keymaps]]
-key = "meta+backspace"
+key = "ctrl+backspace"
 command = "delete_word_backward"
 mode = "i"
 
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
-key = "alt+meta+up"
+key = "alt+ctrl+up"
 command = "insert_cursor_above"
 mode = "i"
 
 [[keymaps]]
-key = "alt+meta+down"
+key = "alt+ctrl+down"
 command = "insert_cursor_below"
 mode = "i"
 
 [[keymaps]]
-key = "meta+l"
+key = "ctrl+l"
 command = "select_current_line"
 mode = "i"
 
 [[keymaps]]
-key = "meta+L"
+key = "ctrl+L"
 command = "select_all_current"
 mode = "i"
 
 [[keymaps]]
-key = "meta+u"
+key = "ctrl+u"
 command = "select_undo"
 mode = "i"
 
 [[keymaps]]
-key = "meta+d"
+key = "ctrl+d"
 command = "select_next_current"
 mode = "i"
 
 [[keymaps]]
-key = "meta+k meta+d"
+key = "ctrl+k ctrl+d"
 command = "select_skip_current"
 mode = "i"
 
 # ------------------------------------ File Management --------------------------------
 
 [[keymaps]]
-key = "meta+s"
+key = "ctrl+s"
 command = "save"
 
 # ----------------------------------- Editor Management -------------------------------
 
 [[keymaps]]
-key = "meta+w"
+key = "ctrl+w"
+command = "split_close"
+mode = "i"
+
+[[keymaps]]
+key = "ctrl+F4"
 command = "split_close"
 
 # --------------------------------- Rich Lanaguage Editing ----------------------------
@@ -120,18 +125,18 @@ command = "get_completion"
 mode = "i"
 
 [[keymaps]]
-key = "meta+i"
+key = "ctrl+i"
 command = "get_completion"
 mode = "i"
 
 [[keymaps]]
-key = "meta+."
+key = "ctrl+."
 command = "show_code_actions"
 
 # ------------------------------------ Navigation -------------------------------------
 
 [[keymaps]]
-key = "meta+O"
+key = "ctrl+O"
 command = "palette.symbol"
 
 [[keymaps]]

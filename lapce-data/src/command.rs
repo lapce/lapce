@@ -337,8 +337,8 @@ pub enum LapceCommand {
     InsertTab,
     #[strum(serialize = "word_backward")]
     WordBackward,
-    #[strum(serialize = "word_foward")]
-    WordFoward,
+    #[strum(serialize = "word_forward")]
+    WordForward,
     #[strum(serialize = "word_end_forward")]
     WordEndForward,
     #[strum(serialize = "line_end")]
@@ -446,7 +446,7 @@ impl LapceCommand {
                 None => Movement::Line(LinePosition::Last),
             }),
             LapceCommand::WordBackward => Some(Movement::WordBackward),
-            LapceCommand::WordFoward => Some(Movement::WordForward),
+            LapceCommand::WordForward => Some(Movement::WordForward),
             LapceCommand::WordEndForward => Some(Movement::WordEndForward),
             LapceCommand::MatchPairs => Some(Movement::MatchPairs),
             LapceCommand::NextUnmatchedRightBracket => {
