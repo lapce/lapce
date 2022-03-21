@@ -63,6 +63,11 @@ key = "meta+backspace"
 command = "delete_word_backward"
 mode = "i"
 
+[[keymaps]]
+key = "meta+|"
+command = "match_pairs"
+mode = "i"
+
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
