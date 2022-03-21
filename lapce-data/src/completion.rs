@@ -404,7 +404,9 @@ impl CompletionData {
                     self.matcher.fuzzy_indices(filter_text, &self.input)
                 {
                     if shift > 0 {
-                        indices = indices.iter().map(|i| i + shift).collect();
+                        for idx in indices.iter_mut() {
+                            *idx += shift;
+                        }
                     }
                     let mut item = i.clone();
                     item.score = score;
