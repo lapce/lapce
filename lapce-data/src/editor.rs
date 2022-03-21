@@ -532,20 +532,17 @@ impl LapceEditorBufferData {
     }
 
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
+        let tab_width = self.config.editor.tab_width;
         let additional_edit: Option<Vec<_>> =
             item.additional_text_edits.as_ref().map(|edits| {
                 edits
                     .iter()
                     .map(|edit| {
                         let selection = Selection::region(
-                            self.buffer.offset_of_position(
-                                &edit.range.start,
-                                self.config.editor.tab_width,
-                            ),
-                            self.buffer.offset_of_position(
-                                &edit.range.end,
-                                self.config.editor.tab_width,
-                            ),
+                            self.buffer
+                                .offset_of_position(&edit.range.start, tab_width),
+                            self.buffer
+                                .offset_of_position(&edit.range.end, tab_width),
                         );
                         (selection, edit.new_text.clone())
                     })
@@ -567,14 +564,10 @@ impl LapceEditorBufferData {
                     let offset = self.editor.cursor.offset();
                     let start_offset = self.buffer.prev_code_boundary(offset);
                     let end_offset = self.buffer.next_code_boundary(offset);
-                    let edit_start = self.buffer.offset_of_position(
-                        &edit.range.start,
-                        self.config.editor.tab_width,
-                    );
-                    let edit_end = self.buffer.offset_of_position(
-                        &edit.range.end,
-                        self.config.editor.tab_width,
-                    );
+                    let edit_start =
+                        self.buffer.offset_of_position(&edit.range.start, tab_width);
+                    let edit_end =
+                        self.buffer.offset_of_position(&edit.range.end, tab_width);
                     let selection = Selection::region(
                         start_offset.min(edit_start),
                         end_offset.max(edit_end),
