@@ -6,10 +6,10 @@ use druid::{
     RenderContext, Size, Target, TextLayout, UpdateCtx, Widget,
 };
 use lapce_data::{
-    buffer::{BufferContent, EditType},
+    buffer::{Buffer, BufferContent, EditType},
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::{LapceMainSplitData, LapceTabData},
+    data::{LapceEditorData, LapceMainSplitData, LapceTabData},
     keypress::KeyPressFocus,
     movement::{Movement, Selection},
     proxy::LapceProxy,
@@ -80,6 +80,20 @@ impl KeyPressFocus for CodeActionData {
 }
 
 impl CodeActionData {
+    fn code_actions<'a>(
+        buffer: &'a Buffer,
+        editor: &LapceEditorData,
+    ) -> &'a [CodeActionOrCommand] {
+        let offset = editor.cursor.offset();
+        let prev_offset = buffer.prev_code_boundary(offset);
+
+        buffer
+            .code_actions
+            .get(&prev_offset)
+            .map(|vec| vec.as_ref())
+            .unwrap_or(&[])
+    }
+
     pub fn next(&mut self, _ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
@@ -88,11 +102,7 @@ impl CodeActionData {
         };
         if let BufferContent::File(path) = &editor.content {
             let buffer = self.main_split.open_files.get(path).unwrap();
-            let offset = editor.cursor.offset();
-            let prev_offset = buffer.prev_code_boundary(offset);
-            let empty_vec = Vec::new();
-            let code_actions =
-                buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+            let code_actions = Self::code_actions(buffer, editor);
 
             self.main_split.current_code_actions = Movement::Down.update_index(
                 self.main_split.current_code_actions,
@@ -111,11 +121,7 @@ impl CodeActionData {
         };
         if let BufferContent::File(path) = &editor.content {
             let buffer = self.main_split.open_files.get(path).unwrap();
-            let offset = editor.cursor.offset();
-            let prev_offset = buffer.prev_code_boundary(offset);
-            let empty_vec = Vec::new();
-            let code_actions =
-                buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+            let code_actions = Self::code_actions(buffer, editor);
 
             let action = match code_actions.get(self.main_split.current_code_actions)
             {
@@ -137,7 +143,7 @@ impl CodeActionData {
                                     .open_files
                                     .get_mut(&path)
                                     .unwrap();
-                                let edits: Vec<(Selection, String)> = edits
+                                let edits: Vec<_> = edits
                                     .iter()
                                     .map(|edit| {
                                         let selection = Selection::region(
@@ -150,14 +156,14 @@ impl CodeActionData {
                                                 self.config.editor.tab_width,
                                             ),
                                         );
-                                        (selection, edit.new_text.clone())
+                                        (selection, edit.new_text.as_str())
                                     })
                                     .collect();
                                 self.main_split.edit(
                                     &path,
                                     &edits
                                         .iter()
-                                        .map(|(s, c)| (s, c.as_str()))
+                                        .map(|(s, c)| (s, *c))
                                         .collect::<Vec<(&Selection, &str)>>(),
                                     EditType::Other,
                                     &self.config,
@@ -338,11 +344,7 @@ impl Widget<LapceTabData> for CodeAction {
 
         if let BufferContent::File(path) = &editor.content {
             let buffer = data.main_split.open_files.get(path).unwrap();
-            let offset = editor.cursor.offset();
-            let prev_offset = buffer.prev_code_boundary(offset);
-            let empty_vec = Vec::new();
-            let code_actions =
-                buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+            let code_actions = CodeActionData::code_actions(buffer, editor);
 
             let action_text_layouts: Vec<TextLayout<String>> = code_actions
                 .iter()
