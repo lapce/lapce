@@ -134,11 +134,9 @@ impl LspCatalog {
                         .as_ref()
                         .unwrap()
                         .semantic_tokens_provider;
-                    if let Some(styles) = format_semantic_styles(
-                        buffer,
-                        semantic_tokens_provider,
-                        res.clone(),
-                    ) {
+                    if let Some(styles) =
+                        format_semantic_styles(buffer, semantic_tokens_provider, res)
+                    {
                         local_dispatcher.send_notification(
                             "semantic_styles",
                             json!({
@@ -147,19 +145,6 @@ impl LspCatalog {
                                 "path": path,
                                 "styles": styles,
                                 "len": len,
-                            }),
-                        )
-                    }
-                    if let Some(tokens) =
-                        format_semantic_tokens(buffer, semantic_tokens_provider, res)
-                    {
-                        local_dispatcher.send_notification(
-                            "semantic_tokens",
-                            json!({
-                                "rev": rev,
-                                "buffer_id": buffer_id,
-                                "path": path,
-                                "tokens": tokens,
                             }),
                         )
                     }
@@ -1039,39 +1024,6 @@ fn format_semantic_styles(
                 fg_color: Some(kind),
             },
         });
-    }
-
-    Some(highlights)
-}
-
-fn format_semantic_tokens(
-    buffer: &Buffer,
-    semantic_tokens_provider: &Option<SemanticTokensServerCapabilities>,
-    value: Value,
-) -> Option<Vec<(usize, usize, String)>> {
-    let semantic_tokens: SemanticTokens = serde_json::from_value(value).ok()?;
-    let semantic_tokens_provider = semantic_tokens_provider.as_ref()?;
-    let semantic_lengends = semantic_tokens_lengend(semantic_tokens_provider);
-
-    let mut highlights = Vec::new();
-    let mut line = 0;
-    let mut start = 0;
-    let mut last_start = 0;
-    for semantic_token in &semantic_tokens.data {
-        if semantic_token.delta_line > 0 {
-            line += semantic_token.delta_line as usize;
-            start = buffer.offset_of_line(line);
-        }
-        start += semantic_token.delta_start as usize;
-        let end = start + semantic_token.length as usize;
-        let kind = semantic_lengends.token_types[semantic_token.token_type as usize]
-            .as_str()
-            .to_string();
-        if start < last_start {
-            continue;
-        }
-        last_start = start;
-        highlights.push((start, end, kind));
     }
 
     Some(highlights)

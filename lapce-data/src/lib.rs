@@ -10,7 +10,6 @@ pub mod editor;
 pub mod explorer;
 pub mod find;
 pub mod keypress;
-pub mod language;
 pub mod lsp;
 pub mod menu;
 pub mod movement;

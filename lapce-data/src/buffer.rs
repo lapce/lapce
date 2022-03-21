@@ -1,18 +1,15 @@
-use crossbeam_channel::Sender;
+use druid::PaintCtx;
 use druid::{piet::PietTextLayout, Vec2};
 use druid::{
-    piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
+    piet::{Text, TextAttribute, TextLayoutBuilder},
     Data, EventCtx, ExtEventSink, Target, WidgetId, WindowId,
 };
-use druid::{PaintCtx, Point};
-use language::{new_highlight_config, LapceLanguage};
-use lapce_core::style::{line_styles, LineStyle, LineStyles};
+use lapce_core::style::{line_styles, LineStyle, LineStyles, Style};
 use lapce_core::syntax::Syntax;
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
 use lsp_types::SemanticTokensLegend;
 use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{CodeActionResponse, Position};
-use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::cmp::{self, Ordering};
@@ -22,29 +19,20 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::atomic::{self, AtomicU64};
 use std::{borrow::Cow, collections::BTreeSet, path::PathBuf, sync::Arc, thread};
-use tree_sitter::{Node, Tree};
-use tree_sitter_highlight::{
-    Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
-};
 use unicode_width::UnicodeWidthChar;
 use xi_rope::{
-    interval::IntervalBounds,
-    multiset::Subset,
-    rope::Rope,
-    spans::{Spans, SpansBuilder},
-    Cursor, Delta, DeltaBuilder, Interval, RopeDelta, RopeInfo,
+    multiset::Subset, rope::Rope, spans::Spans, Cursor, Delta, DeltaBuilder,
+    Interval, RopeDelta, RopeInfo,
 };
 use xi_unicode::EmojiExt;
 
 use crate::config::{Config, LapceTheme};
 use crate::editor::EditorLocationNew;
 use crate::find::FindProgress;
-use crate::language::SCOPES;
 use crate::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
     find::Find,
-    language,
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     proxy::LapceProxy,
     state::{Counter, Mode},
@@ -118,26 +106,6 @@ pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,
     pub highlights: Vec<(usize, usize, String)>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Style {
-    pub fg_color: Option<String>,
-}
-
-pub enum UpdateEvent {
-    Buffer(BufferUpdate),
-    SemanticTokens(BufferUpdate, Vec<(usize, usize, String)>),
-}
-
-pub struct BufferUpdate {
-    pub id: BufferId,
-    pub path: PathBuf,
-    pub rope: Rope,
-    pub rev: u64,
-    pub language: LapceLanguage,
-    pub highlights: Arc<Spans<Style>>,
-    pub semantic_tokens: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -244,15 +212,9 @@ pub struct Buffer {
     pub id: BufferId,
     pub rope: Rope,
     pub content: BufferContent,
-    pub line_styles: Rc<RefCell<Vec<Option<Arc<Vec<(usize, usize, Style)>>>>>>,
-    pub styles: Arc<Spans<Style>>,
-    pub semantic_tokens: bool,
-    pub language: Option<LapceLanguage>,
     pub syntax: Option<Syntax>,
     pub new_line_styles: Rc<RefCell<LineStyles>>,
-    pub semantic_styles: Option<Spans<lapce_core::style::Style>>,
-    pub highlighter: Arc<Mutex<Highlighter>>,
-    pub highlight: Option<Arc<Mutex<HighlightConfiguration>>>,
+    pub semantic_styles: Option<Arc<Spans<Style>>>,
     pub max_len: usize,
     pub max_len_line: usize,
     pub num_lines: usize,
@@ -262,12 +224,9 @@ pub struct Buffer {
     pub loaded: bool,
     pub start_to_load: Rc<RefCell<bool>>,
     pub local: bool,
-    update_sender: Arc<Sender<UpdateEvent>>,
     pub histories: im::HashMap<String, Rope>,
     pub history_styles: im::HashMap<String, Arc<Spans<Style>>>,
-    pub history_line_styles: Rc<
-        RefCell<HashMap<String, HashMap<usize, Arc<Vec<(usize, usize, Style)>>>>>,
-    >,
+    pub history_line_styles: Rc<RefCell<HashMap<String, LineStyles>>>,
     pub history_changes: im::HashMap<String, Arc<Vec<DiffLines>>>,
 
     pub find: Rc<RefCell<Find>>,
@@ -289,7 +248,6 @@ pub struct Buffer {
     pub scroll_offset: Vec2,
 
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
-    pub syntax_tree: Option<Arc<Tree>>,
 
     tab_id: WidgetId,
     event_sink: ExtEventSink,
@@ -298,35 +256,24 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(
         content: BufferContent,
-        update_sender: Arc<Sender<UpdateEvent>>,
         tab_id: WidgetId,
         event_sink: ExtEventSink,
     ) -> Self {
         let rope = Rope::from("");
-        let language = match &content {
-            BufferContent::File(path) => LapceLanguage::from_path(path),
-            BufferContent::Local(_) => None,
-        };
         let syntax = match &content {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
         };
-        let buffer = Self {
+
+        Self {
             id: BufferId::next(),
             rope,
-            highlighter: Arc::new(Mutex::new(Highlighter::new())),
-            highlight: language
-                .map(|l| Arc::new(Mutex::new(new_highlight_config(l)))),
-            language,
             syntax,
             new_line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
             content,
-            styles: Arc::new(SpansBuilder::new(0).build()),
-            line_styles: Rc::new(RefCell::new(Vec::new())),
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
-            semantic_tokens: false,
             max_len: 0,
             max_len_line: 0,
             num_lines: 0,
@@ -335,7 +282,6 @@ impl Buffer {
             start_to_load: Rc::new(RefCell::new(false)),
             loaded: false,
             dirty: false,
-            update_sender,
             local: false,
             histories: im::HashMap::new(),
             history_styles: im::HashMap::new(),
@@ -364,12 +310,9 @@ impl Buffer {
             scroll_offset: Vec2::ZERO,
 
             code_actions: im::HashMap::new(),
-            syntax_tree: None,
             tab_id,
             event_sink,
-        };
-        *buffer.line_styles.borrow_mut() = vec![None; buffer.num_lines()];
-        buffer
+        }
     }
 
     pub fn set_local(mut self) -> Self {
@@ -392,7 +335,6 @@ impl Buffer {
         self.deletes_from_union = Subset::new(0);
         self.undone_groups = BTreeSet::new();
         self.tombstones = Rope::default();
-        self.syntax_tree = None;
     }
 
     pub fn load_history(&mut self, version: &str, content: Rope) {
@@ -420,41 +362,35 @@ impl Buffer {
         self.max_len = max_len;
         self.max_len_line = max_len_line;
         self.num_lines = self.num_lines();
-        *self.line_styles.borrow_mut() = vec![None; self.num_lines()];
         self.loaded = true;
         self.notify_update(None);
     }
 
     fn retrieve_history_styles(&self, version: &str, content: Rope) {
         if let BufferContent::File(path) = &self.content {
-            if let Some(highlight_config) = self.highlight.clone() {
-                let highlighter = self.highlighter.clone();
-                let id = self.id;
-                let path = path.clone();
-                let event_sink = self.event_sink.clone();
-                let tab_id = self.tab_id;
-                let version = version.to_string();
-                rayon::spawn(move || {
-                    let mut highlight_config = highlight_config.lock();
-                    let mut highlighter = highlighter.lock();
-                    let highlights = rope_styles(
-                        content,
-                        &mut highlighter,
-                        &mut highlight_config,
-                    );
-
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateHistoryStyle {
-                            id,
-                            path,
-                            history: version,
-                            highlights,
-                        },
-                        Target::Widget(tab_id),
-                    );
-                });
-            }
+            let id = self.id;
+            let path = path.clone();
+            let tab_id = self.tab_id;
+            let version = version.to_string();
+            let event_sink = self.event_sink.clone();
+            rayon::spawn(move || {
+                if let Some(syntax) =
+                    Syntax::init(&path).map(|s| s.parse(0, content, None))
+                {
+                    if let Some(styles) = syntax.styles {
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateHistoryStyle {
+                                id,
+                                path,
+                                history: version,
+                                highlights: styles,
+                            },
+                            Target::Widget(tab_id),
+                        );
+                    }
+                }
+            });
         }
     }
 
@@ -500,19 +436,6 @@ impl Buffer {
     }
 
     pub fn notify_update(&self, delta: Option<&RopeDelta>) {
-        if let Some(language) = self.language {
-            if let BufferContent::File(path) = &self.content {
-                let _ = self.update_sender.send(UpdateEvent::Buffer(BufferUpdate {
-                    id: self.id,
-                    path: path.clone(),
-                    rope: self.rope.clone(),
-                    rev: self.rev,
-                    language,
-                    highlights: self.styles.clone(),
-                    semantic_tokens: self.semantic_tokens,
-                }));
-            }
-        }
         self.trigger_syntax_change(delta);
         self.trigger_history_change();
     }
@@ -810,7 +733,7 @@ impl Buffer {
         &self,
         history: &str,
         line: usize,
-    ) -> Option<Arc<Vec<(usize, usize, Style)>>> {
+    ) -> Option<Arc<Vec<LineStyle>>> {
         let rope = self.histories.get(history)?;
         let styles = self.history_styles.get(history)?;
         let mut cached_line_styles = self.history_line_styles.borrow_mut();
@@ -822,7 +745,7 @@ impl Buffer {
         let start_offset = rope.offset_of_line(line);
         let end_offset = rope.offset_of_line(line + 1);
 
-        let line_styles: Vec<(usize, usize, Style)> = styles
+        let line_styles: Vec<LineStyle> = styles
             .iter_chunks(start_offset..end_offset)
             .filter_map(|(iv, style)| {
                 let start = iv.start();
@@ -830,21 +753,29 @@ impl Buffer {
                 if start > end_offset || end < start_offset {
                     None
                 } else {
-                    Some((
-                        if start > start_offset {
+                    Some(LineStyle {
+                        start: if start > start_offset {
                             start - start_offset
                         } else {
                             0
                         },
-                        end - start_offset,
-                        style.clone(),
-                    ))
+                        end: end - start_offset,
+                        style: style.clone(),
+                    })
                 }
             })
             .collect();
         let line_styles = Arc::new(line_styles);
         cached_line_styles.insert(line, line_styles.clone());
         Some(line_styles)
+    }
+
+    pub fn styles(&self) -> Option<&Arc<Spans<Style>>> {
+        let styles = self
+            .semantic_styles
+            .as_ref()
+            .or_else(|| self.syntax.as_ref().and_then(|s| s.styles.as_ref()));
+        styles
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
@@ -862,42 +793,6 @@ impl Buffer {
                 .insert(line, Arc::new(line_styles));
         }
         self.new_line_styles.borrow().get(&line).cloned().unwrap()
-    }
-
-    fn get_line_styles(&self, line: usize) -> Arc<Vec<(usize, usize, Style)>> {
-        if let Some(line_styles) =
-            self.line_styles.borrow().get(line).and_then(|s| s.as_ref())
-        {
-            return line_styles.clone();
-        }
-        let start_offset = self.offset_of_line(line);
-        let end_offset = self.offset_of_line(line + 1);
-        let line_styles: Vec<(usize, usize, Style)> = self
-            .styles
-            .iter_chunks(start_offset..end_offset)
-            .filter_map(|(iv, style)| {
-                let start = iv.start();
-                let end = iv.end();
-                if start > end_offset || end < start_offset {
-                    None
-                } else {
-                    Some((
-                        if start > start_offset {
-                            start - start_offset
-                        } else {
-                            0
-                        },
-                        end - start_offset,
-                        style.clone(),
-                    ))
-                }
-            })
-            .collect();
-        let line_styles = Arc::new(line_styles);
-        if let Some(style) = self.line_styles.borrow_mut().get_mut(line) {
-            *style = Some(line_styles.clone());
-        }
-        line_styles
     }
 
     pub fn history_text_layout(
@@ -927,13 +822,13 @@ impl Buffer {
             );
 
         if let Some(styles) = self.get_hisotry_line_styles(history, line) {
-            for (start, end, style) in styles.iter() {
-                if let Some(fg_color) = style.fg_color.as_ref() {
+            for line_style in styles.iter() {
+                if let Some(fg_color) = line_style.style.fg_color.as_ref() {
                     if let Some(fg_color) =
                         config.get_color(&("style.".to_string() + fg_color))
                     {
                         layout_builder = layout_builder.range_attribute(
-                            start..end,
+                            line_style.start..line_style.end,
                             TextAttribute::TextColor(fg_color.clone()),
                         );
                     }
@@ -1621,8 +1516,8 @@ impl Buffer {
                 (new_offset, ColPosition::Col(col))
             }
             Movement::NextUnmatched(c) => {
-                if self.syntax_tree.is_some() {
-                    let new_offset = self
+                if let Some(syntax) = self.syntax.as_ref() {
+                    let new_offset = syntax
                         .find_tag(offset, false, &c.to_string())
                         .unwrap_or(offset);
                     let (_, col) =
@@ -1641,8 +1536,8 @@ impl Buffer {
                 }
             }
             Movement::PreviousUnmatched(c) => {
-                if self.syntax_tree.is_some() {
-                    let new_offset = self
+                if let Some(syntax) = self.syntax.as_ref() {
+                    let new_offset = syntax
                         .find_tag(offset, true, &c.to_string())
                         .unwrap_or(offset);
                     let (_, col) =
@@ -1658,9 +1553,9 @@ impl Buffer {
                 }
             }
             Movement::MatchPairs => {
-                if self.syntax_tree.is_some() {
+                if let Some(syntax) = self.syntax.as_ref() {
                     let new_offset =
-                        self.find_matching_pair(offset).unwrap_or(offset);
+                        syntax.find_matching_pair(offset).unwrap_or(offset);
                     let (_, col) =
                         self.offset_to_line_col(new_offset, config.editor.tab_width);
                     (new_offset, ColPosition::Col(col))
@@ -1677,87 +1572,11 @@ impl Buffer {
     }
 
     pub fn previous_unmatched(&self, c: char, offset: usize) -> Option<usize> {
-        if self.syntax_tree.is_some() {
-            self.find_tag(offset, true, &c.to_string())
+        if let Some(syntax) = self.syntax.as_ref() {
+            syntax.find_tag(offset, true, &c.to_string())
         } else {
             WordCursor::new(&self.rope, offset).previous_unmatched(c)
         }
-    }
-
-    fn find_matching_pair(&self, offset: usize) -> Option<usize> {
-        let tree = self.syntax_tree.as_ref()?;
-        let node = tree
-            .root_node()
-            .descendant_for_byte_range(offset, offset + 1)?;
-        let mut chars = node.kind().chars();
-        let char = chars.next()?;
-        let char = matching_char(char)?;
-        let tag = &char.to_string();
-
-        if let Some(offset) = self.find_tag_in_siblings(node, true, tag) {
-            return Some(offset);
-        }
-        if let Some(offset) = self.find_tag_in_siblings(node, false, tag) {
-            return Some(offset);
-        }
-        None
-    }
-
-    fn find_tag(&self, offset: usize, previous: bool, tag: &str) -> Option<usize> {
-        let tree = self.syntax_tree.as_ref()?;
-        let node = tree
-            .root_node()
-            .descendant_for_byte_range(offset, offset + 1)?;
-
-        if let Some(offset) = self.find_tag_in_siblings(node, previous, tag) {
-            return Some(offset);
-        }
-
-        if let Some(offset) = self.find_tag_in_children(node, tag) {
-            return Some(offset);
-        }
-
-        let mut node = node;
-        while let Some(parent) = node.parent() {
-            if let Some(offset) = self.find_tag_in_siblings(parent, previous, tag) {
-                return Some(offset);
-            }
-            node = parent;
-        }
-        None
-    }
-
-    fn find_tag_in_siblings(
-        &self,
-        node: Node,
-        previous: bool,
-        tag: &str,
-    ) -> Option<usize> {
-        let mut node = node;
-        while let Some(sibling) = if previous {
-            node.prev_sibling()
-        } else {
-            node.next_sibling()
-        } {
-            if sibling.kind() == tag {
-                let offset = sibling.start_byte();
-                return Some(offset);
-            }
-            node = sibling;
-        }
-        None
-    }
-
-    fn find_tag_in_children(&self, node: Node, tag: &str) -> Option<usize> {
-        for i in 0..node.child_count() {
-            if let Some(child) = node.child(i) {
-                if child.kind() == tag {
-                    let offset = child.start_byte();
-                    return Some(offset);
-                }
-            }
-        }
-        None
     }
 
     pub fn prev_code_boundary(&self, offset: usize) -> usize {
@@ -1766,13 +1585,6 @@ impl Buffer {
 
     pub fn next_code_boundary(&self, offset: usize) -> usize {
         WordCursor::new(&self.rope, offset).next_code_boundary()
-    }
-
-    pub fn update_syntax_tree(&mut self, rev: u64, tree: Tree) {
-        if rev != self.rev {
-            return;
-        }
-        self.syntax_tree = Some(Arc::new(tree));
     }
 
     pub fn update_history_changes(
@@ -1785,22 +1597,6 @@ impl Buffer {
             return;
         }
         self.history_changes.insert(history.to_string(), changes);
-    }
-
-    pub fn update_styles(
-        &mut self,
-        rev: u64,
-        highlights: Spans<Style>,
-        semantic_tokens: bool,
-    ) {
-        if rev != self.rev {
-            return;
-        }
-        if semantic_tokens {
-            self.semantic_tokens = true;
-        }
-        self.styles = Arc::new(highlights);
-        *self.line_styles.borrow_mut() = vec![None; self.num_lines];
     }
 
     fn update_size(&mut self, inval_lines: &InvalLines) {
@@ -1835,23 +1631,15 @@ impl Buffer {
         }
     }
 
-    fn update_line_styles(&mut self, delta: &RopeDelta, inval_lines: &InvalLines) {
+    fn update_styles(&mut self, delta: &RopeDelta) {
         if let Some(styles) = self.semantic_styles.as_mut() {
-            styles.apply_shape(delta);
+            Arc::make_mut(styles).apply_shape(delta);
         } else if let Some(syntax) = self.syntax.as_mut() {
             if let Some(styles) = syntax.styles.as_mut() {
-                styles.apply_shape(delta);
+                Arc::make_mut(styles).apply_shape(delta);
             }
         }
         self.new_line_styles.borrow_mut().clear();
-
-        Arc::make_mut(&mut self.styles).apply_shape(delta);
-        let mut line_styles = self.line_styles.borrow_mut();
-        let right = line_styles.split_off(inval_lines.start_line);
-        let right = &right[inval_lines.inval_count..];
-        let mut new = vec![None; inval_lines.new_count];
-        line_styles.append(&mut new);
-        line_styles.extend_from_slice(right);
     }
 
     fn mk_new_rev(
@@ -1951,7 +1739,6 @@ impl Buffer {
         self.tombstones = new_tombstones;
         self.deletes_from_union = new_deletes_from_union;
         self.code_actions.clear();
-        self.syntax_tree = None;
 
         let logical_start_line = self.rope.line_of_offset(iv.start);
         let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
@@ -1964,7 +1751,7 @@ impl Buffer {
             new_count: new_hard_count,
         };
         self.update_size(&inval_lines);
-        self.update_line_styles(delta, &inval_lines);
+        self.update_styles(delta);
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.notify_update(Some(delta));
@@ -2849,47 +2636,6 @@ pub fn str_col(s: &str, tab_width: usize) -> usize {
     }
 
     total_width
-}
-
-fn rope_styles(
-    rope: Rope,
-    highlighter: &mut Highlighter,
-    highlight_config: &mut HighlightConfiguration,
-) -> Spans<Style> {
-    let mut current_hl: Option<Highlight> = None;
-    let mut highlights = SpansBuilder::new(rope.len());
-    for hightlight in highlighter
-        .highlight(
-            highlight_config,
-            rope.slice_to_cow(0..rope.len()).as_bytes(),
-            None,
-            |_| None,
-        )
-        .unwrap()
-    {
-        if let Ok(highlight) = hightlight {
-            match highlight {
-                HighlightEvent::Source { start, end } => {
-                    if let Some(hl) = current_hl {
-                        if let Some(hl) = SCOPES.get(hl.0) {
-                            highlights.add_span(
-                                Interval::new(start, end),
-                                Style {
-                                    fg_color: Some(hl.to_string()),
-                                },
-                            );
-                        }
-                    }
-                }
-                HighlightEvent::HighlightStart(hl) => {
-                    current_hl = Some(hl);
-                }
-                HighlightEvent::HighlightEnd => current_hl = None,
-            }
-        }
-    }
-
-    highlights.build()
 }
 
 #[allow(dead_code)]

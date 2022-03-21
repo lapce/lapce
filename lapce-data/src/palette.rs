@@ -1,11 +1,10 @@
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
-use bit_vec::BitVec;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
     piet::{Svg, TextAttribute},
     Command, ExtEventSink, FontFamily, FontWeight, Lens, Modifiers, Target,
-    WidgetId, WindowId,
+    WidgetId,
 };
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -13,9 +12,8 @@ use druid::{
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use fzyr::Score;
 use itertools::Itertools;
-use lsp_types::{DocumentSymbolResponse, Location, Position, Range, SymbolKind};
+use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use serde_json;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -1173,51 +1171,6 @@ impl PaletteViewData {
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
         items
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct PaletteItem {
-    #[allow(dead_code)]
-    window_id: WindowId,
-
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-
-    #[allow(dead_code)]
-    icon: PaletteIcon,
-
-    #[allow(dead_code)]
-    kind: PaletteType,
-
-    #[allow(dead_code)]
-    text: String,
-
-    #[allow(dead_code)]
-    hint: Option<String>,
-
-    #[allow(dead_code)]
-    score: Score,
-
-    #[allow(dead_code)]
-    index: usize,
-
-    #[allow(dead_code)]
-    match_mask: BitVec,
-
-    #[allow(dead_code)]
-    position: Option<Position>,
-
-    #[allow(dead_code)]
-    location: Option<Location>,
-
-    #[allow(dead_code)]
-    path: Option<PathBuf>,
-
-    #[allow(dead_code)]
-    workspace: Option<LapceWorkspace>,
-
-    #[allow(dead_code)]
-    command: Option<LapceCommand>,
 }
 
 fn file_paint_items(

@@ -17,7 +17,7 @@ use crate::svg::get_svg;
 use crate::{
     buffer::BufferId,
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
-    movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
+    movement::{ColPosition, Movement, SelRegion, Selection},
     split::SplitMoveDirection,
     state::Mode,
     state::VisualMode,
@@ -37,15 +37,14 @@ use druid::piet::{
 use druid::Modifiers;
 use druid::{
     kurbo::Line, piet::PietText, Color, Command, Env, EventCtx, FontFamily,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, Vec2, WidgetId,
+    PaintCtx, Point, Rect, RenderContext, Size, Target, Vec2, WidgetId,
 };
 use druid::{Application, ExtEventSink, MouseEvent};
-use lapce_core::lens::Lens;
 use lapce_core::syntax::Syntax;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
-    CodeActionResponse, CompletionItem, DiagnosticSeverity, DocumentChanges,
-    GotoDefinitionResponse, Location, Position, TextEdit, Url, WorkspaceEdit,
+    CodeActionResponse, CompletionItem, DiagnosticSeverity, GotoDefinitionResponse,
+    Location, Position,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -1669,7 +1668,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn paint_gutter_code_lens(&self, ctx: &mut PaintCtx, gutter_width: f64) {
+    fn paint_gutter_code_lens(&self, ctx: &mut PaintCtx, _gutter_width: f64) {
         let rect = ctx.size().to_rect();
         let scroll_offset = self.editor.scroll_offset;
         let empty_lens = Syntax::lens_from_normal_lines(
@@ -1931,92 +1930,6 @@ impl LapceEditorBufferData {
                 );
             }
         }
-    }
-
-    fn paint_code_lens_line(
-        &self,
-        ctx: &mut PaintCtx,
-        line: usize,
-        is_focused: bool,
-        cursor_line: usize,
-        y: f64,
-        y_shift: f64,
-        bounds: [f64; 2],
-        code_lens: bool,
-        char_width: f64,
-        code_lens_char_width: f64,
-        config: &Config,
-    ) {
-        if line > self.buffer.last_line() {
-            return;
-        }
-
-        let line_content = if let Some(syntax) = self.buffer.syntax.as_ref() {
-            let rope = &syntax.text;
-            let last_line = rope.line_of_offset(rope.len());
-            if line > last_line {
-                return;
-            }
-            let start = rope.offset_of_line(line);
-            let end = rope.offset_of_line(line + 1);
-            rope.slice_to_cow(start..end)
-        } else {
-            self.buffer.line_content(line)
-        };
-
-        let mut x = 0.0;
-        let mut x_shift = 0.0;
-        let mut start_char = 0;
-        if code_lens {
-            for ch in line_content.chars() {
-                if ch == ' ' {
-                    x += char_width;
-                    start_char += 1;
-                } else if ch == '\t' {
-                    x += char_width * config.editor.tab_width as f64;
-                    start_char += 1;
-                } else {
-                    break;
-                }
-            }
-
-            x_shift = x - start_char as f64 * code_lens_char_width;
-        }
-
-        let line_height = if code_lens {
-            config.editor.code_lens_font_size as f64
-        } else {
-            config.editor.line_height as f64
-        };
-
-        self.paint_cursor_on_line(
-            ctx,
-            is_focused,
-            cursor_line,
-            line,
-            x_shift,
-            y,
-            if code_lens {
-                code_lens_char_width
-            } else {
-                char_width
-            },
-            line_height,
-            config,
-        );
-        let text_layout = self.buffer.new_text_layout(
-            ctx,
-            line,
-            &line_content[start_char..],
-            None,
-            12,
-            bounds,
-            config,
-        );
-        ctx.draw_text(
-            &text_layout,
-            Point::new(x, if code_lens { y } else { y + y_shift }),
-        );
     }
 
     pub fn paint_code_lens_content(
@@ -4243,7 +4156,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                 }
             }
-            LapceCommand::MoveLineUp => {}
             LapceCommand::NextError => {
                 self.next_error(ctx, env);
             }
@@ -4836,40 +4748,6 @@ pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,
     pub highlights: Vec<(usize, usize, String)>,
-}
-
-fn get_workspace_edit_changes_edits<'a>(
-    url: &Url,
-    workspace_edit: &'a WorkspaceEdit,
-) -> Option<Vec<&'a TextEdit>> {
-    let changes = workspace_edit.changes.as_ref()?;
-    changes.get(url).map(|c| c.iter().collect())
-}
-
-fn get_workspace_edit_document_changes_edits<'a>(
-    url: &Url,
-    workspace_edit: &'a WorkspaceEdit,
-) -> Option<Vec<&'a TextEdit>> {
-    let changes = workspace_edit.document_changes.as_ref()?;
-    match changes {
-        DocumentChanges::Edits(edits) => {
-            for edit in edits {
-                if &edit.text_document.uri == url {
-                    let e = edit
-                        .edits
-                        .iter()
-                        .filter_map(|e| match e {
-                            lsp_types::OneOf::Left(edit) => Some(edit),
-                            lsp_types::OneOf::Right(_) => None,
-                        })
-                        .collect();
-                    return Some(e);
-                }
-            }
-            None
-        }
-        DocumentChanges::Operations(_) => None,
-    }
 }
 
 fn next_in_file_diff_offset(

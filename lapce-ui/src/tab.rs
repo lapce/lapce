@@ -10,7 +10,7 @@ use druid::{
 };
 use itertools::Itertools;
 use lapce_data::{
-    buffer::{BufferContent, BufferUpdate, LocalBufferKind, UpdateEvent},
+    buffer::LocalBufferKind,
     command::{LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND},
     completion::CompletionStatus,
     config::{Config, LapceTheme},
@@ -770,31 +770,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateSemanticTokens(_id, path, rev, tokens) => {
-                        let buffer =
-                            data.main_split.open_files.get_mut(path).unwrap();
-                        if buffer.rev == *rev {
-                            if let Some(language) = buffer.language.as_ref() {
-                                if let BufferContent::File(path) = &buffer.content {
-                                    let _ = data.update_sender.send(
-                                        UpdateEvent::SemanticTokens(
-                                            BufferUpdate {
-                                                id: buffer.id,
-                                                path: path.clone(),
-                                                rope: buffer.rope.clone(),
-                                                rev: *rev,
-                                                language: *language,
-                                                highlights: buffer.styles.clone(),
-                                                semantic_tokens: true,
-                                            },
-                                            tokens.to_owned(),
-                                        ),
-                                    );
-                                }
-                            }
-                        }
-                        ctx.set_handled();
-                    }
                     LapceUICommand::ShowCodeActions
                     | LapceUICommand::CancelCodeActions => {
                         self.code_action.event(ctx, event, data, env);
@@ -823,23 +798,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ));
                         ctx.set_handled();
                     }
-                    #[allow(unused_variables)]
-                    LapceUICommand::UpdateStyle {
-                        id,
-                        path,
-                        rev,
-                        highlights,
-                        semantic_tokens,
-                    } => {
-                        let buffer =
-                            data.main_split.open_files.get_mut(path).unwrap();
-                        Arc::make_mut(buffer).update_styles(
-                            *rev,
-                            highlights.to_owned(),
-                            *semantic_tokens,
-                        );
-                        ctx.set_handled();
-                    }
                     LapceUICommand::FocusSourceControl => {
                         for (_, panel) in data.panels.iter_mut() {
                             for kind in panel.widgets.clone() {
@@ -865,19 +823,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 Target::Widget(active),
                             ));
                         }
-                        ctx.set_handled();
-                    }
-                    #[allow(unused_variables)]
-                    LapceUICommand::UpdateSyntaxTree {
-                        id,
-                        path,
-                        rev,
-                        tree,
-                    } => {
-                        let buffer =
-                            data.main_split.open_files.get_mut(path).unwrap();
-                        Arc::make_mut(buffer)
-                            .update_syntax_tree(*rev, tree.to_owned());
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSyntax { path, rev, syntax } => {
@@ -919,10 +864,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
-                        Arc::make_mut(buffer).history_styles.insert(
-                            history.to_string(),
-                            Arc::new(highlights.to_owned()),
-                        );
+                        Arc::make_mut(buffer)
+                            .history_styles
+                            .insert(history.to_string(), highlights.to_owned());
                         buffer
                             .history_line_styles
                             .borrow_mut()

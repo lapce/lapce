@@ -1,8 +1,8 @@
 use std::{collections::HashSet, path::Path};
 
-use tree_sitter::{Parser, Query, TreeCursor};
+use tree_sitter::{Parser, TreeCursor};
 
-use crate::style::{HighlightConfiguration, SCOPES};
+use crate::style::HighlightConfiguration;
 
 const RUST_CODE_LENS_LIST: &[&str] =
     &["source_file", "impl_item", "trait_item", "declaration_list"];
@@ -59,9 +59,8 @@ impl LapceLanguage {
             LapceLanguage::Rust => tree_sitter_rust::HIGHLIGHT_QUERY,
             LapceLanguage::Go => tree_sitter_go::HIGHLIGHT_QUERY,
         };
-        let mut config =
-            HighlightConfiguration::new(language, query, "", "").unwrap();
-        config
+
+        HighlightConfiguration::new(language, query, "", "").unwrap()
     }
 
     pub(crate) fn walk_tree(

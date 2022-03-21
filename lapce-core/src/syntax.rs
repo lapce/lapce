@@ -2,12 +2,11 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
     path::Path,
-    rc::Rc,
     sync::Arc,
 };
 
 use itertools::Itertools;
-use tree_sitter::{Parser, Point, Query, QueryCursor, Tree};
+use tree_sitter::{Node, Parser, Point, Tree};
 use xi_rope::{
     spans::{Spans, SpansBuilder},
     Interval, Rope, RopeDelta,
@@ -16,7 +15,7 @@ use xi_rope::{
 use crate::{
     language::LapceLanguage,
     lens::{Lens, LensBuilder},
-    style::{Highlight, HighlightEvent, Highlighter, LineStyle, Style, SCOPES},
+    style::{Highlight, HighlightEvent, Highlighter, Style, SCOPES},
 };
 
 thread_local! {
@@ -34,7 +33,7 @@ pub struct Syntax {
     pub normal_lines: Vec<usize>,
     pub line_height: usize,
     pub lens_height: usize,
-    pub styles: Option<Spans<Style>>,
+    pub styles: Option<Arc<Spans<Style>>>,
 }
 
 impl Syntax {
@@ -188,7 +187,7 @@ impl Syntax {
                 }
                 highlights.build()
             });
-            Some(styles)
+            Some(Arc::new(styles))
         } else {
             None
         };
@@ -255,6 +254,99 @@ impl Syntax {
         }
         builder.build()
     }
+
+    pub fn find_matching_pair(&self, offset: usize) -> Option<usize> {
+        let tree = self.tree.as_ref()?;
+        let node = tree
+            .root_node()
+            .descendant_for_byte_range(offset, offset + 1)?;
+        let mut chars = node.kind().chars();
+        let char = chars.next()?;
+        let char = matching_char(char)?;
+        let tag = &char.to_string();
+
+        if let Some(offset) = self.find_tag_in_siblings(node, true, tag) {
+            return Some(offset);
+        }
+        if let Some(offset) = self.find_tag_in_siblings(node, false, tag) {
+            return Some(offset);
+        }
+        None
+    }
+
+    pub fn find_tag(
+        &self,
+        offset: usize,
+        previous: bool,
+        tag: &str,
+    ) -> Option<usize> {
+        let tree = self.tree.as_ref()?;
+        let node = tree
+            .root_node()
+            .descendant_for_byte_range(offset, offset + 1)?;
+
+        if let Some(offset) = self.find_tag_in_siblings(node, previous, tag) {
+            return Some(offset);
+        }
+
+        if let Some(offset) = self.find_tag_in_children(node, tag) {
+            return Some(offset);
+        }
+
+        let mut node = node;
+        while let Some(parent) = node.parent() {
+            if let Some(offset) = self.find_tag_in_siblings(parent, previous, tag) {
+                return Some(offset);
+            }
+            node = parent;
+        }
+        None
+    }
+
+    fn find_tag_in_siblings(
+        &self,
+        node: Node,
+        previous: bool,
+        tag: &str,
+    ) -> Option<usize> {
+        let mut node = node;
+        while let Some(sibling) = if previous {
+            node.prev_sibling()
+        } else {
+            node.next_sibling()
+        } {
+            if sibling.kind() == tag {
+                let offset = sibling.start_byte();
+                return Some(offset);
+            }
+            node = sibling;
+        }
+        None
+    }
+
+    fn find_tag_in_children(&self, node: Node, tag: &str) -> Option<usize> {
+        for i in 0..node.child_count() {
+            if let Some(child) = node.child(i) {
+                if child.kind() == tag {
+                    let offset = child.start_byte();
+                    return Some(offset);
+                }
+            }
+        }
+        None
+    }
+}
+
+pub fn matching_char(c: char) -> Option<char> {
+    Some(match c {
+        '{' => '}',
+        '}' => '{',
+        '(' => ')',
+        ')' => '(',
+        '[' => ']',
+        ']' => '[',
+        _ => return None,
+    })
 }
 
 #[cfg(test)]

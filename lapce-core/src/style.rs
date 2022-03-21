@@ -182,7 +182,6 @@ impl Highlighter {
             tree.clone(),
             source,
             self,
-            cancellation_flag,
             &mut injection_callback,
             config,
             0,
@@ -387,7 +386,6 @@ impl<'a> HighlightIterLayer<'a> {
         tree: Tree,
         source: &'a [u8],
         highlighter: &mut Highlighter,
-        cancellation_flag: Option<&'a AtomicUsize>,
         injection_callback: &mut F,
         mut config: &'a HighlightConfiguration,
         mut depth: usize,
@@ -779,7 +777,6 @@ where
                                 self.tree.clone(),
                                 self.source,
                                 self.highlighter,
-                                self.cancellation_flag,
                                 &mut self.injection_callback,
                                 config,
                                 self.layers[0].depth + 1,
@@ -817,14 +814,11 @@ where
                     for prop in
                         layer.config.query.property_settings(match_.pattern_index)
                     {
-                        match prop.key.as_ref() {
-                            "local.scope-inherits" => {
-                                scope.inherits = prop
-                                    .value
-                                    .as_ref()
-                                    .map_or(true, |r| r.as_ref() == "true");
-                            }
-                            _ => {}
+                        if prop.key.as_ref() == "local.scope-inherits" {
+                            scope.inherits = prop
+                                .value
+                                .as_ref()
+                                .map_or(true, |r| r.as_ref() == "true");
                         }
                     }
                     layer.scope_stack.push(scope);
@@ -1151,6 +1145,12 @@ impl HtmlRenderer {
                 self.html.push(c);
             }
         }
+    }
+}
+
+impl Default for HtmlRenderer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

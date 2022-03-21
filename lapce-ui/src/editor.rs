@@ -1767,8 +1767,16 @@ impl Widget<LapceTabData> for LapceEditorView {
             ctx.request_layout();
         }
 
-        if !buffer.styles.same(&old_buffer.styles) {
-            ctx.request_paint();
+        match (buffer.styles(), old_buffer.styles()) {
+            (None, None) => {}
+            (None, Some(_)) | (Some(_), None) => {
+                ctx.request_paint();
+            }
+            (Some(new), Some(old)) => {
+                if !new.same(old) {
+                    ctx.request_paint();
+                }
+            }
         }
 
         if buffer.rev != old_buffer.rev {

@@ -87,7 +87,7 @@ impl Handler for LapceProxy {
                             style.style,
                         );
                     }
-                    let styles_span = styles_span.build();
+                    let styles_span = Arc::new(styles_span.build());
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateSemanticStyles(
@@ -99,20 +99,6 @@ impl Handler for LapceProxy {
                         Target::Widget(tab_id),
                     );
                 });
-            }
-            Notification::SemanticTokens {
-                rev,
-                buffer_id,
-                path,
-                tokens,
-            } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSemanticTokens(
-                        buffer_id, path, rev, tokens,
-                    ),
-                    Target::Widget(self.tab_id),
-                );
             }
             Notification::ReloadBuffer {
                 buffer_id,
@@ -643,12 +629,6 @@ pub enum CursorShape {
 #[serde(tag = "method", content = "params")]
 pub enum Notification {
     ProxyConnected {},
-    SemanticTokens {
-        rev: u64,
-        buffer_id: BufferId,
-        path: PathBuf,
-        tokens: Vec<(usize, usize, String)>,
-    },
     SemanticStyles {
         rev: u64,
         buffer_id: BufferId,

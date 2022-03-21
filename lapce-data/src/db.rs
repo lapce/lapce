@@ -14,7 +14,7 @@ use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    buffer::{Buffer, BufferContent, UpdateEvent},
+    buffer::{Buffer, BufferContent},
     config::Config,
     data::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
@@ -50,7 +50,6 @@ impl SplitContentInfo {
         parent_split: Option<WidgetId>,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
         tab_id: WidgetId,
-        update_sender: Arc<Sender<UpdateEvent>>,
         config: &Config,
         event_sink: ExtEventSink,
     ) -> SplitContent {
@@ -61,7 +60,6 @@ impl SplitContentInfo {
                     parent_split.unwrap(),
                     editor_positions,
                     tab_id,
-                    update_sender,
                     config,
                     event_sink,
                 );
@@ -73,7 +71,6 @@ impl SplitContentInfo {
                     parent_split,
                     editor_positions,
                     tab_id,
-                    update_sender,
                     config,
                     event_sink,
                 );
@@ -97,7 +94,6 @@ impl EditorTabInfo {
         split: WidgetId,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
         tab_id: WidgetId,
-        update_sender: Arc<Sender<UpdateEvent>>,
         config: &Config,
         event_sink: ExtEventSink,
     ) -> LapceEditorTabData {
@@ -115,7 +111,6 @@ impl EditorTabInfo {
                         editor_tab_id,
                         editor_positions,
                         tab_id,
-                        update_sender.clone(),
                         config,
                         event_sink.clone(),
                     )
@@ -148,7 +143,6 @@ impl EditorTabChildInfo {
         editor_tab_id: WidgetId,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
         tab_id: WidgetId,
-        update_sender: Arc<Sender<UpdateEvent>>,
         config: &Config,
         event_sink: ExtEventSink,
     ) -> EditorTabChild {
@@ -159,7 +153,6 @@ impl EditorTabChildInfo {
                     editor_tab_id,
                     editor_positions,
                     tab_id,
-                    update_sender,
                     config,
                     event_sink,
                 );
@@ -182,7 +175,6 @@ impl SplitInfo {
         parent_split: Option<WidgetId>,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
         tab_id: WidgetId,
-        update_sender: Arc<Sender<UpdateEvent>>,
         config: &Config,
         event_sink: ExtEventSink,
     ) -> SplitData {
@@ -200,7 +192,6 @@ impl SplitInfo {
                         Some(split_id),
                         editor_positions,
                         tab_id,
-                        update_sender.clone(),
                         config,
                         event_sink.clone(),
                     )
@@ -258,7 +249,6 @@ impl EditorInfo {
         editor_tab_id: WidgetId,
         editor_positions: &mut HashMap<PathBuf, Vec<(WidgetId, EditorLocationNew)>>,
         tab_id: WidgetId,
-        update_sender: Arc<Sender<UpdateEvent>>,
         config: &Config,
         event_sink: ExtEventSink,
     ) -> LapceEditorData {
@@ -290,7 +280,6 @@ impl EditorInfo {
                 if !data.open_files.contains_key(path) {
                     let buffer = Arc::new(Buffer::new(
                         BufferContent::File(path.clone()),
-                        update_sender,
                         tab_id,
                         event_sink,
                     ));

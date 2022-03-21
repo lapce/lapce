@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
-use lapce_core::{style::LineStyle, syntax::Syntax};
+use lapce_core::{style::Style, syntax::Syntax};
 use lapce_proxy::{
     dispatch::{DiffInfo, FileNodeItem},
     plugin::PluginDescription,
@@ -16,13 +16,11 @@ use lsp_types::{
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString};
-use tree_sitter::Tree;
-use tree_sitter_highlight::Highlight;
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     buffer::BufferId,
-    buffer::{DiffLines, Style},
+    buffer::DiffLines,
     data::{EditorTabChild, SplitContent},
     editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},
@@ -553,28 +551,13 @@ pub enum LapceUICommand {
     DocumentFormat(PathBuf, u64, Result<Value>),
     DocumentFormatAndSave(PathBuf, u64, Result<Value>),
     BufferSave(PathBuf, u64),
-    UpdateSemanticStyles(BufferId, PathBuf, u64, Spans<lapce_core::style::Style>),
-    UpdateSemanticTokens(BufferId, PathBuf, u64, Vec<(usize, usize, String)>),
-    UpdateHighlights(BufferId, u64, Vec<(usize, usize, Highlight)>),
+    UpdateSemanticStyles(BufferId, PathBuf, u64, Arc<Spans<Style>>),
     UpdateTerminalTitle(TermId, String),
-    UpdateStyle {
-        id: BufferId,
-        path: PathBuf,
-        rev: u64,
-        highlights: Spans<Style>,
-        semantic_tokens: bool,
-    },
     UpdateHistoryStyle {
         id: BufferId,
         path: PathBuf,
         history: String,
-        highlights: Spans<Style>,
-    },
-    UpdateSyntaxTree {
-        id: BufferId,
-        path: PathBuf,
-        rev: u64,
-        tree: Tree,
+        highlights: Arc<Spans<Style>>,
     },
     UpdateSyntax {
         path: PathBuf,

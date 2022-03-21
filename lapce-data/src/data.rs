@@ -28,16 +28,12 @@ use lsp_types::{
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tree_sitter::Parser;
-use tree_sitter_highlight::{
-    Highlight, HighlightConfiguration, HighlightEvent, Highlighter,
-};
-use xi_rope::{spans::SpansBuilder, Interval, RopeDelta, Transformer};
+use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
     buffer::{
         has_unmatched_pair, matching_char, matching_pair_direction, Buffer,
-        BufferContent, BufferUpdate, EditType, LocalBufferKind, Style, UpdateEvent,
+        BufferContent, EditType, LocalBufferKind,
     },
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommandNew, LapceUICommand,
@@ -53,7 +49,6 @@ use crate::{
     explorer::FileExplorerData,
     find::Find,
     keypress::KeyPressData,
-    language::{new_highlight_config, new_parser, LapceLanguage, SCOPES},
     menu::MenuData,
     movement::{Cursor, CursorMode, InsertDrift, Movement, SelRegion, Selection},
     palette::{PaletteData, PaletteType, PaletteViewData},
@@ -402,10 +397,8 @@ pub struct LapceTabData {
     pub proxy_status: Arc<ProxyStatus>,
     pub keypress: Arc<KeyPressData>,
     pub settings: Arc<LapceSettingsPanelData>,
-    pub update_receiver: Option<Receiver<UpdateEvent>>,
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
-    pub update_sender: Arc<Sender<UpdateEvent>>,
     pub window_origin: Point,
     pub panels: im::HashMap<PanelPosition, Arc<PanelData>>,
     pub panel_active: PanelPosition,
@@ -471,8 +464,6 @@ impl LapceTabData {
             None
         };
 
-        let (update_sender, update_receiver) = unbounded();
-        let update_sender = Arc::new(update_sender);
         let (term_sender, term_receiver) = unbounded();
         let proxy = Arc::new(LapceProxy::new(
             tab_id,
@@ -498,7 +489,6 @@ impl LapceTabData {
             tab_id,
             workspace_info.as_ref(),
             palette.preview_editor,
-            update_sender.clone(),
             proxy.clone(),
             &config,
             event_sink.clone(),
@@ -596,8 +586,6 @@ impl LapceTabData {
             settings,
             proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
-            update_sender,
-            update_receiver: Some(update_receiver),
             window_origin: Point::ZERO,
             panels,
             panel_size: PanelSize {
@@ -631,18 +619,6 @@ impl LapceTabData {
     }
 
     pub fn start_update_process(&mut self, event_sink: ExtEventSink) {
-        if let Some(receiver) = self.update_receiver.take() {
-            let tab_id = self.id;
-            let local_event_sink = event_sink.clone();
-            thread::spawn(move || {
-                LapceTabData::buffer_update_process(
-                    tab_id,
-                    receiver,
-                    local_event_sink,
-                );
-            });
-        }
-
         if let Some(receiver) = self.term_rx.take() {
             let tab_id = self.id;
             let local_event_sink = event_sink.clone();
@@ -914,7 +890,7 @@ impl LapceTabData {
                                     .as_secs(),
                             };
 
-                            event_sink.submit_command(
+                            let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::SetWorkspace(workspace),
                                 Target::Auto,
@@ -1384,59 +1360,6 @@ impl LapceTabData {
         }
     }
 
-    pub fn buffer_update_process(
-        tab_id: WidgetId,
-        receiver: Receiver<UpdateEvent>,
-        event_sink: ExtEventSink,
-    ) {
-        let mut parsers = HashMap::new();
-        let mut highlighter = Highlighter::new();
-        let mut highlight_configs = HashMap::new();
-        loop {
-            match receiver.recv() {
-                Err(_) => return,
-                Ok(event) => {
-                    match event {
-                        UpdateEvent::Buffer(update) => {
-                            buffer_receive_update(
-                                update,
-                                &mut parsers,
-                                &mut highlighter,
-                                &mut highlight_configs,
-                                &event_sink,
-                                tab_id,
-                            );
-                        }
-                        UpdateEvent::SemanticTokens(update, tokens) => {
-                            let mut highlights =
-                                SpansBuilder::new(update.rope.len());
-                            for (start, end, hl) in tokens {
-                                highlights.add_span(
-                                    Interval::new(start, end),
-                                    Style {
-                                        fg_color: Some(hl.to_string()),
-                                    },
-                                );
-                            }
-                            let highlights = highlights.build();
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::UpdateStyle {
-                                    id: update.id,
-                                    path: update.path,
-                                    rev: update.rev,
-                                    highlights,
-                                    semantic_tokens: true,
-                                },
-                                Target::Widget(tab_id),
-                            );
-                        }
-                    };
-                }
-            }
-        }
-    }
-
     pub fn read_picker_pwd(&mut self, ctx: &mut EventCtx) {
         let path = self.picker.pwd.clone();
         let event_sink = ctx.get_external_handle();
@@ -1699,7 +1622,6 @@ pub struct LapceMainSplitData {
     pub open_files: im::HashMap<PathBuf, Arc<Buffer>>,
     pub splits: im::HashMap<WidgetId, Arc<SplitData>>,
     pub local_buffers: im::HashMap<LocalBufferKind, Arc<Buffer>>,
-    pub update_sender: Arc<Sender<UpdateEvent>>,
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
     pub palette_preview_editor: Arc<WidgetId>,
@@ -2192,7 +2114,6 @@ impl LapceMainSplitData {
         if !buffer_exists {
             let mut buffer = Buffer::new(
                 BufferContent::File(path.clone()),
-                self.update_sender.clone(),
                 *self.tab_id,
                 ctx.get_external_handle(),
             );
@@ -2302,7 +2223,6 @@ impl LapceMainSplitData {
         tab_id: WidgetId,
         workspace_info: Option<&WorkspaceInfo>,
         palette_preview_editor: WidgetId,
-        update_sender: Arc<Sender<UpdateEvent>>,
         proxy: Arc<LapceProxy>,
         config: &Config,
         event_sink: ExtEventSink,
@@ -2326,7 +2246,6 @@ impl LapceMainSplitData {
         editors.insert(editor.view_id, Arc::new(editor));
         let mut buffer = Buffer::new(
             BufferContent::File(path.clone()),
-            update_sender.clone(),
             tab_id,
             event_sink.clone(),
         );
@@ -2338,7 +2257,6 @@ impl LapceMainSplitData {
             LocalBufferKind::Empty,
             Arc::new(Buffer::new(
                 BufferContent::Local(LocalBufferKind::Empty),
-                update_sender.clone(),
                 tab_id,
                 event_sink.clone(),
             )),
@@ -2354,7 +2272,6 @@ impl LapceMainSplitData {
             local_buffers,
             active: Arc::new(None),
             active_tab: Arc::new(None),
-            update_sender: update_sender.clone(),
             register: Arc::new(Register::default()),
             proxy: proxy.clone(),
             palette_preview_editor: Arc::new(palette_preview_editor),
@@ -2374,7 +2291,6 @@ impl LapceMainSplitData {
                 None,
                 &mut positions,
                 tab_id,
-                update_sender,
                 config,
                 event_sink.clone(),
             );
@@ -2416,7 +2332,6 @@ impl LapceMainSplitData {
     ) {
         let mut buffer = Buffer::new(
             BufferContent::Local(buffer_kind.clone()),
-            self.update_sender.clone(),
             *self.tab_id,
             event_sink,
         )
@@ -3857,92 +3772,6 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
         u8::from_str_radix(&b, 16)?,
         u8::from_str_radix(&a, 16)?,
     ))
-}
-
-fn buffer_receive_update(
-    update: BufferUpdate,
-    parsers: &mut HashMap<LapceLanguage, Parser>,
-    highlighter: &mut Highlighter,
-    highlight_configs: &mut HashMap<LapceLanguage, HighlightConfiguration>,
-    event_sink: &ExtEventSink,
-    tab_id: WidgetId,
-) {
-    if let std::collections::hash_map::Entry::Vacant(e) =
-        parsers.entry(update.language)
-    {
-        let parser = new_parser(update.language);
-        e.insert(parser);
-    }
-    let parser = parsers.get_mut(&update.language).unwrap();
-    if let Some(tree) = parser.parse(
-        update.rope.slice_to_cow(0..update.rope.len()).as_bytes(),
-        None,
-    ) {
-        let _ = event_sink.submit_command(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateSyntaxTree {
-                id: update.id,
-                path: update.path.clone(),
-                rev: update.rev,
-                tree,
-            },
-            Target::Widget(tab_id),
-        );
-    }
-
-    if !update.semantic_tokens {
-        if let std::collections::hash_map::Entry::Vacant(e) =
-            highlight_configs.entry(update.language)
-        {
-            let highlight_config = new_highlight_config(update.language);
-            e.insert(highlight_config);
-        }
-        let highlight_config = highlight_configs.get(&update.language).unwrap();
-        let mut current_hl: Option<Highlight> = None;
-        let mut highlights = SpansBuilder::new(update.rope.len());
-        for hightlight in highlighter
-            .highlight(
-                highlight_config,
-                update.rope.slice_to_cow(0..update.rope.len()).as_bytes(),
-                None,
-                |_| None,
-            )
-            .unwrap()
-        {
-            if let Ok(highlight) = hightlight {
-                match highlight {
-                    HighlightEvent::Source { start, end } => {
-                        if let Some(hl) = current_hl {
-                            if let Some(hl) = SCOPES.get(hl.0) {
-                                highlights.add_span(
-                                    Interval::new(start, end),
-                                    Style {
-                                        fg_color: Some(hl.to_string()),
-                                    },
-                                );
-                            }
-                        }
-                    }
-                    HighlightEvent::HighlightStart(hl) => {
-                        current_hl = Some(hl);
-                    }
-                    HighlightEvent::HighlightEnd => current_hl = None,
-                }
-            }
-        }
-        let highlights = highlights.build();
-        let _ = event_sink.submit_command(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateStyle {
-                id: update.id,
-                path: update.path,
-                rev: update.rev,
-                highlights,
-                semantic_tokens: false,
-            },
-            Target::Widget(tab_id),
-        );
-    }
 }
 
 #[allow(dead_code)]

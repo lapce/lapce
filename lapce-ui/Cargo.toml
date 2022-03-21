@@ -34,11 +34,6 @@ jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
-tree-sitter = "0.20.2"
-tree-sitter-highlight = "0.20.1"
-tree-sitter-rust = "0.20.0"
-tree-sitter-go = "0.19.1"
-tree-sitter-javascript = "0.20.0"
 anyhow = "1.0.32"
 strum = "0.19"
 strum_macros = "0.19"
@@ -48,7 +43,6 @@ serde_json = "1.0"
 notify = "5.0.0-pre.13"
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 xi-unicode = "0.3.0"
-fzyr = "0.1.2"
 fuzzy-matcher = "0.3.7"
 uuid = { version = "0.7.4", features = ["v4"] }
 lsp-types = { version = "0.89.2", features = ["proposed"] }

@@ -304,7 +304,7 @@ impl Widget<LapceWindowData> for Title {
         let line = Line::new(Point::new(x, 0.0), Point::new(x, size.height));
         ctx.stroke(line, line_color, 1.0);
 
-        if tab.source_control.branch != "" {
+        if !tab.source_control.branch.is_empty() {
             let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
 
             x += 5.0;
