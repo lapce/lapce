@@ -34,6 +34,14 @@ command = "line_start_non_blank"
 key = "End"
 command = "line_end"
 
+[[keymaps]]
+key = "PageUp"
+command = "page_up"
+
+[[keymaps]]
+key = "PageDown"
+command = "page_down"
+
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
