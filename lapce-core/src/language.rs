@@ -29,6 +29,7 @@ pub enum LapceLanguage {
     Typescript,
     Tsx,
     Python,
+    Toml,
 }
 
 impl LapceLanguage {
@@ -42,6 +43,7 @@ impl LapceLanguage {
             "tsx" => LapceLanguage::Tsx,
             "go" => LapceLanguage::Go,
             "py" => LapceLanguage::Python,
+            "toml" => LapceLanguage::Toml,
             _ => return None,
         })
     }
@@ -57,6 +59,7 @@ impl LapceLanguage {
             }
             LapceLanguage::Tsx => tree_sitter_typescript::language_tsx(),
             LapceLanguage::Python => tree_sitter_python::language(),
+            LapceLanguage::Toml => tree_sitter_toml::language(),
         }
     }
 
@@ -77,6 +80,7 @@ impl LapceLanguage {
             LapceLanguage::Typescript => tree_sitter_typescript::HIGHLIGHT_QUERY,
             LapceLanguage::Tsx => tree_sitter_typescript::HIGHLIGHT_QUERY,
             LapceLanguage::Python => tree_sitter_python::HIGHLIGHT_QUERY,
+            LapceLanguage::Toml => tree_sitter_toml::HIGHLIGHT_QUERY,
         };
 
         HighlightConfiguration::new(language, query, "", "").unwrap()
