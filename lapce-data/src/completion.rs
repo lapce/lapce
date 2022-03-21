@@ -410,8 +410,8 @@ impl CompletionData {
                     item.score = score;
                     item.label_score = score;
                     item.indices = indices;
-                    if let Some((score, _)) =
-                        self.matcher.fuzzy_indices(&i.item.label, &self.input)
+                    if let Some(score) =
+                        self.matcher.fuzzy_match(&i.item.label, &self.input)
                     {
                         item.label_score = score;
                     }
