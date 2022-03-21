@@ -238,9 +238,10 @@ impl LapceEditorBufferData {
                 LocalBufferKind::FilePicker
                 | LocalBufferKind::Search
                 | LocalBufferKind::Settings
-                | LocalBufferKind::Keymap => {
-                    Size::new(editor_size.width, line_height)
-                }
+                | LocalBufferKind::Keymap => Size::new(
+                    editor_size.width.max(width * self.buffer.rope.len() as f64),
+                    line_height,
+                ),
                 LocalBufferKind::SourceControl => {
                     for (pos, panels) in panels.iter() {
                         for panel_kind in panels.widgets.iter() {
@@ -271,6 +272,10 @@ impl LapceEditorBufferData {
                 }
                 LocalBufferKind::Empty => editor_size,
             },
+            BufferContent::Value(_) => Size::new(
+                editor_size.width.max(width * self.buffer.rope.len() as f64),
+                line_height,
+            ),
         }
     }
 
@@ -720,6 +725,9 @@ impl LapceEditorBufferData {
     fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
         match &self.buffer.content {
             BufferContent::File(_) => {}
+            BufferContent::Value(name) => {
+                return;
+            }
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Keymap => {
                     let tab_id = *self.main_split.tab_id;
@@ -2042,26 +2050,30 @@ impl LapceEditorBufferData {
         config: &Config,
     ) {
         let line_height = self.config.editor.line_height as f64;
+
+        let font_size = if self.editor.content.is_input() {
+            13
+        } else {
+            self.config.editor.font_size
+        };
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout("W")
+            .font(self.config.editor.font_family(), font_size as f64)
+            .build()
+            .unwrap();
+        let char_width = text_layout.size().width;
+        let y_shift = (line_height - text_layout.size().height) / 2.0;
+
         if self.editor.compare.is_none() && !self.editor.code_lens {
-            self.paint_cursor(ctx, is_focused, placeholder, config);
+            self.paint_cursor(ctx, is_focused, placeholder, char_width, config);
             self.paint_find(ctx);
         }
         let self_size = ctx.size();
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
-
-        let text_layout = ctx
-            .text()
-            .new_text_layout("W")
-            .font(
-                self.config.editor.font_family(),
-                self.config.editor.font_size as f64,
-            )
-            .build()
-            .unwrap();
-        let char_width = text_layout.size().width;
-        let y_shift = (line_height - text_layout.size().height) / 2.0;
 
         if self.editor.code_lens {
             self.paint_code_lens_content(ctx, is_focused, config);
@@ -2145,10 +2157,7 @@ impl LapceEditorBufferData {
                                     left.end + 1,
                                     right.end + 1
                                 ))
-                                .font(
-                                    config.editor.font_family(),
-                                    config.editor.font_size as f64,
-                                )
+                                .font(config.editor.font_family(), font_size as f64)
                                 .text_color(
                                     config
                                         .get_color_unchecked(
@@ -2194,7 +2203,7 @@ impl LapceEditorBufferData {
                                     rope_line,
                                     &self.buffer.line_content(rope_line),
                                     None,
-                                    config.editor.font_size,
+                                    font_size,
                                     [rect.x0, rect.x1],
                                     &self.config,
                                 );
@@ -2256,7 +2265,7 @@ impl LapceEditorBufferData {
                                     rope_line,
                                     &self.buffer.line_content(rope_line),
                                     None,
-                                    config.editor.font_size,
+                                    font_size,
                                     [rect.x0, rect.x1],
                                     &self.config,
                                 );
@@ -2308,7 +2317,7 @@ impl LapceEditorBufferData {
                     line,
                     line_content,
                     cursor_index,
-                    config.editor.font_size,
+                    font_size,
                     [rect.x0, rect.x1],
                     &self.config,
                 );
@@ -2676,6 +2685,7 @@ impl LapceEditorBufferData {
         ctx: &mut PaintCtx,
         is_focused: bool,
         placeholder: Option<&String>,
+        width: f64,
         config: &Config,
     ) {
         let line_height = self.config.editor.line_height as f64;
@@ -2685,7 +2695,6 @@ impl LapceEditorBufferData {
             + self.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
-        let width = self.config.editor_text_width(ctx.text(), "W");
         match &self.editor.cursor.mode {
             CursorMode::Normal(offset) => {
                 let line = self.buffer.line_of_offset(*offset);
@@ -2842,7 +2851,7 @@ impl LapceEditorBufferData {
                             start.max(end),
                             self.config.editor.tab_width,
                         );
-                        for line in paint_start_line..paint_end_line {
+                        for line in paint_start_line..paint_end_line + 1 {
                             if line < start_line || line > end_line {
                                 continue;
                             }
@@ -3252,6 +3261,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             "editor_focus" => match self.editor.content {
                 BufferContent::File(_) => true,
                 BufferContent::Local(_) => false,
+                BufferContent::Value(_) => false,
             },
             "diff_focus" => self.editor.compare.is_some(),
             "source_control_focus" => {

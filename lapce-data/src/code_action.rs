@@ -78,23 +78,20 @@ impl CodeActionData {
             Some(editor) => editor,
             None => return,
         };
-        match &editor.content {
-            BufferContent::File(path) => {
-                let buffer = self.main_split.open_files.get(path).unwrap();
-                let offset = editor.cursor.offset();
-                let prev_offset = buffer.prev_code_boundary(offset);
-                let empty_vec = Vec::new();
-                let code_actions =
-                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        if let BufferContent::File(path) = &editor.content {
+            let buffer = self.main_split.open_files.get(path).unwrap();
+            let offset = editor.cursor.offset();
+            let prev_offset = buffer.prev_code_boundary(offset);
+            let empty_vec = Vec::new();
+            let code_actions =
+                buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-                self.main_split.current_code_actions = Movement::Down.update_index(
-                    self.main_split.current_code_actions,
-                    code_actions.len(),
-                    1,
-                    true,
-                );
-            }
-            BufferContent::Local(_) => {}
+            self.main_split.current_code_actions = Movement::Down.update_index(
+                self.main_split.current_code_actions,
+                code_actions.len(),
+                1,
+                true,
+            );
         }
     }
 
@@ -104,63 +101,60 @@ impl CodeActionData {
             Some(editor) => editor,
             None => return,
         };
-        match &editor.content {
-            BufferContent::File(path) => {
-                let buffer = self.main_split.open_files.get(path).unwrap();
-                let offset = editor.cursor.offset();
-                let prev_offset = buffer.prev_code_boundary(offset);
-                let empty_vec = Vec::new();
-                let code_actions =
-                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        if let BufferContent::File(path) = &editor.content {
+            let buffer = self.main_split.open_files.get(path).unwrap();
+            let offset = editor.cursor.offset();
+            let prev_offset = buffer.prev_code_boundary(offset);
+            let empty_vec = Vec::new();
+            let code_actions =
+                buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-                let action = &code_actions[self.main_split.current_code_actions];
-                match action {
-                    CodeActionOrCommand::Command(_cmd) => {}
-                    CodeActionOrCommand::CodeAction(action) => {
-                        if let Some(edit) = action.edit.as_ref() {
-                            if let Some(edits) = workspce_edits(edit) {
-                                if let Some(edits) =
-                                    edits.get(&Url::from_file_path(&path).unwrap())
-                                {
-                                    let path = path.clone();
-                                    let buffer = self
-                                        .main_split
-                                        .open_files
-                                        .get_mut(&path)
-                                        .unwrap();
-                                    let edits: Vec<(Selection, String)> = edits
+            let action = &code_actions[self.main_split.current_code_actions];
+            match action {
+                CodeActionOrCommand::Command(_cmd) => {}
+                CodeActionOrCommand::CodeAction(action) => {
+                    if let Some(edit) = action.edit.as_ref() {
+                        if let Some(edits) = workspce_edits(edit) {
+                            if let Some(edits) =
+                                edits.get(&Url::from_file_path(&path).unwrap())
+                            {
+                                let path = path.clone();
+                                let buffer = self
+                                    .main_split
+                                    .open_files
+                                    .get_mut(&path)
+                                    .unwrap();
+                                let edits: Vec<(Selection, String)> = edits
+                                    .iter()
+                                    .map(|edit| {
+                                        let selection = Selection::region(
+                                            buffer.offset_of_position(
+                                                &edit.range.start,
+                                                self.config.editor.tab_width,
+                                            ),
+                                            buffer.offset_of_position(
+                                                &edit.range.end,
+                                                self.config.editor.tab_width,
+                                            ),
+                                        );
+                                        (selection, edit.new_text.clone())
+                                    })
+                                    .collect();
+                                self.main_split.edit(
+                                    ctx,
+                                    &path,
+                                    edits
                                         .iter()
-                                        .map(|edit| {
-                                            let selection = Selection::region(
-                                                buffer.offset_of_position(
-                                                    &edit.range.start,
-                                                    self.config.editor.tab_width,
-                                                ),
-                                                buffer.offset_of_position(
-                                                    &edit.range.end,
-                                                    self.config.editor.tab_width,
-                                                ),
-                                            );
-                                            (selection, edit.new_text.clone())
-                                        })
-                                        .collect();
-                                    self.main_split.edit(
-                                        ctx,
-                                        &path,
-                                        edits
-                                            .iter()
-                                            .map(|(s, c)| (s, c.as_ref()))
-                                            .collect(),
-                                        EditType::Other,
-                                        &self.config,
-                                    );
-                                }
+                                        .map(|(s, c)| (s, c.as_ref()))
+                                        .collect(),
+                                    EditType::Other,
+                                    &self.config,
+                                );
                             }
                         }
                     }
                 }
             }
-            BufferContent::Local(_) => {}
         }
     }
 
@@ -171,23 +165,20 @@ impl CodeActionData {
             Some(editor) => editor,
             None => return,
         };
-        match &editor.content {
-            BufferContent::File(path) => {
-                let buffer = self.main_split.open_files.get(path).unwrap();
-                let offset = editor.cursor.offset();
-                let prev_offset = buffer.prev_code_boundary(offset);
-                let empty_vec = Vec::new();
-                let code_actions =
-                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+        if let BufferContent::File(path) = &editor.content {
+            let buffer = self.main_split.open_files.get(path).unwrap();
+            let offset = editor.cursor.offset();
+            let prev_offset = buffer.prev_code_boundary(offset);
+            let empty_vec = Vec::new();
+            let code_actions =
+                buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-                self.main_split.current_code_actions = Movement::Up.update_index(
-                    self.main_split.current_code_actions,
-                    code_actions.len(),
-                    1,
-                    true,
-                );
-            }
-            BufferContent::Local(_) => {}
+            self.main_split.current_code_actions = Movement::Up.update_index(
+                self.main_split.current_code_actions,
+                code_actions.len(),
+                1,
+                true,
+            );
         }
     }
 }

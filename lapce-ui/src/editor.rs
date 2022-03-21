@@ -374,16 +374,13 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             match child {
                 EditorTabChild::Editor(view_id) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
-                    match &editor.content {
-                        BufferContent::File(path) => {
-                            svg = file_svg_new(path);
-                            if let Some(file_name) = path.file_name() {
-                                if let Some(s) = file_name.to_str() {
-                                    text = s.to_string();
-                                }
+                    if let BufferContent::File(path) = &editor.content {
+                        svg = file_svg_new(path);
+                        if let Some(file_name) = path.file_name() {
+                            if let Some(s) = file_name.to_str() {
+                                text = s.to_string();
                             }
                         }
-                        BufferContent::Local(_) => {}
                     }
                 }
             }
@@ -1259,6 +1256,7 @@ impl LapceEditorView {
                     data.main_split.active_tab = Arc::new(editor.tab_id);
                 }
             },
+            BufferContent::Value(_) => {}
         }
     }
 

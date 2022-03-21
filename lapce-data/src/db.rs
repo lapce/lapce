@@ -258,35 +258,32 @@ impl EditorInfo {
             self.content.clone(),
             config,
         );
-        match &self.content {
-            BufferContent::File(path) => {
-                if !editor_positions.contains_key(path) {
-                    editor_positions.insert(path.clone(), vec![]);
-                }
-
-                editor_positions.get_mut(path).unwrap().push((
-                    editor_data.view_id,
-                    EditorLocationNew {
-                        path: path.clone(),
-                        position: self.position,
-                        scroll_offset: Some(Vec2::new(
-                            self.scroll_offset.0,
-                            self.scroll_offset.1,
-                        )),
-                        hisotry: None,
-                    },
-                ));
-
-                if !data.open_files.contains_key(path) {
-                    let buffer = Arc::new(Buffer::new(
-                        BufferContent::File(path.clone()),
-                        tab_id,
-                        event_sink,
-                    ));
-                    data.open_files.insert(path.clone(), buffer);
-                }
+        if let BufferContent::File(path) = &self.content {
+            if !editor_positions.contains_key(path) {
+                editor_positions.insert(path.clone(), vec![]);
             }
-            BufferContent::Local(_) => {}
+
+            editor_positions.get_mut(path).unwrap().push((
+                editor_data.view_id,
+                EditorLocationNew {
+                    path: path.clone(),
+                    position: self.position,
+                    scroll_offset: Some(Vec2::new(
+                        self.scroll_offset.0,
+                        self.scroll_offset.1,
+                    )),
+                    hisotry: None,
+                },
+            ));
+
+            if !data.open_files.contains_key(path) {
+                let buffer = Arc::new(Buffer::new(
+                    BufferContent::File(path.clone()),
+                    tab_id,
+                    event_sink,
+                ));
+                data.open_files.insert(path.clone(), buffer);
+            }
         }
         data.editors
             .insert(editor_data.view_id, Arc::new(editor_data.clone()));

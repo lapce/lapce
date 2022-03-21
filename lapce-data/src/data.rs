@@ -657,6 +657,9 @@ impl LapceTabData {
             BufferContent::Local(kind) => {
                 self.main_split.local_buffers.get(kind).unwrap().clone()
             }
+            BufferContent::Value(name) => {
+                self.main_split.value_buffers.get(name).unwrap().clone()
+            }
         };
         LapceEditorBufferData {
             view_id: editor_view_id,
@@ -682,6 +685,7 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => Size::ZERO,
+            BufferContent::Value(_) => Size::ZERO,
             BufferContent::File(path) => {
                 let buffer = self.main_split.open_files.get(path).unwrap();
                 let offset = editor.cursor.offset();
@@ -757,6 +761,11 @@ impl LapceTabData {
                         .local_buffers
                         .insert(kind.clone(), editor_buffer_data.buffer);
                 }
+                BufferContent::Value(name) => {
+                    self.main_split
+                        .value_buffers
+                        .insert(name.clone(), editor_buffer_data.buffer);
+                }
             }
         }
     }
@@ -777,6 +786,9 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => {
+                editor.window_origin - self.window_origin.to_vec2()
+            }
+            BufferContent::Value(_) => {
                 editor.window_origin - self.window_origin.to_vec2()
             }
             BufferContent::File(path) => {
@@ -809,6 +821,9 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => {
+                editor.window_origin - self.window_origin.to_vec2()
+            }
+            BufferContent::Value(_) => {
                 editor.window_origin - self.window_origin.to_vec2()
             }
             BufferContent::File(path) => {
@@ -1703,6 +1718,7 @@ pub struct LapceMainSplitData {
     pub open_files: im::HashMap<PathBuf, Arc<Buffer>>,
     pub splits: im::HashMap<WidgetId, Arc<SplitData>>,
     pub local_buffers: im::HashMap<LocalBufferKind, Arc<Buffer>>,
+    pub value_buffers: im::HashMap<String, Arc<Buffer>>,
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
     pub palette_preview_editor: Arc<WidgetId>,
@@ -1736,6 +1752,9 @@ impl LapceMainSplitData {
             BufferContent::File(path) => self.open_files.get(path).unwrap().clone(),
             BufferContent::Local(kind) => {
                 self.local_buffers.get(kind).unwrap().clone()
+            }
+            BufferContent::Value(name) => {
+                self.value_buffers.get(name).unwrap().clone()
             }
         };
         buffer
@@ -1873,13 +1892,10 @@ impl LapceMainSplitData {
 
     fn cursor_apply_delta(&mut self, path: &Path, delta: &RopeDelta) {
         for (_view_id, editor) in self.editors.iter_mut() {
-            match &editor.content {
-                BufferContent::File(current_path) => {
-                    if current_path == path {
-                        Arc::make_mut(editor).cursor.apply_delta(delta);
-                    }
+            if let BufferContent::File(current_path) = &editor.content {
+                if current_path == path {
+                    Arc::make_mut(editor).cursor.apply_delta(delta);
                 }
-                BufferContent::Local(_) => {}
             }
         }
     }
@@ -2121,17 +2137,14 @@ impl LapceMainSplitData {
         config: &Config,
     ) {
         let editor = self.get_editor_or_new(ctx, editor_view_id, None, config);
-        match &editor.content {
-            BufferContent::File(path) => {
-                let location = EditorLocationNew {
-                    path: path.clone(),
-                    position: Some(position),
-                    scroll_offset: None,
-                    hisotry: None,
-                };
-                self.jump_to_location(ctx, editor_view_id, location, config);
-            }
-            BufferContent::Local(_) => {}
+        if let BufferContent::File(path) = &editor.content {
+            let location = EditorLocationNew {
+                path: path.clone(),
+                position: Some(position),
+                scroll_offset: None,
+                hisotry: None,
+            };
+            self.jump_to_location(ctx, editor_view_id, location, config);
         }
     }
 
@@ -2181,6 +2194,7 @@ impl LapceMainSplitData {
         let new_buffer = match &buffer.content {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
+            BufferContent::Value(_) => true,
         };
         if new_buffer {
             self.db.save_buffer_position(&self.workspace, &buffer);
@@ -2351,6 +2365,7 @@ impl LapceMainSplitData {
             splits,
             open_files,
             local_buffers,
+            value_buffers: im::HashMap::new(),
             active: Arc::new(None),
             active_tab: Arc::new(None),
             register: Arc::new(Register::default()),

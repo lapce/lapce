@@ -485,6 +485,7 @@ pub enum EnsureVisiblePosition {
 }
 
 pub enum LapceUICommand {
+    InitChildren,
     InitTerminalPanel(bool),
     ReloadConfig,
     LoadBuffer {

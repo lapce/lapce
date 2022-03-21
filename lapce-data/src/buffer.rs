@@ -169,6 +169,7 @@ pub enum LocalBufferKind {
 pub enum BufferContent {
     File(PathBuf),
     Local(LocalBufferKind),
+    Value(String),
 }
 
 impl BufferContent {
@@ -183,6 +184,7 @@ impl BufferContent {
                 | LocalBufferKind::Keymap => true,
                 LocalBufferKind::Empty => false,
             },
+            BufferContent::Value(_) => true,
         }
     }
 
@@ -196,12 +198,14 @@ impl BufferContent {
                 | LocalBufferKind::Keymap => true,
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
+            BufferContent::Value(_) => true,
         }
     }
 
     pub fn is_search(&self) -> bool {
         match &self {
             BufferContent::File(_) => false,
+            BufferContent::Value(_) => false,
             BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
         }
     }
@@ -263,6 +267,7 @@ impl Buffer {
         let syntax = match &content {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
+            BufferContent::Value(_) => None,
         };
 
         Self {
