@@ -1,0 +1,31 @@
+on: 
+  push:
+  schedule:
+    - cron: '30 2 5 * *'
+
+name: CI
+
+jobs:
+  build:
+    name: Rust (${{ matrix.toolchain }}) on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        toolchain: [ stable ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies on Ubuntu
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
+          
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
