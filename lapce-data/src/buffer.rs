@@ -213,7 +213,7 @@ pub struct Buffer {
     pub rope: Rope,
     pub content: BufferContent,
     pub syntax: Option<Syntax>,
-    pub new_line_styles: Rc<RefCell<LineStyles>>,
+    pub line_styles: Rc<RefCell<LineStyles>>,
     pub semantic_styles: Option<Arc<Spans<Style>>>,
     pub max_len: usize,
     pub max_len_line: usize,
@@ -269,7 +269,7 @@ impl Buffer {
             id: BufferId::next(),
             rope,
             syntax,
-            new_line_styles: Rc::new(RefCell::new(HashMap::new())),
+            line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
             content,
             find: Rc::new(RefCell::new(Find::new(0))),
@@ -779,7 +779,7 @@ impl Buffer {
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
-        if self.new_line_styles.borrow().get(&line).is_none() {
+        if self.line_styles.borrow().get(&line).is_none() {
             let styles = self
                 .semantic_styles
                 .as_ref()
@@ -788,11 +788,11 @@ impl Buffer {
             let line_styles = styles
                 .map(|styles| line_styles(&self.rope, line, styles))
                 .unwrap_or_default();
-            self.new_line_styles
+            self.line_styles
                 .borrow_mut()
                 .insert(line, Arc::new(line_styles));
         }
-        self.new_line_styles.borrow().get(&line).cloned().unwrap()
+        self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
     pub fn history_text_layout(
@@ -1639,7 +1639,7 @@ impl Buffer {
                 Arc::make_mut(styles).apply_shape(delta);
             }
         }
-        self.new_line_styles.borrow_mut().clear();
+        self.line_styles.borrow_mut().clear();
     }
 
     fn mk_new_rev(
