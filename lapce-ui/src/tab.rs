@@ -878,9 +878,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::FocusSourceControl => {
                         for (_, panel) in data.panels.iter_mut() {
-                            for kind in panel.widgets.clone() {
+                            let panel = Arc::make_mut(panel);
+                            for kind in panel.widgets.iter().copied() {
                                 if kind == PanelKind::SourceControl {
-                                    let panel = Arc::make_mut(panel);
                                     panel.active = PanelKind::SourceControl;
                                     panel.shown = true;
                                     ctx.submit_command(Command::new(

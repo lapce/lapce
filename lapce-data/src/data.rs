@@ -2094,7 +2094,7 @@ impl LapceMainSplitData {
 
         Arc::make_mut(
             self.editor_tabs
-                .get_mut(&(*self.active_tab.clone()).unwrap())
+                .get_mut(&self.active_tab.as_ref().unwrap())
                 .unwrap(),
         )
     }
@@ -2117,6 +2117,7 @@ impl LapceMainSplitData {
                             if config.editor.show_tab {
                                 if let Some(path) = path {
                                     let mut editor_size = Size::ZERO;
+                                    let file_path = BufferContent::File(path);
                                     for (i, child) in
                                         editor_tab.children.iter().enumerate()
                                     {
@@ -2129,11 +2130,7 @@ impl LapceMainSplitData {
                                                 if current_size.height > 0.0 {
                                                     editor_size = current_size;
                                                 }
-                                                if editor.content
-                                                    == BufferContent::File(
-                                                        path.clone(),
-                                                    )
-                                                {
+                                                if editor.content == file_path {
                                                     editor_tab.active = i;
                                                     ctx.submit_command(
                                                         Command::new(
