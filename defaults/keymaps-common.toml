@@ -26,6 +26,14 @@ key = "backspace"
 command = "delete_backward"
 mode = "i"
 
+[[keymaps]]
+key = "Home"
+command = "line_start_non_blank"
+
+[[keymaps]]
+key = "End"
+command = "line_end"
+
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]

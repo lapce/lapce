@@ -345,6 +345,8 @@ pub enum LapceCommand {
     LineEnd,
     #[strum(serialize = "line_start")]
     LineStart,
+    #[strum(serialize = "line_start_non_blank")]
+    LineStartNonBlank,
     #[strum(serialize = "go_to_line_deault_last")]
     GotoLineDefaultLast,
     #[strum(serialize = "go_to_line_deault_first")]
@@ -436,6 +438,7 @@ impl LapceCommand {
             LapceCommand::Up => Some(Movement::Up),
             LapceCommand::Down => Some(Movement::Down),
             LapceCommand::LineStart => Some(Movement::StartOfLine),
+            LapceCommand::LineStartNonBlank => Some(Movement::FirstNonBlank),
             LapceCommand::LineEnd => Some(Movement::EndOfLine),
             LapceCommand::GotoLineDefaultFirst => Some(match count {
                 Some(n) => Movement::Line(LinePosition::Line(n)),
