@@ -2727,7 +2727,7 @@ impl LapceEditorBufferData {
                     if line < start_line || line > end_line {
                         continue;
                     }
-                    let line_content = self.buffer.line_content(line);
+                    let line_is_empty = self.buffer.line_is_empty(line);
                     let left_col = match mode {
                         VisualMode::Normal => match line {
                             _ if line == start_line => start_col,
@@ -2787,7 +2787,7 @@ impl LapceEditorBufferData {
                             right
                         }
                     };
-                    if !line_content.is_empty() {
+                    if !line_is_empty {
                         let x1 = right_col as f64 * width;
 
                         let y0 = line as f64 * line_height;
@@ -2856,7 +2856,7 @@ impl LapceEditorBufferData {
                                 continue;
                             }
 
-                            let line_content = self.buffer.line_content(line);
+                            let line_is_empty = self.buffer.line_is_empty(line);
                             let left_col = match line {
                                 _ if line == start_line => start_col,
                                 _ => 0,
@@ -2879,7 +2879,7 @@ impl LapceEditorBufferData {
                                 ),
                             };
 
-                            if !line_content.is_empty() {
+                            if !line_is_empty {
                                 let x1 = right_col as f64 * width;
                                 let y0 = line as f64 * line_height;
                                 let y1 = y0 + line_height;
@@ -3024,7 +3024,7 @@ impl LapceEditorBufferData {
                     if line < start_line || line > end_line {
                         continue;
                     }
-                    let line_content = self.buffer.line_content(line);
+                    let line_is_empty = self.buffer.line_is_empty(line);
                     let left_col = match line {
                         _ if line == start_line => start_col,
                         _ => 0,
@@ -3046,7 +3046,7 @@ impl LapceEditorBufferData {
                             self.config.editor.tab_width,
                         ),
                     };
-                    if !line_content.is_empty() {
+                    if !line_is_empty {
                         let x1 = right_col as f64 * width;
                         let y0 = line as f64 * line_height;
                         let y1 = y0 + line_height;
@@ -3873,8 +3873,11 @@ impl KeyPressFocus for LapceEditorBufferData {
                     for region in selection.regions_mut() {
                         let start_line = self.buffer.line_of_offset(region.min());
                         if start_line > 0 {
-                            let previous_line_len =
-                                self.buffer.line_content(start_line - 1).len();
+                            let previous_line_len = self
+                                .buffer
+                                .line_chunks(start_line - 1)
+                                .map(|str| str.len())
+                                .sum::<usize>();
 
                             let end_line = self.buffer.line_of_offset(region.max());
                             let start = self.buffer.offset_of_line(start_line);
@@ -3918,8 +3921,11 @@ impl KeyPressFocus for LapceEditorBufferData {
                         let start_line = self.buffer.line_of_offset(region.min());
                         let end_line = self.buffer.line_of_offset(region.max());
                         if end_line < last_line {
-                            let next_line_len =
-                                self.buffer.line_content(end_line + 1).len();
+                            let next_line_len = self
+                                .buffer
+                                .line_chunks(end_line + 1)
+                                .map(|str| str.len())
+                                .sum::<usize>();
 
                             let start = self.buffer.offset_of_line(start_line);
                             let end = self.buffer.offset_of_line(end_line + 1);

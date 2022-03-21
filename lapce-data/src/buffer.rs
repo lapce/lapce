@@ -672,8 +672,23 @@ impl Buffer {
         self.slice_to_cow(start_offset..offset)
     }
 
+    fn line_range(&self, line: usize) -> Range<usize> {
+        self.offset_of_line(line)..self.offset_of_line(line + 1)
+    }
+
     pub fn line_content(&self, line: usize) -> Cow<str> {
-        self.slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+        self.slice_to_cow(self.line_range(line))
+    }
+
+    pub fn line_chunks<'a>(
+        &'a self,
+        line: usize,
+    ) -> impl Iterator<Item = &'a str> + 'a {
+        self.rope.iter_chunks(self.line_range(line))
+    }
+
+    pub fn line_is_empty(&self, line: usize) -> bool {
+        self.line_chunks(line).next().is_none()
     }
 
     pub fn offset_of_line(&self, line: usize) -> usize {
@@ -902,9 +917,12 @@ impl Buffer {
         indent.to_string()
     }
 
+    fn range_bounded(&self, range: Range<usize>) -> Range<usize> {
+        range.start.min(self.len())..range.end.min(self.len())
+    }
+
     pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
-        self.rope
-            .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
+        self.rope.slice_to_cow(self.range_bounded(range))
     }
 
     pub fn slice_to_chars<'a>(
@@ -912,8 +930,18 @@ impl Buffer {
         range: Range<usize>,
     ) -> impl Iterator<Item = char> + 'a {
         self.rope
-            .iter_chunks(range.start.min(self.len())..range.end.min(self.len()))
+            .iter_chunks(self.range_bounded(range))
             .flat_map(|chunk| chunk.chars())
+    }
+
+    pub fn slice_to_bytes<'a>(
+        &'a self,
+        range: Range<usize>,
+    ) -> impl Iterator<Item = u8> + 'a {
+        self.rope
+            .iter_chunks(self.range_bounded(range))
+            .flat_map(|chunk| chunk.as_bytes())
+            .copied()
     }
 
     pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {
