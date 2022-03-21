@@ -346,29 +346,6 @@ impl Widget<LapceTabData> for CodeAction {
             let buffer = data.main_split.open_files.get(path).unwrap();
             let code_actions = CodeActionData::code_actions(buffer, editor);
 
-            let action_text_layouts: Vec<TextLayout<String>> = code_actions
-                .iter()
-                .map(|code_action| {
-                    let title = match code_action {
-                        CodeActionOrCommand::Command(cmd) => cmd.title.to_string(),
-                        CodeActionOrCommand::CodeAction(action) => {
-                            action.title.to_string()
-                        }
-                    };
-                    let mut text_layout = TextLayout::<String>::from_text(title);
-                    text_layout.set_font(
-                        FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
-                    );
-                    text_layout.set_text_color(
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                            .clone(),
-                    );
-                    text_layout.rebuild_if_needed(ctx.text(), env);
-                    text_layout
-                })
-                .collect();
-
             let line_height = data.config.editor.line_height as f64;
 
             let line_rect = Rect::ZERO
@@ -383,7 +360,27 @@ impl Widget<LapceTabData> for CodeAction {
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
 
-            for (i, text_layout) in action_text_layouts.iter().enumerate() {
+            let action_text_layouts = code_actions.iter().map(|code_action| {
+                let title = match code_action {
+                    CodeActionOrCommand::Command(cmd) => cmd.title.to_string(),
+                    CodeActionOrCommand::CodeAction(action) => {
+                        action.title.to_string()
+                    }
+                };
+                let mut text_layout = TextLayout::<String>::from_text(title);
+                text_layout.set_font(
+                    FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(14.0),
+                );
+                text_layout.set_text_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                        .clone(),
+                );
+                text_layout
+            });
+
+            for (i, mut text_layout) in action_text_layouts.enumerate() {
+                text_layout.rebuild_if_needed(ctx.text(), env);
                 text_layout.draw(ctx, Point::new(5.0, i as f64 * line_height + 5.0));
             }
         }
