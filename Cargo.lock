@@ -66,9 +66,9 @@ dependencies = [
 
 [[package]]
 name = "alacritty_terminal"
-version = "0.15.0"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cb242564a92a164043841b07b195570b7e691b926858af601c43e0cc4fe68e3"
+checksum = "02fb5d4af84e39f9754d039ff6de2233c8996dbae0af74910156e559e5766e2f"
 dependencies = [
  "alacritty_config_derive",
  "base64",
@@ -85,34 +85,7 @@ dependencies = [
  "regex-automata",
  "serde 1.0.130",
  "serde_yaml",
- "signal-hook 0.1.17",
- "unicode-width",
- "vte",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "alacritty_terminal"
-version = "0.16.0-rc2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54c51875d37376010fdf153b8594897700a82f0a18942ccad4beebfe61d61ede"
-dependencies = [
- "alacritty_config_derive",
- "base64",
- "bitflags",
- "dirs",
- "libc",
- "log",
- "mio 0.6.23",
- "mio-anonymous-pipes",
- "mio-extras",
- "miow 0.3.7",
- "nix 0.22.2",
- "parking_lot",
- "regex-automata",
- "serde 1.0.130",
- "serde_yaml",
- "signal-hook 0.3.13",
+ "signal-hook",
  "signal-hook-mio",
  "unicode-width",
  "vte",
@@ -2020,7 +1993,7 @@ name = "lapce-data"
 version = "0.0.10"
 dependencies = [
  "Inflector",
- "alacritty_terminal 0.15.0",
+ "alacritty_terminal",
  "anyhow",
  "base64",
  "bit-vec 0.5.1",
@@ -2076,7 +2049,7 @@ dependencies = [
 name = "lapce-proxy"
 version = "0.0.10"
 dependencies = [
- "alacritty_terminal 0.16.0-rc2",
+ "alacritty_terminal",
  "anyhow",
  "base64",
  "crossbeam-channel",
@@ -2123,7 +2096,7 @@ name = "lapce-ui"
 version = "0.0.10"
 dependencies = [
  "Inflector",
- "alacritty_terminal 0.15.0",
+ "alacritty_terminal",
  "anyhow",
  "base64",
  "bit-vec 0.5.1",
@@ -3880,17 +3853,6 @@ dependencies = [
 
 [[package]]
 name = "signal-hook"
-version = "0.1.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e31d442c16f047a671b5a71e2161d6e68814012b7f5379d269ebd915fac2729"
-dependencies = [
- "libc",
- "mio 0.6.23",
- "signal-hook-registry",
-]
-
-[[package]]
-name = "signal-hook"
 version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "647c97df271007dcea485bb74ffdb57f2e683f1306c854f468a0c244badabf2d"
@@ -3908,7 +3870,7 @@ dependencies = [
  "libc",
  "mio 0.6.23",
  "mio-uds",
- "signal-hook 0.3.13",
+ "signal-hook",
 ]
 
 [[package]]
