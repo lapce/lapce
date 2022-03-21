@@ -410,7 +410,7 @@ impl KeyPressData {
                             return false;
                         }
                         if let Some(condition) = &keymap.when {
-                            if !self.check_condition(condition, check) {
+                            if !Self::check_condition(condition, check) {
                                 return false;
                             }
                         }
@@ -435,7 +435,7 @@ impl KeyPressData {
         }
     }
 
-    fn check_condition<T: KeyPressFocus>(&self, condition: &str, check: &T) -> bool {
+    fn check_condition<T: KeyPressFocus>(condition: &str, check: &T) -> bool {
         fn check_one_condition<T: KeyPressFocus>(
             condition: &str,
             check: &T,
@@ -447,24 +447,16 @@ impl KeyPressData {
             }
         }
 
-        let or_indics: Vec<_> = condition.match_indices("||").collect();
-        let and_indics: Vec<_> = condition.match_indices("&&").collect();
-        if and_indics.is_empty() {
-            if or_indics.is_empty() {
-                check_one_condition(condition, check)
-            } else {
-                check_one_condition(&condition[..or_indics[0].0], check)
-                    || self.check_condition(&condition[or_indics[0].0 + 2..], check)
+        match Condition::parse_first(condition) {
+            Condition::Single(condition) => check_one_condition(condition, check),
+            Condition::Or(left, right) => {
+                check_one_condition(left, check)
+                    || Self::check_condition(right, check)
             }
-        } else if or_indics.is_empty() {
-            check_one_condition(&condition[..and_indics[0].0], check)
-                && self.check_condition(&condition[and_indics[0].0 + 2..], check)
-        } else if or_indics[0].0 < and_indics[0].0 {
-            check_one_condition(&condition[..or_indics[0].0], check)
-                || self.check_condition(&condition[or_indics[0].0 + 2..], check)
-        } else {
-            check_one_condition(&condition[..and_indics[0].0], check)
-                && self.check_condition(&condition[and_indics[0].0 + 2..], check)
+            Condition::And(left, right) => {
+                check_one_condition(left, check)
+                    && Self::check_condition(right, check)
+            }
         }
     }
 
@@ -706,4 +698,30 @@ fn get_modes(toml_keymap: &toml::Value) -> Modes {
         .and_then(|v| v.as_str())
         .map(Modes::parse)
         .unwrap_or_else(Modes::empty)
+}
+
+enum Condition<'a> {
+    Single(&'a str),
+    Or(&'a str, &'a str),
+    And(&'a str, &'a str),
+}
+
+impl<'a> Condition<'a> {
+    fn parse_first(condition: &'a str) -> Self {
+        let or = condition.match_indices("||").next();
+        let and = condition.match_indices("&&").next();
+
+        match (or, and) {
+            (None, None) => Condition::Single(condition),
+            (Some((pos, cond)), None) => Condition::Or(cond, &condition[pos + 2..]),
+            (None, Some((pos, cond))) => Condition::And(cond, &condition[pos + 2..]),
+            (Some((or_pos, or_cond)), Some((and_pos, and_cond))) => {
+                if or_pos < and_pos {
+                    Condition::Or(or_cond, &condition[or_pos + 2..])
+                } else {
+                    Condition::And(and_cond, &condition[and_pos + 2..])
+                }
+            }
+        }
+    }
 }
