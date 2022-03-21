@@ -770,12 +770,6 @@ impl LapceSettingsItem {
     fn get_key(&self) -> String {
         format!("{}.{}", self.kind, self.name.to_kebab_case())
     }
-
-    fn update_value(&mut self, ctx: &mut EventCtx, value: serde_json::Value) {
-        self.value = value;
-        self.value_changed = true;
-        self.last_idle_timer = ctx.request_timer(Duration::from_millis(300));
-    }
 }
 
 impl KeyPressFocus for LapceSettingsItemKeypress {
@@ -836,109 +830,85 @@ impl Widget<LapceTabData> for LapceSettingsItem {
     ) {
         if let Some(input) = self.input_widget.as_mut() {
             match event {
-                Event::KeyDown(key_event) => {
-                    let mut f = LapceSettingsItemKeypress {
-                        input: self.input.clone(), // Clone so we can check for change
-                        cursor: self.cursor,
-                    };
-                    let mut_keypress = Arc::make_mut(&mut data.keypress);
-                    mut_keypress.key_down(ctx, key_event, &mut f, env);
-                    self.cursor = f.cursor;
-                    if f.input != self.input {
-                        self.input = f.input;
-                        let new_value = match &self.value {
-                            serde_json::Value::Number(_n) => {
-                                if let Ok(new_n) = self.input.parse::<i64>() {
-                                    serde_json::json!(new_n)
-                                } else {
-                                    return;
-                                }
-                            }
-                            serde_json::Value::String(_s) => {
-                                serde_json::json!(self.input)
-                            }
-                            _ => return,
-                        };
-                        self.update_value(ctx, new_value);
-                    }
-                }
-
                 Event::Wheel(_) => {}
-
-                Event::MouseDown(mouse_event) => {
-                    // ctx.request_focus();
-                    let input = self.input.clone();
-                    if let Some(_text) = self.value(ctx.text(), data) {
-                        let text = ctx
-                            .text()
-                            .new_text_layout(input)
-                            .font(FontFamily::SYSTEM_UI, 13.0)
-                            .text_color(
-                                data.config
-                                    .get_color_unchecked(
-                                        LapceTheme::EDITOR_FOREGROUND,
-                                    )
-                                    .clone(),
-                            )
-                            .build()
-                            .unwrap();
-                        let mut height = self.name(ctx.text(), data).size().height;
-                        height += self.desc(ctx.text(), data).size().height;
-                        height += self.padding * 2.0 * 2.0 + self.padding;
-
-                        let rect = Size::new(
-                            ctx.size().width.min(self.input_max_width),
-                            text.size().height,
-                        )
-                        .to_rect()
-                        .with_origin(Point::new(0.0, height))
-                        .inflate(0.0, 8.0);
-                        if rect.contains(mouse_event.pos) {
-                            let pos = mouse_event.pos - (8.0, 0.0);
-                            let hit = text.hit_test_point(pos);
-                            self.cursor = hit.idx;
-                        }
-                    } else if let serde_json::Value::Bool(checked) = self.value {
-                        let rect =
-                            Size::new(self.checkbox_width, self.checkbox_width)
-                                .to_rect()
-                                .with_origin(Point::new(
-                                    0.0,
-                                    self.name(ctx.text(), data).size().height
-                                        + self.padding * 3.0,
-                                ));
-                        if rect.contains(mouse_event.pos) {
-                            self.update_value(ctx, serde_json::json!(!checked));
-                        }
-                    }
-                }
-                Event::MouseMove(mouse_event) => {
-                    ctx.set_handled();
-                    if self.input_rect.contains(mouse_event.pos) {
-                        ctx.set_cursor(&druid::Cursor::IBeam);
-                        ctx.request_paint();
-                    } else {
-                        ctx.clear_cursor();
-                        ctx.request_paint();
-                    }
-                }
-                Event::Timer(token)
-                    if self.value_changed && *token == self.last_idle_timer =>
-                {
-                    self.value_changed = false;
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSettingsFile(
-                            self.get_key(),
-                            self.value.clone(),
-                        ),
-                        Target::Widget(data.id),
-                    ));
-                }
                 _ => {
                     input.event(ctx, event, data, env);
                 }
             }
+        }
+        match event {
+            Event::MouseDown(mouse_event) => {
+                // ctx.request_focus();
+                let input = self.input.clone();
+                if let Some(_text) = self.value(ctx.text(), data) {
+                    let text = ctx
+                        .text()
+                        .new_text_layout(input)
+                        .font(FontFamily::SYSTEM_UI, 13.0)
+                        .text_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                .clone(),
+                        )
+                        .build()
+                        .unwrap();
+                    let mut height = self.name(ctx.text(), data).size().height;
+                    height += self.desc(ctx.text(), data).size().height;
+                    height += self.padding * 2.0 * 2.0 + self.padding;
+
+                    let rect = Size::new(
+                        ctx.size().width.min(self.input_max_width),
+                        text.size().height,
+                    )
+                    .to_rect()
+                    .with_origin(Point::new(0.0, height))
+                    .inflate(0.0, 8.0);
+                    if rect.contains(mouse_event.pos) {
+                        let pos = mouse_event.pos - (8.0, 0.0);
+                        let hit = text.hit_test_point(pos);
+                        self.cursor = hit.idx;
+                    }
+                } else if let serde_json::Value::Bool(checked) = self.value {
+                    let rect = Size::new(self.checkbox_width, self.checkbox_width)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            0.0,
+                            self.name(ctx.text(), data).size().height
+                                + self.padding * 3.0,
+                        ));
+                    if rect.contains(mouse_event.pos) {
+                        self.value = serde_json::json!(!checked);
+                        self.value_changed = true;
+                        self.last_idle_timer =
+                            ctx.request_timer(Duration::from_millis(300));
+                    }
+                }
+            }
+            Event::MouseMove(mouse_event) => {
+                ctx.set_handled();
+                if self.input_rect.contains(mouse_event.pos) {
+                    ctx.set_cursor(&druid::Cursor::IBeam);
+                    ctx.request_paint();
+                } else {
+                    ctx.clear_cursor();
+                    ctx.request_paint();
+                }
+            }
+            Event::Timer(token)
+                if self.value_changed && *token == self.last_idle_timer =>
+            {
+                self.value_changed = false;
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSettingsFile(
+                        self.get_key(),
+                        self.value.clone(),
+                    ),
+                    Target::Widget(data.id),
+                ));
+            }
+
+            _ => {}
         }
     }
 
@@ -1001,14 +971,11 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                         }
                         _ => return,
                     };
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSettingsFile(
-                            self.get_key(),
-                            new_value,
-                        ),
-                        Target::Widget(data.id),
-                    ));
+
+                    self.value = new_value;
+                    self.value_changed = true;
+                    self.last_idle_timer =
+                        ctx.request_timer(Duration::from_millis(300));
                 }
             }
         }
