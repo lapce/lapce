@@ -2021,6 +2021,7 @@ dependencies = [
  "anyhow",
  "base64",
  "bit-vec 0.5.1",
+ "bitflags",
  "cc",
  "chrono",
  "config",
