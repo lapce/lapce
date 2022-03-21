@@ -2060,6 +2060,7 @@ dependencies = [
  "structdesc",
  "strum",
  "strum_macros",
+ "thiserror",
  "threadpool",
  "tinyfiledialogs",
  "toml",
