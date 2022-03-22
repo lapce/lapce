@@ -1425,26 +1425,24 @@ impl LapceTabData {
 
     fn show_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
         for (_, panel) in self.panels.iter_mut() {
-            for k in panel.widgets.clone() {
-                if k == kind {
-                    let panel = Arc::make_mut(panel);
-                    panel.shown = true;
-                    panel.active = k;
-                    let focus_id = match kind {
-                        PanelKind::FileExplorer => self.file_explorer.widget_id,
-                        PanelKind::SourceControl => self.source_control.active,
-                        PanelKind::Plugin => self.plugin.widget_id,
-                        PanelKind::Terminal => self.terminal.widget_id,
-                        PanelKind::Search => self.search.active,
-                        PanelKind::Problem => self.problem.widget_id,
-                    };
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(focus_id),
-                    ));
-                    break;
-                }
+            if panel.widgets.contains(&kind) {
+                let panel = Arc::make_mut(panel);
+                panel.shown = true;
+                panel.active = kind;
+                let focus_id = match kind {
+                    PanelKind::FileExplorer => self.file_explorer.widget_id,
+                    PanelKind::SourceControl => self.source_control.active,
+                    PanelKind::Plugin => self.plugin.widget_id,
+                    PanelKind::Terminal => self.terminal.widget_id,
+                    PanelKind::Search => self.search.active,
+                    PanelKind::Problem => self.problem.widget_id,
+                };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(focus_id),
+                ));
+                break;
             }
         }
     }
