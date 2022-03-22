@@ -26,7 +26,7 @@ thread_local! {
 #[derive(Clone)]
 pub struct Syntax {
     rev: u64,
-    language: LapceLanguage,
+    pub language: LapceLanguage,
     pub text: Rope,
     tree: Option<Tree>,
     pub lens: Lens,

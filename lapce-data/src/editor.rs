@@ -4323,6 +4323,91 @@ impl KeyPressFocus for LapceEditorBufferData {
                     let _ = self.apply_completion_item(ctx, &item);
                 }
             }
+            LapceCommand::ToggleLineComment => {
+                let mut lines = HashSet::new();
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let comment_token = self
+                    .buffer
+                    .syntax
+                    .as_ref()
+                    .map(|s| s.language.comment_token())
+                    .unwrap_or("//")
+                    .to_string();
+                let mut had_comment = true;
+                let mut smallest_indent = usize::MAX;
+                for region in selection.regions() {
+                    let mut line = self.buffer.line_of_offset(region.min());
+                    let end_line = self.buffer.line_of_offset(region.max());
+                    let end_line_offset = self.buffer.offset_of_line(end_line);
+                    let end = if end_line > line && region.max() == end_line_offset {
+                        end_line_offset
+                    } else {
+                        self.buffer.offset_of_line(end_line + 1)
+                    };
+                    let start = self.buffer.offset_of_line(line);
+                    for content in self.buffer.rope.lines(start..end) {
+                        let trimed_content = content.trim_start();
+                        if trimed_content.is_empty() {
+                            line += 1;
+                            continue;
+                        }
+                        let indent = content.len() - trimed_content.len();
+                        if indent < smallest_indent {
+                            smallest_indent = indent;
+                        }
+                        if !trimed_content.starts_with(&comment_token) {
+                            had_comment = false;
+                            lines.insert((line, indent, 0));
+                        } else {
+                            let had_space_after_comment =
+                                trimed_content.chars().nth(comment_token.len())
+                                    == Some(' ');
+                            lines.insert((
+                                line,
+                                indent,
+                                comment_token.len()
+                                    + if had_space_after_comment { 1 } else { 0 },
+                            ));
+                        }
+                        line += 1;
+                    }
+                }
+
+                let delta = if had_comment {
+                    let mut selection = Selection::new();
+                    for (line, indent, len) in lines.iter() {
+                        let start = self.buffer.offset_of_line(*line) + indent;
+                        selection.add_region(SelRegion::new(
+                            start,
+                            start + len,
+                            None,
+                        ))
+                    }
+                    let (_, delta) =
+                        self.edit(ctx, &selection, "", None, true, EditType::Delete);
+                    delta
+                } else {
+                    let mut selection = Selection::new();
+                    for (line, _, _) in lines.iter() {
+                        let start =
+                            self.buffer.offset_of_line(*line) + smallest_indent;
+                        selection.add_region(SelRegion::new(start, start, None))
+                    }
+                    let (_, delta) = self.edit(
+                        ctx,
+                        &selection,
+                        &(comment_token + " "),
+                        None,
+                        true,
+                        EditType::InsertChars,
+                    );
+                    delta
+                };
+                Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
+            }
             LapceCommand::NormalMode => {
                 if !self.config.lapce.modal {
                     return CommandExecuted::Yes;

@@ -73,6 +73,10 @@ key = "meta+|"
 command = "match_pairs"
 mode = "i"
 
+[[keymaps]]
+key = "meta+/"
+command = "toggle_line_comment"
+
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]

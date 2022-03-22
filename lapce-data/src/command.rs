@@ -323,8 +323,11 @@ pub enum LapceCommand {
     InsertMode,
     #[strum(serialize = "insert_first_non_blank")]
     InsertFirstNonBlank,
-    #[strum(serialize = "toggle_comment")]
-    ToggleComment,
+
+    #[strum(message = "Toggle Line Comment")]
+    #[strum(serialize = "toggle_line_comment")]
+    ToggleLineComment,
+
     #[strum(serialize = "normal_mode")]
     NormalMode,
     #[strum(serialize = "toggle_visual_mode")]

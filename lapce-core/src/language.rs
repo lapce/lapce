@@ -61,6 +61,19 @@ impl LapceLanguage {
         })
     }
 
+    pub fn comment_token(&self) -> &str {
+        match self {
+            LapceLanguage::Rust => "//",
+            LapceLanguage::Go => "//",
+            LapceLanguage::Javascript => "//",
+            LapceLanguage::Jsx => "//",
+            LapceLanguage::Typescript => "//",
+            LapceLanguage::Tsx => "//",
+            LapceLanguage::Python => "#",
+            LapceLanguage::Toml => "#",
+        }
+    }
+
     fn tree_sitter_language(&self) -> tree_sitter::Language {
         match self {
             LapceLanguage::Rust => tree_sitter_rust::language(),
