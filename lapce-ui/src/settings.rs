@@ -219,27 +219,33 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         let origin = Point::new(
             tab_size.width / 2.0 - self_size.width / 2.0,
             (tab_size.height / 2.0 - self_size.height / 2.0) / 2.0,
-        );
-        self.content_rect = self_size.to_rect().with_origin(origin);
+        )
+        .round();
+        self.content_rect = self_size.to_rect().with_origin(origin).round();
         self.header_rect = Size::new(self_size.width, 50.0)
             .to_rect()
-            .with_origin(origin);
+            .with_origin(origin)
+            .round();
 
         let close_size = 26.0;
-        self.close_rect = Size::new(close_size, close_size).to_rect().with_origin(
-            origin
-                + (
-                    self.header_rect.width()
-                        - (self.header_rect.height() / 2.0 - close_size / 2.0)
-                        - close_size,
-                    self.header_rect.height() / 2.0 - close_size / 2.0,
-                ),
-        );
+        self.close_rect = Size::new(close_size, close_size)
+            .to_rect()
+            .with_origin(
+                origin
+                    + (
+                        self.header_rect.width()
+                            - (self.header_rect.height() / 2.0 - close_size / 2.0)
+                            - close_size,
+                        self.header_rect.height() / 2.0 - close_size / 2.0,
+                    ),
+            )
+            .round();
 
         self.switcher_rect =
             Size::new(150.0, self_size.height - self.header_rect.height())
                 .to_rect()
-                .with_origin(origin + (0.0, self.header_rect.height()));
+                .with_origin(origin + (0.0, self.header_rect.height()))
+                .round();
 
         let content_size = Size::new(
             self_size.width - self.switcher_rect.width() - 40.0,
