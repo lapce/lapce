@@ -26,27 +26,22 @@ command = "open_keyboard_shortcuts"
 [[keymaps]]
 key = "meta+z"
 command = "undo"
-mode = "i"
 
 [[keymaps]]
 key = "meta+Z"
 command = "redo"
-mode = "i"
 
 [[keymaps]]
 key = "meta+x"
 command = "clipboard_cut"
-mode = "i"
 
 [[keymaps]]
 key = "meta+c"
 command = "clipboard_copy"
-mode = "i"
 
 [[keymaps]]
 key = "meta+v"
 command = "clipboard_paste"
-mode = "i"
 
 [[keymaps]]
 key = "meta+right"
