@@ -113,7 +113,7 @@ impl Leaf for LensLeaf {
                 continue;
             }
 
-            if accum + sec.len < iv_end {
+            if accum + sec.len <= iv_end {
                 accum += sec.len;
                 self.data.push(LensData {
                     len: sec.len,
@@ -381,6 +381,13 @@ mod tests {
         assert_eq!(Some((9, 2)), iter.next());
         assert_eq!(Some((10, 25)), iter.next());
         assert_eq!(Some((11, 3)), iter.next());
+        assert_eq!(None, iter.next());
+
+        let mut iter = lens.iter_chunks(9..15);
+        assert_eq!(Some((9, 2)), iter.next());
+        assert_eq!(Some((10, 25)), iter.next());
+        assert_eq!(Some((11, 3)), iter.next());
+        assert_eq!(Some((12, 3)), iter.next());
         assert_eq!(None, iter.next());
     }
 }

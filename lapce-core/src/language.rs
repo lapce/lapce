@@ -19,6 +19,19 @@ const GO_CODE_LENS_LIST: &[&str] = &[
 ];
 const GO_CODE_LENS_IGNORE_LIST: &[&str] =
     &["source_file", "comment", "line_comment"];
+const PYTHON_CODE_LENS_LIST: &[&str] = &[
+    "source_file",
+    "module",
+    "class_definition",
+    "class",
+    "identifier",
+    "decorated_definition",
+    "block",
+];
+const PYTHON_CODE_LENS_IGNORE_LIST: &[&str] =
+    &["source_file", "import_statement", "import_from_statement"];
+const JAVASCRIPT_CODE_LENS_LIST: &[&str] = &["source_file", "program"];
+const JAVASCRIPT_CODE_LENS_IGNORE_LIST: &[&str] = &["source_file"];
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub enum LapceLanguage {
@@ -94,6 +107,15 @@ impl LapceLanguage {
         let (list, ignore_list) = match self {
             LapceLanguage::Rust => (RUST_CODE_LENS_LIST, RUST_CODE_LENS_IGNORE_LIST),
             LapceLanguage::Go => (GO_CODE_LENS_LIST, GO_CODE_LENS_IGNORE_LIST),
+            LapceLanguage::Python => {
+                (PYTHON_CODE_LENS_LIST, PYTHON_CODE_LENS_IGNORE_LIST)
+            }
+            LapceLanguage::Javascript
+            | LapceLanguage::Jsx
+            | LapceLanguage::Typescript
+            | LapceLanguage::Tsx => {
+                (JAVASCRIPT_CODE_LENS_LIST, JAVASCRIPT_CODE_LENS_IGNORE_LIST)
+            }
             _ => (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         };
         walk_tree(cursor, 0, normal_lines, list, ignore_list);

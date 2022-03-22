@@ -346,7 +346,6 @@ impl HighlightConfiguration {
         self.highlight_indices.clear();
         self.highlight_indices
             .extend(self.query.capture_names().iter().map(move |capture_name| {
-                println!("{capture_name}");
                 capture_parts.clear();
                 capture_parts.extend(capture_name.split('.'));
 

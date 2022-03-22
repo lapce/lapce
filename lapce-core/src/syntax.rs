@@ -204,9 +204,9 @@ impl Syntax {
         };
 
         let lens = Self::lens_from_normal_lines(
-            new_text.line_of_offset(new_text.len()),
-            0,
-            0,
+            new_text.line_of_offset(new_text.len()) + 1,
+            self.line_height,
+            self.lens_height,
             &normal_lines,
         );
         Syntax {
@@ -215,8 +215,8 @@ impl Syntax {
             tree: new_tree,
             text: new_text,
             lens,
-            line_height: 0,
-            lens_height: 0,
+            line_height: self.line_height,
+            lens_height: self.lens_height,
             normal_lines,
             styles,
         }
@@ -224,7 +224,7 @@ impl Syntax {
 
     pub fn update_lens_height(&mut self, line_height: usize, lens_height: usize) {
         self.lens = Self::lens_from_normal_lines(
-            self.text.line_of_offset(self.text.len()),
+            self.text.line_of_offset(self.text.len()) + 1,
             line_height,
             lens_height,
             &self.normal_lines,
@@ -365,5 +365,24 @@ mod tests {
         assert_eq!(6, lens.height_of_line(3));
         assert_eq!(31, lens.height_of_line(4));
         assert_eq!(33, lens.height_of_line(5));
+    }
+
+    #[test]
+    fn test_lens_iter() {
+        let lens = Syntax::lens_from_normal_lines(5, 25, 2, &[0, 2, 4]);
+        assert_eq!(5, lens.len());
+        let mut iter = lens.iter_chunks(2..5);
+        assert_eq!(Some((2, 25)), iter.next());
+        assert_eq!(Some((3, 2)), iter.next());
+        assert_eq!(Some((4, 25)), iter.next());
+        assert_eq!(None, iter.next());
+
+        let lens =
+            Syntax::lens_from_normal_lines(91, 25, 2, &[0, 11, 14, 54, 57, 90]);
+        assert_eq!(91, lens.len());
+        let mut iter = lens.iter_chunks(89..91);
+        assert_eq!(Some((89, 2)), iter.next());
+        assert_eq!(Some((90, 25)), iter.next());
+        assert_eq!(None, iter.next());
     }
 }

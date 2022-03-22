@@ -1709,7 +1709,7 @@ impl LapceEditorBufferData {
         let max_line_width = (last_line + 1).to_string().len() as f64 * char_width;
 
         let mut y = lens.height_of_line(start_line) as f64;
-        for (line, line_height) in lens.iter_chunks(start_line..end_line) {
+        for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
             let content = if *self.main_split.active != Some(self.view_id)
                 || self.editor.cursor.is_insert()
                 || line == cursor_line
@@ -1988,57 +1988,58 @@ impl LapceEditorBufferData {
         let mut lines_iter = rope.lines(start_offset..end_offset);
 
         let mut y = lens.height_of_line(start_line) as f64;
-        for (line, line_height) in lens.iter_chunks(start_line..end_line) {
-            let is_small = line_height < config.editor.line_height;
-            let line_content = lines_iter.next().unwrap();
+        for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
+            if let Some(line_content) = lines_iter.next() {
+                let is_small = line_height < config.editor.line_height;
 
-            let mut x = 0.0;
-            if is_small {
-                for ch in line_content.chars() {
-                    if ch == ' ' {
-                        x += char_width - small_char_width;
-                    } else if ch == '\t' {
-                        x += (char_width - small_char_width)
-                            * config.editor.tab_width as f64;
-                    } else {
-                        break;
+                let mut x = 0.0;
+                if is_small {
+                    for ch in line_content.chars() {
+                        if ch == ' ' {
+                            x += char_width - small_char_width;
+                        } else if ch == '\t' {
+                            x += (char_width - small_char_width)
+                                * config.editor.tab_width as f64;
+                        } else {
+                            break;
+                        }
                     }
                 }
-            }
 
-            self.paint_cursor_on_line(
-                ctx,
-                is_focused,
-                cursor_line,
-                line,
-                x,
-                y,
-                if is_small {
-                    small_char_width
-                } else {
-                    char_width
-                },
-                line_height as f64,
-                config,
-            );
-            let text_layout = self.buffer.new_text_layout(
-                ctx,
-                line,
-                &line_content,
-                None,
-                if is_small {
-                    config.editor.code_lens_font_size
-                } else {
-                    config.editor.font_size
-                },
-                [rect.x0, rect.x1],
-                config,
-            );
-            ctx.draw_text(
-                &text_layout,
-                Point::new(x, if is_small { y } else { y + y_shift }),
-            );
-            y += line_height as f64;
+                self.paint_cursor_on_line(
+                    ctx,
+                    is_focused,
+                    cursor_line,
+                    line,
+                    x,
+                    y,
+                    if is_small {
+                        small_char_width
+                    } else {
+                        char_width
+                    },
+                    line_height as f64,
+                    config,
+                );
+                let text_layout = self.buffer.new_text_layout(
+                    ctx,
+                    line,
+                    &line_content,
+                    None,
+                    if is_small {
+                        config.editor.code_lens_font_size
+                    } else {
+                        config.editor.font_size
+                    },
+                    [rect.x0, rect.x1],
+                    config,
+                );
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(x, if is_small { y } else { y + y_shift }),
+                );
+                y += line_height as f64;
+            }
         }
     }
 
