@@ -521,3 +521,13 @@ mode = "n"
 key = "space"
 command = "toggle_code_lens"
 mode = "nv"
+
+[[keymaps]]
+key = ">"
+command = "indent_line"
+mode = "v"
+
+[[keymaps]]
+key = "<"
+command = "outdent_line"
+mode = "v"

@@ -4408,6 +4408,119 @@ impl KeyPressFocus for LapceEditorBufferData {
                     let _ = self.apply_completion_item(ctx, &item);
                 }
             }
+            LapceCommand::IndentLine => {
+                let indent = self.buffer.indent_unit();
+                let mut edits = Vec::new();
+
+                let mut lines = HashSet::new();
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                for region in selection.regions() {
+                    let start_line = self.buffer.line_of_offset(region.min());
+                    let mut end_line = self.buffer.line_of_offset(region.max());
+                    if end_line > start_line {
+                        let end_line_start = self.buffer.offset_of_line(end_line);
+                        if end_line_start == region.max() {
+                            end_line -= 1;
+                        }
+                    }
+                    for line in start_line..end_line + 1 {
+                        if lines.contains(&line) {
+                            continue;
+                        }
+                        lines.insert(line);
+                        let line_content = self.buffer.line_content(line);
+                        if line_content == "\n" || line_content == "\r\n" {
+                            continue;
+                        }
+                        let nonblank =
+                            self.buffer.first_non_blank_character_on_line(line);
+                        if indent.starts_with('\t') {
+                            edits.push((
+                                Selection::caret(nonblank),
+                                indent.to_string(),
+                            ));
+                        } else {
+                            let (_, col) = self.buffer.offset_to_line_col(
+                                nonblank,
+                                self.config.editor.tab_width,
+                            );
+                            let indent =
+                                " ".repeat(indent.len() - col % indent.len());
+                            edits.push((Selection::caret(nonblank), indent));
+                        }
+                    }
+                }
+
+                let edits = edits
+                    .iter()
+                    .map(|(selection, s)| (selection, s.as_str()))
+                    .collect::<Vec<(&Selection, &str)>>();
+                let delta = self.edit(ctx, &edits, true, EditType::InsertChars);
+                Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
+            }
+            LapceCommand::OutdentLine => {
+                let indent = self.buffer.indent_unit();
+                let mut edits = Vec::new();
+
+                let mut lines = HashSet::new();
+                let selection = self
+                    .editor
+                    .cursor
+                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                for region in selection.regions() {
+                    let start_line = self.buffer.line_of_offset(region.min());
+                    let mut end_line = self.buffer.line_of_offset(region.max());
+                    if end_line > start_line {
+                        let end_line_start = self.buffer.offset_of_line(end_line);
+                        if end_line_start == region.max() {
+                            end_line -= 1;
+                        }
+                    }
+                    for line in start_line..end_line + 1 {
+                        if lines.contains(&line) {
+                            continue;
+                        }
+                        lines.insert(line);
+                        let line_content = self.buffer.line_content(line);
+                        if line_content == "\n" || line_content == "\r\n" {
+                            continue;
+                        }
+                        let nonblank =
+                            self.buffer.first_non_blank_character_on_line(line);
+                        let (_, col) = self.buffer.offset_to_line_col(
+                            nonblank,
+                            self.config.editor.tab_width,
+                        );
+                        if col == 0 {
+                            continue;
+                        }
+
+                        if indent.starts_with('\t') {
+                            edits.push((
+                                Selection::region(nonblank - 1, nonblank),
+                                "".to_string(),
+                            ));
+                        } else {
+                            let r = col % indent.len();
+                            let r = if r == 0 { indent.len() } else { r };
+                            edits.push((
+                                Selection::region(nonblank - r, nonblank),
+                                "".to_string(),
+                            ));
+                        }
+                    }
+                }
+
+                let edits = edits
+                    .iter()
+                    .map(|(selection, s)| (selection, s.as_str()))
+                    .collect::<Vec<(&Selection, &str)>>();
+                let delta = self.edit(ctx, &edits, true, EditType::InsertChars);
+                Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
+            }
             LapceCommand::ToggleLineComment => {
                 let mut lines = HashSet::new();
                 let selection = self

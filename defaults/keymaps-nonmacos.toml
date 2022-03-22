@@ -77,6 +77,14 @@ mode = "i"
 key = "ctrl+/"
 command = "toggle_line_comment"
 
+[[keymaps]]
+key = "ctrl+]"
+command = "indent_line"
+
+[[keymaps]]
+key = "ctrl+["
+command = "outdent_line"
+
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]

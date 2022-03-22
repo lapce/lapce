@@ -328,6 +328,14 @@ pub enum LapceCommand {
     #[strum(serialize = "toggle_line_comment")]
     ToggleLineComment,
 
+    #[strum(message = "Indent Line")]
+    #[strum(serialize = "indent_line")]
+    IndentLine,
+
+    #[strum(message = "Outdent Line")]
+    #[strum(serialize = "outdent_line")]
+    OutdentLine,
+
     #[strum(serialize = "normal_mode")]
     NormalMode,
     #[strum(serialize = "toggle_visual_mode")]
