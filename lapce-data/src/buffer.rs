@@ -4,6 +4,7 @@ use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
     Data, EventCtx, ExtEventSink, Target, WidgetId, WindowId,
 };
+use lapce_core::indent::{auto_detect_indent_style, IndentStyle};
 use lapce_core::style::{line_styles, LineStyle, LineStyles, Style};
 use lapce_core::syntax::Syntax;
 use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
@@ -40,6 +41,8 @@ use crate::{
 
 #[allow(dead_code)]
 const FIND_BATCH_SIZE: usize = 500000;
+
+const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
 
 #[derive(Debug, Clone)]
 pub struct InvalLines {
@@ -217,6 +220,7 @@ pub struct Buffer {
     pub rope: Rope,
     pub content: BufferContent,
     pub syntax: Option<Syntax>,
+    pub indent_style: IndentStyle,
     pub line_styles: Rc<RefCell<LineStyles>>,
     pub semantic_styles: Option<Arc<Spans<Style>>>,
     pub max_len: usize,
@@ -275,6 +279,7 @@ impl Buffer {
             rope,
             syntax,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
+            indent_style: DEFAULT_INDENT,
             semantic_styles: None,
             content,
             find: Rc::new(RefCell::new(Find::new(0))),
@@ -368,7 +373,22 @@ impl Buffer {
         self.max_len_line = max_len_line;
         self.num_lines = self.num_lines();
         self.loaded = true;
+        self.detect_indent();
         self.notify_update(None);
+    }
+
+    pub fn detect_indent(&mut self) {
+        self.indent_style =
+            auto_detect_indent_style(&self.rope).unwrap_or_else(|| {
+                self.syntax
+                    .as_ref()
+                    .map(|s| IndentStyle::from_str(s.language.indent_unit()))
+                    .unwrap_or(DEFAULT_INDENT)
+            });
+    }
+
+    pub fn indent_unit(&self) -> &'static str {
+        self.indent_style.as_str()
     }
 
     fn retrieve_history_styles(&self, version: &str, content: Rope) {
@@ -1776,7 +1796,7 @@ impl Buffer {
 
         #[allow(unused_variables)] ctx: &mut EventCtx,
 
-        edits: Vec<(&Selection, &str)>,
+        edits: &[(&Selection, &str)],
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
@@ -1828,7 +1848,7 @@ impl Buffer {
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
-        self.edit_multiple(ctx, vec![(selection, content)], proxy, edit_type)
+        self.edit_multiple(ctx, &[(selection, content)], proxy, edit_type)
     }
 
     pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {

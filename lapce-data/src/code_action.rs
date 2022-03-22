@@ -143,10 +143,10 @@ impl CodeActionData {
                                 self.main_split.edit(
                                     ctx,
                                     &path,
-                                    edits
+                                    &edits
                                         .iter()
-                                        .map(|(s, c)| (s, c.as_ref()))
-                                        .collect(),
+                                        .map(|(s, c)| (s, c.as_str()))
+                                        .collect::<Vec<(&Selection, &str)>>(),
                                     EditType::Other,
                                     &self.config,
                                 );

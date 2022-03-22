@@ -19,8 +19,8 @@ use lapce_data::{
     },
     config::{Config, LapceTheme},
     data::{
-        DragContent, EditorTabChild, FocusArea, LapceEditorTabData,
-        LapceEditorViewData, LapceTabData, PanelData, PanelKind, SplitContent,
+        DragContent, EditorTabChild, FocusArea, LapceEditorTabData, LapceTabData,
+        PanelData, PanelKind, SplitContent,
     },
     editor::{EditorLocation, LapceEditorBufferData, TabRect},
     keypress::KeyPressFocus,
@@ -88,10 +88,10 @@ pub struct EditorState {
     last_movement: Movement,
 }
 
-pub enum LapceEditorContainerKind {
-    Container(WidgetPod<LapceEditorViewData, LapceEditorContainer>),
-    DiffSplit(LapceSplitNew),
-}
+// pub enum LapceEditorContainerKind {
+//     Container(WidgetPod<LapceEditorViewData, LapceEditorContainer>),
+//     DiffSplit(LapceSplitNew),
+// }
 
 pub struct EditorDiffSplit {
     left: WidgetPod<LapceTabData, LapceEditorContainer>,
@@ -1870,185 +1870,6 @@ impl LapceEditorContainer {
             editor: WidgetPod::new(editor),
         }
     }
-
-    // fn set_focus(&self, ctx: &mut EventCtx, data: &mut LapceEditorViewData) {
-    //     if let BufferContent::File(_) = &self.editor.content {
-    //         data.main_split.active = Arc::new(Some(self.view_id));
-    //     }
-    //     ctx.request_focus();
-    // }
-
-    // pub fn handle_lapce_ui_command(
-    //     &mut self,
-    //     ctx: &mut EventCtx,
-    //     cmd: &LapceUICommand,
-    //     data: &mut LapceEditorViewData,
-    //     env: &Env,
-    // ) {
-    //     match cmd {
-    //         LapceUICommand::Focus => {
-    //             self.set_focus(ctx, data);
-    //             ctx.set_handled();
-    //         }
-    //         LapceUICommand::EnsureCursorVisible(position) => {
-    //             self.ensure_cursor_visible(ctx, data, position.as_ref(), env);
-    //         }
-    //         LapceUICommand::EnsureCursorCenter => {
-    //             self.ensure_cursor_center(ctx, data, env);
-    //         }
-    //         LapceUICommand::EnsureRectVisible(rect) => {
-    //             self.ensure_rect_visible(ctx, data, *rect, env);
-    //         }
-    //         LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
-    //             if data.buffer.id != *buffer_id {
-    //                 return;
-    //             }
-    //             if data.buffer.rev != *rev {
-    //                 return;
-    //             }
-    //             if data.editor.cursor.offset() != *offset {
-    //                 return;
-    //             }
-    //             data.apply_completion_item(ctx, item);
-    //         }
-    //         LapceUICommand::Scroll((x, y)) => {
-    //             self.editor
-    //                 .widget_mut()
-    //                 .inner_mut()
-    //                 .scroll_by(Vec2::new(*x, *y));
-    //             ctx.submit_command(Command::new(
-    //                 LAPCE_UI_COMMAND,
-    //                 LapceUICommand::ResetFade,
-    //                 Target::Widget(self.scroll_id),
-    //             ));
-    //         }
-    //         LapceUICommand::ForceScrollTo(x, y) => {
-    //             self.editor
-    //                 .widget_mut()
-    //                 .inner_mut()
-    //                 .force_scroll_to(Point::new(*x, *y));
-    //             ctx.submit_command(Command::new(
-    //                 LAPCE_UI_COMMAND,
-    //                 LapceUICommand::ResetFade,
-    //                 Target::Widget(self.scroll_id),
-    //             ));
-    //         }
-    //         LapceUICommand::ScrollTo((x, y)) => {
-    //             self.editor
-    //                 .widget_mut()
-    //                 .inner_mut()
-    //                 .scroll_to(Point::new(*x, *y));
-    //             ctx.submit_command(Command::new(
-    //                 LAPCE_UI_COMMAND,
-    //                 LapceUICommand::ResetFade,
-    //                 Target::Widget(self.scroll_id),
-    //             ));
-    //         }
-    //         LapceUICommand::FocusTab => {
-    //             if *data.main_split.active == self.view_id {
-    //                 ctx.request_focus();
-    //             }
-    //         }
-    //         _ => (),
-    //     }
-    // }
-
-    // pub fn ensure_cursor_center(
-    //     &mut self,
-    //     ctx: &mut EventCtx,
-    //     data: &LapceEditorViewData,
-    //     env: &Env,
-    // ) {
-    //     let line_height = data.config.editor.line_height as f64;
-    //     let offset = data.editor.cursor.offset();
-    //     let (line, col) = data.buffer.offset_to_line_col(offset);
-    //     let width = data.config.editor_text_width(ctx.text(), "W");
-    //     let cursor_x = col as f64 * width - width;
-    //     let cursor_x = if cursor_x < 0.0 { 0.0 } else { cursor_x };
-    //     let rect = Rect::ZERO
-    //         .with_origin(Point::new(
-    //             cursor_x.floor(),
-    //             line as f64 * line_height + line_height / 2.0,
-    //         ))
-    //         .with_size(Size::new((width * 3.0).ceil(), 0.0))
-    //         .inflate(0.0, (data.editor.size.borrow().height / 2.0).ceil());
-
-    //     let size = data.get_size(ctx.text(), panels);
-    //     let scroll = self.editor.widget_mut().inner_mut();
-    //     scroll.set_child_size(size);
-    //     if scroll.scroll_to_visible(rect, env) {
-    //         ctx.submit_command(Command::new(
-    //             LAPCE_UI_COMMAND,
-    //             LapceUICommand::ResetFade,
-    //             Target::Widget(self.scroll_id),
-    //         ));
-    //     }
-    // }
-
-    #[allow(unused_variables)]
-    pub fn ensure_rect_visible(
-        &mut self,
-        ctx: &mut EventCtx,
-        data: &LapceEditorViewData,
-        rect: Rect,
-        env: &Env,
-    ) {
-        if self
-            .editor
-            .widget_mut()
-            .inner_mut()
-            .scroll_to_visible(rect, env)
-        {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ResetFade,
-                Target::Widget(self.scroll_id),
-            ));
-        }
-    }
-
-    // pub fn ensure_cursor_visible(
-    //     &mut self,
-    //     ctx: &mut EventCtx,
-    //     data: &LapceEditorViewData,
-    //     position: Option<&EnsureVisiblePosition>,
-    //     env: &Env,
-    // ) {
-    //     let line_height = data.config.editor.line_height as f64;
-    //     let width = data.config.editor_text_width(ctx.text(), "W");
-    //     let size = Size::new(
-    //         (width * data.buffer.max_len as f64)
-    //             .max(data.editor.size.borrow().width),
-    //         line_height * data.buffer.text_layouts.borrow().len() as f64
-    //             + data.editor.size.borrow().height
-    //             - line_height,
-    //     );
-
-    //     let rect = data.cusor_region(&data.config);
-    //     let scroll = self.editor.widget_mut().inner_mut();
-    //     scroll.set_child_size(size);
-    //     let old_scroll_offset = scroll.offset();
-    //     if scroll.scroll_to_visible(rect, env) {
-    //         ctx.submit_command(Command::new(
-    //             LAPCE_UI_COMMAND,
-    //             LapceUICommand::ResetFade,
-    //             Target::Widget(self.scroll_id),
-    //         ));
-    //         if let Some(position) = position {
-    //             match position {
-    //                 EnsureVisiblePosition::CenterOfWindow => {
-    //                     self.ensure_cursor_center(ctx, data, env);
-    //                 }
-    //             }
-    //         } else {
-    //             let scroll_offset = scroll.offset();
-    //             if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
-    //             {
-    //                 self.ensure_cursor_center(ctx, data, env);
-    //             }
-    //         }
-    //     }
-    // }
 }
 
 impl Widget<LapceTabData> for LapceEditorContainer {
