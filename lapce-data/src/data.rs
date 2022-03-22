@@ -300,7 +300,7 @@ pub struct EditorDiagnostic {
     pub diagnositc: Diagnostic,
 }
 
-#[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq)]
+#[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug)]
 pub enum PanelKind {
     FileExplorer,
     SourceControl,
