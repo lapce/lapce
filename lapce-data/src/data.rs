@@ -3020,9 +3020,9 @@ mod hex_to_color_tests {
 
     #[test]
     pub fn hex_to_color_for_valid_3_digit_colors() {
-        assert_eq!(hex_to_color("#123").unwrap(), Color::rgba8(17, 34, 51, 255));
-        assert_eq!(hex_to_color("#a2f").unwrap(), Color::rgba8(170, 34, 255, 255));
-        assert_eq!(hex_to_color("#A2F").unwrap(), Color::rgba8(170, 34, 255, 255));
+        assert_eq!(hex_to_color("#123").unwrap(), Color::rgba8(0x11, 0x22, 0x33, 255));
+        assert_eq!(hex_to_color("#a2f").unwrap(), Color::rgba8(0xAA, 0x22, 0xFF, 255));
+        assert_eq!(hex_to_color("#A2F").unwrap(), Color::rgba8(0xAA, 0x22, 0xFF, 255));
     }
 
     #[test]
