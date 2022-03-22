@@ -381,7 +381,7 @@ impl Config {
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> Option<()> {
         self.lapce.color_theme = theme.to_string();
 
-        if let Err(err) = self.themes.load_theme(&theme) {
+        if let Err(err) = self.themes.load_theme(theme) {
             log::warn!("Failed to load theme: {:?}", err);
         }
 

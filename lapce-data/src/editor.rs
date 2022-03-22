@@ -1685,15 +1685,16 @@ impl LapceEditorBufferData {
             self.config.editor.code_lens_font_size,
             &[],
         );
-        let (rope, lens) = if let Some(syntax) = self.buffer.syntax.as_ref() {
-            (&syntax.text, &syntax.lens)
+        let lens = if let Some(syntax) = self.buffer.syntax.as_ref() {
+            &syntax.lens
         } else {
-            (&self.buffer.rope, &empty_lens)
+            &empty_lens
         };
 
-        let cursor_line =
-            rope.line_of_offset(self.editor.cursor.offset().min(rope.len()));
-        let last_line = rope.line_of_offset(rope.len());
+        let cursor_line = self
+            .buffer
+            .line_of_offset(self.editor.cursor.offset().min(self.buffer.len()));
+        let last_line = self.buffer.line_of_offset(self.buffer.len());
         let start_line = lens
             .line_of_height(scroll_offset.y.floor() as usize)
             .min(last_line);
@@ -1969,23 +1970,24 @@ impl LapceEditorBufferData {
             config.editor.code_lens_font_size,
             &[],
         );
-        let (rope, lens) = if let Some(syntax) = self.buffer.syntax.as_ref() {
-            (&syntax.text, &syntax.lens)
+        let lens = if let Some(syntax) = self.buffer.syntax.as_ref() {
+            &syntax.lens
         } else {
-            (&self.buffer.rope, &empty_lens)
+            &empty_lens
         };
 
-        let cursor_line =
-            rope.line_of_offset(self.editor.cursor.offset().min(rope.len()));
-        let last_line = rope.line_of_offset(rope.len());
+        let cursor_line = self
+            .buffer
+            .line_of_offset(self.editor.cursor.offset().min(self.buffer.len()));
+        let last_line = self.buffer.line_of_offset(self.buffer.len());
         let start_line =
             lens.line_of_height(rect.y0.floor() as usize).min(last_line);
         let end_line = lens
             .line_of_height(rect.y1.ceil() as usize + config.editor.line_height)
             .min(last_line);
-        let start_offset = rope.offset_of_line(start_line);
-        let end_offset = rope.offset_of_line(end_line + 1);
-        let mut lines_iter = rope.lines(start_offset..end_offset);
+        let start_offset = self.buffer.offset_of_line(start_line);
+        let end_offset = self.buffer.offset_of_line(end_line + 1);
+        let mut lines_iter = self.buffer.rope.lines(start_offset..end_offset);
 
         let mut y = lens.height_of_line(start_line) as f64;
         for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {

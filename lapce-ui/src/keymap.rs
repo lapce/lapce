@@ -441,7 +441,7 @@ impl Widget<LapceTabData> for LapceKeymap {
             );
             KeyMap {
                 key: keys.clone(),
-                modes: keymap.modes.clone(),
+                modes: keymap.modes,
                 when: keymap.when.clone(),
                 command: keymap.command.clone(),
             }

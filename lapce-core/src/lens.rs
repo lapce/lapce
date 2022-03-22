@@ -3,7 +3,7 @@ use std::mem;
 use xi_rope::{
     interval::IntervalBounds,
     tree::{DefaultMetric, Leaf, Node, NodeInfo, TreeBuilder},
-    Cursor, Interval, Metric,
+    Cursor, Delta, Interval, Metric,
 };
 
 const MIN_LEAF: usize = 5;
@@ -75,6 +75,8 @@ impl Lens {
             end,
         }
     }
+
+    pub fn apply_delta<M: NodeInfo>(&mut self, _delta: &Delta<M>) {}
 }
 
 impl NodeInfo for LensInfo {

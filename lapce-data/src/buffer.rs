@@ -1644,6 +1644,11 @@ impl Buffer {
                 Arc::make_mut(styles).apply_shape(delta);
             }
         }
+
+        if let Some(syntax) = self.syntax.as_mut() {
+            syntax.lens.apply_delta(delta);
+        }
+
         self.line_styles.borrow_mut().clear();
     }
 
