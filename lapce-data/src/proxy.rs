@@ -258,11 +258,13 @@ impl LapceProxy {
                         .join(format!("lapce-proxy-{}", VERSION));
                     if !local_proxy_file.exists() {
                         let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
-                        let mut resp =
-                            reqwest::blocking::get(url).expect("request failed");
+                        let mut data = ureq::get(&url)
+                            .call()
+                            .expect("request failed")
+                            .into_reader();
                         let mut out = std::fs::File::create(&local_proxy_file)
                             .expect("failed to create file");
-                        let mut gz = GzDecoder::new(&mut resp);
+                        let mut gz = GzDecoder::new(&mut data);
                         std::io::copy(&mut gz, &mut out)
                             .expect("failed to copy content");
                     }
