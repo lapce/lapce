@@ -20,6 +20,8 @@ use crate::{
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
 const DEFAULT_LIGHT_THEME: &str = include_str!("../../defaults/light-theme.toml");
 const DEFAULT_DARK_THEME: &str = include_str!("../../defaults/dark-theme.toml");
+const DEFAULT_GRUVBOX_THEME: &str =
+    include_str!("../../defaults/gruvbox-theme.toml");
 pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 
 pub struct LapceTheme {}
@@ -260,6 +262,10 @@ impl Config {
         let mut themes = Themes::default();
         themes.insert("Lapce Light".to_string(), get_theme(DEFAULT_LIGHT_THEME)?);
         themes.insert("Lapce Dark".to_string(), get_theme(DEFAULT_DARK_THEME)?);
+        themes.insert(
+            "Lapce Gruvbox".to_string(),
+            get_theme(DEFAULT_GRUVBOX_THEME)?,
+        );
         config.themes = themes;
 
         // Load the theme declared in the file, if there was one
