@@ -756,7 +756,7 @@ impl LapceEditorBufferData {
                             indent.to_string(),
                         ));
                     } else {
-                        let (line, col) = self.buffer.offset_to_line_col(
+                        let (_, col) = self.buffer.offset_to_line_col(
                             region.start,
                             self.config.editor.tab_width,
                         );
@@ -775,7 +775,7 @@ impl LapceEditorBufferData {
                                 indent.to_string(),
                             ));
                         } else {
-                            let (line, col) = self.buffer.offset_to_line_col(
+                            let (_, col) = self.buffer.offset_to_line_col(
                                 offset,
                                 self.config.editor.tab_width,
                             );
@@ -3750,6 +3750,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         .cursor
                         .edit_selection(&self.buffer, self.config.editor.tab_width),
                     CursorMode::Insert(_) => {
+                        let indent = self.buffer.indent_unit();
                         let selection = self.editor.cursor.edit_selection(
                             &self.buffer,
                             self.config.editor.tab_width,
@@ -3757,16 +3758,49 @@ impl KeyPressFocus for LapceEditorBufferData {
                         let mut new_selection = Selection::new();
                         for region in selection.regions() {
                             let new_region = if region.is_caret() {
-                                self.buffer.update_region(
-                                    region,
-                                    1,
-                                    &Movement::Left,
-                                    Mode::Insert,
-                                    true,
-                                    self.editor.code_lens,
-                                    self.editor.compare.clone(),
-                                    &self.config,
-                                )
+                                if indent.starts_with('\t') {
+                                    self.buffer.update_region(
+                                        region,
+                                        1,
+                                        &Movement::Left,
+                                        Mode::Insert,
+                                        true,
+                                        self.editor.code_lens,
+                                        self.editor.compare.clone(),
+                                        &self.config,
+                                    )
+                                } else {
+                                    let line =
+                                        self.buffer.line_of_offset(region.start);
+                                    let nonblank = self
+                                        .buffer
+                                        .first_non_blank_character_on_line(line);
+                                    let (_, col) = self.buffer.offset_to_line_col(
+                                        region.start,
+                                        self.config.editor.tab_width,
+                                    );
+                                    let count =
+                                        if region.start <= nonblank && col > 0 {
+                                            let r = col % indent.len();
+                                            if r == 0 {
+                                                indent.len()
+                                            } else {
+                                                r
+                                            }
+                                        } else {
+                                            1
+                                        };
+                                    self.buffer.update_region(
+                                        region,
+                                        count,
+                                        &Movement::Left,
+                                        Mode::Insert,
+                                        true,
+                                        self.editor.code_lens,
+                                        self.editor.compare.clone(),
+                                        &self.config,
+                                    )
+                                }
                             } else {
                                 *region
                             };
