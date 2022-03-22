@@ -54,7 +54,9 @@ impl LapceStatusNew {
             .enumerate()
             .map(|(i, p)| {
                 let cmd = match p {
-                    PanelKind::FileExplorer => LapceWorkbenchCommand::ToggleTerminal,
+                    PanelKind::FileExplorer => {
+                        LapceWorkbenchCommand::ToggleFileExplorer
+                    }
                     PanelKind::SourceControl => {
                         LapceWorkbenchCommand::ToggleSourceControl
                     }
