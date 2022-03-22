@@ -20,26 +20,21 @@ const BUFFER_HTML_RESERVE_CAPACITY: usize = 10 * 1024;
 const BUFFER_LINES_RESERVE_CAPACITY: usize = 1000;
 pub const SCOPES: &[&str] = &[
     "constant",
-    "constant.builtin",
     "type",
     "type.builtin",
     "property",
     "comment",
     "constructor",
     "function",
-    "function.method",
-    "function.macro",
-    "punctuation.bracket",
-    "punctuation.delimiter",
     "label",
     "keyword",
     "string",
-    "variable.parameter",
-    "variable.builtin",
+    "variable",
     "variable.other.member",
     "operator",
     "attribute",
     "escape",
+    "embedded",
 ];
 
 /// Indicates which highlight should be applied to a region of source code.
@@ -351,6 +346,7 @@ impl HighlightConfiguration {
         self.highlight_indices.clear();
         self.highlight_indices
             .extend(self.query.capture_names().iter().map(move |capture_name| {
+                println!("{capture_name}");
                 capture_parts.clear();
                 capture_parts.extend(capture_name.split('.'));
 
