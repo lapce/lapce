@@ -1406,6 +1406,21 @@ impl LapceTabData {
         }
     }
 
+    fn is_panel_visible(&mut self, kind: PanelKind) -> bool {
+        if kind == PanelKind::SourceControl {
+            // Special-case the SourceControl panel to keep the old behavior.
+            return self.focus_area == FocusArea::Panel(kind);
+        }
+
+        for (_, panel) in self.panels.iter_mut() {
+            if panel.widgets.contains(&kind) {
+                return panel.shown;
+            }
+        }
+
+        return false;
+    }
+
     fn hide_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
         for (_, panel) in self.panels.iter_mut() {
             if panel.widgets.contains(&kind) {
@@ -1448,7 +1463,7 @@ impl LapceTabData {
     }
 
     fn toggle_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
-        if self.focus_area == FocusArea::Panel(kind) {
+        if self.is_panel_visible(kind) {
             self.hide_panel(ctx, kind);
         } else {
             self.show_panel(ctx, kind);
