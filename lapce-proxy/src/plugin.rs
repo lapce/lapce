@@ -137,7 +137,7 @@ impl PluginCatalog {
                 "https://raw.githubusercontent.com/{}/master/{}",
                 plugin.repository, plugin.wasm
             );
-            let mut resp = reqwest::blocking::get(url)?;
+            let mut resp = ureq::get(&url).call()?.into_reader();
             let mut file = std::fs::OpenOptions::new()
                 .create(true)
                 .truncate(true)
@@ -289,7 +289,10 @@ fn host_handle_notification(plugin_env: &PluginEnv) {
                 );
             }
             PluginNotification::DownloadFile { url, path } => {
-                let mut resp = reqwest::blocking::get(url).expect("request failed");
+                let mut resp = ureq::get(&url)
+                    .call()
+                    .expect("request failed")
+                    .into_reader();
                 let mut out = std::fs::File::create(
                     plugin_env.desc.dir.clone().unwrap().join(path),
                 )
