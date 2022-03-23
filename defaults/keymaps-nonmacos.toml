@@ -49,6 +49,10 @@ command = "clipboard_paste"
 mode = "i"
 
 [[keymaps]]
+key = "ctrl+f"
+command = "search"
+
+[[keymaps]]
 key = "ctrl+right"
 command = "word_forward"
 mode = "i"

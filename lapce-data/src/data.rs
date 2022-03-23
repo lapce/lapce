@@ -1992,7 +1992,7 @@ impl LapceMainSplitData {
                     let editor_tab =
                         Arc::make_mut(self.editor_tabs.get_mut(&active).unwrap());
                     match &editor_tab.children[editor_tab.active] {
-                        EditorTabChild::Editor(id) => {
+                        EditorTabChild::Editor(id, _) => {
                             if config.editor.show_tab {
                                 if let Some(path) = path {
                                     let mut editor_size = Size::ZERO;
@@ -2000,7 +2000,7 @@ impl LapceMainSplitData {
                                         editor_tab.children.iter().enumerate()
                                     {
                                         match child {
-                                            EditorTabChild::Editor(id) => {
+                                            EditorTabChild::Editor(id, _) => {
                                                 let editor =
                                                     self.editors.get(id).unwrap();
                                                 let current_size =
@@ -2038,13 +2038,12 @@ impl LapceMainSplitData {
                                         config,
                                     ));
                                     *new_editor.size.borrow_mut() = editor_size;
-                                    self.editors.insert(
-                                        new_editor.view_id,
-                                        new_editor.clone(),
-                                    );
                                     editor_tab.children.insert(
                                         editor_tab.active + 1,
-                                        EditorTabChild::Editor(new_editor.view_id),
+                                        EditorTabChild::Editor(
+                                            new_editor.view_id,
+                                            new_editor.find_view_id,
+                                        ),
                                     );
                                     ctx.submit_command(Command::new(
                                         LAPCE_UI_COMMAND,
@@ -2052,6 +2051,7 @@ impl LapceMainSplitData {
                                             editor_tab.active + 1,
                                             EditorTabChild::Editor(
                                                 new_editor.view_id,
+                                                new_editor.find_view_id,
                                             ),
                                         ),
                                         Target::Widget(editor_tab.widget_id),
@@ -2062,6 +2062,7 @@ impl LapceMainSplitData {
                                         LapceUICommand::Focus,
                                         Target::Widget(new_editor.view_id),
                                     ));
+                                    self.insert_editor(new_editor.clone(), config);
 
                                     return Arc::make_mut(
                                         self.editors
@@ -2096,9 +2097,10 @@ impl LapceMainSplitData {
                         config,
                     ));
 
-                    editor_tab
-                        .children
-                        .push(EditorTabChild::Editor(editor.view_id));
+                    editor_tab.children.push(EditorTabChild::Editor(
+                        editor.view_id,
+                        editor.find_view_id,
+                    ));
 
                     self.active = Arc::new(Some(editor.view_id));
                     self.active_tab = Arc::new(Some(editor_tab.widget_id));
@@ -2107,7 +2109,10 @@ impl LapceMainSplitData {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::EditorTabAdd(
                             0,
-                            EditorTabChild::Editor(editor.view_id),
+                            EditorTabChild::Editor(
+                                editor.view_id,
+                                editor.find_view_id,
+                            ),
                         ),
                         Target::Widget(editor_tab.widget_id),
                     ));
@@ -2124,7 +2129,7 @@ impl LapceMainSplitData {
                         .children
                         .push(SplitContent::EditorTab(editor_tab.widget_id));
 
-                    self.editors.insert(editor.view_id, editor.clone());
+                    self.insert_editor(editor.clone(), config);
                     self.editor_tabs
                         .insert(editor_tab.widget_id, Arc::new(editor_tab));
 
@@ -2331,26 +2336,18 @@ impl LapceMainSplitData {
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
 
-        let mut open_files = im::HashMap::new();
+        let open_files = im::HashMap::new();
         let mut editors = im::HashMap::new();
         let editor_tabs = im::HashMap::new();
         let splits = im::HashMap::new();
 
-        let path = PathBuf::from("[Palette Preview Editor]");
         let editor = LapceEditorData::new(
             Some(palette_preview_editor),
             None,
-            BufferContent::File(path.clone()),
+            BufferContent::Local(LocalBufferKind::Empty),
             config,
         );
         editors.insert(editor.view_id, Arc::new(editor));
-        let mut buffer = Buffer::new(
-            BufferContent::File(path.clone()),
-            tab_id,
-            event_sink.clone(),
-        );
-        buffer.loaded = true;
-        open_files.insert(path, Arc::new(buffer));
 
         let mut local_buffers = im::HashMap::new();
         local_buffers.insert(
@@ -2421,6 +2418,20 @@ impl LapceMainSplitData {
             );
         }
         main_split_data
+    }
+
+    pub fn insert_editor(&mut self, editor: Arc<LapceEditorData>, config: &Config) {
+        if let Some(find_view_id) = editor.find_view_id {
+            let find_editor = LapceEditorData::new(
+                Some(find_view_id),
+                None,
+                BufferContent::Local(LocalBufferKind::Search),
+                config,
+            );
+            self.editors
+                .insert(find_editor.view_id, Arc::new(find_editor));
+        }
+        self.editors.insert(editor.view_id, editor);
     }
 
     pub fn add_editor(
@@ -2504,7 +2515,7 @@ impl LapceMainSplitData {
             let editor_tab = self.editor_tabs.get(&tab_id).unwrap();
             let mut index = 0;
             for (i, child) in editor_tab.children.iter().enumerate() {
-                if child == &EditorTabChild::Editor(view_id) {
+                if child.widget_id() == view_id {
                     index = i;
                 }
             }
@@ -2692,6 +2703,7 @@ impl LapceMainSplitData {
         ctx: &mut EventCtx,
         editor: &mut LapceEditorData,
         direction: SplitDirection,
+        config: &Config,
     ) {
         if let Some(editor_tab_id) = editor.tab_id {
             let editor_tab = self.editor_tabs.get(&editor_tab_id).unwrap();
@@ -2701,7 +2713,10 @@ impl LapceMainSplitData {
                 widget_id: WidgetId::next(),
                 split: split_id,
                 active: 0,
-                children: vec![EditorTabChild::Editor(new_editor.view_id)],
+                children: vec![EditorTabChild::Editor(
+                    new_editor.view_id,
+                    new_editor.find_view_id,
+                )],
                 layout_rect: Rc::new(RefCell::new(Rect::ZERO)),
                 content_is_hot: Rc::new(RefCell::new(false)),
             };
@@ -2724,8 +2739,7 @@ impl LapceMainSplitData {
                 editor_tab.split = new_split_id;
             }
 
-            self.editors
-                .insert(new_editor.view_id, Arc::new(new_editor));
+            self.insert_editor(Arc::new(new_editor), config);
             self.editor_tabs
                 .insert(new_editor_tab.widget_id, Arc::new(new_editor_tab));
         }
@@ -2746,13 +2760,13 @@ pub enum InlineFindDirection {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EditorTabChild {
-    Editor(WidgetId),
+    Editor(WidgetId, Option<WidgetId>),
 }
 
 impl EditorTabChild {
     pub fn widget_id(&self) -> WidgetId {
         match &self {
-            EditorTabChild::Editor(widget_id) => *widget_id,
+            EditorTabChild::Editor(widget_id, _) => *widget_id,
         }
     }
 
@@ -2762,7 +2776,7 @@ impl EditorTabChild {
         tab_width: usize,
     ) -> EditorTabChildInfo {
         match &self {
-            EditorTabChild::Editor(view_id) => {
+            EditorTabChild::Editor(view_id, _) => {
                 let editor_data = data.main_split.editors.get(view_id).unwrap();
                 EditorTabChildInfo::Editor(editor_data.editor_info(data, tab_width))
             }
@@ -2771,7 +2785,7 @@ impl EditorTabChild {
 
     pub fn set_editor_tab(&self, data: &mut LapceTabData, editor_tab_id: WidgetId) {
         match &self {
-            EditorTabChild::Editor(view_id) => {
+            EditorTabChild::Editor(view_id, _) => {
                 let editor_data = data.main_split.editors.get_mut(view_id).unwrap();
                 let editor_data = Arc::make_mut(editor_data);
                 editor_data.tab_id = Some(editor_tab_id);
@@ -2816,6 +2830,7 @@ pub struct SelectionHistory {
 pub struct LapceEditorData {
     pub tab_id: Option<WidgetId>,
     pub view_id: WidgetId,
+    pub find_view_id: Option<WidgetId>,
     pub content: BufferContent,
     pub compare: Option<String>,
     pub code_lens: bool,
@@ -2842,6 +2857,11 @@ impl LapceEditorData {
         Self {
             tab_id,
             view_id: view_id.unwrap_or_else(WidgetId::next),
+            find_view_id: if content.is_special() {
+                None
+            } else {
+                Some(WidgetId::next())
+            },
             selection_history: SelectionHistory {
                 rev: 0,
                 content: content.clone(),
@@ -2870,6 +2890,7 @@ impl LapceEditorData {
     pub fn copy(&self, new_view_id: WidgetId) -> LapceEditorData {
         let mut new_editor = self.clone();
         new_editor.view_id = new_view_id;
+        new_editor.find_view_id = new_editor.find_view_id.map(|_| WidgetId::next());
         new_editor.size = Rc::new(RefCell::new(Size::ZERO));
         new_editor
     }

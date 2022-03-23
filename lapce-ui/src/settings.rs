@@ -418,7 +418,7 @@ impl LapceSettings {
             .boxed(),
         );
 
-        let _input = LapceEditorView::new(data.settings.settings_view_id)
+        let _input = LapceEditorView::new(data.settings.settings_view_id, None)
             .hide_header()
             .hide_gutter()
             .padding((15.0, 15.0));
@@ -610,7 +610,7 @@ impl LapceSettingsItem {
             data.main_split.value_buffers.insert(name, Arc::new(buffer));
             let editor = LapceEditorData::new(None, None, content, &data.config);
             let view_id = editor.view_id;
-            let input = LapceEditorView::new(editor.view_id)
+            let input = LapceEditorView::new(editor.view_id, None)
                 .hide_header()
                 .hide_gutter()
                 .padding((5.0, 0.0, 50.0, 0.0));

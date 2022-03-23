@@ -38,7 +38,7 @@ impl LapceKeymap {
         };
         let keymap = LapceScrollNew::new(keymap);
 
-        let input = LapceEditorView::new(data.settings.keymap_view_id)
+        let input = LapceEditorView::new(data.settings.keymap_view_id, None)
             .hide_header()
             .hide_gutter()
             .padding((15.0, 15.0));

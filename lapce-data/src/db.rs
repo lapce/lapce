@@ -156,7 +156,7 @@ impl EditorTabChildInfo {
                     config,
                     event_sink,
                 );
-                EditorTabChild::Editor(editor_data.view_id)
+                EditorTabChild::Editor(editor_data.view_id, editor_data.find_view_id)
             }
         }
     }
@@ -285,8 +285,7 @@ impl EditorInfo {
                 data.open_files.insert(path.clone(), buffer);
             }
         }
-        data.editors
-            .insert(editor_data.view_id, Arc::new(editor_data.clone()));
+        data.insert_editor(Arc::new(editor_data.clone()), config);
         editor_data
     }
 }

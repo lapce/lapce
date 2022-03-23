@@ -322,11 +322,54 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateSearch(pattern) => {
+                        let buffer = data
+                            .main_split
+                            .local_buffers
+                            .get_mut(&LocalBufferKind::Search)
+                            .unwrap();
+                        if &buffer.rope.to_string() != pattern {
+                            Arc::make_mut(buffer).load_content(pattern);
+                        }
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
+                            Arc::make_mut(&mut data.search).matches =
+                                Arc::new(HashMap::new());
                         } else {
                             Arc::make_mut(&mut data.find)
                                 .set_find(pattern, false, false, false);
+                            let pattern = pattern.to_string();
+                            let event_sink = ctx.get_external_handle();
+                            let tab_id = data.id;
+                            data.proxy.global_search(
+                                    pattern.clone(),
+                                    Box::new(move |result| {
+                                        if let Ok(matches) = result {
+                                            if let Ok(matches) =
+                                                serde_json::from_value::<
+                                                    HashMap<
+                                                        PathBuf,
+                                                        Vec<(
+                                                            usize,
+                                                            (usize, usize),
+                                                            String,
+                                                        )>,
+                                                    >,
+                                                >(
+                                                    matches
+                                                )
+                                            {
+                                                let _ = event_sink.submit_command(
+                                                    LAPCE_UI_COMMAND,
+                                                    LapceUICommand::GlobalSearchResult(
+                                                        pattern,
+                                                        Arc::new(matches),
+                                                    ),
+                                                    Target::Widget(tab_id),
+                                                );
+                                            }
+                                        }
+                                    }),
+                                )
                         }
                     }
                     LapceUICommand::GlobalSearchResult(pattern, matches) => {

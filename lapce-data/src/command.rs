@@ -440,6 +440,10 @@ pub enum LapceCommand {
     PreviousUnmatchedLeftCurlyBracket,
     #[strum(serialize = "join_lines")]
     JoinLines,
+    #[strum(serialize = "search")]
+    Search,
+    #[strum(serialize = "search_all")]
+    SelectAll,
     #[strum(serialize = "search_whole_word_forward")]
     SearchWholeWordForward,
     #[strum(serialize = "search_forward")]

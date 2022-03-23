@@ -59,6 +59,8 @@ pub struct Find {
     /// The occurrences, which determine the highlights, have been updated.
     hls_dirty: bool,
 
+    pub visual: bool,
+
     /// The currently active search string.
     pub search_string: Option<String>,
 
@@ -84,6 +86,7 @@ impl Find {
             case_matching: CaseMatching::CaseInsensitive,
             regex: None,
             whole_words: false,
+            visual: false,
             occurrences: Selection::new(),
         }
     }

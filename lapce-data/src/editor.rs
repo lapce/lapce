@@ -5,6 +5,9 @@ use crate::buffer::{
 };
 use crate::buffer::{matching_pair_direction, Buffer};
 use crate::command::CommandExecuted;
+use crate::command::CommandTarget;
+use crate::command::LapceCommandNew;
+use crate::command::LAPCE_NEW_COMMAND;
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::{Config, LapceTheme};
 use crate::data::EditorTabChild;
@@ -3017,6 +3020,9 @@ impl LapceEditorBufferData {
         if self.editor.content.is_search() {
             return;
         }
+        if !self.find.visual {
+            return;
+        }
         let line_height = self.line_height(env);
         let start_line =
             (self.editor.scroll_offset.y / line_height).floor() as usize;
@@ -3425,6 +3431,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     ctx,
                     Arc::make_mut(&mut self.editor),
                     SplitDirection::Horizontal,
+                    &self.config,
                 );
             }
             LapceCommand::SplitVertical => {
@@ -3432,6 +3439,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     ctx,
                     Arc::make_mut(&mut self.editor),
                     SplitDirection::Vertical,
+                    &self.config,
                 );
             }
             LapceCommand::SplitClose => {
@@ -4783,10 +4791,72 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                 }
             }
+            LapceCommand::Search => {
+                Arc::make_mut(&mut self.find).visual = true;
+                let region = match &self.editor.cursor.mode {
+                    CursorMode::Normal(offset) => SelRegion::caret(*offset),
+                    CursorMode::Visual {
+                        start,
+                        end,
+                        mode: _,
+                    } => SelRegion::new(
+                        *start.min(end),
+                        self.buffer.next_grapheme_offset(
+                            *start.max(end),
+                            1,
+                            self.buffer.len(),
+                        ),
+                        None,
+                    ),
+                    CursorMode::Insert(selection) => {
+                        *selection.last_inserted().unwrap()
+                    }
+                };
+                let pattern = if region.is_caret() {
+                    let (start, end) = self.buffer.select_word(region.start);
+                    self.buffer.slice_to_cow(start..end).to_string()
+                } else {
+                    self.buffer
+                        .slice_to_cow(region.min()..region.max())
+                        .to_string()
+                };
+                if !pattern.contains('\n') {
+                    Arc::make_mut(&mut self.find)
+                        .set_find(&pattern, false, false, false);
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSearch(pattern),
+                        Target::Widget(*self.main_split.tab_id),
+                    ));
+                }
+                if let Some(find_view_id) = self.editor.find_view_id {
+                    ctx.submit_command(Command::new(
+                        LAPCE_NEW_COMMAND,
+                        LapceCommandNew {
+                            cmd: LapceCommand::SelectAll.to_string(),
+                            data: None,
+                            palette_desc: None,
+                            target: CommandTarget::Focus,
+                        },
+                        Target::Widget(find_view_id),
+                    ));
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(find_view_id),
+                    ));
+                }
+            }
             LapceCommand::SearchWholeWordForward => {
+                Arc::make_mut(&mut self.find).visual = true;
                 let offset = self.editor.cursor.offset();
                 let (start, end) = self.buffer.select_word(offset);
                 let word = self.buffer.slice_to_cow(start..end).to_string();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSearch(word.clone()),
+                    Target::Widget(*self.main_split.tab_id),
+                ));
                 Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
                 let next = self.find.next(&self.buffer.rope, offset, false, true);
                 if let Some((start, _end)) = next {
@@ -4794,6 +4864,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::SearchForward => {
+                Arc::make_mut(&mut self.find).visual = true;
                 let offset = self.editor.cursor.offset();
                 let next = self.find.next(&self.buffer.rope, offset, false, true);
                 if let Some((start, _end)) = next {
@@ -4801,6 +4872,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::SearchBackward => {
+                Arc::make_mut(&mut self.find).visual = true;
                 let offset = self.editor.cursor.offset();
                 let next = self.find.next(&self.buffer.rope, offset, true, true);
                 if let Some((start, _end)) = next {
@@ -4808,7 +4880,19 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::ClearSearch => {
-                Arc::make_mut(&mut self.find).unset();
+                Arc::make_mut(&mut self.find).visual = false;
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(self.editor.view_id),
+                ));
+            }
+            LapceCommand::SelectAll => {
+                let new_selection = Selection::region(0, self.buffer.len());
+                self.set_cursor(Cursor::new(
+                    CursorMode::Insert(new_selection),
+                    None,
+                ));
             }
             LapceCommand::RepeatLastInlineFind => {
                 if let Some((direction, c)) = self.editor.last_inline_find.clone() {
@@ -5067,7 +5151,7 @@ impl TabRect {
         if !(ctx.is_hot() && self.rect.contains(mouse_pos)) {
             // See if any of the children are dirty
             let is_dirty = match &editor_tab.children[i] {
-                EditorTabChild::Editor(editor_id) => {
+                EditorTabChild::Editor(editor_id, _) => {
                     let buffer = data.main_split.editor_buffer(*editor_id);
                     buffer.dirty
                 }

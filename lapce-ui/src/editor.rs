@@ -34,6 +34,7 @@ use lsp_types::{DocumentChanges, TextEdit, Url, WorkspaceEdit};
 use strum::EnumMessage;
 
 use crate::{
+    find::FindBox,
     scroll::{LapceIdentityWrapper, LapcePadding, LapceScrollNew},
     split::LapceSplitNew,
     svg::{file_svg_new, get_svg},
@@ -372,7 +373,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             let mut text = "".to_string();
             let mut svg = get_svg("default_file.svg").unwrap();
             match child {
-                EditorTabChild::Editor(view_id) => {
+                EditorTabChild::Editor(view_id, _) => {
                     let editor = data.main_split.editors.get(view_id).unwrap();
                     if let BufferContent::File(path) = &editor.content {
                         svg = file_svg_new(path);
@@ -729,7 +730,7 @@ impl LapceEditorTab {
         let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         for child in editor_tab.children.iter() {
             match child {
-                EditorTabChild::Editor(view_id) => {
+                EditorTabChild::Editor(view_id, _) => {
                     data.main_split.editors.remove(view_id);
                 }
             }
@@ -792,7 +793,7 @@ impl LapceEditorTab {
         };
         if delete {
             match removed_child {
-                EditorTabChild::Editor(view_id) => {
+                EditorTabChild::Editor(view_id, _) => {
                     data.main_split.editors.remove(&view_id);
                 }
             }
@@ -956,7 +957,9 @@ pub fn editor_tab_child_widget(
     child: &EditorTabChild,
 ) -> Box<dyn Widget<LapceTabData>> {
     match child {
-        EditorTabChild::Editor(view_id) => LapceEditorView::new(*view_id).boxed(),
+        EditorTabChild::Editor(view_id, find_view_id) => {
+            LapceEditorView::new(*view_id, *find_view_id).boxed()
+        }
     }
 }
 
@@ -1169,16 +1172,23 @@ pub struct LapceEditorView {
     pub view_id: WidgetId,
     pub header: WidgetPod<LapceTabData, LapceEditorHeader>,
     pub editor: WidgetPod<LapceTabData, LapceEditorContainer>,
+    pub find: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
 }
 
 impl LapceEditorView {
-    pub fn new(view_id: WidgetId) -> LapceEditorView {
+    pub fn new(
+        view_id: WidgetId,
+        find_view_id: Option<WidgetId>,
+    ) -> LapceEditorView {
         let header = LapceEditorHeader::new(view_id);
         let editor = LapceEditorContainer::new(view_id);
+        let find =
+            find_view_id.map(|id| WidgetPod::new(FindBox::new(id, view_id)).boxed());
         Self {
             view_id,
             header: WidgetPod::new(header),
             editor: WidgetPod::new(editor),
+            find,
         }
     }
 
@@ -1457,8 +1467,15 @@ impl Widget<LapceTabData> for LapceEditorView {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
+        if let Some(find) = self.find.as_mut() {
+            find.event(ctx, event, data, env);
+        }
 
+        if ctx.is_handled() {
+            return;
+        }
+
+        let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
         match event {
             Event::MouseDown(mouse_event) => match mouse_event.button {
                 druid::MouseButton::Left => {
@@ -1517,6 +1534,13 @@ impl Widget<LapceTabData> for LapceEditorView {
                         Modifiers::empty(),
                         env,
                     );
+                    self.ensure_cursor_visible(
+                        ctx,
+                        &editor_data,
+                        data.panels.clone(),
+                        None,
+                        env,
+                    );
                 }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -1550,6 +1574,10 @@ impl Widget<LapceTabData> for LapceEditorView {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if let Some(find) = self.find.as_mut() {
+            find.lifecycle(ctx, event, data, env);
+        }
+
         match event {
             LifeCycle::WidgetAdded => {
                 let editor = data.main_split.editors.get(&self.view_id).unwrap();
@@ -1583,8 +1611,12 @@ impl Widget<LapceTabData> for LapceEditorView {
         ctx: &mut druid::UpdateCtx,
         old_data: &LapceTabData,
         data: &LapceTabData,
-        _env: &Env,
+        env: &Env,
     ) {
+        if let Some(find) = self.find.as_mut() {
+            find.update(ctx, data, env);
+        }
+
         if old_data.config.lapce.modal != data.config.lapce.modal {
             if !data.config.lapce.modal {
                 ctx.submit_command(Command::new(
@@ -1669,94 +1701,6 @@ impl Widget<LapceTabData> for LapceEditorView {
             ctx.request_paint();
         }
 
-        if let BufferContent::Local(kind) = &editor_data.buffer.content {
-            if !editor_data.buffer.rope.ptr_eq(&old_editor_data.buffer.rope) {
-                match kind {
-                    LocalBufferKind::Search => {
-                        let pattern = editor_data.buffer.rope.to_string();
-                        let tab_id = *data.main_split.tab_id;
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSearch(pattern.clone()),
-                            Target::Widget(tab_id),
-                        ));
-                        if pattern.is_empty() {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::GlobalSearchResult(
-                                    pattern,
-                                    Arc::new(HashMap::new()),
-                                ),
-                                Target::Widget(tab_id),
-                            ));
-                        } else {
-                            let event_sink = ctx.get_external_handle();
-                            data.proxy.global_search(
-                                    pattern.clone(),
-                                    Box::new(move |result| {
-                                        if let Ok(matches) = result {
-                                            if let Ok(matches) =
-                                                serde_json::from_value::<
-                                                    HashMap<
-                                                        PathBuf,
-                                                        Vec<(
-                                                            usize,
-                                                            (usize, usize),
-                                                            String,
-                                                        )>,
-                                                    >,
-                                                >(
-                                                    matches
-                                                )
-                                            {
-                                                let _ = event_sink.submit_command(
-                                                    LAPCE_UI_COMMAND,
-                                                    LapceUICommand::GlobalSearchResult(
-                                                        pattern,
-                                                        Arc::new(matches),
-                                                    ),
-                                                    Target::Widget(tab_id),
-                                                );
-                                            }
-                                        }
-                                    }),
-                                )
-                        }
-                    }
-                    LocalBufferKind::FilePicker => {
-                        let pwd = editor_data.buffer.rope.to_string();
-                        let pwd = PathBuf::from(pwd);
-                        let tab_id = *data.main_split.tab_id;
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdatePickerPwd(pwd),
-                            Target::Widget(tab_id),
-                        ));
-                    }
-                    LocalBufferKind::Keymap => {
-                        let tab_id = *data.main_split.tab_id;
-                        let pattern = editor_data.buffer.rope.to_string();
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateKeymapsFilter(pattern),
-                            Target::Widget(tab_id),
-                        ));
-                    }
-                    LocalBufferKind::Settings => {
-                        let tab_id = *data.main_split.tab_id;
-                        let pattern = editor_data.buffer.rope.to_string();
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSettingsFilter(pattern),
-                            Target::Widget(tab_id),
-                        ));
-                    }
-                    LocalBufferKind::SourceControl => {}
-                    LocalBufferKind::Empty => {}
-                }
-            }
-        }
-
         let buffer = &editor_data.buffer;
         let old_buffer = &old_editor_data.buffer;
         if buffer.max_len != old_buffer.max_len
@@ -1813,7 +1757,20 @@ impl Widget<LapceTabData> for LapceEditorView {
         } else {
             Size::ZERO
         };
-        Size::new(editor_size.width, editor_size.height + header_size.height)
+        let size =
+            Size::new(editor_size.width, editor_size.height + header_size.height);
+
+        if let Some(find) = self.find.as_mut() {
+            let find_size = find.layout(ctx, bc, data, env);
+            find.set_origin(
+                ctx,
+                data,
+                env,
+                Point::new(size.width - find_size.width - 10.0, header_size.height),
+            );
+        }
+
+        size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
@@ -1837,6 +1794,9 @@ impl Widget<LapceTabData> for LapceEditorView {
 
         self.editor.paint(ctx, data, env);
         self.header.paint(ctx, data, env);
+        if let Some(find) = self.find.as_mut() {
+            find.paint(ctx, data, env);
+        }
     }
 }
 

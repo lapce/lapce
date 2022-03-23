@@ -729,12 +729,15 @@ impl PaletteViewData {
 
     pub fn select(&mut self, ctx: &mut EventCtx) {
         if self.palette.palette_type == PaletteType::Line {
-            Arc::make_mut(&mut self.find).set_find(
-                self.palette.get_input(),
-                false,
-                false,
-                false,
-            );
+            let pattern = self.palette.get_input().to_string();
+            let find = Arc::make_mut(&mut self.find);
+            find.visual = true;
+            find.set_find(&pattern, false, false, false);
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::UpdateSearch(pattern),
+                Target::Widget(*self.main_split.tab_id),
+            ));
         }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {

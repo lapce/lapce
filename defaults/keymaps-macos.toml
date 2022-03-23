@@ -44,6 +44,10 @@ key = "meta+v"
 command = "clipboard_paste"
 
 [[keymaps]]
+key = "meta+f"
+command = "search"
+
+[[keymaps]]
 key = "meta+right"
 command = "word_forward"
 mode = "i"

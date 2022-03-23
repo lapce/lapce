@@ -60,8 +60,9 @@ pub fn split_content_widget(
             let mut editor_tab = LapceEditorTab::new(editor_tab_data.widget_id);
             for child in editor_tab_data.children.iter() {
                 match child {
-                    EditorTabChild::Editor(view_id) => {
-                        let editor = LapceEditorView::new(*view_id).boxed();
+                    EditorTabChild::Editor(view_id, find_view_id) => {
+                        let editor =
+                            LapceEditorView::new(*view_id, *find_view_id).boxed();
                         editor_tab = editor_tab.with_child(editor);
                     }
                 }
@@ -765,7 +766,8 @@ impl LapceSplitNew {
             Target::Widget(editor_data.view_id),
         ));
 
-        let editor = LapceEditorView::new(editor_data.view_id);
+        let editor =
+            LapceEditorView::new(editor_data.view_id, editor_data.find_view_id);
         self.insert_flex_child(
             index + 1,
             editor.boxed(),
@@ -775,8 +777,7 @@ impl LapceSplitNew {
         self.even_flex_children();
         ctx.children_changed();
         data.main_split
-            .editors
-            .insert(editor_data.view_id, Arc::new(editor_data));
+            .insert_editor(Arc::new(editor_data), &data.config);
     }
 }
 

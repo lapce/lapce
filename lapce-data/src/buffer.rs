@@ -460,6 +460,51 @@ impl Buffer {
         }
     }
 
+    fn notify_special(&self) {
+        match &self.content {
+            BufferContent::File(_) => {}
+            BufferContent::Local(local) => {
+                let s = self.rope.to_string();
+                match local {
+                    LocalBufferKind::Search => {
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSearch(s),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                    LocalBufferKind::SourceControl => {}
+                    LocalBufferKind::Empty => {}
+                    LocalBufferKind::FilePicker => {
+                        let pwd = PathBuf::from(s);
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdatePickerPwd(pwd),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                    LocalBufferKind::Keymap => {
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateKeymapsFilter(s),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                    LocalBufferKind::Settings => {
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSettingsFilter(s),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                }
+            }
+            BufferContent::Value(_) => {}
+        }
+
+        if let BufferContent::Local(LocalBufferKind::Search) = self.content {}
+    }
+
     pub fn notify_update(&self, delta: Option<&RopeDelta>) {
         self.trigger_syntax_change(delta);
         self.trigger_history_change();
@@ -1785,6 +1830,7 @@ impl Buffer {
         self.find.borrow_mut().unset();
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.notify_update(Some(delta));
+        self.notify_special();
     }
 
     pub fn update_edit_type(&mut self) {

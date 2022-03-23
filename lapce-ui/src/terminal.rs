@@ -816,59 +816,62 @@ impl Widget<LapceTabData> for LapceTerminal {
                 ctx.draw_text(&text_layout, Point::new(x, y + y_shift));
             }
         }
-        if let Some(search_string) = data.find.search_string.as_ref() {
-            if let Ok(dfas) = RegexSearch::new(search_string) {
-                let mut start = alacritty_terminal::index::Point::new(
-                    alacritty_terminal::index::Line(
-                        -(content.display_offset as i32),
-                    ),
-                    alacritty_terminal::index::Column(0),
-                );
-                let end_line =
-                    (start.line + term.screen_lines()).min(term.bottommost_line());
-                let mut max_lines = (end_line.0 - start.line.0) as usize;
-
-                while let Some(m) = term.search_next(
-                    &dfas,
-                    start,
-                    Direction::Right,
-                    Side::Left,
-                    Some(max_lines),
-                ) {
-                    let match_start = m.start();
-                    if match_start.line.0 < start.line.0
-                        || (match_start.line.0 == start.line.0
-                            && match_start.column.0 < start.column.0)
-                    {
-                        break;
-                    }
-                    let x = match_start.column.0 as f64 * char_width;
-                    let y = (match_start.line.0 as f64
-                        + content.display_offset as f64)
-                        * line_height;
-                    let rect = Rect::ZERO.with_origin(Point::new(x, y)).with_size(
-                        Size::new(
-                            (m.end().column.0 - m.start().column.0
-                                + term.grid()[*m.end()].c.width().unwrap_or(1))
-                                as f64
-                                * char_width,
-                            line_height,
+        if data.find.visual {
+            if let Some(search_string) = data.find.search_string.as_ref() {
+                if let Ok(dfas) = RegexSearch::new(search_string) {
+                    let mut start = alacritty_terminal::index::Point::new(
+                        alacritty_terminal::index::Line(
+                            -(content.display_offset as i32),
                         ),
+                        alacritty_terminal::index::Column(0),
                     );
-                    ctx.stroke(
-                        rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::TERMINAL_FOREGROUND),
-                        1.0,
-                    );
-                    start = *m.end();
-                    if start.column.0 < term.last_column() {
-                        start.column.0 += 1;
-                    } else if start.line.0 < term.bottommost_line() {
-                        start.column.0 = 0;
-                        start.line.0 += 1;
+                    let end_line = (start.line + term.screen_lines())
+                        .min(term.bottommost_line());
+                    let mut max_lines = (end_line.0 - start.line.0) as usize;
+
+                    while let Some(m) = term.search_next(
+                        &dfas,
+                        start,
+                        Direction::Right,
+                        Side::Left,
+                        Some(max_lines),
+                    ) {
+                        let match_start = m.start();
+                        if match_start.line.0 < start.line.0
+                            || (match_start.line.0 == start.line.0
+                                && match_start.column.0 < start.column.0)
+                        {
+                            break;
+                        }
+                        let x = match_start.column.0 as f64 * char_width;
+                        let y = (match_start.line.0 as f64
+                            + content.display_offset as f64)
+                            * line_height;
+                        let rect = Rect::ZERO
+                            .with_origin(Point::new(x, y))
+                            .with_size(Size::new(
+                                (m.end().column.0 - m.start().column.0
+                                    + term.grid()[*m.end()].c.width().unwrap_or(1))
+                                    as f64
+                                    * char_width,
+                                line_height,
+                            ));
+                        ctx.stroke(
+                            rect,
+                            data.config.get_color_unchecked(
+                                LapceTheme::TERMINAL_FOREGROUND,
+                            ),
+                            1.0,
+                        );
+                        start = *m.end();
+                        if start.column.0 < term.last_column() {
+                            start.column.0 += 1;
+                        } else if start.line.0 < term.bottommost_line() {
+                            start.column.0 = 0;
+                            start.line.0 += 1;
+                        }
+                        max_lines = (end_line.0 - start.line.0) as usize;
                     }
-                    max_lines = (end_line.0 - start.line.0) as usize;
                 }
             }
         }

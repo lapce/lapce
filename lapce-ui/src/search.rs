@@ -36,7 +36,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         .editors
         .get(&data.search.editor_view_id)
         .unwrap();
-    let input = LapceEditorView::new(editor_data.view_id)
+    let input = LapceEditorView::new(editor_data.view_id, None)
         .hide_header()
         .hide_gutter()
         .padding((15.0, 15.0));
@@ -83,7 +83,7 @@ impl SearchData {
             .editors
             .get(&data.search.editor_view_id)
             .unwrap();
-        let input = LapceEditorView::new(editor_data.view_id)
+        let input = LapceEditorView::new(editor_data.view_id, None)
             .hide_header()
             .hide_gutter()
             .padding((15.0, 15.0));
