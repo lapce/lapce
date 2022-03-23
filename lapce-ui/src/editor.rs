@@ -1265,7 +1265,7 @@ impl LapceEditorView {
         ctx: &mut EventCtx,
         cmd: &LapceUICommand,
         data: &mut LapceEditorBufferData,
-        panels: im::HashMap<PanelPosition, Arc<PanelData>>,
+        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
         env: &Env,
     ) {
         match cmd {
@@ -1382,7 +1382,7 @@ impl LapceEditorView {
         &mut self,
         ctx: &mut EventCtx,
         data: &LapceEditorBufferData,
-        panels: im::HashMap<PanelPosition, Arc<PanelData>>,
+        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
         env: &Env,
     ) {
         let center = data.cursor_region(ctx.text(), &data.config).center();
@@ -1409,13 +1409,13 @@ impl LapceEditorView {
         &mut self,
         ctx: &mut EventCtx,
         data: &LapceEditorBufferData,
-        panels: im::HashMap<PanelPosition, Arc<PanelData>>,
+        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
         position: Option<&EnsureVisiblePosition>,
         env: &Env,
     ) {
         let line_height = data.config.editor.line_height as f64;
         let editor_size = *data.editor.size.borrow();
-        let size = data.get_size(ctx.text(), editor_size, panels.clone(), env);
+        let size = data.get_size(ctx.text(), editor_size, panels, env);
 
         let rect = data.cursor_region(ctx.text(), &data.config);
         let scroll_id = self.editor.widget().scroll_id;
@@ -1494,7 +1494,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     self.ensure_cursor_visible(
                         ctx,
                         &editor_data,
-                        data.panels.clone(),
+                        &data.panels,
                         None,
                         env,
                     );
@@ -1525,7 +1525,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     ctx,
                     cmd,
                     &mut editor_data,
-                    data.panels.clone(),
+                    &data.panels,
                     env,
                 );
             }
@@ -2656,7 +2656,7 @@ impl Widget<LapceTabData> for LapceEditor {
         env: &Env,
     ) -> Size {
         let editor_data = data.editor_view_content(self.view_id);
-        editor_data.get_size(ctx.text(), bc.max(), data.panels.clone(), env)
+        editor_data.get_size(ctx.text(), bc.max(), &data.panels, env)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {

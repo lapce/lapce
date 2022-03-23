@@ -182,7 +182,7 @@ impl LapceEditorBufferData {
         &self,
         text: &mut PietText,
         editor_size: Size,
-        panels: im::HashMap<PanelPosition, Arc<PanelData>>,
+        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
         env: &Env,
     ) -> Size {
         let line_height = self.config.editor.line_height as f64;
