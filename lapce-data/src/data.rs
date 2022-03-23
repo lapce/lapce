@@ -300,7 +300,7 @@ pub struct EditorDiagnostic {
     pub diagnositc: Diagnostic,
 }
 
-#[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq)]
+#[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug)]
 pub enum PanelKind {
     FileExplorer,
     SourceControl,
@@ -1196,9 +1196,6 @@ impl LapceTabData {
                     Target::Auto,
                 ));
             }
-            LapceWorkbenchCommand::ToggleTerminal => {
-                self.toggle_panel(ctx, PanelKind::Terminal);
-            }
             LapceWorkbenchCommand::ToggleMaximizedPanel => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
@@ -1234,28 +1231,59 @@ impl LapceTabData {
                     Target::Widget(self.terminal.active),
                 ));
             }
-            LapceWorkbenchCommand::ToggleSourceControl => {
-                self.toggle_panel(ctx, PanelKind::SourceControl);
+
+            LapceWorkbenchCommand::ToggleSourceControlVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::SourceControl);
             }
-            LapceWorkbenchCommand::TogglePlugin => {
-                self.toggle_panel(ctx, PanelKind::Plugin);
+            LapceWorkbenchCommand::TogglePluginVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::Plugin);
             }
-            LapceWorkbenchCommand::ToggleFileExplorer => {
-                self.toggle_panel(ctx, PanelKind::FileExplorer);
+            LapceWorkbenchCommand::ToggleFileExplorerVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::FileExplorer);
             }
-            LapceWorkbenchCommand::ToggleSearch => {
-                self.toggle_panel(ctx, PanelKind::Search);
+            LapceWorkbenchCommand::ToggleSearchVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::Search);
             }
-            LapceWorkbenchCommand::ToggleProblem => {
-                self.toggle_panel(ctx, PanelKind::Problem);
+            LapceWorkbenchCommand::ToggleProblemVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::Problem);
             }
-            LapceWorkbenchCommand::TogglePanel => {
+            LapceWorkbenchCommand::ToggleTerminalVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::Terminal);
+            }
+            LapceWorkbenchCommand::TogglePanelVisual => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
-                        self.toggle_panel(ctx, kind);
+                        self.toggle_panel_visual(ctx, kind);
                     }
                 }
             }
+
+            LapceWorkbenchCommand::ToggleSourceControlFocus => {
+                self.toggle_panel_focus(ctx, PanelKind::SourceControl);
+            }
+            LapceWorkbenchCommand::TogglePluginFocus => {
+                self.toggle_panel_focus(ctx, PanelKind::Plugin);
+            }
+            LapceWorkbenchCommand::ToggleFileExplorerFocus => {
+                self.toggle_panel_focus(ctx, PanelKind::FileExplorer);
+            }
+            LapceWorkbenchCommand::ToggleSearchFocus => {
+                self.toggle_panel_focus(ctx, PanelKind::Search);
+            }
+            LapceWorkbenchCommand::ToggleProblemFocus => {
+                self.toggle_panel_focus(ctx, PanelKind::Problem);
+            }
+            LapceWorkbenchCommand::ToggleTerminalFocus => {
+                self.toggle_panel_focus(ctx, PanelKind::Terminal);
+            }
+            LapceWorkbenchCommand::TogglePanelFocus => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.toggle_panel_focus(ctx, kind);
+                    }
+                }
+            }
+
             LapceWorkbenchCommand::ShowPanel => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
@@ -1406,9 +1434,25 @@ impl LapceTabData {
         }
     }
 
+    fn is_panel_visible(&mut self, kind: PanelKind) -> bool {
+        for (_, panel) in self.panels.iter() {
+            if panel.widgets.contains(&kind) {
+                return panel.active == kind && panel.shown;
+            }
+        }
+
+        return false;
+    }
+
+    fn is_panel_focused(&mut self, kind: PanelKind) -> bool {
+        // Moving between e.g. Search and Problems doesn't affect focus, so we need to also check
+        // visibility.
+        self.focus_area == FocusArea::Panel(kind) && self.is_panel_visible(kind)
+    }
+
     fn hide_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
         for (_, panel) in self.panels.iter_mut() {
-            if panel.widgets.contains(&kind) {
+            if panel.active == kind {
                 let panel = Arc::make_mut(panel);
                 panel.shown = false;
                 break;
@@ -1425,32 +1469,48 @@ impl LapceTabData {
 
     fn show_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
         for (_, panel) in self.panels.iter_mut() {
-            for k in panel.widgets.clone() {
-                if k == kind {
-                    let panel = Arc::make_mut(panel);
-                    panel.shown = true;
-                    panel.active = k;
-                    let focus_id = match kind {
-                        PanelKind::FileExplorer => self.file_explorer.widget_id,
-                        PanelKind::SourceControl => self.source_control.active,
-                        PanelKind::Plugin => self.plugin.widget_id,
-                        PanelKind::Terminal => self.terminal.widget_id,
-                        PanelKind::Search => self.search.active,
-                        PanelKind::Problem => self.problem.widget_id,
-                    };
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(focus_id),
-                    ));
-                    break;
-                }
+            if panel.widgets.contains(&kind) {
+                let panel = Arc::make_mut(panel);
+                panel.shown = true;
+                panel.active = kind;
+                let focus_id = match kind {
+                    PanelKind::FileExplorer => self.file_explorer.widget_id,
+                    PanelKind::SourceControl => self.source_control.active,
+                    PanelKind::Plugin => self.plugin.widget_id,
+                    PanelKind::Terminal => self.terminal.widget_id,
+                    PanelKind::Search => self.search.active,
+                    PanelKind::Problem => self.problem.widget_id,
+                };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(focus_id),
+                ));
+                break;
             }
         }
     }
 
-    fn toggle_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
-        if self.focus_area == FocusArea::Panel(kind) {
+    fn toggle_panel_visual(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
+        if self.is_panel_visible(kind) {
+            self.hide_panel(ctx, kind);
+        } else {
+            self.show_panel(ctx, kind);
+        }
+    }
+
+    fn toggle_panel_focus(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
+        let should_hide = match kind {
+            PanelKind::FileExplorer | PanelKind::Plugin | PanelKind::Problem => {
+                // Some panels don't accept focus (yet). Fall back to visibility check
+                // in those cases.
+                self.is_panel_visible(kind)
+            }
+            PanelKind::Terminal | PanelKind::SourceControl | PanelKind::Search => {
+                self.is_panel_focused(kind)
+            }
+        };
+        if should_hide {
             self.hide_panel(ctx, kind);
         } else {
             self.show_panel(ctx, kind);

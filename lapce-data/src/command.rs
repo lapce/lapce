@@ -192,26 +192,51 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "show_panel")]
     ShowPanel,
 
-    #[strum(serialize = "toggle_panel")]
-    TogglePanel,
+    /// Toggles the panel passed in parameter.
+    #[strum(serialize = "toggle_panel_focus")]
+    TogglePanelFocus,
 
-    #[strum(serialize = "toggle_terminal")]
-    ToggleTerminal,
+    /// Toggles the panel passed in parameter.
+    #[strum(serialize = "toggle_panel_visual")]
+    TogglePanelVisual,
 
-    #[strum(serialize = "toggle_source_control")]
-    ToggleSourceControl,
+    // Focus toggle commands
+    #[strum(serialize = "toggle_terminal_focus")]
+    ToggleTerminalFocus,
 
-    #[strum(serialize = "toggle_plugin")]
-    TogglePlugin,
+    #[strum(serialize = "toggle_source_control_focus")]
+    ToggleSourceControlFocus,
 
-    #[strum(serialize = "toggle_file_explorer")]
-    ToggleFileExplorer,
+    #[strum(serialize = "toggle_plugin_focus")]
+    TogglePluginFocus,
 
-    #[strum(serialize = "toggle_problem")]
-    ToggleProblem,
+    #[strum(serialize = "toggle_file_explorer_focus")]
+    ToggleFileExplorerFocus,
 
-    #[strum(serialize = "toggle_search")]
-    ToggleSearch,
+    #[strum(serialize = "toggle_problem_focus")]
+    ToggleProblemFocus,
+
+    #[strum(serialize = "toggle_search_focus")]
+    ToggleSearchFocus,
+
+    // Visual toggle commands
+    #[strum(serialize = "toggle_terminal_visual")]
+    ToggleTerminalVisual,
+
+    #[strum(serialize = "toggle_source_control_visual")]
+    ToggleSourceControlVisual,
+
+    #[strum(serialize = "toggle_plugin_visual")]
+    TogglePluginVisual,
+
+    #[strum(serialize = "toggle_file_explorer_visual")]
+    ToggleFileExplorerVisual,
+
+    #[strum(serialize = "toggle_problem_visual")]
+    ToggleProblemVisual,
+
+    #[strum(serialize = "toggle_search_visual")]
+    ToggleSearchVisual,
 
     #[strum(serialize = "focus_editor")]
     FocusEditor,
