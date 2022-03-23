@@ -1468,7 +1468,13 @@ impl Widget<LapceTabData> for LapceEditorView {
         env: &Env,
     ) {
         if let Some(find) = self.find.as_mut() {
-            find.event(ctx, event, data, env);
+            match event {
+                Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {}
+                Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {}
+                _ => {
+                    find.event(ctx, event, data, env);
+                }
+            }
         }
 
         if ctx.is_handled() {

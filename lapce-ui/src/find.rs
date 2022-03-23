@@ -130,16 +130,26 @@ impl Widget<LapceTabData> for FindBox {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        let bc = BoxConstraints::tight(Size::new(self.input_width, bc.max().height));
-        let input_size = self.input.layout(ctx, &bc, data, env);
+        let input_bc =
+            BoxConstraints::tight(Size::new(self.input_width, bc.max().height));
+        let mut input_size = self.input.layout(ctx, &input_bc, data, env);
         self.input.set_origin(ctx, data, env, Point::ZERO);
         let height = input_size.height;
-        let width = self.input_width + height * 3.0;
+        let mut width = input_size.width + height * 3.0;
+
+        if width - 20.0 > bc.max().width {
+            let input_bc = BoxConstraints::tight(Size::new(
+                bc.max().width - height * 3.0 - 20.0,
+                bc.max().height,
+            ));
+            input_size = self.input.layout(ctx, &input_bc, data, env);
+            width = input_size.width + height * 3.0;
+        }
 
         for (i, icon) in self.icons.iter_mut().enumerate() {
             icon.rect = Size::new(height, height)
                 .to_rect()
-                .with_origin(Point::new(self.input_width + i as f64 * height, 0.0))
+                .with_origin(Point::new(input_size.width + i as f64 * height, 0.0))
                 .inflate(-5.0, -5.0);
         }
 
@@ -184,7 +194,7 @@ impl Widget<LapceTabData> for FindBox {
         ctx.fill(
             rect,
             data.config
-                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
         );
         self.input.paint(ctx, data, env);
 

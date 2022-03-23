@@ -3335,6 +3335,9 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn check_condition(&self, condition: &str) -> bool {
         match condition {
+            "search_focus" => {
+                self.editor.content == BufferContent::Local(LocalBufferKind::Search)
+            }
             "editor_focus" => match self.editor.content {
                 BufferContent::File(_) => true,
                 BufferContent::Local(_) => false,

@@ -104,6 +104,11 @@ when = "in_snippet"
 mode = "i"
 
 [[keymaps]]
+key = "esc"
+command = "clear_search"
+when = "search_focus"
+
+[[keymaps]]
 key = "ctrl+m"
 command = "list.select"
 when = "list_focus"
@@ -216,6 +221,7 @@ mode = "i"
 key = "esc"
 command = "normal_mode"
 mode = "iv"
+when = "!search_focus"
 
 [[keymaps]]
 key = ":"
@@ -425,11 +431,6 @@ mode = "nv"
 [[keymaps]]
 key = "d d"
 command = "delete_line"
-mode = "n"
-
-[[keymaps]]
-key = "ctrl+/"
-command = "clear_search"
 mode = "n"
 
 [[keymaps]]
