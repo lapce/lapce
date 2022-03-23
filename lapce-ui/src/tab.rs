@@ -85,7 +85,7 @@ impl LapceTabNew {
         let code_action = CodeAction::new();
 
         let mut panels = HashMap::new();
-        let file_explorer = FileExplorer::new(&data.file_explorer);
+        let file_explorer = FileExplorer::new_panel(data);
         panels.insert(
             PanelKind::FileExplorer,
             WidgetPod::new(file_explorer.boxed()),
@@ -97,10 +97,10 @@ impl LapceTabNew {
             WidgetPod::new(source_control.boxed()),
         );
 
-        let plugin = Plugin::new();
+        let plugin = Plugin::new_panel(data);
         panels.insert(PanelKind::Plugin, WidgetPod::new(plugin.boxed()));
 
-        let terminal = TerminalPanel::new(data);
+        let terminal = TerminalPanel::new_panel(data);
         panels.insert(PanelKind::Terminal, WidgetPod::new(terminal.boxed()));
 
         let search = new_search_panel(data);

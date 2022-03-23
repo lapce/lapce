@@ -2,11 +2,17 @@ use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Cursor, Env, Event, EventCtx, FontFamily, FontWeight,
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext,
-    Size, UpdateCtx, Widget, WidgetId,
+    Size, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
-use lapce_data::{config::LapceTheme, data::LapceTabData};
+use lapce_data::{
+    config::LapceTheme,
+    data::{LapceTabData, PanelKind},
+    split::SplitDirection,
+};
 use lapce_proxy::plugin::PluginDescription;
 use strum_macros::Display;
+
+use crate::panel::{LapcePanel, PanelHeaderKind};
 
 pub struct PluginData {
     pub widget_id: WidgetId,
@@ -40,6 +46,18 @@ pub struct Plugin {
 impl Plugin {
     pub fn new() -> Self {
         Self { line_height: 25.0 }
+    }
+
+    pub fn new_panel(data: &LapceTabData) -> LapcePanel {
+        let split_id = WidgetId::next();
+        LapcePanel::new(
+            PanelKind::Plugin,
+            data.plugin.widget_id,
+            split_id,
+            SplitDirection::Vertical,
+            PanelHeaderKind::Simple("Plugin".to_string()),
+            vec![(split_id, PanelHeaderKind::None, Self::new().boxed(), None)],
+        )
     }
 
     fn hit_test<'a>(

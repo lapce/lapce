@@ -21,6 +21,7 @@ use lapce_data::{
     data::{FocusArea, LapceTabData, PanelKind},
     keypress::KeyPressFocus,
     proxy::LapceProxy,
+    split::SplitDirection,
     state::Mode,
     terminal::{LapceTerminalData, LapceTerminalViewData},
 };
@@ -28,7 +29,11 @@ use lapce_proxy::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
-    scroll::LapcePadding, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
+    panel::{LapcePanel, PanelHeaderKind},
+    scroll::LapcePadding,
+    split::LapceSplitNew,
+    svg::get_svg,
+    tab::LapceIcon,
 };
 
 const CTRL_CHARS: &[char] = &[
@@ -91,6 +96,23 @@ impl TerminalPanel {
             widget_id: data.terminal.widget_id,
             split: WidgetPod::new(split),
         }
+    }
+
+    pub fn new_panel(data: &LapceTabData) -> LapcePanel {
+        let split_id = WidgetId::next();
+        LapcePanel::new(
+            PanelKind::Terminal,
+            data.terminal.widget_id,
+            split_id,
+            SplitDirection::Vertical,
+            PanelHeaderKind::Simple("Terminal".to_string()),
+            vec![(
+                split_id,
+                PanelHeaderKind::None,
+                Self::new(data).boxed(),
+                None,
+            )],
+        )
     }
 }
 
@@ -256,7 +278,7 @@ impl Widget<LapceTabData> for LapceTerminalView {
         let shadow_width = 5.0;
         let self_rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
-            ctx.clip(self_rect);
+            ctx.clip(self_rect.inflate(0.0, 50.0));
             let rect = self.header.layout_rect();
             ctx.blurred_rect(
                 rect,

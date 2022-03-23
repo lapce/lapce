@@ -8,16 +8,18 @@ use druid::{
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use include_dir::{include_dir, Dir};
-use lapce_data::explorer::FileExplorerData;
 use lapce_data::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
     config::{Config, LapceTheme},
     data::LapceTabData,
+    split::SplitDirection,
 };
+use lapce_data::{data::PanelKind, explorer::FileExplorerData};
 use lapce_proxy::dispatch::FileNodeItem;
 
 use crate::{
+    panel::{LapcePanel, PanelHeaderKind},
     scroll::LapceScrollNew,
     svg::{file_svg_new, get_svg},
 };
@@ -204,6 +206,23 @@ impl FileExplorer {
             widget_id: data.widget_id,
             file_list: WidgetPod::new(file_list.boxed()),
         }
+    }
+
+    pub fn new_panel(data: &LapceTabData) -> LapcePanel {
+        let split_id = WidgetId::next();
+        LapcePanel::new(
+            PanelKind::FileExplorer,
+            data.file_explorer.widget_id,
+            split_id,
+            SplitDirection::Vertical,
+            PanelHeaderKind::Simple("File Explorer".to_string()),
+            vec![(
+                split_id,
+                PanelHeaderKind::None,
+                Self::new(&data.file_explorer).boxed(),
+                None,
+            )],
+        )
     }
 }
 

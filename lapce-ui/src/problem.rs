@@ -50,6 +50,7 @@ pub struct ProblemContent {
     severity: DiagnosticSeverity,
     mouse_pos: Point,
     line_height: f64,
+    content_height: f64,
 }
 
 impl ProblemContent {
@@ -58,6 +59,7 @@ impl ProblemContent {
             severity,
             mouse_pos: Point::ZERO,
             line_height: 25.0,
+            content_height: 0.0,
         }
     }
 
@@ -182,7 +184,13 @@ impl Widget<LapceTabData> for ProblemContent {
         match event {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
-                ctx.set_cursor(&Cursor::Pointer);
+
+                if mouse_event.pos.y < self.content_height {
+                    ctx.set_cursor(&Cursor::Pointer);
+                } else {
+                    ctx.clear_cursor();
+                }
+
                 ctx.request_paint();
             }
             Event::MouseDown(mouse_event) => {
@@ -243,8 +251,9 @@ impl Widget<LapceTabData> for ProblemContent {
             })
             .sum::<usize>();
         let line_height = data.config.editor.line_height as f64;
-        let height = line_height * n as f64;
-        Size::new(bc.max().width, height)
+        self.content_height = line_height * n as f64;
+
+        Size::new(bc.max().width, self.content_height.max(bc.max().height))
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
@@ -252,14 +261,16 @@ impl Widget<LapceTabData> for ProblemContent {
 
         if ctx.is_hot() {
             let size = ctx.size();
-            let n = (self.mouse_pos.y / line_height).floor() as usize;
-            ctx.fill(
-                Size::new(size.width, line_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, line_height * n as f64)),
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
-            );
+            if self.mouse_pos.y < self.content_height {
+                let n = (self.mouse_pos.y / line_height).floor() as usize;
+                ctx.fill(
+                    Size::new(size.width, line_height)
+                        .to_rect()
+                        .with_origin(Point::new(0.0, line_height * n as f64)),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                );
+            }
         }
 
         let rect = ctx.region().bounding_box();
