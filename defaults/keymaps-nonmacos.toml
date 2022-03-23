@@ -175,19 +175,19 @@ command = "show_code_actions"
 
 [[keymaps]]
 key = "ctrl+E"
-command = "toggle_file_explorer"
+command = "toggle_file_explorer_focus"
 
 [[keymaps]]
 key = "ctrl+F"
-command = "toggle_search"
+command = "toggle_search_focus"
 
 [[keymaps]]
 key = "ctrl+X"
-command = "toggle_plugin"
+command = "toggle_plugin_focus"
 
 [[keymaps]]
 key = "ctrl+M"
-command = "toggle_problem"
+command = "toggle_problem_focus"
 
 # ------------------------------------ Navigation -------------------------------------
 

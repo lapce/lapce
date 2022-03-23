@@ -55,17 +55,17 @@ impl LapceStatusNew {
             .map(|(i, p)| {
                 let cmd = match p {
                     PanelKind::FileExplorer => {
-                        LapceWorkbenchCommand::ToggleFileExplorerFocus
+                        LapceWorkbenchCommand::ToggleFileExplorerVisual
                     }
                     PanelKind::SourceControl => {
-                        LapceWorkbenchCommand::ToggleSourceControlFocus
+                        LapceWorkbenchCommand::ToggleSourceControlVisual
                     }
-                    PanelKind::Plugin => LapceWorkbenchCommand::TogglePluginFocus,
+                    PanelKind::Plugin => LapceWorkbenchCommand::TogglePluginVisual,
                     PanelKind::Terminal => {
-                        LapceWorkbenchCommand::ToggleTerminalFocus
+                        LapceWorkbenchCommand::ToggleTerminalVisual
                     }
-                    PanelKind::Search => LapceWorkbenchCommand::ToggleSearchFocus,
-                    PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemFocus,
+                    PanelKind::Search => LapceWorkbenchCommand::ToggleSearchVisual,
+                    PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemVisual,
                 };
 
                 LapceIcon {

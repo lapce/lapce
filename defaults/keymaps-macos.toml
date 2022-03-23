@@ -165,19 +165,19 @@ command = "show_code_actions"
 
 [[keymaps]]
 key = "meta+E"
-command = "toggle_file_explorer"
+command = "toggle_file_explorer_focus"
 
 [[keymaps]]
 key = "meta+F"
-command = "toggle_search"
+command = "toggle_search_focus"
 
 [[keymaps]]
 key = "meta+X"
-command = "toggle_plugin"
+command = "toggle_plugin_focus"
 
 [[keymaps]]
 key = "meta+M"
-command = "toggle_problem"
+command = "toggle_problem_focus"
 
 # ------------------------------------ Navigation -------------------------------------
 

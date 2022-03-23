@@ -1543,7 +1543,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                     self.ensure_cursor_visible(
                         ctx,
                         &editor_data,
-                        data.panels.clone(),
+                        &data.panels,
                         None,
                         env,
                     );

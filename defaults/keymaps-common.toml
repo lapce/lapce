@@ -87,7 +87,7 @@ mode = "i"
 
 [[keymaps]]
 key = "Ctrl+`"
-command = "toggle_terminal"
+command = "toggle_terminal_focus"
 
 # ------------------------------------ ------------ -------------------------------------
 

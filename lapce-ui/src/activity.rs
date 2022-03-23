@@ -45,8 +45,9 @@ impl Widget<LapceTabData> for ActivityBar {
                                 ctx.submit_command(Command::new(
                                     LAPCE_NEW_COMMAND,
                                     LapceCommandNew {
-                                        cmd: LapceWorkbenchCommand::TogglePanelFocus
-                                            .to_string(),
+                                        cmd:
+                                            LapceWorkbenchCommand::TogglePanelVisual
+                                                .to_string(),
                                         data: Some(json!(kind)),
                                         palette_desc: None,
                                         target: CommandTarget::Workbench,
