@@ -185,37 +185,6 @@ impl Counter {
     }
 }
 
-pub fn hex_to_color(hex: &str) -> Result<Color> {
-    let hex = hex.trim_start_matches('#');
-    let (r, g, b, a) = match hex.len() {
-        3 => (
-            format!("{}{}", &hex[0..0], &hex[0..0]),
-            format!("{}{}", &hex[1..1], &hex[1..1]),
-            format!("{}{}", &hex[2..2], &hex[2..2]),
-            "ff".to_string(),
-        ),
-        6 => (
-            hex[0..2].to_string(),
-            hex[2..4].to_string(),
-            hex[4..6].to_string(),
-            "ff".to_string(),
-        ),
-        8 => (
-            hex[0..2].to_string(),
-            hex[2..4].to_string(),
-            hex[4..6].to_string(),
-            hex[6..8].to_string(),
-        ),
-        _ => return Err(anyhow!("invalid hex color")),
-    };
-    Ok(Color::rgba8(
-        u8::from_str_radix(&r, 16)?,
-        u8::from_str_radix(&g, 16)?,
-        u8::from_str_radix(&b, 16)?,
-        u8::from_str_radix(&a, 16)?,
-    ))
-}
-
 #[cfg(test)]
 mod tests {
 
