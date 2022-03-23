@@ -1,4 +1,3 @@
-
 use druid::{
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
@@ -46,7 +45,7 @@ impl Widget<LapceTabData> for ActivityBar {
                                 ctx.submit_command(Command::new(
                                     LAPCE_NEW_COMMAND,
                                     LapceCommandNew {
-                                        cmd: LapceWorkbenchCommand::TogglePanel
+                                        cmd: LapceWorkbenchCommand::TogglePanelFocus
                                             .to_string(),
                                         data: Some(json!(kind)),
                                         palette_desc: None,

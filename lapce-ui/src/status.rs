@@ -55,16 +55,19 @@ impl LapceStatusNew {
             .map(|(i, p)| {
                 let cmd = match p {
                     PanelKind::FileExplorer => {
-                        LapceWorkbenchCommand::ToggleFileExplorer
+                        LapceWorkbenchCommand::ToggleFileExplorerFocus
                     }
                     PanelKind::SourceControl => {
-                        LapceWorkbenchCommand::ToggleSourceControl
+                        LapceWorkbenchCommand::ToggleSourceControlFocus
                     }
-                    PanelKind::Plugin => LapceWorkbenchCommand::TogglePlugin,
-                    PanelKind::Terminal => LapceWorkbenchCommand::ToggleTerminal,
-                    PanelKind::Search => LapceWorkbenchCommand::ToggleSearch,
-                    PanelKind::Problem => LapceWorkbenchCommand::ToggleProblem,
+                    PanelKind::Plugin => LapceWorkbenchCommand::TogglePluginFocus,
+                    PanelKind::Terminal => {
+                        LapceWorkbenchCommand::ToggleTerminalFocus
+                    }
+                    PanelKind::Search => LapceWorkbenchCommand::ToggleSearchFocus,
+                    PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemFocus,
                 };
+
                 LapceIcon {
                     icon: p.svg_name(),
                     rect: Size::new(self_size.height, self_size.height)
