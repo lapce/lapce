@@ -1239,18 +1239,6 @@ impl Widget<LapceTabData> for LapceTabNew {
             0.0
         };
 
-        for (panel_widget_id, panel) in self.panels.iter_mut() {
-            if !active_panels.contains(panel_widget_id) {
-                panel.layout(
-                    ctx,
-                    &BoxConstraints::tight(Size::new(300.0, 300.0)),
-                    data,
-                    env,
-                );
-                panel.set_origin(ctx, data, env, Point::ZERO);
-            }
-        }
-
         let main_split_size = Size::new(
             self_size.width - panel_left_width - activity_size.width,
             self_size.height - status_size.height - panel_bottom_height,

@@ -257,12 +257,9 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 self_size.height - content_size.height,
             );
         let content_bc = BoxConstraints::tight(content_size);
-        if data.settings.shown {
-            for child in self.children.iter_mut() {
-                child.layout(ctx, &content_bc, data, env);
-                child.set_origin(ctx, data, env, content_origin);
-            }
-        }
+        let child = &mut self.children[self.active];
+        child.layout(ctx, &content_bc, data, env);
+        child.set_origin(ctx, data, env, content_origin);
 
         tab_size
     }
@@ -525,13 +522,6 @@ impl Widget<LapceTabData> for LapceSettings {
         data: &LapceTabData,
         env: &Env,
     ) {
-        if self.children.is_empty() {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::InitChildren,
-                Target::Widget(self.widget_id),
-            ));
-        }
         for child in self.children.iter_mut() {
             child.update(ctx, data, env);
         }
@@ -544,6 +534,14 @@ impl Widget<LapceTabData> for LapceSettings {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
+        if self.children.is_empty() {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::InitChildren,
+                Target::Widget(self.widget_id),
+            ));
+        }
+
         let mut y = 0.0;
         for child in self.children.iter_mut() {
             let size = child.layout(ctx, bc, data, env);

@@ -39,7 +39,7 @@ use crate::{
         LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
-    config::{Config, ConfigWatcher, GetConfig},
+    config::{Config, ConfigWatcher, GetConfig, LapceTheme},
     db::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
@@ -128,6 +128,8 @@ impl LapceData {
     pub fn reload_env(&self, env: &mut Env) {
         env.set(theme::SCROLLBAR_WIDTH, 10.0);
         env.set(theme::SCROLLBAR_MAX_OPACITY, 0.7);
+        env.set(LapceTheme::INPUT_LINE_HEIGHT, 20.0);
+        env.set(LapceTheme::INPUT_FONT_SIZE, 13u64);
     }
 
     fn load_plugin_descriptions() -> Result<Vec<PluginDescription>> {
@@ -2941,14 +2943,14 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
             let b = u8::from_str_radix(&hex[2..3], 16)?;
             let b = b * 16 + b;
             Ok(Color::rgba8(r, g, b, 255))
-        },
+        }
         // The standard form #RRGGBB.
         6 => {
             let r = u8::from_str_radix(&hex[0..2], 16)?;
             let g = u8::from_str_radix(&hex[2..4], 16)?;
             let b = u8::from_str_radix(&hex[4..6], 16)?;
             Ok(Color::rgba8(r, g, b, 255))
-        },
+        }
         // The standard form #RRGGBBAA (alpha channel).
         8 => {
             let r = u8::from_str_radix(&hex[0..2], 16)?;
@@ -2956,7 +2958,7 @@ pub fn hex_to_color(hex: &str) -> Result<Color> {
             let b = u8::from_str_radix(&hex[4..6], 16)?;
             let a = u8::from_str_radix(&hex[6..8], 16)?;
             Ok(Color::rgba8(r, g, b, a))
-        },
+        }
         _ => Err(anyhow!("invalid hex color")),
     }
 }
@@ -3020,22 +3022,49 @@ mod hex_to_color_tests {
 
     #[test]
     pub fn hex_to_color_for_valid_3_digit_colors() {
-        assert_eq!(hex_to_color("#123").unwrap(), Color::rgba8(0x11, 0x22, 0x33, 255));
-        assert_eq!(hex_to_color("#a2f").unwrap(), Color::rgba8(0xAA, 0x22, 0xFF, 255));
-        assert_eq!(hex_to_color("#A2F").unwrap(), Color::rgba8(0xAA, 0x22, 0xFF, 255));
+        assert_eq!(
+            hex_to_color("#123").unwrap(),
+            Color::rgba8(0x11, 0x22, 0x33, 255)
+        );
+        assert_eq!(
+            hex_to_color("#a2f").unwrap(),
+            Color::rgba8(0xAA, 0x22, 0xFF, 255)
+        );
+        assert_eq!(
+            hex_to_color("#A2F").unwrap(),
+            Color::rgba8(0xAA, 0x22, 0xFF, 255)
+        );
     }
 
     #[test]
     pub fn hex_to_color_for_valid_6_digit_colors() {
-        assert_eq!(hex_to_color("#112233").unwrap(), Color::rgba8(0x11, 0x22, 0x33, 255));
-        assert_eq!(hex_to_color("#Da2e1f").unwrap(), Color::rgba8(0xDA, 0x2E, 0x1F, 255));
-        assert_eq!(hex_to_color("#A0020F").unwrap(), Color::rgba8(0xA0, 0x02, 0x0F, 255));
+        assert_eq!(
+            hex_to_color("#112233").unwrap(),
+            Color::rgba8(0x11, 0x22, 0x33, 255)
+        );
+        assert_eq!(
+            hex_to_color("#Da2e1f").unwrap(),
+            Color::rgba8(0xDA, 0x2E, 0x1F, 255)
+        );
+        assert_eq!(
+            hex_to_color("#A0020F").unwrap(),
+            Color::rgba8(0xA0, 0x02, 0x0F, 255)
+        );
     }
 
     #[test]
     pub fn hex_to_color_for_valid_8_digit_colors() {
-        assert_eq!(hex_to_color("#11223300").unwrap(), Color::rgba8(0x11, 0x22, 0x33, 0x00));
-        assert_eq!(hex_to_color("#Da2e1faf").unwrap(), Color::rgba8(0xDA, 0x2E, 0x1F, 0xAF));
-        assert_eq!(hex_to_color("#A0020FFF").unwrap(), Color::rgba8(0xA0, 0x02, 0x0F, 0xFF));
+        assert_eq!(
+            hex_to_color("#11223300").unwrap(),
+            Color::rgba8(0x11, 0x22, 0x33, 0x00)
+        );
+        assert_eq!(
+            hex_to_color("#Da2e1faf").unwrap(),
+            Color::rgba8(0xDA, 0x2E, 0x1F, 0xAF)
+        );
+        assert_eq!(
+            hex_to_color("#A0020FFF").unwrap(),
+            Color::rgba8(0xA0, 0x02, 0x0F, 0xFF)
+        );
     }
 }

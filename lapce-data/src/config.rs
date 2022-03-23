@@ -76,6 +76,11 @@ impl LapceTheme {
     pub const PANEL_CURRENT: &'static str = "panel.current";
 
     pub const STATUS_BACKGROUND: &'static str = "status.background";
+
+    pub const INPUT_LINE_HEIGHT: druid::Key<f64> =
+        druid::Key::new("lapce.input_line_height");
+    pub const INPUT_FONT_SIZE: druid::Key<u64> =
+        druid::Key::new("lapce.input_font_size");
 }
 
 #[derive(Error, Debug)]
@@ -440,59 +445,6 @@ impl Config {
             .build()
             .unwrap();
         text_layout.size()
-    }
-
-    pub fn reload_env(&self, env: &mut Env) {
-        env.set(theme::SCROLLBAR_RADIUS, 0.0);
-        env.set(theme::SCROLLBAR_EDGE_WIDTH, 0.0);
-        env.set(theme::SCROLLBAR_WIDTH, 15.0);
-        env.set(theme::SCROLLBAR_PAD, 0.0);
-        env.set(theme::SCROLLBAR_MAX_OPACITY, 1.0);
-        env.set(
-            theme::SCROLLBAR_COLOR,
-            Color::from_hex_str("#949494").unwrap(),
-        );
-
-        // env.set(key, value);
-
-        //  let theme = &self.theme;
-        //  if let Some(line_highlight) = theme.get("line_highlight") {
-        //      env.set(
-        //          LapceTheme::EDITOR_CURRENT_LINE_BACKGROUND,
-        //          line_highlight.clone(),
-        //      );
-        //  };
-        //  if let Some(caret) = theme.get("caret") {
-        //      env.set(LapceTheme::EDITOR_CURSOR_COLOR, caret.clone());
-        //  };
-        //  if let Some(foreground) = theme.get("foreground") {
-        //      env.set(LapceTheme::EDITOR_FOREGROUND, foreground.clone());
-        //  };
-        //  if let Some(background) = theme.get("background") {
-        //      env.set(LapceTheme::EDITOR_BACKGROUND, background.clone());
-        //  };
-        //  if let Some(selection) = theme.get("selection") {
-        //      env.set(LapceTheme::EDITOR_SELECTION_COLOR, selection.clone());
-        //  };
-        //  if let Some(color) = theme.get("comment") {
-        //      env.set(LapceTheme::EDITOR_COMMENT, color.clone());
-        //  };
-        //  if let Some(color) = theme.get("error") {
-        //      env.set(LapceTheme::EDITOR_ERROR, color.clone());
-        //  };
-        //  if let Some(color) = theme.get("warn") {
-        //      env.set(LapceTheme::EDITOR_WARN, color.clone());
-        //  };
-        //  env.set(LapceTheme::EDITOR_LINE_HEIGHT, 25.0);
-        //  env.set(LapceTheme::PALETTE_BACKGROUND, Color::rgb8(125, 125, 125));
-        //  env.set(LapceTheme::PALETTE_INPUT_FOREROUND, Color::rgb8(0, 0, 0));
-        //  env.set(
-        //      LapceTheme::PALETTE_INPUT_BACKGROUND,
-        //      Color::rgb8(255, 255, 255),
-        //  );
-        //  env.set(LapceTheme::PALETTE_INPUT_BORDER, Color::rgb8(0, 0, 0));
-        //  env.set(LapceTheme::LIST_BACKGROUND, Color::rgb8(234, 234, 235));
-        //  env.set(LapceTheme::LIST_CURRENT, Color::rgb8(219, 219, 220));
     }
 
     pub fn update_recent_workspaces(workspaces: Vec<LapceWorkspace>) -> Option<()> {

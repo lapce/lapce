@@ -183,6 +183,7 @@ impl LapceEditorBufferData {
         text: &mut PietText,
         editor_size: Size,
         panels: im::HashMap<PanelPosition, Arc<PanelData>>,
+        env: &Env,
     ) -> Size {
         let line_height = self.config.editor.line_height as f64;
         let width = self.config.editor_text_width(text, "W");
@@ -240,7 +241,7 @@ impl LapceEditorBufferData {
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap => Size::new(
                     editor_size.width.max(width * self.buffer.rope.len() as f64),
-                    line_height,
+                    env.get(LapceTheme::INPUT_LINE_HEIGHT),
                 ),
                 LocalBufferKind::SourceControl => {
                     for (pos, panels) in panels.iter() {
@@ -274,7 +275,7 @@ impl LapceEditorBufferData {
             },
             BufferContent::Value(_) => Size::new(
                 editor_size.width.max(width * self.buffer.rope.len() as f64),
-                line_height,
+                env.get(LapceTheme::INPUT_LINE_HEIGHT),
             ),
         }
     }
@@ -2107,11 +2108,12 @@ impl LapceEditorBufferData {
         is_focused: bool,
         placeholder: Option<&String>,
         config: &Config,
+        env: &Env,
     ) {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.line_height(env);
 
         let font_size = if self.editor.content.is_input() {
-            13
+            env.get(LapceTheme::INPUT_FONT_SIZE) as usize
         } else {
             self.config.editor.font_size
         };
@@ -2125,16 +2127,18 @@ impl LapceEditorBufferData {
         let char_width = text_layout.size().width;
         let y_shift = (line_height - text_layout.size().height) / 2.0;
 
-        if self.editor.compare.is_none() && !self.editor.code_lens {
-            self.paint_cursor(ctx, is_focused, placeholder, char_width, config);
-            self.paint_find(ctx);
+        if self.editor.content.is_input()
+            || (self.editor.compare.is_none() && !self.editor.code_lens)
+        {
+            self.paint_cursor(ctx, is_focused, placeholder, char_width, config, env);
+            self.paint_find(ctx, char_width, env);
         }
         let self_size = ctx.size();
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / line_height).floor() as usize;
         let end_line = (rect.y1 / line_height).ceil() as usize;
 
-        if self.editor.code_lens {
+        if !self.editor.content.is_input() && self.editor.code_lens {
             self.paint_code_lens_content(ctx, is_focused, config);
         } else if let Some(compare) = self.editor.compare.as_ref() {
             if let Some(changes) = self.buffer.history_changes.get(compare) {
@@ -2739,6 +2743,14 @@ impl LapceEditorBufferData {
         );
     }
 
+    fn line_height(&self, env: &Env) -> f64 {
+        if self.editor.content.is_input() {
+            env.get(LapceTheme::INPUT_LINE_HEIGHT)
+        } else {
+            self.config.editor.line_height as f64
+        }
+    }
+
     fn paint_cursor(
         &self,
         ctx: &mut PaintCtx,
@@ -2746,8 +2758,9 @@ impl LapceEditorBufferData {
         placeholder: Option<&String>,
         width: f64,
         config: &Config,
+        env: &Env,
     ) {
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.line_height(env);
         let start_line =
             (self.editor.scroll_offset.y / line_height).floor() as usize;
         let end_line = ((self.editor.size.borrow().height
@@ -3000,18 +3013,17 @@ impl LapceEditorBufferData {
         );
     }
 
-    fn paint_find(&self, ctx: &mut PaintCtx) {
+    fn paint_find(&self, ctx: &mut PaintCtx, char_width: f64, env: &Env) {
         if self.editor.content.is_search() {
             return;
         }
-        let line_height = self.config.editor.line_height as f64;
+        let line_height = self.line_height(env);
         let start_line =
             (self.editor.scroll_offset.y / line_height).floor() as usize;
         let end_line = ((self.editor.size.borrow().height
             + self.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
-        let width = self.config.editor_text_width(ctx.text(), "W");
         let start_offset = self.buffer.offset_of_line(start_line);
         let end_offset = self.buffer.offset_of_line(end_line + 1);
 
@@ -3043,8 +3055,8 @@ impl LapceEditorBufferData {
                             self.config.editor.tab_width,
                         ) + 1
                     };
-                    let x0 = left_col as f64 * width;
-                    let x1 = right_col as f64 * width;
+                    let x0 = left_col as f64 * char_width;
+                    let x1 = right_col as f64 * char_width;
                     let y0 = line as f64 * line_height;
                     let y1 = y0 + line_height;
                     ctx.stroke(

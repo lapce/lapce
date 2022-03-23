@@ -51,7 +51,7 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
         .hide_header()
         .hide_gutter()
         .set_placeholder("Commit Message".to_string())
-        .padding((15.0, 10.0));
+        .padding((15.0, 15.0));
     let content = SourceControlFileList::new(data.source_control.file_list_id);
     LapcePanel::new(
         PanelKind::SourceControl,

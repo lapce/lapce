@@ -1393,7 +1393,7 @@ impl LapceEditorView {
         );
 
         let editor_size = *data.editor.size.borrow();
-        let size = data.get_size(ctx.text(), editor_size, panels);
+        let size = data.get_size(ctx.text(), editor_size, panels, env);
         let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
         if scroll.scroll_to_visible(rect, env) {
@@ -1415,7 +1415,7 @@ impl LapceEditorView {
     ) {
         let line_height = data.config.editor.line_height as f64;
         let editor_size = *data.editor.size.borrow();
-        let size = data.get_size(ctx.text(), editor_size, panels.clone());
+        let size = data.get_size(ctx.text(), editor_size, panels.clone(), env);
 
         let rect = data.cursor_region(ctx.text(), &data.config);
         let scroll_id = self.editor.widget().scroll_id;
@@ -1821,7 +1821,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if editor.content.is_special() {
             let size = ctx.size();
             ctx.fill(
-                size.to_rect().inflate(5.0, 1.0),
+                size.to_rect().inflate(5.0, 5.0),
                 data.config
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
@@ -1829,7 +1829,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if editor.content.is_input() {
             let size = ctx.size();
             ctx.stroke(
-                size.to_rect().inflate(4.5, 0.5),
+                size.to_rect().inflate(4.5, 4.5),
                 data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
                 1.0,
             );
@@ -2653,16 +2653,22 @@ impl Widget<LapceTabData> for LapceEditor {
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
         data: &LapceTabData,
-        _env: &Env,
+        env: &Env,
     ) -> Size {
         let editor_data = data.editor_view_content(self.view_id);
-        editor_data.get_size(ctx.text(), bc.max(), data.panels.clone())
+        editor_data.get_size(ctx.text(), bc.max(), data.panels.clone(), env)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let is_focused = data.focus == self.view_id;
         let data = data.editor_view_content(self.view_id);
-        data.paint_content(ctx, is_focused, self.placeholder.as_ref(), &data.config);
+        data.paint_content(
+            ctx,
+            is_focused,
+            self.placeholder.as_ref(),
+            &data.config,
+            env,
+        );
     }
 }
 
