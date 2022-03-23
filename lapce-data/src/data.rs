@@ -1435,9 +1435,9 @@ impl LapceTabData {
     }
 
     fn is_panel_visible(&mut self, kind: PanelKind) -> bool {
-        for (_, panel) in self.panels.iter_mut() {
+        for (_, panel) in self.panels.iter() {
             if panel.widgets.contains(&kind) {
-                return panel.shown;
+                return panel.active == kind && panel.shown;
             }
         }
 
@@ -1445,12 +1445,14 @@ impl LapceTabData {
     }
 
     fn is_panel_focused(&mut self, kind: PanelKind) -> bool {
-        self.focus_area == FocusArea::Panel(kind)
+        // Moving between e.g. Search and Problems doesn't affect focus, so we need to also check
+        // visibility.
+        self.focus_area == FocusArea::Panel(kind) && self.is_panel_visible(kind)
     }
 
     fn hide_panel(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
         for (_, panel) in self.panels.iter_mut() {
-            if panel.widgets.contains(&kind) {
+            if panel.active == kind {
                 let panel = Arc::make_mut(panel);
                 panel.shown = false;
                 break;
