@@ -803,7 +803,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                                                 editor.cursor =
                                                     movement::Cursor::new(
                                                         CursorMode::Normal(
-                                                            buffer.len() - 1,
+                                                            buffer.offset_line_end(
+                                                                buffer.len(),
+                                                                false,
+                                                            ),
                                                         ),
                                                         None,
                                                     );
@@ -812,7 +815,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                                                     movement::Cursor::new(
                                                         CursorMode::Insert(
                                                             Selection::caret(
-                                                                buffer.len() - 1,
+                                                                buffer
+                                                                    .offset_line_end(
+                                                                        buffer.len(),
+                                                                        true,
+                                                                    ),
                                                             ),
                                                         ),
                                                         None,
