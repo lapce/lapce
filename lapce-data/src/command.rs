@@ -481,7 +481,7 @@ pub enum LapceCommand {
     JoinLines,
     #[strum(serialize = "search")]
     Search,
-    #[strum(serialize = "search_all")]
+    #[strum(serialize = "select_all")]
     SelectAll,
     #[strum(serialize = "search_whole_word_forward")]
     SearchWholeWordForward,

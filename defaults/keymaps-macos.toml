@@ -84,6 +84,10 @@ command = "indent_line"
 key = "meta+["
 command = "outdent_line"
 
+[[keymaps]]
+key = "meta+a"
+command = "select_all"
+
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]

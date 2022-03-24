@@ -1089,7 +1089,20 @@ impl LapceEditorBufferData {
                 }
                 LocalBufferKind::Search => {
                     let pattern = self.buffer.rope.to_string();
-                    self.update_global_search(ctx, pattern);
+                    if let Some(parent_view_id) = self.editor.parent_view_id {
+                        ctx.submit_command(Command::new(
+                            LAPCE_NEW_COMMAND,
+                            LapceCommandNew {
+                                cmd: LapceCommand::SearchForward.to_string(),
+                                data: None,
+                                palette_desc: None,
+                                target: CommandTarget::Focus,
+                            },
+                            Target::Widget(parent_view_id),
+                        ));
+                    } else {
+                        self.update_global_search(ctx, pattern);
+                    }
                     return;
                 }
                 LocalBufferKind::FilePicker => {
@@ -3311,6 +3324,7 @@ impl LapceEditorBufferData {
             .ceil() as usize;
         let start_offset = self.buffer.offset_of_line(start_line);
         let end_offset = self.buffer.offset_of_line(end_line + 1);
+        let cursor_offset = self.editor.cursor.offset();
 
         self.buffer.update_find(&self.find, start_line, end_line);
         if self.find.search_string.is_some() {
@@ -3323,6 +3337,7 @@ impl LapceEditorBufferData {
             {
                 let start = region.min();
                 let end = region.max();
+                let active = start <= cursor_offset && cursor_offset <= end;
                 let (start_line, start_col) = self
                     .buffer
                     .offset_to_line_col(start, self.config.editor.tab_width);
@@ -3344,8 +3359,19 @@ impl LapceEditorBufferData {
                     let x1 = right_col as f64 * char_width;
                     let y0 = line as f64 * line_height;
                     let y1 = y0 + line_height;
+                    let rect = Rect::new(x0, y0, x1, y1);
+                    if active {
+                        ctx.fill(
+                            rect,
+                            &self
+                                .config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET)
+                                .clone()
+                                .with_alpha(0.5),
+                        );
+                    }
                     ctx.stroke(
-                        Rect::new(x0, y0, x1, y1),
+                        rect,
                         self.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
                         1.0,
@@ -3626,9 +3652,6 @@ impl KeyPressFocus for LapceEditorBufferData {
             "source_control_focus" => {
                 self.editor.content
                     == BufferContent::Local(LocalBufferKind::SourceControl)
-            }
-            "search_focus" => {
-                self.editor.content == BufferContent::Local(LocalBufferKind::Search)
             }
             "in_snippet" => self.editor.snippet.is_some(),
             "completion_focus" => self.has_completions(),
@@ -5114,11 +5137,26 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::SearchBackward => {
-                Arc::make_mut(&mut self.find).visual = true;
-                let offset = self.editor.cursor.offset();
-                let next = self.find.next(&self.buffer.rope, offset, true, true);
-                if let Some((start, _end)) = next {
-                    self.do_move(ctx, &Movement::Offset(start), 1, mods);
+                if self.editor.content.is_search() {
+                    if let Some(parent_view_id) = self.editor.parent_view_id {
+                        ctx.submit_command(Command::new(
+                            LAPCE_NEW_COMMAND,
+                            LapceCommandNew {
+                                cmd: LapceCommand::SearchBackward.to_string(),
+                                data: None,
+                                palette_desc: None,
+                                target: CommandTarget::Focus,
+                            },
+                            Target::Widget(parent_view_id),
+                        ));
+                    }
+                } else {
+                    Arc::make_mut(&mut self.find).visual = true;
+                    let offset = self.editor.cursor.offset();
+                    let next = self.find.next(&self.buffer.rope, offset, true, true);
+                    if let Some((start, _end)) = next {
+                        self.do_move(ctx, &Movement::Offset(start), 1, mods);
+                    }
                 }
             }
             LapceCommand::ClearSearch => {

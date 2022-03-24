@@ -199,6 +199,12 @@ when = "!list_focus"
 mode = "i"
 
 [[keymaps]]
+key = "shift+enter"
+command = "search_backward"
+when = "search_focus"
+mode = "i"
+
+[[keymaps]]
 key = "tab"
 command = "insert_tab"
 when = "!in_snippet"
