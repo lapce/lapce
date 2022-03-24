@@ -1060,7 +1060,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn insert_new_line(&mut self, ctx: &mut EventCtx, offset: usize) {
+    fn insert_new_line(&mut self, ctx: &mut EventCtx, selection: Selection) {
         match &self.buffer.content {
             BufferContent::File(_) => {}
             BufferContent::Value(_name) => {
@@ -1119,58 +1119,79 @@ impl LapceEditorBufferData {
                 LocalBufferKind::SourceControl | LocalBufferKind::Empty => {}
             },
         }
-        let line = self.buffer.line_of_offset(offset);
-        let line_start = self.buffer.offset_of_line(line);
-        let line_end = self.buffer.line_end_offset(line, true);
-        let line_indent = self.buffer.indent_on_line(line);
-        let first_half = self.buffer.slice_to_cow(line_start..offset).to_string();
-        let second_half = self.buffer.slice_to_cow(offset..line_end).to_string();
 
-        let indent = if has_unmatched_pair(&first_half) {
-            format!("{}    ", line_indent)
-        } else {
-            let next_line_indent = self.buffer.indent_on_line(line + 1);
-            if next_line_indent.len() > line_indent.len() {
-                next_line_indent
+        let mut edits = Vec::new();
+        let mut extra_edits = Vec::new();
+        let mut shift = 0i32;
+        for region in selection.regions() {
+            let offset = region.max();
+            let line = self.buffer.line_of_offset(offset);
+            let line_start = self.buffer.offset_of_line(line);
+            let line_end = self.buffer.line_end_offset(line, true);
+            let line_indent = self.buffer.indent_on_line(line);
+            let first_half =
+                self.buffer.slice_to_cow(line_start..offset).to_string();
+            let second_half = self.buffer.slice_to_cow(offset..line_end).to_string();
+
+            let indent = if has_unmatched_pair(&first_half) {
+                format!("{}    ", line_indent)
             } else {
-                line_indent.clone()
-            }
-        };
+                let next_line_indent = self.buffer.indent_on_line(line + 1);
+                if next_line_indent.len() > line_indent.len() {
+                    next_line_indent
+                } else {
+                    line_indent.clone()
+                }
+            };
 
-        let selection = Selection::caret(offset);
-        let content = format!("{}{}", "\n", indent);
+            let selection = Selection::region(region.min(), region.max());
+            let content = format!("{}{}", "\n", indent);
 
-        let delta = self.edit(
-            ctx,
-            &[(&selection, &content)],
-            true,
-            EditType::InsertNewline,
-        );
-        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
-        let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor.mode = CursorMode::Insert(selection.clone());
-        editor.cursor.horiz = None;
+            shift -= (region.max() - region.min()) as i32;
+            shift += content.len() as i32;
 
-        for c in first_half.chars().rev() {
-            if c != ' ' {
-                if let Some(pair_start) = matching_pair_direction(c) {
-                    if pair_start {
-                        if let Some(c) = matching_char(c) {
-                            if second_half.trim().starts_with(&c.to_string()) {
-                                let content = format!("{}{}", "\n", line_indent);
-                                self.edit(
-                                    ctx,
-                                    &[(&selection, &content)],
-                                    true,
-                                    EditType::InsertNewline,
-                                );
+            edits.push((selection, content));
+
+            for c in first_half.chars().rev() {
+                if c != ' ' {
+                    if let Some(pair_start) = matching_pair_direction(c) {
+                        if pair_start {
+                            if let Some(c) = matching_char(c) {
+                                if second_half.trim().starts_with(&c.to_string()) {
+                                    let selection = Selection::caret(
+                                        (region.max() as i32 + shift) as usize,
+                                    );
+                                    let content = format!("{}{}", "\n", line_indent);
+                                    extra_edits.push((selection.clone(), content));
+                                }
                             }
                         }
                     }
+                    break;
                 }
-                break;
             }
         }
+
+        let edits = edits
+            .iter()
+            .map(|(selection, s)| (selection, s.as_str()))
+            .collect::<Vec<(&Selection, &str)>>();
+        let delta = self.edit(ctx, &edits, true, EditType::InsertNewline);
+        let mut selection =
+            selection.apply_delta(&delta, true, InsertDrift::Default);
+
+        if !extra_edits.is_empty() {
+            let edits = extra_edits
+                .iter()
+                .map(|(selection, s)| (selection, s.as_str()))
+                .collect::<Vec<(&Selection, &str)>>();
+            let delta = self.edit(ctx, &edits, true, EditType::InsertNewline);
+            selection = selection.apply_delta(&delta, false, InsertDrift::Default);
+        }
+
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.cursor.mode = CursorMode::Insert(selection);
+        editor.cursor.horiz = None;
     }
 
     fn set_cursor_after_change(&mut self, selection: Selection) {
@@ -3867,12 +3888,12 @@ impl KeyPressFocus for LapceEditorBufferData {
                 } else {
                     self.buffer.first_non_blank_character_on_line(line)
                 };
-                self.insert_new_line(ctx, offset);
+                self.insert_new_line(ctx, Selection::caret(offset));
             }
             LapceCommand::NewLineBelow => {
                 let offset = self.editor.cursor.offset();
                 let offset = self.buffer.offset_line_end(offset, true);
-                self.insert_new_line(ctx, offset);
+                self.insert_new_line(ctx, Selection::caret(offset));
             }
             LapceCommand::DeleteToBeginningOfLine => {
                 let selection = match self.editor.cursor.mode {
@@ -4253,26 +4274,19 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::InsertNewLine => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
-                if selection.regions().len() > 1 {
-                    let delta = self.edit(
-                        ctx,
-                        &[(&selection, "\n")],
-                        true,
-                        EditType::InsertNewline,
-                    );
-                    let selection =
-                        selection.apply_delta(&delta, true, InsertDrift::Default);
-                    self.set_cursor(Cursor::new(
-                        CursorMode::Insert(selection),
-                        None,
-                    ));
-                    return CommandExecuted::Yes;
-                };
-                self.insert_new_line(ctx, self.editor.cursor.offset());
+                match self.editor.cursor.mode.clone() {
+                    CursorMode::Normal(offset) => {
+                        self.insert_new_line(ctx, Selection::caret(offset));
+                    }
+                    CursorMode::Insert(selection) => {
+                        self.insert_new_line(ctx, selection);
+                    }
+                    CursorMode::Visual {
+                        start: _,
+                        end: _,
+                        mode: _,
+                    } => {}
+                }
                 self.update_completion(ctx);
             }
             LapceCommand::ToggleVisualMode => {
