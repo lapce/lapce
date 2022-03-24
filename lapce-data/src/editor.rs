@@ -5178,6 +5178,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let view_id =
                     if let Some(parent_view_id) = self.editor.parent_view_id {
                         parent_view_id
+                    } else if self.editor.content.is_search() {
+                        (*self.main_split.active).unwrap_or(self.editor.view_id)
                     } else {
                         self.editor.view_id
                     };
