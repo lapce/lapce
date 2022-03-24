@@ -244,7 +244,8 @@ impl LapceEditorBufferData {
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap => Size::new(
                     editor_size.width.max(width * self.buffer.rope.len() as f64),
-                    env.get(LapceTheme::INPUT_LINE_HEIGHT),
+                    env.get(LapceTheme::INPUT_LINE_HEIGHT)
+                        + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
                 ),
                 LocalBufferKind::SourceControl => {
                     for (pos, panels) in panels.iter() {
@@ -278,7 +279,8 @@ impl LapceEditorBufferData {
             },
             BufferContent::Value(_) => Size::new(
                 editor_size.width.max(width * self.buffer.rope.len() as f64),
-                env.get(LapceTheme::INPUT_LINE_HEIGHT),
+                env.get(LapceTheme::INPUT_LINE_HEIGHT)
+                    + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
             ),
         }
     }
@@ -2122,6 +2124,7 @@ impl LapceEditorBufferData {
         env: &Env,
     ) {
         let line_height = self.line_height(env);
+        let line_padding = self.line_padding(env);
 
         let font_size = if self.editor.content.is_input() {
             env.get(LapceTheme::INPUT_FONT_SIZE) as usize
@@ -2397,7 +2400,10 @@ impl LapceEditorBufferData {
                 );
                 ctx.draw_text(
                     &text_layout,
-                    Point::new(0.0, line_height * line as f64 + y_shift),
+                    Point::new(
+                        0.0,
+                        line_height * line as f64 + y_shift + line_padding,
+                    ),
                 );
             }
         }
@@ -2762,6 +2768,14 @@ impl LapceEditorBufferData {
         }
     }
 
+    fn line_padding(&self, env: &Env) -> f64 {
+        if self.editor.content.is_input() {
+            env.get(LapceTheme::INPUT_LINE_PADDING)
+        } else {
+            0.0
+        }
+    }
+
     fn paint_cursor(
         &self,
         ctx: &mut PaintCtx,
@@ -2772,6 +2786,7 @@ impl LapceEditorBufferData {
         env: &Env,
     ) {
         let line_height = self.line_height(env);
+        let line_padding = self.line_padding(env);
         let start_line =
             (self.editor.scroll_offset.y / line_height).floor() as usize;
         let end_line = ((self.editor.size.borrow().height
@@ -2789,7 +2804,10 @@ impl LapceEditorBufferData {
                     let char_width = if x1 > x0 { x1 - x0 } else { width };
                     ctx.fill(
                         Rect::ZERO
-                            .with_origin(Point::new(x0, line as f64 * line_height))
+                            .with_origin(Point::new(
+                                x0,
+                                line as f64 * line_height + line_padding,
+                            ))
                             .with_size(Size::new(char_width, line_height)),
                         self.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
                     );
@@ -2873,7 +2891,7 @@ impl LapceEditorBufferData {
                     if !line_content.is_empty() {
                         let x1 = right_col as f64 * width;
 
-                        let y0 = line as f64 * line_height;
+                        let y0 = line as f64 * line_height + line_padding;
                         let y1 = y0 + line_height;
                         ctx.fill(
                             Rect::new(x0, y0, x1, y1),
@@ -2895,7 +2913,7 @@ impl LapceEditorBufferData {
                             Rect::ZERO
                                 .with_origin(Point::new(
                                     x0,
-                                    line as f64 * line_height,
+                                    line as f64 * line_height + line_padding,
                                 ))
                                 .with_size(Size::new(char_width, line_height)),
                             self.config
@@ -2964,7 +2982,7 @@ impl LapceEditorBufferData {
 
                             if !line_content.is_empty() {
                                 let x1 = right_col as f64 * width;
-                                let y0 = line as f64 * line_height;
+                                let y0 = line as f64 * line_height + line_padding;
                                 let y1 = y0 + line_height;
                                 ctx.fill(
                                     Rect::new(x0, y0, x1, y1),
@@ -2984,7 +3002,7 @@ impl LapceEditorBufferData {
                             self.config.editor.tab_width,
                         );
                         let x = col as f64 * width;
-                        let y = line as f64 * line_height;
+                        let y = line as f64 * line_height + line_padding;
                         ctx.stroke(
                             Line::new(
                                 Point::new(x, y),

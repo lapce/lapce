@@ -79,6 +79,8 @@ impl LapceTheme {
 
     pub const INPUT_LINE_HEIGHT: druid::Key<f64> =
         druid::Key::new("lapce.input_line_height");
+    pub const INPUT_LINE_PADDING: druid::Key<f64> =
+        druid::Key::new("lapce.input_line_padding");
     pub const INPUT_FONT_SIZE: druid::Key<u64> =
         druid::Key::new("lapce.input_font_size");
 }

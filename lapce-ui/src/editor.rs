@@ -1782,20 +1782,25 @@ impl Widget<LapceTabData> for LapceEditorView {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let editor = data.main_split.editors.get(&self.view_id).unwrap();
         if editor.content.is_special() {
-            let size = ctx.size();
-            ctx.fill(
-                size.to_rect().inflate(5.0, 5.0),
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-            );
-        }
-        if editor.content.is_input() {
-            let size = ctx.size();
-            ctx.stroke(
-                size.to_rect().inflate(4.5, 4.5),
-                data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
-                1.0,
-            );
+            let rect = ctx.size().to_rect();
+            if editor.content.is_input() {
+                ctx.fill(
+                    rect.inflate(5.0, 0.0),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+                ctx.stroke(
+                    rect.inflate(4.5, -0.5),
+                    data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+                    1.0,
+                );
+            } else {
+                ctx.fill(
+                    rect.inflate(5.0, 5.0),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                );
+            }
         }
 
         self.editor.paint(ctx, data, env);

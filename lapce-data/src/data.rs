@@ -127,8 +127,11 @@ impl LapceData {
 
     pub fn reload_env(&self, env: &mut Env) {
         env.set(theme::SCROLLBAR_WIDTH, 10.0);
+        env.set(theme::SCROLLBAR_EDGE_WIDTH, 0.0);
+        env.set(theme::SCROLLBAR_PAD, 0.0);
         env.set(theme::SCROLLBAR_MAX_OPACITY, 0.7);
         env.set(LapceTheme::INPUT_LINE_HEIGHT, 20.0);
+        env.set(LapceTheme::INPUT_LINE_PADDING, 5.0);
         env.set(LapceTheme::INPUT_FONT_SIZE, 13u64);
     }
 

@@ -23,7 +23,7 @@ impl FindBox {
         let input = LapceEditorView::new(view_id, None)
             .hide_header()
             .hide_gutter()
-            .padding((10.0, 10.0));
+            .padding((10.0, 5.0));
         let icons = vec![
             LapceIcon {
                 icon: "arrow-up.svg".to_string(),

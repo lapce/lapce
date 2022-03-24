@@ -543,7 +543,11 @@ impl ScrollComponentNew {
             return None;
         }
 
-        let bar_width = env.get(theme::SCROLLBAR_WIDTH);
+        let bar_width = if viewport_size.height < 40.0 {
+            5.0
+        } else {
+            env.get(theme::SCROLLBAR_WIDTH)
+        };
         let bar_pad = env.get(theme::SCROLLBAR_PAD);
 
         let percent_visible = viewport_size.width / content_size.width;
