@@ -1,6 +1,5 @@
-use anyhow::{anyhow, Result};
 use bitflags::bitflags;
-use druid::{Color, Modifiers};
+use druid::Modifiers;
 
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Write};

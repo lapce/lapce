@@ -85,7 +85,7 @@ impl Widget<LapceWindowData> for Menu {
                 if data.menu.shown {
                     let keypress = data.keypress.clone();
                     let mut_keypress = Arc::make_mut(&mut data.keypress);
-                    let performed_action = mut_keypress.key_down(
+                    mut_keypress.key_down(
                         ctx,
                         key_event,
                         Arc::make_mut(&mut data.menu),

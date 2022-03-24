@@ -1,6 +1,5 @@
 use std::{
-    cell::RefCell, collections::HashMap, iter::Iterator, path::PathBuf, rc::Rc,
-    str::FromStr, sync::Arc, time::Instant,
+    cell::RefCell, iter::Iterator, rc::Rc, str::FromStr, sync::Arc, time::Instant,
 };
 
 use druid::{
@@ -36,7 +35,6 @@ use strum::EnumMessage;
 use crate::{
     find::FindBox,
     scroll::{LapceIdentityWrapper, LapcePadding, LapceScrollNew},
-    split::LapceSplitNew,
     svg::{file_svg_new, get_svg},
     tab::LapceIcon,
 };

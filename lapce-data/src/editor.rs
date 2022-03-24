@@ -736,7 +736,7 @@ impl LapceEditorBufferData {
                                 ctx,
                                 &[
                                     &[(&selection, text.as_str())][..],
-                                    &(additioal_edit.unwrap_or(vec![]))[..],
+                                    &additioal_edit.unwrap_or_default()[..],
                                 ]
                                 .concat(),
                                 true,

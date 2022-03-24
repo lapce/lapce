@@ -4,7 +4,7 @@ use anyhow::Result;
 use directories::ProjectDirs;
 use druid::{
     piet::{PietText, Text, TextLayout, TextLayoutBuilder},
-    theme, Color, Env, ExtEventSink, FontFamily, Size, Target,
+    Color, ExtEventSink, FontFamily, Size, Target,
 };
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};

@@ -1857,6 +1857,7 @@ name = "lapce-core"
 version = "0.0.12"
 dependencies = [
  "itertools",
+ "lapce-proxy",
  "serde 1.0.130",
  "serde_json",
  "thiserror",
@@ -1946,7 +1947,6 @@ dependencies = [
  "hotwatch",
  "ignore",
  "jsonrpc-lite",
- "lapce-core",
  "lapce-rpc",
  "locale_config",
  "lsp-types",

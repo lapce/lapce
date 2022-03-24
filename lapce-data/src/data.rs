@@ -1444,7 +1444,7 @@ impl LapceTabData {
             }
         }
 
-        return false;
+        false
     }
 
     fn is_panel_focused(&mut self, kind: PanelKind) -> bool {

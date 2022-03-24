@@ -1,5 +1,5 @@
 use druid::{
-    BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+    BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };

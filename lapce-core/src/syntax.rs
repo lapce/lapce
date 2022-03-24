@@ -6,6 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use lapce_proxy::style::Style;
 use tree_sitter::{Node, Parser, Point, Tree};
 use xi_rope::{
     spans::{Spans, SpansBuilder},
@@ -15,7 +16,7 @@ use xi_rope::{
 use crate::{
     language::LapceLanguage,
     lens::{Lens, LensBuilder},
-    style::{Highlight, HighlightEvent, Highlighter, Style, SCOPES},
+    style::{Highlight, HighlightEvent, Highlighter, SCOPES},
 };
 
 thread_local! {

@@ -1,13 +1,9 @@
 use std::{
-    collections::HashMap,
     iter, mem, ops, str,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
-use serde::{Deserialize, Serialize};
+use lapce_proxy::style::{LineStyle, Style};
 use thiserror::Error;
 use tree_sitter::{
     Language, LossyUtf8, Node, Point, Query, QueryCaptures, QueryCursor, QueryError,
@@ -50,20 +46,6 @@ pub enum Error {
     InvalidLanguage,
     #[error("Unknown error")]
     Unknown,
-}
-
-pub type LineStyles = HashMap<usize, Arc<Vec<LineStyle>>>;
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct LineStyle {
-    pub start: usize,
-    pub end: usize,
-    pub style: Style,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Style {
-    pub fg_color: Option<String>,
 }
 
 /// Represents a single step in rendering a syntax-highlighted document.

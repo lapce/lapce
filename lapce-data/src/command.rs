@@ -3,10 +3,11 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
-use lapce_core::{style::Style, syntax::Syntax};
+use lapce_core::syntax::Syntax;
 use lapce_proxy::{
     dispatch::{DiffInfo, FileNodeItem},
     plugin::PluginDescription,
+    style::Style,
     terminal::TermId,
 };
 use lsp_types::{
