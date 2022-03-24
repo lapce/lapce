@@ -2315,7 +2315,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
         if data.editor.compare.is_some() {
             width += self.width + char_width * 2.0;
         }
-        Size::new(width, bc.max().height)
+        Size::new(width.ceil(), bc.max().height)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
@@ -2444,7 +2444,7 @@ impl LapceEditor {
         let point = mouse_event.pos + editor_data.editor.window_origin.to_vec2();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::ShowMenu(point, Arc::new(menu_items)),
+            LapceUICommand::ShowMenu(point.round(), Arc::new(menu_items)),
             Target::Auto,
         ));
     }

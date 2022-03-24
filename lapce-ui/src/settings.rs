@@ -967,6 +967,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         let name = self.name(text, data).size();
         let desc = self.desc(text, data).size();
         let mut height = name.height + desc.height + (self.padding * 2.0 * 2.0);
+        height = height.round();
 
         if let Some(input) = self.input_widget.as_mut() {
             input.layout(ctx, bc, data, env);
@@ -981,7 +982,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         if value > 0.0 {
             height += value + self.padding * 2.0;
         }
-        Size::new(self.width, height)
+        Size::new(self.width, height.ceil())
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {

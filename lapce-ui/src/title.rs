@@ -166,7 +166,7 @@ impl Widget<LapceWindowData> for Title {
                 + 10.0
                 + remote_text
                     .as_ref()
-                    .map(|t| t.size().width + padding - 5.0)
+                    .map(|t| t.size().width.round() + padding - 5.0)
                     .unwrap_or(0.0),
             size.height,
         )
@@ -259,7 +259,7 @@ impl Widget<LapceWindowData> for Title {
             &text_layout,
             Point::new(x, (size.height - text_layout.size().height) / 2.0),
         );
-        x += text_layout.size().width + padding;
+        x += text_layout.size().width.round() + padding;
         let menu_items = vec![
             MenuItem {
                 text: LapceWorkbenchCommand::OpenFolder
@@ -341,7 +341,7 @@ impl Widget<LapceWindowData> for Title {
                 &text_layout,
                 Point::new(x, (size.height - text_layout.size().height) / 2.0),
             );
-            x += text_layout.size().width + padding;
+            x += text_layout.size().width.round() + padding;
 
             let command_rect =
                 command_rect.with_size(Size::new(x - command_rect.x0, size.height));
