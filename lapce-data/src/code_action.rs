@@ -30,7 +30,10 @@ impl KeyPressFocus for CodeActionData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        matches!(condition, "list_focus" | "code_actions_focus")
+        matches!(
+            condition,
+            "list_focus" | "code_actions_focus" | "modal_focus"
+        )
     }
 
     fn run_command(
@@ -42,7 +45,7 @@ impl KeyPressFocus for CodeActionData {
         _env: &Env,
     ) -> CommandExecuted {
         match command {
-            LapceCommand::CodeActionsCancel => {
+            LapceCommand::ModalClose => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::CancelCodeActions,

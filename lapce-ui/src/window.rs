@@ -229,6 +229,15 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                         ctx.set_handled();
                         let menu = Arc::make_mut(&mut data.menu);
                         menu.shown = false;
+                        let active_tab_id = data.active_id;
+                        let active_id = data
+                            .tabs
+                            .get(&active_tab_id)
+                            .and_then(|t| t.main_split.active_editor())
+                            .map(|e| e.view_id);
+                        if let Some(active_id) = active_id {
+                            ctx.set_focus(active_id)
+                        }
                     }
                     LapceUICommand::ShowMenu(point, items) => {
                         ctx.set_handled();

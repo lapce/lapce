@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
-use druid::{Env, EventCtx, Modifiers, Point, WidgetId};
+use druid::{Command, Env, EventCtx, Modifiers, Point, Target, WidgetId};
 
 use crate::{
-    command::{CommandExecuted, LapceCommand, LapceCommandNew},
+    command::{
+        CommandExecuted, LapceCommand, LapceCommandNew, LapceUICommand,
+        LAPCE_UI_COMMAND,
+    },
     keypress::KeyPressFocus,
     state::Mode,
 };
@@ -29,18 +32,27 @@ impl KeyPressFocus for MenuData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        matches!(condition, "list_focus" | "menu_focus")
+        matches!(condition, "list_focus" | "menu_focus" | "modal_focus")
     }
 
     fn run_command(
         &mut self,
-        _ctx: &mut EventCtx,
-        _command: &LapceCommand,
+        ctx: &mut EventCtx,
+        command: &LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        CommandExecuted::No
+        if let LapceCommand::ModalClose = command {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::HideMenu,
+                Target::Auto,
+            ));
+            CommandExecuted::Yes
+        } else {
+            CommandExecuted::No
+        }
     }
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}

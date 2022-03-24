@@ -25,6 +25,34 @@ pub struct LapceSettingsPanelData {
     pub settings_split_id: WidgetId,
 }
 
+impl KeyPressFocus for LapceSettingsPanelData {
+    fn get_mode(&self) -> Mode {
+        Mode::Insert
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        matches!(condition, "modal_focus")
+    }
+
+    fn run_command(
+        &mut self,
+        _ctx: &mut EventCtx,
+        command: &LapceCommand,
+        _count: Option<usize>,
+        _mods: Modifiers,
+        _env: &Env,
+    ) -> CommandExecuted {
+        if let LapceCommand::ModalClose = command {
+            self.shown = false;
+            CommandExecuted::Yes
+        } else {
+            CommandExecuted::No
+        }
+    }
+
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
+}
+
 impl LapceSettingsPanelData {
     pub fn new() -> Self {
         Self {

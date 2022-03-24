@@ -278,10 +278,10 @@ pub enum LapceCommand {
     SourceControl,
     #[strum(serialize = "source_control.cancel")]
     SourceControlCancel,
-    #[strum(serialize = "code_actions.cancel")]
-    CodeActionsCancel,
-    #[strum(serialize = "palette.cancel")]
-    PaletteCancel,
+    /// This will close a modal, such as the settings window or completion
+    #[strum(message = "Close Modal")]
+    #[strum(serialize = "modal.close")]
+    ModalClose,
     #[strum(serialize = "delete_backward")]
     DeleteBackward,
     #[strum(serialize = "delete_forward")]

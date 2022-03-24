@@ -151,13 +151,8 @@ mode = "n"
 
 [[keymaps]]
 key = "esc"
-command = "palette.cancel"
-when = "palette_focus"
+command = "modal.close"
 
-[[keymaps]]
-key = "esc"
-command = "code_actions.cancel"
-when = "code_actions_focus"
 
 [[keymaps]]
 key = "ctrl+b"
