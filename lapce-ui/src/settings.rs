@@ -147,6 +147,20 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         }
         self.children[self.active].event(ctx, event, data, env);
         match event {
+            Event::KeyDown(key_event) => {
+                let mut keypress = data.keypress.clone();
+                let mut_keypress = Arc::make_mut(&mut keypress);
+                let performed_action = mut_keypress.key_down(
+                    ctx,
+                    key_event,
+                    Arc::make_mut(&mut data.settings),
+                    env,
+                );
+                data.keypress = keypress;
+                if performed_action {
+                    ctx.set_handled();
+                }
+            }
             Event::MouseMove(mouse_event) => {
                 ctx.set_handled();
                 if self.icon_hit_test(mouse_event) {

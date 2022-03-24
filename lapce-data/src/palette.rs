@@ -462,7 +462,7 @@ impl KeyPressFocus for PaletteViewData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        matches!(condition, "list_focus" | "palette_focus")
+        matches!(condition, "list_focus" | "palette_focus" | "modal_focus")
     }
 
     fn run_command(
@@ -474,7 +474,7 @@ impl KeyPressFocus for PaletteViewData {
         _env: &Env,
     ) -> CommandExecuted {
         match command {
-            LapceCommand::PaletteCancel => {
+            LapceCommand::ModalClose => {
                 self.cancel(ctx);
             }
             LapceCommand::DeleteBackward => {

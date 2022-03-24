@@ -394,6 +394,12 @@ impl LapceEditorBufferData {
         }
     }
 
+    /// Check if there are completions that are being rendered
+    fn has_completions(&self) -> bool {
+        self.completion.status != CompletionStatus::Inactive
+            && self.completion.len() > 0
+    }
+
     pub fn apply_completion_item(
         &mut self,
         ctx: &mut EventCtx,
@@ -3331,10 +3337,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.editor.content == BufferContent::Local(LocalBufferKind::Search)
             }
             "in_snippet" => self.editor.snippet.is_some(),
-            "list_focus" => {
-                self.completion.status != CompletionStatus::Inactive
-                    && self.completion.len() > 0
-            }
+            "completion_focus" => self.has_completions(),
+            "list_focus" => self.has_completions(),
+            "modal_focus" => self.has_completions(),
             _ => false,
         }
     }
@@ -4299,6 +4304,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let completion = Arc::make_mut(&mut self.completion);
                 completion.previous();
             }
+            LapceCommand::ModalClose if self.has_completions() => {
+                self.cancel_completion();
+            }
             LapceCommand::JumpToNextSnippetPlaceholder => {
                 if let Some(snippet) = self.editor.snippet.as_ref() {
                     let mut current = 0;
@@ -4613,6 +4621,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                         CursorMode::Insert(new_selection),
                                         None,
                                     ));
+                                    return CommandExecuted::Yes;
                                 }
                             }
                             i if i == 1 => {
@@ -4623,13 +4632,14 @@ impl KeyPressFocus for LapceEditorBufferData {
                                         CursorMode::Insert(new_selection),
                                         None,
                                     ));
+                                    return CommandExecuted::Yes;
                                 }
                             }
                             _ => (),
                         }
                     }
 
-                    return CommandExecuted::Yes;
+                    return CommandExecuted::No;
                 }
 
                 let offset = match &self.editor.cursor.mode {

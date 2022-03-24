@@ -78,9 +78,23 @@ impl Widget<LapceWindowData> for Menu {
         ctx: &mut EventCtx,
         event: &Event,
         data: &mut LapceWindowData,
-        _env: &Env,
+        env: &Env,
     ) {
         match event {
+            Event::KeyDown(key_event) => {
+                if data.menu.shown {
+                    let keypress = data.keypress.clone();
+                    let mut_keypress = Arc::make_mut(&mut data.keypress);
+                    let performed_action = mut_keypress.key_down(
+                        ctx,
+                        key_event,
+                        Arc::make_mut(&mut data.menu),
+                        env,
+                    );
+                    data.keypress = keypress;
+                    ctx.set_handled();
+                }
+            }
             Event::MouseMove(mouse_event) => {
                 if data.menu.shown {
                     self.mouse_move(ctx, mouse_event, data);
