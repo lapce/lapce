@@ -1504,6 +1504,12 @@ impl Buffer {
                     self.offset_of_line_col(line, col, config.editor.tab_width);
                 (new_offset, horiz)
             }
+            Movement::DocumentStart => (0, ColPosition::Start),
+            Movement::DocumentEnd => {
+                let last_offset =
+                    self.offset_line_end(self.len(), mode != Mode::Normal);
+                (last_offset, ColPosition::End)
+            }
             Movement::FirstNonBlank => {
                 let line = self.line_of_offset(offset);
                 let new_offset = self.first_non_blank_character_on_line(line);

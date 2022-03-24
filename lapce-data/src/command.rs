@@ -387,6 +387,12 @@ pub enum LapceCommand {
     WordForward,
     #[strum(serialize = "word_end_forward")]
     WordEndForward,
+    #[strum(message = "Document Start")]
+    #[strum(serialize = "document_start")]
+    DocumentStart,
+    #[strum(message = "Document End")]
+    #[strum(serialize = "document_end")]
+    DocumentEnd,
     #[strum(serialize = "line_end")]
     LineEnd,
     #[strum(serialize = "line_start")]
@@ -489,6 +495,8 @@ impl LapceCommand {
             LapceCommand::Right => Some(Movement::Right),
             LapceCommand::Up => Some(Movement::Up),
             LapceCommand::Down => Some(Movement::Down),
+            LapceCommand::DocumentStart => Some(Movement::DocumentStart),
+            LapceCommand::DocumentEnd => Some(Movement::DocumentEnd),
             LapceCommand::LineStart => Some(Movement::StartOfLine),
             LapceCommand::LineStartNonBlank => Some(Movement::FirstNonBlank),
             LapceCommand::LineEnd => Some(Movement::EndOfLine),

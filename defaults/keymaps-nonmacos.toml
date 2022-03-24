@@ -192,6 +192,14 @@ command = "toggle_problem_focus"
 # ------------------------------------ Navigation -------------------------------------
 
 [[keymaps]]
+key = "Ctrl+Home"
+command = "document_start"
+
+[[keymaps]]
+key = "Ctrl+End"
+command = "document_end"
+
+[[keymaps]]
 key = "ctrl+O"
 command = "palette.symbol"
 
