@@ -2358,9 +2358,11 @@ impl LapceEditor {
         match mouse_event.button {
             MouseButton::Left => {
                 self.left_click(ctx, mouse_event, editor_data, config);
+                editor_data.cancel_completion();
             }
             MouseButton::Right => {
                 self.right_click(ctx, editor_data, mouse_event, config);
+                editor_data.cancel_completion();
             }
             MouseButton::Middle => {}
             _ => (),

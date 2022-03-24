@@ -541,7 +541,7 @@ impl LapceEditorBufferData {
         Ok(())
     }
 
-    fn cancel_completion(&mut self) {
+    pub fn cancel_completion(&mut self) {
         let completion = Arc::make_mut(&mut self.completion);
         completion.cancel();
     }
@@ -1029,6 +1029,8 @@ impl LapceEditorBufferData {
                 }
             }
         }
+
+        self.update_completion(ctx);
     }
 
     fn check_selection_history(&mut self) {
@@ -3453,6 +3455,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_undo(proxy) {
+                    self.update_completion(ctx);
                     self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
                 }
@@ -3462,6 +3465,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_redo(proxy) {
+                    self.update_completion(ctx);
                     self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
                 }
@@ -3664,6 +3668,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 self.set_cursor_after_change(selection);
+                self.cancel_completion();
             }
             LapceCommand::ClipboardCopy => {
                 let data = self
