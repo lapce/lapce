@@ -88,6 +88,16 @@ command = "outdent_line"
 key = "meta+a"
 command = "select_all"
 
+[[keymaps]]
+key = "meta+enter"
+command = "new_line_below"
+mode = "i"
+
+[[keymaps]]
+key = "meta+shift+enter"
+command = "new_line_above"
+mode = "i"
+
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
