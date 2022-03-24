@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use druid::{
     kurbo::BezPath,
@@ -7,8 +7,8 @@ use druid::{
     },
     BoxConstraints, Command, Env, Event, EventCtx, ExtEventSink, FontFamily,
     FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent, PaintCtx,
-    Point, Rect, RenderContext, Size, Target, UpdateCtx, Vec2, Widget, WidgetExt,
-    WidgetId, WidgetPod,
+    Point, Rect, RenderContext, Size, Target, TimerToken, UpdateCtx, Vec2, Widget,
+    WidgetExt, WidgetId, WidgetPod,
 };
 use inflector::Inflector;
 use lapce_data::{
@@ -614,6 +614,8 @@ pub struct LapceSettingsItem {
     width: f64,
     cursor: usize,
     input: String,
+    value_changed: bool,
+    last_idle_timer: TimerToken,
 
     name_text: Option<PietTextLayout>,
     desc_text: Option<PietTextLayout>,
@@ -624,6 +626,9 @@ pub struct LapceSettingsItem {
 }
 
 impl LapceSettingsItem {
+    /// The amount of time to wait for the next key press before storing settings.
+    const SAVE_DELAY: Duration = Duration::from_millis(300);
+
     pub fn new(
         data: &mut LapceTabData,
         kind: String,
@@ -667,8 +672,11 @@ impl LapceSettingsItem {
             width: 0.0,
             checkbox_width: 20.0,
             input_max_width: 500.0,
-            input: "".to_string(),
             cursor: 0,
+            input: "".to_string(),
+            value_changed: false,
+            last_idle_timer: TimerToken::INVALID,
+
             name_text: None,
             desc_text: None,
             value_text: None,
@@ -873,14 +881,8 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                         ));
                     if rect.contains(mouse_event.pos) {
                         self.value = serde_json::json!(!checked);
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSettingsFile(
-                                self.get_key(),
-                                serde_json::Value::Bool(!checked),
-                            ),
-                            Target::Widget(data.id),
-                        ));
+                        self.value_changed = true;
+                        self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY);
                     }
                 }
             }
@@ -894,6 +896,20 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                     ctx.request_paint();
                 }
             }
+            Event::Timer(token)
+                if self.value_changed && *token == self.last_idle_timer =>
+            {
+                self.value_changed = false;
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSettingsFile(
+                        self.get_key(),
+                        self.value.clone(),
+                    ),
+                    Target::Widget(data.id),
+                ));
+            }
+
             _ => {}
         }
     }
@@ -905,6 +921,21 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         data: &LapceTabData,
         env: &Env,
     ) {
+        match event {
+            LifeCycle::FocusChanged(false) if self.value_changed => {
+                self.value_changed = false;
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSettingsFile(
+                        self.get_key(),
+                        self.value.clone(),
+                    ),
+                    Target::Widget(data.id),
+                ));
+            }
+            _ => (),
+        };
+
         if let Some(input) = self.input_widget.as_mut() {
             input.lifecycle(ctx, event, data, env);
         }
@@ -942,14 +973,10 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                         }
                         _ => return,
                     };
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateSettingsFile(
-                            self.get_key(),
-                            new_value,
-                        ),
-                        Target::Widget(data.id),
-                    ));
+
+                    self.value = new_value;
+                    self.value_changed = true;
+                    self.last_idle_timer = ctx.request_timer(Self::SAVE_DELAY);
                 }
             }
         }
