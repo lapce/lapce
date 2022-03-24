@@ -178,6 +178,14 @@ command = "toggle_problem"
 # ------------------------------------ Navigation -------------------------------------
 
 [[keymaps]]
+key = "meta+up"
+command = "document_start"
+
+[[keymaps]]
+key = "meta+down"
+command = "document_end"
+
+[[keymaps]]
 key = "meta+O"
 command = "palette.symbol"
 

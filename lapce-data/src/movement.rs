@@ -821,6 +821,8 @@ pub enum Movement {
     Right,
     Up,
     Down,
+    DocumentStart,
+    DocumentEnd,
     FirstNonBlank,
     StartOfLine,
     EndOfLine,
@@ -842,7 +844,14 @@ impl PartialEq for Movement {
 
 impl Movement {
     pub fn is_vertical(&self) -> bool {
-        matches!(self, Movement::Up | Movement::Down | Movement::Line(_))
+        matches!(
+            self,
+            Movement::Up
+                | Movement::Down
+                | Movement::Line(_)
+                | Movement::DocumentStart
+                | Movement::DocumentEnd
+        )
     }
 
     pub fn is_inclusive(&self) -> bool {
@@ -850,7 +859,13 @@ impl Movement {
     }
 
     pub fn is_jump(&self) -> bool {
-        matches!(self, Movement::Line(_) | Movement::Offset(_))
+        matches!(
+            self,
+            Movement::Line(_)
+                | Movement::Offset(_)
+                | Movement::DocumentStart
+                | Movement::DocumentEnd
+        )
     }
 
     pub fn update_index(
