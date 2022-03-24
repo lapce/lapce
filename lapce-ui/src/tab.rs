@@ -11,10 +11,16 @@ use druid::{
 use itertools::Itertools;
 use lapce_data::{
     buffer::LocalBufferKind,
-    command::{LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND},
+    command::{
+        CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
+        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
-    data::{DragContent, EditorDiagnostic, LapceTabData, PanelKind, WorkProgress},
+    data::{
+        DragContent, EditorDiagnostic, FocusArea, LapceTabData, PanelKind,
+        WorkProgress,
+    },
     editor::EditorLocationNew,
     keypress::KeyPressData,
     movement::{self, CursorMode, Selection},
@@ -335,8 +341,25 @@ impl Widget<LapceTabData> for LapceTabNew {
                             Arc::make_mut(&mut data.search).matches =
                                 Arc::new(HashMap::new());
                         } else {
-                            Arc::make_mut(&mut data.find)
-                                .set_find(pattern, false, false, false);
+                            let find = Arc::make_mut(&mut data.find);
+                            find.set_find(pattern, false, false, false);
+                            find.visual = true;
+                            if data.focus_area == FocusArea::Panel(PanelKind::Search)
+                            {
+                                if let Some(widget_id) = *data.main_split.active {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_NEW_COMMAND,
+                                        LapceCommandNew {
+                                            cmd: LapceCommand::SearchInView
+                                                .to_string(),
+                                            data: None,
+                                            palette_desc: None,
+                                            target: CommandTarget::Focus,
+                                        },
+                                        Target::Widget(widget_id),
+                                    ));
+                                }
+                            }
                             let pattern = pattern.to_string();
                             let event_sink = ctx.get_external_handle();
                             let tab_id = data.id;

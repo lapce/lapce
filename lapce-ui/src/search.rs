@@ -142,7 +142,7 @@ impl SearchContent {
                 continue;
             }
 
-            for (line_number, (_start, _end), _line) in matches {
+            for (line_number, (start, _end), _line) in matches {
                 i += 1;
                 if i == n {
                     ctx.submit_command(Command::new(
@@ -153,7 +153,7 @@ impl SearchContent {
                                 path: path.clone(),
                                 position: Some(lsp_types::Position {
                                     line: *line_number as u32 - 1,
-                                    character: 0,
+                                    character: *start as u32,
                                 }),
                                 scroll_offset: None,
                                 hisotry: None,

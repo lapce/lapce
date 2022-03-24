@@ -4866,6 +4866,37 @@ impl KeyPressFocus for LapceEditorBufferData {
                     self.do_move(&Movement::Offset(start), 1, mods);
                 }
             }
+            LapceCommand::SearchInView => {
+                let start_line = ((self.editor.scroll_offset.y
+                    / self.config.editor.line_height as f64)
+                    .ceil() as usize)
+                    .max(self.buffer.last_line());
+                let end_line = ((self.editor.scroll_offset.y
+                    + self.editor.size.borrow().height
+                        / self.config.editor.line_height as f64)
+                    .ceil() as usize)
+                    .max(self.buffer.last_line());
+                let end_offset = self.buffer.offset_of_line(end_line + 1);
+
+                let offset = self.editor.cursor.offset();
+                let line = self.buffer.line_of_offset(offset);
+                let offset = self.buffer.offset_of_line(line);
+                let next = self.find.next(&self.buffer.rope, offset, false, false);
+
+                if let Some(start) = next
+                    .map(|(start, _)| start)
+                    .filter(|start| *start < end_offset)
+                {
+                    self.do_move(&Movement::Offset(start), 1, mods);
+                } else {
+                    let start_offset = self.buffer.offset_of_line(start_line);
+                    if let Some((start, _)) =
+                        self.find.next(&self.buffer.rope, start_offset, false, true)
+                    {
+                        self.do_move(&Movement::Offset(start), 1, mods);
+                    }
+                }
+            }
             LapceCommand::SearchForward => {
                 Arc::make_mut(&mut self.find).visual = true;
                 let offset = self.editor.cursor.offset();

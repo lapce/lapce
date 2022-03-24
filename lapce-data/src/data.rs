@@ -2482,12 +2482,13 @@ impl LapceMainSplitData {
 
     pub fn insert_editor(&mut self, editor: Arc<LapceEditorData>, config: &Config) {
         if let Some(find_view_id) = editor.find_view_id {
-            let find_editor = LapceEditorData::new(
+            let mut find_editor = LapceEditorData::new(
                 Some(find_view_id),
                 None,
                 BufferContent::Local(LocalBufferKind::Search),
                 config,
             );
+            find_editor.parent_view_id = Some(editor.view_id);
             self.editors
                 .insert(find_editor.view_id, Arc::new(find_editor));
         }
@@ -2890,6 +2891,7 @@ pub struct SelectionHistory {
 pub struct LapceEditorData {
     pub tab_id: Option<WidgetId>,
     pub view_id: WidgetId,
+    pub parent_view_id: Option<WidgetId>,
     pub find_view_id: Option<WidgetId>,
     pub content: BufferContent,
     pub compare: Option<String>,
@@ -2917,6 +2919,7 @@ impl LapceEditorData {
         Self {
             tab_id,
             view_id: view_id.unwrap_or_else(WidgetId::next),
+            parent_view_id: None,
             find_view_id: if content.is_special() {
                 None
             } else {

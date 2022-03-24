@@ -477,6 +477,8 @@ pub enum LapceCommand {
     SearchBackward,
     #[strum(serialize = "clear_search")]
     ClearSearch,
+    #[strum(serialize = "search_in_view")]
+    SearchInView,
     Insert(String),
 }
 
