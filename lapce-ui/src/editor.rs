@@ -1584,15 +1584,31 @@ impl Widget<LapceTabData> for LapceEditorView {
             find.lifecycle(ctx, event, data, env);
         }
 
-        if let LifeCycle::HotChanged(is_hot) = event {
-            self.header.widget_mut().view_is_hot = *is_hot;
-            let editor = data.main_split.editors.get(&self.view_id).unwrap();
-            if let Some(editor_tab_id) = editor.tab_id.as_ref() {
-                let editor_tab =
-                    data.main_split.editor_tabs.get(editor_tab_id).unwrap();
-                *editor_tab.content_is_hot.borrow_mut() = *is_hot;
+        match event {
+            LifeCycle::WidgetAdded => {
+                let editor = data.main_split.editors.get(&self.view_id).unwrap();
+                if editor.scroll_offset.x > 0.0 || editor.scroll_offset.y > 0.0 {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ForceScrollTo(
+                            editor.scroll_offset.x,
+                            editor.scroll_offset.y,
+                        ),
+                        Target::Widget(editor.view_id),
+                    ));
+                }
             }
-            ctx.request_layout();
+            LifeCycle::HotChanged(is_hot) => {
+                self.header.widget_mut().view_is_hot = *is_hot;
+                let editor = data.main_split.editors.get(&self.view_id).unwrap();
+                if let Some(editor_tab_id) = editor.tab_id.as_ref() {
+                    let editor_tab =
+                        data.main_split.editor_tabs.get(editor_tab_id).unwrap();
+                    *editor_tab.content_is_hot.borrow_mut() = *is_hot;
+                }
+                ctx.request_layout();
+            }
+            _ => (),
         }
         self.header.lifecycle(ctx, event, data, env);
         self.editor.lifecycle(ctx, event, data, env);
