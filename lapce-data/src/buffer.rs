@@ -1518,15 +1518,6 @@ impl Buffer {
             Movement::StartOfLine => {
                 let line = self.line_of_offset(offset);
                 let new_offset = self.offset_of_line(line);
-                let new_offset = if new_offset == offset {
-                    if new_offset > 0 {
-                        new_offset - 1
-                    } else {
-                        0
-                    }
-                } else {
-                    new_offset
-                };
                 (new_offset, ColPosition::Start)
             }
             Movement::EndOfLine => {

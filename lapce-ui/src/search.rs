@@ -42,7 +42,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         .padding((15.0, 15.0));
     let split = LapceSplitNew::new(data.search.split_id)
         .horizontal()
-        .with_child(input.boxed(), None, 55.0)
+        .with_child(input.boxed(), None, 100.0)
         .with_flex_child(
             LapceScrollNew::new(SearchContent::new().boxed())
                 .vertical()

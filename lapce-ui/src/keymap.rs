@@ -45,8 +45,8 @@ impl LapceKeymap {
         let header = LapceKeymapHeader::new();
         let split = LapceSplitNew::new(data.settings.keymap_split_id)
             .horizontal()
-            .with_child(input.boxed(), None, 55.0)
-            .with_child(header.boxed(), None, 55.0)
+            .with_child(input.boxed(), None, 100.0)
+            .with_child(header.boxed(), None, 100.0)
             .with_flex_child(keymap.boxed(), None, 1.0);
 
         split.boxed()

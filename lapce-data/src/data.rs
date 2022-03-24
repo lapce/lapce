@@ -1754,7 +1754,19 @@ pub struct Register {
     newest_delete: usize,
 }
 
+pub enum RegisterKind {
+    Delete,
+    Yank,
+}
+
 impl Register {
+    pub fn add(&mut self, kind: RegisterKind, data: RegisterData) {
+        match kind {
+            RegisterKind::Delete => self.add_delete(data),
+            RegisterKind::Yank => self.add_yank(data),
+        }
+    }
+
     pub fn add_delete(&mut self, data: RegisterData) {
         self.unamed = data;
     }
@@ -2890,6 +2902,14 @@ pub struct SelectionHistory {
     pub selections: im::Vector<Selection>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum MotionMode {
+    Delete,
+    Yank,
+    Indent,
+    Outdent,
+}
+
 #[derive(Clone, Debug)]
 pub struct LapceEditorData {
     pub tab_id: Option<WidgetId>,
@@ -2910,6 +2930,7 @@ pub struct LapceEditorData {
     pub last_movement: Movement,
     pub last_inline_find: Option<(InlineFindDirection, String)>,
     pub inline_find: Option<InlineFindDirection>,
+    pub motion_mode: Option<MotionMode>,
 }
 
 impl LapceEditorData {
@@ -2950,6 +2971,7 @@ impl LapceEditorData {
             last_movement: Movement::Left,
             inline_find: None,
             last_inline_find: None,
+            motion_mode: None,
         }
     }
 

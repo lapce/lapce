@@ -152,7 +152,7 @@ mode = "n"
 [[keymaps]]
 key = "esc"
 command = "modal.close"
-
+when = "modal_focus"
 
 [[keymaps]]
 key = "ctrl+b"
@@ -215,7 +215,7 @@ mode = "i"
 [[keymaps]]
 key = "esc"
 command = "normal_mode"
-mode = "iv"
+mode = "niv"
 when = "!search_focus"
 
 [[keymaps]]
@@ -400,13 +400,8 @@ mode = "nv"
 
 [[keymaps]]
 key = "d"
-command = "delete_visual"
+command = "delete_forward"
 mode = "v"
-
-[[keymaps]]
-key = "d"
-command = "delete_operator"
-mode = "n"
 
 [[keymaps]]
 key = "f"
@@ -424,8 +419,23 @@ command = "repeat_last_inline_find"
 mode = "nv"
 
 [[keymaps]]
-key = "d d"
-command = "delete_line"
+key = "d"
+command = "motion_mode_delete"
+mode = "n"
+
+[[keymaps]]
+key = ">"
+command = "motion_mode_indent"
+mode = "n"
+
+[[keymaps]]
+key = "<"
+command = "motion_mode_outdent"
+mode = "n"
+
+[[keymaps]]
+key = "y"
+command = "motion_mode_yank"
 mode = "n"
 
 [[keymaps]]

@@ -21,7 +21,7 @@ use xi_rope::{spans::Spans, Rope};
 use crate::{
     buffer::BufferId,
     buffer::DiffLines,
-    data::{EditorTabChild, SplitContent},
+    data::{EditorTabChild, MotionMode, SplitContent},
     editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},
     menu::MenuItem,
@@ -369,6 +369,14 @@ pub enum LapceCommand {
     ToggleLinewiseVisualMode,
     #[strum(serialize = "toggle_blockwise_visual_mode")]
     ToggleBlockwiseVisualMode,
+    #[strum(serialize = "motion_mode_delete")]
+    MotionModeDelete,
+    #[strum(serialize = "motion_mode_indent")]
+    MotionModeIndent,
+    #[strum(serialize = "motion_mode_outdent")]
+    MotionModeOutdent,
+    #[strum(serialize = "motion_mode_yank")]
+    MotionModeYank,
     #[strum(serialize = "new_line_above")]
     NewLineAbove,
     #[strum(serialize = "new_line_below")]
@@ -489,6 +497,17 @@ pub enum LapceCommand {
 }
 
 impl LapceCommand {
+    pub fn motion_mode_command(&self) -> Option<MotionMode> {
+        let mode = match self {
+            LapceCommand::MotionModeYank => MotionMode::Yank,
+            LapceCommand::MotionModeDelete => MotionMode::Delete,
+            LapceCommand::MotionModeIndent => MotionMode::Indent,
+            LapceCommand::MotionModeOutdent => MotionMode::Outdent,
+            _ => return None,
+        };
+        Some(mode)
+    }
+
     pub fn move_command(&self, count: Option<usize>) -> Option<Movement> {
         match self {
             LapceCommand::Left => Some(Movement::Left),
