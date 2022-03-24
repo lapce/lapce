@@ -143,6 +143,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                         }
                         keys.push(keypress);
                         ctx.request_paint();
+                        ctx.set_handled();
                     }
                 } else {
                     let mut keypress = data.keypress.clone();

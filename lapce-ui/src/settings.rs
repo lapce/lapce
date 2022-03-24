@@ -13,7 +13,10 @@ use druid::{
 use inflector::Inflector;
 use lapce_data::{
     buffer::{Buffer, BufferContent},
-    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandExecuted, LapceCommand, LapceUICommand, LAPCE_NEW_COMMAND,
+        LAPCE_UI_COMMAND,
+    },
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
     keypress::KeyPressFocus,
@@ -114,6 +117,7 @@ impl LapceSettingsPanel {
         }
 
         ctx.set_handled();
+        ctx.request_focus();
         if self.switcher_rect.contains(mouse_event.pos) {
             let index = ((mouse_event.pos.y - self.switcher_rect.y0)
                 / self.switcher_line_height)
@@ -145,7 +149,16 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         if !data.settings.shown {
             return;
         }
-        self.children[self.active].event(ctx, event, data, env);
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {}
+            Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {}
+            _ => {
+                self.children[self.active].event(ctx, event, data, env);
+            }
+        }
+        if ctx.is_handled() {
+            return;
+        }
         match event {
             Event::KeyDown(key_event) => {
                 let mut keypress = data.keypress.clone();
@@ -181,10 +194,22 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::ShowSettings => {
+                        ctx.request_focus();
                         self.active = 0;
                     }
                     LapceUICommand::ShowKeybindings => {
+                        ctx.request_focus();
                         self.active = 2;
+                    }
+                    LapceUICommand::Hide => {
+                        Arc::make_mut(&mut data.settings).shown = false;
+                        if let Some(active) = *data.main_split.active {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(active),
+                            ));
+                        }
                     }
                     _ => (),
                 }
