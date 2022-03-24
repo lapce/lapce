@@ -183,11 +183,6 @@ command = "down"
 when = "!list_focus"
 
 [[keymaps]]
-key = "ctrl+u"
-command = "delete_to_beginning_of_line"
-mode = "i"
-
-[[keymaps]]
 key = "ctrl+h"
 command = "delete_backward"
 mode = "i"

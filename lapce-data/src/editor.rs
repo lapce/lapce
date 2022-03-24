@@ -5175,10 +5175,16 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::ClearSearch => {
                 Arc::make_mut(&mut self.find).visual = false;
+                let view_id =
+                    if let Some(parent_view_id) = self.editor.parent_view_id {
+                        parent_view_id
+                    } else {
+                        self.editor.view_id
+                    };
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
-                    Target::Widget(self.editor.view_id),
+                    Target::Widget(view_id),
                 ));
             }
             LapceCommand::SelectAll => {
