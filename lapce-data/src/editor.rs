@@ -17,6 +17,7 @@ use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     LapceTabData, PanelData, PanelKind, RegisterData, SplitContent,
 };
+use crate::proxy::path_from_url;
 use crate::state::LapceWorkspace;
 use crate::svg::get_svg;
 use crate::{
@@ -5018,8 +5019,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                                                 editor_view_id,
                                                 offset,
                                                 EditorLocationNew {
-                                                    path: PathBuf::from(
-                                                        location.uri.path(),
+                                                    path: path_from_url(
+                                                        &location.uri,
                                                     ),
                                                     position: Some(
                                                         location.range.start,
@@ -5609,7 +5610,7 @@ fn process_get_references(
                 editor_view_id,
                 offset,
                 EditorLocationNew {
-                    path: PathBuf::from(location.uri.path()),
+                    path: path_from_url(&location.uri),
                     position: Some(location.range.start),
                     scroll_offset: None,
                     hisotry: None,
