@@ -58,12 +58,12 @@ command = "word_backward"
 mode = "i"
 
 [[keymaps]]
-key = "meta+backspace"
+key = "alt+backspace"
 command = "delete_word_backward"
 mode = "i"
 
 [[keymaps]]
-key = "meta+delete"
+key = "alt+delete"
 command = "delete_word_forward"
 mode = "i"
 
