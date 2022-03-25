@@ -425,11 +425,11 @@ impl LspClient {
     }
 
     pub fn get_uri(&self, buffer: &Buffer) -> Url {
-        let exits = {
+        let exists = {
             let state = self.state.lock();
             state.opened_documents.contains_key(&buffer.id)
         };
-        if !exits {
+        if !exists {
             let document_uri =
                 Url::from_file_path(&buffer.path).unwrap_or_else(|_| {
                     panic!("Failed to create URL from path {:?}", buffer.path)
