@@ -28,7 +28,7 @@ pub struct LapceKeymap {
 }
 
 impl LapceKeymap {
-    pub fn new(data: &LapceTabData) -> Box<dyn Widget<LapceTabData>> {
+    pub fn new_split(data: &LapceTabData) -> LapceSplitNew {
         let keymap = Self {
             widget_id: data.settings.keymap_widget_id,
             active_keymap: None,
@@ -49,7 +49,7 @@ impl LapceKeymap {
             .with_child(header.boxed(), None, 100.0)
             .with_flex_child(keymap.boxed(), None, 1.0);
 
-        split.boxed()
+        split
     }
 
     fn mouse_down(&mut self, ctx: &mut EventCtx, pos: Point, data: &LapceTabData) {

@@ -90,6 +90,7 @@ impl Widget<LapceTabData> for LapcePanel {
 }
 
 impl LapcePanel {
+    #[allow(clippy::type_complexity)]
     pub fn new(
         kind: PanelKind,
         widget_id: WidgetId,

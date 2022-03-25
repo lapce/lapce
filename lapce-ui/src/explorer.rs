@@ -27,6 +27,7 @@ use crate::{
 #[allow(dead_code)]
 const ICONS_DIR: Dir = include_dir!("../icons");
 
+#[allow(clippy::too_many_arguments)]
 pub fn paint_file_node_item(
     ctx: &mut PaintCtx,
     item: &FileNodeItem,

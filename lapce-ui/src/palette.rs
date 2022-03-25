@@ -209,6 +209,7 @@ pub struct PaletteContainer {
     content_size: Size,
     line_height: f64,
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    #[allow(clippy::type_complexity)]
     content: WidgetPod<
         LapceTabData,
         LapceIdentityWrapper<

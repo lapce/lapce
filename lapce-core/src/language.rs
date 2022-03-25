@@ -150,13 +150,12 @@ impl LapceLanguage {
             }
             _ => (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         };
-        walk_tree(cursor, 0, normal_lines, list, ignore_list);
+        walk_tree(cursor, normal_lines, list, ignore_list);
     }
 }
 
 fn walk_tree(
     cursor: &mut TreeCursor,
-    level: usize,
     normal_lines: &mut HashSet<usize>,
     list: &[&str],
     ignore_list: &[&str],
@@ -172,7 +171,7 @@ fn walk_tree(
 
     if list.contains(&kind) && cursor.goto_first_child() {
         loop {
-            walk_tree(cursor, level + 1, normal_lines, list, ignore_list);
+            walk_tree(cursor, normal_lines, list, ignore_list);
             if !cursor.goto_next_sibling() {
                 break;
             }

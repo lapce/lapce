@@ -27,11 +27,12 @@ pub type PluginName = String;
 #[derive(Clone, Debug, Default)]
 pub struct Counter(usize);
 
-impl Counter {
-    pub fn next(&mut self) -> usize {
+impl Iterator for Counter {
+    type Item = usize;
+    fn next(&mut self) -> Option<Self::Item> {
         let n = self.0;
-        self.0 = n + 1;
-        n + 1
+        self.0 += 1;
+        Some(n)
     }
 }
 
@@ -217,7 +218,7 @@ impl PluginCatalog {
     }
 
     pub fn next_plugin_id(&mut self) -> PluginId {
-        PluginId(self.id_counter.next())
+        PluginId(self.id_counter.next().unwrap())
     }
 }
 

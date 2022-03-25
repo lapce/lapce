@@ -1,3 +1,5 @@
+#![allow(clippy::module_inception)]
+
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -544,8 +546,7 @@ impl KeyPressData {
     }
 
     pub fn update_file(keymap: &KeyMap, keys: &[KeyPress]) -> Option<()> {
-        let mut array =
-            Self::get_file_array().unwrap_or_else(toml::value::Array::new);
+        let mut array = Self::get_file_array().unwrap_or_default();
         if let Some(index) = array.iter().position(|value| {
             Some(keymap.command.as_str())
                 == value.get("command").and_then(|c| c.as_str())
@@ -646,6 +647,7 @@ impl KeyPressData {
         Some(path)
     }
 
+    #[allow(clippy::type_complexity)]
     fn get_keymaps(
         config: &Config,
     ) -> Result<(

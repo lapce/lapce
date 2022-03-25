@@ -9,6 +9,7 @@ use lapce_data::{
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
     editor::EditorLocationNew,
+    search::Match,
     split::SplitDirection,
 };
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
@@ -21,13 +22,14 @@ use crate::{
     svg::file_svg_new,
 };
 
+
 #[derive(Clone)]
 pub struct SearchData {
     pub active: WidgetId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub editor_view_id: WidgetId,
-    pub matches: Arc<HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>>,
+    pub matches: Arc<HashMap<PathBuf, Vec<Match>>>,
 }
 
 pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {

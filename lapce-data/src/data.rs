@@ -1437,7 +1437,7 @@ impl LapceTabData {
         }
     }
 
-    fn is_panel_visible(&mut self, kind: PanelKind) -> bool {
+    fn is_panel_visible(&self, kind: PanelKind) -> bool {
         for (_, panel) in self.panels.iter() {
             if panel.widgets.contains(&kind) {
                 return panel.active == kind && panel.shown;
@@ -1447,7 +1447,7 @@ impl LapceTabData {
         false
     }
 
-    fn is_panel_focused(&mut self, kind: PanelKind) -> bool {
+    fn is_panel_focused(&self, kind: PanelKind) -> bool {
         // Moving between e.g. Search and Problems doesn't affect focus, so we need to also check
         // visibility.
         self.focus_area == FocusArea::Panel(kind) && self.is_panel_visible(kind)
@@ -1809,18 +1809,9 @@ pub struct LapceMainSplitData {
 
 impl LapceMainSplitData {
     pub fn active_editor(&self) -> Option<&LapceEditorData> {
-        match *self.active {
-            Some(active) => match self.editors.get(&active) {
-                Some(editor) => Some(editor),
-                None => None,
-            },
-            None => None,
-        }
+        let id = (*self.active)?;
+        Some(self.editors.get(&id)?.as_ref())
     }
-
-    // pub fn active_editor_mut(&mut self) -> &mut LapceEditorData {
-    //     Arc::make_mut(self.editors.get_mut(&self.active).unwrap())
-    // }
 
     pub fn editor_buffer(&self, editor_view_id: WidgetId) -> Arc<Buffer> {
         let editor = self.editors.get(&editor_view_id).unwrap();
@@ -2399,6 +2390,7 @@ impl LapceMainSplitData {
 }
 
 impl LapceMainSplitData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         tab_id: WidgetId,
         workspace_info: Option<&WorkspaceInfo>,
@@ -2603,6 +2595,7 @@ impl LapceMainSplitData {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn split(
         &mut self,
         ctx: &mut EventCtx,

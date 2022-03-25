@@ -2,13 +2,14 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use druid::WidgetId;
 
+pub type Match = (usize, (usize, usize), String);
 #[derive(Clone)]
 pub struct SearchData {
     pub active: WidgetId,
     pub widget_id: WidgetId,
     pub split_id: WidgetId,
     pub editor_view_id: WidgetId,
-    pub matches: Arc<HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>>,
+    pub matches: Arc<HashMap<PathBuf, Vec<Match>>>,
 }
 
 impl SearchData {
