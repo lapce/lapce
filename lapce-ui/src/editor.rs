@@ -2381,7 +2381,6 @@ impl LapceEditor {
         editor_data: &mut LapceEditorBufferData,
         config: &Config,
     ) {
-        ctx.set_active(true);
         let mut click_kind = ClickKind::Single;
         if let Some((instant, kind, pos)) = self.last_left_click.as_ref() {
             if pos == &mouse_event.pos && instant.elapsed().as_millis() < 500 {

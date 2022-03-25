@@ -3010,6 +3010,31 @@ impl LapceEditorBufferData {
             mouse_event.mods.shift(),
             mouse_event.mods.alt(),
         ));
+
+        let mut go_to_definition = false;
+        #[cfg(target_os = "macos")]
+        if mouse_event.mods.meta() {
+            go_to_definition = true;
+        }
+        #[cfg(not(target_os = "macos"))]
+        if mouse_event.mods.ctrl() {
+            go_to_definition = true;
+        }
+
+        if go_to_definition {
+            ctx.submit_command(Command::new(
+                LAPCE_NEW_COMMAND,
+                LapceCommandNew {
+                    cmd: LapceCommand::GotoDefinition.to_string(),
+                    data: None,
+                    palette_desc: None,
+                    target: CommandTarget::Workbench,
+                },
+                Target::Widget(self.editor.view_id),
+            ));
+        } else {
+            ctx.set_active(true);
+        }
     }
 
     pub fn double_click(
@@ -3018,6 +3043,7 @@ impl LapceEditorBufferData {
         mouse_event: &MouseEvent,
         config: &Config,
     ) {
+        ctx.set_active(true);
         let mouse_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
         let (start, end) = self.buffer.select_word(mouse_offset);
         self.set_cursor(self.editor.cursor.add_region(
@@ -3034,6 +3060,7 @@ impl LapceEditorBufferData {
         mouse_event: &MouseEvent,
         config: &Config,
     ) {
+        ctx.set_active(true);
         let mouse_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
         let line = self.buffer.line_of_offset(mouse_offset);
         let start = self.buffer.offset_of_line(line);
