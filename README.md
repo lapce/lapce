@@ -36,6 +36,11 @@ Lapce is written in pure Rust, with UI in [Druid](https://github.com/linebender/
 * Plugin can be written in programming languages that can compile to [WASI](https://wasi.dev/) (C, Rust, [AssemblyScript](https://www.assemblyscript.org/))
 * Built in terminal
 
+## Contributing
+
+A guideline about contributing to Lapce can be found in
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Build from source
 
 ### Install the Rust compiler with `rustup`
