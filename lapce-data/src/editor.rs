@@ -58,6 +58,7 @@ use std::thread;
 use std::{collections::HashMap, sync::Arc};
 use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
+use std::cmp::Ordering;
 use xi_rope::{RopeDelta, Transformer};
 
 pub struct LapceUI {}
@@ -663,7 +664,7 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         item: &CompletionItem,
     ) -> Result<()> {
-        let additioal_edit = item.additional_text_edits.as_ref().map(|edits| {
+        let additional_edit: Option<Vec<_>> = item.additional_text_edits.as_ref().map(|edits| {
             edits
                 .iter()
                 .map(|edit| {
@@ -681,7 +682,7 @@ impl LapceEditorBufferData {
                 })
                 .collect::<Vec<(Selection, String)>>()
         });
-        let additioal_edit = additioal_edit.as_ref().map(|edits| {
+        let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
             edits
                 .iter()
                 .map(|(selection, c)| (selection, c.as_str()))
@@ -715,7 +716,7 @@ impl LapceEditorBufferData {
                                 ctx,
                                 &[
                                     &[(&selection, edit.new_text.as_str())][..],
-                                    &(additioal_edit.unwrap_or_else(Vec::new))[..],
+                                    &additioal_edit.unwrap_or_default()[..],
                                 ]
                                 .concat(),
                                 true,
@@ -787,8 +788,7 @@ impl LapceEditorBufferData {
                 &[(
                     &selection,
                     item.insert_text
-                        .as_deref()
-                        .unwrap_or_else(|| item.label.as_str()),
+                        .as_deref().unwrap_or(item.label.as_str()),
                 )][..],
                 &additioal_edit.unwrap_or_default()[..],
             ]
@@ -1439,7 +1439,7 @@ impl LapceEditorBufferData {
         &mut self,
         ctx: &mut EventCtx,
         edits: &[(&Selection, &str)],
-        after: bool,
+        _after: bool,
         edit_type: EditType,
     ) -> RopeDelta {
         match &self.editor.cursor.mode {
@@ -1727,11 +1727,12 @@ impl LapceEditorBufferData {
             line
         };
 
-        if new_line > line {
-            self.do_move(ctx, &Movement::Down, new_line - line, mods);
-        } else if new_line < line {
-            self.do_move(ctx, &Movement::Up, line - new_line, mods);
-        }
+        match new_line.cmp(&line) {
+            Ordering::Greater => self.do_move(ctx, &Movement::Down, new_line - line, mods),
+            Ordering::Less => self.do_move(ctx, &Movement::Up, line - new_line, mods),
+            _ => (),
+        };
+
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ScrollTo((self.editor.scroll_offset.x, top)),
@@ -2206,10 +2207,8 @@ impl LapceEditorBufferData {
                             ))
                         }
                         DiffLines::Right(_range) => {
-                            if let Some(last_change) = last_change.as_ref() {
-                                if let DiffLines::Left(_l) = last_change {
-                                    modified = true;
-                                }
+                            if let Some(DiffLines::Left(_)) = last_change.as_ref() {
+                                modified = true;
                             }
                             if modified {
                                 Some(self.config.get_color_unchecked(
@@ -2715,6 +2714,7 @@ impl LapceEditorBufferData {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn paint_cursor_on_line(
         &self,
         ctx: &mut PaintCtx,
@@ -4790,7 +4790,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::ResolveCompletion(
-                                    buffer_id, rev, offset, item,
+                                    buffer_id, rev, offset, Box::new(item),
                                 ),
                                 Target::Widget(view_id),
                             );
@@ -5376,15 +5376,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             editor.cursor.horiz = None;
             if c.chars().count() == 1 {
                 let c = c.chars().next().unwrap();
-                if matching_pair_direction(c).unwrap_or(false)
-                    && cursor_char
-                        .map(|c| {
-                            let prop = get_word_property(c);
-                            prop == WordProperty::Lf
-                                || prop == WordProperty::Space
-                                || prop == WordProperty::Punctuation
-                        })
-                        .unwrap_or(true)
+                let is_whitespace_or_punct = cursor_char
+                    .map(|c| {
+                        let prop = get_word_property(c);
+                        prop == WordProperty::Lf
+                            || prop == WordProperty::Space
+                            || prop == WordProperty::Punctuation
+                    })
+                    .unwrap_or(true);
+                if is_whitespace_or_punct && matching_pair_direction(c).unwrap_or(false)
                 {
                     if let Some(c) = matching_char(c) {
                         self.edit(

@@ -913,6 +913,7 @@ impl Buffer {
         ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_text_layout(
         &self,
         ctx: &mut PaintCtx,
@@ -1102,6 +1103,7 @@ impl Buffer {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update_selection(
         &self,
         selection: &Selection,
@@ -1130,6 +1132,7 @@ impl Buffer {
         new_selection
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update_region(
         &self,
         region: &SelRegion,
@@ -1345,7 +1348,7 @@ impl Buffer {
             line
         }
     }
-
+    #[allow(clippy::too_many_arguments)]
     pub fn move_offset(
         &self,
         offset: usize,
@@ -2370,6 +2373,7 @@ fn classify_boundary_initial(
     prev: WordProperty,
     next: WordProperty,
 ) -> WordBoundary {
+    #[allow(clippy::match_single_binding)]
     match (prev, next) {
         // (Lf, Other) => Start,
         // (Other, Lf) => End,

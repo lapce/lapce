@@ -7,7 +7,7 @@ use crate::{
     data::RegisterData,
     state::{Mode, VisualMode},
 };
-use std::cmp::{max, min};
+use std::cmp::{max, min, Ordering};
 
 #[derive(Copy, Clone)]
 pub enum InsertDrift {
@@ -896,11 +896,11 @@ impl Movement {
 }
 
 pub fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
-    if n == 1 {
-        v.remove(index);
-    } else if n > 1 {
-        v.splice(index..index + n, std::iter::empty());
-    }
+    match n.cmp(&1) {
+        Ordering::Equal => {v.remove(index);},
+        Ordering::Greater => {v.splice(index..index + n, std::iter::empty());},
+        _ => ()
+    };
 }
 
 fn format_index(index: i64, len: usize, recursive: bool) -> usize {

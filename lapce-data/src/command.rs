@@ -29,6 +29,7 @@ use crate::{
     movement::{LinePosition, Movement},
     palette::{NewPaletteItem, PaletteType},
     proxy::ProxyStatus,
+    search::Match,
     split::{SplitDirection, SplitMoveDirection},
     state::LapceWorkspace,
 };
@@ -579,7 +580,7 @@ pub enum LapceUICommand {
     UpdateSearch(String),
     GlobalSearchResult(
         String,
-        Arc<HashMap<PathBuf, Vec<(usize, (usize, usize), String)>>>,
+        Arc<HashMap<PathBuf, Vec<Match>>>,
     ),
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),
@@ -588,7 +589,7 @@ pub enum LapceUICommand {
     OpenFile(PathBuf),
     OpenFileDiff(PathBuf, String),
     CancelCompletion(usize),
-    ResolveCompletion(BufferId, u64, usize, CompletionItem),
+    ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse),
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,

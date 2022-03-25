@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
@@ -129,18 +130,20 @@ impl LapceWindowNew {
             tab.proxy.stop();
         }
 
-        if data.active > index {
-            data.active -= 1;
-        } else if data.active == index {
-            if data.active >= self.tabs.len() {
-                data.active = self.tabs.len() - 1;
-            }
-            data.active_id = self.tabs[data.active].id();
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::Focus,
-                Target::Widget(data.active_id),
-            ));
+        match data.active.cmp(&index) {
+            Ordering::Greater => data.active -= 1,
+            Ordering::Equal => {
+                if data.active >= self.tabs.len() {
+                    data.active = self.tabs.len() - 1;
+                }
+                data.active_id = self.tabs[data.active].id();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(data.active_id),
+                ));
+            },
+            _ => ()
         }
 
         data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());

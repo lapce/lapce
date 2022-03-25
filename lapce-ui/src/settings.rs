@@ -86,9 +86,9 @@ pub struct LapceSettingsPanel {
 impl LapceSettingsPanel {
     pub fn new(data: &LapceTabData) -> Self {
         let children = vec![
-            WidgetPod::new(LapceSettings::new(LapceSettingsKind::Core, data)),
-            WidgetPod::new(LapceSettings::new(LapceSettingsKind::Editor, data)),
-            WidgetPod::new(LapceKeymap::new(data)),
+            WidgetPod::new(Box::new(LapceSettings::new_split(LapceSettingsKind::Core, data)) as Box<dyn Widget<_>>),
+            WidgetPod::new(Box::new(LapceSettings::new_split(LapceSettingsKind::Editor, data))),
+            WidgetPod::new(Box::new(LapceKeymap::new_split(data))),
         ];
         Self {
             widget_id: data.settings.panel_widget_id,
@@ -444,10 +444,10 @@ pub struct LapceSettings {
 }
 
 impl LapceSettings {
-    pub fn new(
+    pub fn new_split(
         kind: LapceSettingsKind,
         data: &LapceTabData,
-    ) -> Box<dyn Widget<LapceTabData>> {
+    ) -> LapceSplitNew {
         let settings = LapceScrollNew::new(
             Self {
                 widget_id: WidgetId::next(),
@@ -467,7 +467,7 @@ impl LapceSettings {
             //.with_child(input.boxed(), None, 55.0)
             .with_flex_child(settings.boxed(), None, 1.0);
 
-        split.boxed()
+        split
     }
 
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
@@ -511,7 +511,7 @@ impl LapceSettings {
                         kind.clone(),
                         field.to_string(),
                         descs[i].to_string(),
-                        settings.get(&field.replace("_", "-")).unwrap().clone(),
+                        settings.get(&field.replace('_', "-")).unwrap().clone(),
                         ctx.get_external_handle(),
                     ),
                 )

@@ -307,6 +307,7 @@ impl CompletionData {
         self.current_items()[self.index].item.label.as_str()
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn request(
         &self,
         proxy: Arc<LapceProxy>,

@@ -77,6 +77,7 @@ impl KeyMapLoader {
         Ok(self)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn finalize(
         self,
     ) -> (

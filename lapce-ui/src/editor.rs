@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell, iter::Iterator, rc::Rc, str::FromStr, sync::Arc, time::Instant,
 };
+use std::cmp::Ordering;
 
 use druid::{
     kurbo::Line,
@@ -267,12 +268,10 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                                 .unwrap()
                                 .clone();
                             if &editor_tab.widget_id == from_id {
-                                let new_index = if mouse_index > *from_index {
-                                    Some(mouse_index - 1)
-                                } else if mouse_index < *from_index {
-                                    Some(mouse_index)
-                                } else {
-                                    None
+                                let new_index = match mouse_index.cmp(from_index) {
+                                    Ordering::Greater => Some(mouse_index - 1),
+                                    Ordering::Equal => Some(mouse_index),
+                                    Ordering::Less => None
                                 };
                                 if let Some(new_index) = new_index {
                                     if new_index != *from_index {
@@ -2671,10 +2670,9 @@ fn get_workspace_edit_edits<'a>(
     url: &Url,
     workspace_edit: &'a WorkspaceEdit,
 ) -> Option<Vec<&'a TextEdit>> {
-    if let Some(edits) = get_workspace_edit_changes_edits(url, workspace_edit) {
-        Some(edits)
-    } else {
-        get_workspace_edit_document_changes_edits(url, workspace_edit)
+    match get_workspace_edit_changes_edits(url, workspace_edit) {
+        Some(x) => Some(x),
+        None => get_workspace_edit_document_changes_edits(url, workspace_edit)
     }
 }
 
