@@ -45,6 +45,7 @@ pub enum LapceLanguage {
     Toml,
     Php,
     C,
+    Cpp,
 }
 
 impl LapceLanguage {
@@ -61,6 +62,7 @@ impl LapceLanguage {
             "toml" => LapceLanguage::Toml,
             "php" => LapceLanguage::Php,
             "c" | "h" => LapceLanguage::C,
+            "cpp" | "cxx" | "cc" | "hpp" | "hxx" => LapceLanguage::Cpp,
             _ => return None,
         })
     }
@@ -77,6 +79,7 @@ impl LapceLanguage {
             LapceLanguage::Toml => "#",
             LapceLanguage::Php => "//",
             LapceLanguage::C => "//",
+            LapceLanguage::Cpp => "//",
         }
     }
 
@@ -92,6 +95,7 @@ impl LapceLanguage {
             LapceLanguage::Toml => "  ",
             LapceLanguage::Php => "  ",
             LapceLanguage::C => "  ",
+            LapceLanguage::Cpp => "    ",
         }
     }
 
@@ -109,6 +113,7 @@ impl LapceLanguage {
             LapceLanguage::Toml => tree_sitter_toml::language(),
             LapceLanguage::Php => tree_sitter_php::language(),
             LapceLanguage::C => tree_sitter_c::language(),
+            LapceLanguage::Cpp => tree_sitter_cpp::language(),
         }
     }
 
@@ -132,6 +137,7 @@ impl LapceLanguage {
             LapceLanguage::Toml => tree_sitter_toml::HIGHLIGHT_QUERY,
             LapceLanguage::Php => tree_sitter_php::HIGHLIGHT_QUERY,
             LapceLanguage::C => tree_sitter_c::HIGHLIGHT_QUERY,
+            LapceLanguage::Cpp => tree_sitter_cpp::HIGHLIGHT_QUERY,
         };
 
         HighlightConfiguration::new(language, query, "", "").unwrap()
