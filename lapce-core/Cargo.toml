@@ -18,5 +18,6 @@ tree-sitter-typescript = "0.20.0"
 tree-sitter-python = "0.19.1"
 tree-sitter-toml = "0.20.0"
 tree-sitter-php = { git = "https://github.com/tree-sitter/tree-sitter-php.git", version = "0.19.1" }
+tree-sitter-java = { git = "https://github.com/tree-sitter/tree-sitter-java.git", version = "0.19.1" }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 lapce-proxy = { path = "../lapce-proxy" }
