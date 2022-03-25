@@ -897,9 +897,13 @@ impl Movement {
 
 pub fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
     match n.cmp(&1) {
-        Ordering::Equal => {v.remove(index);},
-        Ordering::Greater => {v.splice(index..index + n, std::iter::empty());},
-        _ => ()
+        Ordering::Equal => {
+            v.remove(index);
+        }
+        Ordering::Greater => {
+            v.drain(index..index + n);
+        }
+        _ => (),
     };
 }
 
