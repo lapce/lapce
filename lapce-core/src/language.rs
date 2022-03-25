@@ -44,6 +44,7 @@ pub enum LapceLanguage {
     Python,
     Toml,
     Php,
+    Json,
 }
 
 impl LapceLanguage {
@@ -59,6 +60,7 @@ impl LapceLanguage {
             "py" => LapceLanguage::Python,
             "toml" => LapceLanguage::Toml,
             "php" => LapceLanguage::Php,
+            "json" => LapceLanguage::Json,
             _ => return None,
         })
     }
@@ -74,6 +76,7 @@ impl LapceLanguage {
             LapceLanguage::Python => "#",
             LapceLanguage::Toml => "#",
             LapceLanguage::Php => "//",
+            LapceLanguage::Json => "",
         }
     }
 
@@ -88,6 +91,7 @@ impl LapceLanguage {
             LapceLanguage::Python => "    ",
             LapceLanguage::Toml => "  ",
             LapceLanguage::Php => "  ",
+            LapceLanguage::Json => "  ",
         }
     }
 
@@ -97,6 +101,7 @@ impl LapceLanguage {
             LapceLanguage::Go => tree_sitter_go::language(),
             LapceLanguage::Javascript => tree_sitter_javascript::language(),
             LapceLanguage::Jsx => tree_sitter_javascript::language(),
+            LapceLanguage::Json => tree_sitter_json::language(),
             LapceLanguage::Typescript => {
                 tree_sitter_typescript::language_typescript()
             }
@@ -121,6 +126,7 @@ impl LapceLanguage {
             LapceLanguage::Go => tree_sitter_go::HIGHLIGHT_QUERY,
             LapceLanguage::Javascript => tree_sitter_javascript::HIGHLIGHT_QUERY,
             LapceLanguage::Jsx => tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
+            LapceLanguage::Json => tree_sitter_json::HIGHLIGHT_QUERY,
             LapceLanguage::Typescript => tree_sitter_typescript::HIGHLIGHT_QUERY,
             LapceLanguage::Tsx => tree_sitter_typescript::HIGHLIGHT_QUERY,
             LapceLanguage::Python => tree_sitter_python::HIGHLIGHT_QUERY,
