@@ -430,7 +430,10 @@ impl LspClient {
             state.opened_documents.contains_key(&buffer.id)
         };
         if !exits {
-            let document_uri = Url::from_file_path(&buffer.path).unwrap();
+            let document_uri =
+                Url::from_file_path(&buffer.path).unwrap_or_else(|_| {
+                    panic!("Failed to create URL from path {:?}", buffer.path)
+                });
             self.send_did_open(
                 &buffer.id,
                 document_uri,
