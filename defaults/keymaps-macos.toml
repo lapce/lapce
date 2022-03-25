@@ -48,12 +48,12 @@ key = "meta+f"
 command = "search"
 
 [[keymaps]]
-key = "meta+right"
+key = "alt+right"
 command = "word_forward"
 mode = "i"
 
 [[keymaps]]
-key = "meta+left"
+key = "alt+left"
 command = "word_backward"
 mode = "i"
 
