@@ -1862,6 +1862,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tree-sitter",
+ "tree-sitter-c-sharp",
  "tree-sitter-go",
  "tree-sitter-highlight",
  "tree-sitter-javascript",
@@ -4057,6 +4058,15 @@ checksum = "09b3b781640108d29892e8b9684642d2cda5ea05951fd58f0fea1db9edeb9b71"
 dependencies = [
  "cc",
  "regex",
+]
+
+[[package]]
+name = "tree-sitter-c-sharp"
+version = "0.19.1"
+source = "git+https://github.com/tree-sitter/tree-sitter-c-sharp#5b6ae1f88e741b9ed738891ad1362fb9f2041671"
+dependencies = [
+ "cc",
+ "tree-sitter",
 ]
 
 [[package]]
