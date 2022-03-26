@@ -12,7 +12,6 @@ use lapce_data::{
     data::{LapceMainSplitData, LapceTabData},
     keypress::KeyPressFocus,
     movement::{Movement, Selection},
-    proxy::LapceProxy,
     state::Mode,
 };
 use lsp_types::{
@@ -25,7 +24,6 @@ pub struct CodeAction {}
 #[derive(Clone, Data)]
 pub struct CodeActionData {
     pub main_split: LapceMainSplitData,
-    pub proxy: Arc<LapceProxy>,
     pub config: Arc<Config>,
 }
 
@@ -221,7 +219,6 @@ impl Widget<LapceTabData> for CodeAction {
                 let mut_keypress = Arc::make_mut(&mut keypress);
                 let mut code_action_data = CodeActionData {
                     main_split: data.main_split.clone(),
-                    proxy: data.proxy.clone(),
                     config: data.config.clone(),
                 };
                 mut_keypress.key_down(ctx, key_event, &mut code_action_data, env);
