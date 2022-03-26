@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use home::home_dir;
 use hotwatch::Hotwatch;
+use lapce_rpc::counter::Counter;
+use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -23,42 +25,6 @@ use wasmer_wasi::WasiState;
 use crate::dispatch::Dispatcher;
 
 pub type PluginName = String;
-
-#[derive(Clone, Debug, Default)]
-pub struct Counter(usize);
-
-impl Iterator for Counter {
-    type Item = usize;
-    fn next(&mut self) -> Option<Self::Item> {
-        let n = self.0;
-        self.0 += 1;
-        Some(n)
-    }
-}
-
-#[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
-pub struct PluginId(pub usize);
-
-#[derive(Deserialize, Clone, Debug, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct PluginDescription {
-    pub name: String,
-    pub version: String,
-    pub display_name: String,
-    pub author: String,
-    pub description: String,
-    pub repository: String,
-    pub wasm: String,
-    dir: Option<PathBuf>,
-    configuration: Option<Value>,
-}
-
-#[derive(Serialize, Clone)]
-pub struct PluginInfo {
-    arch: String,
-    os: String,
-    configuration: Option<Value>,
-}
 
 #[derive(WasmerEnv, Clone)]
 pub(crate) struct PluginEnv {
@@ -83,7 +49,7 @@ pub struct PluginCatalog {
 impl PluginCatalog {
     pub fn new() -> PluginCatalog {
         PluginCatalog {
-            id_counter: Counter::default(),
+            id_counter: Counter::new(),
             items: HashMap::new(),
             plugins: HashMap::new(),
             store: wasmer::Store::default(),
@@ -218,7 +184,7 @@ impl PluginCatalog {
     }
 
     pub fn next_plugin_id(&mut self) -> PluginId {
-        PluginId(self.id_counter.next().unwrap())
+        PluginId(self.id_counter.next())
     }
 }
 

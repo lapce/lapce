@@ -4,12 +4,12 @@ use anyhow::Error;
 use druid::{Command, EventCtx, ExtEventSink, Size, Target, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
+use lapce_rpc::buffer::BufferId;
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 use std::str::FromStr;
 
 use crate::{
-    buffer::BufferId,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     movement::Movement,
     proxy::LapceProxy,

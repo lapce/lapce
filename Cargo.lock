@@ -1857,7 +1857,7 @@ name = "lapce-core"
 version = "0.0.12"
 dependencies = [
  "itertools",
- "lapce-proxy",
+ "lapce-rpc",
  "serde 1.0.130",
  "serde_json",
  "thiserror",
@@ -1973,9 +1973,11 @@ dependencies = [
  "anyhow",
  "crossbeam-channel",
  "jsonrpc-lite",
+ "lsp-types",
  "parking_lot",
  "serde 1.0.130",
  "serde_json",
+ "xi-rope",
 ]
 
 [[package]]
@@ -2005,7 +2007,6 @@ dependencies = [
  "itertools",
  "jsonrpc-lite",
  "lapce-data",
- "lapce-proxy",
  "lapce-rpc",
  "lazy_static",
  "libloading",

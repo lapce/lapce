@@ -13,14 +13,17 @@ use std::os::windows::process::CommandExt;
 
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
-use lapce_rpc::RequestId;
+use lapce_rpc::{
+    buffer::BufferId,
+    style::{LineStyle, Style},
+    RequestId,
+};
 use lsp_types::*;
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 
+use crate::buffer::Buffer;
 use crate::dispatch::Dispatcher;
-use crate::{buffer::Buffer, style::LineStyle};
-use crate::{buffer::BufferId, style::Style};
 
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";

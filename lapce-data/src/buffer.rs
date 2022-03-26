@@ -7,8 +7,8 @@ use druid::{
 use lapce_core::indent::{auto_detect_indent_style, IndentStyle};
 use lapce_core::style::line_styles;
 use lapce_core::syntax::Syntax;
-use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
-use lapce_proxy::style::{LineStyle, LineStyles, Style};
+use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
+use lapce_rpc::style::{LineStyle, LineStyles, Style};
 use lsp_types::SemanticTokensLegend;
 use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{CodeActionResponse, Position};
@@ -37,7 +37,7 @@ use crate::{
     find::Find,
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     proxy::LapceProxy,
-    state::{Counter, Mode},
+    state::Mode,
 };
 
 #[allow(dead_code)]
@@ -65,16 +65,6 @@ pub enum DiffResult<T> {
     Left(T),
     Both(T, T),
     Right(T),
-}
-
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize, Data)]
-pub struct BufferId(pub u64);
-
-impl BufferId {
-    pub fn next() -> Self {
-        static BUFFER_ID_COUNTER: Counter = Counter::new();
-        Self(BUFFER_ID_COUNTER.next())
-    }
 }
 
 #[derive(Clone)]
