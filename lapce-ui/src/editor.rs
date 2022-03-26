@@ -320,10 +320,8 @@ impl LapceEditor {
         data: &LapceEditorBufferData,
         ctx: &mut PaintCtx,
         is_focused: bool,
-        config: &Config,
     ) {
         let rect = ctx.region().bounding_box();
-
         let ref_text_layout = ctx
             .text()
             .new_text_layout("W")
@@ -334,15 +332,17 @@ impl LapceEditor {
             .build()
             .unwrap();
         let char_width = ref_text_layout.size().width;
-        let y_shift =
-            (config.editor.line_height as f64 - ref_text_layout.size().height) / 2.0;
-        let small_char_width =
-            config.char_width(ctx.text(), config.editor.code_lens_font_size as f64);
+        let y_shift = (data.config.editor.line_height as f64
+            - ref_text_layout.size().height)
+            / 2.0;
+        let small_char_width = data
+            .config
+            .char_width(ctx.text(), data.config.editor.code_lens_font_size as f64);
 
         let empty_lens = Syntax::lens_from_normal_lines(
             data.buffer.len(),
-            config.editor.line_height,
-            config.editor.code_lens_font_size,
+            data.config.editor.line_height,
+            data.config.editor.code_lens_font_size,
             &[],
         );
         let lens = if let Some(syntax) = data.buffer.syntax.as_ref() {
@@ -358,7 +358,9 @@ impl LapceEditor {
         let start_line =
             lens.line_of_height(rect.y0.floor() as usize).min(last_line);
         let end_line = lens
-            .line_of_height(rect.y1.ceil() as usize + config.editor.line_height)
+            .line_of_height(
+                rect.y1.ceil() as usize + &data.config.editor.line_height,
+            )
             .min(last_line);
         let start_offset = data.buffer.offset_of_line(start_line);
         let end_offset = data.buffer.offset_of_line(end_line + 1);
@@ -367,7 +369,7 @@ impl LapceEditor {
         let mut y = lens.height_of_line(start_line) as f64;
         for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
             if let Some(line_content) = lines_iter.next() {
-                let is_small = line_height < config.editor.line_height;
+                let is_small = line_height < data.config.editor.line_height;
 
                 let mut x = 0.0;
                 if is_small {
@@ -376,7 +378,7 @@ impl LapceEditor {
                             x += char_width - small_char_width;
                         } else if ch == '\t' {
                             x += (char_width - small_char_width)
-                                * config.editor.tab_width as f64;
+                                * data.config.editor.tab_width as f64;
                         } else {
                             break;
                         }
@@ -397,7 +399,6 @@ impl LapceEditor {
                         char_width
                     },
                     line_height as f64,
-                    config,
                 );
                 let text_layout = data.buffer.new_text_layout(
                     ctx,
@@ -405,12 +406,12 @@ impl LapceEditor {
                     &line_content,
                     None,
                     if is_small {
-                        config.editor.code_lens_font_size
+                        data.config.editor.code_lens_font_size
                     } else {
-                        config.editor.font_size
+                        data.config.editor.font_size
                     },
                     [rect.x0, rect.x1],
-                    config,
+                    &data.config,
                 );
                 ctx.draw_text(
                     &text_layout,
@@ -449,15 +450,7 @@ impl LapceEditor {
         if data.editor.content.is_input()
             || (data.editor.compare.is_none() && !data.editor.code_lens)
         {
-            Self::paint_cursor(
-                data,
-                ctx,
-                is_focused,
-                placeholder,
-                char_width,
-                &data.config,
-                env,
-            );
+            Self::paint_cursor(data, ctx, is_focused, placeholder, char_width, env);
             Self::paint_find(data, ctx, char_width, env);
         }
         let self_size = ctx.size();
@@ -466,7 +459,7 @@ impl LapceEditor {
         let end_line = (rect.y1 / line_height).ceil() as usize;
 
         if !data.editor.content.is_input() && data.editor.code_lens {
-            Self::paint_code_lens_content(data, ctx, is_focused, &data.config);
+            Self::paint_code_lens_content(data, ctx, is_focused);
         } else if let Some(compare) = data.editor.compare.as_ref() {
             if let Some(changes) = data.buffer.history_changes.get(compare) {
                 let cursor_line =
@@ -590,7 +583,6 @@ impl LapceEditor {
                                     l as f64 * line_height,
                                     char_width,
                                     line_height,
-                                    &data.config,
                                 );
                                 let text_layout = data.buffer.new_text_layout(
                                     ctx,
@@ -653,7 +645,6 @@ impl LapceEditor {
                                     l as f64 * line_height,
                                     char_width,
                                     line_height,
-                                    &data.config,
                                 );
                                 let text_layout = data.buffer.new_text_layout(
                                     ctx,
@@ -757,7 +748,6 @@ impl LapceEditor {
         y: f64,
         char_width: f64,
         line_height: f64,
-        config: &Config,
     ) {
         match &data.editor.cursor.mode {
             CursorMode::Normal(_) => {}
@@ -946,7 +936,7 @@ impl LapceEditor {
                         let (x0, x1) = data.editor.cursor.current_char(
                             &data.buffer,
                             char_width,
-                            config,
+                            &data.config,
                         );
                         let cursor_width =
                             if x1 > x0 { x1 - x0 } else { char_width };
@@ -963,13 +953,13 @@ impl LapceEditor {
             }
         }
     }
+
     fn paint_cursor(
         data: &LapceEditorBufferData,
         ctx: &mut PaintCtx,
         is_focused: bool,
         placeholder: Option<&String>,
         width: f64,
-        config: &Config,
         env: &Env,
     ) {
         let line_height = Self::line_height(data, env);
@@ -986,8 +976,11 @@ impl LapceEditor {
                 Self::paint_cursor_line(data, ctx, line, is_focused, placeholder);
 
                 if is_focused {
-                    let (x0, x1) =
-                        data.editor.cursor.current_char(&data.buffer, width, config);
+                    let (x0, x1) = data.editor.cursor.current_char(
+                        &data.buffer,
+                        width,
+                        &data.config,
+                    );
                     let char_width = if x1 > x0 { x1 - x0 } else { width };
                     ctx.fill(
                         Rect::ZERO
@@ -1093,7 +1086,7 @@ impl LapceEditor {
                         let (x0, x1) = data.editor.cursor.current_char(
                             &data.buffer,
                             width,
-                            config,
+                            &data.config,
                         );
                         let char_width = if x1 > x0 { x1 - x0 } else { width };
                         ctx.fill(
