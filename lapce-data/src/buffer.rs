@@ -2358,11 +2358,13 @@ fn classify_boundary(prev: WordProperty, next: WordProperty) -> WordBoundary {
     match (prev, next) {
         (Lf, Lf) => Start,
         (Lf, Space) => Interior,
-        (_, Lf) => End,
-        (Lf, _) => Start,
+        (Cr, Lf) => Interior,
         (Space, Space) => Interior,
         (_, Space) => End,
         (Space, _) => Start,
+        (Lf, _) => Start,
+        (_, Cr) => End,
+        (_, Lf) => End,
         (Punctuation, Other) => Both,
         (Other, Punctuation) => Both,
         _ => Interior,
@@ -2389,6 +2391,7 @@ fn classify_boundary_initial(
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum WordProperty {
+    Cr,
     Lf,
     Space,
     Punctuation,
@@ -2397,6 +2400,9 @@ pub enum WordProperty {
 
 pub fn get_word_property(codepoint: char) -> WordProperty {
     if codepoint <= ' ' {
+        if codepoint == '\r' {
+            return WordProperty::Cr;
+        }
         if codepoint == '\n' {
             return WordProperty::Lf;
         }
