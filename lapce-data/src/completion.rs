@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Display, sync::Arc};
+use std::{fmt::Display, sync::Arc};
 
 use anyhow::Error;
 use druid::{ExtEventSink, Size, Target, WidgetId};
