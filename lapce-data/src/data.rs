@@ -1358,6 +1358,17 @@ impl LapceTabData {
                 }),
                 Target::Auto,
             )),
+            LapceWorkbenchCommand::DisconnectRemote => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetWorkspace(LapceWorkspace {
+                        kind: LapceWorkspaceType::Local,
+                        path: None,
+                        last_open: 0,
+                    }),
+                    Target::Auto,
+                ))
+            }
         }
     }
 

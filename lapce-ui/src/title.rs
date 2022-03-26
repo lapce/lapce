@@ -10,7 +10,7 @@ use druid::{
 use lapce_data::{
     command::{
         CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::LapceWindowData,
@@ -225,54 +225,58 @@ impl Widget<LapceWindowData> for Title {
         x += remote_rect.width();
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
-        let command = if cfg!(target_os = "windows") {
-            Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ShowMenu(
-                    Point::new(command_rect.x0, command_rect.y1),
-                    Arc::new(vec![
-                        MenuItem {
-                            text: LapceWorkbenchCommand::ConnectSshHost
-                                .get_message()
-                                .unwrap()
-                                .to_string(),
-                            command: LapceCommandNew {
-                                cmd: LapceWorkbenchCommand::ConnectSshHost
-                                    .to_string(),
-                                palette_desc: None,
-                                data: None,
-                                target: CommandTarget::Workbench,
-                            },
-                        },
-                        MenuItem {
-                            text: LapceWorkbenchCommand::ConnectWsl
-                                .get_message()
-                                .unwrap()
-                                .to_string(),
-                            command: LapceCommandNew {
-                                cmd: LapceWorkbenchCommand::ConnectWsl.to_string(),
-                                palette_desc: None,
-                                data: None,
-                                target: CommandTarget::Workbench,
-                            },
-                        },
-                    ]),
-                ),
-                Target::Auto,
-            )
-        } else {
-            Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
+
+        let mut menu_items = vec![MenuItem {
+            text: LapceWorkbenchCommand::ConnectSshHost
+                .get_message()
+                .unwrap()
+                .to_string(),
+            command: LapceCommandNew {
+                cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
+                palette_desc: None,
+                data: None,
+                target: CommandTarget::Workbench,
+            },
+        }];
+
+        if cfg!(target_os = "windows") {
+            menu_items.push(MenuItem {
+                text: LapceWorkbenchCommand::ConnectWsl
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::ConnectWsl.to_string(),
                     palette_desc: None,
                     data: None,
                     target: CommandTarget::Workbench,
                 },
-                Target::Widget(data.active_id),
-            )
-        };
-        self.commands.push((command_rect, command));
+            });
+        }
+
+        if tab.workspace.kind.is_remote() {
+            menu_items.push(MenuItem {
+                text: "Disconnect".to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::DisconnectRemote.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            });
+        }
+
+        self.commands.push((
+            command_rect,
+            Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ShowMenu(
+                    Point::new(command_rect.x0, command_rect.y1),
+                    Arc::new(menu_items),
+                ),
+                Target::Auto,
+            ),
+        ));
 
         let command_rect = Size::ZERO.to_rect().with_origin(Point::new(x, 0.0));
 
