@@ -19,7 +19,7 @@ use lsp_types::SymbolKind;
 use usvg;
 
 use crate::{
-    editor::LapceEditorView,
+    editor::view::LapceEditorView,
     scroll::{LapceIdentityWrapper, LapceScrollNew},
 };
 

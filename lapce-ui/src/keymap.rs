@@ -17,7 +17,9 @@ use lapce_data::{
     state::Modes,
 };
 
-use crate::{editor::LapceEditorView, scroll::LapceScrollNew, split::LapceSplitNew};
+use crate::{
+    editor::view::LapceEditorView, scroll::LapceScrollNew, split::LapceSplitNew,
+};
 
 pub struct LapceKeymap {
     widget_id: WidgetId,

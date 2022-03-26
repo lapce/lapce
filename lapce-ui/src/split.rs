@@ -1,5 +1,5 @@
 use crate::{
-    editor::{LapceEditorTab, LapceEditorView},
+    editor::{tab::LapceEditorTab, view::LapceEditorView},
     svg::logo_svg,
     terminal::LapceTerminalView,
 };

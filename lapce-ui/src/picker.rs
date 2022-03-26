@@ -19,7 +19,7 @@ use lapce_data::{
 use lapce_rpc::file::FileNodeItem;
 
 use crate::{
-    editor::LapceEditorView,
+    editor::view::LapceEditorView,
     explorer::{get_item_children, get_item_children_mut, paint_file_node_item},
     scroll::LapceScrollNew,
     svg::get_svg,
