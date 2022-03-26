@@ -19,7 +19,9 @@ use lapce_data::{
 };
 
 use crate::{
-    editor::{container::LapceEditorContainer, header::LapceEditorHeader},
+    editor::{
+        container::LapceEditorContainer, header::LapceEditorHeader, LapceEditor,
+    },
     find::FindBox,
 };
 
@@ -268,7 +270,7 @@ impl LapceEditorView {
         );
 
         let editor_size = *data.editor.size.borrow();
-        let size = data.get_size(ctx.text(), editor_size, panels, env);
+        let size = LapceEditor::get_size(data, ctx.text(), editor_size, panels, env);
         let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
         if scroll.scroll_to_visible(rect, env) {
@@ -290,7 +292,7 @@ impl LapceEditorView {
     ) {
         let line_height = data.config.editor.line_height as f64;
         let editor_size = *data.editor.size.borrow();
-        let size = data.get_size(ctx.text(), editor_size, panels, env);
+        let size = LapceEditor::get_size(data, ctx.text(), editor_size, panels, env);
 
         let rect = data.cursor_region(ctx.text(), &data.config);
         let scroll_id = self.editor.widget().scroll_id;

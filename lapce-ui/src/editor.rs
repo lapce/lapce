@@ -1,22 +1,23 @@
 use std::{iter::Iterator, sync::Arc, time::Instant};
 
 use druid::{
-    piet::PietTextLayout, BoxConstraints, Command, Env, Event, EventCtx,
-    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent,
-    PaintCtx, Point, Rect, Size, Target, TextLayout, UpdateCtx, Vec2, Widget,
-    WidgetId,
+    piet::{PietText, PietTextLayout},
+    BoxConstraints, Command, Env, Event, EventCtx, InternalLifeCycle, LayoutCtx,
+    LifeCycle, LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, Rect, Size,
+    Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetId,
 };
 use lapce_data::{
-    buffer::matching_pair_direction,
+    buffer::{matching_pair_direction, BufferContent, DiffLines, LocalBufferKind},
     command::{
         CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
         LapceWorkbenchCommand, LAPCE_UI_COMMAND,
     },
-    config::Config,
-    data::LapceTabData,
+    config::{Config, LapceTheme},
+    data::{LapceTabData, PanelData, PanelKind},
     editor::{EditorLocation, LapceEditorBufferData},
     menu::MenuItem,
     movement::{Movement, Selection},
+    panel::PanelPosition,
     state::{Mode, VisualMode},
 };
 use lapce_rpc::buffer::BufferId;
@@ -208,6 +209,110 @@ impl LapceEditor {
             Target::Auto,
         ));
     }
+
+    pub fn get_size(
+        data: &LapceEditorBufferData,
+        text: &mut PietText,
+        editor_size: Size,
+        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
+        env: &Env,
+    ) -> Size {
+        let line_height = data.config.editor.line_height as f64;
+        let width = data.config.editor_text_width(text, "W");
+        match &data.editor.content {
+            BufferContent::File(_) => {
+                if data.editor.code_lens {
+                    if let Some(syntax) = data.buffer.syntax.as_ref() {
+                        let height =
+                            syntax.lens.height_of_line(syntax.lens.len() + 1);
+                        Size::new(
+                            (width * data.buffer.max_len as f64)
+                                .max(editor_size.width),
+                            (height as f64 - line_height).max(0.0)
+                                + editor_size.height,
+                        )
+                    } else {
+                        let height = data.buffer.num_lines
+                            * data.config.editor.code_lens_font_size;
+                        Size::new(
+                            (width * data.buffer.max_len as f64)
+                                .max(editor_size.width),
+                            (height as f64 - line_height).max(0.0)
+                                + editor_size.height,
+                        )
+                    }
+                } else if let Some(compare) = data.editor.compare.as_ref() {
+                    let mut lines = 0;
+                    if let Some(changes) = data.buffer.history_changes.get(compare) {
+                        for change in changes.iter() {
+                            match change {
+                                DiffLines::Left(l) => lines += l.len(),
+                                DiffLines::Both(_l, r) => lines += r.len(),
+                                DiffLines::Skip(_l, _r) => lines += 1,
+                                DiffLines::Right(r) => lines += r.len(),
+                            }
+                        }
+                    }
+                    Size::new(
+                        (width * data.buffer.max_len as f64).max(editor_size.width),
+                        (line_height * lines as f64 - line_height).max(0.0)
+                            + editor_size.height,
+                    )
+                } else {
+                    Size::new(
+                        (width * data.buffer.max_len as f64).max(editor_size.width),
+                        (line_height * data.buffer.num_lines as f64 - line_height)
+                            .max(0.0)
+                            + editor_size.height,
+                    )
+                }
+            }
+            BufferContent::Local(kind) => match kind {
+                LocalBufferKind::FilePicker
+                | LocalBufferKind::Search
+                | LocalBufferKind::Settings
+                | LocalBufferKind::Keymap => Size::new(
+                    editor_size.width.max(width * data.buffer.rope.len() as f64),
+                    env.get(LapceTheme::INPUT_LINE_HEIGHT)
+                        + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
+                ),
+                LocalBufferKind::SourceControl => {
+                    for (pos, panels) in panels.iter() {
+                        for panel_kind in panels.widgets.iter() {
+                            if panel_kind == &PanelKind::SourceControl {
+                                return match pos {
+                                    PanelPosition::BottomLeft
+                                    | PanelPosition::BottomRight => {
+                                        let width = 200.0;
+                                        Size::new(width, editor_size.height)
+                                    }
+                                    _ => {
+                                        let height = 100.0f64;
+                                        let height = height.max(
+                                            line_height
+                                                * data.buffer.num_lines() as f64,
+                                        );
+                                        Size::new(
+                                            (width * data.buffer.max_len as f64)
+                                                .max(editor_size.width),
+                                            height,
+                                        )
+                                    }
+                                };
+                            }
+                        }
+                    }
+                    Size::ZERO
+                }
+                LocalBufferKind::Empty => editor_size,
+            },
+            BufferContent::Value(_) => Size::new(
+                editor_size.width.max(width * data.buffer.rope.len() as f64),
+                env.get(LapceTheme::INPUT_LINE_HEIGHT)
+                    + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
+            ),
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditor {
@@ -391,7 +496,7 @@ impl Widget<LapceTabData> for LapceEditor {
         env: &Env,
     ) -> Size {
         let editor_data = data.editor_view_content(self.view_id);
-        editor_data.get_size(ctx.text(), bc.max(), &data.panels, env)
+        Self::get_size(&editor_data, ctx.text(), bc.max(), &data.panels, env)
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {

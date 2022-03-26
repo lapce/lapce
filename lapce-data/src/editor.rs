@@ -15,8 +15,9 @@ use crate::data::MotionMode;
 use crate::data::RegisterKind;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
-    LapceTabData, PanelData, PanelKind, RegisterData, SplitContent,
+    LapceTabData, RegisterData, SplitContent,
 };
+use crate::movement::InsertDrift;
 use crate::proxy::path_from_url;
 use crate::state::LapceWorkspace;
 use crate::svg::get_svg;
@@ -30,7 +31,6 @@ use crate::{
 };
 use crate::{find::Find, split::SplitDirection};
 use crate::{keypress::KeyPressFocus, movement::Cursor};
-use crate::{movement::InsertDrift, panel::PanelPosition};
 use crate::{proxy::LapceProxy, source_control::SourceControlData};
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
@@ -182,110 +182,6 @@ impl LapceEditorBufferData {
                 1,
                 Modifiers::empty(),
             );
-        }
-    }
-
-    pub fn get_size(
-        &self,
-        text: &mut PietText,
-        editor_size: Size,
-        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
-        env: &Env,
-    ) -> Size {
-        let line_height = self.config.editor.line_height as f64;
-        let width = self.config.editor_text_width(text, "W");
-        match &self.editor.content {
-            BufferContent::File(_) => {
-                if self.editor.code_lens {
-                    if let Some(syntax) = self.buffer.syntax.as_ref() {
-                        let height =
-                            syntax.lens.height_of_line(syntax.lens.len() + 1);
-                        Size::new(
-                            (width * self.buffer.max_len as f64)
-                                .max(editor_size.width),
-                            (height as f64 - line_height).max(0.0)
-                                + editor_size.height,
-                        )
-                    } else {
-                        let height = self.buffer.num_lines
-                            * self.config.editor.code_lens_font_size;
-                        Size::new(
-                            (width * self.buffer.max_len as f64)
-                                .max(editor_size.width),
-                            (height as f64 - line_height).max(0.0)
-                                + editor_size.height,
-                        )
-                    }
-                } else if let Some(compare) = self.editor.compare.as_ref() {
-                    let mut lines = 0;
-                    if let Some(changes) = self.buffer.history_changes.get(compare) {
-                        for change in changes.iter() {
-                            match change {
-                                DiffLines::Left(l) => lines += l.len(),
-                                DiffLines::Both(_l, r) => lines += r.len(),
-                                DiffLines::Skip(_l, _r) => lines += 1,
-                                DiffLines::Right(r) => lines += r.len(),
-                            }
-                        }
-                    }
-                    Size::new(
-                        (width * self.buffer.max_len as f64).max(editor_size.width),
-                        (line_height * lines as f64 - line_height).max(0.0)
-                            + editor_size.height,
-                    )
-                } else {
-                    Size::new(
-                        (width * self.buffer.max_len as f64).max(editor_size.width),
-                        (line_height * self.buffer.num_lines as f64 - line_height)
-                            .max(0.0)
-                            + editor_size.height,
-                    )
-                }
-            }
-            BufferContent::Local(kind) => match kind {
-                LocalBufferKind::FilePicker
-                | LocalBufferKind::Search
-                | LocalBufferKind::Settings
-                | LocalBufferKind::Keymap => Size::new(
-                    editor_size.width.max(width * self.buffer.rope.len() as f64),
-                    env.get(LapceTheme::INPUT_LINE_HEIGHT)
-                        + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
-                ),
-                LocalBufferKind::SourceControl => {
-                    for (pos, panels) in panels.iter() {
-                        for panel_kind in panels.widgets.iter() {
-                            if panel_kind == &PanelKind::SourceControl {
-                                return match pos {
-                                    PanelPosition::BottomLeft
-                                    | PanelPosition::BottomRight => {
-                                        let width = 200.0;
-                                        Size::new(width, editor_size.height)
-                                    }
-                                    _ => {
-                                        let height = 100.0f64;
-                                        let height = height.max(
-                                            line_height
-                                                * self.buffer.num_lines() as f64,
-                                        );
-                                        Size::new(
-                                            (width * self.buffer.max_len as f64)
-                                                .max(editor_size.width),
-                                            height,
-                                        )
-                                    }
-                                };
-                            }
-                        }
-                    }
-                    Size::ZERO
-                }
-                LocalBufferKind::Empty => editor_size,
-            },
-            BufferContent::Value(_) => Size::new(
-                editor_size.width.max(width * self.buffer.rope.len() as f64),
-                env.get(LapceTheme::INPUT_LINE_HEIGHT)
-                    + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
-            ),
         }
     }
 
