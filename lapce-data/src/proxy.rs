@@ -680,24 +680,6 @@ impl Remote for WslRemote {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CursorShape {
-    /// Cursor is a block like `▒`.
-    Block,
-
-    /// Cursor is an underscore like `_`.
-    Underline,
-
-    /// Cursor is a vertical bar `⎸`.
-    Beam,
-
-    /// Cursor is a box like `☐`.
-    HollowBlock,
-
-    /// Invisible cursor.
-    Hidden,
-}
-
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
 // as "/<drive>://" which is then interpreted by PathBuf::new() as a UNIX-like path from root.
 // This function strips the additional / from the beginning, if the first segment is a drive letter.
