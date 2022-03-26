@@ -470,8 +470,7 @@ impl KeyPressData {
         let content = std::fs::read(&path).ok()?;
         let toml_value: toml::Value = toml::from_slice(&content).ok()?;
         let table = toml_value.as_table()?;
-        let array = table.get("keymaps")?.as_array()?.clone();
-        Some(array)
+        table.get("keymaps")?.as_array().cloned()
     }
 
     pub fn filter_commands(&mut self, pattern: &str) {
@@ -489,15 +488,13 @@ impl KeyPressData {
                 .iter()
                 .filter_map(|i| {
                     let cmd = commands.get(&i.command).unwrap();
-                    let text =
-                        cmd.palette_desc.clone().unwrap_or_else(|| cmd.cmd.clone());
-                    if let Some((score, _indices)) =
-                        matcher.fuzzy_indices(&text, &pattern)
-                    {
-                        Some((i, score))
-                    } else {
-                        None
-                    }
+                    let text = cmd
+                        .palette_desc
+                        .as_ref()
+                        .map(|s| s.as_str())
+                        .unwrap_or_else(|| cmd.cmd.as_str());
+
+                    matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                 })
                 .sorted_by_key(|(_i, score)| -*score)
                 .map(|(i, _)| i.clone())
@@ -507,15 +504,13 @@ impl KeyPressData {
                 commands_without_keymap
                     .iter()
                     .filter_map(|i| {
-                        let text =
-                            i.palette_desc.clone().unwrap_or_else(|| i.cmd.clone());
-                        if let Some((score, _indices)) =
-                            matcher.fuzzy_indices(&text, &pattern)
-                        {
-                            Some((i, score))
-                        } else {
-                            None
-                        }
+                        let text = i
+                            .palette_desc
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or_else(|| i.cmd.as_str());
+
+                        matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                     })
                     .sorted_by_key(|(_i, score)| -*score)
                     .map(|(i, _)| i.clone())
