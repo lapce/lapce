@@ -1,9 +1,9 @@
 use std::{iter::Iterator, str::FromStr, sync::Arc};
 
 use druid::{
-    BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext, Size, Target,
-    Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
+    piet::PietText, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
+    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     buffer::{BufferContent, LocalBufferKind},
@@ -262,7 +262,7 @@ impl LapceEditorView {
         panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
         env: &Env,
     ) {
-        let center = data.cursor_region(ctx.text(), &data.config).center();
+        let center = Self::cursor_region(data, ctx.text()).center();
 
         let rect = Rect::ZERO.with_origin(center).inflate(
             (data.editor.size.borrow().width / 2.0).ceil(),
@@ -294,7 +294,7 @@ impl LapceEditorView {
         let editor_size = *data.editor.size.borrow();
         let size = LapceEditor::get_size(data, ctx.text(), editor_size, panels, env);
 
-        let rect = data.cursor_region(ctx.text(), &data.config);
+        let rect = Self::cursor_region(data, ctx.text());
         let scroll_id = self.editor.widget().scroll_id;
         let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
@@ -319,6 +319,67 @@ impl LapceEditorView {
                 }
             }
         }
+    }
+
+    fn cursor_region(data: &LapceEditorBufferData, text: &mut PietText) -> Rect {
+        let offset = data.editor.cursor.offset();
+        let (line, col) = data
+            .buffer
+            .offset_to_line_col(offset, data.config.editor.tab_width);
+        let width = data.config.editor_text_width(text, "W");
+        let cursor_x = col as f64 * width;
+        let line_height = data.config.editor.line_height as f64;
+
+        let y = if data.editor.code_lens {
+            let empty_vec = Vec::new();
+            let normal_lines = data
+                .buffer
+                .syntax
+                .as_ref()
+                .map(|s| &s.normal_lines)
+                .unwrap_or(&empty_vec);
+
+            let mut y = 0.0;
+            let mut current_line = 0;
+            let mut normal_lines = normal_lines.iter();
+            loop {
+                match normal_lines.next() {
+                    Some(next_normal_line) => {
+                        let next_normal_line = *next_normal_line;
+                        if next_normal_line < line {
+                            let chunk_height = data.config.editor.code_lens_font_size
+                                as f64
+                                * (next_normal_line - current_line) as f64
+                                + line_height;
+                            y += chunk_height;
+                            current_line = next_normal_line + 1;
+                            continue;
+                        };
+                        y += (line - current_line) as f64
+                            * data.config.editor.code_lens_font_size as f64;
+                        break;
+                    }
+                    None => {
+                        y += (line - current_line) as f64
+                            * data.config.editor.code_lens_font_size as f64;
+                        break;
+                    }
+                }
+            }
+            y
+        } else {
+            let line = if let Some(compare) = data.editor.compare.as_ref() {
+                data.buffer.diff_visual_line(compare, line)
+            } else {
+                line
+            };
+            line as f64 * line_height
+        };
+
+        Rect::ZERO
+            .with_size(Size::new(width, line_height))
+            .with_origin(Point::new(cursor_x, y))
+            .inflate(width, line_height)
     }
 }
 

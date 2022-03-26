@@ -1,9 +1,9 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use druid::{
-    BoxConstraints, Command, Env, Event, EventCtx, InternalEvent, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetId, WidgetPod,
+    kurbo::Line, piet::TextLayout, BoxConstraints, Command, Env, Event, EventCtx,
+    InternalEvent, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -11,7 +11,9 @@ use lapce_data::{
     data::{
         DragContent, EditorTabChild, LapceEditorTabData, LapceTabData, SplitContent,
     },
+    editor::TabRect,
     split::{SplitDirection, SplitMoveDirection},
+    svg::get_svg,
 };
 
 use crate::editor::{
@@ -473,5 +475,104 @@ impl Widget<LapceTabData> for LapceEditorTab {
         }
         let tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         self.children[tab.active].paint(ctx, data, env);
+    }
+}
+
+pub trait TabRectRenderer {
+    fn paint(
+        &self,
+        ctx: &mut PaintCtx,
+        data: &LapceTabData,
+        widget_id: WidgetId,
+        i: usize,
+        size: Size,
+        mouse_pos: Point,
+    );
+}
+
+impl TabRectRenderer for TabRect {
+    fn paint(
+        &self,
+        ctx: &mut PaintCtx,
+        data: &LapceTabData,
+        widget_id: WidgetId,
+        i: usize,
+        size: Size,
+        mouse_pos: Point,
+    ) {
+        let width = 13.0;
+        let height = 13.0;
+        let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
+
+        let rect = Size::new(width, height).to_rect().with_origin(Point::new(
+            self.rect.x0 + (size.height - width) / 2.0,
+            (size.height - height) / 2.0,
+        ));
+        if i == editor_tab.active {
+            ctx.fill(
+                self.rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
+        }
+        ctx.draw_svg(&self.svg, rect, None);
+        let text_size = self.text_layout.size();
+        ctx.draw_text(
+            &self.text_layout,
+            Point::new(
+                self.rect.x0 + size.height,
+                (size.height - text_size.height) / 2.0,
+            ),
+        );
+        let x = self.rect.x1;
+        ctx.stroke(
+            Line::new(Point::new(x - 0.5, 0.0), Point::new(x - 0.5, size.height)),
+            data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
+            1.0,
+        );
+
+        if ctx.is_hot() {
+            if self.close_rect.contains(mouse_pos) {
+                ctx.fill(
+                    &self.close_rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                );
+            }
+            if self.rect.contains(mouse_pos) {
+                let svg = get_svg("close.svg").unwrap();
+                ctx.draw_svg(
+                    &svg,
+                    self.close_rect.inflate(-4.0, -4.0),
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                    ),
+                );
+            }
+        }
+
+        // Only display dirty icon if focus is not on tab bar, so that the close svg can be shown
+        if !(ctx.is_hot() && self.rect.contains(mouse_pos)) {
+            // See if any of the children are dirty
+            let is_dirty = match &editor_tab.children[i] {
+                EditorTabChild::Editor(editor_id, _) => {
+                    let buffer = data.main_split.editor_buffer(*editor_id);
+                    buffer.dirty
+                }
+            };
+
+            if is_dirty {
+                let svg = get_svg("unsaved.svg").unwrap();
+                ctx.draw_svg(
+                    &svg,
+                    self.close_rect.inflate(-4.0, -4.0),
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                    ),
+                )
+            }
+        }
     }
 }
