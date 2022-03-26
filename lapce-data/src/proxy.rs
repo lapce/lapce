@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io::BufReader;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -16,18 +15,14 @@ use flate2::read::GzDecoder;
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::buffer::BufferId;
 use lapce_rpc::core::{CoreNotification, CoreRequest};
-use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::plugin::PluginDescription;
-use lapce_rpc::source_control::{DiffInfo, FileDiff};
-use lapce_rpc::style::LineStyle;
+use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RpcHandler;
 use lapce_rpc::{stdio_transport, Callback};
 use lapce_rpc::{ControlFlow, Handler};
 use lsp_types::CompletionItem;
 use lsp_types::Position;
-use lsp_types::ProgressParams;
-use lsp_types::PublishDiagnosticsParams;
 use lsp_types::Url;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -630,67 +625,6 @@ pub enum CursorShape {
 
     /// Invisible cursor.
     Hidden,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum Notification {
-    ProxyConnected {},
-    SemanticStyles {
-        rev: u64,
-        buffer_id: BufferId,
-        path: PathBuf,
-        len: usize,
-        styles: Vec<LineStyle>,
-    },
-    ReloadBuffer {
-        buffer_id: BufferId,
-        new_content: String,
-        rev: u64,
-    },
-    PublishDiagnostics {
-        diagnostics: PublishDiagnosticsParams,
-    },
-    WorkDoneProgress {
-        progress: ProgressParams,
-    },
-    HomeDir {
-        path: PathBuf,
-    },
-    InstalledPlugins {
-        plugins: HashMap<String, PluginDescription>,
-    },
-    ListDir {
-        items: Vec<FileNodeItem>,
-    },
-    DiffFiles {
-        files: Vec<PathBuf>,
-    },
-    DiffInfo {
-        diff: DiffInfo,
-    },
-    UpdateTerminal {
-        term_id: TermId,
-        content: String,
-    },
-    CloseTerminal {
-        term_id: TermId,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Request {}
-
-pub struct ProxyHandlerNew {
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-
-    #[allow(dead_code)]
-    term_tx: Sender<(TermId, TermEvent)>,
-
-    #[allow(dead_code)]
-    event_sink: ExtEventSink,
 }
 
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
