@@ -36,30 +36,30 @@ pub fn paint_file_node_item(
     line_height: f64,
     width: f64,
     level: usize,
-    i: usize,
-    index: usize,
+    current: usize,
+    active: usize,
     config: &Config,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
-    if i > max {
-        return i;
+    if current > max {
+        return current;
     }
-    if i + item.children_open_count < min {
-        return i + item.children_open_count;
+    if current + item.children_open_count < min {
+        return current + item.children_open_count;
     }
-    if i >= min && i <= max {
-        if i == index {
+    if current >= min && current <= max {
+        if current == active {
             ctx.fill(
                 Rect::ZERO
                     .with_origin(Point::new(
                         0.0,
-                        i as f64 * line_height - line_height,
+                        current as f64 * line_height - line_height,
                     ))
                     .with_size(Size::new(width, line_height)),
                 config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
             );
         }
-        let y = i as f64 * line_height - line_height;
+        let y = current as f64 * line_height - line_height;
         let svg_y = y + 4.0;
         let svg_size = 15.0;
         let padding = 15.0 * level as f64;
@@ -78,7 +78,7 @@ pub fn paint_file_node_item(
                 rect,
                 Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
             );
-            toggle_rects.insert(i, rect);
+            toggle_rects.insert(current, rect);
 
             let icon_name = if item.open {
                 "default_folder_opened.svg"
@@ -123,7 +123,7 @@ pub fn paint_file_node_item(
             ),
         );
     }
-    let mut i = i;
+    let mut i = current;
     if item.open {
         for item in item.sorted_children() {
             i = paint_file_node_item(
@@ -135,7 +135,7 @@ pub fn paint_file_node_item(
                 width,
                 level + 1,
                 i + 1,
-                index,
+                active,
                 config,
                 toggle_rects,
             );
