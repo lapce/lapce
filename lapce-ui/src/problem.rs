@@ -13,6 +13,7 @@ use lapce_data::{
     data::{EditorDiagnostic, LapceTabData, PanelKind},
     editor::EditorLocationNew,
     problem::ProblemData,
+    proxy::path_from_url,
     split::SplitDirection,
 };
 use lsp_types::DiagnosticSeverity;
@@ -436,7 +437,7 @@ impl Widget<LapceTabData> for ProblemContent {
 
                         let text = format!(
                             "{}[{}, {}]: {}",
-                            PathBuf::from(related.location.uri.path())
+                            path_from_url(&related.location.uri)
                                 .file_name()
                                 .and_then(|f| f.to_str())
                                 .unwrap_or(""),
