@@ -2359,6 +2359,8 @@ fn classify_boundary(prev: WordProperty, next: WordProperty) -> WordBoundary {
         (Lf, Lf) => Start,
         (Lf, Space) => Interior,
         (Cr, Lf) => Interior,
+        (Space, Lf) => Interior,
+        (Space, Cr) => Interior,
         (Space, Space) => Interior,
         (_, Space) => End,
         (Space, _) => Start,
