@@ -50,7 +50,10 @@ impl LapceEditorTabHeaderContent {
         mouse_event: &MouseEvent,
     ) {
         for (i, tab_rect) in self.rects.iter().enumerate() {
-            if tab_rect.rect.contains(mouse_event.pos) {
+            // Only react to left button clicks
+            if mouse_event.button.is_left()
+                && tab_rect.rect.contains(mouse_event.pos)
+            {
                 let editor_tab = data
                     .main_split
                     .editor_tabs
