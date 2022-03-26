@@ -38,6 +38,7 @@ pub fn paint_file_node_item(
     level: usize,
     current: usize,
     active: usize,
+    hovered: Option<usize>,
     config: &Config,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
@@ -57,6 +58,16 @@ pub fn paint_file_node_item(
                     ))
                     .with_size(Size::new(width, line_height)),
                 config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
+            );
+        } else if Some(current) == hovered {
+            ctx.fill(
+                Rect::ZERO
+                    .with_origin(Point::new(
+                        0.0,
+                        current as f64 * line_height - line_height,
+                    ))
+                    .with_size(Size::new(width, line_height)),
+                config.get_color_unchecked(LapceTheme::PANEL_HOVERED),
             );
         }
         let y = current as f64 * line_height - line_height;
@@ -136,6 +147,7 @@ pub fn paint_file_node_item(
                 level + 1,
                 i + 1,
                 active,
+                hovered,
                 config,
                 toggle_rects,
             );
@@ -329,11 +341,15 @@ impl Widget<LapceTabData> for FileExplorer {
 
 pub struct FileExplorerFileList {
     line_height: f64,
+    hovered: Option<usize>,
 }
 
 impl FileExplorerFileList {
     pub fn new() -> Self {
-        Self { line_height: 25.0 }
+        Self {
+            line_height: 25.0,
+            hovered: None,
+        }
     }
 }
 
@@ -359,8 +375,19 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         * (workspace.children_open_count + 1 + 1) as f64
                     {
                         ctx.set_cursor(&Cursor::Pointer);
+                        let hovered = Some(
+                            ((mouse_event.pos.y + self.line_height)
+                                / self.line_height)
+                                as usize,
+                        );
+
+                        if hovered != self.hovered {
+                            ctx.request_paint();
+                            self.hovered = hovered;
+                        }
                     } else {
                         ctx.clear_cursor();
+                        self.hovered = None;
                     }
                 }
             }
@@ -410,7 +437,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             Target::Widget(data.id),
                         ));
                     }
-                    file_explorer.index = index;
+                    file_explorer.active_selected = index;
                 }
             }
             _ => (),
@@ -420,10 +447,13 @@ impl Widget<LapceTabData> for FileExplorerFileList {
     fn lifecycle(
         &mut self,
         _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
+        event: &LifeCycle,
         _data: &LapceTabData,
         _env: &Env,
     ) {
+        if let LifeCycle::HotChanged(false) = event {
+            self.hovered = None;
+        }
     }
 
     fn update(
@@ -469,7 +499,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
         let width = size.width;
-        let index = data.file_explorer.index;
+        let index = data.file_explorer.active_selected;
         let min = (rect.y0 / self.line_height).floor() as usize;
         let max = (rect.y1 / self.line_height) as usize + 2;
         let level = 0;
@@ -487,6 +517,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     level + 1,
                     i + 1,
                     index,
+                    self.hovered,
                     &data.config,
                     &mut HashMap::new(),
                 );

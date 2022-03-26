@@ -693,6 +693,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
                     level + 1,
                     i + 1,
                     index,
+                    None,
                     &data.config,
                     &mut self.toggle_rects,
                 );
