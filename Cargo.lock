@@ -1863,6 +1863,8 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tree-sitter",
+ "tree-sitter-c",
+ "tree-sitter-cpp",
  "tree-sitter-go",
  "tree-sitter-highlight",
  "tree-sitter-javascript",
@@ -4059,6 +4061,26 @@ checksum = "09b3b781640108d29892e8b9684642d2cda5ea05951fd58f0fea1db9edeb9b71"
 dependencies = [
  "cc",
  "regex",
+]
+
+[[package]]
+name = "tree-sitter-c"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bdc5574c6cbc39c409246caeb1dd4d3c4bd6d30d4e9b399776086c20365fd24"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-cpp"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a869e3c5cef4e5db4e9ab16a8dc84d73010e60ada14cdc60d2f6d8aed17779d"
+dependencies = [
+ "cc",
+ "tree-sitter",
 ]
 
 [[package]]
