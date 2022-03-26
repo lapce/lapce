@@ -25,7 +25,6 @@ use lsp_types::CompletionItem;
 use lsp_types::Position;
 use lsp_types::Url;
 use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use xi_rope::spans::SpansBuilder;
@@ -230,7 +229,12 @@ impl LapceProxy {
                 self.start_remote(SshRemote { user, host }, core_sender)?;
             }
             LapceWorkspaceType::RemoteWSL => {
-                self.start_remote(WslRemote, core_sender)?;
+                let distro = WslDistro::all()?
+                    .into_iter()
+                    .find(|distro| distro.default)
+                    .ok_or_else(|| anyhow!("no default distro found"))?
+                    .name;
+                self.start_remote(WslRemote { distro }, core_sender)?;
             }
         }
 
@@ -591,6 +595,13 @@ impl LapceProxy {
     }
 }
 
+fn new_command(program: &str) -> Command {
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
+    cmd
+}
+
 trait Remote: Sized {
     fn home_dir(&self) -> Result<String> {
         let cmd = self
@@ -631,9 +642,7 @@ impl SshRemote {
     ];
 
     fn command_builder(user: &str, host: &str) -> Command {
-        let mut cmd = Command::new("ssh");
-        #[cfg(target_os = "windows")]
-        cmd.creation_flags(0x08000000);
+        let mut cmd = new_command("ssh");
         cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
         cmd
     }
@@ -641,10 +650,8 @@ impl SshRemote {
 
 impl Remote for SshRemote {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
-        let mut cmd = Command::new("scp");
-        #[cfg(target_os = "windows")]
-        let cmd = cmd.creation_flags(0x08000000);
-        cmd.args(Self::SSH_ARGS)
+        new_command("scp")
+            .args(Self::SSH_ARGS)
             .arg(local.as_ref())
             .arg(dbg!(format!("{}@{}:{remote}", self.user, self.host)))
             .status()?;
@@ -656,11 +663,53 @@ impl Remote for SshRemote {
     }
 }
 
-struct WslRemote;
+#[derive(Debug)]
+struct WslDistro {
+    pub name: String,
+    pub default: bool,
+}
+
+impl WslDistro {
+    fn all() -> Result<Vec<WslDistro>> {
+        let cmd = new_command("wsl")
+            .arg("-l")
+            .arg("-v")
+            .stdout(Stdio::piped())
+            .output()?;
+
+        if !cmd.status.success() {
+            return Err(anyhow!("failed to execute `wsl -l -v`"));
+        }
+
+        let distros = String::from_utf16(bytemuck::cast_slice(&cmd.stdout))?
+            .lines()
+            .skip(1)
+            .filter_map(|line| {
+                let line = line.trim_start();
+                let default = line.starts_with('*');
+                let name = line
+                    .trim_start_matches('*')
+                    .trim_start()
+                    .split(' ')
+                    .next()?;
+                Some(WslDistro {
+                    name: name.to_string(),
+                    default,
+                })
+            })
+            .collect();
+
+        Ok(distros)
+    }
+}
+
+struct WslRemote {
+    distro: String,
+}
 
 impl Remote for WslRemote {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
-        let mut wsl_path = Path::new(r"\\wsl.localhost\").join("Ubuntu");
+        let mut wsl_path = Path::new(r"\\wsl.localhost\").join(&self.distro);
         wsl_path = if remote.starts_with('~') {
             let home_dir = self.home_dir()?;
             wsl_path.join(remote.replacen('~', &home_dir, 1))
@@ -672,10 +721,8 @@ impl Remote for WslRemote {
     }
 
     fn command_builder(&self) -> Command {
-        let mut cmd = Command::new("wsl");
-        #[cfg(target_os = "windows")]
-        cmd.creation_flags(0x08000000);
-        cmd.arg("--");
+        let mut cmd = new_command("wsl");
+        cmd.arg("-d").arg(&self.distro).arg("--");
         cmd
     }
 }
