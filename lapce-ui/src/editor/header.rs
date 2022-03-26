@@ -12,6 +12,7 @@ use lapce_data::{
     config::LapceTheme,
     data::LapceTabData,
     editor::LapceEditorBufferData,
+    state::LapceWorkspace,
 };
 
 use crate::{
@@ -111,7 +112,12 @@ impl LapceEditorHeader {
         false
     }
 
-    pub fn paint_buffer(&self, ctx: &mut PaintCtx, data: &LapceEditorBufferData) {
+    pub fn paint_buffer(
+        &self,
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        workspace: &LapceWorkspace,
+    ) {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.blurred_rect(
@@ -169,7 +175,7 @@ impl LapceEditorHeader {
                     .unwrap();
                 ctx.draw_text(&text_layout, Point::new(30.0, 7.0));
 
-                if let Some(workspace_path) = data.workspace.path.as_ref() {
+                if let Some(workspace_path) = workspace.path.as_ref() {
                     path = path
                         .strip_prefix(workspace_path)
                         .unwrap_or(&path)
@@ -297,6 +303,10 @@ impl Widget<LapceTabData> for LapceEditorHeader {
         if !self.display {
             return;
         }
-        self.paint_buffer(ctx, &data.editor_view_content(self.view_id));
+        self.paint_buffer(
+            ctx,
+            &data.editor_view_content(self.view_id),
+            &data.workspace,
+        );
     }
 }

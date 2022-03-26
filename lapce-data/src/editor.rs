@@ -16,11 +16,10 @@ use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     RegisterData, SplitContent,
 };
-use crate::movement::InsertDrift;
 use crate::hover::HoverData;
 use crate::hover::HoverStatus;
+use crate::movement::InsertDrift;
 use crate::proxy::path_from_url;
-use crate::state::LapceWorkspace;
 use crate::{buffer::WordProperty, movement::CursorMode};
 use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
@@ -128,7 +127,6 @@ pub struct LapceEditorBufferData {
     pub buffer: Arc<Buffer>,
     pub completion: Arc<CompletionData>,
     pub hover: Arc<HoverData>,
-    pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub source_control: Arc<SourceControlData>,
     pub find: Arc<Find>,
