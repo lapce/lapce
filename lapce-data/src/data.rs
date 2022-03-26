@@ -1349,6 +1349,15 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
+            LapceWorkbenchCommand::ConnectWsl => ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SetWorkspace(LapceWorkspace {
+                    kind: LapceWorkspaceType::RemoteWSL,
+                    path: None,
+                    last_open: 0,
+                }),
+                Target::Auto,
+            )),
         }
     }
 

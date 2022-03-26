@@ -220,111 +220,93 @@ impl LapceProxy {
         let (core_sender, core_receiver) = crossbeam_channel::unbounded();
         match workspace.kind {
             LapceWorkspaceType::Local => {
-                let proxy_reciever = (*self.proxy_receiver).clone();
+                let proxy_receiver = (*self.proxy_receiver).clone();
                 thread::spawn(move || {
                     let dispatcher = Dispatcher::new(core_sender);
-                    let _ = dispatcher.mainloop(proxy_reciever);
+                    let _ = dispatcher.mainloop(proxy_receiver);
                 });
-
-                let mut proxy = self.clone();
-                let mut handler = self.clone();
-                proxy.rpc.mainloop(core_receiver, &mut handler);
             }
             LapceWorkspaceType::RemoteSSH(user, host) => {
-                let ssh_args = &[
-                    "-o",
-                    "ControlMaster=auto",
-                    "-o",
-                    "ControlPath=~/.ssh/cm-%r@%h:%p",
-                    "-o",
-                    "ControlPersist=30m",
-                    "-o",
-                    "ConnectTimeout=15",
-                ];
-                let mut cmd = Command::new("ssh");
-                #[cfg(target_os = "windows")]
-                let cmd = cmd.creation_flags(0x08000000);
-                let cmd = cmd
-                    .arg(format!("{}@{}", user, host))
-                    .args(ssh_args)
-                    .arg("test")
-                    .arg("-e")
-                    .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
-                    .output()?;
-                if !cmd.status.success() {
-                    let local_proxy_file = Config::dir()
-                        .ok_or_else(|| anyhow!("can't find config dir"))?
-                        .join(format!("lapce-proxy-{}", VERSION));
-                    if !local_proxy_file.exists() {
-                        let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
-                        let mut data = ureq::get(&url)
-                            .call()
-                            .expect("request failed")
-                            .into_reader();
-                        let mut out = std::fs::File::create(&local_proxy_file)
-                            .expect("failed to create file");
-                        let mut gz = GzDecoder::new(&mut data);
-                        std::io::copy(&mut gz, &mut out)
-                            .expect("failed to copy content");
-                    }
-
-                    let mut cmd = Command::new("ssh");
-                    #[cfg(target_os = "windows")]
-                    let cmd = cmd.creation_flags(0x08000000);
-                    cmd.arg(format!("{}@{}", user, host))
-                        .args(ssh_args)
-                        .arg("mkdir")
-                        .arg("~/.lapce/")
-                        .output()?;
-
-                    let mut cmd = Command::new("scp");
-                    #[cfg(target_os = "windows")]
-                    let cmd = cmd.creation_flags(0x08000000);
-                    cmd.args(ssh_args)
-                        .arg(&local_proxy_file)
-                        .arg(format!("{user}@{host}:~/.lapce/lapce-proxy-{VERSION}"))
-                        .output()?;
-
-                    let mut cmd = Command::new("ssh");
-                    #[cfg(target_os = "windows")]
-                    let cmd = cmd.creation_flags(0x08000000);
-                    cmd.arg(format!("{}@{}", user, host))
-                        .args(ssh_args)
-                        .arg("chmod")
-                        .arg("+x")
-                        .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
-                        .output()?;
-                }
-
-                let mut child = Command::new("ssh");
-                #[cfg(target_os = "windows")]
-                let child = child.creation_flags(0x08000000);
-                let mut child = child
-                    .arg(format!("{}@{}", user, host))
-                    .args(ssh_args)
-                    .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-                let stdin = child
-                    .stdin
-                    .take()
-                    .ok_or_else(|| anyhow!("can't find stdin"))?;
-                let stdout = BufReader::new(
-                    child
-                        .stdout
-                        .take()
-                        .ok_or_else(|| anyhow!("can't find stdout"))?,
-                );
-
-                let proxy_reciever = (*self.proxy_receiver).clone();
-                stdio_transport(stdin, proxy_reciever, stdout, core_sender);
-
-                let mut handler = self.clone();
-                let mut proxy = self.clone();
-                proxy.rpc.mainloop(core_receiver, &mut handler);
+                self.start_remote(SshRemote { user, host }, core_sender)?;
+            }
+            LapceWorkspaceType::RemoteWSL => {
+                self.start_remote(WslRemote, core_sender)?;
             }
         }
+
+        let mut proxy = self.clone();
+        let mut handler = self.clone();
+        proxy.rpc.mainloop(core_receiver, &mut handler);
+
+        Ok(())
+    }
+
+    fn start_remote(
+        &self,
+        remote: impl Remote,
+        core_sender: Sender<Value>,
+    ) -> Result<()> {
+        let proxy_filename = format!("lapce-proxy-{VERSION}");
+        let remote_proxy_file = format!("~/.lapce/{}", proxy_filename);
+
+        let cmd = remote
+            .command_builder()
+            .arg("test")
+            .arg("-e")
+            .arg(&remote_proxy_file)
+            .status()?;
+        if !cmd.success() {
+            let local_proxy_file = Config::dir()
+                .ok_or_else(|| anyhow!("can't find config dir"))?
+                .join(&proxy_filename);
+            if !local_proxy_file.exists() {
+                let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
+                let mut data = ureq::get(&url)
+                    .call()
+                    .expect("request failed")
+                    .into_reader();
+                let mut out = std::fs::File::create(&local_proxy_file)
+                    .expect("failed to create file");
+                let mut gz = GzDecoder::new(&mut data);
+                std::io::copy(&mut gz, &mut out).expect("failed to copy content");
+            }
+
+            remote
+                .command_builder()
+                .arg("mkdir")
+                .arg("~/.lapce/")
+                .status()?;
+
+            remote.upload_file(&local_proxy_file, &remote_proxy_file)?;
+
+            remote
+                .command_builder()
+                .arg("chmod")
+                .arg("+x")
+                .arg(&remote_proxy_file)
+                .status()?;
+        }
+
+        let mut child = remote
+            .command_builder()
+            .arg(&remote_proxy_file)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow!("can't find stdin"))?;
+        let stdout = BufReader::new(
+            child
+                .stdout
+                .take()
+                .ok_or_else(|| anyhow!("can't find stdout"))?,
+        );
+
+        let proxy_receiver = (*self.proxy_receiver).clone();
+        stdio_transport(stdin, proxy_receiver, stdout, core_sender);
+
         Ok(())
     }
 
@@ -606,6 +588,95 @@ impl LapceProxy {
         //     "method": "shutdown",
         //     "params": {},
         // }));
+    }
+}
+
+trait Remote: Sized {
+    fn home_dir(&self) -> Result<String> {
+        let cmd = self
+            .command_builder()
+            .arg("echo")
+            .arg("-n")
+            .arg("$HOME")
+            .stdout(Stdio::piped())
+            .output()?;
+
+        Ok(String::from_utf8(cmd.stdout)?)
+    }
+
+    fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()>;
+
+    fn command_builder(&self) -> Command;
+}
+
+struct SshRemote {
+    user: String,
+    host: String,
+}
+
+impl SshRemote {
+    #[cfg(target_os = "windows")]
+    const SSH_ARGS: &'static [&'static str] = &["-o", "ConnectTimeout=15"];
+
+    #[cfg(not(target_os = "windows"))]
+    const SSH_ARGS: &'static [&'static str] = &[
+        "-o",
+        "ControlMaster=auto",
+        "-o",
+        "ControlPath=~/.ssh/cm-%r@%h:%p",
+        "-o",
+        "ControlPersist=30m",
+        "-o",
+        "ConnectTimeout=15",
+    ];
+
+    fn command_builder(user: &str, host: &str) -> Command {
+        let mut cmd = Command::new("ssh");
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(0x08000000);
+        cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
+        cmd
+    }
+}
+
+impl Remote for SshRemote {
+    fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
+        let mut cmd = Command::new("scp");
+        #[cfg(target_os = "windows")]
+        let cmd = cmd.creation_flags(0x08000000);
+        cmd.args(Self::SSH_ARGS)
+            .arg(local.as_ref())
+            .arg(dbg!(format!("{}@{}:{remote}", self.user, self.host)))
+            .status()?;
+        Ok(())
+    }
+
+    fn command_builder(&self) -> Command {
+        Self::command_builder(&self.user, &self.host)
+    }
+}
+
+struct WslRemote;
+
+impl Remote for WslRemote {
+    fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
+        let mut wsl_path = Path::new(r"\\wsl.localhost\").join("Ubuntu");
+        wsl_path = if remote.starts_with('~') {
+            let home_dir = self.home_dir()?;
+            wsl_path.join(remote.replacen('~', &home_dir, 1))
+        } else {
+            wsl_path.join(remote)
+        };
+        std::fs::copy(local, wsl_path)?;
+        Ok(())
+    }
+
+    fn command_builder(&self) -> Command {
+        let mut cmd = Command::new("wsl");
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(0x08000000);
+        cmd.arg("--");
+        cmd
     }
 }
 

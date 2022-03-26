@@ -118,14 +118,15 @@ pub struct KeyMap {
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(String, String),
+    RemoteWSL,
 }
 
 impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
-        if let LapceWorkspaceType::RemoteSSH(_, _) = &self {
-            return true;
-        }
-        false
+        matches!(
+            self,
+            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL
+        )
     }
 }
 
@@ -136,6 +137,7 @@ impl Display for LapceWorkspaceType {
             LapceWorkspaceType::RemoteSSH(user, host) => {
                 write!(f, "ssh://{}@{}", user, host)
             }
+            LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
         }
     }
 }
