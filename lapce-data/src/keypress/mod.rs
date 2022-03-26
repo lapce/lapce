@@ -410,7 +410,7 @@ impl KeyPressData {
                             return false;
                         }
                         if let Some(condition) = &keymap.when {
-                            if !self.check_condition(condition, check) {
+                            if !Self::check_condition(condition, check) {
                                 return false;
                             }
                         }
@@ -419,7 +419,8 @@ impl KeyPressData {
                     .collect()
             })
             .unwrap_or_else(Vec::new);
-        let keymatch = if matches.is_empty() {
+
+        if matches.is_empty() {
             KeymapMatch::None
         } else if matches.len() == 1 && matches[0].key == keypresses {
             KeymapMatch::Full(matches[0].command.clone())
@@ -431,49 +432,36 @@ impl KeyPressData {
             )
         } else {
             KeymapMatch::Prefix
-        };
-        keymatch
-    }
-
-    fn check_one_condition<T: KeyPressFocus>(
-        &self,
-        condition: &str,
-        check: &T,
-    ) -> bool {
-        let condition = condition.trim();
-        let (reverse, condition) =
-            if let Some(stripped) = condition.strip_prefix('!') {
-                (true, stripped)
-            } else {
-                (false, condition)
-            };
-        let matched = check.check_condition(condition);
-        if reverse {
-            !matched
-        } else {
-            matched
         }
     }
 
-    fn check_condition<T: KeyPressFocus>(&self, condition: &str, check: &T) -> bool {
-        let or_indics: Vec<_> = condition.match_indices("||").collect();
-        let and_indics: Vec<_> = condition.match_indices("&&").collect();
-        if and_indics.is_empty() {
-            if or_indics.is_empty() {
-                self.check_one_condition(condition, check)
+    fn check_condition<T: KeyPressFocus>(condition: &str, check: &T) -> bool {
+        fn check_one_condition<T: KeyPressFocus>(
+            condition: &str,
+            check: &T,
+        ) -> bool {
+            let trimmed = condition.trim();
+            if let Some(stripped) = trimmed.strip_prefix('!') {
+                !check.check_condition(stripped)
             } else {
-                self.check_one_condition(&condition[..or_indics[0].0], check)
-                    || self.check_condition(&condition[or_indics[0].0 + 2..], check)
+                check.check_condition(trimmed)
             }
-        } else if or_indics.is_empty() {
-            self.check_one_condition(&condition[..and_indics[0].0], check)
-                && self.check_condition(&condition[and_indics[0].0 + 2..], check)
-        } else if or_indics[0].0 < and_indics[0].0 {
-            self.check_one_condition(&condition[..or_indics[0].0], check)
-                || self.check_condition(&condition[or_indics[0].0 + 2..], check)
-        } else {
-            self.check_one_condition(&condition[..and_indics[0].0], check)
-                && self.check_condition(&condition[and_indics[0].0 + 2..], check)
+        }
+
+        match Condition::parse_first(condition) {
+            Condition::Single(condition) => check_one_condition(condition, check),
+            Condition::Or(left, right) => {
+                let left = check_one_condition(left, check);
+                let right = Self::check_condition(right, check);
+
+                left || right
+            }
+            Condition::And(left, right) => {
+                let left = check_one_condition(left, check);
+                let right = Self::check_condition(right, check);
+
+                left && right
+            }
         }
     }
 
@@ -715,4 +703,120 @@ fn get_modes(toml_keymap: &toml::Value) -> Modes {
         .and_then(|v| v.as_str())
         .map(Modes::parse)
         .unwrap_or_else(Modes::empty)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Condition<'a> {
+    Single(&'a str),
+    Or(&'a str, &'a str),
+    And(&'a str, &'a str),
+}
+
+impl<'a> Condition<'a> {
+    fn parse_first(condition: &'a str) -> Self {
+        let or = condition.match_indices("||").next();
+        let and = condition.match_indices("&&").next();
+
+        match (or, and) {
+            (None, None) => Condition::Single(condition),
+            (Some((pos, _)), None) => {
+                Condition::Or(&condition[..pos], &condition[pos + 2..])
+            }
+            (None, Some((pos, _))) => {
+                Condition::And(&condition[..pos], &condition[pos + 2..])
+            }
+            (Some((or_pos, _)), Some((and_pos, _))) => {
+                if or_pos < and_pos {
+                    Condition::Or(&condition[..or_pos], &condition[or_pos + 2..])
+                } else {
+                    Condition::And(&condition[..and_pos], &condition[and_pos + 2..])
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::keypress::{Condition, KeyPressData, KeyPressFocus};
+
+    struct MockFocus {
+        accepted_conditions: &'static [&'static str],
+    }
+
+    impl KeyPressFocus for MockFocus {
+        fn check_condition(&self, condition: &str) -> bool {
+            self.accepted_conditions.contains(&condition)
+        }
+
+        fn get_mode(&self) -> crate::state::Mode {
+            unimplemented!()
+        }
+
+        fn run_command(
+            &mut self,
+            _ctx: &mut druid::EventCtx,
+            _command: &crate::command::LapceCommand,
+            _count: Option<usize>,
+            _mods: druid::Modifiers,
+            _env: &druid::Env,
+        ) -> crate::command::CommandExecuted {
+            unimplemented!()
+        }
+
+        fn receive_char(&mut self, _ctx: &mut druid::EventCtx, _c: &str) {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn test_parse() {
+        assert_eq!(
+            Condition::Or("foo", "bar"),
+            Condition::parse_first("foo||bar")
+        );
+        assert_eq!(
+            Condition::And("foo", "bar"),
+            Condition::parse_first("foo&&bar")
+        );
+        assert_eq!(
+            Condition::And("foo", "bar||baz"),
+            Condition::parse_first("foo&&bar||baz")
+        );
+        assert_eq!(
+            Condition::And("foo ", " bar || baz"),
+            Condition::parse_first("foo && bar || baz")
+        );
+    }
+
+    #[test]
+    fn test_check_condition() {
+        let focus = MockFocus {
+            accepted_conditions: &["foo", "bar"],
+        };
+
+        let test_cases = [
+            ("foo", true),
+            ("bar", true),
+            ("!foo", false),
+            ("!bar", false),
+            ("foo || bar", true),
+            ("foo || !bar", true),
+            ("!foo || bar", true),
+            ("foo && bar", true),
+            ("foo && !bar", false),
+            ("!foo && bar", false),
+            ("foo && bar || baz", true),
+            ("foo && bar && baz", false),
+            ("foo && bar && !baz", true),
+        ];
+
+        for (condition, should_accept) in test_cases.into_iter() {
+            assert_eq!(
+                should_accept,
+                KeyPressData::check_condition(condition, &focus),
+                "Condition check failed. Condition: {condition}. Expected result: {should_accept}",
+            );
+        }
+    }
 }
