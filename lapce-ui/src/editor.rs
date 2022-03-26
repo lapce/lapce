@@ -1304,7 +1304,7 @@ impl LapceEditorView {
                 }
                 let offset = data.editor.cursor.offset();
                 let line = data.buffer.line_of_offset(offset);
-                let _ = data.apply_completion_item(ctx, item);
+                let _ = data.apply_completion_item(item);
                 let new_offset = data.editor.cursor.offset();
                 let new_line = data.buffer.line_of_offset(new_offset);
                 if line != new_line {

@@ -1828,7 +1828,6 @@ impl LapceMainSplitData {
 
     pub fn document_format(
         &mut self,
-        ctx: &mut EventCtx,
         path: &Path,
         rev: u64,
         result: &Result<Value>,
@@ -1864,7 +1863,6 @@ impl LapceMainSplitData {
                         .collect();
 
                     self.edit(
-                        ctx,
                         path,
                         &edits.iter().map(|(s, c)| (s, c.as_str())).collect::<Vec<(
                             &Selection,
@@ -1887,7 +1885,7 @@ impl LapceMainSplitData {
         result: &Result<Value>,
         config: &Config,
     ) {
-        self.document_format(ctx, path, rev, result, config);
+        self.document_format(path, rev, result, config);
 
         let buffer = self.open_files.get(path).unwrap();
         let rev = buffer.rev;
@@ -1972,7 +1970,6 @@ impl LapceMainSplitData {
 
     pub fn edit(
         &mut self,
-        ctx: &mut EventCtx,
         path: &Path,
         edits: &[(&Selection, &str)],
         edit_type: EditType,
@@ -1993,8 +1990,7 @@ impl LapceMainSplitData {
             }
         }
 
-        let delta =
-            Arc::make_mut(buffer).edit_multiple(ctx, edits, proxy, edit_type);
+        let delta = Arc::make_mut(buffer).edit_multiple(edits, proxy, edit_type);
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }

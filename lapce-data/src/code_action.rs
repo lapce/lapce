@@ -53,13 +53,13 @@ impl KeyPressFocus for CodeActionData {
                 ));
             }
             LapceCommand::ListNext => {
-                self.next(ctx);
+                self.next();
             }
             LapceCommand::ListPrevious => {
-                self.previous(ctx);
+                self.previous();
             }
             LapceCommand::ListSelect => {
-                self.select(ctx);
+                self.select();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::CancelCodeActions,
@@ -75,7 +75,7 @@ impl KeyPressFocus for CodeActionData {
 }
 
 impl CodeActionData {
-    pub fn next(&mut self, _ctx: &mut EventCtx) {
+    pub fn next(&mut self) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,
@@ -98,7 +98,7 @@ impl CodeActionData {
         }
     }
 
-    pub fn select(&mut self, ctx: &mut EventCtx) {
+    pub fn select(&mut self) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,
@@ -144,7 +144,6 @@ impl CodeActionData {
                                     })
                                     .collect();
                                 self.main_split.edit(
-                                    ctx,
                                     &path,
                                     &edits
                                         .iter()
@@ -161,8 +160,7 @@ impl CodeActionData {
         }
     }
 
-    #[allow(unused_variables)]
-    pub fn previous(&mut self, ctx: &mut EventCtx) {
+    pub fn previous(&mut self) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,
