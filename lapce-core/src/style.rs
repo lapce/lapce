@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use lapce_proxy::style::{LineStyle, Style};
+use lapce_rpc::style::{LineStyle, Style};
 use thiserror::Error;
 use tree_sitter::{
     Language, LossyUtf8, Node, Point, Query, QueryCaptures, QueryCursor, QueryError,
@@ -829,10 +829,11 @@ where
                 }
                 // If the node represents a reference, then try to find the corresponding
                 // definition in the scope stack.
-                else if Some(capture.index) == layer.config.local_ref_capture_index && definition_highlight.is_none() {
+                else if Some(capture.index) == layer.config.local_ref_capture_index
+                    && definition_highlight.is_none()
+                {
                     definition_highlight = None;
-                    if let Ok(name) = str::from_utf8(&self.source[range.clone()])
-                    {
+                    if let Ok(name) = str::from_utf8(&self.source[range.clone()]) {
                         for scope in layer.scope_stack.iter().rev() {
                             if let Some(highlight) =
                                 scope.local_defs.iter().rev().find_map(|def| {

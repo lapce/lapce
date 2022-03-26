@@ -6,7 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use lapce_proxy::style::Style;
+use lapce_rpc::style::Style;
 use tree_sitter::{Node, Parser, Point, Tree};
 use xi_rope::{
     spans::{Spans, SpansBuilder},

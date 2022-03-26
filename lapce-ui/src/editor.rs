@@ -1,7 +1,7 @@
+use std::cmp::Ordering;
 use std::{
     cell::RefCell, iter::Iterator, rc::Rc, str::FromStr, sync::Arc, time::Instant,
 };
-use std::cmp::Ordering;
 
 use druid::{
     kurbo::Line,
@@ -12,7 +12,7 @@ use druid::{
     UpdateCtx, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
-    buffer::{matching_pair_direction, BufferContent, BufferId, LocalBufferKind},
+    buffer::{matching_pair_direction, BufferContent, LocalBufferKind},
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommand, LapceCommandNew,
         LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
@@ -30,6 +30,7 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
     state::{Mode, VisualMode},
 };
+use lapce_rpc::buffer::BufferId;
 use lsp_types::{DocumentChanges, TextEdit, Url, WorkspaceEdit};
 use strum::EnumMessage;
 
@@ -271,7 +272,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                                 let new_index = match mouse_index.cmp(from_index) {
                                     Ordering::Greater => Some(mouse_index - 1),
                                     Ordering::Equal => Some(mouse_index),
-                                    Ordering::Less => None
+                                    Ordering::Less => None,
                                 };
                                 if let Some(new_index) = new_index {
                                     if new_index != *from_index {
@@ -2672,7 +2673,7 @@ fn get_workspace_edit_edits<'a>(
 ) -> Option<Vec<&'a TextEdit>> {
     match get_workspace_edit_changes_edits(url, workspace_edit) {
         Some(x) => Some(x),
-        None => get_workspace_edit_document_changes_edits(url, workspace_edit)
+        None => get_workspace_edit_document_changes_edits(url, workspace_edit),
     }
 }
 

@@ -16,9 +16,8 @@ use druid::{
     Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
-use lapce_proxy::{
-    dispatch::{FileDiff, FileNodeItem},
-    plugin::PluginDescription,
+use lapce_rpc::{
+    file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
 };
 use lsp_types::{

@@ -4,7 +4,7 @@ use std::{
 };
 
 use druid::WidgetId;
-use lapce_proxy::dispatch::FileNodeItem;
+use lapce_rpc::file::FileNodeItem;
 
 #[derive(Clone)]
 pub struct FilePickerData {

@@ -16,7 +16,7 @@ use lapce_data::{
     config::LapceTheme,
     data::LapceTabData,
 };
-use lapce_proxy::dispatch::FileNodeItem;
+use lapce_rpc::file::FileNodeItem;
 
 use crate::{
     editor::LapceEditorView,

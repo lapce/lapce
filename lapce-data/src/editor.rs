@@ -19,15 +19,14 @@ use crate::data::{
 };
 use crate::state::LapceWorkspace;
 use crate::svg::get_svg;
+use crate::{buffer::WordProperty, movement::CursorMode};
 use crate::{
-    buffer::BufferId,
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     movement::{ColPosition, Movement, SelRegion, Selection},
     split::SplitMoveDirection,
     state::Mode,
     state::VisualMode,
 };
-use crate::{buffer::WordProperty, movement::CursorMode};
 use crate::{find::Find, split::SplitDirection};
 use crate::{keypress::KeyPressFocus, movement::Cursor};
 use crate::{movement::InsertDrift, panel::PanelPosition};
@@ -46,19 +45,20 @@ use druid::{
 };
 use druid::{Application, ExtEventSink, MouseEvent};
 use lapce_core::syntax::Syntax;
+use lapce_rpc::buffer::BufferId;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
     CodeActionResponse, CompletionItem, DiagnosticSeverity, GotoDefinitionResponse,
     Location, Position,
 };
 use serde_json::Value;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::Path;
 use std::thread;
 use std::{collections::HashMap, sync::Arc};
 use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
-use std::cmp::Ordering;
 use xi_rope::{RopeDelta, Transformer};
 
 pub struct LapceUI {}
@@ -664,24 +664,25 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         item: &CompletionItem,
     ) -> Result<()> {
-        let additional_edit: Option<Vec<_>> = item.additional_text_edits.as_ref().map(|edits| {
-            edits
-                .iter()
-                .map(|edit| {
-                    let selection = Selection::region(
-                        self.buffer.offset_of_position(
-                            &edit.range.start,
-                            self.config.editor.tab_width,
-                        ),
-                        self.buffer.offset_of_position(
-                            &edit.range.end,
-                            self.config.editor.tab_width,
-                        ),
-                    );
-                    (selection, edit.new_text.clone())
-                })
-                .collect::<Vec<(Selection, String)>>()
-        });
+        let additional_edit: Option<Vec<_>> =
+            item.additional_text_edits.as_ref().map(|edits| {
+                edits
+                    .iter()
+                    .map(|edit| {
+                        let selection = Selection::region(
+                            self.buffer.offset_of_position(
+                                &edit.range.start,
+                                self.config.editor.tab_width,
+                            ),
+                            self.buffer.offset_of_position(
+                                &edit.range.end,
+                                self.config.editor.tab_width,
+                            ),
+                        );
+                        (selection, edit.new_text.clone())
+                    })
+                    .collect::<Vec<(Selection, String)>>()
+            });
         let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
             edits
                 .iter()
@@ -787,8 +788,7 @@ impl LapceEditorBufferData {
             &[
                 &[(
                     &selection,
-                    item.insert_text
-                        .as_deref().unwrap_or(item.label.as_str()),
+                    item.insert_text.as_deref().unwrap_or(item.label.as_str()),
                 )][..],
                 &additioal_edit.unwrap_or_default()[..],
             ]
@@ -1728,8 +1728,12 @@ impl LapceEditorBufferData {
         };
 
         match new_line.cmp(&line) {
-            Ordering::Greater => self.do_move(ctx, &Movement::Down, new_line - line, mods),
-            Ordering::Less => self.do_move(ctx, &Movement::Up, line - new_line, mods),
+            Ordering::Greater => {
+                self.do_move(ctx, &Movement::Down, new_line - line, mods)
+            }
+            Ordering::Less => {
+                self.do_move(ctx, &Movement::Up, line - new_line, mods)
+            }
             _ => (),
         };
 
@@ -4790,7 +4794,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::ResolveCompletion(
-                                    buffer_id, rev, offset, Box::new(item),
+                                    buffer_id,
+                                    rev,
+                                    offset,
+                                    Box::new(item),
                                 ),
                                 Target::Widget(view_id),
                             );
@@ -5384,7 +5391,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                             || prop == WordProperty::Punctuation
                     })
                     .unwrap_or(true);
-                if is_whitespace_or_punct && matching_pair_direction(c).unwrap_or(false)
+                if is_whitespace_or_punct
+                    && matching_pair_direction(c).unwrap_or(false)
                 {
                     if let Some(c) = matching_char(c) {
                         self.edit(
