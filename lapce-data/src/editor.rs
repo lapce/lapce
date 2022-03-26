@@ -3809,9 +3809,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_undo(proxy) {
-                    self.update_completion(ctx);
                     self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
+                    self.update_completion(ctx);
                 }
             }
             LapceCommand::Redo => {
@@ -3819,9 +3819,9 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let proxy = self.proxy.clone();
                 let buffer = self.buffer_mut();
                 if let Some(delta) = buffer.do_redo(proxy) {
-                    self.update_completion(ctx);
                     self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
+                    self.update_completion(ctx);
                 }
             }
             LapceCommand::Append => {
