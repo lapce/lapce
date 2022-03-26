@@ -1,5 +1,4 @@
 pub mod buffer;
-pub mod code_action;
 pub mod command;
 pub mod completion;
 pub mod config;
