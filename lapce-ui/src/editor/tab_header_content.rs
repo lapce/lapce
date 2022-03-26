@@ -16,6 +16,7 @@ use lapce_data::{
     editor::TabRect,
 };
 
+use crate::editor::tab::TabRectRenderer;
 use crate::svg::{file_svg_new, get_svg};
 
 pub struct LapceEditorTabHeaderContent {

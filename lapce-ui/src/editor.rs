@@ -1,10 +1,12 @@
 use std::{iter::Iterator, sync::Arc, time::Instant};
 
 use druid::{
-    piet::{PietText, PietTextLayout},
-    BoxConstraints, Command, Env, Event, EventCtx, InternalLifeCycle, LayoutCtx,
-    LifeCycle, LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, Rect, Size,
-    Target, TextLayout, UpdateCtx, Vec2, Widget, WidgetId,
+    kurbo::{BezPath, Line},
+    piet::{PietText, PietTextLayout, Text, TextLayout as _, TextLayoutBuilder},
+    BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily,
+    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent,
+    PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2,
+    Widget, WidgetId,
 };
 use lapce_data::{
     buffer::{matching_pair_direction, BufferContent, DiffLines, LocalBufferKind},
@@ -14,14 +16,14 @@ use lapce_data::{
     },
     config::{Config, LapceTheme},
     data::{LapceTabData, PanelData, PanelKind},
-    editor::{EditorLocation, LapceEditorBufferData},
+    editor::{EditorLocation, LapceEditorBufferData, Syntax},
     menu::MenuItem,
-    movement::{Movement, Selection},
+    movement::{ColPosition, CursorMode, Movement, Selection},
     panel::PanelPosition,
     state::{Mode, VisualMode},
 };
 use lapce_rpc::buffer::BufferId;
-use lsp_types::{DocumentChanges, TextEdit, Url, WorkspaceEdit};
+use lsp_types::{DiagnosticSeverity, DocumentChanges, TextEdit, Url, WorkspaceEdit};
 use strum::EnumMessage;
 
 pub mod container;
@@ -313,6 +315,1294 @@ impl LapceEditor {
             ),
         }
     }
+
+    pub fn paint_code_lens_content(
+        data: &LapceEditorBufferData,
+        ctx: &mut PaintCtx,
+        is_focused: bool,
+        config: &Config,
+    ) {
+        let rect = ctx.region().bounding_box();
+
+        let ref_text_layout = ctx
+            .text()
+            .new_text_layout("W")
+            .font(
+                data.config.editor.font_family(),
+                data.config.editor.font_size as f64,
+            )
+            .build()
+            .unwrap();
+        let char_width = ref_text_layout.size().width;
+        let y_shift =
+            (config.editor.line_height as f64 - ref_text_layout.size().height) / 2.0;
+        let small_char_width =
+            config.char_width(ctx.text(), config.editor.code_lens_font_size as f64);
+
+        let empty_lens = Syntax::lens_from_normal_lines(
+            data.buffer.len(),
+            config.editor.line_height,
+            config.editor.code_lens_font_size,
+            &[],
+        );
+        let lens = if let Some(syntax) = data.buffer.syntax.as_ref() {
+            &syntax.lens
+        } else {
+            &empty_lens
+        };
+
+        let cursor_line = data
+            .buffer
+            .line_of_offset(data.editor.cursor.offset().min(data.buffer.len()));
+        let last_line = data.buffer.line_of_offset(data.buffer.len());
+        let start_line =
+            lens.line_of_height(rect.y0.floor() as usize).min(last_line);
+        let end_line = lens
+            .line_of_height(rect.y1.ceil() as usize + config.editor.line_height)
+            .min(last_line);
+        let start_offset = data.buffer.offset_of_line(start_line);
+        let end_offset = data.buffer.offset_of_line(end_line + 1);
+        let mut lines_iter = data.buffer.rope.lines(start_offset..end_offset);
+
+        let mut y = lens.height_of_line(start_line) as f64;
+        for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
+            if let Some(line_content) = lines_iter.next() {
+                let is_small = line_height < config.editor.line_height;
+
+                let mut x = 0.0;
+                if is_small {
+                    for ch in line_content.chars() {
+                        if ch == ' ' {
+                            x += char_width - small_char_width;
+                        } else if ch == '\t' {
+                            x += (char_width - small_char_width)
+                                * config.editor.tab_width as f64;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                Self::paint_cursor_on_line(
+                    data,
+                    ctx,
+                    is_focused,
+                    cursor_line,
+                    line,
+                    x,
+                    y,
+                    if is_small {
+                        small_char_width
+                    } else {
+                        char_width
+                    },
+                    line_height as f64,
+                    config,
+                );
+                let text_layout = data.buffer.new_text_layout(
+                    ctx,
+                    line,
+                    &line_content,
+                    None,
+                    if is_small {
+                        config.editor.code_lens_font_size
+                    } else {
+                        config.editor.font_size
+                    },
+                    [rect.x0, rect.x1],
+                    config,
+                );
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(x, if is_small { y } else { y + y_shift }),
+                );
+                y += line_height as f64;
+            }
+        }
+    }
+
+    fn paint_content(
+        data: &LapceEditorBufferData,
+        ctx: &mut PaintCtx,
+        is_focused: bool,
+        placeholder: Option<&String>,
+        env: &Env,
+    ) {
+        let line_height = Self::line_height(data, env);
+        let line_padding = Self::line_padding(data, env);
+
+        let font_size = if data.editor.content.is_input() {
+            env.get(LapceTheme::INPUT_FONT_SIZE) as usize
+        } else {
+            data.config.editor.font_size
+        };
+
+        let text_layout = ctx
+            .text()
+            .new_text_layout("W")
+            .font(data.config.editor.font_family(), font_size as f64)
+            .build()
+            .unwrap();
+        let char_width = text_layout.size().width;
+        let y_shift = (line_height - text_layout.size().height) / 2.0;
+
+        if data.editor.content.is_input()
+            || (data.editor.compare.is_none() && !data.editor.code_lens)
+        {
+            Self::paint_cursor(
+                data,
+                ctx,
+                is_focused,
+                placeholder,
+                char_width,
+                &data.config,
+                env,
+            );
+            Self::paint_find(data, ctx, char_width, env);
+        }
+        let self_size = ctx.size();
+        let rect = ctx.region().bounding_box();
+        let start_line = (rect.y0 / line_height).floor() as usize;
+        let end_line = (rect.y1 / line_height).ceil() as usize;
+
+        if !data.editor.content.is_input() && data.editor.code_lens {
+            Self::paint_code_lens_content(data, ctx, is_focused, &data.config);
+        } else if let Some(compare) = data.editor.compare.as_ref() {
+            if let Some(changes) = data.buffer.history_changes.get(compare) {
+                let cursor_line =
+                    data.buffer.line_of_offset(data.editor.cursor.offset());
+                let mut line = 0;
+                for change in changes.iter() {
+                    match change {
+                        DiffLines::Left(range) => {
+                            let len = range.len();
+                            line += len;
+
+                            if line < start_line {
+                                continue;
+                            }
+                            ctx.fill(
+                                Size::new(self_size.width, line_height * len as f64)
+                                    .to_rect()
+                                    .with_origin(Point::new(
+                                        0.0,
+                                        line_height * (line - len) as f64,
+                                    )),
+                                data.config.get_color_unchecked(
+                                    LapceTheme::SOURCE_CONTROL_REMOVED,
+                                ),
+                            );
+                            for l in line - len..line {
+                                if l < start_line {
+                                    continue;
+                                }
+                                let actual_line = l - (line - len) + range.start;
+                                if let Some(text_layout) =
+                                    data.buffer.history_text_layout(
+                                        ctx,
+                                        compare,
+                                        actual_line,
+                                        None,
+                                        [rect.x0, rect.x1],
+                                        &data.config,
+                                    )
+                                {
+                                    ctx.draw_text(
+                                        &text_layout,
+                                        Point::new(
+                                            0.0,
+                                            line_height * l as f64 + y_shift,
+                                        ),
+                                    );
+                                }
+                                if l > end_line {
+                                    break;
+                                }
+                            }
+                        }
+                        DiffLines::Skip(left, right) => {
+                            let rect = Size::new(self_size.width, line_height)
+                                .to_rect()
+                                .with_origin(Point::new(
+                                    0.0,
+                                    line_height * line as f64,
+                                ));
+                            ctx.fill(
+                                rect,
+                                data.config.get_color_unchecked(
+                                    LapceTheme::PANEL_BACKGROUND,
+                                ),
+                            );
+                            ctx.stroke(
+                                rect,
+                                data.config.get_color_unchecked(
+                                    LapceTheme::EDITOR_FOREGROUND,
+                                ),
+                                1.0,
+                            );
+                            let text_layout = ctx
+                                .text()
+                                .new_text_layout(format!(
+                                    " -{}, +{}",
+                                    left.end + 1,
+                                    right.end + 1
+                                ))
+                                .font(
+                                    data.config.editor.font_family(),
+                                    font_size as f64,
+                                )
+                                .text_color(
+                                    data.config
+                                        .get_color_unchecked(
+                                            LapceTheme::EDITOR_FOREGROUND,
+                                        )
+                                        .clone(),
+                                )
+                                .build_with_info(
+                                    true,
+                                    data.config.editor.tab_width,
+                                    Some([rect.x0, rect.x1]),
+                                );
+                            ctx.draw_text(
+                                &text_layout,
+                                Point::new(0.0, line_height * line as f64 + y_shift),
+                            );
+                            line += 1;
+                        }
+                        DiffLines::Both(_left, right) => {
+                            let len = right.len();
+                            line += len;
+                            if line < start_line {
+                                continue;
+                            }
+                            for l in line - len..line {
+                                if l < start_line {
+                                    continue;
+                                }
+                                let rope_line = l - (line - len) + right.start;
+                                Self::paint_cursor_on_line(
+                                    data,
+                                    ctx,
+                                    is_focused,
+                                    cursor_line,
+                                    rope_line,
+                                    0.0,
+                                    l as f64 * line_height,
+                                    char_width,
+                                    line_height,
+                                    &data.config,
+                                );
+                                let text_layout = data.buffer.new_text_layout(
+                                    ctx,
+                                    rope_line,
+                                    &data.buffer.line_content(rope_line),
+                                    None,
+                                    font_size,
+                                    [rect.x0, rect.x1],
+                                    &data.config,
+                                );
+                                ctx.draw_text(
+                                    &text_layout,
+                                    Point::new(
+                                        0.0,
+                                        line_height * l as f64 + y_shift,
+                                    ),
+                                );
+                                if l > end_line {
+                                    break;
+                                }
+                            }
+                        }
+                        DiffLines::Right(range) => {
+                            let len = range.len();
+                            line += len;
+
+                            if line < start_line {
+                                continue;
+                            }
+
+                            ctx.fill(
+                                Size::new(
+                                    self_size.width,
+                                    line_height * range.len() as f64,
+                                )
+                                .to_rect()
+                                .with_origin(
+                                    Point::new(
+                                        0.0,
+                                        line_height * (line - range.len()) as f64,
+                                    ),
+                                ),
+                                data.config.get_color_unchecked(
+                                    LapceTheme::SOURCE_CONTROL_ADDED,
+                                ),
+                            );
+
+                            for l in line - len..line {
+                                if l < start_line {
+                                    continue;
+                                }
+                                let rope_line = l - (line - len) + range.start;
+                                Self::paint_cursor_on_line(
+                                    data,
+                                    ctx,
+                                    is_focused,
+                                    cursor_line,
+                                    rope_line,
+                                    0.0,
+                                    l as f64 * line_height,
+                                    char_width,
+                                    line_height,
+                                    &data.config,
+                                );
+                                let text_layout = data.buffer.new_text_layout(
+                                    ctx,
+                                    rope_line,
+                                    &data.buffer.line_content(rope_line),
+                                    None,
+                                    font_size,
+                                    [rect.x0, rect.x1],
+                                    &data.config,
+                                );
+                                ctx.draw_text(
+                                    &text_layout,
+                                    Point::new(
+                                        0.0,
+                                        line_height * l as f64 + y_shift,
+                                    ),
+                                );
+                                if l > end_line {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return;
+        } else {
+            let cursor_offset = data.editor.cursor.offset();
+            let cursor_line = data.buffer.line_of_offset(cursor_offset);
+            let start_offset = data.buffer.offset_of_line(start_line);
+            let end_offset = data.buffer.offset_of_line(end_line + 1);
+            let mode = data.editor.cursor.get_mode();
+            for (i, line_content) in data
+                .buffer
+                .slice_to_cow(start_offset..end_offset)
+                .split('\n')
+                .enumerate()
+            {
+                let line = i + start_line;
+                let cursor_index =
+                    if is_focused && mode != Mode::Insert && line == cursor_line {
+                        let cursor_line_start = data
+                            .buffer
+                            .offset_of_line(cursor_line)
+                            .min(data.buffer.len());
+                        let index = data
+                            .buffer
+                            .slice_to_cow(cursor_line_start..cursor_offset)
+                            .len();
+                        Some(index)
+                    } else {
+                        None
+                    };
+                let text_layout = data.buffer.new_text_layout(
+                    ctx,
+                    line,
+                    line_content,
+                    cursor_index,
+                    font_size,
+                    [rect.x0, rect.x1],
+                    &data.config,
+                );
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        0.0,
+                        line_height * line as f64 + y_shift + line_padding,
+                    ),
+                );
+            }
+        }
+
+        Self::paint_snippet(data, ctx);
+        Self::paint_diagnostics(data, ctx);
+        if data.buffer.len() == 0 {
+            if let Some(placeholder) = placeholder {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(placeholder.to_string())
+                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                ctx.draw_text(&text_layout, Point::new(0.0, y_shift));
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn paint_cursor_on_line(
+        data: &LapceEditorBufferData,
+        ctx: &mut PaintCtx,
+        is_focused: bool,
+        cursor_line: usize,
+        actual_line: usize,
+        x_shift: f64,
+        y: f64,
+        char_width: f64,
+        line_height: f64,
+        config: &Config,
+    ) {
+        match &data.editor.cursor.mode {
+            CursorMode::Normal(_) => {}
+            CursorMode::Visual { start, end, mode } => {
+                let (start_line, start_col) = data.buffer.offset_to_line_col(
+                    *start.min(end),
+                    data.config.editor.tab_width,
+                );
+                let (end_line, end_col) = data.buffer.offset_to_line_col(
+                    *start.max(end),
+                    data.config.editor.tab_width,
+                );
+                if actual_line < start_line || actual_line > end_line {
+                    return;
+                }
+
+                let left_col = match mode {
+                    VisualMode::Normal => {
+                        if start_line == actual_line {
+                            start_col
+                        } else {
+                            0
+                        }
+                    }
+                    VisualMode::Linewise => 0,
+                    VisualMode::Blockwise => {
+                        let max_col = data.buffer.line_end_col(
+                            actual_line,
+                            false,
+                            data.config.editor.tab_width,
+                        );
+                        let left = start_col.min(end_col);
+                        if left > max_col {
+                            return;
+                        }
+                        left
+                    }
+                };
+
+                let right_col = match mode {
+                    VisualMode::Normal => {
+                        if actual_line == end_line {
+                            let max_col = data.buffer.line_end_col(
+                                actual_line,
+                                true,
+                                data.config.editor.tab_width,
+                            );
+                            (end_col + 1).min(max_col)
+                        } else {
+                            data.buffer.line_end_col(
+                                actual_line,
+                                true,
+                                data.config.editor.tab_width,
+                            ) + 1
+                        }
+                    }
+                    VisualMode::Linewise => {
+                        data.buffer.line_end_col(
+                            actual_line,
+                            true,
+                            data.config.editor.tab_width,
+                        ) + 1
+                    }
+                    VisualMode::Blockwise => {
+                        let max_col = data.buffer.line_end_col(
+                            actual_line,
+                            true,
+                            data.config.editor.tab_width,
+                        );
+                        let right = match data.editor.cursor.horiz.as_ref() {
+                            Some(&ColPosition::End) => max_col,
+                            _ => (end_col.max(start_col) + 1).min(max_col),
+                        };
+                        right
+                    }
+                };
+
+                let x0 = left_col as f64 * char_width + x_shift;
+                let x1 = right_col as f64 * char_width + x_shift;
+                let y0 = y;
+                let y1 = y0 + line_height;
+                ctx.fill(
+                    Rect::new(x0, y0, x1, y1),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                );
+            }
+            CursorMode::Insert(selection) => {
+                let start_offset = data.buffer.offset_of_line(actual_line);
+                let end_offset = data.buffer.offset_of_line(actual_line + 1);
+                let regions = selection.regions_in_range(start_offset, end_offset);
+                for region in regions {
+                    if region.is_caret() {
+                        let caret_actual_line =
+                            data.buffer.line_of_offset(region.end());
+                        if caret_actual_line == actual_line {
+                            let size = ctx.size();
+                            ctx.fill(
+                                Rect::ZERO
+                                    .with_origin(Point::new(0.0, y))
+                                    .with_size(Size::new(size.width, line_height)),
+                                data.config.get_color_unchecked(
+                                    LapceTheme::EDITOR_CURRENT_LINE,
+                                ),
+                            );
+                        }
+                    } else {
+                        let start = region.start();
+                        let end = region.end();
+                        let (start_line, start_col) =
+                            data.buffer.offset_to_line_col(
+                                start.min(end),
+                                data.config.editor.tab_width,
+                            );
+                        let (end_line, end_col) = data.buffer.offset_to_line_col(
+                            start.max(end),
+                            data.config.editor.tab_width,
+                        );
+                        let left_col = match actual_line {
+                            _ if actual_line == start_line => start_col,
+                            _ => 0,
+                        };
+                        let right_col = match actual_line {
+                            _ if actual_line == end_line => {
+                                let max_col = data.buffer.line_end_col(
+                                    actual_line,
+                                    true,
+                                    data.config.editor.tab_width,
+                                );
+                                end_col.min(max_col)
+                            }
+                            _ => data.buffer.line_end_col(
+                                actual_line,
+                                true,
+                                data.config.editor.tab_width,
+                            ),
+                        };
+                        let x0 = left_col as f64 * char_width + x_shift;
+                        let x1 = right_col as f64 * char_width + x_shift;
+                        let y0 = y;
+                        let y1 = y0 + line_height;
+                        ctx.fill(
+                            Rect::new(x0, y0, x1, y1),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                        );
+                    }
+                }
+                for region in regions {
+                    if is_focused {
+                        let (caret_actual_line, col) =
+                            data.buffer.offset_to_line_col(
+                                region.end(),
+                                data.config.editor.tab_width,
+                            );
+                        if caret_actual_line == actual_line {
+                            let x = col as f64 * char_width + x_shift;
+                            ctx.stroke(
+                                Line::new(
+                                    Point::new(x, y),
+                                    Point::new(x, y + line_height),
+                                ),
+                                data.config
+                                    .get_color_unchecked(LapceTheme::EDITOR_CARET),
+                                2.0,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if cursor_line == actual_line {
+            if let CursorMode::Normal(_) = &data.editor.cursor.mode {
+                let size = ctx.size();
+                ctx.fill(
+                    Rect::ZERO
+                        .with_origin(Point::new(0.0, y))
+                        .with_size(Size::new(size.width, line_height)),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                );
+            }
+            match &data.editor.cursor.mode {
+                CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                    if is_focused {
+                        let (x0, x1) = data.editor.cursor.current_char(
+                            &data.buffer,
+                            char_width,
+                            config,
+                        );
+                        let cursor_width =
+                            if x1 > x0 { x1 - x0 } else { char_width };
+                        ctx.fill(
+                            Rect::ZERO
+                                .with_origin(Point::new(x0 + x_shift, y))
+                                .with_size(Size::new(cursor_width, line_height)),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET),
+                        );
+                    }
+                }
+                CursorMode::Insert(_) => {}
+            }
+        }
+    }
+    fn paint_cursor(
+        data: &LapceEditorBufferData,
+        ctx: &mut PaintCtx,
+        is_focused: bool,
+        placeholder: Option<&String>,
+        width: f64,
+        config: &Config,
+        env: &Env,
+    ) {
+        let line_height = Self::line_height(data, env);
+        let line_padding = Self::line_padding(data, env);
+        let start_line =
+            (data.editor.scroll_offset.y / line_height).floor() as usize;
+        let end_line = ((data.editor.size.borrow().height
+            + data.editor.scroll_offset.y)
+            / line_height)
+            .ceil() as usize;
+        match &data.editor.cursor.mode {
+            CursorMode::Normal(offset) => {
+                let line = data.buffer.line_of_offset(*offset);
+                Self::paint_cursor_line(data, ctx, line, is_focused, placeholder);
+
+                if is_focused {
+                    let (x0, x1) =
+                        data.editor.cursor.current_char(&data.buffer, width, config);
+                    let char_width = if x1 > x0 { x1 - x0 } else { width };
+                    ctx.fill(
+                        Rect::ZERO
+                            .with_origin(Point::new(
+                                x0,
+                                line as f64 * line_height + line_padding,
+                            ))
+                            .with_size(Size::new(char_width, line_height)),
+                        data.config.get_color_unchecked(LapceTheme::EDITOR_CARET),
+                    );
+                }
+            }
+            CursorMode::Visual { start, end, mode } => {
+                let paint_start_line = start_line;
+                let paint_end_line = end_line;
+                let (start_line, start_col) = data.buffer.offset_to_line_col(
+                    *start.min(end),
+                    data.config.editor.tab_width,
+                );
+                let (end_line, end_col) = data.buffer.offset_to_line_col(
+                    *start.max(end),
+                    data.config.editor.tab_width,
+                );
+                for line in paint_start_line..paint_end_line {
+                    if line < start_line || line > end_line {
+                        continue;
+                    }
+                    let line_content = data.buffer.line_content(line);
+                    let left_col = match mode {
+                        VisualMode::Normal => match line {
+                            _ if line == start_line => start_col,
+                            _ => 0,
+                        },
+                        VisualMode::Linewise => 0,
+                        VisualMode::Blockwise => {
+                            let max_col = data.buffer.line_end_col(
+                                line,
+                                false,
+                                data.config.editor.tab_width,
+                            );
+                            let left = start_col.min(end_col);
+                            if left > max_col {
+                                continue;
+                            }
+                            left
+                        }
+                    };
+                    let x0 = left_col as f64 * width;
+
+                    let right_col = match mode {
+                        VisualMode::Normal => match line {
+                            _ if line == end_line => {
+                                let max_col = data.buffer.line_end_col(
+                                    line,
+                                    true,
+                                    data.config.editor.tab_width,
+                                );
+                                (end_col + 1).min(max_col)
+                            }
+                            _ => {
+                                data.buffer.line_end_col(
+                                    line,
+                                    true,
+                                    data.config.editor.tab_width,
+                                ) + 1
+                            }
+                        },
+                        VisualMode::Linewise => {
+                            data.buffer.line_end_col(
+                                line,
+                                true,
+                                data.config.editor.tab_width,
+                            ) + 1
+                        }
+                        VisualMode::Blockwise => {
+                            let max_col = data.buffer.line_end_col(
+                                line,
+                                true,
+                                data.config.editor.tab_width,
+                            );
+                            let right = match data.editor.cursor.horiz.as_ref() {
+                                Some(&ColPosition::End) => max_col,
+                                _ => (end_col.max(start_col) + 1).min(max_col),
+                            };
+                            right
+                        }
+                    };
+                    if !line_content.is_empty() {
+                        let x1 = right_col as f64 * width;
+
+                        let y0 = line as f64 * line_height + line_padding;
+                        let y1 = y0 + line_height;
+                        ctx.fill(
+                            Rect::new(x0, y0, x1, y1),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                        );
+                    }
+
+                    if is_focused {
+                        let line = data.buffer.line_of_offset(*end);
+
+                        let (x0, x1) = data.editor.cursor.current_char(
+                            &data.buffer,
+                            width,
+                            config,
+                        );
+                        let char_width = if x1 > x0 { x1 - x0 } else { width };
+                        ctx.fill(
+                            Rect::ZERO
+                                .with_origin(Point::new(
+                                    x0,
+                                    line as f64 * line_height + line_padding,
+                                ))
+                                .with_size(Size::new(char_width, line_height)),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET),
+                        );
+                    }
+                }
+            }
+            CursorMode::Insert(selection) => {
+                let offset = selection.get_cursor_offset();
+                let _line = data.buffer.line_of_offset(offset);
+                let last_line = data.buffer.last_line();
+                let end_line = if end_line > last_line {
+                    last_line
+                } else {
+                    end_line
+                };
+                let start = data.buffer.offset_of_line(start_line);
+                let end = data.buffer.offset_of_line(end_line + 1);
+                let regions = selection.regions_in_range(start, end);
+                for region in regions {
+                    if region.start() == region.end() {
+                        let line = data.buffer.line_of_offset(region.start());
+                        Self::paint_cursor_line(
+                            data,
+                            ctx,
+                            line,
+                            is_focused,
+                            placeholder,
+                        );
+                    } else {
+                        let start = region.start();
+                        let end = region.end();
+                        let paint_start_line = start_line;
+                        let paint_end_line = end_line;
+                        let (start_line, start_col) =
+                            data.buffer.offset_to_line_col(
+                                start.min(end),
+                                data.config.editor.tab_width,
+                            );
+                        let (end_line, end_col) = data.buffer.offset_to_line_col(
+                            start.max(end),
+                            data.config.editor.tab_width,
+                        );
+                        for line in paint_start_line..paint_end_line + 1 {
+                            if line < start_line || line > end_line {
+                                continue;
+                            }
+
+                            let line_content = data.buffer.line_content(line);
+                            let left_col = match line {
+                                _ if line == start_line => start_col,
+                                _ => 0,
+                            };
+                            let x0 = left_col as f64 * width;
+
+                            let right_col = match line {
+                                _ if line == end_line => {
+                                    let max_col = data.buffer.line_end_col(
+                                        line,
+                                        true,
+                                        data.config.editor.tab_width,
+                                    );
+                                    end_col.min(max_col)
+                                }
+                                _ => data.buffer.line_end_col(
+                                    line,
+                                    true,
+                                    data.config.editor.tab_width,
+                                ),
+                            };
+
+                            if !line_content.is_empty() {
+                                let x1 = right_col as f64 * width;
+                                let y0 = line as f64 * line_height + line_padding;
+                                let y1 = y0 + line_height;
+                                ctx.fill(
+                                    Rect::new(x0, y0, x1, y1),
+                                    data.config.get_color_unchecked(
+                                        LapceTheme::EDITOR_SELECTION,
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+
+                for region in regions {
+                    if is_focused {
+                        let (line, col) = data.buffer.offset_to_line_col(
+                            region.end(),
+                            data.config.editor.tab_width,
+                        );
+                        let x = col as f64 * width;
+                        let y = line as f64 * line_height + line_padding;
+                        ctx.stroke(
+                            Line::new(
+                                Point::new(x, y),
+                                Point::new(x, y + line_height),
+                            ),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET),
+                            2.0,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fn paint_cursor_line(
+        data: &LapceEditorBufferData,
+        ctx: &mut PaintCtx,
+        line: usize,
+        is_focused: bool,
+        placeholder: Option<&String>,
+    ) {
+        if !is_focused && data.buffer.len() == 0 && placeholder.is_some() {
+            return;
+        }
+        if data.editor.content.is_input() {
+            return;
+        }
+        let line_height = data.config.editor.line_height as f64;
+        let size = ctx.size();
+        ctx.fill(
+            Rect::ZERO
+                .with_origin(Point::new(0.0, line as f64 * line_height))
+                .with_size(Size::new(size.width, line_height)),
+            data.config
+                .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+        );
+    }
+
+    fn paint_find(
+        data: &LapceEditorBufferData,
+        ctx: &mut PaintCtx,
+        char_width: f64,
+        env: &Env,
+    ) {
+        if data.editor.content.is_search() {
+            return;
+        }
+        if !data.find.visual {
+            return;
+        }
+        let line_height = Self::line_height(data, env);
+        let start_line =
+            (data.editor.scroll_offset.y / line_height).floor() as usize;
+        let end_line = ((data.editor.size.borrow().height
+            + data.editor.scroll_offset.y)
+            / line_height)
+            .ceil() as usize;
+        let start_offset = data.buffer.offset_of_line(start_line);
+        let end_offset = data.buffer.offset_of_line(end_line + 1);
+        let cursor_offset = data.editor.cursor.offset();
+
+        data.buffer.update_find(&data.find, start_line, end_line);
+        if data.find.search_string.is_some() {
+            for region in data
+                .buffer
+                .find
+                .borrow()
+                .occurrences()
+                .regions_in_range(start_offset, end_offset)
+            {
+                let start = region.min();
+                let end = region.max();
+                let active = start <= cursor_offset && cursor_offset <= end;
+                let (start_line, start_col) = data
+                    .buffer
+                    .offset_to_line_col(start, data.config.editor.tab_width);
+                let (end_line, end_col) = data
+                    .buffer
+                    .offset_to_line_col(end, data.config.editor.tab_width);
+                for line in start_line..end_line + 1 {
+                    let left_col = if line == start_line { start_col } else { 0 };
+                    let right_col = if line == end_line {
+                        end_col
+                    } else {
+                        data.buffer.line_end_col(
+                            line,
+                            true,
+                            data.config.editor.tab_width,
+                        ) + 1
+                    };
+                    let x0 = left_col as f64 * char_width;
+                    let x1 = right_col as f64 * char_width;
+                    let y0 = line as f64 * line_height;
+                    let y1 = y0 + line_height;
+                    let rect = Rect::new(x0, y0, x1, y1);
+                    if active {
+                        ctx.fill(
+                            rect,
+                            &data
+                                .config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET)
+                                .clone()
+                                .with_alpha(0.5),
+                        );
+                    }
+                    ctx.stroke(
+                        rect,
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        1.0,
+                    );
+                }
+            }
+        }
+    }
+
+    fn paint_snippet(data: &LapceEditorBufferData, ctx: &mut PaintCtx) {
+        let line_height = data.config.editor.line_height as f64;
+        let start_line =
+            (data.editor.scroll_offset.y / line_height).floor() as usize;
+        let end_line = ((data.editor.size.borrow().height
+            + data.editor.scroll_offset.y)
+            / line_height)
+            .ceil() as usize;
+        let width = data.config.editor_text_width(ctx.text(), "W");
+        if let Some(snippet) = data.editor.snippet.as_ref() {
+            for (_, (start, end)) in snippet {
+                let paint_start_line = start_line;
+                let paint_end_line = end_line;
+                let (start_line, start_col) = data.buffer.offset_to_line_col(
+                    *start.min(end),
+                    data.config.editor.tab_width,
+                );
+                let (end_line, end_col) = data.buffer.offset_to_line_col(
+                    *start.max(end),
+                    data.config.editor.tab_width,
+                );
+                for line in paint_start_line..paint_end_line {
+                    if line < start_line || line > end_line {
+                        continue;
+                    }
+                    let line_content = data.buffer.line_content(line);
+                    let left_col = match line {
+                        _ if line == start_line => start_col,
+                        _ => 0,
+                    };
+                    let x0 = left_col as f64 * width;
+
+                    let right_col = match line {
+                        _ if line == end_line => {
+                            let max_col = data.buffer.line_end_col(
+                                line,
+                                true,
+                                data.config.editor.tab_width,
+                            );
+                            end_col.min(max_col)
+                        }
+                        _ => data.buffer.line_end_col(
+                            line,
+                            true,
+                            data.config.editor.tab_width,
+                        ),
+                    };
+                    if !line_content.is_empty() {
+                        let x1 = right_col as f64 * width;
+                        let y0 = line as f64 * line_height;
+                        let y1 = y0 + line_height;
+                        ctx.stroke(
+                            Rect::new(x0, y0, x1, y1).inflate(1.0, -0.5),
+                            data.config
+                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                            1.0,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn paint_diagnostics(data: &LapceEditorBufferData, ctx: &mut PaintCtx) {
+        let line_height = data.config.editor.line_height as f64;
+        let start_line =
+            (data.editor.scroll_offset.y / line_height).floor() as usize;
+        let end_line = ((data.editor.size.borrow().height
+            + data.editor.scroll_offset.y)
+            / line_height)
+            .ceil() as usize;
+
+        let width = data.config.editor_text_width(ctx.text(), "W");
+        let mut current = None;
+        let cursor_offset = data.editor.cursor.offset();
+        if let Some(diagnostics) = data.diagnostics() {
+            for diagnostic in diagnostics.iter() {
+                let start = diagnostic.diagnositc.range.start;
+                let end = diagnostic.diagnositc.range.end;
+                if (start.line as usize) <= end_line
+                    && (end.line as usize) >= start_line
+                {
+                    let start_offset = if let Some(range) = diagnostic.range {
+                        range.0
+                    } else {
+                        data.buffer
+                            .offset_of_position(&start, data.config.editor.tab_width)
+                    };
+                    if start_offset == cursor_offset {
+                        current = Some(diagnostic.clone());
+                    }
+                    for line in start.line as usize..end.line as usize + 1 {
+                        if line < start_line {
+                            continue;
+                        }
+                        if line > end_line {
+                            break;
+                        }
+
+                        let x0 = if line == start.line as usize {
+                            start.character as f64 * width
+                        } else {
+                            let (_, col) = data.buffer.offset_to_line_col(
+                                data.buffer.first_non_blank_character_on_line(line),
+                                data.config.editor.tab_width,
+                            );
+                            col as f64 * width
+                        };
+                        let x1 = if line == end.line as usize {
+                            end.character as f64 * width
+                        } else {
+                            (data.buffer.line_end_col(
+                                line,
+                                false,
+                                data.config.editor.tab_width,
+                            ) + 1) as f64
+                                * width
+                        };
+                        let _y1 = (line + 1) as f64 * line_height;
+                        let y0 = (line + 1) as f64 * line_height - 4.0;
+
+                        let severity = diagnostic
+                            .diagnositc
+                            .severity
+                            .as_ref()
+                            .unwrap_or(&DiagnosticSeverity::Information);
+                        let color = match severity {
+                            DiagnosticSeverity::Error => data
+                                .config
+                                .get_color_unchecked(LapceTheme::LAPCE_ERROR),
+                            DiagnosticSeverity::Warning => data
+                                .config
+                                .get_color_unchecked(LapceTheme::LAPCE_WARN),
+                            _ => data
+                                .config
+                                .get_color_unchecked(LapceTheme::LAPCE_WARN),
+                        };
+                        Self::paint_wave_line(
+                            ctx,
+                            Point::new(x0, y0),
+                            x1 - x0,
+                            color,
+                        );
+                    }
+                }
+            }
+        }
+
+        if let Some(diagnostic) = current {
+            if data.editor.cursor.is_normal() {
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(diagnostic.diagnositc.message.clone())
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                            .clone(),
+                    )
+                    .max_width(data.editor.size.borrow().width - 20.0)
+                    .build()
+                    .unwrap();
+                let text_size = text_layout.size();
+                let mut text_height = text_size.height;
+
+                let related = diagnostic
+                    .diagnositc
+                    .related_information
+                    .map(|related| {
+                        related
+                            .iter()
+                            .map(|i| {
+                                let text_layout = ctx
+                                    .text()
+                                    .new_text_layout(i.message.clone())
+                                    .font(FontFamily::SYSTEM_UI, 14.0)
+                                    .text_color(
+                                        data.config
+                                            .get_color_unchecked(
+                                                LapceTheme::EDITOR_FOREGROUND,
+                                            )
+                                            .clone(),
+                                    )
+                                    .max_width(
+                                        data.editor.size.borrow().width - 20.0,
+                                    )
+                                    .build()
+                                    .unwrap();
+                                text_height += 10.0 + text_layout.size().height;
+                                text_layout
+                            })
+                            .collect::<Vec<PietTextLayout>>()
+                    })
+                    .unwrap_or_else(Vec::new);
+
+                let start = diagnostic.diagnositc.range.start;
+                let rect = Rect::ZERO
+                    .with_origin(Point::new(
+                        0.0,
+                        (start.line + 1) as f64 * line_height,
+                    ))
+                    .with_size(Size::new(
+                        data.editor.size.borrow().width,
+                        text_height + 20.0,
+                    ));
+                ctx.fill(
+                    rect,
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_SELECTION),
+                );
+
+                let severity = diagnostic
+                    .diagnositc
+                    .severity
+                    .as_ref()
+                    .unwrap_or(&DiagnosticSeverity::Information);
+                let color = match severity {
+                    DiagnosticSeverity::Error => {
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_ERROR)
+                    }
+                    DiagnosticSeverity::Warning => {
+                        data.config.get_color_unchecked(LapceTheme::LAPCE_WARN)
+                    }
+                    _ => data.config.get_color_unchecked(LapceTheme::LAPCE_WARN),
+                };
+                ctx.stroke(rect, color, 1.0);
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        10.0 + data.editor.scroll_offset.x,
+                        (start.line + 1) as f64 * line_height + 10.0,
+                    ),
+                );
+                let mut text_height = text_size.height;
+
+                for text in related {
+                    text_height += 10.0;
+                    ctx.draw_text(
+                        &text,
+                        Point::new(
+                            10.0 + data.editor.scroll_offset.x,
+                            (start.line + 1) as f64 * line_height
+                                + 10.0
+                                + text_height,
+                        ),
+                    );
+                    text_height += text.size().height;
+                }
+            }
+        }
+    }
+
+    fn line_height(data: &LapceEditorBufferData, env: &Env) -> f64 {
+        if data.editor.content.is_input() {
+            env.get(LapceTheme::INPUT_LINE_HEIGHT)
+        } else {
+            data.config.editor.line_height as f64
+        }
+    }
+
+    fn line_padding(data: &LapceEditorBufferData, env: &Env) -> f64 {
+        if data.editor.content.is_input() {
+            env.get(LapceTheme::INPUT_LINE_PADDING)
+        } else {
+            0.0
+        }
+    }
+
+    fn paint_wave_line(
+        ctx: &mut PaintCtx,
+        origin: Point,
+        max_width: f64,
+        color: &Color,
+    ) {
+        let mut path = BezPath::new();
+        let mut x = 0.0;
+        let width = 3.5;
+        let height = 4.0;
+        path.move_to(origin + (0.0, height / 2.0));
+        let mut direction = 1.0;
+        while x < max_width {
+            let point = origin + (x, height / 2.0);
+            let p1 = point + (width / 2.0, -height / 2.0 * direction);
+            let p2 = point + (width, 0.0);
+            path.quad_to(p1, p2);
+            x += width;
+            direction *= -1.0;
+        }
+        ctx.stroke(path, color, 1.4);
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditor {
@@ -502,13 +1792,7 @@ impl Widget<LapceTabData> for LapceEditor {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
         let is_focused = data.focus == self.view_id;
         let data = data.editor_view_content(self.view_id);
-        data.paint_content(
-            ctx,
-            is_focused,
-            self.placeholder.as_ref(),
-            &data.config,
-            env,
-        );
+        Self::paint_content(&data, ctx, is_focused, self.placeholder.as_ref(), env);
     }
 }
 
