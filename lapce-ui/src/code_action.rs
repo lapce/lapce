@@ -117,7 +117,12 @@ impl CodeActionData {
             let code_actions =
                 buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
-            let action = &code_actions[self.main_split.current_code_actions];
+            let action = match code_actions.get(self.main_split.current_code_actions)
+            {
+                Some(action) => action,
+                None => return,
+            };
+
             match action {
                 CodeActionOrCommand::Command(_cmd) => {}
                 CodeActionOrCommand::CodeAction(action) => {
