@@ -253,11 +253,18 @@ impl Widget<LapceTabData> for CodeAction {
 
     fn lifecycle(
         &mut self,
-        _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
         _data: &LapceTabData,
         _env: &Env,
     ) {
+        if let LifeCycle::FocusChanged(false) = event {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::CancelCodeActions,
+                Target::Auto,
+            ));
+        }
     }
 
     fn update(
