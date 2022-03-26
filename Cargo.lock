@@ -1857,7 +1857,6 @@ name = "lapce-core"
 version = "0.0.12"
 dependencies = [
  "itertools",
- "lapce-proxy",
  "lapce-rpc",
  "serde 1.0.130",
  "serde_json",
