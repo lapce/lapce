@@ -2,7 +2,7 @@ use druid::PaintCtx;
 use druid::{piet::PietTextLayout, Vec2};
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
-    Data, EventCtx, ExtEventSink, Target, WidgetId, WindowId,
+    Data, ExtEventSink, Target, WidgetId, WindowId,
 };
 use lapce_core::indent::{auto_detect_indent_style, IndentStyle};
 use lapce_core::style::line_styles;
@@ -1830,9 +1830,6 @@ impl Buffer {
 
     pub fn edit_multiple(
         &mut self,
-
-        #[allow(unused_variables)] ctx: &mut EventCtx,
-
         edits: &[(&Selection, &str)],
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
@@ -1879,13 +1876,12 @@ impl Buffer {
 
     pub fn edit(
         &mut self,
-        ctx: &mut EventCtx,
         selection: &Selection,
         content: &str,
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
-        self.edit_multiple(ctx, &[(selection, content)], proxy, edit_type)
+        self.edit_multiple(&[(selection, content)], proxy, edit_type)
     }
 
     pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {

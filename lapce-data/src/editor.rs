@@ -15,8 +15,9 @@ use crate::data::MotionMode;
 use crate::data::RegisterKind;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
-    LapceTabData, PanelData, PanelKind, RegisterData, SplitContent,
+    LapceTabData, RegisterData, SplitContent,
 };
+use crate::movement::InsertDrift;
 use crate::proxy::path_from_url;
 use crate::state::LapceWorkspace;
 use crate::svg::get_svg;
@@ -30,7 +31,6 @@ use crate::{
 };
 use crate::{find::Find, split::SplitDirection};
 use crate::{keypress::KeyPressFocus, movement::Cursor};
-use crate::{movement::InsertDrift, panel::PanelPosition};
 use crate::{proxy::LapceProxy, source_control::SourceControlData};
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
@@ -45,7 +45,7 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, Vec2, WidgetId,
 };
 use druid::{Application, ExtEventSink, MouseEvent};
-use lapce_core::syntax::Syntax;
+pub use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
@@ -154,12 +154,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn inline_find(
-        &mut self,
-        ctx: &mut EventCtx,
-        direction: InlineFindDirection,
-        c: &str,
-    ) {
+    fn inline_find(&mut self, direction: InlineFindDirection, c: &str) {
         let offset = self.editor.cursor.offset();
         let line = self.buffer.line_of_offset(offset);
         let line_content = self.buffer.line_content(line);
@@ -183,115 +178,10 @@ impl LapceEditorBufferData {
             }
         } {
             self.do_move(
-                ctx,
                 &Movement::Offset(new_index + line_start_offset),
                 1,
                 Modifiers::empty(),
             );
-        }
-    }
-
-    pub fn get_size(
-        &self,
-        text: &mut PietText,
-        editor_size: Size,
-        panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
-        env: &Env,
-    ) -> Size {
-        let line_height = self.config.editor.line_height as f64;
-        let width = self.config.editor_text_width(text, "W");
-        match &self.editor.content {
-            BufferContent::File(_) => {
-                if self.editor.code_lens {
-                    if let Some(syntax) = self.buffer.syntax.as_ref() {
-                        let height =
-                            syntax.lens.height_of_line(syntax.lens.len() + 1);
-                        Size::new(
-                            (width * self.buffer.max_len as f64)
-                                .max(editor_size.width),
-                            (height as f64 - line_height).max(0.0)
-                                + editor_size.height,
-                        )
-                    } else {
-                        let height = self.buffer.num_lines
-                            * self.config.editor.code_lens_font_size;
-                        Size::new(
-                            (width * self.buffer.max_len as f64)
-                                .max(editor_size.width),
-                            (height as f64 - line_height).max(0.0)
-                                + editor_size.height,
-                        )
-                    }
-                } else if let Some(compare) = self.editor.compare.as_ref() {
-                    let mut lines = 0;
-                    if let Some(changes) = self.buffer.history_changes.get(compare) {
-                        for change in changes.iter() {
-                            match change {
-                                DiffLines::Left(l) => lines += l.len(),
-                                DiffLines::Both(_l, r) => lines += r.len(),
-                                DiffLines::Skip(_l, _r) => lines += 1,
-                                DiffLines::Right(r) => lines += r.len(),
-                            }
-                        }
-                    }
-                    Size::new(
-                        (width * self.buffer.max_len as f64).max(editor_size.width),
-                        (line_height * lines as f64 - line_height).max(0.0)
-                            + editor_size.height,
-                    )
-                } else {
-                    Size::new(
-                        (width * self.buffer.max_len as f64).max(editor_size.width),
-                        (line_height * self.buffer.num_lines as f64 - line_height)
-                            .max(0.0)
-                            + editor_size.height,
-                    )
-                }
-            }
-            BufferContent::Local(kind) => match kind {
-                LocalBufferKind::FilePicker
-                | LocalBufferKind::Search
-                | LocalBufferKind::Settings
-                | LocalBufferKind::Keymap => Size::new(
-                    editor_size.width.max(width * self.buffer.rope.len() as f64),
-                    env.get(LapceTheme::INPUT_LINE_HEIGHT)
-                        + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
-                ),
-                LocalBufferKind::SourceControl => {
-                    for (pos, panels) in panels.iter() {
-                        for panel_kind in panels.widgets.iter() {
-                            if panel_kind == &PanelKind::SourceControl {
-                                return match pos {
-                                    PanelPosition::BottomLeft
-                                    | PanelPosition::BottomRight => {
-                                        let width = 200.0;
-                                        Size::new(width, editor_size.height)
-                                    }
-                                    _ => {
-                                        let height = 100.0f64;
-                                        let height = height.max(
-                                            line_height
-                                                * self.buffer.num_lines() as f64,
-                                        );
-                                        Size::new(
-                                            (width * self.buffer.max_len as f64)
-                                                .max(editor_size.width),
-                                            height,
-                                        )
-                                    }
-                                };
-                            }
-                        }
-                    }
-                    Size::ZERO
-                }
-                LocalBufferKind::Empty => editor_size,
-            },
-            BufferContent::Value(_) => Size::new(
-                editor_size.width.max(width * self.buffer.rope.len() as f64),
-                env.get(LapceTheme::INPUT_LINE_HEIGHT)
-                    + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
-            ),
         }
     }
 
@@ -339,11 +229,11 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn set_motion_mode(&mut self, ctx: &mut EventCtx, mode: MotionMode) {
+    fn set_motion_mode(&mut self, mode: MotionMode) {
         if let Some(m) = &self.editor.motion_mode {
             if m == &mode {
                 let offset = self.editor.cursor.offset();
-                self.execute_motion_mode(ctx, offset, offset, true);
+                self.execute_motion_mode(offset, offset, true);
             }
             Arc::make_mut(&mut self.editor).motion_mode = None;
         } else {
@@ -390,13 +280,7 @@ impl LapceEditorBufferData {
         register.add(kind, data);
     }
 
-    fn execute_motion_mode(
-        &mut self,
-        ctx: &mut EventCtx,
-        start: usize,
-        end: usize,
-        is_vertical: bool,
-    ) {
+    fn execute_motion_mode(&mut self, start: usize, end: usize, is_vertical: bool) {
         if let Some(mode) = &self.editor.motion_mode {
             match mode {
                 MotionMode::Delete => {
@@ -405,7 +289,7 @@ impl LapceEditorBufferData {
                     self.add_register(start, end, is_vertical, RegisterKind::Yank);
                     let selection = Selection::region(start, end);
                     let delta =
-                        self.edit(ctx, &[(&selection, "")], true, EditType::Delete);
+                        self.edit(&[(&selection, "")], true, EditType::Delete);
                     Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
                 }
                 MotionMode::Yank => {
@@ -415,23 +299,17 @@ impl LapceEditorBufferData {
                 }
                 MotionMode::Indent => {
                     let selection = Selection::region(start, end);
-                    self.indent_line(ctx, selection);
+                    self.indent_line(selection);
                 }
                 MotionMode::Outdent => {
                     let selection = Selection::region(start, end);
-                    self.outdent_line(ctx, selection);
+                    self.outdent_line(selection);
                 }
             }
         }
     }
 
-    fn do_move(
-        &mut self,
-        ctx: &mut EventCtx,
-        movement: &Movement,
-        count: usize,
-        mods: Modifiers,
-    ) {
+    fn do_move(&mut self, movement: &Movement, count: usize, mods: Modifiers) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
             editor.save_jump_location(&self.buffer, self.config.editor.tab_width);
@@ -496,12 +374,7 @@ impl LapceEditorBufferData {
                         }
                         _ => (offset, new_offset),
                     };
-                    self.execute_motion_mode(
-                        ctx,
-                        start,
-                        end,
-                        movement.is_vertical(),
-                    );
+                    self.execute_motion_mode(start, end, movement.is_vertical());
                 } else {
                     let editor = Arc::make_mut(&mut self.editor);
                     editor.cursor.mode = CursorMode::Normal(new_offset);
@@ -545,7 +418,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn indent_line(&mut self, ctx: &mut EventCtx, selection: Selection) {
+    fn indent_line(&mut self, selection: Selection) {
         let indent = self.buffer.indent_unit();
         let mut edits = Vec::new();
 
@@ -585,11 +458,11 @@ impl LapceEditorBufferData {
             .iter()
             .map(|(selection, s)| (selection, s.as_str()))
             .collect::<Vec<(&Selection, &str)>>();
-        let delta = self.edit(ctx, &edits, true, EditType::InsertChars);
+        let delta = self.edit(&edits, true, EditType::InsertChars);
         Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
     }
 
-    fn outdent_line(&mut self, ctx: &mut EventCtx, selection: Selection) {
+    fn outdent_line(&mut self, selection: Selection) {
         let indent = self.buffer.indent_unit();
         let mut edits = Vec::new();
 
@@ -640,7 +513,7 @@ impl LapceEditorBufferData {
             .iter()
             .map(|(selection, s)| (selection, s.as_str()))
             .collect::<Vec<(&Selection, &str)>>();
-        let delta = self.edit(ctx, &edits, true, EditType::InsertChars);
+        let delta = self.edit(&edits, true, EditType::InsertChars);
         Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
     }
 
@@ -660,11 +533,7 @@ impl LapceEditorBufferData {
             && self.completion.len() > 0
     }
 
-    pub fn apply_completion_item(
-        &mut self,
-        ctx: &mut EventCtx,
-        item: &CompletionItem,
-    ) -> Result<()> {
+    pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
         let additional_edit: Option<Vec<_>> =
             item.additional_text_edits.as_ref().map(|edits| {
                 edits
@@ -715,7 +584,6 @@ impl LapceEditorBufferData {
                     match text_format {
                         lsp_types::InsertTextFormat::PlainText => {
                             let delta = self.edit(
-                                ctx,
                                 &[
                                     &[(&selection, edit.new_text.as_str())][..],
                                     &additioal_edit.unwrap_or_default()[..],
@@ -736,7 +604,6 @@ impl LapceEditorBufferData {
                             let snippet = Snippet::from_str(&edit.new_text)?;
                             let text = snippet.text();
                             let delta = self.edit(
-                                ctx,
                                 &[
                                     &[(&selection, text.as_str())][..],
                                     &additioal_edit.unwrap_or_default()[..],
@@ -785,7 +652,6 @@ impl LapceEditorBufferData {
         let selection = Selection::region(start_offset, end_offset);
 
         let delta = self.edit(
-            ctx,
             &[
                 &[(
                     &selection,
@@ -1009,7 +875,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn insert_tab(&mut self, ctx: &mut EventCtx) {
+    fn insert_tab(&mut self) {
         if let CursorMode::Insert(selection) = &self.editor.cursor.mode {
             let indent = self.buffer.indent_unit();
             let mut edits = Vec::new();
@@ -1056,7 +922,7 @@ impl LapceEditorBufferData {
                 .iter()
                 .map(|(selection, s)| (selection, s.as_str()))
                 .collect::<Vec<(&Selection, &str)>>();
-            let delta = self.edit(ctx, &edits, true, EditType::InsertChars);
+            let delta = self.edit(&edits, true, EditType::InsertChars);
             Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
         }
     }
@@ -1177,7 +1043,7 @@ impl LapceEditorBufferData {
             .iter()
             .map(|(selection, s)| (selection, s.as_str()))
             .collect::<Vec<(&Selection, &str)>>();
-        let delta = self.edit(ctx, &edits, true, EditType::InsertNewline);
+        let delta = self.edit(&edits, true, EditType::InsertNewline);
         let mut selection =
             selection.apply_delta(&delta, true, InsertDrift::Default);
 
@@ -1186,7 +1052,7 @@ impl LapceEditorBufferData {
                 .iter()
                 .map(|(selection, s)| (selection, s.as_str()))
                 .collect::<Vec<(&Selection, &str)>>();
-            let delta = self.edit(ctx, &edits, true, EditType::InsertNewline);
+            let delta = self.edit(&edits, true, EditType::InsertNewline);
             selection = selection.apply_delta(&delta, false, InsertDrift::Default);
         }
 
@@ -1226,7 +1092,6 @@ impl LapceEditorBufferData {
                 let after =
                     self.editor.cursor.is_insert() || !data.content.contains('\n');
                 let delta = self.edit(
-                    ctx,
                     &[(&selection, &data.content)],
                     after,
                     EditType::InsertChars,
@@ -1289,7 +1154,6 @@ impl LapceEditorBufferData {
                     }
                 };
                 let delta = self.edit(
-                    ctx,
                     &[(&selection, &content)],
                     self.editor.cursor.is_insert(),
                     EditType::InsertChars,
@@ -1438,7 +1302,6 @@ impl LapceEditorBufferData {
 
     fn edit(
         &mut self,
-        ctx: &mut EventCtx,
         edits: &[(&Selection, &str)],
         _after: bool,
         edit_type: EditType,
@@ -1461,7 +1324,7 @@ impl LapceEditorBufferData {
 
         let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
-        let delta = buffer.edit_multiple(ctx, edits, proxy, edit_type);
+        let delta = buffer.edit_multiple(edits, proxy, edit_type);
         self.inactive_apply_delta(&delta);
         if let Some(snippet) = self.editor.snippet.clone() {
             let mut transformer = Transformer::new(&delta);
@@ -1677,7 +1540,6 @@ impl LapceEditorBufferData {
             (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
         self.do_move(
-            ctx,
             if down { &Movement::Down } else { &Movement::Up },
             lines,
             mods,
@@ -1730,11 +1592,9 @@ impl LapceEditorBufferData {
 
         match new_line.cmp(&line) {
             Ordering::Greater => {
-                self.do_move(ctx, &Movement::Down, new_line - line, mods)
+                self.do_move(&Movement::Down, new_line - line, mods)
             }
-            Ordering::Less => {
-                self.do_move(ctx, &Movement::Up, line - new_line, mods)
-            }
+            Ordering::Less => self.do_move(&Movement::Up, line - new_line, mods),
             _ => (),
         };
 
@@ -1794,511 +1654,6 @@ impl LapceEditorBufferData {
             self.main_split.diagnostics.get_mut(path).map(Arc::make_mut)
         } else {
             None
-        }
-    }
-
-    fn paint_gutter_inline_diff(
-        &self,
-        ctx: &mut PaintCtx,
-        compare: &str,
-        gutter_width: f64,
-    ) {
-        if self.buffer.history_changes.get(compare).is_none() {
-            return;
-        }
-        let self_size = ctx.size();
-        let rect = self_size.to_rect();
-        let changes = self.buffer.history_changes.get(compare).unwrap();
-        let line_height = self.config.editor.line_height as f64;
-        let scroll_offset = self.editor.scroll_offset;
-        let start_line = (scroll_offset.y / line_height).floor() as usize;
-        let end_line =
-            (scroll_offset.y + rect.height() / line_height).ceil() as usize;
-        let current_line = self.editor.cursor.current_line(&self.buffer);
-        let last_line = self.buffer.last_line();
-        let width = self.config.editor_text_width(ctx.text(), "W");
-
-        let mut line = 0;
-        for change in changes.iter() {
-            match change {
-                DiffLines::Left(r) => {
-                    let len = r.len();
-                    line += len;
-
-                    if line < start_line {
-                        continue;
-                    }
-                    ctx.fill(
-                        Size::new(self_size.width, line_height * len as f64)
-                            .to_rect()
-                            .with_origin(Point::new(
-                                0.0,
-                                line_height * (line - len) as f64 - scroll_offset.y,
-                            )),
-                        self.config
-                            .get_color_unchecked(LapceTheme::SOURCE_CONTROL_REMOVED),
-                    );
-                    for l in line - len..line {
-                        if l < start_line {
-                            continue;
-                        }
-                        let actual_line = l - (line - len) + r.start;
-
-                        let content = actual_line + 1;
-                        let x = ((last_line + 1).to_string().len()
-                            - content.to_string().len())
-                            as f64
-                            * width;
-                        let y = line_height * l as f64 + 5.0 - scroll_offset.y;
-                        let pos = Point::new(x, y);
-
-                        let text_layout = ctx
-                            .text()
-                            .new_text_layout(
-                                content.to_string()
-                                    + &vec![
-                                        " ";
-                                        (last_line + 1).to_string().len() + 2
-                                    ]
-                                    .join("")
-                                    + " -",
-                            )
-                            .font(
-                                self.config.editor.font_family(),
-                                self.config.editor.font_size as f64,
-                            )
-                            .text_color(
-                                self.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                                    .clone(),
-                            )
-                            .build()
-                            .unwrap();
-                        ctx.draw_text(&text_layout, pos);
-
-                        if l > end_line {
-                            break;
-                        }
-                    }
-                }
-                DiffLines::Both(left, r) => {
-                    let len = r.len();
-                    line += len;
-                    if line < start_line {
-                        continue;
-                    }
-
-                    for l in line - len..line {
-                        if l < start_line {
-                            continue;
-                        }
-                        let left_actual_line = l - (line - len) + left.start;
-                        let right_actual_line = l - (line - len) + r.start;
-
-                        let left_content = left_actual_line + 1;
-                        let x = ((last_line + 1).to_string().len()
-                            - left_content.to_string().len())
-                            as f64
-                            * width;
-                        let y = line_height * l as f64 + 5.0 - scroll_offset.y;
-                        let pos = Point::new(x, y);
-
-                        let text_layout = ctx
-                            .text()
-                            .new_text_layout(left_content.to_string())
-                            .font(
-                                self.config.editor.font_family(),
-                                self.config.editor.font_size as f64,
-                            )
-                            .text_color(
-                                self.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                                    .clone(),
-                            )
-                            .build()
-                            .unwrap();
-                        ctx.draw_text(&text_layout, pos);
-
-                        let right_content = right_actual_line + 1;
-                        let x = ((last_line + 1).to_string().len()
-                            - right_content.to_string().len())
-                            as f64
-                            * width
-                            + gutter_width
-                            + 2.0 * width;
-                        let pos = Point::new(x, y);
-                        let text_layout = ctx
-                            .text()
-                            .new_text_layout(right_content.to_string())
-                            .font(
-                                self.config.editor.font_family(),
-                                self.config.editor.font_size as f64,
-                            )
-                            .text_color(if right_actual_line == current_line {
-                                self.config
-                                    .get_color_unchecked(
-                                        LapceTheme::EDITOR_FOREGROUND,
-                                    )
-                                    .clone()
-                            } else {
-                                self.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                                    .clone()
-                            })
-                            .build()
-                            .unwrap();
-                        ctx.draw_text(&text_layout, pos);
-
-                        if l > end_line {
-                            break;
-                        }
-                    }
-                }
-                DiffLines::Skip(_l, _r) => {
-                    let rect = Size::new(self_size.width, line_height)
-                        .to_rect()
-                        .with_origin(Point::new(
-                            0.0,
-                            line_height * line as f64 - scroll_offset.y,
-                        ));
-                    ctx.fill(
-                        rect,
-                        self.config
-                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-                    );
-                    ctx.stroke(
-                        rect,
-                        self.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                        1.0,
-                    );
-                    line += 1;
-                }
-                DiffLines::Right(r) => {
-                    let len = r.len();
-                    line += len;
-                    if line < start_line {
-                        continue;
-                    }
-
-                    ctx.fill(
-                        Size::new(self_size.width, line_height * len as f64)
-                            .to_rect()
-                            .with_origin(Point::new(
-                                0.0,
-                                line_height * (line - len) as f64 - scroll_offset.y,
-                            )),
-                        self.config
-                            .get_color_unchecked(LapceTheme::SOURCE_CONTROL_ADDED),
-                    );
-
-                    for l in line - len..line {
-                        if l < start_line {
-                            continue;
-                        }
-                        let actual_line = l - (line - len) + r.start;
-
-                        let content = actual_line + 1;
-                        let x = ((last_line + 1).to_string().len()
-                            - content.to_string().len())
-                            as f64
-                            * width
-                            + gutter_width
-                            + 2.0 * width;
-                        let y = line_height * l as f64 + 5.0 - scroll_offset.y;
-                        let pos = Point::new(x, y);
-
-                        let text_layout = ctx
-                            .text()
-                            .new_text_layout(content.to_string() + " +")
-                            .font(
-                                self.config.editor.font_family(),
-                                self.config.editor.font_size as f64,
-                            )
-                            .text_color(if actual_line == current_line {
-                                self.config
-                                    .get_color_unchecked(
-                                        LapceTheme::EDITOR_FOREGROUND,
-                                    )
-                                    .clone()
-                            } else {
-                                self.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                                    .clone()
-                            })
-                            .build()
-                            .unwrap();
-                        ctx.draw_text(&text_layout, pos);
-
-                        if l > end_line {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn paint_gutter_code_lens(&self, ctx: &mut PaintCtx, _gutter_width: f64) {
-        let rect = ctx.size().to_rect();
-        let scroll_offset = self.editor.scroll_offset;
-        let empty_lens = Syntax::lens_from_normal_lines(
-            self.buffer.len(),
-            self.config.editor.line_height,
-            self.config.editor.code_lens_font_size,
-            &[],
-        );
-        let lens = if let Some(syntax) = self.buffer.syntax.as_ref() {
-            &syntax.lens
-        } else {
-            &empty_lens
-        };
-
-        let cursor_line = self
-            .buffer
-            .line_of_offset(self.editor.cursor.offset().min(self.buffer.len()));
-        let last_line = self.buffer.line_of_offset(self.buffer.len());
-        let start_line = lens
-            .line_of_height(scroll_offset.y.floor() as usize)
-            .min(last_line);
-        let end_line = lens
-            .line_of_height(
-                (scroll_offset.y + rect.height()).ceil() as usize
-                    + self.config.editor.line_height,
-            )
-            .min(last_line);
-        let char_width = self
-            .config
-            .char_width(ctx.text(), self.config.editor.font_size as f64);
-        let max_line_width = (last_line + 1).to_string().len() as f64 * char_width;
-
-        let mut y = lens.height_of_line(start_line) as f64;
-        for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
-            let content = if *self.main_split.active != Some(self.view_id)
-                || self.editor.cursor.is_insert()
-                || line == cursor_line
-            {
-                line + 1
-            } else if line > cursor_line {
-                line - cursor_line
-            } else {
-                cursor_line - line
-            };
-            let content = content.to_string();
-            let is_small = line_height < self.config.editor.line_height;
-            let text_layout = ctx
-                .text()
-                .new_text_layout(content.clone())
-                .font(
-                    self.config.editor.font_family(),
-                    if is_small {
-                        self.config.editor.code_lens_font_size as f64
-                    } else {
-                        self.config.editor.font_size as f64
-                    },
-                )
-                .text_color(if line == cursor_line {
-                    self.config
-                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                        .clone()
-                } else {
-                    self.config
-                        .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                        .clone()
-                })
-                .build()
-                .unwrap();
-            let x = max_line_width - text_layout.size().width;
-            let pos = Point::new(
-                x,
-                y - scroll_offset.y
-                    + if is_small {
-                        0.0
-                    } else {
-                        (line_height as f64 - text_layout.size().height) / 2.0
-                    },
-            );
-            ctx.draw_text(&text_layout, pos);
-
-            y += line_height as f64;
-        }
-    }
-
-    pub fn paint_gutter(&self, ctx: &mut PaintCtx, gutter_width: f64) {
-        let rect = ctx.size().to_rect();
-        ctx.with_save(|ctx| {
-            let clip_rect = rect;
-            ctx.clip(clip_rect);
-            if let Some(compare) = self.editor.compare.as_ref() {
-                self.paint_gutter_inline_diff(ctx, compare, gutter_width);
-                return;
-            }
-            if self.editor.code_lens {
-                self.paint_gutter_code_lens(ctx, gutter_width);
-                return;
-            }
-            let line_height = self.config.editor.line_height as f64;
-            let scroll_offset = self.editor.scroll_offset;
-            let start_line = (scroll_offset.y / line_height).floor() as usize;
-            let end_line =
-                (scroll_offset.y + rect.height() / line_height).ceil() as usize;
-            let num_lines = (ctx.size().height / line_height).floor() as usize;
-            let last_line = self.buffer.last_line();
-            let current_line = self.editor.cursor.current_line(&self.buffer);
-            let width = self.config.editor_text_width(ctx.text(), "W");
-            for line in start_line..start_line + num_lines + 1 {
-                if line > last_line {
-                    break;
-                }
-                let content = if *self.main_split.active != Some(self.view_id)
-                    || self.editor.cursor.is_insert()
-                    || line == current_line
-                {
-                    line + 1
-                } else if line > current_line {
-                    line - current_line
-                } else {
-                    current_line - line
-                };
-                let content = content.to_string();
-
-                let text_layout = ctx
-                    .text()
-                    .new_text_layout(content.clone())
-                    .font(
-                        self.config.editor.font_family(),
-                        self.config.editor.font_size as f64,
-                    )
-                    .text_color(if line == current_line {
-                        self.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                            .clone()
-                    } else {
-                        self.config
-                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                            .clone()
-                    })
-                    .build()
-                    .unwrap();
-                let x = ((last_line + 1).to_string().len() - content.len()) as f64
-                    * width;
-                let y = line_height * line as f64 - scroll_offset.y
-                    + (line_height - text_layout.size().height) / 2.0;
-                let pos = Point::new(x, y);
-                ctx.draw_text(&text_layout, pos);
-            }
-
-            if let Some(changes) = self.buffer.history_changes.get("head") {
-                let mut line = 0;
-                let mut last_change = None;
-                for change in changes.iter() {
-                    let len = match change {
-                        DiffLines::Left(_range) => 0,
-                        DiffLines::Skip(_left, right) => right.len(),
-                        DiffLines::Both(_left, right) => right.len(),
-                        DiffLines::Right(range) => range.len(),
-                    };
-                    line += len;
-                    if line < start_line {
-                        last_change = Some(change.clone());
-                        continue;
-                    }
-
-                    let mut modified = false;
-                    let color = match change {
-                        DiffLines::Left(_range) => {
-                            Some(self.config.get_color_unchecked(
-                                LapceTheme::SOURCE_CONTROL_REMOVED,
-                            ))
-                        }
-                        DiffLines::Right(_range) => {
-                            if let Some(DiffLines::Left(_)) = last_change.as_ref() {
-                                modified = true;
-                            }
-                            if modified {
-                                Some(self.config.get_color_unchecked(
-                                    LapceTheme::SOURCE_CONTROL_MODIFIED,
-                                ))
-                            } else {
-                                Some(self.config.get_color_unchecked(
-                                    LapceTheme::SOURCE_CONTROL_ADDED,
-                                ))
-                            }
-                        }
-                        _ => None,
-                    };
-
-                    if let Some(color) = color {
-                        let removed_height = 10.0;
-                        let size = Size::new(
-                            3.0,
-                            if len == 0 {
-                                removed_height
-                            } else {
-                                line_height * len as f64
-                            },
-                        );
-                        let x = gutter_width + width;
-                        let mut y =
-                            (line - len) as f64 * line_height - scroll_offset.y;
-                        if len == 0 {
-                            y -= removed_height / 2.0;
-                        }
-                        if modified {
-                            let rect = Size::new(3.0, removed_height)
-                                .to_rect()
-                                .with_origin(Point::new(
-                                    x,
-                                    y - removed_height / 2.0,
-                                ));
-                            ctx.fill(
-                                rect,
-                                self.config.get_color_unchecked(
-                                    LapceTheme::EDITOR_BACKGROUND,
-                                ),
-                            );
-                        }
-                        let rect = size.to_rect().with_origin(Point::new(x, y));
-                        ctx.fill(rect, &color.clone().with_alpha(0.8));
-                    }
-
-                    if line > end_line {
-                        break;
-                    }
-                    last_change = Some(change.clone());
-                }
-            }
-
-            if *self.main_split.active == Some(self.view_id) {
-                self.paint_code_actions_hint(ctx, gutter_width);
-            }
-        });
-    }
-
-    fn paint_code_actions_hint(&self, ctx: &mut PaintCtx, gutter_width: f64) {
-        if let Some(actions) = self.current_code_actions() {
-            if !actions.is_empty() {
-                let line_height = self.config.editor.line_height as f64;
-                let offset = self.editor.cursor.offset();
-                let (line, _) = self
-                    .buffer
-                    .offset_to_line_col(offset, self.config.editor.tab_width);
-                let svg = get_svg("lightbulb.svg").unwrap();
-                let width = 16.0;
-                let height = 16.0;
-                let char_width = self.config.editor_text_width(ctx.text(), "W");
-                let rect =
-                    Size::new(width, height).to_rect().with_origin(Point::new(
-                        gutter_width + char_width + 3.0,
-                        (line_height - height) / 2.0 + line_height * line as f64
-                            - self.editor.scroll_offset.y,
-                    ));
-                ctx.draw_svg(
-                    &svg,
-                    rect,
-                    Some(self.config.get_color_unchecked(LapceTheme::LAPCE_WARN)),
-                );
-            }
         }
     }
 
@@ -3723,7 +3078,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         env: &Env,
     ) -> CommandExecuted {
         if let Some(movement) = cmd.move_command(count) {
-            self.do_move(ctx, &movement, count.unwrap_or(1), mods);
+            self.do_move(&movement, count.unwrap_or(1), mods);
             if let Some(snippet) = self.editor.snippet.as_ref() {
                 let offset = self.editor.cursor.offset();
                 let mut within_region = false;
@@ -3742,7 +3097,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             return CommandExecuted::Yes;
         }
         if let Some(mode) = cmd.motion_mode_command() {
-            self.set_motion_mode(ctx, mode);
+            self.set_motion_mode(mode);
             return CommandExecuted::Yes;
         }
         Arc::make_mut(&mut self.editor).motion_mode = None;
@@ -3951,8 +3306,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         )
                     }
                 };
-                let delta =
-                    self.edit(ctx, &[(&selection, "")], true, EditType::Delete);
+                let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 match self.editor.cursor.mode {
@@ -4021,8 +3375,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         .edit_selection(&self.buffer, self.config.editor.tab_width)
                 };
 
-                let delta =
-                    self.edit(ctx, &[(&selection, "")], true, EditType::Delete);
+                let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 self.set_cursor_after_change(selection);
@@ -4106,8 +3459,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         )
                     }
                 };
-                let delta =
-                    self.edit(ctx, &[(&selection, "")], true, EditType::Delete);
+                let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 self.set_cursor_after_change(selection);
@@ -4137,8 +3489,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         )
                     }
                 };
-                let delta =
-                    self.edit(ctx, &[(&selection, "")], true, EditType::Delete);
+                let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 self.set_cursor_after_change(selection);
@@ -4243,8 +3594,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         selection
                     }
                 };
-                let delta =
-                    self.edit(ctx, &[(&selection, "")], true, EditType::Delete);
+                let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 self.set_cursor_after_change(selection);
@@ -4282,8 +3632,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         new_selection
                     }
                 };
-                let delta =
-                    self.edit(ctx, &[(&selection, "")], true, EditType::Delete);
+                let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 self.set_cursor_after_change(selection);
@@ -4294,15 +3643,14 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .editor
                     .cursor
                     .edit_selection(&self.buffer, self.config.editor.tab_width);
-                let delta =
-                    self.edit(ctx, &[(&selection, "")], true, EditType::Delete);
+                let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
                 self.update_completion(ctx);
             }
             LapceCommand::InsertTab => {
-                self.insert_tab(ctx);
+                self.insert_tab();
                 self.update_completion(ctx);
             }
             LapceCommand::InsertNewLine => {
@@ -4371,7 +3719,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let content =
                                 self.buffer.slice_to_cow(start..end).to_string();
                             self.edit(
-                                ctx,
                                 &[
                                     (&Selection::region(start, end), ""),
                                     (
@@ -4412,7 +3759,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let content =
                                 self.buffer.slice_to_cow(start..end).to_string();
                             self.edit(
-                                ctx,
                                 &[
                                     (
                                         &Selection::caret(
@@ -4805,7 +4151,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         }),
                     );
                 } else {
-                    let _ = self.apply_completion_item(ctx, &item);
+                    let _ = self.apply_completion_item(&item);
                 }
             }
             LapceCommand::IndentLine => {
@@ -4813,14 +4159,14 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .editor
                     .cursor
                     .edit_selection(&self.buffer, self.config.editor.tab_width);
-                self.indent_line(ctx, selection);
+                self.indent_line(selection);
             }
             LapceCommand::OutdentLine => {
                 let selection = self
                     .editor
                     .cursor
                     .edit_selection(&self.buffer, self.config.editor.tab_width);
-                self.outdent_line(ctx, selection);
+                self.outdent_line(selection);
             }
             LapceCommand::ToggleLineComment => {
                 let mut lines = HashSet::new();
@@ -4885,7 +4231,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             None,
                         ))
                     }
-                    self.edit(ctx, &[(&selection, "")], true, EditType::Delete)
+                    self.edit(&[(&selection, "")], true, EditType::Delete)
                 } else {
                     let mut selection = Selection::new();
                     for (line, _, _) in lines.iter() {
@@ -4894,7 +4240,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                         selection.add_region(SelRegion::new(start, start, None))
                     }
                     self.edit(
-                        ctx,
                         &[(&selection, &(comment_token + " "))],
                         true,
                         EditType::InsertChars,
@@ -5143,7 +4488,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
                 let next = self.find.next(&self.buffer.rope, offset, false, true);
                 if let Some((start, _end)) = next {
-                    self.do_move(ctx, &Movement::Offset(start), 1, mods);
+                    self.do_move(&Movement::Offset(start), 1, mods);
                 }
             }
             LapceCommand::SearchInView => {
@@ -5167,13 +4512,13 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .map(|(start, _)| start)
                     .filter(|start| *start < end_offset)
                 {
-                    self.do_move(ctx, &Movement::Offset(start), 1, mods);
+                    self.do_move(&Movement::Offset(start), 1, mods);
                 } else {
                     let start_offset = self.buffer.offset_of_line(start_line);
                     if let Some((start, _)) =
                         self.find.next(&self.buffer.rope, start_offset, false, true)
                     {
-                        self.do_move(ctx, &Movement::Offset(start), 1, mods);
+                        self.do_move(&Movement::Offset(start), 1, mods);
                     }
                 }
             }
@@ -5182,7 +4527,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let offset = self.editor.cursor.offset();
                 let next = self.find.next(&self.buffer.rope, offset, false, true);
                 if let Some((start, _end)) = next {
-                    self.do_move(ctx, &Movement::Offset(start), 1, mods);
+                    self.do_move(&Movement::Offset(start), 1, mods);
                 }
             }
             LapceCommand::SearchBackward => {
@@ -5204,7 +4549,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     let offset = self.editor.cursor.offset();
                     let next = self.find.next(&self.buffer.rope, offset, true, true);
                     if let Some((start, _end)) = next {
-                        self.do_move(ctx, &Movement::Offset(start), 1, mods);
+                        self.do_move(&Movement::Offset(start), 1, mods);
                     }
                 }
             }
@@ -5233,7 +4578,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::RepeatLastInlineFind => {
                 if let Some((direction, c)) = self.editor.last_inline_find.clone() {
-                    self.inline_find(ctx, direction, &c);
+                    self.inline_find(direction, &c);
                 }
             }
             LapceCommand::InlineFindLeft => {
@@ -5254,7 +4599,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                     let end =
                         self.buffer.first_non_blank_character_on_line(line + 1);
                     self.edit(
-                        ctx,
                         &[(&Selection::region(start, end), " ")],
                         false,
                         EditType::Other,
@@ -5345,7 +4689,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let c = c.chars().next().unwrap();
                 if !matching_pair_direction(c).unwrap_or(true) {
                     if cursor_char == Some(c) {
-                        self.do_move(ctx, &Movement::Right, 1, Modifiers::empty());
+                        self.do_move(&Movement::Right, 1, Modifiers::empty());
                         return;
                     } else {
                         let offset = selection.get_cursor_offset();
@@ -5371,12 +4715,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
 
-            let delta = self.edit(
-                ctx,
-                &[(&selection, &content)],
-                true,
-                EditType::InsertChars,
-            );
+            let delta =
+                self.edit(&[(&selection, &content)], true, EditType::InsertChars);
             let selection =
                 selection.apply_delta(&delta, true, InsertDrift::Default);
             let editor = Arc::make_mut(&mut self.editor);
@@ -5397,7 +4737,6 @@ impl KeyPressFocus for LapceEditorBufferData {
                 {
                     if let Some(c) = matching_char(c) {
                         self.edit(
-                            ctx,
                             &[(&selection, &c.to_string())],
                             false,
                             EditType::InsertChars,
@@ -5407,7 +4746,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             self.update_completion(ctx);
         } else if let Some(direction) = self.editor.inline_find.clone() {
-            self.inline_find(ctx, direction.clone(), c);
+            self.inline_find(direction.clone(), c);
             let editor = Arc::make_mut(&mut self.editor);
             editor.last_inline_find = Some((direction, c.to_string()));
             editor.inline_find = None;

@@ -25,7 +25,7 @@ use lapce_data::{
 };
 
 use crate::{
-    editor::LapceEditorView,
+    editor::view::LapceEditorView,
     keymap::LapceKeymap,
     scroll::{LapcePadding, LapceScrollNew},
     split::LapceSplitNew,
@@ -86,8 +86,14 @@ pub struct LapceSettingsPanel {
 impl LapceSettingsPanel {
     pub fn new(data: &LapceTabData) -> Self {
         let children = vec![
-            WidgetPod::new(Box::new(LapceSettings::new_split(LapceSettingsKind::Core, data)) as Box<dyn Widget<_>>),
-            WidgetPod::new(Box::new(LapceSettings::new_split(LapceSettingsKind::Editor, data))),
+            WidgetPod::new(Box::new(LapceSettings::new_split(
+                LapceSettingsKind::Core,
+                data,
+            )) as Box<dyn Widget<_>>),
+            WidgetPod::new(Box::new(LapceSettings::new_split(
+                LapceSettingsKind::Editor,
+                data,
+            ))),
             WidgetPod::new(Box::new(LapceKeymap::new_split(data))),
         ];
         Self {
@@ -444,10 +450,7 @@ pub struct LapceSettings {
 }
 
 impl LapceSettings {
-    pub fn new_split(
-        kind: LapceSettingsKind,
-        data: &LapceTabData,
-    ) -> LapceSplitNew {
+    pub fn new_split(kind: LapceSettingsKind, data: &LapceTabData) -> LapceSplitNew {
         let settings = LapceScrollNew::new(
             Self {
                 widget_id: WidgetId::next(),
