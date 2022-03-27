@@ -18,7 +18,7 @@ directories = "4.0.1"
 locale_config = "0.3.0"
 base64 = "0.13.0"
 alacritty_terminal = "0.16"
-mio = "0.6.20"
+mio = "0.6.23"
 hotwatch = "0.4.6"
 notify = "5.0.0-pre.13"
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
