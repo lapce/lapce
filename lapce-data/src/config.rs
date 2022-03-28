@@ -166,6 +166,20 @@ impl Theme {
     pub fn color(&self, key: &str) -> Option<&Color> {
         self.other.get(key)
     }
+
+    fn merge_maps_in_place(
+        dst: &mut HashMap<String, Color>,
+        src: &HashMap<String, Color>,
+    ) {
+        for (key, value) in src.iter() {
+            dst.entry(key.clone()).or_insert(value.clone());
+        }
+    }
+
+    fn merge_from(&mut self, default: &Theme) {
+        Self::merge_maps_in_place(&mut self.style, &default.style);
+        Self::merge_maps_in_place(&mut self.other, &default.other);
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -185,11 +199,14 @@ impl Themes {
         self.themes.keys()
     }
 
-    /// Load a theme by its name.
+    /// Loads a theme from disk by its name.
+    ///
     /// Does not load the theme if it has already been loaded.
     /// If this returns `Ok(())` then it succeeded in loading the theme and it can
     /// be expected to be in the `themes` field.
-    fn load_theme(&mut self, theme_name: &str) -> Result<()> {
+    ///
+    /// Missing keys will be copied from the default theme.
+    fn load_theme(&mut self, theme_name: &str, default: &Theme) -> Result<()> {
         if self.themes.contains_key(theme_name) {
             // We already have the theme loaded, so we don't have to do anything
             return Ok(());
@@ -216,14 +233,12 @@ impl Themes {
         let theme_content =
             std::fs::read_to_string(theme_path).map_err(LoadThemeError::Read)?;
 
-        let theme = get_theme(&theme_content)?;
+        let mut theme = get_theme(&theme_content)?;
+        theme.merge_from(default);
 
         // Insert it into the themes hashmap
         // Most users won't have an absurd amount of themes, so that we don't clean this
         // up doesn't matter too much. Though, that could be added without much issue.
-
-        // We already checked early on that it was contained, so we simply insert without
-        // checking if it already exists
         self.insert(theme_name.to_string(), theme);
 
         Ok(())
@@ -235,7 +250,7 @@ pub struct Config {
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
     #[serde(skip)]
-    pub theme: Theme,
+    pub default_theme: Theme,
     #[serde(skip)]
     pub current_theme: Theme,
     #[serde(skip)]
@@ -295,30 +310,15 @@ impl Config {
 
         let mut config: Config = settings.try_into()?;
 
-        config.theme = get_theme(DEFAULT_LIGHT_THEME)?;
-
         let mut themes = Themes::default();
         themes.insert("Lapce Light".to_string(), get_theme(DEFAULT_LIGHT_THEME)?);
         themes.insert("Lapce Dark".to_string(), get_theme(DEFAULT_DARK_THEME)?);
         config.themes = themes;
 
-        // Load the theme declared in the file, if there was one
-        // If there was an error, we don't stop creating the config, as that will let the user
-        // still rely on their other settings
-        if let Err(err) = config.themes.load_theme(config.lapce.color_theme.as_str())
-        {
-            log::warn!("Failed to load theme set in config: {:?}", err);
+        if config.apply_current_theme().is_err() {
+            // Set as preview so we won't overwrite the user's theme setting.
+            config.set_theme("Lapce Light", true);
         }
-
-        // Set up the current theme reference.
-        config.current_theme = config
-            .themes
-            .get(&config.lapce.color_theme)
-            .cloned()
-            .unwrap_or_else(|| {
-                // Fall back to the default theme if the current one is invalid
-                config.theme.clone()
-            });
 
         Ok(config)
     }
@@ -429,35 +429,40 @@ impl Config {
         Some(())
     }
 
-    pub fn set_theme(&mut self, theme: &str, preview: bool) -> Option<()> {
-        if let Err(err) = self.themes.load_theme(theme) {
+    fn apply_current_theme(&mut self) -> Result<()> {
+        let theme_name = self.lapce.color_theme.as_str();
+
+        if let Err(err) = self.themes.load_theme(theme_name, &self.default_theme) {
             log::warn!("Failed to load theme: {:?}", err);
-            return None;
+            return Err(err);
         }
 
-        self.lapce.color_theme = theme.to_string();
-        self.current_theme = self
-            .themes
-            .get(theme)
-            .cloned()
-            .unwrap_or_else(|| self.theme.clone());
+        self.current_theme = self.themes.themes[theme_name].clone();
 
-        if !preview {
-            Config::update_file(
-                "lapce.color-theme",
-                toml::Value::String(theme.to_string()),
-            )?;
-        }
-        None
+        Ok(())
     }
 
-    /// Tries to read a color from the current theme. If the color does not exist,
-    /// `get_color_with_fallback` will try and read it from the default theme. The function will
-    /// return `None` if `name` is not a color name.
-    pub fn get_color_with_fallback(&self, name: &str) -> Option<&Color> {
-        self.current_theme
-            .color(name)
-            .or_else(|| self.theme.color(name))
+    pub fn set_theme(&mut self, theme: &str, preview: bool) -> bool {
+        let old_theme =
+            std::mem::replace(&mut self.lapce.color_theme, theme.to_string());
+
+        if self.apply_current_theme().is_err() {
+            self.lapce.color_theme = old_theme;
+            return false;
+        }
+
+        if !preview {
+            if Config::update_file(
+                "lapce.color-theme",
+                toml::Value::String(theme.to_string()),
+            )
+            .is_none()
+            {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Get the color by the name from the current theme if it exists
@@ -466,7 +471,9 @@ impl Config {
     /// If the color was not able to be found in either theme, which may be indicative that
     /// it is mispelled or needs to be added to the base-theme.
     pub fn get_color_unchecked(&self, name: &str) -> &Color {
-        self.get_color_with_fallback(name).unwrap()
+        self.current_theme
+            .color(name)
+            .unwrap_or_else(|| panic!("Key not found: {name}"))
     }
 
     pub fn get_color(&self, name: &str) -> Option<&Color> {
