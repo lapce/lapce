@@ -143,6 +143,34 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// Reads a theme from the given TOML string.
+    pub fn parse(content: &str) -> Result<Theme> {
+        Self::default().extend(content)
+    }
+
+    /// Creates a new theme based on the current one, extending it with values parsed from `content`.
+    pub fn extend(&self, content: &str) -> Result<Theme> {
+        let theme_colors: std::collections::HashMap<String, String> =
+            toml::from_str(content)?;
+        let mut theme = HashMap::new();
+        for (k, v) in theme_colors.iter() {
+            if let Some(stripped) = v.strip_prefix('$') {
+                if let Some(hex) = theme_colors.get(stripped) {
+                    if let Ok(color) = hex_to_color(hex) {
+                        theme.insert(k.clone(), color);
+                    }
+                }
+            } else if let Ok(color) = hex_to_color(v) {
+                theme.insert(k.clone(), color);
+            }
+        }
+
+        let mut theme = Theme::from(theme);
+        Theme::merge_from(&mut theme, self);
+
+        Ok(theme)
+    }
+
     pub fn from(map: HashMap<String, Color>) -> Self {
         let mut style = HashMap::new();
         let mut other = HashMap::new();
@@ -176,9 +204,9 @@ impl Theme {
         }
     }
 
-    fn merge_from(&mut self, default: &Theme) {
-        Self::merge_maps_in_place(&mut self.style, &default.style);
-        Self::merge_maps_in_place(&mut self.other, &default.other);
+    fn merge_from(&mut self, parent: &Theme) {
+        Self::merge_maps_in_place(&mut self.style, &parent.style);
+        Self::merge_maps_in_place(&mut self.other, &parent.other);
     }
 }
 
@@ -194,11 +222,11 @@ impl Default for Themes {
         let mut themes = HashMap::new();
         themes.insert(
             "Lapce Light".to_string(),
-            get_theme(DEFAULT_LIGHT_THEME, &Theme::default()).unwrap(),
+            Theme::parse(DEFAULT_LIGHT_THEME).unwrap(),
         );
         themes.insert(
             "Lapce Dark".to_string(),
-            get_theme(DEFAULT_DARK_THEME, &Theme::default()).unwrap(),
+            Theme::parse(DEFAULT_DARK_THEME).unwrap(),
         );
 
         let default_theme = themes["Lapce Light"].clone();
@@ -266,7 +294,7 @@ impl Themes {
         let theme_content =
             std::fs::read_to_string(theme_path).map_err(LoadThemeError::Read)?;
 
-        let theme = get_theme(&theme_content, &self.default_theme)?;
+        let theme = self.default_theme.extend(&theme_content)?;
 
         // Insert it into the themes hashmap
         // Most users won't have an absurd amount of themes, so that we don't clean this
@@ -624,27 +652,4 @@ impl Config {
         }
         Some(path)
     }
-}
-
-/// Creates a new theme based on `parent` and the theme parsed from `content`.
-fn get_theme(content: &str, parent: &Theme) -> Result<Theme> {
-    let theme_colors: std::collections::HashMap<String, String> =
-        toml::from_str(content)?;
-    let mut theme = HashMap::new();
-    for (k, v) in theme_colors.iter() {
-        if let Some(stripped) = v.strip_prefix('$') {
-            if let Some(hex) = theme_colors.get(stripped) {
-                if let Ok(color) = hex_to_color(hex) {
-                    theme.insert(k.clone(), color);
-                }
-            }
-        } else if let Ok(color) = hex_to_color(v) {
-            theme.insert(k.clone(), color);
-        }
-    }
-
-    let mut theme = Theme::from(theme);
-    Theme::merge_from(&mut theme, parent);
-
-    Ok(theme)
 }
