@@ -182,10 +182,35 @@ impl Theme {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Themes {
     themes: HashMap<String, Theme>,
+    default_theme: Theme,
+    current_theme: Theme,
 }
+
+impl Default for Themes {
+    fn default() -> Self {
+        let mut themes = HashMap::new();
+        themes.insert(
+            "Lapce Light".to_string(),
+            get_theme(DEFAULT_LIGHT_THEME).unwrap(),
+        );
+        themes.insert(
+            "Lapce Dark".to_string(),
+            get_theme(DEFAULT_DARK_THEME).unwrap(),
+        );
+
+        let default_theme = themes["Lapce Light"].clone();
+
+        Self {
+            current_theme: default_theme.clone(),
+            default_theme,
+            themes,
+        }
+    }
+}
+
 impl Themes {
     pub fn get(&self, theme_name: &str) -> Option<&Theme> {
         self.themes.get(theme_name)
@@ -199,6 +224,14 @@ impl Themes {
         self.themes.keys()
     }
 
+    pub fn style_color(&self, key: &str) -> Option<&Color> {
+        self.current_theme.style_color(key)
+    }
+
+    pub fn color(&self, key: &str) -> Option<&Color> {
+        self.current_theme.color(key)
+    }
+
     /// Loads a theme from disk by its name.
     ///
     /// Does not load the theme if it has already been loaded.
@@ -206,7 +239,7 @@ impl Themes {
     /// be expected to be in the `themes` field.
     ///
     /// Missing keys will be copied from the default theme.
-    fn load_theme(&mut self, theme_name: &str, default: &Theme) -> Result<()> {
+    fn load_theme(&mut self, theme_name: &str) -> Result<()> {
         if self.themes.contains_key(theme_name) {
             // We already have the theme loaded, so we don't have to do anything
             return Ok(());
@@ -234,12 +267,23 @@ impl Themes {
             std::fs::read_to_string(theme_path).map_err(LoadThemeError::Read)?;
 
         let mut theme = get_theme(&theme_content)?;
-        theme.merge_from(default);
+        theme.merge_from(&self.default_theme);
 
         // Insert it into the themes hashmap
         // Most users won't have an absurd amount of themes, so that we don't clean this
         // up doesn't matter too much. Though, that could be added without much issue.
         self.insert(theme_name.to_string(), theme);
+
+        Ok(())
+    }
+
+    fn apply_theme(&mut self, theme: &str) -> Result<()> {
+        if let Err(err) = self.load_theme(theme) {
+            log::warn!(r#"Failed to load theme "{theme}": {:?}"#, err);
+            return Err(err);
+        }
+
+        self.current_theme = self.themes[theme].clone();
 
         Ok(())
     }
@@ -249,10 +293,6 @@ impl Themes {
 pub struct Config {
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
-    #[serde(skip)]
-    pub default_theme: Theme,
-    #[serde(skip)]
-    pub current_theme: Theme,
     #[serde(skip)]
     pub themes: Themes,
 }
@@ -310,12 +350,13 @@ impl Config {
 
         let mut config: Config = settings.try_into()?;
 
-        let mut themes = Themes::default();
-        themes.insert("Lapce Light".to_string(), get_theme(DEFAULT_LIGHT_THEME)?);
-        themes.insert("Lapce Dark".to_string(), get_theme(DEFAULT_DARK_THEME)?);
-        config.themes = themes;
+        config.themes = Themes::default();
 
-        if config.apply_current_theme().is_err() {
+        if config
+            .themes
+            .apply_theme(&config.lapce.color_theme)
+            .is_err()
+        {
             // Set as preview so we won't overwrite the user's theme setting.
             config.set_theme("Lapce Light", true);
         }
@@ -429,27 +470,12 @@ impl Config {
         Some(())
     }
 
-    fn apply_current_theme(&mut self) -> Result<()> {
-        let theme_name = self.lapce.color_theme.as_str();
-
-        if let Err(err) = self.themes.load_theme(theme_name, &self.default_theme) {
-            log::warn!("Failed to load theme: {:?}", err);
-            return Err(err);
-        }
-
-        self.current_theme = self.themes.themes[theme_name].clone();
-
-        Ok(())
-    }
-
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> bool {
-        let old_theme =
-            std::mem::replace(&mut self.lapce.color_theme, theme.to_string());
-
-        if self.apply_current_theme().is_err() {
-            self.lapce.color_theme = old_theme;
+        if self.themes.apply_theme(theme).is_err() {
             return false;
         }
+
+        self.lapce.color_theme = theme.to_string();
 
         if !preview {
             if Config::update_file(
@@ -471,18 +497,18 @@ impl Config {
     /// If the color was not able to be found in either theme, which may be indicative that
     /// it is mispelled or needs to be added to the base-theme.
     pub fn get_color_unchecked(&self, name: &str) -> &Color {
-        self.current_theme
+        self.themes
             .color(name)
             .unwrap_or_else(|| panic!("Key not found: {name}"))
     }
 
     pub fn get_color(&self, name: &str) -> Option<&Color> {
-        self.current_theme.color(name)
+        self.themes.color(name)
     }
 
     /// Retrieve a color value whose key starts with "style."
     pub fn get_style_color(&self, name: &str) -> Option<&Color> {
-        self.current_theme.style_color(name)
+        self.themes.style_color(name)
     }
 
     pub fn char_width(&self, text: &mut PietText, font_size: f64) -> f64 {
