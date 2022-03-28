@@ -44,7 +44,9 @@ pub enum LapceLanguage {
     Python,
     Toml,
     Php,
-    Elixir
+    Elixir,
+    C,
+    Cpp,
 }
 
 impl LapceLanguage {
@@ -60,8 +62,9 @@ impl LapceLanguage {
             "py" => LapceLanguage::Python,
             "toml" => LapceLanguage::Toml,
             "php" => LapceLanguage::Php,
-            "ex" => LapceLanguage::Elixir,
-            "exs" => LapceLanguage::Elixir,
+            "ex" | "exs" => LapceLanguage::Elixir,
+            "c" | "h" => LapceLanguage::C,
+            "cpp" | "cxx" | "cc" | "hpp" | "hxx" => LapceLanguage::Cpp,
             _ => return None,
         })
     }
@@ -78,6 +81,8 @@ impl LapceLanguage {
             LapceLanguage::Toml => "#",
             LapceLanguage::Php => "//",
             LapceLanguage::Elixir => "#",
+            LapceLanguage::C => "//",
+            LapceLanguage::Cpp => "//",
         }
     }
 
@@ -93,6 +98,8 @@ impl LapceLanguage {
             LapceLanguage::Toml => "  ",
             LapceLanguage::Php => "  ",
             LapceLanguage::Elixir => "  "
+            LapceLanguage::C => "  ",
+            LapceLanguage::Cpp => "    ",
         }
     }
 
@@ -110,6 +117,8 @@ impl LapceLanguage {
             LapceLanguage::Toml => tree_sitter_toml::language(),
             LapceLanguage::Php => tree_sitter_php::language(),
             LapceLanguage::Elixir => tree_sitter_elixir::language()
+            LapceLanguage::C => tree_sitter_c::language(),
+            LapceLanguage::Cpp => tree_sitter_cpp::language(),
         }
     }
 
@@ -132,7 +141,9 @@ impl LapceLanguage {
             LapceLanguage::Python => tree_sitter_python::HIGHLIGHT_QUERY,
             LapceLanguage::Toml => tree_sitter_toml::HIGHLIGHT_QUERY,
             LapceLanguage::Php => tree_sitter_php::HIGHLIGHT_QUERY,
-            LapceLanguage::Elixir => tree_sitter_elixir::HIGHLIGHTS_QUERY
+            LapceLanguage::Elixir => tree_sitter_elixir::HIGHLIGHTS_QUERY,
+            LapceLanguage::C => tree_sitter_c::HIGHLIGHT_QUERY,
+            LapceLanguage::Cpp => tree_sitter_cpp::HIGHLIGHT_QUERY,
         };
 
         HighlightConfiguration::new(language, query, "", "").unwrap()

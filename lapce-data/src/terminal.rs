@@ -15,7 +15,7 @@ use druid::{
     WidgetId,
 };
 use hashbrown::HashMap;
-use lapce_proxy::terminal::TermId;
+use lapce_rpc::terminal::TermId;
 use parking_lot::Mutex;
 
 use crate::{

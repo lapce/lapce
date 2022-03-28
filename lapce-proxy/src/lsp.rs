@@ -13,14 +13,17 @@ use std::os::windows::process::CommandExt;
 
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
-use lapce_rpc::RequestId;
+use lapce_rpc::{
+    buffer::BufferId,
+    style::{LineStyle, Style},
+    RequestId,
+};
 use lsp_types::*;
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 
+use crate::buffer::Buffer;
 use crate::dispatch::Dispatcher;
-use crate::{buffer::Buffer, style::LineStyle};
-use crate::{buffer::BufferId, style::Style};
 
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";
@@ -425,12 +428,15 @@ impl LspClient {
     }
 
     pub fn get_uri(&self, buffer: &Buffer) -> Url {
-        let exits = {
+        let exists = {
             let state = self.state.lock();
             state.opened_documents.contains_key(&buffer.id)
         };
-        if !exits {
-            let document_uri = Url::from_file_path(&buffer.path).unwrap();
+        if !exists {
+            let document_uri =
+                Url::from_file_path(&buffer.path).unwrap_or_else(|_| {
+                    panic!("Failed to create URL from path {:?}", buffer.path)
+                });
             self.send_did_open(
                 &buffer.id,
                 document_uri,

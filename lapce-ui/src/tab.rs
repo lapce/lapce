@@ -26,6 +26,7 @@ use lapce_data::{
     movement::{self, CursorMode, Selection},
     palette::PaletteStatus,
     panel::{PanelPosition, PanelResizePosition},
+    proxy::path_from_url,
     state::LapceWorkspaceType,
 };
 use lsp_types::DiagnosticSeverity;
@@ -518,7 +519,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                     }
                     LapceUICommand::PublishDiagnostics(diagnostics) => {
-                        let path = PathBuf::from(diagnostics.uri.path());
+                        let path = path_from_url(&diagnostics.uri);
                         let diagnostics = diagnostics
                             .diagnostics
                             .iter()
@@ -563,7 +564,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::DocumentFormat(path, rev, result) => {
                         data.main_split.document_format(
-                            ctx,
                             path,
                             *rev,
                             result,
@@ -769,7 +769,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 let locations = locations
                                     .iter()
                                     .map(|l| EditorLocationNew {
-                                        path: PathBuf::from(l.uri.path()),
+                                        path: path_from_url(&l.uri),
                                         position: Some(l.range.start),
                                         scroll_offset: None,
                                         hisotry: None,

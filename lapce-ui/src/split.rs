@@ -1,5 +1,5 @@
 use crate::{
-    editor::{LapceEditorTab, LapceEditorView},
+    editor::{tab::LapceEditorTab, view::LapceEditorView},
     svg::logo_svg,
     terminal::LapceTerminalView,
 };
@@ -28,7 +28,7 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
-use lapce_proxy::terminal::TermId;
+use lapce_rpc::terminal::TermId;
 use strum::EnumMessage;
 
 pub struct LapceDynamicSplit {

@@ -7,7 +7,7 @@ use druid::ExtEventSink;
 use druid::{Target, WidgetId};
 
 use include_dir::{include_dir, Dir};
-use lapce_proxy::dispatch::FileNodeItem;
+use lapce_rpc::file::FileNodeItem;
 
 use crate::proxy::LapceProxy;
 use crate::state::LapceWorkspace;

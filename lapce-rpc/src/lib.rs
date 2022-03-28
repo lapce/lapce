@@ -1,5 +1,14 @@
+pub mod buffer;
+pub mod core;
+pub mod counter;
+pub mod file;
 mod parse;
+pub mod plugin;
+pub mod proxy;
+pub mod source_control;
 mod stdio;
+pub mod style;
+pub mod terminal;
 
 use std::collections::HashMap;
 use std::io::stdin;
