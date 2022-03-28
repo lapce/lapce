@@ -522,7 +522,7 @@ impl Config {
     /// Otherwise, get the color from the base them
     /// # Panics
     /// If the color was not able to be found in either theme, which may be indicative that
-    /// it is mispelled or needs to be added to the base-theme.
+    /// it is misspelled or needs to be added to the base-theme.
     pub fn get_color_unchecked(&self, name: &str) -> &Color {
         self.themes
             .color(name)
