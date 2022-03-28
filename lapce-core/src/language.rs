@@ -44,6 +44,7 @@ pub enum LapceLanguage {
     Python,
     Toml,
     Php,
+    Elixir
 }
 
 impl LapceLanguage {
@@ -59,6 +60,8 @@ impl LapceLanguage {
             "py" => LapceLanguage::Python,
             "toml" => LapceLanguage::Toml,
             "php" => LapceLanguage::Php,
+            "ex" => LapceLanguage::Elixir,
+            "exs" => LapceLanguage::Elixir,
             _ => return None,
         })
     }
@@ -74,6 +77,7 @@ impl LapceLanguage {
             LapceLanguage::Python => "#",
             LapceLanguage::Toml => "#",
             LapceLanguage::Php => "//",
+            LapceLanguage::Elixir => "#",
         }
     }
 
@@ -88,6 +92,7 @@ impl LapceLanguage {
             LapceLanguage::Python => "    ",
             LapceLanguage::Toml => "  ",
             LapceLanguage::Php => "  ",
+            LapceLanguage::Elixir => "  "
         }
     }
 
@@ -104,6 +109,7 @@ impl LapceLanguage {
             LapceLanguage::Python => tree_sitter_python::language(),
             LapceLanguage::Toml => tree_sitter_toml::language(),
             LapceLanguage::Php => tree_sitter_php::language(),
+            LapceLanguage::Elixir => tree_sitter_elixir::language()
         }
     }
 
@@ -126,6 +132,7 @@ impl LapceLanguage {
             LapceLanguage::Python => tree_sitter_python::HIGHLIGHT_QUERY,
             LapceLanguage::Toml => tree_sitter_toml::HIGHLIGHT_QUERY,
             LapceLanguage::Php => tree_sitter_php::HIGHLIGHT_QUERY,
+            LapceLanguage::Elixir => tree_sitter_elixir::HIGHLIGHTS_QUERY
         };
 
         HighlightConfiguration::new(language, query, "", "").unwrap()
