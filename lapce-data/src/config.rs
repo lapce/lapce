@@ -194,11 +194,11 @@ impl Default for Themes {
         let mut themes = HashMap::new();
         themes.insert(
             "Lapce Light".to_string(),
-            get_theme(DEFAULT_LIGHT_THEME).unwrap(),
+            get_theme(DEFAULT_LIGHT_THEME, &Theme::default()).unwrap(),
         );
         themes.insert(
             "Lapce Dark".to_string(),
-            get_theme(DEFAULT_DARK_THEME).unwrap(),
+            get_theme(DEFAULT_DARK_THEME, &Theme::default()).unwrap(),
         );
 
         let default_theme = themes["Lapce Light"].clone();
@@ -266,8 +266,7 @@ impl Themes {
         let theme_content =
             std::fs::read_to_string(theme_path).map_err(LoadThemeError::Read)?;
 
-        let mut theme = get_theme(&theme_content)?;
-        theme.merge_from(&self.default_theme);
+        let theme = get_theme(&theme_content, &self.default_theme)?;
 
         // Insert it into the themes hashmap
         // Most users won't have an absurd amount of themes, so that we don't clean this
@@ -627,14 +626,14 @@ impl Config {
     }
 }
 
-fn get_theme(content: &str) -> Result<Theme> {
+/// Creates a new theme based on `parent` and the theme parsed from `content`.
+fn get_theme(content: &str, parent: &Theme) -> Result<Theme> {
     let theme_colors: std::collections::HashMap<String, String> =
         toml::from_str(content)?;
     let mut theme = HashMap::new();
     for (k, v) in theme_colors.iter() {
         if let Some(stripped) = v.strip_prefix('$') {
-            let var_name = stripped;
-            if let Some(hex) = theme_colors.get(var_name) {
+            if let Some(hex) = theme_colors.get(stripped) {
                 if let Ok(color) = hex_to_color(hex) {
                     theme.insert(k.clone(), color);
                 }
@@ -643,5 +642,9 @@ fn get_theme(content: &str) -> Result<Theme> {
             theme.insert(k.clone(), color);
         }
     }
-    Ok(Theme::from(theme))
+
+    let mut theme = Theme::from(theme);
+    Theme::merge_from(&mut theme, parent);
+
+    Ok(theme)
 }
