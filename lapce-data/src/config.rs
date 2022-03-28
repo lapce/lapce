@@ -136,7 +136,38 @@ impl EditorConfig {
     }
 }
 
-pub type Theme = HashMap<String, Color>;
+#[derive(Debug, Clone, Default)]
+pub struct Theme {
+    style: HashMap<String, Color>,
+    other: HashMap<String, Color>,
+}
+
+impl Theme {
+    pub fn from(map: HashMap<String, Color>) -> Self {
+        let mut style = HashMap::new();
+        let mut other = HashMap::new();
+
+        for (key, value) in map.into_iter() {
+            if let Some(stripped) = key.strip_prefix("style.") {
+                style.insert(stripped.to_string(), value.clone());
+            }
+
+            // Keep styles in the other map, so it's easier to transition
+            other.insert(key, value);
+        }
+
+        Self { style, other }
+    }
+
+    pub fn style_color(&self, key: &str) -> Option<&Color> {
+        self.style.get(key)
+    }
+
+    pub fn color(&self, key: &str) -> Option<&Color> {
+        self.other.get(key)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Themes {
     themes: HashMap<String, Theme>,
@@ -410,8 +441,8 @@ impl Config {
     pub fn get_color_unchecked(&self, name: &str) -> &Color {
         self.themes
             .get(&self.lapce.color_theme)
-            .and_then(|theme| theme.get(name))
-            .or_else(|| self.theme.get(name))
+            .and_then(|theme| theme.color(name))
+            .or_else(|| self.theme.color(name))
             .unwrap()
     }
 
@@ -420,7 +451,16 @@ impl Config {
             .themes
             .get(&self.lapce.color_theme)
             .unwrap_or(&self.theme);
-        theme.get(name)
+        theme.color(name)
+    }
+
+    /// Retrieve a color value whose key starts with "style."
+    pub fn get_style_color(&self, name: &str) -> Option<&Color> {
+        let theme = self
+            .themes
+            .get(&self.lapce.color_theme)
+            .unwrap_or(&self.theme);
+        theme.style_color(name)
     }
 
     pub fn char_width(&self, text: &mut PietText, font_size: f64) -> f64 {
@@ -555,5 +595,5 @@ fn get_theme(content: &str) -> Result<Theme> {
             theme.insert(k.clone(), color);
         }
     }
-    Ok(theme)
+    Ok(Theme::from(theme))
 }
