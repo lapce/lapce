@@ -237,6 +237,8 @@ pub struct Config {
     #[serde(skip)]
     pub theme: Theme,
     #[serde(skip)]
+    pub current_theme: Theme,
+    #[serde(skip)]
     pub themes: Themes,
 }
 
@@ -307,6 +309,16 @@ impl Config {
         {
             log::warn!("Failed to load theme set in config: {:?}", err);
         }
+
+        // Set up the current theme reference.
+        config.current_theme = config
+            .themes
+            .get(&config.lapce.color_theme)
+            .cloned()
+            .unwrap_or_else(|| {
+                // Fall back to the default theme if the current one is invalid
+                config.theme.clone()
+            });
 
         Ok(config)
     }
@@ -418,11 +430,17 @@ impl Config {
     }
 
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> Option<()> {
-        self.lapce.color_theme = theme.to_string();
-
         if let Err(err) = self.themes.load_theme(theme) {
             log::warn!("Failed to load theme: {:?}", err);
+            return None;
         }
+
+        self.lapce.color_theme = theme.to_string();
+        self.current_theme = self
+            .themes
+            .get(theme)
+            .cloned()
+            .unwrap_or_else(|| self.theme.clone());
 
         if !preview {
             Config::update_file(
@@ -433,34 +451,31 @@ impl Config {
         None
     }
 
+    /// Tries to read a color from the current theme. If the color does not exist,
+    /// `get_color_with_fallback` will try and read it from the default theme. The function will
+    /// return `None` if `name` is not a color name.
+    pub fn get_color_with_fallback(&self, name: &str) -> Option<&Color> {
+        self.current_theme
+            .color(name)
+            .or_else(|| self.theme.color(name))
+    }
+
     /// Get the color by the name from the current theme if it exists
     /// Otherwise, get the color from the base them
     /// # Panics
     /// If the color was not able to be found in either theme, which may be indicative that
     /// it is mispelled or needs to be added to the base-theme.
     pub fn get_color_unchecked(&self, name: &str) -> &Color {
-        self.themes
-            .get(&self.lapce.color_theme)
-            .and_then(|theme| theme.color(name))
-            .or_else(|| self.theme.color(name))
-            .unwrap()
+        self.get_color_with_fallback(name).unwrap()
     }
 
     pub fn get_color(&self, name: &str) -> Option<&Color> {
-        let theme = self
-            .themes
-            .get(&self.lapce.color_theme)
-            .unwrap_or(&self.theme);
-        theme.color(name)
+        self.current_theme.color(name)
     }
 
     /// Retrieve a color value whose key starts with "style."
     pub fn get_style_color(&self, name: &str) -> Option<&Color> {
-        let theme = self
-            .themes
-            .get(&self.lapce.color_theme)
-            .unwrap_or(&self.theme);
-        theme.style_color(name)
+        self.current_theme.style_color(name)
     }
 
     pub fn char_width(&self, text: &mut PietText, font_size: f64) -> f64 {
