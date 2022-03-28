@@ -97,7 +97,7 @@ impl LapceLanguage {
             LapceLanguage::Python => "    ",
             LapceLanguage::Toml => "  ",
             LapceLanguage::Php => "  ",
-            LapceLanguage::Elixir => "  "
+            LapceLanguage::Elixir => "  ",
             LapceLanguage::C => "  ",
             LapceLanguage::Cpp => "    ",
         }
@@ -116,7 +116,7 @@ impl LapceLanguage {
             LapceLanguage::Python => tree_sitter_python::language(),
             LapceLanguage::Toml => tree_sitter_toml::language(),
             LapceLanguage::Php => tree_sitter_php::language(),
-            LapceLanguage::Elixir => tree_sitter_elixir::language()
+            LapceLanguage::Elixir => tree_sitter_elixir::language(),
             LapceLanguage::C => tree_sitter_c::language(),
             LapceLanguage::Cpp => tree_sitter_cpp::language(),
         }

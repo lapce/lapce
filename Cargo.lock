@@ -1862,9 +1862,9 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tree-sitter",
- "tree-sitter-elixir",
  "tree-sitter-c",
  "tree-sitter-cpp",
+ "tree-sitter-elixir",
  "tree-sitter-go",
  "tree-sitter-highlight",
  "tree-sitter-javascript",
@@ -4064,15 +4064,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tree-sitter-elixir"
-version = "0.19.0"
-source = "git+https://github.com/VitorTrin/tree-sitter-elixir.git#6a4315c39f176646f3e7efcef559f9e6e5bdd527"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
 name = "tree-sitter-c"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4087,6 +4078,15 @@ name = "tree-sitter-cpp"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a869e3c5cef4e5db4e9ab16a8dc84d73010e60ada14cdc60d2f6d8aed17779d"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-elixir"
+version = "0.19.0"
+source = "git+https://github.com/VitorTrin/tree-sitter-elixir.git#6a4315c39f176646f3e7efcef559f9e6e5bdd527"
 dependencies = [
  "cc",
  "tree-sitter",
