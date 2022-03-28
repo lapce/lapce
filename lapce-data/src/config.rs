@@ -152,7 +152,7 @@ impl Theme {
                 style.insert(stripped.to_string(), value.clone());
             }
 
-            // Keep styles in the other map, so it's easier to transition
+            // Keep styles in the other map, so they can still be looked up by their full paths.
             other.insert(key, value);
         }
 
