@@ -379,14 +379,7 @@ impl Config {
 
         config.themes = Themes::default();
 
-        if config
-            .themes
-            .apply_theme(&config.lapce.color_theme)
-            .is_err()
-        {
-            // Set as preview so we won't overwrite the user's theme setting.
-            config.set_theme("Lapce Light", true);
-        }
+        let _ = config.themes.apply_theme(&config.lapce.color_theme);
 
         Ok(config)
     }
