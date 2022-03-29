@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
+use lapce_rpc::buffer::BufferId;
 use std::ffi::OsString;
 use std::fs;
 use std::fs::File;
@@ -9,11 +10,7 @@ use std::path::PathBuf;
 use std::{borrow::Cow, path::Path, time::SystemTime};
 
 use lsp_types::*;
-use serde::{Deserialize, Serialize};
 use xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
-
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct BufferId(pub usize);
 
 pub struct Buffer {
     pub language_id: String,

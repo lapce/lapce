@@ -2,7 +2,6 @@ pub mod buffer;
 pub mod dispatch;
 pub mod lsp;
 pub mod plugin;
-pub mod style;
 pub mod terminal;
 
 use dispatch::Dispatcher;

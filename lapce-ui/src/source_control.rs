@@ -16,10 +16,10 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
     state::Mode,
 };
-use lapce_proxy::dispatch::FileDiff;
+use lapce_rpc::source_control::FileDiff;
 
 use crate::{
-    editor::LapceEditorView,
+    editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind},
     svg::{file_svg_new, get_svg},
 };

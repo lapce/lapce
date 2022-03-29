@@ -564,7 +564,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::DocumentFormat(path, rev, result) => {
                         data.main_split.document_format(
-                            ctx,
                             path,
                             *rev,
                             result,
