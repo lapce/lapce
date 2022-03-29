@@ -680,6 +680,7 @@ impl LapceTabData {
             buffer,
             editor: editor.clone(),
             config: self.config.clone(),
+            register: self.main_split.register.clone(),
         }
     }
 
@@ -749,15 +750,19 @@ impl LapceTabData {
         editor: &Arc<LapceEditorData>,
         buffer: &Arc<Buffer>,
     ) {
-        self.completion = editor_buffer_data.completion.clone();
-        self.hover = editor_buffer_data.hover.clone();
-        self.main_split = editor_buffer_data.main_split.clone();
-        self.find = editor_buffer_data.find.clone();
+        // Update possibly cloned `Arc`s.
+        self.completion = editor_buffer_data.completion;
+        self.hover = editor_buffer_data.hover;
+        self.main_split = editor_buffer_data.main_split;
+        self.main_split.register = editor_buffer_data.register;
+        self.find = editor_buffer_data.find;
+
         if !editor_buffer_data.editor.same(editor) {
             self.main_split
                 .editors
                 .insert(editor.view_id, editor_buffer_data.editor);
         }
+
         if !editor_buffer_data.buffer.same(buffer) {
             match &buffer.content {
                 BufferContent::File(path) => {

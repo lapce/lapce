@@ -11,6 +11,7 @@ use crate::command::LAPCE_NEW_COMMAND;
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
 use crate::data::MotionMode;
+use crate::data::Register;
 use crate::data::RegisterKind;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
@@ -132,6 +133,7 @@ pub struct LapceEditorBufferData {
     pub find: Arc<Find>,
     pub proxy: Arc<LapceProxy>,
     pub config: Arc<Config>,
+    pub register: Arc<Register>,
 }
 
 impl LapceEditorBufferData {
@@ -272,7 +274,7 @@ impl LapceEditorBufferData {
                 VisualMode::Normal
             },
         };
-        let register = Arc::make_mut(&mut self.main_split.register);
+        let register = Arc::make_mut(&mut self.register);
         register.add(kind, data);
     }
 
@@ -1302,7 +1304,7 @@ impl LapceEditorBufferData {
                     .editor
                     .cursor
                     .yank(&self.buffer, self.config.editor.tab_width);
-                let register = Arc::make_mut(&mut self.main_split.register);
+                let register = Arc::make_mut(&mut self.register);
                 register.add_delete(data);
             }
             CursorMode::Insert(_) => {}
@@ -2085,7 +2087,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .editor
                     .cursor
                     .yank(&self.buffer, self.config.editor.tab_width);
-                let register = Arc::make_mut(&mut self.main_split.register);
+                let register = Arc::make_mut(&mut self.register);
                 register.add_yank(data);
                 match &self.editor.cursor.mode {
                     #[allow(unused_variables)]
@@ -2143,7 +2145,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         .editor
                         .cursor
                         .yank(&self.buffer, self.config.editor.tab_width);
-                    let register = Arc::make_mut(&mut self.main_split.register);
+                    let register = Arc::make_mut(&mut self.register);
                     register.add_yank(data);
                 } else {
                     Arc::make_mut(&mut self.editor).motion_mode = None;
@@ -2185,7 +2187,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::Paste => {
-                let data = self.main_split.register.unamed.clone();
+                let data = self.register.unamed.clone();
                 self.paste(ctx, &data);
             }
             LapceCommand::DeleteWordForward => {
