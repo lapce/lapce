@@ -436,7 +436,16 @@ impl Dispatcher {
                     .lock()
                     .completion_resolve(id, buffer, &completion_item);
             }
-            GetSignature {
+            GetHover {
+                buffer_id,
+                position,
+                request_id,
+            } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_hover(id, request_id, buffer, position);
+            }
+            GetSignature {                
                 buffer_id,
                 position,
             } => {

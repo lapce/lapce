@@ -46,6 +46,7 @@ use crate::{
     editor::{EditorLocationNew, LapceEditorBufferData, TabRect},
     explorer::FileExplorerData,
     find::Find,
+    hover::HoverData,
     keypress::KeyPressData,
     menu::MenuData,
     movement::{Cursor, CursorMode, Movement, Selection},
@@ -385,6 +386,7 @@ pub struct LapceTabData {
     pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
+    pub hover: Arc<HoverData>,
     pub terminal: Arc<TerminalSplitData>,
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
@@ -418,6 +420,7 @@ impl Data for LapceTabData {
     fn same(&self, other: &Self) -> bool {
         self.main_split.same(&other.main_split)
             && self.completion.same(&other.completion)
+            && self.hover.same(&other.hover)
             && self.palette.same(&other.palette)
             && self.workspace.same(&other.workspace)
             && self.source_control.same(&other.source_control)
@@ -476,6 +479,7 @@ impl LapceTabData {
         ));
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
+        let hover = Arc::new(HoverData::new());
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
         let plugin = Arc::new(PluginData::new());
@@ -572,6 +576,7 @@ impl LapceTabData {
             focus,
             main_split,
             completion,
+            hover,
             terminal,
             plugin,
             problem,
@@ -668,6 +673,7 @@ impl LapceTabData {
             view_id: editor_view_id,
             main_split: self.main_split.clone(),
             completion: self.completion.clone(),
+            hover: self.hover.clone(),
             source_control: self.source_control.clone(),
             proxy: self.proxy.clone(),
             find: self.find.clone(),
@@ -745,6 +751,7 @@ impl LapceTabData {
         buffer: &Arc<Buffer>,
     ) {
         self.completion = editor_buffer_data.completion.clone();
+        self.hover = editor_buffer_data.hover.clone();
         self.main_split = editor_buffer_data.main_split.clone();
         self.find = editor_buffer_data.find.clone();
         if !editor_buffer_data.editor.same(editor) {
@@ -851,6 +858,55 @@ impl LapceTabData {
                 }
                 if origin.x + self.completion.size.width + 1.0 > tab_size.width {
                     origin.x = tab_size.width - self.completion.size.width - 1.0;
+                }
+                if origin.x <= 0.0 {
+                    origin.x = 0.0;
+                }
+
+                origin
+            }
+        }
+    }
+
+    pub fn hover_origin(
+        &self,
+        text: &mut PietText,
+        tab_size: Size,
+        config: &Config,
+    ) -> Point {
+        let line_height = self.config.editor.line_height as f64;
+
+        let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return Point::ZERO,
+        };
+
+        match &editor.content {
+            BufferContent::Local(_) => {
+                editor.window_origin - self.window_origin.to_vec2()
+            }
+            BufferContent::Value(_) => {
+                editor.window_origin - self.window_origin.to_vec2()
+            }
+            BufferContent::File(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap();
+                let offset = self.hover.offset;
+                let (line, col) =
+                    buffer.offset_to_line_col(offset, self.config.editor.tab_width);
+                let width = config.editor_text_width(text, "W");
+                let x = col as f64 * width - line_height - 5.0;
+                let y = (line + 1) as f64 * line_height;
+                let mut origin = editor.window_origin - self.window_origin.to_vec2()
+                    + Vec2::new(x, y);
+                if origin.y + self.hover.size.height + 1.0 > tab_size.height {
+                    let height = self.hover.size.height;
+                    origin.y = editor.window_origin.y - self.window_origin.y
+                        + line as f64 * line_height
+                        - height;
+                }
+                if origin.x + self.hover.size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - self.hover.size.width - 1.0;
                 }
                 if origin.x <= 0.0 {
                     origin.x = 0.0;

@@ -9,8 +9,8 @@ use lapce_rpc::{
     source_control::DiffInfo, style::Style, terminal::TermId,
 };
 use lsp_types::{
-    CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
-    ProgressParams, PublishDiagnosticsParams, TextEdit,
+    CodeActionResponse, CompletionItem, CompletionResponse, Hover, Location,
+    Position, ProgressParams, PublishDiagnosticsParams, TextEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -585,6 +585,7 @@ pub enum LapceUICommand {
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse),
+    UpdateHover(usize, Hover),
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
     ShowCodeActions,

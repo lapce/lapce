@@ -72,6 +72,8 @@ impl LapceTheme {
     pub const COMPLETION_BACKGROUND: &'static str = "completion.background";
     pub const COMPLETION_CURRENT: &'static str = "completion.current";
 
+    pub const HOVER_BACKGROUND: &'static str = "hover.background";
+
     pub const PANEL_BACKGROUND: &'static str = "panel.background";
     pub const PANEL_CURRENT: &'static str = "panel.current";
 
@@ -128,6 +130,10 @@ pub struct EditorConfig {
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
+    #[field_names(
+        desc = "How long (in ms) it should take before the hover information appears"
+    )]
+    pub hover_delay: u64,
 }
 
 impl EditorConfig {

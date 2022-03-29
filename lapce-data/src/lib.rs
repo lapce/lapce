@@ -9,6 +9,7 @@ pub mod db;
 pub mod editor;
 pub mod explorer;
 pub mod find;
+pub mod hover;
 pub mod keypress;
 pub mod lsp;
 pub mod menu;
