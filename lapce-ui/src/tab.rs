@@ -616,7 +616,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 path: path.clone(),
                                 position: None,
                                 scroll_offset: None,
-                                hisotry: Some(history.to_string()),
+                                history: Some(history.to_string()),
                             },
                             &data.config,
                         );
@@ -657,7 +657,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 path: path.clone(),
                                 position: None,
                                 scroll_offset: None,
-                                hisotry: None,
+                                history: None,
                             },
                             &data.config,
                         );
@@ -777,7 +777,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                                         path: path_from_url(&l.uri),
                                         position: Some(l.range.start),
                                         scroll_offset: None,
-                                        hisotry: None,
+                                        history: None,
                                     })
                                     .collect();
                                 ctx.submit_command(Command::new(
@@ -916,7 +916,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                     }
                     #[allow(unused_variables)]
-                    LapceUICommand::UpdateHisotryChanges {
+                    LapceUICommand::UpdateHistoryChanges {
                         id,
                         path,
                         rev,

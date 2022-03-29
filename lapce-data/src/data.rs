@@ -1121,7 +1121,7 @@ impl LapceTabData {
                             path,
                             position: None,
                             scroll_offset: None,
-                            hisotry: None,
+                            history: None,
                         },
                         &self.config,
                     );
@@ -1146,7 +1146,7 @@ impl LapceTabData {
                             path,
                             position: None,
                             scroll_offset: None,
-                            hisotry: None,
+                            history: None,
                         },
                         &self.config,
                     );
@@ -1171,7 +1171,7 @@ impl LapceTabData {
                             path,
                             position: None,
                             scroll_offset: None,
-                            hisotry: None,
+                            history: None,
                         },
                         &self.config,
                     );
@@ -2269,7 +2269,7 @@ impl LapceMainSplitData {
                 path: path.clone(),
                 position: Some(position),
                 scroll_offset: None,
-                hisotry: None,
+                history: None,
             };
             self.jump_to_location(ctx, editor_view_id, location, config);
         }
@@ -2327,7 +2327,7 @@ impl LapceMainSplitData {
             self.db.save_buffer_position(&self.workspace, &buffer);
         } else if location.position.is_none()
             && location.scroll_offset.is_none()
-            && location.hisotry.is_none()
+            && location.history.is_none()
         {
             return;
         }
@@ -2371,7 +2371,7 @@ impl LapceMainSplitData {
                 None => (buffer.cursor_offset, Some(&buffer.scroll_offset)),
             };
 
-            if let Some(compare) = location.hisotry.as_ref() {
+            if let Some(compare) = location.history.as_ref() {
                 if !buffer.histories.contains_key(compare) {
                     buffer.retrieve_file_head(
                         *self.tab_id,
@@ -2388,7 +2388,7 @@ impl LapceMainSplitData {
                 config,
             );
             editor.content = BufferContent::File(path.clone());
-            editor.compare = location.hisotry.clone();
+            editor.compare = location.history.clone();
             editor.cursor = if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(offset), None)
             } else {
@@ -3062,7 +3062,7 @@ impl LapceEditorData {
                     buffer.offset_to_position(self.cursor.offset(), tab_width),
                 ),
                 scroll_offset: Some(self.scroll_offset),
-                hisotry: None,
+                history: None,
             };
             self.locations.push(location);
             self.current_location = self.locations.len();
