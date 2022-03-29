@@ -57,6 +57,8 @@ magenta = "#C678DD"
 "completion.background" = "#21252B"
 "completion.current" = "#2C313A"
 
+"hover.background" = "#21252B"
+
 "panel.background" = "#21252B"
 "panel.current" = "#2C313A"
 

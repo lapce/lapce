@@ -490,6 +490,24 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_hover(
+        &self,
+        request_id: usize,
+        buffer_id: BufferId,
+        position: Position,
+        f: Box<dyn Callback>,
+    ) {
+        self.rpc.send_rpc_request_async(
+            "get_hover",
+            &json!({
+                "request_id": request_id,
+                "buffer_id": buffer_id,
+                "position": position,
+            }),
+            f,
+        );
+    }
+
     pub fn get_signature(
         &self,
         buffer_id: BufferId,

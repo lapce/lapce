@@ -1,5 +1,7 @@
+use std::time::Duration;
 use std::{iter::Iterator, sync::Arc, time::Instant};
 
+use druid::TimerToken;
 use druid::{
     kurbo::{BezPath, Line},
     piet::{PietText, PietTextLayout, Text, TextLayout as _, TextLayoutBuilder},
@@ -105,6 +107,9 @@ pub struct LapceEditor {
 
     last_left_click: Option<(Instant, ClickKind, Point)>,
     mouse_pos: Point,
+    /// A timer for listening for when the user has hovered for long enough to trigger showing
+    /// of hover info (if there is any)
+    mouse_hover_timer: TimerToken,
 }
 
 impl LapceEditor {
@@ -115,6 +120,7 @@ impl LapceEditor {
             commands: vec![],
             last_left_click: None,
             mouse_pos: Point::ZERO,
+            mouse_hover_timer: TimerToken::INVALID,
         }
     }
 
@@ -130,10 +136,14 @@ impl LapceEditor {
             MouseButton::Left => {
                 self.left_click(ctx, mouse_event, editor_data, config);
                 editor_data.cancel_completion();
+                // TODO: Don't cancel over here, because it would good to allow the user to
+                // select text inside the hover data
+                editor_data.cancel_hover();
             }
             MouseButton::Right => {
                 self.right_click(ctx, editor_data, mouse_event, config);
                 editor_data.cancel_completion();
+                editor_data.cancel_hover();
             }
             MouseButton::Middle => {}
             _ => (),
@@ -1611,6 +1621,11 @@ impl Widget<LapceTabData> for LapceEditor {
                 ctx.set_cursor(&druid::Cursor::IBeam);
                 if mouse_event.pos != self.mouse_pos {
                     self.mouse_pos = mouse_event.pos;
+                    // Get a new hover timer, overwriting the old one that will just be ignored
+                    // when it is received
+                    self.mouse_hover_timer = ctx.request_timer(
+                        Duration::from_millis(data.config.editor.hover_delay),
+                    );
                     if ctx.is_active() {
                         let editor_data = data.editor_view_content(self.view_id);
                         let new_offset = editor_data.offset_of_mouse(
@@ -1674,6 +1689,25 @@ impl Widget<LapceTabData> for LapceEditor {
                 //     }
                 //     _ => {}
                 // }
+            }
+            Event::Timer(id) => {
+                if self.mouse_hover_timer == *id {
+                    let editor =
+                        data.main_split.editors.get(&self.view_id).unwrap().clone();
+                    let mut editor_data = data.editor_view_content(self.view_id);
+                    let buffer = editor_data.buffer.clone();
+                    let offset = editor_data.offset_of_mouse(
+                        ctx.text(),
+                        self.mouse_pos,
+                        &data.config,
+                    );
+                    editor_data.update_hover(ctx, offset);
+                    data.update_from_editor_buffer_data(
+                        editor_data,
+                        &editor,
+                        &buffer,
+                    );
+                }
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);

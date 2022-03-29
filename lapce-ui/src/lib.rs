@@ -6,6 +6,7 @@ pub mod container;
 pub mod editor;
 pub mod explorer;
 pub mod find;
+pub mod hover;
 pub mod keymap;
 pub mod menu;
 pub mod outline;

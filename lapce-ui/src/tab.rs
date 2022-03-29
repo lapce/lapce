@@ -22,6 +22,7 @@ use lapce_data::{
         WorkProgress,
     },
     editor::EditorLocationNew,
+    hover::HoverStatus,
     keypress::KeyPressData,
     movement::{self, CursorMode, Selection},
     palette::PaletteStatus,
@@ -34,10 +35,11 @@ use serde::Deserialize;
 
 use crate::{
     activity::ActivityBar, code_action::CodeAction, completion::CompletionContainer,
-    explorer::FileExplorer, palette::NewPalette, picker::FilePicker, plugin::Plugin,
-    problem::new_problem_panel, search::new_search_panel,
-    settings::LapceSettingsPanel, source_control::new_source_control_panel,
-    split::split_data_widget, status::LapceStatusNew, terminal::TerminalPanel,
+    explorer::FileExplorer, hover::HoverContainer, palette::NewPalette,
+    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
+    search::new_search_panel, settings::LapceSettingsPanel,
+    source_control::new_source_control_panel, split::split_data_widget,
+    status::LapceStatusNew, terminal::TerminalPanel,
 };
 
 pub struct LapceIcon {
@@ -57,6 +59,7 @@ pub struct LapceTabNew {
     activity: WidgetPod<LapceTabData, ActivityBar>,
     main_split: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     completion: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    hover: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     palette: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     code_action: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -82,6 +85,7 @@ impl LapceTabNew {
 
         let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
+        let hover = HoverContainer::new(&data.hover);
         let palette = NewPalette::new(
             &data.palette,
             data.main_split
@@ -126,6 +130,7 @@ impl LapceTabNew {
             activity: WidgetPod::new(activity),
             main_split: WidgetPod::new(main_split.boxed()),
             completion: WidgetPod::new(completion.boxed()),
+            hover: WidgetPod::new(hover.boxed()),
             code_action: WidgetPod::new(code_action.boxed()),
             picker: WidgetPod::new(picker.boxed()),
             palette: WidgetPod::new(palette.boxed()),
@@ -982,6 +987,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.picker.event(ctx, event, data, env);
         self.palette.event(ctx, event, data, env);
         self.completion.event(ctx, event, data, env);
+        self.hover.event(ctx, event, data, env);
         self.code_action.event(ctx, event, data, env);
         self.main_split.event(ctx, event, data, env);
         self.status.event(ctx, event, data, env);
@@ -1024,6 +1030,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.code_action.lifecycle(ctx, event, data, env);
         self.status.lifecycle(ctx, event, data, env);
         self.completion.lifecycle(ctx, event, data, env);
+        self.hover.lifecycle(ctx, event, data, env);
         self.picker.lifecycle(ctx, event, data, env);
         self.settings.lifecycle(ctx, event, data, env);
 
@@ -1071,6 +1078,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.activity.update(ctx, data, env);
         self.main_split.update(ctx, data, env);
         self.completion.update(ctx, data, env);
+        self.hover.update(ctx, data, env);
         self.code_action.update(ctx, data, env);
         self.status.update(ctx, data, env);
         self.picker.update(ctx, data, env);
@@ -1336,6 +1344,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                 .set_origin(ctx, data, env, completion_origin);
         }
 
+        if data.hover.status != HoverStatus::Inactive {
+            let hover_origin =
+                data.hover_origin(ctx.text(), self_size, &data.config);
+            self.hover.layout(ctx, bc, data, env);
+            self.hover.set_origin(ctx, data, env, hover_origin);
+        }
+
         if data.main_split.show_code_actions {
             let code_action_origin =
                 data.code_action_origin(ctx.text(), self_size, &data.config);
@@ -1439,6 +1454,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         // }
         self.status.paint(ctx, data, env);
         self.completion.paint(ctx, data, env);
+        self.hover.paint(ctx, data, env);
         self.code_action.paint(ctx, data, env);
         self.palette.paint(ctx, data, env);
         self.picker.paint(ctx, data, env);

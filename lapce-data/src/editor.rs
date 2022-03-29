@@ -17,6 +17,8 @@ use crate::data::{
     RegisterData, SplitContent,
 };
 use crate::movement::InsertDrift;
+use crate::hover::HoverData;
+use crate::hover::HoverStatus;
 use crate::proxy::path_from_url;
 use crate::state::LapceWorkspace;
 use crate::{buffer::WordProperty, movement::CursorMode};
@@ -125,6 +127,7 @@ pub struct LapceEditorBufferData {
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<Buffer>,
     pub completion: Arc<CompletionData>,
+    pub hover: Arc<HoverData>,
     pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub source_control: Arc<SourceControlData>,
@@ -528,6 +531,10 @@ impl LapceEditorBufferData {
             && self.completion.len() > 0
     }
 
+    fn has_hover(&self) -> bool {
+        self.hover.status != HoverStatus::Inactive && !self.hover.is_empty()
+    }
+
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
         let additional_edit: Option<Vec<_>> =
             item.additional_text_edits.as_ref().map(|edits| {
@@ -668,6 +675,11 @@ impl LapceEditorBufferData {
         completion.cancel();
     }
 
+    pub fn cancel_hover(&mut self) {
+        let hover = Arc::make_mut(&mut self.hover);
+        hover.cancel();
+    }
+
     fn update_completion(&mut self, ctx: &mut EventCtx) {
         if self.get_mode() != Mode::Insert {
             return;
@@ -766,6 +778,50 @@ impl LapceEditorBufferData {
                 event_sink,
             );
         }
+    }
+
+    pub fn update_hover(&mut self, ctx: &mut EventCtx, offset: usize) {
+        if !self.buffer.loaded {
+            return;
+        }
+
+        if self.buffer.local {
+            return;
+        }
+
+        let start_offset = self.buffer.prev_code_boundary(offset);
+        let end_offset = self.buffer.next_code_boundary(offset);
+        let input = self.buffer.slice_to_cow(start_offset..end_offset);
+        if input.trim().is_empty() {
+            return;
+        }
+
+        let mut hover = Arc::make_mut(&mut self.hover);
+
+        if hover.status != HoverStatus::Inactive
+            && hover.offset == start_offset
+            && hover.buffer_id == self.buffer.id
+        {
+            // We're hovering over the same location, but are trying to update
+            return;
+        }
+
+        hover.buffer_id = self.buffer.id;
+        hover.offset = start_offset;
+        hover.status = HoverStatus::Started;
+        Arc::make_mut(&mut hover.items).clear();
+        hover.request_id += 1;
+
+        let event_sink = ctx.get_external_handle();
+        hover.request(
+            self.proxy.clone(),
+            hover.request_id,
+            self.buffer.id,
+            self.buffer
+                .offset_to_position(start_offset, self.config.editor.tab_width),
+            hover.id,
+            event_sink,
+        );
     }
 
     pub fn update_global_search(&self, ctx: &mut EventCtx, pattern: String) {
@@ -1760,8 +1816,9 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             "in_snippet" => self.editor.snippet.is_some(),
             "completion_focus" => self.has_completions(),
+            "hover_focus" => self.has_hover(),
             "list_focus" => self.has_completions(),
-            "modal_focus" => self.has_completions(),
+            "modal_focus" => self.has_completions() || self.has_hover(),
             _ => false,
         }
     }
@@ -1790,6 +1847,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             self.cancel_completion();
+            self.cancel_hover();
             Arc::make_mut(&mut self.editor).motion_mode = None;
             return CommandExecuted::Yes;
         }
@@ -2736,8 +2794,14 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let completion = Arc::make_mut(&mut self.completion);
                 completion.previous();
             }
-            LapceCommand::ModalClose if self.has_completions() => {
-                self.cancel_completion();
+            LapceCommand::ModalClose => {
+                if self.has_completions() {
+                    self.cancel_completion();
+                }
+
+                if self.has_hover() {
+                    self.cancel_hover();
+                }
             }
             LapceCommand::JumpToNextSnippetPlaceholder => {
                 if let Some(snippet) = self.editor.snippet.as_ref() {
@@ -3442,6 +3506,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             self.update_completion(ctx);
+            self.cancel_hover();
         } else if let Some(direction) = self.editor.inline_find.clone() {
             self.inline_find(direction.clone(), c);
             let editor = Arc::make_mut(&mut self.editor);
