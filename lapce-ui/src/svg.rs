@@ -122,8 +122,6 @@ pub fn completion_svg(
 
     Some((
         get_svg(&format!("symbol-{}.svg", kind_str))?,
-        config
-            .get_color(&("style.".to_string() + theme_str))
-            .cloned(),
+        config.get_style_color(theme_str).cloned(),
     ))
 }

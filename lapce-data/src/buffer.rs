@@ -885,9 +885,7 @@ impl Buffer {
         if let Some(styles) = self.get_history_line_styles(history, line) {
             for line_style in styles.iter() {
                 if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-                    if let Some(fg_color) =
-                        config.get_color(&("style.".to_string() + fg_color))
-                    {
+                    if let Some(fg_color) = config.get_style_color(fg_color) {
                         layout_builder = layout_builder.range_attribute(
                             line_style.start..line_style.end,
                             TextAttribute::TextColor(fg_color.clone()),
@@ -938,9 +936,7 @@ impl Buffer {
 
         for line_style in styles.iter() {
             if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-                if let Some(fg_color) =
-                    config.get_color(&("style.".to_string() + fg_color))
-                {
+                if let Some(fg_color) = config.get_style_color(fg_color) {
                     layout_builder = layout_builder.range_attribute(
                         line_style.start..line_style.end,
                         TextAttribute::TextColor(fg_color.clone()),
