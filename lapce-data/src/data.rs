@@ -680,7 +680,6 @@ impl LapceTabData {
             buffer,
             editor: editor.clone(),
             config: self.config.clone(),
-            workspace: self.workspace.clone(),
         }
     }
 
