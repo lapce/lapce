@@ -9,7 +9,7 @@ use lapce_data::{
     data::{LapceTabData, PanelKind},
     split::SplitDirection,
 };
-use lapce_proxy::plugin::PluginDescription;
+use lapce_rpc::plugin::PluginDescription;
 use strum_macros::Display;
 
 use crate::panel::{LapcePanel, PanelHeaderKind};

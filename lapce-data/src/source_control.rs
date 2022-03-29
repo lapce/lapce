@@ -1,5 +1,5 @@
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
-use lapce_proxy::dispatch::FileDiff;
+use lapce_rpc::source_control::FileDiff;
 
 use crate::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},

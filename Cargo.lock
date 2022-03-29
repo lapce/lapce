@@ -1857,15 +1857,17 @@ name = "lapce-core"
 version = "0.0.12"
 dependencies = [
  "itertools",
- "lapce-proxy",
+ "lapce-rpc",
  "serde 1.0.130",
  "serde_json",
  "thiserror",
  "tree-sitter",
  "tree-sitter-c",
+ "tree-sitter-cpp",
  "tree-sitter-go",
  "tree-sitter-highlight",
  "tree-sitter-javascript",
+ "tree-sitter-json",
  "tree-sitter-php",
  "tree-sitter-python",
  "tree-sitter-rust",
@@ -1972,9 +1974,11 @@ dependencies = [
  "anyhow",
  "crossbeam-channel",
  "jsonrpc-lite",
+ "lsp-types",
  "parking_lot",
  "serde 1.0.130",
  "serde_json",
+ "xi-rope",
 ]
 
 [[package]]
@@ -2004,7 +2008,6 @@ dependencies = [
  "itertools",
  "jsonrpc-lite",
  "lapce-data",
- "lapce-proxy",
  "lapce-rpc",
  "lazy_static",
  "libloading",
@@ -2924,7 +2927,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu#c82d19a481ed79cf6c1deb3b7f75ae5285306c83"
+source = "git+https://github.com/lapce/piet-wgpu#65459b63c60a25da0a351ca733af1aa5d03e13b8"
 dependencies = [
  "bytemuck",
  "font-kit",
@@ -4071,6 +4074,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-cpp"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a869e3c5cef4e5db4e9ab16a8dc84d73010e60ada14cdc60d2f6d8aed17779d"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-go"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4096,6 +4109,16 @@ name = "tree-sitter-javascript"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2490fab08630b2c8943c320f7b63473cbf65511c8d83aec551beb9b4375906ed"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-json"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90b04c4e1a92139535eb9fca4ec8fa9666cc96b618005d3ae35f3c957fa92f92"
 dependencies = [
  "cc",
  "tree-sitter",

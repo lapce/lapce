@@ -4,11 +4,9 @@ use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
 use lapce_core::syntax::Syntax;
-use lapce_proxy::{
-    dispatch::{DiffInfo, FileNodeItem},
-    plugin::PluginDescription,
-    style::Style,
-    terminal::TermId,
+use lapce_rpc::{
+    buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
+    source_control::DiffInfo, style::Style, terminal::TermId,
 };
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
@@ -20,7 +18,6 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
-    buffer::BufferId,
     buffer::DiffLines,
     data::{EditorTabChild, MotionMode, SplitContent},
     editor::EditorLocationNew,
@@ -578,10 +575,7 @@ pub enum LapceUICommand {
     HideMenu,
     ShowMenu(Point, Arc<Vec<MenuItem>>),
     UpdateSearch(String),
-    GlobalSearchResult(
-        String,
-        Arc<HashMap<PathBuf, Vec<Match>>>,
-    ),
+    GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),
     CancelFilePicker,
     SetWorkspace(LapceWorkspace),
     SetTheme(String, bool),

@@ -25,7 +25,7 @@ use lapce_data::{
     state::Mode,
     terminal::{LapceTerminalData, LapceTerminalViewData},
 };
-use lapce_proxy::terminal::TermId;
+use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
 
 use crate::{

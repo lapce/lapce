@@ -64,7 +64,7 @@ impl KeyPressFocus for CodeActionData {
                 self.previous(ctx);
             }
             LapceCommand::ListSelect => {
-                self.select(ctx);
+                self.select();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::CancelCodeActions,
@@ -103,7 +103,7 @@ impl CodeActionData {
         }
     }
 
-    pub fn select(&mut self, ctx: &mut EventCtx) {
+    pub fn select(&mut self) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,
@@ -154,7 +154,6 @@ impl CodeActionData {
                                     })
                                     .collect();
                                 self.main_split.edit(
-                                    ctx,
                                     &path,
                                     &edits
                                         .iter()
@@ -253,11 +252,18 @@ impl Widget<LapceTabData> for CodeAction {
 
     fn lifecycle(
         &mut self,
-        _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
         _data: &LapceTabData,
         _env: &Env,
     ) {
+        if let LifeCycle::FocusChanged(false) = event {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::CancelCodeActions,
+                Target::Auto,
+            ));
+        }
     }
 
     fn update(

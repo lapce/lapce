@@ -2,13 +2,13 @@ use druid::PaintCtx;
 use druid::{piet::PietTextLayout, Vec2};
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
-    Data, EventCtx, ExtEventSink, Target, WidgetId, WindowId,
+    Data, ExtEventSink, Target, WidgetId, WindowId,
 };
 use lapce_core::indent::{auto_detect_indent_style, IndentStyle};
 use lapce_core::style::line_styles;
 use lapce_core::syntax::Syntax;
-use lapce_proxy::dispatch::{BufferHeadResponse, NewBufferResponse};
-use lapce_proxy::style::{LineStyle, LineStyles, Style};
+use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
+use lapce_rpc::style::{LineStyle, LineStyles, Style};
 use lsp_types::SemanticTokensLegend;
 use lsp_types::SemanticTokensServerCapabilities;
 use lsp_types::{CodeActionResponse, Position};
@@ -37,7 +37,7 @@ use crate::{
     find::Find,
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     proxy::LapceProxy,
-    state::{Counter, Mode},
+    state::Mode,
 };
 
 #[allow(dead_code)]
@@ -65,16 +65,6 @@ pub enum DiffResult<T> {
     Left(T),
     Both(T, T),
     Right(T),
-}
-
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize, Data)]
-pub struct BufferId(pub u64);
-
-impl BufferId {
-    pub fn next() -> Self {
-        static BUFFER_ID_COUNTER: Counter = Counter::new();
-        Self(BUFFER_ID_COUNTER.next())
-    }
 }
 
 #[derive(Clone)]
@@ -1840,9 +1830,6 @@ impl Buffer {
 
     pub fn edit_multiple(
         &mut self,
-
-        #[allow(unused_variables)] ctx: &mut EventCtx,
-
         edits: &[(&Selection, &str)],
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
@@ -1889,13 +1876,12 @@ impl Buffer {
 
     pub fn edit(
         &mut self,
-        ctx: &mut EventCtx,
         selection: &Selection,
         content: &str,
         proxy: Arc<LapceProxy>,
         edit_type: EditType,
     ) -> RopeDelta {
-        self.edit_multiple(ctx, &[(selection, content)], proxy, edit_type)
+        self.edit_multiple(&[(selection, content)], proxy, edit_type)
     }
 
     pub fn do_undo(&mut self, proxy: Arc<LapceProxy>) -> Option<RopeDelta> {
@@ -2358,11 +2344,15 @@ fn classify_boundary(prev: WordProperty, next: WordProperty) -> WordBoundary {
     match (prev, next) {
         (Lf, Lf) => Start,
         (Lf, Space) => Interior,
-        (_, Lf) => End,
-        (Lf, _) => Start,
+        (Cr, Lf) => Interior,
+        (Space, Lf) => Interior,
+        (Space, Cr) => Interior,
         (Space, Space) => Interior,
         (_, Space) => End,
         (Space, _) => Start,
+        (Lf, _) => Start,
+        (_, Cr) => End,
+        (_, Lf) => End,
         (Punctuation, Other) => Both,
         (Other, Punctuation) => Both,
         _ => Interior,
@@ -2389,6 +2379,7 @@ fn classify_boundary_initial(
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum WordProperty {
+    Cr,
     Lf,
     Space,
     Punctuation,
@@ -2397,6 +2388,9 @@ pub enum WordProperty {
 
 pub fn get_word_property(codepoint: char) -> WordProperty {
     if codepoint <= ' ' {
+        if codepoint == '\r' {
+            return WordProperty::Cr;
+        }
         if codepoint == '\n' {
             return WordProperty::Lf;
         }

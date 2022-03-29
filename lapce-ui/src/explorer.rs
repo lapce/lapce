@@ -16,7 +16,7 @@ use lapce_data::{
     split::SplitDirection,
 };
 use lapce_data::{data::PanelKind, explorer::FileExplorerData};
-use lapce_proxy::dispatch::FileNodeItem;
+use lapce_rpc::file::FileNodeItem;
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind},

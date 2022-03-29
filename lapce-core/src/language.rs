@@ -46,6 +46,8 @@ pub enum LapceLanguage {
     Php,
     Bash,
     C,
+    Cpp,
+    Json,
 }
 
 impl LapceLanguage {
@@ -63,6 +65,8 @@ impl LapceLanguage {
             "php" => LapceLanguage::Php,
             "sh" => LapceLanguage::Bash,
             "c" | "h" => LapceLanguage::C,
+            "cpp" | "cxx" | "cc" | "hpp" | "hxx" => LapceLanguage::Cpp,
+            "json" => LapceLanguage::Json,
             _ => return None,
         })
     }
@@ -80,6 +84,8 @@ impl LapceLanguage {
             LapceLanguage::Php => "//",
             LapceLanguage::Bash => "#",
             LapceLanguage::C => "//",
+            LapceLanguage::Cpp => "//",
+            LapceLanguage::Json => "",
         }
     }
 
@@ -96,6 +102,8 @@ impl LapceLanguage {
             LapceLanguage::Php => "  ",
             LapceLanguage::Bash => "    ",
             LapceLanguage::C => "  ",
+            LapceLanguage::Cpp => "    ",
+            LapceLanguage::Json => "    ",
         }
     }
 
@@ -114,6 +122,8 @@ impl LapceLanguage {
             LapceLanguage::Php => tree_sitter_php::language(),
             LapceLanguage::Bash => tree_sitter_bash::language(),
             LapceLanguage::C => tree_sitter_c::language(),
+            LapceLanguage::Cpp => tree_sitter_cpp::language(),
+            LapceLanguage::Json => tree_sitter_json::language(),
         }
     }
 
@@ -138,6 +148,8 @@ impl LapceLanguage {
             LapceLanguage::Php => tree_sitter_php::HIGHLIGHT_QUERY,
             LapceLanguage::Bash => tree_sitter_bash::HIGHLIGHT_QUERY,
             LapceLanguage::C => tree_sitter_c::HIGHLIGHT_QUERY,
+            LapceLanguage::Cpp => tree_sitter_cpp::HIGHLIGHT_QUERY,
+            LapceLanguage::Json => tree_sitter_json::HIGHLIGHT_QUERY,
         };
 
         HighlightConfiguration::new(language, query, "", "").unwrap()

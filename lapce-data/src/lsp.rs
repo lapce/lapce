@@ -1,13 +1,12 @@
 use anyhow::{anyhow, Result};
 use druid::{WidgetId, WindowId};
 use jsonrpc_lite::Id;
+use lapce_rpc::buffer::BufferId;
 use parking_lot::Mutex;
 use std::{collections::HashMap, io::BufRead, io::Write, process::Child, sync::Arc};
 
 use lsp_types::*;
 use serde_json::Value;
-
-use crate::buffer::BufferId;
 
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";

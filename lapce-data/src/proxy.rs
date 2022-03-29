@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io::BufReader;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -13,19 +12,18 @@ use crossbeam_channel::Sender;
 use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
-use lapce_proxy::dispatch::FileDiff;
-use lapce_proxy::dispatch::FileNodeItem;
-use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
-use lapce_proxy::plugin::PluginDescription;
-use lapce_proxy::style::LineStyle;
-use lapce_proxy::terminal::TermId;
+use lapce_proxy::dispatch::Dispatcher;
+use lapce_rpc::buffer::BufferId;
+use lapce_rpc::core::{CoreNotification, CoreRequest};
+use lapce_rpc::plugin::PluginDescription;
+use lapce_rpc::source_control::FileDiff;
+use lapce_rpc::terminal::TermId;
 use lapce_rpc::RpcHandler;
 use lapce_rpc::{stdio_transport, Callback};
 use lapce_rpc::{ControlFlow, Handler};
 use lsp_types::CompletionItem;
 use lsp_types::Position;
-use lsp_types::ProgressParams;
-use lsp_types::PublishDiagnosticsParams;
+use lsp_types::Url;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -34,11 +32,11 @@ use xi_rope::spans::SpansBuilder;
 use xi_rope::{Interval, RopeDelta};
 
 use crate::command::LapceUICommand;
+use crate::command::LAPCE_UI_COMMAND;
 use crate::config::Config;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
 use crate::terminal::RawTerminal;
-use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -65,12 +63,13 @@ pub struct LapceProxy {
 }
 
 impl Handler for LapceProxy {
-    type Notification = Notification;
-    type Request = Request;
+    type Notification = CoreNotification;
+    type Request = CoreRequest;
 
     fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow {
+        use lapce_rpc::core::CoreNotification::*;
         match rpc {
-            Notification::SemanticStyles {
+            SemanticStyles {
                 rev,
                 buffer_id,
                 path,
@@ -100,7 +99,7 @@ impl Handler for LapceProxy {
                     );
                 });
             }
-            Notification::ReloadBuffer {
+            ReloadBuffer {
                 buffer_id,
                 new_content,
                 rev,
@@ -111,21 +110,21 @@ impl Handler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::PublishDiagnostics { diagnostics } => {
+            PublishDiagnostics { diagnostics } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::PublishDiagnostics(diagnostics),
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::WorkDoneProgress { progress } => {
+            WorkDoneProgress { progress } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::WorkDoneProgress(progress),
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::InstalledPlugins { plugins } => {
+            InstalledPlugins { plugins } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateInstalledPlugins(plugins),
@@ -133,22 +132,22 @@ impl Handler for LapceProxy {
                 );
             }
             #[allow(unused_variables)]
-            Notification::ListDir { items } => {}
+            ListDir { items } => {}
             #[allow(unused_variables)]
-            Notification::DiffFiles { files } => {}
-            Notification::DiffInfo { diff } => {
+            DiffFiles { files } => {}
+            DiffInfo { diff } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateDiffInfo(diff),
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::UpdateTerminal { term_id, content } => {
+            UpdateTerminal { term_id, content } => {
                 let _ = self
                     .term_tx
                     .send((term_id, TermEvent::UpdateContent(content)));
             }
-            Notification::CloseTerminal { term_id } => {
+            CloseTerminal { term_id } => {
                 let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -156,14 +155,14 @@ impl Handler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::ProxyConnected {} => {
+            ProxyConnected {} => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connected),
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::HomeDir { path } => {
+            HomeDir { path } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::HomeDir(path),
@@ -627,158 +626,6 @@ pub enum CursorShape {
     /// Invisible cursor.
     Hidden,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum Notification {
-    ProxyConnected {},
-    SemanticStyles {
-        rev: u64,
-        buffer_id: BufferId,
-        path: PathBuf,
-        len: usize,
-        styles: Vec<LineStyle>,
-    },
-    ReloadBuffer {
-        buffer_id: BufferId,
-        new_content: String,
-        rev: u64,
-    },
-    PublishDiagnostics {
-        diagnostics: PublishDiagnosticsParams,
-    },
-    WorkDoneProgress {
-        progress: ProgressParams,
-    },
-    HomeDir {
-        path: PathBuf,
-    },
-    InstalledPlugins {
-        plugins: HashMap<String, PluginDescription>,
-    },
-    ListDir {
-        items: Vec<FileNodeItem>,
-    },
-    DiffFiles {
-        files: Vec<PathBuf>,
-    },
-    DiffInfo {
-        diff: DiffInfo,
-    },
-    UpdateTerminal {
-        term_id: TermId,
-        content: String,
-    },
-    CloseTerminal {
-        term_id: TermId,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Request {}
-
-pub struct ProxyHandlerNew {
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-
-    #[allow(dead_code)]
-    term_tx: Sender<(TermId, TermEvent)>,
-
-    #[allow(dead_code)]
-    event_sink: ExtEventSink,
-}
-//
-// impl Handler for ProxyHandlerNew {
-//     type Notification = Notification;
-//     type Request = Request;
-//
-//     fn handle_notification(
-//         &mut self,
-//         ctx: &xi_rpc::RpcCtx,
-//         rpc: Self::Notification,
-//     ) {
-//         match rpc {
-//             Notification::SemanticTokens {
-//                 rev,
-//                 buffer_id,
-//                 path,
-//                 tokens,
-//             } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::UpdateSemanticTokens(
-//                         buffer_id, path, rev, tokens,
-//                     ),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::ReloadBuffer {
-//                 buffer_id,
-//                 new_content,
-//                 rev,
-//             } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::PublishDiagnostics { diagnostics } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::PublishDiagnostics(diagnostics),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::WorkDoneProgress { progress } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::WorkDoneProgress(progress),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::InstalledPlugins { plugins } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::UpdateInstalledPlugins(plugins),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::ListDir { items } => {}
-//             Notification::DiffFiles { files } => {}
-//             Notification::FileDiffs { diffs } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::UpdateFileDiffs(diffs),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::UpdateTerminal { term_id, content } => {
-//                 self.term_tx
-//                     .send((term_id, TermEvent::UpdateContent(content)));
-//             }
-//             Notification::CloseTerminal { term_id } => {
-//                 self.term_tx.send((term_id, TermEvent::CloseTerminal));
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::CloseTerminal(term_id),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//         }
-//     }
-//
-//     fn handle_request(
-//         &mut self,
-//         ctx: &xi_rpc::RpcCtx,
-//         rpc: Self::Request,
-//     ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
-//         Err(xi_rpc::RemoteError::InvalidRequest(None))
-//     }
-// }
-
-use lsp_types::Url;
 
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
 // as "/<drive>://" which is then interpreted by PathBuf::new() as a UNIX-like path from root.

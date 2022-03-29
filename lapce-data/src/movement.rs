@@ -873,22 +873,26 @@ impl Movement {
         index: usize,
         len: usize,
         count: usize,
-        recursive: bool,
+        wrapping: bool,
     ) -> usize {
         if len == 0 {
             return 0;
         }
+        let last = len - 1;
         match self {
-            Movement::Up => {
-                format_index(index as i64 - count as i64, len, recursive)
-            }
-            Movement::Down => {
-                format_index(index as i64 + count as i64, len, recursive)
-            }
+            // Select the next entry/line
+            Movement::Down if wrapping => (index + count) % len,
+            Movement::Down => (index + count).min(last),
+
+            // Selects the previous entry/line
+            Movement::Up if wrapping => (index + (len.saturating_sub(count))) % len,
+            Movement::Up => (index.saturating_sub(count)),
+
             Movement::Line(position) => match position {
-                LinePosition::Line(n) => format_index(*n as i64, len, recursive),
+                // Selects the nth line
+                LinePosition::Line(n) => (*n).min(last),
                 LinePosition::First => 0,
-                LinePosition::Last => len - 1,
+                LinePosition::Last => last,
             },
             _ => index,
         }
@@ -897,26 +901,59 @@ impl Movement {
 
 pub fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
     match n.cmp(&1) {
-        Ordering::Equal => {v.remove(index);},
-        Ordering::Greater => {v.splice(index..index + n, std::iter::empty());},
-        _ => ()
+        Ordering::Equal => {
+            v.remove(index);
+        }
+        Ordering::Greater => {
+            v.drain(index..index + n);
+        }
+        _ => (),
     };
 }
 
-fn format_index(index: i64, len: usize, recursive: bool) -> usize {
-    if recursive {
-        if index >= len as i64 {
-            (index % len as i64) as usize
-        } else if index < 0 {
-            len - (-index % len as i64) as usize
-        } else {
-            index as usize
-        }
-    } else if index >= len as i64 {
-        len - 1
-    } else if index < 0 {
-        0
-    } else {
-        index as usize
+#[cfg(test)]
+mod test {
+    use crate::movement::Movement;
+
+    #[test]
+    fn test_wrapping() {
+        // Move by 1 position
+        // List length of 1
+        assert_eq!(0, Movement::Up.update_index(0, 1, 1, true));
+        assert_eq!(0, Movement::Down.update_index(0, 1, 1, true));
+
+        // List length of 5
+        assert_eq!(4, Movement::Up.update_index(0, 5, 1, true));
+        assert_eq!(1, Movement::Down.update_index(0, 5, 1, true));
+
+        // Move by 2 positions
+        // List length of 1
+        assert_eq!(0, Movement::Up.update_index(0, 1, 2, true));
+        assert_eq!(0, Movement::Down.update_index(0, 1, 2, true));
+
+        // List length of 5
+        assert_eq!(3, Movement::Up.update_index(0, 5, 2, true));
+        assert_eq!(2, Movement::Down.update_index(0, 5, 2, true));
+    }
+
+    #[test]
+    fn test_non_wrapping() {
+        // Move by 1 position
+        // List length of 1
+        assert_eq!(0, Movement::Up.update_index(0, 1, 1, false));
+        assert_eq!(0, Movement::Down.update_index(0, 1, 1, false));
+
+        // List length of 5
+        assert_eq!(0, Movement::Up.update_index(0, 5, 1, false));
+        assert_eq!(1, Movement::Down.update_index(0, 5, 1, false));
+
+        // Move by 2 positions
+        // List length of 1
+        assert_eq!(0, Movement::Up.update_index(0, 1, 2, false));
+        assert_eq!(0, Movement::Down.update_index(0, 1, 2, false));
+
+        // List length of 5
+        assert_eq!(0, Movement::Up.update_index(0, 5, 2, false));
+        assert_eq!(2, Movement::Down.update_index(0, 5, 2, false));
     }
 }
