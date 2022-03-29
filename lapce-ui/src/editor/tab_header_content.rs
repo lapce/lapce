@@ -90,6 +90,17 @@ impl LapceEditorTabHeaderContent {
                 ));
                 return;
             }
+
+            if mouse_event.button.is_middle()
+                && tab_rect.rect.contains(mouse_event.pos)
+            {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EditorTabRemove(i, true, true),
+                    Target::Widget(self.widget_id),
+                ));
+                return;
+            }
         }
     }
 }
