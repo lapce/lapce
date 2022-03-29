@@ -1,7 +1,7 @@
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
-    PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetId,
+    PaintCtx, Point, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetId,
 };
 use lapce_data::{
     buffer::DiffLines,
@@ -482,55 +482,65 @@ impl LapceEditorGutter {
             let line_height = data.config.editor.line_height as f64;
             let scroll_offset = data.editor.scroll_offset;
             let start_line = (scroll_offset.y / line_height).floor() as usize;
-            let end_line =
-                (scroll_offset.y + rect.height() / line_height).ceil() as usize;
             let num_lines = (ctx.size().height / line_height).floor() as usize;
             let last_line = data.buffer.last_line();
             let current_line = data.editor.cursor.current_line(&data.buffer);
-            let width = data.config.editor_text_width(ctx.text(), "W");
-            for line in start_line..start_line + num_lines + 1 {
-                if line > last_line {
-                    break;
-                }
-                let content = if *data.main_split.active != Some(data.view_id)
-                    || data.editor.cursor.is_insert()
-                    || line == current_line
-                {
+            let char_width = data.config.editor_text_width(ctx.text(), "W");
+
+            let line_label_length =
+                (last_line + 1).to_string().len() as f64 * char_width;
+            let last_displayed_line = (start_line + num_lines + 1).min(last_line);
+
+            let sequential_line_numbers = *data.main_split.active
+                != Some(data.view_id)
+                || data.editor.cursor.is_insert();
+
+            let font_family = data.config.editor.font_family();
+
+            for line in start_line..last_displayed_line {
+                let line_no = if sequential_line_numbers || line == current_line {
                     line + 1
-                } else if line > current_line {
-                    line - current_line
                 } else {
-                    current_line - line
+                    // TODO: after Rust 1.60, this can be replaced with `line.abs_diff(current_line)`
+                    if line > current_line {
+                        line - current_line
+                    } else {
+                        current_line - line
+                    }
                 };
-                let content = content.to_string();
+
+                let content = line_no.to_string();
 
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(content.clone())
-                    .font(
-                        data.config.editor.font_family(),
-                        data.config.editor.font_size as f64,
+                    .new_text_layout(content)
+                    .font(font_family.clone(), data.config.editor.font_size as f64)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(if line == current_line {
+                                LapceTheme::EDITOR_FOREGROUND
+                            } else {
+                                LapceTheme::EDITOR_DIM
+                            })
+                            .clone(),
                     )
-                    .text_color(if line == current_line {
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                            .clone()
-                    } else {
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                            .clone()
-                    })
                     .build()
                     .unwrap();
-                let x = ((last_line + 1).to_string().len() - content.len()) as f64
-                    * width;
+
+                // Horizontally right aligned
+                let x = line_label_length as f64 - text_layout.size().width;
+
+                // Vertically centered
                 let y = line_height * line as f64 - scroll_offset.y
                     + (line_height - text_layout.size().height) / 2.0;
-                let pos = Point::new(x, y);
-                ctx.draw_text(&text_layout, pos);
+
+                ctx.draw_text(&text_layout, Point::new(x, y));
             }
 
             if let Some(changes) = data.buffer.history_changes.get("head") {
+                let end_line =
+                    (scroll_offset.y + rect.height() / line_height).ceil() as usize;
+
                 let mut line = 0;
                 let mut last_change = None;
                 for change in changes.iter() {
@@ -542,7 +552,7 @@ impl LapceEditorGutter {
                     };
                     line += len;
                     if line < start_line {
-                        last_change = Some(change.clone());
+                        last_change = Some(change);
                         continue;
                     }
 
@@ -570,29 +580,19 @@ impl LapceEditorGutter {
                         _ => None,
                     };
 
-                    if let Some(color) = color {
+                    if let Some(color) = color.cloned() {
                         let removed_height = 10.0;
-                        let size = Size::new(
-                            3.0,
-                            if len == 0 {
-                                removed_height
-                            } else {
-                                line_height * len as f64
-                            },
-                        );
-                        let x = self.width + width;
+                        let x = self.width + char_width;
                         let mut y =
                             (line - len) as f64 * line_height - scroll_offset.y;
                         if len == 0 {
                             y -= removed_height / 2.0;
                         }
                         if modified {
-                            let rect = Size::new(3.0, removed_height)
-                                .to_rect()
-                                .with_origin(Point::new(
-                                    x,
-                                    y - removed_height / 2.0,
-                                ));
+                            let rect = Rect::from_origin_size(
+                                Point::new(x, y - removed_height / 2.0),
+                                Size::new(3.0, removed_height),
+                            );
                             ctx.fill(
                                 rect,
                                 data.config.get_color_unchecked(
@@ -600,14 +600,24 @@ impl LapceEditorGutter {
                                 ),
                             );
                         }
-                        let rect = size.to_rect().with_origin(Point::new(x, y));
-                        ctx.fill(rect, &color.clone().with_alpha(0.8));
+                        let rect = Rect::from_origin_size(
+                            Point::new(x, y),
+                            Size::new(
+                                3.0,
+                                if len == 0 {
+                                    removed_height
+                                } else {
+                                    line_height * len as f64
+                                },
+                            ),
+                        );
+                        ctx.fill(rect, &color.with_alpha(0.8));
                     }
 
                     if line > end_line {
                         break;
                     }
-                    last_change = Some(change.clone());
+                    last_change = Some(change);
                 }
             }
 
