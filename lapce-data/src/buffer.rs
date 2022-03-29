@@ -205,6 +205,19 @@ impl BufferContent {
     }
 }
 
+/// Trait whose update method will be called when a non-local buffer is updated.
+pub trait BufferUpdateListener {
+    fn update(&mut self, buffer_id: BufferId, delta: &RopeDelta, rev: u64);
+}
+
+pub struct ProxyUpdateListener<'a>(pub &'a LapceProxy);
+
+impl BufferUpdateListener for ProxyUpdateListener<'_> {
+    fn update(&mut self, buffer_id: BufferId, delta: &RopeDelta, rev: u64) {
+        self.0.update(buffer_id, delta, rev);
+    }
+}
+
 #[derive(Clone)]
 pub struct Buffer {
     pub id: BufferId,
@@ -1779,7 +1792,7 @@ impl Buffer {
 
     fn apply_edit(
         &mut self,
-        proxy: &LapceProxy,
+        proxy: &mut impl BufferUpdateListener,
         delta: &RopeDelta,
         new_rev: Revision,
         new_text: Rope,
@@ -1831,7 +1844,7 @@ impl Buffer {
     pub fn edit_multiple(
         &mut self,
         edits: &[(&Selection, &str)],
-        proxy: &LapceProxy,
+        proxy: &mut impl BufferUpdateListener,
         edit_type: EditType,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
@@ -1878,13 +1891,16 @@ impl Buffer {
         &mut self,
         selection: &Selection,
         content: &str,
-        proxy: &LapceProxy,
+        proxy: &mut impl BufferUpdateListener,
         edit_type: EditType,
     ) -> RopeDelta {
         self.edit_multiple(&[(selection, content)], proxy, edit_type)
     }
 
-    pub fn do_undo(&mut self, proxy: &LapceProxy) -> Option<RopeDelta> {
+    pub fn do_undo(
+        &mut self,
+        proxy: &mut impl BufferUpdateListener,
+    ) -> Option<RopeDelta> {
         if self.cur_undo > 1 {
             self.cur_undo -= 1;
             self.undos.insert(self.live_undos[self.cur_undo]);
@@ -1895,7 +1911,10 @@ impl Buffer {
         }
     }
 
-    pub fn do_redo(&mut self, proxy: &LapceProxy) -> Option<RopeDelta> {
+    pub fn do_redo(
+        &mut self,
+        proxy: &mut impl BufferUpdateListener,
+    ) -> Option<RopeDelta> {
         if self.cur_undo < self.live_undos.len() {
             self.undos.remove(&self.live_undos[self.cur_undo]);
             self.cur_undo += 1;
@@ -1906,7 +1925,11 @@ impl Buffer {
         }
     }
 
-    fn undo(&mut self, groups: BTreeSet<usize>, proxy: &LapceProxy) -> RopeDelta {
+    fn undo(
+        &mut self,
+        groups: BTreeSet<usize>,
+        proxy: &mut impl BufferUpdateListener,
+    ) -> RopeDelta {
         let (new_rev, new_deletes_from_union) = self.compute_undo(&groups);
         let delta = Delta::synthesize(
             &self.tombstones,
@@ -1922,7 +1945,7 @@ impl Buffer {
         );
         self.undone_groups = groups;
         self.apply_edit(
-            &proxy,
+            proxy,
             &delta,
             new_rev,
             new_text,

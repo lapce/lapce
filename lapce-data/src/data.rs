@@ -31,7 +31,7 @@ use xi_rope::{RopeDelta, Transformer};
 use crate::{
     buffer::{
         matching_char, matching_pair_direction, Buffer, BufferContent, EditType,
-        LocalBufferKind,
+        LocalBufferKind, ProxyUpdateListener,
     },
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommandNew, LapceUICommand,
@@ -2049,8 +2049,11 @@ impl LapceMainSplitData {
             }
         }
 
-        let delta =
-            Arc::make_mut(buffer).edit_multiple(edits, &self.proxy, edit_type);
+        let delta = Arc::make_mut(buffer).edit_multiple(
+            edits,
+            &mut ProxyUpdateListener(&self.proxy),
+            edit_type,
+        );
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }

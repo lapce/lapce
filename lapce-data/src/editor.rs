@@ -1,5 +1,6 @@
 use crate::buffer::get_word_property;
 use crate::buffer::matching_char;
+use crate::buffer::ProxyUpdateListener;
 use crate::buffer::{
     has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
 };
@@ -1302,7 +1303,11 @@ impl LapceEditorBufferData {
         self.initiate_diagnositcs_offset();
 
         let buffer = Arc::make_mut(&mut self.buffer);
-        let delta = buffer.edit_multiple(edits, &self.proxy, edit_type);
+        let delta = buffer.edit_multiple(
+            edits,
+            &mut ProxyUpdateListener(&self.proxy),
+            edit_type,
+        );
         self.inactive_apply_delta(&delta);
         if let Some(snippet) = self.editor.snippet.clone() {
             let mut transformer = Transformer::new(&delta);
@@ -1909,7 +1914,9 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::Undo => {
                 self.initiate_diagnositcs_offset();
                 let buffer = Arc::make_mut(&mut self.buffer);
-                if let Some(delta) = buffer.do_undo(&self.proxy) {
+                if let Some(delta) =
+                    buffer.do_undo(&mut ProxyUpdateListener(&self.proxy))
+                {
                     self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
@@ -1918,7 +1925,9 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::Redo => {
                 self.initiate_diagnositcs_offset();
                 let buffer = Arc::make_mut(&mut self.buffer);
-                if let Some(delta) = buffer.do_redo(&self.proxy) {
+                if let Some(delta) =
+                    buffer.do_redo(&mut ProxyUpdateListener(&self.proxy))
+                {
                     self.jump_to_nearest_delta(&delta);
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
