@@ -157,7 +157,7 @@ impl SearchContent {
                                     character: *start as u32,
                                 }),
                                 scroll_offset: None,
-                                hisotry: None,
+                                history: None,
                             },
                         ),
                         Target::Widget(data.id),

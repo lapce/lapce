@@ -111,7 +111,7 @@ pub struct EditorLocationNew {
     pub path: PathBuf,
     pub position: Option<Position>,
     pub scroll_offset: Option<Vec2>,
-    pub hisotry: Option<String>,
+    pub history: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -1406,7 +1406,7 @@ impl LapceEditorBufferData {
                 path,
                 position: Some(position),
                 scroll_offset: None,
-                hisotry: Some("head".to_string()),
+                history: Some("head".to_string()),
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -1460,7 +1460,7 @@ impl LapceEditorBufferData {
                 path,
                 position: Some(position),
                 scroll_offset: None,
-                hisotry: None,
+                history: None,
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -3137,7 +3137,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                                         location.range.start,
                                                     ),
                                                     scroll_offset: None,
-                                                    hisotry: None,
+                                                    history: None,
                                                 },
                                             ),
                                             Target::Auto,
@@ -3633,7 +3633,7 @@ fn process_get_references(
                     path: path_from_url(&location.uri),
                     position: Some(location.range.start),
                     scroll_offset: None,
-                    hisotry: None,
+                    history: None,
                 },
             ),
             Target::Auto,

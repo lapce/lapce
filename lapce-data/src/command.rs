@@ -646,7 +646,7 @@ pub enum LapceUICommand {
         rev: u64,
         syntax: Syntax,
     },
-    UpdateHisotryChanges {
+    UpdateHistoryChanges {
         id: BufferId,
         path: PathBuf,
         rev: u64,

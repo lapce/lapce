@@ -437,7 +437,7 @@ impl Buffer {
 
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::UpdateHisotryChanges {
+                        LapceUICommand::UpdateHistoryChanges {
                             id,
                             path,
                             rev,
@@ -790,7 +790,7 @@ impl Buffer {
         self.len() == 0
     }
 
-    fn get_hisotry_line_styles(
+    fn get_history_line_styles(
         &self,
         history: &str,
         line: usize,
@@ -882,7 +882,7 @@ impl Buffer {
                     .clone(),
             );
 
-        if let Some(styles) = self.get_hisotry_line_styles(history, line) {
+        if let Some(styles) = self.get_history_line_styles(history, line) {
             for line_style in styles.iter() {
                 if let Some(fg_color) = line_style.style.fg_color.as_ref() {
                     if let Some(fg_color) =

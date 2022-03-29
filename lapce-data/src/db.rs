@@ -272,7 +272,7 @@ impl EditorInfo {
                         self.scroll_offset.0,
                         self.scroll_offset.1,
                     )),
-                    hisotry: None,
+                    history: None,
                 },
             ));
 
