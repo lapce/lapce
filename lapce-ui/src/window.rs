@@ -224,8 +224,8 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     LapceUICommand::ReloadWindow => {
                         let tab = data.tabs.get(&data.active_id).unwrap();
 
-                        #[allow(mutable_borrow_reservation_conflict)]
-                        self.new_tab(ctx, data, (*tab.workspace).clone(), true);
+                        let workspace = (*tab.workspace).clone();
+                        self.new_tab(ctx, data, workspace, true);
                         return;
                     }
                     LapceUICommand::HideMenu => {
