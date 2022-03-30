@@ -256,7 +256,7 @@ impl Widget<LapceWindowData> for Title {
 
         if tab.workspace.kind.is_remote() {
             menu_items.push(MenuItem {
-                text: "Disconnect".to_string(),
+                text: "Disconnect Remote".to_string(),
                 command: LapceCommandNew {
                     cmd: LapceWorkbenchCommand::DisconnectRemote.to_string(),
                     palette_desc: None,
