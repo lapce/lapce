@@ -75,13 +75,10 @@ impl Widget<LapceTabData> for HoverContainer {
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                match command {
-                    LapceUICommand::UpdateHover(request_id, resp) => {
-                        let hover = Arc::make_mut(&mut data.hover);
-                        hover.receive(*request_id, resp.to_owned());
-                        ctx.request_paint();
-                    }
-                    _ => {}
+                if let LapceUICommand::UpdateHover(request_id, resp) = command {
+                    let hover = Arc::make_mut(&mut data.hover);
+                    hover.receive(*request_id, resp.to_owned());
+                    ctx.request_paint();
                 }
             }
             _ => {}
@@ -317,11 +314,11 @@ impl Widget<LapceTabData> for Hover {
             text.lines(),
             max_width,
         ) {
-            match layout {
-                HoverLayout::Final {
-                    height: final_height,
-                } => height = final_height,
-                _ => {}
+            if let HoverLayout::Final {
+                height: final_height,
+            } = layout
+            {
+                height = final_height
             }
         }
 

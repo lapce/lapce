@@ -503,15 +503,14 @@ impl Config {
 
         self.lapce.color_theme = theme.to_string();
 
-        if !preview {
-            if Config::update_file(
+        if !preview
+            && Config::update_file(
                 "lapce.color-theme",
                 toml::Value::String(theme.to_string()),
             )
             .is_none()
-            {
-                return false;
-            }
+        {
+            return false;
         }
 
         true

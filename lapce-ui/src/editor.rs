@@ -368,9 +368,7 @@ impl LapceEditor {
         let start_line =
             lens.line_of_height(rect.y0.floor() as usize).min(last_line);
         let end_line = lens
-            .line_of_height(
-                rect.y1.ceil() as usize + &data.config.editor.line_height,
-            )
+            .line_of_height(rect.y1.ceil() as usize + data.config.editor.line_height)
             .min(last_line);
         let start_offset = data.buffer.offset_of_line(start_line);
         let end_offset = data.buffer.offset_of_line(end_line + 1);

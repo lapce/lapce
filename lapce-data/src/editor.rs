@@ -655,7 +655,9 @@ impl LapceEditorBufferData {
             &[
                 &[(
                     &selection,
-                    item.insert_text.as_deref().unwrap_or(item.label.as_str()),
+                    item.insert_text
+                        .as_deref()
+                        .unwrap_or_else(|| item.label.as_str()),
                 )][..],
                 &additioal_edit.unwrap_or_default()[..],
             ]

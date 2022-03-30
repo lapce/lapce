@@ -39,6 +39,7 @@ pub struct HoverData {
     /// The hover items that are currently loaded
     pub items: Arc<Vec<HoverItem>>,
 }
+
 impl HoverData {
     pub fn new() -> Self {
         Self {
@@ -142,6 +143,12 @@ impl HoverData {
                 vec![HoverItem::from(content)]
             }
         };
+    }
+}
+
+impl Default for HoverData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

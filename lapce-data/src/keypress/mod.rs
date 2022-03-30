@@ -490,8 +490,7 @@ impl KeyPressData {
                     let cmd = commands.get(&i.command).unwrap();
                     let text = cmd
                         .palette_desc
-                        .as_ref()
-                        .map(|s| s.as_str())
+                        .as_deref()
                         .unwrap_or_else(|| cmd.cmd.as_str());
 
                     matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
@@ -506,8 +505,7 @@ impl KeyPressData {
                     .filter_map(|i| {
                         let text = i
                             .palette_desc
-                            .as_ref()
-                            .map(|s| s.as_str())
+                            .as_deref()
                             .unwrap_or_else(|| i.cmd.as_str());
 
                         matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
