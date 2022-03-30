@@ -55,11 +55,6 @@ impl Menu {
         let n = (mouse_event.pos.y / self.line_height).floor() as usize;
         if let Some(item) = data.menu.items.get(n) {
             ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::Focus,
-                Target::Widget(data.active_id),
-            ));
-            ctx.submit_command(Command::new(
                 LAPCE_NEW_COMMAND,
                 item.command.clone(),
                 Target::Widget(data.active_id),
