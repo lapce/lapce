@@ -240,7 +240,6 @@ pub struct Buffer {
     undone_groups: BTreeSet<usize>,
     tombstones: Rope,
 
-    this_edit_type: EditType,
     last_edit_type: EditType,
 
     pub cursor_offset: usize,
@@ -305,7 +304,6 @@ impl Buffer {
             tombstones: Rope::default(),
 
             last_edit_type: EditType::Other,
-            this_edit_type: EditType::Other,
 
             cursor_offset: 0,
             scroll_offset: Vec2::ZERO,
@@ -1756,10 +1754,9 @@ impl Buffer {
         )
     }
 
-    fn calculate_undo_group(&mut self) -> usize {
+    fn calculate_undo_group(&mut self, edit_type: EditType) -> usize {
         let has_undos = !self.live_undos.is_empty();
-        let is_unbroken_group =
-            !self.this_edit_type.breaks_undo_group(self.last_edit_type);
+        let is_unbroken_group = !edit_type.breaks_undo_group(self.last_edit_type);
 
         if has_undos && is_unbroken_group {
             *self.live_undos.last().unwrap()
@@ -1851,9 +1848,8 @@ impl Buffer {
             builder.replace(start..end, rope);
         }
         let delta = builder.build();
-        self.this_edit_type = edit_type;
-        let undo_group = self.calculate_undo_group();
-        self.last_edit_type = self.this_edit_type;
+        let undo_group = self.calculate_undo_group(edit_type);
+        self.last_edit_type = edit_type;
 
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
