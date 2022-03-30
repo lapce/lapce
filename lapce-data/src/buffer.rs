@@ -40,6 +40,8 @@ use crate::{
     state::Mode,
 };
 
+pub mod data;
+
 #[allow(dead_code)]
 const FIND_BATCH_SIZE: usize = 500000;
 
