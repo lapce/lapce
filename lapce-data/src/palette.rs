@@ -279,7 +279,10 @@ impl PaletteItemContent {
                 let text = match &w.kind {
                     LapceWorkspaceType::Local => text.to_string(),
                     LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("[{}@{}] {}", user, host, text)
+                        format!("[{user}@{host}] {text}")
+                    }
+                    LapceWorkspaceType::RemoteWSL => {
+                        format!("[wsl] {text}")
                     }
                 };
                 (None, text, indices.to_vec(), "".to_string(), vec![])
@@ -859,11 +862,8 @@ impl PaletteViewData {
         let workspaces = Config::recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
-            match &workspace.kind {
-                LapceWorkspaceType::Local => (),
-                LapceWorkspaceType::RemoteSSH(user, host) => {
-                    hosts.insert((user.to_string(), host.to_string()));
-                }
+            if let LapceWorkspaceType::RemoteSSH(user, host) = &workspace.kind {
+                hosts.insert((user.to_string(), host.to_string()));
             }
         }
 
@@ -900,6 +900,9 @@ impl PaletteViewData {
                     LapceWorkspaceType::Local => text,
                     LapceWorkspaceType::RemoteSSH(user, host) => {
                         format!("[{}@{}] {}", user, host, text)
+                    }
+                    LapceWorkspaceType::RemoteWSL => {
+                        format!("[wsl] {text}")
                     }
                 };
                 NewPaletteItem {

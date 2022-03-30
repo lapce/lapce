@@ -162,6 +162,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Connect to SSH Host")]
     ConnectSshHost,
 
+    #[strum(serialize = "connect_wsl")]
+    #[strum(message = "Connect to WSL")]
+    ConnectWsl,
+
+    #[strum(serialize = "disconnect_remote")]
+    #[strum(message = "Disconnect From Remote")]
+    DisconnectRemote,
+
     #[strum(serialize = "palette.line")]
     PaletteLine,
 

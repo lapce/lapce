@@ -372,14 +372,15 @@ impl Config {
         }
 
         match workspace.kind {
-            crate::state::LapceWorkspaceType::Local => {
+            LapceWorkspaceType::Local => {
                 if let Some(path) = workspace.path.as_ref() {
                     let path = path.join("./.lapce/settings.toml");
                     let _ = settings
                         .merge(config::File::from(path.as_path()).required(false));
                 }
             }
-            crate::state::LapceWorkspaceType::RemoteSSH(_, _) => {}
+            LapceWorkspaceType::RemoteSSH(_, _) => {}
+            LapceWorkspaceType::RemoteWSL => {}
         }
 
         let mut config: Config = settings.try_into()?;
@@ -577,6 +578,7 @@ impl Config {
                         LapceWorkspaceType::RemoteSSH(user, host) => {
                             format!("ssh://{}@{}", user, host)
                         }
+                        LapceWorkspaceType::RemoteWSL => "wsl".to_string(),
                     }),
                 );
                 table.insert(
@@ -622,6 +624,7 @@ impl Config {
                             let host = parts.next()?.to_string();
                             LapceWorkspaceType::RemoteSSH(user, host)
                         }
+                        "wsl" => LapceWorkspaceType::RemoteWSL,
                         _ => LapceWorkspaceType::Local,
                     };
                     let last_open = value

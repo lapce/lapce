@@ -864,6 +864,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                                     LapceWorkspaceType::RemoteSSH(user, host) => {
                                         format!("{} [{}@{}]", dir, user, host)
                                     }
+                                    LapceWorkspaceType::RemoteWSL => {
+                                        format!("{dir} [wsl]")
+                                    }
                                 };
                                 dir
                             })
@@ -1585,6 +1588,9 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     LapceWorkspaceType::Local => dir.to_string(),
                     LapceWorkspaceType::RemoteSSH(user, host) => {
                         format!("{} [{}@{}]", dir, user, host)
+                    }
+                    LapceWorkspaceType::RemoteWSL => {
+                        format!("{dir} [wsl]")
                     }
                 };
                 dir
