@@ -182,6 +182,7 @@ impl Data for LapceWindowData {
             && self.size.same(&other.size)
             && self.pos.same(&other.pos)
             && self.keypress.same(&other.keypress)
+            && self.plugins.same(&other.plugins)
     }
 }
 
