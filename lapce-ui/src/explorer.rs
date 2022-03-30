@@ -36,30 +36,41 @@ pub fn paint_file_node_item(
     line_height: f64,
     width: f64,
     level: usize,
-    i: usize,
-    index: usize,
+    current: usize,
+    active: usize,
+    hovered: Option<usize>,
     config: &Config,
     toggle_rects: &mut HashMap<usize, Rect>,
 ) -> usize {
-    if i > max {
-        return i;
+    if current > max {
+        return current;
     }
-    if i + item.children_open_count < min {
-        return i + item.children_open_count;
+    if current + item.children_open_count < min {
+        return current + item.children_open_count;
     }
-    if i >= min && i <= max {
-        if i == index {
+    if current >= min && current <= max {
+        if current == active {
             ctx.fill(
                 Rect::ZERO
                     .with_origin(Point::new(
                         0.0,
-                        i as f64 * line_height - line_height,
+                        current as f64 * line_height - line_height,
                     ))
                     .with_size(Size::new(width, line_height)),
                 config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
             );
+        } else if Some(current) == hovered {
+            ctx.fill(
+                Rect::ZERO
+                    .with_origin(Point::new(
+                        0.0,
+                        current as f64 * line_height - line_height,
+                    ))
+                    .with_size(Size::new(width, line_height)),
+                config.get_color_unchecked(LapceTheme::PANEL_HOVERED),
+            );
         }
-        let y = i as f64 * line_height - line_height;
+        let y = current as f64 * line_height - line_height;
         let svg_y = y + 4.0;
         let svg_size = 15.0;
         let padding = 15.0 * level as f64;
@@ -78,7 +89,7 @@ pub fn paint_file_node_item(
                 rect,
                 Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
             );
-            toggle_rects.insert(i, rect);
+            toggle_rects.insert(current, rect);
 
             let icon_name = if item.open {
                 "default_folder_opened.svg"
@@ -123,7 +134,7 @@ pub fn paint_file_node_item(
             ),
         );
     }
-    let mut i = i;
+    let mut i = current;
     if item.open {
         for item in item.sorted_children() {
             i = paint_file_node_item(
@@ -135,7 +146,8 @@ pub fn paint_file_node_item(
                 width,
                 level + 1,
                 i + 1,
-                index,
+                active,
+                hovered,
                 config,
                 toggle_rects,
             );
@@ -329,11 +341,15 @@ impl Widget<LapceTabData> for FileExplorer {
 
 pub struct FileExplorerFileList {
     line_height: f64,
+    hovered: Option<usize>,
 }
 
 impl FileExplorerFileList {
     pub fn new() -> Self {
-        Self { line_height: 25.0 }
+        Self {
+            line_height: 25.0,
+            hovered: None,
+        }
     }
 }
 
@@ -359,8 +375,19 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         * (workspace.children_open_count + 1 + 1) as f64
                     {
                         ctx.set_cursor(&Cursor::Pointer);
+                        let hovered = Some(
+                            ((mouse_event.pos.y + self.line_height)
+                                / self.line_height)
+                                as usize,
+                        );
+
+                        if hovered != self.hovered {
+                            ctx.request_paint();
+                            self.hovered = hovered;
+                        }
                     } else {
                         ctx.clear_cursor();
+                        self.hovered = None;
                     }
                 }
             }
@@ -410,7 +437,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             Target::Widget(data.id),
                         ));
                     }
-                    file_explorer.index = index;
+                    file_explorer.active_selected = index;
                 }
             }
             _ => (),
@@ -420,10 +447,13 @@ impl Widget<LapceTabData> for FileExplorerFileList {
     fn lifecycle(
         &mut self,
         _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
+        event: &LifeCycle,
         _data: &LapceTabData,
         _env: &Env,
     ) {
+        if let LifeCycle::HotChanged(false) = event {
+            self.hovered = None;
+        }
     }
 
     fn update(
@@ -469,7 +499,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
         let width = size.width;
-        let index = data.file_explorer.index;
+        let index = data.file_explorer.active_selected;
         let min = (rect.y0 / self.line_height).floor() as usize;
         let max = (rect.y1 / self.line_height) as usize + 2;
         let level = 0;
@@ -487,6 +517,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     level + 1,
                     i + 1,
                     index,
+                    self.hovered,
                     &data.config,
                     &mut HashMap::new(),
                 );

@@ -60,6 +60,7 @@ magenta = "#A626A4"
 
 "panel.background" = "#eaeaeb"
 "panel.current" = "#dbdbdc"
+"panel.hovered" = "#E4E4E6"
 
 "status.background" = "#eaeaeb"
 
