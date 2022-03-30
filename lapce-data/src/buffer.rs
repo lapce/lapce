@@ -566,8 +566,6 @@ impl Buffer {
         }
     }
 
-    pub fn retrieve_file_history(&self) {}
-
     pub fn retrieve_file(
         &self,
         tab_id: WidgetId,
