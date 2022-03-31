@@ -4,8 +4,8 @@ use druid::{
     kurbo::Line,
     piet::{Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, FontFamily, LayoutCtx, LifeCycle,
-    LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetId,
+    LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetId,
 };
 use lapce_data::{
     buffer::BufferContent,
@@ -46,6 +46,11 @@ impl LapceEditorTabHeaderContent {
         false
     }
 
+    fn cancel_pending_drag(&mut self, data: &mut LapceTabData) {
+        self.mouse_down_target = None;
+        *Arc::make_mut(&mut data.drag) = None;
+    }
+
     fn mouse_down(
         &mut self,
         ctx: &mut EventCtx,
@@ -64,6 +69,7 @@ impl LapceEditorTabHeaderContent {
                     .unwrap();
                 let editor_tab = Arc::make_mut(editor_tab);
                 if tab_rect.close_rect.contains(mouse_event.pos) {
+                    self.cancel_pending_drag(data);
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::EditorTabRemove(i, true, true),
@@ -102,6 +108,12 @@ impl LapceEditorTabHeaderContent {
             ctx.clear_cursor();
         }
         ctx.request_paint();
+
+        if !mouse_event.buttons.contains(MouseButton::Left) {
+            // If drag data exists, mouse was released outside of the view.
+            self.cancel_pending_drag(data);
+            return;
+        }
 
         if data.drag.is_none() {
             if let Some(target) = self.mouse_down_target {
@@ -170,13 +182,12 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 self.mouse_down(ctx, data, mouse_event);
             }
             Event::MouseUp(mouse_event) if mouse_event.button.is_left() => {
-                self.mouse_down_target = None;
-
                 if let Some((
                     _,
                     DragContent::EditorTab(from_id, from_index, child, _),
                 )) = Arc::make_mut(&mut data.drag).take()
                 {
+                    self.mouse_down_target = None;
                     let mut mouse_index = self.drag_target_idx(mouse_event.pos);
 
                     let editor_tab = data
@@ -247,6 +258,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
         _env: &Env,
     ) {
         if let LifeCycle::HotChanged(_) = event {
+            // Prevent re-entering with MouseDown to pick up a random tab.
             self.mouse_down_target = None;
         }
     }
