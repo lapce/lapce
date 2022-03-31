@@ -92,6 +92,17 @@ impl LapceEditorTabHeaderContent {
 
                 return;
             }
+
+            if mouse_event.button.is_middle()
+                && tab_rect.rect.contains(mouse_event.pos)
+            {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EditorTabRemove(i, true, true),
+                    Target::Widget(self.widget_id),
+                ));
+                return;
+            }
         }
     }
 
@@ -120,28 +131,18 @@ impl LapceEditorTabHeaderContent {
                 let editor_tab =
                     data.main_split.editor_tabs.get(&self.widget_id).unwrap();
                 let tab_rect = &self.rects[target];
+
                 let offset =
                     mouse_event.pos.to_vec2() - tab_rect.rect.origin().to_vec2();
                 *Arc::make_mut(&mut data.drag) = Some((
                     offset,
                     DragContent::EditorTab(
                         editor_tab.widget_id,
-                        editor_tab.active,
-                        editor_tab.children[editor_tab.active].clone(),
+                        target,
+                        editor_tab.children[target].clone(),
                         tab_rect.clone(),
                     ),
                 ));
-            }
-
-            if mouse_event.button.is_middle()
-                && tab_rect.rect.contains(mouse_event.pos)
-            {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::EditorTabRemove(i, true, true),
-                    Target::Widget(self.widget_id),
-                ));
-                return;
             }
         }
     }
