@@ -62,12 +62,6 @@ impl LapceEditorTabHeaderContent {
             if mouse_event.button.is_left()
                 && tab_rect.rect.contains(mouse_event.pos)
             {
-                let editor_tab = data
-                    .main_split
-                    .editor_tabs
-                    .get_mut(&self.widget_id)
-                    .unwrap();
-                let editor_tab = Arc::make_mut(editor_tab);
                 if tab_rect.close_rect.contains(mouse_event.pos) {
                     self.cancel_pending_drag(data);
                     ctx.submit_command(Command::new(
@@ -77,6 +71,14 @@ impl LapceEditorTabHeaderContent {
                     ));
                     return;
                 }
+
+                let editor_tab = data
+                    .main_split
+                    .editor_tabs
+                    .get_mut(&self.widget_id)
+                    .unwrap();
+                let editor_tab = Arc::make_mut(editor_tab);
+
                 if editor_tab.active != i {
                     editor_tab.active = i;
                     ctx.submit_command(Command::new(
