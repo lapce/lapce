@@ -171,79 +171,68 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             }
             Event::MouseUp(mouse_event) => {
                 self.mouse_down_target = None;
-                if let Some((_, drag_content)) = data.drag.clone().as_ref() {
-                    match drag_content {
-                        DragContent::EditorTab(from_id, from_index, child, _) => {
-                            let mut mouse_index =
-                                self.drag_target_idx(mouse_event.pos);
 
-                            let editor_tab = data
-                                .main_split
-                                .editor_tabs
-                                .get(&self.widget_id)
-                                .unwrap()
-                                .clone();
+                if let Some((
+                    _,
+                    DragContent::EditorTab(from_id, from_index, child, _),
+                )) = Arc::make_mut(&mut data.drag).take()
+                {
+                    let mut mouse_index = self.drag_target_idx(mouse_event.pos);
 
-                            if &editor_tab.widget_id == from_id {
-                                // Take the removed tab into account.
-                                if mouse_index > *from_index {
-                                    mouse_index = mouse_index.saturating_sub(1);
-                                }
+                    let editor_tab = data
+                        .main_split
+                        .editor_tabs
+                        .get(&self.widget_id)
+                        .unwrap()
+                        .clone();
 
-                                if mouse_index != *from_index {
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::EditorTabSwap(
-                                            *from_index,
-                                            mouse_index,
-                                        ),
-                                        Target::Widget(editor_tab.widget_id),
-                                    ));
-                                    ctx.submit_command(Command::new(
-                                        LAPCE_UI_COMMAND,
-                                        LapceUICommand::Focus,
-                                        Target::Widget(child.widget_id()),
-                                    ));
-                                }
-                            } else {
-                                child.set_editor_tab(data, editor_tab.widget_id);
-                                let editor_tab = data
-                                    .main_split
-                                    .editor_tabs
-                                    .get_mut(&self.widget_id)
-                                    .unwrap();
-                                let editor_tab = Arc::make_mut(editor_tab);
-                                editor_tab
-                                    .children
-                                    .insert(mouse_index, child.clone());
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::EditorTabAdd(
-                                        mouse_index,
-                                        child.clone(),
-                                    ),
-                                    Target::Widget(editor_tab.widget_id),
-                                ));
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::Focus,
-                                    Target::Widget(child.widget_id()),
-                                ));
-                                ctx.submit_command(Command::new(
-                                    LAPCE_UI_COMMAND,
-                                    LapceUICommand::EditorTabRemove(
-                                        *from_index,
-                                        false,
-                                        false,
-                                    ),
-                                    Target::Widget(*from_id),
-                                ));
-                            }
+                    if editor_tab.widget_id == from_id {
+                        // Take the removed tab into account.
+                        if mouse_index > from_index {
+                            mouse_index = mouse_index.saturating_sub(1);
                         }
-                    };
-                }
-                if data.drag.is_some() {
-                    *Arc::make_mut(&mut data.drag) = None;
+
+                        if mouse_index != from_index {
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::EditorTabSwap(
+                                    from_index,
+                                    mouse_index,
+                                ),
+                                Target::Widget(editor_tab.widget_id),
+                            ));
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::Focus,
+                                Target::Widget(child.widget_id()),
+                            ));
+                        }
+                        return;
+                    }
+
+                    child.set_editor_tab(data, editor_tab.widget_id);
+                    let editor_tab = data
+                        .main_split
+                        .editor_tabs
+                        .get_mut(&self.widget_id)
+                        .unwrap();
+                    let editor_tab = Arc::make_mut(editor_tab);
+                    editor_tab.children.insert(mouse_index, child.clone());
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EditorTabAdd(mouse_index, child.clone()),
+                        Target::Widget(editor_tab.widget_id),
+                    ));
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(child.widget_id()),
+                    ));
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EditorTabRemove(from_index, false, false),
+                        Target::Widget(from_id),
+                    ));
                 }
             }
             _ => (),
