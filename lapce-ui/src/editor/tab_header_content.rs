@@ -169,7 +169,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, data, mouse_event);
             }
-            Event::MouseUp(mouse_event) => {
+            Event::MouseUp(mouse_event) if mouse_event.button.is_left() => {
                 self.mouse_down_target = None;
 
                 if let Some((
