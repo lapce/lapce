@@ -298,8 +298,7 @@ impl Widget<LapceWindowData> for Title {
             workspace_path
                 .file_name()
                 .unwrap_or_else(|| workspace_path.as_os_str())
-                .to_str()
-                .unwrap()
+                .to_string_lossy()
                 .to_string()
         } else {
             "Open Folder".to_string()
