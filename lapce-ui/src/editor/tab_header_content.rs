@@ -376,23 +376,11 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let editor_tab = data.main_split.editor_tabs.get(&self.widget_id).unwrap();
         let size = ctx.size();
 
         for (i, tab_rect) in self.rects.iter().enumerate() {
-            if i != editor_tab.active {
-                tab_rect.paint(ctx, data, self.widget_id, i, size, self.mouse_pos);
-            }
+            tab_rect.paint(ctx, data, self.widget_id, i, size, self.mouse_pos);
         }
-
-        self.rects.get(editor_tab.active).unwrap().paint(
-            ctx,
-            data,
-            self.widget_id,
-            editor_tab.active,
-            size,
-            self.mouse_pos,
-        );
 
         if ctx.is_hot() && data.drag.is_some() {
             let mouse_index = self.drag_target_idx(self.mouse_pos);
