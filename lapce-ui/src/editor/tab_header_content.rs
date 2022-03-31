@@ -44,9 +44,9 @@ impl LapceEditorTabHeaderContent {
         }
     }
 
-    fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+    fn tab_hit_test(&self, mouse_event: &MouseEvent) -> bool {
         for tab_idx in 0..self.rects.len() {
-            if self.is_close_icon_hit(tab_idx, mouse_event.pos) {
+            if self.is_tab_hit(tab_idx, mouse_event.pos) {
                 return true;
             }
         }
@@ -121,7 +121,7 @@ impl LapceEditorTabHeaderContent {
         mouse_event: &MouseEvent,
     ) {
         self.mouse_pos = mouse_event.pos;
-        if self.icon_hit_test(mouse_event) {
+        if self.tab_hit_test(mouse_event) {
             ctx.set_cursor(&druid::Cursor::Pointer);
         } else {
             ctx.clear_cursor();
