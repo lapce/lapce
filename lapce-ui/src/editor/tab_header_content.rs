@@ -47,7 +47,6 @@ impl LapceEditorTabHeaderContent {
     }
 
     fn cancel_pending_drag(&mut self, data: &mut LapceTabData) {
-        self.mouse_down_target = None;
         *Arc::make_mut(&mut data.drag) = None;
     }
 
@@ -129,7 +128,7 @@ impl LapceEditorTabHeaderContent {
         }
 
         if data.drag.is_none() {
-            if let Some(target) = self.mouse_down_target {
+            if let Some(target) = self.mouse_down_target.take() {
                 let editor_tab =
                     data.main_split.editor_tabs.get(&self.widget_id).unwrap();
                 let tab_rect = &self.rects[target];
@@ -185,12 +184,12 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 self.mouse_down(ctx, data, mouse_event);
             }
             Event::MouseUp(mouse_event) if mouse_event.button.is_left() => {
+                self.mouse_down_target = None;
                 if let Some((
                     _,
                     DragContent::EditorTab(from_id, from_index, child, _),
                 )) = Arc::make_mut(&mut data.drag).take()
                 {
-                    self.mouse_down_target = None;
                     let mut mouse_index = self.drag_target_idx(mouse_event.pos);
 
                     let editor_tab = data
@@ -256,14 +255,10 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
     fn lifecycle(
         &mut self,
         _ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
+        _event: &LifeCycle,
         _data: &LapceTabData,
         _env: &Env,
     ) {
-        if let LifeCycle::HotChanged(_) = event {
-            // Prevent re-entering with MouseDown to pick up a random tab.
-            self.mouse_down_target = None;
-        }
     }
 
     fn update(
