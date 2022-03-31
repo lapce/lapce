@@ -20,11 +20,18 @@ use crate::{
     svg::{file_svg_new, get_svg},
 };
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MouseAction {
+    Drag,
+    CloseViaIcon,
+    CloseViaMiddleClick,
+}
+
 pub struct LapceEditorTabHeaderContent {
     pub widget_id: WidgetId,
     pub rects: Vec<TabRect>,
     mouse_pos: Point,
-    mouse_down_target: Option<usize>,
+    mouse_down_target: Option<(MouseAction, usize)>,
 }
 
 impl LapceEditorTabHeaderContent {
@@ -38,8 +45,8 @@ impl LapceEditorTabHeaderContent {
     }
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
-        for tab_rect in self.rects.iter() {
-            if tab_rect.close_rect.contains(mouse_event.pos) {
+        for tab_idx in 0..self.rects.len() {
+            if self.is_close_icon_hit(tab_idx, mouse_event.pos) {
                 return true;
             }
         }
@@ -50,24 +57,29 @@ impl LapceEditorTabHeaderContent {
         *Arc::make_mut(&mut data.drag) = None;
     }
 
+    fn is_close_icon_hit(&self, tab: usize, mouse_pos: Point) -> bool {
+        self.rects[tab].close_rect.contains(mouse_pos)
+    }
+
+    fn is_tab_hit(&self, tab: usize, mouse_pos: Point) -> bool {
+        self.rects[tab].rect.contains(mouse_pos)
+    }
+
     fn mouse_down(
         &mut self,
         ctx: &mut EventCtx,
         data: &mut LapceTabData,
         mouse_event: &MouseEvent,
     ) {
-        for (i, tab_rect) in self.rects.iter().enumerate() {
-            // Only react to left button clicks
-            if mouse_event.button.is_left()
-                && tab_rect.rect.contains(mouse_event.pos)
-            {
-                if tab_rect.close_rect.contains(mouse_event.pos) {
-                    self.cancel_pending_drag(data);
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::EditorTabRemove(i, true, true),
-                        Target::Widget(self.widget_id),
-                    ));
+        for tab_idx in 0..self.rects.len() {
+            if !self.is_tab_hit(tab_idx, mouse_event.pos) {
+                continue;
+            }
+
+            if mouse_event.button.is_left() {
+                if self.is_close_icon_hit(tab_idx, mouse_event.pos) {
+                    self.mouse_down_target =
+                        Some((MouseAction::CloseViaIcon, tab_idx));
                     return;
                 }
 
@@ -78,30 +90,25 @@ impl LapceEditorTabHeaderContent {
                     .unwrap();
                 let editor_tab = Arc::make_mut(editor_tab);
 
-                if editor_tab.active != i {
-                    editor_tab.active = i;
+                if editor_tab.active != tab_idx {
+                    editor_tab.active = tab_idx;
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::Focus,
-                        Target::Widget(editor_tab.children[i].widget_id()),
+                        Target::Widget(editor_tab.children[tab_idx].widget_id()),
                     ));
                 }
                 self.mouse_pos = mouse_event.pos;
-                self.mouse_down_target = Some(i);
+                self.mouse_down_target = Some((MouseAction::Drag, tab_idx));
 
                 ctx.request_paint();
 
                 return;
             }
 
-            if mouse_event.button.is_middle()
-                && tab_rect.rect.contains(mouse_event.pos)
-            {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::EditorTabRemove(i, true, true),
-                    Target::Widget(self.widget_id),
-                ));
+            if mouse_event.button.is_middle() {
+                self.mouse_down_target =
+                    Some((MouseAction::CloseViaMiddleClick, tab_idx));
                 return;
             }
         }
@@ -128,7 +135,9 @@ impl LapceEditorTabHeaderContent {
         }
 
         if data.drag.is_none() {
-            if let Some(target) = self.mouse_down_target.take() {
+            if let Some((MouseAction::Drag, target)) = self.mouse_down_target {
+                self.mouse_down_target = None;
+
                 let editor_tab =
                     data.main_split.editor_tabs.get(&self.widget_id).unwrap();
                 let tab_rect = &self.rects[target];
@@ -166,6 +175,71 @@ impl LapceEditorTabHeaderContent {
         }
         self.after_last_tab_index()
     }
+
+    fn handle_drag(
+        &mut self,
+        mouse_index: usize,
+        ctx: &mut EventCtx,
+        data: &mut LapceTabData,
+    ) {
+        if let Some((_, DragContent::EditorTab(from_id, from_index, child, _))) =
+            Arc::make_mut(&mut data.drag).take()
+        {
+            let editor_tab = data
+                .main_split
+                .editor_tabs
+                .get(&self.widget_id)
+                .unwrap()
+                .clone();
+
+            if editor_tab.widget_id == from_id {
+                // Take the removed tab into account.
+                let mouse_index = if mouse_index > from_index {
+                    mouse_index.saturating_sub(1)
+                } else {
+                    mouse_index
+                };
+
+                if mouse_index != from_index {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EditorTabSwap(from_index, mouse_index),
+                        Target::Widget(editor_tab.widget_id),
+                    ));
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(child.widget_id()),
+                    ));
+                }
+                return;
+            }
+
+            child.set_editor_tab(data, editor_tab.widget_id);
+            let editor_tab = data
+                .main_split
+                .editor_tabs
+                .get_mut(&self.widget_id)
+                .unwrap();
+            let editor_tab = Arc::make_mut(editor_tab);
+            editor_tab.children.insert(mouse_index, child.clone());
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::EditorTabAdd(mouse_index, child.clone()),
+                Target::Widget(editor_tab.widget_id),
+            ));
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(child.widget_id()),
+            ));
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::EditorTabRemove(from_index, false, false),
+                Target::Widget(from_id),
+            ));
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
@@ -183,69 +257,38 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, data, mouse_event);
             }
-            Event::MouseUp(mouse_event) if mouse_event.button.is_left() => {
-                self.mouse_down_target = None;
-                if let Some((
-                    _,
-                    DragContent::EditorTab(from_id, from_index, child, _),
-                )) = Arc::make_mut(&mut data.drag).take()
-                {
-                    let mut mouse_index = self.drag_target_idx(mouse_event.pos);
-
-                    let editor_tab = data
-                        .main_split
-                        .editor_tabs
-                        .get(&self.widget_id)
-                        .unwrap()
-                        .clone();
-
-                    if editor_tab.widget_id == from_id {
-                        // Take the removed tab into account.
-                        if mouse_index > from_index {
-                            mouse_index = mouse_index.saturating_sub(1);
-                        }
-
-                        if mouse_index != from_index {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::EditorTabSwap(
-                                    from_index,
-                                    mouse_index,
-                                ),
-                                Target::Widget(editor_tab.widget_id),
-                            ));
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::Focus,
-                                Target::Widget(child.widget_id()),
-                            ));
-                        }
-                        return;
+            Event::MouseUp(mouse_event) => {
+                match self.mouse_down_target.take() {
+                    // Was the left button released on the close icon that started the close?
+                    Some((MouseAction::CloseViaIcon, target))
+                        if self.is_close_icon_hit(target, mouse_event.pos)
+                            && mouse_event.button.is_left() =>
+                    {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::EditorTabRemove(target, true, true),
+                            Target::Widget(self.widget_id),
+                        ));
                     }
 
-                    child.set_editor_tab(data, editor_tab.widget_id);
-                    let editor_tab = data
-                        .main_split
-                        .editor_tabs
-                        .get_mut(&self.widget_id)
-                        .unwrap();
-                    let editor_tab = Arc::make_mut(editor_tab);
-                    editor_tab.children.insert(mouse_index, child.clone());
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::EditorTabAdd(mouse_index, child.clone()),
-                        Target::Widget(editor_tab.widget_id),
-                    ));
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::Focus,
-                        Target::Widget(child.widget_id()),
-                    ));
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::EditorTabRemove(from_index, false, false),
-                        Target::Widget(from_id),
-                    ));
+                    // Was the middle button released on the tab that started the close?
+                    Some((MouseAction::CloseViaMiddleClick, target))
+                        if self.is_tab_hit(target, mouse_event.pos)
+                            && mouse_event.button.is_middle() =>
+                    {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::EditorTabRemove(target, true, true),
+                            Target::Widget(self.widget_id),
+                        ));
+                    }
+
+                    None if mouse_event.button.is_left() => {
+                        let mouse_index = self.drag_target_idx(mouse_event.pos);
+                        self.handle_drag(mouse_index, ctx, data)
+                    }
+
+                    _ => {}
                 }
             }
             _ => (),
