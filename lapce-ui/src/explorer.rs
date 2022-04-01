@@ -367,6 +367,9 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         data: &mut LapceTabData,
         _env: &Env,
     ) {
+        if !ctx.is_hot() {
+            return;
+        }
         match event {
             Event::MouseMove(mouse_event) => {
                 if let Some(workspace) = data.file_explorer.workspace.as_ref() {
