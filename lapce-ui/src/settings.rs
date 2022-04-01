@@ -6,22 +6,17 @@ use druid::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
     BoxConstraints, Command, Env, Event, EventCtx, ExtEventSink, FontFamily,
-    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent, PaintCtx,
-    Point, Rect, RenderContext, Size, Target, TimerToken, UpdateCtx, Vec2, Widget,
+    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, TimerToken, UpdateCtx, Vec2, Widget,
     WidgetExt, WidgetId, WidgetPod,
 };
 use inflector::Inflector;
 use lapce_data::{
     buffer::{Buffer, BufferContent},
-    command::{
-        CommandExecuted, LapceCommand, LapceUICommand, LAPCE_NEW_COMMAND,
-        LAPCE_UI_COMMAND,
-    },
+    command::{LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND},
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
-    keypress::KeyPressFocus,
     proxy::VERSION,
-    state::Mode,
 };
 
 use crate::{
@@ -605,11 +600,6 @@ impl Widget<LapceTabData> for LapceSettings {
     }
 }
 
-pub struct LapceSettingsItemKeypress {
-    input: String,
-    cursor: usize,
-}
-
 pub struct LapceSettingsItem {
     kind: String,
     name: String,
@@ -779,54 +769,6 @@ impl LapceSettingsItem {
 
     fn get_key(&self) -> String {
         format!("{}.{}", self.kind, self.name.to_kebab_case())
-    }
-}
-
-impl KeyPressFocus for LapceSettingsItemKeypress {
-    fn get_mode(&self) -> Mode {
-        Mode::Insert
-    }
-
-    fn check_condition(&self, condition: &str) -> bool {
-        matches!(condition, "settings")
-    }
-
-    fn run_command(
-        &mut self,
-        _ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
-    ) -> CommandExecuted {
-        match command {
-            LapceCommand::Right => {
-                self.cursor += 1;
-                if self.cursor > self.input.len() {
-                    self.cursor = self.input.len();
-                }
-            }
-            LapceCommand::Left => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
-                }
-                self.cursor -= 1;
-            }
-            LapceCommand::DeleteBackward => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
-                }
-                self.input.remove(self.cursor - 1);
-                self.cursor -= 1;
-            }
-            _ => return CommandExecuted::No,
-        }
-        CommandExecuted::Yes
-    }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
-        self.input.insert_str(self.cursor, c);
-        self.cursor += c.len();
     }
 }
 
