@@ -297,9 +297,8 @@ impl Widget<LapceWindowData> for Title {
         let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
             workspace_path
                 .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
+                .unwrap_or_else(|| workspace_path.as_os_str())
+                .to_string_lossy()
                 .to_string()
         } else {
             "Open Folder".to_string()
