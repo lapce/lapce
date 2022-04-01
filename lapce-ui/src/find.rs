@@ -23,7 +23,7 @@ pub struct FindBox {
 
 impl FindBox {
     pub fn new(view_id: WidgetId, parent_view_id: WidgetId) -> Self {
-        let input = LapceEditorView::new(view_id, None)
+        let input = LapceEditorView::new(view_id, None, "find_box")
             .hide_header()
             .hide_gutter()
             .padding((10.0, 5.0));

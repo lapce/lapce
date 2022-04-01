@@ -37,8 +37,8 @@ use crate::{
     activity::ActivityBar, code_action::CodeAction, completion::CompletionContainer,
     explorer::FileExplorer, hover::HoverContainer, palette::NewPalette,
     picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
-    search::new_search_panel, settings::LapceSettingsPanel,
-    source_control::new_source_control_panel, split::split_data_widget,
+    search::SearchData, settings::LapceSettingsPanel,
+    source_control::SourceControlData, split::split_data_widget,
     status::LapceStatusNew, terminal::TerminalPanel,
 };
 
@@ -103,7 +103,7 @@ impl LapceTabNew {
             WidgetPod::new(file_explorer.boxed()),
         );
 
-        let source_control = new_source_control_panel(data);
+        let source_control = SourceControlData::new_panel(data);
         panels.insert(
             PanelKind::SourceControl,
             WidgetPod::new(source_control.boxed()),
@@ -115,7 +115,7 @@ impl LapceTabNew {
         let terminal = TerminalPanel::new_panel(data);
         panels.insert(PanelKind::Terminal, WidgetPod::new(terminal.boxed()));
 
-        let search = new_search_panel(data);
+        let search = SearchData::new_panel(data);
         panels.insert(PanelKind::Search, WidgetPod::new(search.boxed()));
 
         let problem = new_problem_panel(&data.problem);

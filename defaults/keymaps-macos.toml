@@ -3,10 +3,12 @@
 [[keymaps]]
 key = "meta+p"
 command = "palette"
+when="!settings"
 
 [[keymaps]]
 key = "meta+P"
 command = "palette.command"
+when="!settings"
 
 [[keymaps]]
 key = "meta+e"

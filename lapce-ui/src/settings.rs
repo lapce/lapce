@@ -463,10 +463,11 @@ impl LapceSettings {
             .boxed(),
         );
 
-        let _input = LapceEditorView::new(data.settings.settings_view_id, None)
-            .hide_header()
-            .hide_gutter()
-            .padding((15.0, 15.0));
+        let _input =
+            LapceEditorView::new(data.settings.settings_view_id, None, "settings")
+                .hide_header()
+                .hide_gutter()
+                .padding((15.0, 15.0));
 
         let split = LapceSplitNew::new(data.settings.settings_split_id)
             .horizontal()
@@ -660,7 +661,7 @@ impl LapceSettingsItem {
             data.main_split.value_buffers.insert(name, Arc::new(buffer));
             let editor = LapceEditorData::new(None, None, content, &data.config);
             let view_id = editor.view_id;
-            let input = LapceEditorView::new(editor.view_id, None)
+            let input = LapceEditorView::new(editor.view_id, None, "settings")
                 .hide_header()
                 .hide_gutter()
                 .padding((5.0, 0.0, 50.0, 0.0));
@@ -786,8 +787,8 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         Mode::Insert
     }
 
-    fn check_condition(&self, _condition: &str) -> bool {
-        false
+    fn check_condition(&self, condition: &str) -> bool {
+        matches!(condition, "settings")
     }
 
     fn run_command(

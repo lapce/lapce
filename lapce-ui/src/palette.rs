@@ -239,7 +239,7 @@ impl PaletteContainer {
             .vertical(),
             data.scroll_id,
         );
-        let preview = LapceEditorView::new(preview_editor.view_id, None);
+        let preview = LapceEditorView::new(preview_editor.view_id, None, "palette");
         Self {
             input_size: Size::ZERO,
             content_size: Size::ZERO,

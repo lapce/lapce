@@ -3,10 +3,12 @@
 [[keymaps]]
 key = "ctrl+p"
 command = "palette"
+when="!settings"
 
 [[keymaps]]
 key = "Ctrl+P"
 command = "palette.command"
+when="!settings"
 
 [[keymaps]]
 key = "ctrl+e"

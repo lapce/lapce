@@ -288,9 +288,10 @@ pub struct FilePickerPwd {
 
 impl FilePickerPwd {
     pub fn new(data: &LapceTabData) -> Self {
-        let input = LapceEditorView::new(data.picker.editor_view_id, None)
-            .hide_header()
-            .hide_gutter();
+        let input =
+            LapceEditorView::new(data.picker.editor_view_id, None, "file_picker")
+                .hide_header()
+                .hide_gutter();
         Self {
             icons: Vec::new(),
             input: WidgetPod::new(input.boxed()),

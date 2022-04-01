@@ -30,6 +30,9 @@ pub struct LapceEditorView {
     pub header: WidgetPod<LapceTabData, LapceEditorHeader>,
     pub editor: WidgetPod<LapceTabData, LapceEditorContainer>,
     pub find: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    /// The type of the editor. Used to differentiate between the different input types
+    /// (settings, search box, etc.).
+    pub kind: &'static str,
 }
 
 pub fn editor_tab_child_widget(
@@ -37,7 +40,7 @@ pub fn editor_tab_child_widget(
 ) -> Box<dyn Widget<LapceTabData>> {
     match child {
         EditorTabChild::Editor(view_id, find_view_id) => {
-            LapceEditorView::new(*view_id, *find_view_id).boxed()
+            LapceEditorView::new(*view_id, *find_view_id, "editor").boxed()
         }
     }
 }
@@ -46,6 +49,7 @@ impl LapceEditorView {
     pub fn new(
         view_id: WidgetId,
         find_view_id: Option<WidgetId>,
+        kind: &'static str,
     ) -> LapceEditorView {
         let header = LapceEditorHeader::new(view_id);
         let editor = LapceEditorContainer::new(view_id);
@@ -56,6 +60,7 @@ impl LapceEditorView {
             header: WidgetPod::new(header),
             editor: WidgetPod::new(editor),
             find,
+            kind,
         }
     }
 
@@ -382,6 +387,39 @@ impl LapceEditorView {
     }
 }
 
+pub struct EditorFocusTarget<'a, K: KeyPressFocus> {
+    kind: &'static str,
+    inner: &'a mut K,
+}
+
+impl<K: KeyPressFocus> KeyPressFocus for EditorFocusTarget<'_, K> {
+    fn get_mode(&self) -> lapce_data::state::Mode {
+        self.inner.get_mode()
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        if condition == self.kind {
+            return true;
+        }
+        self.inner.check_condition(condition)
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommand,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
+    ) -> lapce_data::command::CommandExecuted {
+        self.inner.run_command(ctx, command, count, mods, env)
+    }
+
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
+        self.inner.receive_char(ctx, c)
+    }
+}
+
 impl Widget<LapceTabData> for LapceEditorView {
     fn id(&self) -> Option<WidgetId> {
         Some(self.view_id)
@@ -438,7 +476,10 @@ impl Widget<LapceTabData> for LapceEditorView {
                 if Arc::make_mut(&mut keypress).key_down(
                     ctx,
                     key_event,
-                    &mut editor_data,
+                    &mut EditorFocusTarget {
+                        kind: self.kind,
+                        inner: &mut editor_data,
+                    },
                     env,
                 ) {
                     self.ensure_cursor_visible(

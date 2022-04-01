@@ -40,10 +40,11 @@ impl LapceKeymap {
         };
         let keymap = LapceScrollNew::new(keymap);
 
-        let input = LapceEditorView::new(data.settings.keymap_view_id, None)
-            .hide_header()
-            .hide_gutter()
-            .padding((15.0, 15.0));
+        let input =
+            LapceEditorView::new(data.settings.keymap_view_id, None, "keymap")
+                .hide_header()
+                .hide_gutter()
+                .padding((15.0, 15.0));
         let header = LapceKeymapHeader::new();
         let split = LapceSplitNew::new(data.settings.keymap_split_id)
             .horizontal()

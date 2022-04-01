@@ -41,41 +41,6 @@ pub struct SourceControlData {
     pub branches: Vec<String>,
 }
 
-pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
-    let editor_data = data
-        .main_split
-        .editors
-        .get(&data.source_control.editor_view_id)
-        .unwrap();
-    let input = LapceEditorView::new(editor_data.view_id, None)
-        .hide_header()
-        .hide_gutter()
-        .set_placeholder("Commit Message".to_string())
-        .padding((15.0, 15.0));
-    let content = SourceControlFileList::new(data.source_control.file_list_id);
-    LapcePanel::new(
-        PanelKind::SourceControl,
-        data.source_control.widget_id,
-        data.source_control.split_id,
-        data.source_control.split_direction,
-        PanelHeaderKind::Simple("Source Control".to_string()),
-        vec![
-            (
-                editor_data.view_id,
-                PanelHeaderKind::None,
-                input.boxed(),
-                Some(300.0),
-            ),
-            (
-                data.source_control.file_list_id,
-                PanelHeaderKind::Simple("Changes".to_string()),
-                content.boxed(),
-                None,
-            ),
-        ],
-    )
-}
-
 impl SourceControlData {
     pub fn new() -> Self {
         let file_list_id = WidgetId::next();
@@ -94,23 +59,24 @@ impl SourceControlData {
         }
     }
 
-    pub fn new_panel(&self, data: &LapceTabData) -> LapcePanel {
+    pub fn new_panel(data: &LapceTabData) -> LapcePanel {
         let editor_data = data
             .main_split
             .editors
             .get(&data.source_control.editor_view_id)
             .unwrap();
-        let input = LapceEditorView::new(editor_data.view_id, None)
-            .hide_header()
-            .hide_gutter()
-            .set_placeholder("Commit Message".to_string())
-            .padding((15.0, 10.0));
-        let content = SourceControlFileList::new(self.file_list_id);
+        let input =
+            LapceEditorView::new(editor_data.view_id, None, "source_control")
+                .hide_header()
+                .hide_gutter()
+                .set_placeholder("Commit Message".to_string())
+                .padding((15.0, 15.0));
+        let content = SourceControlFileList::new(data.source_control.file_list_id);
         LapcePanel::new(
             PanelKind::SourceControl,
-            self.widget_id,
-            self.split_id,
-            self.split_direction,
+            data.source_control.widget_id,
+            data.source_control.split_id,
+            data.source_control.split_direction,
             PanelHeaderKind::Simple("Source Control".to_string()),
             vec![
                 (
@@ -120,7 +86,7 @@ impl SourceControlData {
                     Some(300.0),
                 ),
                 (
-                    self.file_list_id,
+                    data.source_control.file_list_id,
                     PanelHeaderKind::Simple("Changes".to_string()),
                     content.boxed(),
                     None,

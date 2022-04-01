@@ -31,7 +31,7 @@ impl KeyPressFocus for LapceSettingsPanelData {
     }
 
     fn check_condition(&self, condition: &str) -> bool {
-        matches!(condition, "modal_focus")
+        matches!(condition, "modal_focus" | "settings")
     }
 
     fn run_command(
