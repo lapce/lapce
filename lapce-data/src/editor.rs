@@ -1654,8 +1654,7 @@ impl LapceEditorBufferData {
         config: &Config,
     ) -> usize {
         let (line, char_width) = if self.editor.code_lens {
-            let (line, font_size) = if let Some(syntax) = self.buffer.syntax.as_ref()
-            {
+            let (line, font_size) = if let Some(syntax) = self.buffer.syntax() {
                 let line = syntax.lens.line_of_height(pos.y.floor() as usize);
                 let line_height = syntax.lens.height_of_line(line + 1)
                     - syntax.lens.height_of_line(line);
@@ -2937,8 +2936,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .edit_selection(&self.buffer, self.config.editor.tab_width);
                 let comment_token = self
                     .buffer
-                    .syntax
-                    .as_ref()
+                    .syntax()
                     .map(|s| s.language.comment_token())
                     .unwrap_or("//")
                     .to_string();

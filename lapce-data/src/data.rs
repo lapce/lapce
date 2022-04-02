@@ -2389,7 +2389,7 @@ impl LapceMainSplitData {
             };
 
             if let Some(compare) = location.history.as_ref() {
-                if !buffer.histories.contains_key(compare) {
+                if !buffer.histories().contains_key(compare) {
                     buffer.retrieve_file_head(
                         *self.tab_id,
                         self.proxy.clone(),

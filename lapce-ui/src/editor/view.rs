@@ -334,8 +334,7 @@ impl LapceEditorView {
             let empty_vec = Vec::new();
             let normal_lines = data
                 .buffer
-                .syntax
-                .as_ref()
+                .syntax()
                 .map(|s| &s.normal_lines)
                 .unwrap_or(&empty_vec);
 
@@ -581,7 +580,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
 
-        if let Some(syntax) = editor_data.buffer.syntax.as_ref() {
+        if let Some(syntax) = editor_data.buffer.syntax() {
             if syntax.line_height != data.config.editor.line_height
                 || syntax.lens_height != data.config.editor.code_lens_font_size
             {
@@ -617,8 +616,8 @@ impl Widget<LapceTabData> for LapceEditorView {
         if editor_data.editor.compare.is_some() {
             if !editor_data
                 .buffer
-                .histories
-                .ptr_eq(&old_editor_data.buffer.histories)
+                .histories()
+                .ptr_eq(old_editor_data.buffer.histories())
             {
                 ctx.request_layout();
             }

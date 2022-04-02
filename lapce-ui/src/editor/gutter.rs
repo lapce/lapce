@@ -359,7 +359,7 @@ impl LapceEditorGutter {
             data.config.editor.code_lens_font_size,
             &[],
         );
-        let lens = if let Some(syntax) = data.buffer.syntax.as_ref() {
+        let lens = if let Some(syntax) = data.buffer.syntax() {
             &syntax.lens
         } else {
             &empty_lens

@@ -234,7 +234,7 @@ impl LapceEditor {
         match &data.editor.content {
             BufferContent::File(_) => {
                 if data.editor.code_lens {
-                    if let Some(syntax) = data.buffer.syntax.as_ref() {
+                    if let Some(syntax) = data.buffer.syntax() {
                         let height =
                             syntax.lens.height_of_line(syntax.lens.len() + 1);
                         Size::new(
@@ -357,7 +357,7 @@ impl LapceEditor {
             data.config.editor.code_lens_font_size,
             &[],
         );
-        let lens = if let Some(syntax) = data.buffer.syntax.as_ref() {
+        let lens = if let Some(syntax) = data.buffer.syntax() {
             &syntax.lens
         } else {
             &empty_lens
@@ -1265,7 +1265,7 @@ impl LapceEditor {
         if data.find.search_string.is_some() {
             for region in data
                 .buffer
-                .find
+                .find()
                 .borrow()
                 .occurrences()
                 .regions_in_range(start_offset, end_offset)

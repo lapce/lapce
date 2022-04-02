@@ -225,16 +225,7 @@ pub struct Buffer {
 
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
 
-    loaded: bool,
-    local: bool,
-    pub find: Rc<RefCell<Find>>,
-    pub find_progress: Rc<RefCell<FindProgress>>,
-    pub syntax: Option<Syntax>,
-    pub line_styles: Rc<RefCell<LineStyles>>,
-    pub semantic_styles: Option<Arc<Spans<Style>>>,
-    pub histories: im::HashMap<String, Rope>,
-    tab_id: WidgetId,
-    event_sink: ExtEventSink,
+    decoration: BufferDecoration,
 }
 
 pub struct BufferEditListener<'a> {
@@ -304,16 +295,20 @@ impl Buffer {
 
                 last_edit_type: EditType::Other,
             },
-            syntax,
-            line_styles: Rc::new(RefCell::new(HashMap::new())),
+            decoration: BufferDecoration {
+                syntax,
+                line_styles: Rc::new(RefCell::new(HashMap::new())),
+                semantic_styles: None,
+                find: Rc::new(RefCell::new(Find::new(0))),
+                find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
+                loaded: false,
+                local: false,
+                histories: im::HashMap::new(),
+                tab_id,
+                event_sink,
+            },
             indent_style: DEFAULT_INDENT,
-            semantic_styles: None,
-            find: Rc::new(RefCell::new(Find::new(0))),
-            find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             start_to_load: Rc::new(RefCell::new(false)),
-            loaded: false,
-            local: false,
-            histories: im::HashMap::new(),
             history_styles: im::HashMap::new(),
             history_line_styles: Rc::new(RefCell::new(HashMap::new())),
             history_changes: im::HashMap::new(),
@@ -322,8 +317,6 @@ impl Buffer {
             scroll_offset: Vec2::ZERO,
 
             code_actions: im::HashMap::new(),
-            tab_id,
-            event_sink,
         }
     }
 
@@ -368,7 +361,7 @@ impl Buffer {
     }
 
     pub fn set_local(mut self) -> Self {
-        self.local = true;
+        self.decoration.local = true;
         self
     }
 
@@ -381,11 +374,39 @@ impl Buffer {
     }
 
     pub fn loaded(&self) -> bool {
-        self.loaded
+        self.decoration.loaded
     }
 
     pub fn local(&self) -> bool {
-        self.local
+        self.decoration.local
+    }
+
+    pub fn syntax(&self) -> Option<&Syntax> {
+        self.decoration.syntax.as_ref()
+    }
+
+    pub fn set_syntax(&mut self, syntax: Option<Syntax>) {
+        self.decoration.syntax = syntax;
+    }
+
+    pub fn histories(&self) -> &im::HashMap<String, Rope> {
+        &self.decoration.histories
+    }
+
+    pub fn line_styles(&self) -> Rc<RefCell<LineStyles>> {
+        self.decoration.line_styles.clone()
+    }
+
+    pub fn semantic_styles(&self) -> Option<Arc<Spans<Style>>> {
+        self.decoration.semantic_styles.clone()
+    }
+
+    pub fn set_semantic_styles(&mut self, styles: Option<Arc<Spans<Style>>>) {
+        self.decoration.semantic_styles = styles;
+    }
+
+    pub fn find(&self) -> Rc<RefCell<Find>> {
+        self.decoration.find.clone()
     }
 
     pub fn editable<'a>(
@@ -394,7 +415,7 @@ impl Buffer {
     ) -> EditableBufferData<'a, BufferEditListener> {
         EditableBufferData {
             listener: BufferEditListener {
-                decoration: todo!(),
+                decoration: &mut self.decoration,
                 proxy,
             },
             buffer: &mut self.data,
@@ -402,7 +423,9 @@ impl Buffer {
     }
 
     pub fn load_history(&mut self, version: &str, content: Rope) {
-        self.histories.insert(version.to_string(), content.clone());
+        self.decoration
+            .histories
+            .insert(version.to_string(), content.clone());
         self.trigger_history_change();
         self.retrieve_history_styles(version, content);
     }
@@ -426,7 +449,7 @@ impl Buffer {
         self.data.max_len = max_len;
         self.data.max_len_line = max_len_line;
         self.data.num_lines = self.calc_num_lines();
-        self.loaded = true;
+        self.decoration.loaded = true;
         self.detect_indent();
         self.notify_update(None);
     }
@@ -434,8 +457,7 @@ impl Buffer {
     pub fn detect_indent(&mut self) {
         self.indent_style = auto_detect_indent_style(&self.data.rope)
             .unwrap_or_else(|| {
-                self.syntax
-                    .as_ref()
+                self.syntax()
                     .map(|s| IndentStyle::from_str(s.language.indent_unit()))
                     .unwrap_or(DEFAULT_INDENT)
             });
@@ -449,9 +471,9 @@ impl Buffer {
         if let BufferContent::File(path) = &self.data.content {
             let id = self.id();
             let path = path.clone();
-            let tab_id = self.tab_id;
+            let tab_id = self.decoration.tab_id;
             let version = version.to_string();
-            let event_sink = self.event_sink.clone();
+            let event_sink = self.decoration.event_sink.clone();
             rayon::spawn(move || {
                 if let Some(syntax) =
                     Syntax::init(&path).map(|s| s.parse(0, content, None))
@@ -475,15 +497,15 @@ impl Buffer {
 
     fn trigger_history_change(&self) {
         if let BufferContent::File(path) = &self.data.content {
-            if let Some(head) = self.histories.get("head") {
+            if let Some(head) = self.histories().get("head") {
                 let id = self.id();
                 let rev = self.rev();
                 let atomic_rev = self.data.atomic_rev.clone();
                 let path = path.clone();
                 let left_rope = head.clone();
                 let right_rope = self.rope().clone();
-                let event_sink = self.event_sink.clone();
-                let tab_id = self.tab_id;
+                let event_sink = self.decoration.event_sink.clone();
+                let tab_id = self.decoration.tab_id;
                 rayon::spawn(move || {
                     if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                         return;
@@ -514,51 +536,6 @@ impl Buffer {
         }
     }
 
-    fn notify_special(&self) {
-        match &self.data.content {
-            BufferContent::File(_) => {}
-            BufferContent::Local(local) => {
-                let s = self.data.rope.to_string();
-                match local {
-                    LocalBufferKind::Search => {
-                        let _ = self.event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSearch(s),
-                            Target::Widget(self.tab_id),
-                        );
-                    }
-                    LocalBufferKind::SourceControl => {}
-                    LocalBufferKind::Empty => {}
-                    LocalBufferKind::FilePicker => {
-                        let pwd = PathBuf::from(s);
-                        let _ = self.event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdatePickerPwd(pwd),
-                            Target::Widget(self.tab_id),
-                        );
-                    }
-                    LocalBufferKind::Keymap => {
-                        let _ = self.event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateKeymapsFilter(s),
-                            Target::Widget(self.tab_id),
-                        );
-                    }
-                    LocalBufferKind::Settings => {
-                        let _ = self.event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSettingsFilter(s),
-                            Target::Widget(self.tab_id),
-                        );
-                    }
-                }
-            }
-            BufferContent::Value(_) => {}
-        }
-
-        if let BufferContent::Local(LocalBufferKind::Search) = self.data.content {}
-    }
-
     pub fn notify_update(&self, delta: Option<&RopeDelta>) {
         self.trigger_syntax_change(delta);
         self.trigger_history_change();
@@ -566,14 +543,14 @@ impl Buffer {
 
     fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
         if let BufferContent::File(path) = &self.data.content {
-            if let Some(syntax) = self.syntax.clone() {
+            if let Some(syntax) = self.decoration.syntax.clone() {
                 let path = path.clone();
                 let rev = self.rev();
                 let text = self.data.rope.clone();
                 let delta = delta.cloned();
                 let atomic_rev = self.data.atomic_rev.clone();
-                let event_sink = self.event_sink.clone();
-                let tab_id = self.tab_id;
+                let event_sink = self.decoration.event_sink.clone();
+                let tab_id = self.decoration.tab_id;
                 rayon::spawn(move || {
                     if atomic_rev.load(atomic::Ordering::Acquire) != rev {
                         return;
@@ -638,7 +615,7 @@ impl Buffer {
         event_sink: ExtEventSink,
         locations: Vec<(WidgetId, EditorLocationNew)>,
     ) {
-        if self.loaded || *self.start_to_load.borrow() {
+        if self.loaded() || *self.start_to_load.borrow() {
             return;
         }
         *self.start_to_load.borrow_mut() = true;
@@ -677,7 +654,7 @@ impl Buffer {
 
     pub fn reset_find(&self, current_find: &Find) {
         {
-            let find = self.find.borrow();
+            let find = self.decoration.find.borrow();
             if find.search_string == current_find.search_string
                 && find.case_matching == current_find.case_matching
                 && find.regex.as_ref().map(|r| r.as_str())
@@ -688,13 +665,13 @@ impl Buffer {
             }
         }
 
-        let mut find = self.find.borrow_mut();
+        let mut find = self.decoration.find.borrow_mut();
         find.unset();
         find.search_string = current_find.search_string.clone();
         find.case_matching = current_find.case_matching;
         find.regex = current_find.regex.clone();
         find.whole_words = current_find.whole_words;
-        *self.find_progress.borrow_mut() = FindProgress::Started;
+        *self.decoration.find_progress.borrow_mut() = FindProgress::Started;
     }
 
     pub fn update_find(
@@ -705,7 +682,7 @@ impl Buffer {
     ) {
         self.reset_find(current_find);
 
-        let mut find_progress = self.find_progress.borrow_mut();
+        let mut find_progress = self.decoration.find_progress.borrow_mut();
         let search_range = match &find_progress.clone() {
             FindProgress::Started => {
                 // start incremental find on visible region
@@ -746,7 +723,7 @@ impl Buffer {
             _ => None,
         };
 
-        let mut find = self.find.borrow_mut();
+        let mut find = self.decoration.find.borrow_mut();
         if let Some((search_range_start, search_range_end)) = search_range {
             if !find.is_multiline_regex() {
                 find.update_find(
@@ -770,11 +747,11 @@ impl Buffer {
     }
 
     fn calc_num_lines(&self) -> usize {
-        self.line_of_offset(self.data.rope.len()) + 1
+        self.line_of_offset(self.len()) + 1
     }
 
     pub fn last_line(&self) -> usize {
-        self.line_of_offset(self.data.rope.len())
+        self.line_of_offset(self.len())
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
@@ -856,7 +833,7 @@ impl Buffer {
         history: &str,
         line: usize,
     ) -> Option<Arc<Vec<LineStyle>>> {
-        let rope = self.histories.get(history)?;
+        let rope = self.decoration.histories.get(history)?;
         let styles = self.history_styles.get(history)?;
         let mut cached_line_styles = self.history_line_styles.borrow_mut();
         let cached_line_styles = cached_line_styles.get_mut(history)?;
@@ -894,27 +871,29 @@ impl Buffer {
 
     pub fn styles(&self) -> Option<&Arc<Spans<Style>>> {
         let styles = self
+            .decoration
             .semantic_styles
             .as_ref()
-            .or_else(|| self.syntax.as_ref().and_then(|s| s.styles.as_ref()));
+            .or_else(|| self.syntax().and_then(|s| s.styles.as_ref()));
         styles
     }
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
-        if self.line_styles.borrow().get(&line).is_none() {
+        if self.line_styles().borrow().get(&line).is_none() {
             let styles = self
+                .decoration
                 .semantic_styles
                 .as_ref()
-                .or_else(|| self.syntax.as_ref().and_then(|s| s.styles.as_ref()));
+                .or_else(|| self.syntax().and_then(|s| s.styles.as_ref()));
 
             let line_styles = styles
-                .map(|styles| line_styles(&self.data.rope, line, styles))
+                .map(|styles| line_styles(&self.data.rope, line, &styles))
                 .unwrap_or_default();
-            self.line_styles
+            self.line_styles()
                 .borrow_mut()
                 .insert(line, Arc::new(line_styles));
         }
-        self.line_styles.borrow().get(&line).cloned().unwrap()
+        self.line_styles().borrow().get(&line).cloned().unwrap()
     }
 
     pub fn history_text_layout(
@@ -928,7 +907,7 @@ impl Buffer {
         bounds: [f64; 2],
         config: &Config,
     ) -> Option<PietTextLayout> {
-        let rope = self.histories.get(history)?;
+        let rope = self.decoration.histories.get(history)?;
         let start_offset = rope.offset_of_line(line);
         let end_offset = rope.offset_of_line(line + 1);
         let line_content = rope.slice_to_cow(start_offset..end_offset).to_string();
@@ -1460,6 +1439,7 @@ impl Buffer {
                     );
 
                     let lens = self
+                        .decoration
                         .syntax
                         .as_ref()
                         .map_or(&empty_lens, |syntax| &syntax.lens);
@@ -1505,6 +1485,7 @@ impl Buffer {
                         &[],
                     );
                     let lens = self
+                        .decoration
                         .syntax
                         .as_ref()
                         .map_or(&empty_lens, |syntax| &syntax.lens);
@@ -1604,7 +1585,7 @@ impl Buffer {
                 (new_offset, ColPosition::Col(col))
             }
             Movement::NextUnmatched(c) => {
-                if let Some(syntax) = self.syntax.as_ref() {
+                if let Some(syntax) = self.syntax() {
                     let new_offset = syntax
                         .find_tag(offset, false, &c.to_string())
                         .unwrap_or(offset);
@@ -1621,7 +1602,7 @@ impl Buffer {
                 }
             }
             Movement::PreviousUnmatched(c) => {
-                if let Some(syntax) = self.syntax.as_ref() {
+                if let Some(syntax) = self.syntax() {
                     let new_offset = syntax
                         .find_tag(offset, true, &c.to_string())
                         .unwrap_or(offset);
@@ -1638,7 +1619,7 @@ impl Buffer {
                 }
             }
             Movement::MatchPairs => {
-                if let Some(syntax) = self.syntax.as_ref() {
+                if let Some(syntax) = self.syntax() {
                     let new_offset =
                         syntax.find_matching_pair(offset).unwrap_or(offset);
                     let (_, col) =
@@ -1657,7 +1638,7 @@ impl Buffer {
     }
 
     pub fn previous_unmatched(&self, c: char, offset: usize) -> Option<usize> {
-        if let Some(syntax) = self.syntax.as_ref() {
+        if let Some(syntax) = self.syntax() {
             syntax.find_tag(offset, true, &c.to_string())
         } else {
             WordCursor::new(&self.data.rope, offset).previous_unmatched(c)

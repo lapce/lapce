@@ -20,20 +20,20 @@ use crate::{
 
 #[derive(Clone)]
 pub struct BufferDecoration {
-    pub loaded: bool,
-    pub local: bool,
+    pub(super) loaded: bool,
+    pub(super) local: bool,
 
-    pub find: Rc<RefCell<Find>>,
-    pub find_progress: Rc<RefCell<FindProgress>>,
+    pub(super) find: Rc<RefCell<Find>>,
+    pub(super) find_progress: Rc<RefCell<FindProgress>>,
 
-    pub syntax: Option<Syntax>,
-    pub line_styles: Rc<RefCell<LineStyles>>,
-    pub semantic_styles: Option<Arc<Spans<Style>>>,
+    pub(super) syntax: Option<Syntax>,
+    pub(super) line_styles: Rc<RefCell<LineStyles>>,
+    pub(super) semantic_styles: Option<Arc<Spans<Style>>>,
 
-    pub histories: im::HashMap<String, Rope>,
+    pub(super) histories: im::HashMap<String, Rope>,
 
-    tab_id: WidgetId,
-    event_sink: ExtEventSink,
+    pub(super) tab_id: WidgetId,
+    pub(super) event_sink: ExtEventSink,
 }
 
 impl BufferDecoration {
