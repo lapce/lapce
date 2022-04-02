@@ -9,8 +9,14 @@ use crate::buffer::{
 };
 use crate::movement::Selection;
 
+pub trait BufferDataListener {
+    fn should_apply_edit(&self) -> bool;
+
+    fn on_edit_applied(&mut self, inval_lines: InvalLines);
+}
+
 #[derive(Clone)]
-pub struct BufferData {
+pub struct BufferData<L> {
     pub id: BufferId,
     pub rope: Rope,
     pub content: BufferContent,
@@ -32,9 +38,10 @@ pub struct BufferData {
     tombstones: Rope,
 
     last_edit_type: EditType,
+    listener: L,
 }
 
-impl BufferData {
+impl<L: BufferDataListener> BufferData<L> {
     pub fn len(&self) -> usize {
         self.rope.len()
     }
@@ -115,7 +122,7 @@ impl BufferData {
         &mut self,
         edits: &[(&Selection, &str)],
         edit_type: EditType,
-    ) -> (RopeDelta, InvalLines) {
+    ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
         let mut interval_rope = Vec::new();
         for (selection, content) in edits {
@@ -143,15 +150,17 @@ impl BufferData {
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
 
-        let invalidated = self.apply_edit(
-            &delta,
-            new_rev,
-            new_text,
-            new_tombstones,
-            new_deletes_from_union,
-        );
+        if self.listener.should_apply_edit() {
+            self.apply_edit(
+                &delta,
+                new_rev,
+                new_text,
+                new_tombstones,
+                new_deletes_from_union,
+            );
+        }
 
-        (delta, invalidated)
+        delta
     }
 
     fn apply_edit(
@@ -161,7 +170,7 @@ impl BufferData {
         new_text: Rope,
         new_tombstones: Rope,
         new_deletes_from_union: Subset,
-    ) -> InvalLines {
+    ) {
         self.rev += 1;
         self.atomic_rev.store(self.rev, atomic::Ordering::Release);
         self.dirty = true;
@@ -179,10 +188,10 @@ impl BufferData {
         let old_hard_count = old_logical_end_line - logical_start_line;
         let new_hard_count = new_logical_end_line - logical_start_line;
 
-        InvalLines {
+        self.listener.on_edit_applied(InvalLines {
             start_line: logical_start_line,
             inval_count: old_hard_count,
             new_count: new_hard_count,
-        }
+        });
     }
 }
