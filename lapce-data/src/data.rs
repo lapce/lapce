@@ -755,7 +755,7 @@ impl LapceTabData {
                 .insert(editor.view_id, editor_buffer_data.editor);
         }
         if !editor_buffer_data.buffer.same(buffer) {
-            match &buffer.content {
+            match buffer.content() {
                 BufferContent::File(path) => {
                     self.main_split
                         .open_files
@@ -1374,7 +1374,7 @@ impl LapceTabData {
                     .local_buffers
                     .get_mut(&LocalBufferKind::SourceControl)
                     .unwrap();
-                let message = buffer.rope.to_string();
+                let message = buffer.rope().to_string();
                 let message = message.trim();
                 if message.is_empty() {
                     return;
@@ -1905,7 +1905,7 @@ impl LapceMainSplitData {
         config: &Config,
     ) {
         let buffer = self.open_files.get(path).unwrap();
-        if buffer.rev != rev {
+        if buffer.rev() != rev {
             return;
         }
 
@@ -1959,8 +1959,8 @@ impl LapceMainSplitData {
         self.document_format(path, rev, result, config);
 
         let buffer = self.open_files.get(path).unwrap();
-        let rev = buffer.rev;
-        let buffer_id = buffer.id;
+        let rev = buffer.rev();
+        let buffer_id = buffer.id();
         let event_sink = ctx.get_external_handle();
         let path = PathBuf::from(path);
         self.proxy.save(
@@ -2061,7 +2061,9 @@ impl LapceMainSplitData {
             }
         }
 
-        let delta = Arc::make_mut(buffer).edit_multiple(edits, proxy, edit_type);
+        let delta = Arc::make_mut(buffer)
+            .editable(&proxy)
+            .edit_multiple(edits, edit_type);
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
@@ -2333,7 +2335,7 @@ impl LapceMainSplitData {
             )
             .view_id;
         let buffer = self.editor_buffer(editor_view_id);
-        let new_buffer = match &buffer.content {
+        let new_buffer = match buffer.content() {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
             BufferContent::Value(_) => true,
@@ -3070,7 +3072,7 @@ impl LapceEditorData {
     }
 
     pub fn save_jump_location(&mut self, buffer: &Buffer, tab_width: usize) {
-        if let BufferContent::File(path) = &buffer.content {
+        if let BufferContent::File(path) = buffer.content() {
             let location = EditorLocationNew {
                 path: path.clone(),
                 position: Some(

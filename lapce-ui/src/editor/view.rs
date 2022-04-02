@@ -162,10 +162,10 @@ impl LapceEditorView {
                 self.ensure_rect_visible(ctx, data, *rect, env);
             }
             LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
-                if data.buffer.id != *buffer_id {
+                if data.buffer.id() != *buffer_id {
                     return;
                 }
-                if data.buffer.rev != *rev {
+                if data.buffer.rev() != *rev {
                     return;
                 }
                 if data.editor.cursor.offset() != *offset {
@@ -585,13 +585,13 @@ impl Widget<LapceTabData> for LapceEditorView {
             if syntax.line_height != data.config.editor.line_height
                 || syntax.lens_height != data.config.editor.code_lens_font_size
             {
-                if let BufferContent::File(path) = &editor_data.buffer.content {
+                if let BufferContent::File(path) = editor_data.buffer.content() {
                     let tab_id = data.id;
                     let event_sink = ctx.get_external_handle();
                     let mut syntax = syntax.clone();
                     let line_height = data.config.editor.line_height;
                     let lens_height = data.config.editor.code_lens_font_size;
-                    let rev = editor_data.buffer.rev;
+                    let rev = editor_data.buffer.rev();
                     let path = path.clone();
                     rayon::spawn(move || {
                         syntax.update_lens_height(line_height, lens_height);
@@ -630,7 +630,7 @@ impl Widget<LapceTabData> for LapceEditorView {
                 ctx.request_layout();
             }
         }
-        if editor_data.buffer.dirty != old_editor_data.buffer.dirty {
+        if editor_data.buffer.dirty() != old_editor_data.buffer.dirty() {
             ctx.request_paint();
         }
         if editor_data.editor.cursor != old_editor_data.editor.cursor {
@@ -639,8 +639,8 @@ impl Widget<LapceTabData> for LapceEditorView {
 
         let buffer = &editor_data.buffer;
         let old_buffer = &old_editor_data.buffer;
-        if buffer.max_len != old_buffer.max_len
-            || buffer.num_lines != old_buffer.num_lines
+        if buffer.max_len() != old_buffer.max_len()
+            || buffer.num_lines() != old_buffer.num_lines()
         {
             ctx.request_layout();
         }
@@ -657,7 +657,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
         }
 
-        if buffer.rev != old_buffer.rev {
+        if buffer.rev() != old_buffer.rev() {
             ctx.request_paint();
         }
 

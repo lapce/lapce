@@ -340,7 +340,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .local_buffers
                             .get_mut(&LocalBufferKind::Search)
                             .unwrap();
-                        if &buffer.rope.to_string() != pattern {
+                        if &buffer.rope().to_string() != pattern {
                             Arc::make_mut(buffer).load_content(pattern);
                         }
                         if pattern.is_empty() {
@@ -408,7 +408,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .local_buffers
                             .get(&LocalBufferKind::Search)
                             .unwrap();
-                        if &buffer.rope.to_string() == pattern {
+                        if &buffer.rope().to_string() == pattern {
                             Arc::make_mut(&mut data.search).matches =
                                 matches.clone();
                         }
@@ -579,8 +579,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::BufferSave(path, rev) => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
-                        if buffer.rev == *rev {
-                            Arc::make_mut(buffer).dirty = false;
+                        if buffer.rev() == *rev {
+                            Arc::make_mut(buffer).set_dirty(false);
                         }
                         ctx.set_handled();
                     }
@@ -761,7 +761,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         if let Some(buffer) =
                             data.main_split.open_files.get_mut(path)
                         {
-                            if buffer.rev == *rev {
+                            if buffer.rev() == *rev {
                                 Arc::make_mut(buffer)
                                     .code_actions
                                     .insert(*offset, resp.clone());
@@ -791,16 +791,16 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::ReloadBuffer(id, rev, new_content) => {
                         for (_, buffer) in data.main_split.open_files.iter_mut() {
-                            if &buffer.id == id {
-                                if buffer.rev + 1 == *rev {
+                            if buffer.id() == *id {
+                                if buffer.rev() + 1 == *rev {
                                     let buffer = Arc::make_mut(buffer);
                                     buffer.load_content(new_content);
-                                    buffer.rev = *rev;
+                                    buffer.set_rev(*rev);
 
                                     for (_, editor) in
                                         data.main_split.editors.iter_mut()
                                     {
-                                        if editor.content == buffer.content
+                                        if &editor.content == buffer.content()
                                             && editor.cursor.offset() >= buffer.len()
                                         {
                                             let editor = Arc::make_mut(editor);
@@ -841,7 +841,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     LapceUICommand::UpdateSemanticStyles(_id, path, rev, styles) => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
-                        if buffer.rev == *rev {
+                        if buffer.rev() == *rev {
                             let buffer = Arc::make_mut(buffer);
                             buffer.semantic_styles = Some(styles.clone());
                             buffer.line_styles.borrow_mut().clear();
@@ -914,7 +914,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         let buffer = Arc::make_mut(buffer);
-                        if buffer.rev == *rev {
+                        if buffer.rev() == *rev {
                             buffer.syntax = Some(syntax.clone());
                             if buffer.semantic_styles.is_none() {
                                 buffer.line_styles.borrow_mut().clear();

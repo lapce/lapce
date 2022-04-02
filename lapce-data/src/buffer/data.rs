@@ -20,28 +20,28 @@ pub trait BufferDataListener {
 
 #[derive(Clone)]
 pub struct BufferData {
-    pub id: BufferId,
-    pub rope: Rope,
-    pub content: BufferContent,
+    pub(super) id: BufferId,
+    pub(super) rope: Rope,
+    pub(super) content: BufferContent,
 
-    pub max_len: usize,
-    pub max_len_line: usize,
-    pub num_lines: usize,
+    pub(super) max_len: usize,
+    pub(super) max_len_line: usize,
+    pub(super) num_lines: usize,
 
-    pub rev: u64,
-    pub atomic_rev: Arc<AtomicU64>,
-    pub dirty: bool,
+    pub(super) rev: u64,
+    pub(super) atomic_rev: Arc<AtomicU64>,
+    pub(super) dirty: bool,
 
-    revs: Vec<Revision>,
-    cur_undo: usize,
-    undos: BTreeSet<usize>,
-    undo_group_id: usize,
-    live_undos: Vec<usize>,
-    deletes_from_union: Subset,
-    undone_groups: BTreeSet<usize>,
-    tombstones: Rope,
+    pub(super) revs: Vec<Revision>,
+    pub(super) cur_undo: usize,
+    pub(super) undos: BTreeSet<usize>,
+    pub(super) undo_group_id: usize,
+    pub(super) live_undos: Vec<usize>,
+    pub(super) deletes_from_union: Subset,
+    pub(super) undone_groups: BTreeSet<usize>,
+    pub(super) tombstones: Rope,
 
-    last_edit_type: EditType,
+    pub(super) last_edit_type: EditType,
 }
 
 impl BufferData {
@@ -53,7 +53,7 @@ impl BufferData {
         self.len() == 0
     }
 
-    fn mk_new_rev(
+    pub(super) fn mk_new_rev(
         &self,
         undo_group: usize,
         delta: RopeDelta,
@@ -342,12 +342,29 @@ impl BufferData {
         }
         (max_len, max_len_line)
     }
+
+    pub(super) fn reset_revs(&mut self) {
+        self.rope = Rope::from("");
+        self.revs = vec![Revision {
+            max_undo_so_far: 0,
+            edit: Contents::Undo {
+                toggled_groups: BTreeSet::new(),
+                deletes_bitxor: Subset::new(0),
+            },
+        }];
+        self.cur_undo = 1;
+        self.undo_group_id = 1;
+        self.live_undos = vec![0];
+        self.deletes_from_union = Subset::new(0);
+        self.undone_groups = BTreeSet::new();
+        self.tombstones = Rope::default();
+    }
 }
 
 /// Make BufferData temporarily editable by attaching a listener object to it.
 pub struct EditableBufferData<'a, L> {
-    listener: L,
-    buffer: &'a mut BufferData,
+    pub(super) listener: L,
+    pub(super) buffer: &'a mut BufferData,
 }
 
 impl<L: BufferDataListener> EditableBufferData<'_, L> {

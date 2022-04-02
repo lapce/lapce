@@ -238,16 +238,16 @@ impl LapceEditor {
                         let height =
                             syntax.lens.height_of_line(syntax.lens.len() + 1);
                         Size::new(
-                            (width * data.buffer.max_len as f64)
+                            (width * data.buffer.max_len() as f64)
                                 .max(editor_size.width),
                             (height as f64 - line_height).max(0.0)
                                 + editor_size.height,
                         )
                     } else {
-                        let height = data.buffer.num_lines
+                        let height = data.buffer.num_lines()
                             * data.config.editor.code_lens_font_size;
                         Size::new(
-                            (width * data.buffer.max_len as f64)
+                            (width * data.buffer.max_len() as f64)
                                 .max(editor_size.width),
                             (height as f64 - line_height).max(0.0)
                                 + editor_size.height,
@@ -266,14 +266,16 @@ impl LapceEditor {
                         }
                     }
                     Size::new(
-                        (width * data.buffer.max_len as f64).max(editor_size.width),
+                        (width * data.buffer.max_len() as f64)
+                            .max(editor_size.width),
                         (line_height * lines as f64 - line_height).max(0.0)
                             + editor_size.height,
                     )
                 } else {
                     Size::new(
-                        (width * data.buffer.max_len as f64).max(editor_size.width),
-                        (line_height * data.buffer.num_lines as f64 - line_height)
+                        (width * data.buffer.max_len() as f64)
+                            .max(editor_size.width),
+                        (line_height * data.buffer.num_lines() as f64 - line_height)
                             .max(0.0)
                             + editor_size.height,
                     )
@@ -284,7 +286,7 @@ impl LapceEditor {
                 | LocalBufferKind::Search
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap => Size::new(
-                    editor_size.width.max(width * data.buffer.rope.len() as f64),
+                    editor_size.width.max(width * data.buffer.len() as f64),
                     env.get(LapceTheme::INPUT_LINE_HEIGHT)
                         + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
                 ),
@@ -305,7 +307,7 @@ impl LapceEditor {
                                                 * data.buffer.num_lines() as f64,
                                         );
                                         Size::new(
-                                            (width * data.buffer.max_len as f64)
+                                            (width * data.buffer.max_len() as f64)
                                                 .max(editor_size.width),
                                             height,
                                         )
@@ -319,7 +321,7 @@ impl LapceEditor {
                 LocalBufferKind::Empty => editor_size,
             },
             BufferContent::Value(_) => Size::new(
-                editor_size.width.max(width * data.buffer.rope.len() as f64),
+                editor_size.width.max(width * data.buffer.len() as f64),
                 env.get(LapceTheme::INPUT_LINE_HEIGHT)
                     + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
             ),
@@ -372,7 +374,7 @@ impl LapceEditor {
             .min(last_line);
         let start_offset = data.buffer.offset_of_line(start_line);
         let end_offset = data.buffer.offset_of_line(end_line + 1);
-        let mut lines_iter = data.buffer.rope.lines(start_offset..end_offset);
+        let mut lines_iter = data.buffer.rope().lines(start_offset..end_offset);
 
         let mut y = lens.height_of_line(start_line) as f64;
         for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {

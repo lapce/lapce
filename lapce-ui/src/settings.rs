@@ -957,14 +957,14 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                 let buffer = data.main_split.value_buffers.get(name).unwrap();
                 let old_buffer =
                     old_data.main_split.value_buffers.get(name).unwrap();
-                if buffer.rope.len() != old_buffer.rope.len()
-                    || buffer.rope.slice_to_cow(..)
-                        != old_buffer.rope.slice_to_cow(..)
+                if buffer.len() != old_buffer.len()
+                    || buffer.rope().slice_to_cow(..)
+                        != old_buffer.rope().slice_to_cow(..)
                 {
                     let new_value = match &self.value {
                         serde_json::Value::Number(_n) => {
                             if let Ok(new_n) =
-                                buffer.rope.slice_to_cow(..).parse::<i64>()
+                                buffer.rope().slice_to_cow(..).parse::<i64>()
                             {
                                 serde_json::json!(new_n)
                             } else {
@@ -972,7 +972,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                             }
                         }
                         serde_json::Value::String(_s) => {
-                            serde_json::json!(&buffer.rope.slice_to_cow(..))
+                            serde_json::json!(&buffer.rope().slice_to_cow(..))
                         }
                         _ => return,
                     };

@@ -139,7 +139,7 @@ impl LapceEditorHeader {
                 clip_rect.x1 = icon.rect.x0;
             }
         }
-        if let BufferContent::File(path) = &data.buffer.content {
+        if let BufferContent::File(path) = data.buffer.content() {
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
                 let mut path = path.clone();
@@ -157,7 +157,7 @@ impl LapceEditorHeader {
                     .and_then(|s| s.to_str())
                     .unwrap_or("")
                     .to_string();
-                if data.buffer.dirty {
+                if data.buffer.dirty() {
                     file_name = "*".to_string() + &file_name;
                 }
                 if let Some(_compare) = data.editor.compare.as_ref() {
