@@ -15,11 +15,16 @@ use crate::movement::Selection;
 pub trait BufferDataListener {
     fn should_apply_edit(&self) -> bool;
 
-    fn on_edit_applied(&mut self, inval_lines: InvalLines);
+    fn on_edit_applied(
+        &mut self,
+        buffer: &BufferData,
+        delta: &RopeDelta,
+        inval_lines: InvalLines,
+    );
 }
 
 #[derive(Clone)]
-pub struct BufferData<L> {
+pub struct BufferData {
     pub id: BufferId,
     pub rope: Rope,
     pub content: BufferContent,
@@ -42,83 +47,15 @@ pub struct BufferData<L> {
     tombstones: Rope,
 
     last_edit_type: EditType,
-    listener: L,
 }
 
-impl<L: BufferDataListener> BufferData<L> {
+impl BufferData {
     pub fn len(&self) -> usize {
         self.rope.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-
-    pub fn edit_multiple(
-        &mut self,
-        edits: &[(&Selection, &str)],
-        edit_type: EditType,
-    ) -> RopeDelta {
-        let mut builder = DeltaBuilder::new(self.len());
-        let mut interval_rope = Vec::new();
-        for (selection, content) in edits {
-            let rope = Rope::from(content);
-            for region in selection.regions() {
-                interval_rope.push((region.min(), region.max(), rope.clone()));
-            }
-        }
-        interval_rope.sort_by(|a, b| {
-            if a.0 == b.0 && a.1 == b.1 {
-                Ordering::Equal
-            } else if a.1 == b.0 {
-                Ordering::Less
-            } else {
-                a.1.cmp(&b.0)
-            }
-        });
-        for (start, end, rope) in interval_rope.into_iter() {
-            builder.replace(start..end, rope);
-        }
-        let delta = builder.build();
-        let undo_group = self.calculate_undo_group(edit_type);
-        self.last_edit_type = edit_type;
-
-        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
-            self.mk_new_rev(undo_group, delta.clone());
-
-        if self.listener.should_apply_edit() {
-            self.apply_edit(
-                &delta,
-                new_rev,
-                new_text,
-                new_tombstones,
-                new_deletes_from_union,
-            );
-        }
-
-        delta
-    }
-
-    pub fn do_undo(&mut self) -> Option<RopeDelta> {
-        if self.cur_undo > 1 {
-            self.cur_undo -= 1;
-            self.undos.insert(self.live_undos[self.cur_undo]);
-            self.last_edit_type = EditType::Undo;
-            Some(self.undo(self.undos.clone()))
-        } else {
-            None
-        }
-    }
-
-    pub fn do_redo(&mut self) -> Option<RopeDelta> {
-        if self.cur_undo < self.live_undos.len() {
-            self.undos.remove(&self.live_undos[self.cur_undo]);
-            self.cur_undo += 1;
-            self.last_edit_type = EditType::Redo;
-            Some(self.undo(self.undos.clone()))
-        } else {
-            None
-        }
     }
 
     fn mk_new_rev(
@@ -188,68 +125,6 @@ impl<L: BufferDataListener> BufferData<L> {
             undo_group
         }
     }
-
-    fn apply_edit(
-        &mut self,
-        delta: &RopeDelta,
-        new_rev: Revision,
-        new_text: Rope,
-        new_tombstones: Rope,
-        new_deletes_from_union: Subset,
-    ) {
-        self.rev += 1;
-        self.atomic_rev.store(self.rev, atomic::Ordering::Release);
-        self.dirty = true;
-
-        let (iv, newlen) = delta.summary();
-        let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
-
-        self.revs.push(new_rev);
-        self.rope = new_text;
-        self.tombstones = new_tombstones;
-        self.deletes_from_union = new_deletes_from_union;
-
-        let logical_start_line = self.rope.line_of_offset(iv.start);
-        let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
-        let old_hard_count = old_logical_end_line - logical_start_line;
-        let new_hard_count = new_logical_end_line - logical_start_line;
-
-        self.listener.on_edit_applied(InvalLines {
-            start_line: logical_start_line,
-            inval_count: old_hard_count,
-            new_count: new_hard_count,
-        });
-    }
-
-    fn undo(&mut self, groups: BTreeSet<usize>) -> RopeDelta {
-        let (new_rev, new_deletes_from_union) = self.compute_undo(&groups);
-        let delta = Delta::synthesize(
-            &self.tombstones,
-            &self.deletes_from_union,
-            &new_deletes_from_union,
-        );
-        let new_text = delta.apply(&self.rope);
-        let new_tombstones = shuffle_tombstones(
-            &self.rope,
-            &self.tombstones,
-            &self.deletes_from_union,
-            &new_deletes_from_union,
-        );
-        self.undone_groups = groups;
-
-        if self.listener.should_apply_edit() {
-            self.apply_edit(
-                &delta,
-                new_rev,
-                new_text,
-                new_tombstones,
-                new_deletes_from_union,
-            );
-        }
-
-        delta
-    }
-
     fn deletes_from_union_before_index(
         &self,
         rev_index: usize,
@@ -362,5 +237,251 @@ impl<L: BufferDataListener> BufferData<L> {
             },
             deletes_from_union,
         )
+    }
+
+    fn apply_edit(
+        &mut self,
+
+        delta: &RopeDelta,
+        new_rev: Revision,
+        new_text: Rope,
+        new_tombstones: Rope,
+        new_deletes_from_union: Subset,
+    ) -> InvalLines {
+        self.rev += 1;
+        self.atomic_rev.store(self.rev, atomic::Ordering::Release);
+        self.dirty = true;
+
+        let (iv, newlen) = delta.summary();
+        let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
+
+        self.revs.push(new_rev);
+        self.rope = new_text;
+        self.tombstones = new_tombstones;
+        self.deletes_from_union = new_deletes_from_union;
+
+        let logical_start_line = self.rope.line_of_offset(iv.start);
+        let new_logical_end_line = self.rope.line_of_offset(iv.start + newlen) + 1;
+        let old_hard_count = old_logical_end_line - logical_start_line;
+        let new_hard_count = new_logical_end_line - logical_start_line;
+
+        InvalLines {
+            start_line: logical_start_line,
+            inval_count: old_hard_count,
+            new_count: new_hard_count,
+        }
+    }
+
+    fn update_size(&mut self, inval_lines: &InvalLines) {
+        if inval_lines.inval_count != inval_lines.new_count {
+            self.num_lines = self.num_lines();
+        }
+        if self.max_len_line >= inval_lines.start_line
+            && self.max_len_line < inval_lines.start_line + inval_lines.inval_count
+        {
+            let (max_len, max_len_line) = self.get_max_line_len();
+            self.max_len = max_len;
+            self.max_len_line = max_len_line;
+        } else {
+            let mut max_len = 0;
+            let mut max_len_line = 0;
+            for line in inval_lines.start_line
+                ..inval_lines.start_line + inval_lines.new_count
+            {
+                let line_len = self.line_len(line);
+                if line_len > max_len {
+                    max_len = line_len;
+                    max_len_line = line;
+                }
+            }
+            if max_len > self.max_len {
+                self.max_len = max_len;
+                self.max_len_line = max_len_line;
+            } else if self.max_len_line >= inval_lines.start_line {
+                self.max_len_line = self.max_len_line + inval_lines.new_count
+                    - inval_lines.inval_count;
+            }
+        }
+    }
+
+    pub fn last_line(&self) -> usize {
+        self.line_of_offset(self.rope.len())
+    }
+
+    pub fn offset_of_line(&self, line: usize) -> usize {
+        let last_line = self.last_line();
+        let line = if line > last_line + 1 {
+            last_line + 1
+        } else {
+            line
+        };
+        self.rope.offset_of_line(line)
+    }
+
+    pub fn line_of_offset(&self, offset: usize) -> usize {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
+        self.rope.line_of_offset(offset)
+    }
+
+    pub fn line_len(&self, line: usize) -> usize {
+        self.offset_of_line(line + 1) - self.offset_of_line(line)
+    }
+
+    pub fn num_lines(&self) -> usize {
+        self.line_of_offset(self.rope.len()) + 1
+    }
+
+    pub fn get_max_line_len(&self) -> (usize, usize) {
+        let mut pre_offset = 0;
+        let mut max_len = 0;
+        let mut max_len_line = 0;
+        for line in 0..self.num_lines() + 1 {
+            let offset = self.rope.offset_of_line(line);
+            let line_len = offset - pre_offset;
+            pre_offset = offset;
+            if line_len > max_len {
+                max_len = line_len;
+                max_len_line = line;
+            }
+        }
+        (max_len, max_len_line)
+    }
+}
+
+/// Make BufferData temporarily editable by attaching a listener object to it.
+pub struct EditableBufferData<'a, L> {
+    listener: L,
+    buffer: &'a mut BufferData,
+}
+
+impl<L: BufferDataListener> EditableBufferData<'_, L> {
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
+    pub fn edit_multiple(
+        &mut self,
+        edits: &[(&Selection, &str)],
+        edit_type: EditType,
+    ) -> RopeDelta {
+        let mut builder = DeltaBuilder::new(self.len());
+        let mut interval_rope = Vec::new();
+        for (selection, content) in edits {
+            let rope = Rope::from(content);
+            for region in selection.regions() {
+                interval_rope.push((region.min(), region.max(), rope.clone()));
+            }
+        }
+        interval_rope.sort_by(|a, b| {
+            if a.0 == b.0 && a.1 == b.1 {
+                Ordering::Equal
+            } else if a.1 == b.0 {
+                Ordering::Less
+            } else {
+                a.1.cmp(&b.0)
+            }
+        });
+        for (start, end, rope) in interval_rope.into_iter() {
+            builder.replace(start..end, rope);
+        }
+        let delta = builder.build();
+        let undo_group = self.buffer.calculate_undo_group(edit_type);
+        self.buffer.last_edit_type = edit_type;
+
+        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+            self.buffer.mk_new_rev(undo_group, delta.clone());
+
+        if self.listener.should_apply_edit() {
+            self.apply_edit(
+                &delta,
+                new_rev,
+                new_text,
+                new_tombstones,
+                new_deletes_from_union,
+            );
+        }
+
+        delta
+    }
+
+    pub fn do_undo(&mut self) -> Option<RopeDelta> {
+        if self.buffer.cur_undo > 1 {
+            self.buffer.cur_undo -= 1;
+            self.buffer
+                .undos
+                .insert(self.buffer.live_undos[self.buffer.cur_undo]);
+            self.buffer.last_edit_type = EditType::Undo;
+            Some(self.undo(self.buffer.undos.clone()))
+        } else {
+            None
+        }
+    }
+
+    pub fn do_redo(&mut self) -> Option<RopeDelta> {
+        if self.buffer.cur_undo < self.buffer.live_undos.len() {
+            self.buffer
+                .undos
+                .remove(&self.buffer.live_undos[self.buffer.cur_undo]);
+            self.buffer.cur_undo += 1;
+            self.buffer.last_edit_type = EditType::Redo;
+            Some(self.undo(self.buffer.undos.clone()))
+        } else {
+            None
+        }
+    }
+
+    fn apply_edit(
+        &mut self,
+        delta: &RopeDelta,
+        new_rev: Revision,
+        new_text: Rope,
+        new_tombstones: Rope,
+        new_deletes_from_union: Subset,
+    ) {
+        let inval_lines = self.buffer.apply_edit(
+            delta,
+            new_rev,
+            new_text,
+            new_tombstones,
+            new_deletes_from_union,
+        );
+
+        self.buffer.update_size(&inval_lines);
+        self.listener
+            .on_edit_applied(&self.buffer, delta, inval_lines);
+    }
+
+    fn undo(&mut self, groups: BTreeSet<usize>) -> RopeDelta {
+        let (new_rev, new_deletes_from_union) = self.buffer.compute_undo(&groups);
+        let delta = Delta::synthesize(
+            &self.buffer.tombstones,
+            &self.buffer.deletes_from_union,
+            &new_deletes_from_union,
+        );
+        let new_text = delta.apply(&self.buffer.rope);
+        let new_tombstones = shuffle_tombstones(
+            &self.buffer.rope,
+            &self.buffer.tombstones,
+            &self.buffer.deletes_from_union,
+            &new_deletes_from_union,
+        );
+        self.buffer.undone_groups = groups;
+
+        if self.listener.should_apply_edit() {
+            self.apply_edit(
+                &delta,
+                new_rev,
+                new_text,
+                new_tombstones,
+                new_deletes_from_union,
+            );
+        }
+
+        delta
     }
 }
