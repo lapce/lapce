@@ -1733,26 +1733,18 @@ impl Buffer {
 
     fn apply_edit(
         &mut self,
-        proxy: Arc<LapceProxy>,
         delta: &RopeDelta,
         new_rev: Revision,
         new_text: Rope,
         new_tombstones: Rope,
         new_deletes_from_union: Subset,
-    ) {
-        if !self.loaded {
-            return;
-        }
+    ) -> InvalLines {
         self.rev += 1;
         self.atomic_rev.store(self.rev, atomic::Ordering::Release);
         self.dirty = true;
 
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.rope.line_of_offset(iv.end) + 1;
-
-        if !self.local {
-            proxy.update(self.id, delta, self.rev);
-        }
 
         self.revs.push(new_rev);
         self.rope = new_text;
@@ -1765,17 +1757,11 @@ impl Buffer {
         let old_hard_count = old_logical_end_line - logical_start_line;
         let new_hard_count = new_logical_end_line - logical_start_line;
 
-        let inval_lines = InvalLines {
+        InvalLines {
             start_line: logical_start_line,
             inval_count: old_hard_count,
             new_count: new_hard_count,
-        };
-        self.update_size(&inval_lines);
-        self.update_styles(delta);
-        self.find.borrow_mut().unset();
-        *self.find_progress.borrow_mut() = FindProgress::Started;
-        self.notify_update(Some(delta));
-        self.notify_special();
+        }
     }
 
     pub fn update_edit_type(&mut self) {
@@ -1815,14 +1801,26 @@ impl Buffer {
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
 
-        self.apply_edit(
-            proxy,
-            &delta,
-            new_rev,
-            new_text,
-            new_tombstones,
-            new_deletes_from_union,
-        );
+        if self.loaded {
+            let inval_lines = self.apply_edit(
+                &delta,
+                new_rev,
+                new_text,
+                new_tombstones,
+                new_deletes_from_union,
+            );
+
+            if !self.local {
+                proxy.update(self.id, &delta, self.rev);
+            }
+
+            self.update_size(&inval_lines);
+            self.update_styles(&delta);
+            self.find.borrow_mut().unset();
+            *self.find_progress.borrow_mut() = FindProgress::Started;
+            self.notify_update(Some(&delta));
+            self.notify_special();
+        }
 
         delta
     }
@@ -1878,14 +1876,27 @@ impl Buffer {
             &new_deletes_from_union,
         );
         self.undone_groups = groups;
-        self.apply_edit(
-            proxy,
-            &delta,
-            new_rev,
-            new_text,
-            new_tombstones,
-            new_deletes_from_union,
-        );
+
+        if self.loaded {
+            let inval_lines = self.apply_edit(
+                &delta,
+                new_rev,
+                new_text,
+                new_tombstones,
+                new_deletes_from_union,
+            );
+
+            if !self.local {
+                proxy.update(self.id, &delta, self.rev);
+            }
+            self.update_size(&inval_lines);
+            self.update_styles(&delta);
+            self.find.borrow_mut().unset();
+            *self.find_progress.borrow_mut() = FindProgress::Started;
+            self.notify_update(Some(&delta));
+            self.notify_special();
+        }
+
         delta
     }
 
