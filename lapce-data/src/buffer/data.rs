@@ -15,12 +15,7 @@ use crate::movement::Selection;
 pub trait BufferDataListener {
     fn should_apply_edit(&self) -> bool;
 
-    fn on_edit_applied(
-        &mut self,
-        buffer: &BufferData,
-        delta: &RopeDelta,
-        inval_lines: InvalLines,
-    );
+    fn on_edit_applied(&mut self, buffer: &BufferData, delta: &RopeDelta);
 }
 
 #[derive(Clone)]
@@ -452,8 +447,7 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
         );
 
         self.buffer.update_size(&inval_lines);
-        self.listener
-            .on_edit_applied(&self.buffer, delta, inval_lines);
+        self.listener.on_edit_applied(&self.buffer, delta);
     }
 
     fn undo(&mut self, groups: BTreeSet<usize>) -> RopeDelta {

@@ -28,6 +28,8 @@ use xi_rope::{
 };
 use xi_unicode::EmojiExt;
 
+use crate::buffer::data::{BufferData, BufferDataListener};
+use crate::buffer::decoration::BufferDecoration;
 use crate::config::{Config, LapceTheme};
 use crate::editor::EditorLocationNew;
 use crate::find::FindProgress;
@@ -41,6 +43,7 @@ use crate::{
 };
 
 pub mod data;
+pub mod decoration;
 
 #[allow(dead_code)]
 const FIND_BATCH_SIZE: usize = 500000;
@@ -251,6 +254,29 @@ pub struct Buffer {
 
     tab_id: WidgetId,
     event_sink: ExtEventSink,
+}
+
+pub struct BufferEditListener<'a> {
+    decoration: &'a mut BufferDecoration,
+    proxy: &'a Arc<LapceProxy>,
+}
+
+impl BufferDataListener for BufferEditListener<'_> {
+    fn should_apply_edit(&self) -> bool {
+        self.decoration.loaded
+    }
+
+    fn on_edit_applied(&mut self, buffer: &BufferData, delta: &RopeDelta) {
+        if !self.decoration.local {
+            self.proxy.update(buffer.id, delta, buffer.rev);
+        }
+
+        self.decoration.update_styles(delta);
+        self.decoration.find.borrow_mut().unset();
+        *self.decoration.find_progress.borrow_mut() = FindProgress::Started;
+        self.decoration.notify_update(buffer, Some(delta));
+        self.decoration.notify_special(buffer);
+    }
 }
 
 impl Buffer {
