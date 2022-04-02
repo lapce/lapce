@@ -215,26 +215,18 @@ pub struct Buffer {
     pub id: BufferId,
     pub rope: Rope,
     pub content: BufferContent,
-    pub syntax: Option<Syntax>,
-    pub indent_style: IndentStyle,
-    pub line_styles: Rc<RefCell<LineStyles>>,
-    pub semantic_styles: Option<Arc<Spans<Style>>>,
     pub max_len: usize,
     pub max_len_line: usize,
     pub num_lines: usize,
     pub rev: u64,
     pub atomic_rev: Arc<AtomicU64>,
     pub dirty: bool,
-    pub loaded: bool,
+    pub indent_style: IndentStyle,
     pub start_to_load: Rc<RefCell<bool>>,
-    pub local: bool,
-    pub histories: im::HashMap<String, Rope>,
+
     pub history_styles: im::HashMap<String, Arc<Spans<Style>>>,
     pub history_line_styles: Rc<RefCell<HashMap<String, LineStyles>>>,
     pub history_changes: im::HashMap<String, Arc<Vec<DiffLines>>>,
-
-    pub find: Rc<RefCell<Find>>,
-    pub find_progress: Rc<RefCell<FindProgress>>,
 
     revs: Vec<Revision>,
     cur_undo: usize,
@@ -252,6 +244,14 @@ pub struct Buffer {
 
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
 
+    pub loaded: bool,
+    pub local: bool,
+    pub find: Rc<RefCell<Find>>,
+    pub find_progress: Rc<RefCell<FindProgress>>,
+    pub syntax: Option<Syntax>,
+    pub line_styles: Rc<RefCell<LineStyles>>,
+    pub semantic_styles: Option<Arc<Spans<Style>>>,
+    pub histories: im::HashMap<String, Rope>,
     tab_id: WidgetId,
     event_sink: ExtEventSink,
 }
