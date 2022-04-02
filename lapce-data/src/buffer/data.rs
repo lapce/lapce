@@ -54,6 +54,73 @@ impl<L: BufferDataListener> BufferData<L> {
         self.len() == 0
     }
 
+    pub fn edit_multiple(
+        &mut self,
+        edits: &[(&Selection, &str)],
+        edit_type: EditType,
+    ) -> RopeDelta {
+        let mut builder = DeltaBuilder::new(self.len());
+        let mut interval_rope = Vec::new();
+        for (selection, content) in edits {
+            let rope = Rope::from(content);
+            for region in selection.regions() {
+                interval_rope.push((region.min(), region.max(), rope.clone()));
+            }
+        }
+        interval_rope.sort_by(|a, b| {
+            if a.0 == b.0 && a.1 == b.1 {
+                Ordering::Equal
+            } else if a.1 == b.0 {
+                Ordering::Less
+            } else {
+                a.1.cmp(&b.0)
+            }
+        });
+        for (start, end, rope) in interval_rope.into_iter() {
+            builder.replace(start..end, rope);
+        }
+        let delta = builder.build();
+        let undo_group = self.calculate_undo_group(edit_type);
+        self.last_edit_type = edit_type;
+
+        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
+            self.mk_new_rev(undo_group, delta.clone());
+
+        if self.listener.should_apply_edit() {
+            self.apply_edit(
+                &delta,
+                new_rev,
+                new_text,
+                new_tombstones,
+                new_deletes_from_union,
+            );
+        }
+
+        delta
+    }
+
+    pub fn do_undo(&mut self) -> Option<RopeDelta> {
+        if self.cur_undo > 1 {
+            self.cur_undo -= 1;
+            self.undos.insert(self.live_undos[self.cur_undo]);
+            self.last_edit_type = EditType::Undo;
+            Some(self.undo(self.undos.clone()))
+        } else {
+            None
+        }
+    }
+
+    pub fn do_redo(&mut self) -> Option<RopeDelta> {
+        if self.cur_undo < self.live_undos.len() {
+            self.undos.remove(&self.live_undos[self.cur_undo]);
+            self.cur_undo += 1;
+            self.last_edit_type = EditType::Redo;
+            Some(self.undo(self.undos.clone()))
+        } else {
+            None
+        }
+    }
+
     fn mk_new_rev(
         &self,
         undo_group: usize,
@@ -122,51 +189,6 @@ impl<L: BufferDataListener> BufferData<L> {
         }
     }
 
-    pub fn edit_multiple(
-        &mut self,
-        edits: &[(&Selection, &str)],
-        edit_type: EditType,
-    ) -> RopeDelta {
-        let mut builder = DeltaBuilder::new(self.len());
-        let mut interval_rope = Vec::new();
-        for (selection, content) in edits {
-            let rope = Rope::from(content);
-            for region in selection.regions() {
-                interval_rope.push((region.min(), region.max(), rope.clone()));
-            }
-        }
-        interval_rope.sort_by(|a, b| {
-            if a.0 == b.0 && a.1 == b.1 {
-                Ordering::Equal
-            } else if a.1 == b.0 {
-                Ordering::Less
-            } else {
-                a.1.cmp(&b.0)
-            }
-        });
-        for (start, end, rope) in interval_rope.into_iter() {
-            builder.replace(start..end, rope);
-        }
-        let delta = builder.build();
-        let undo_group = self.calculate_undo_group(edit_type);
-        self.last_edit_type = edit_type;
-
-        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
-            self.mk_new_rev(undo_group, delta.clone());
-
-        if self.listener.should_apply_edit() {
-            self.apply_edit(
-                &delta,
-                new_rev,
-                new_text,
-                new_tombstones,
-                new_deletes_from_union,
-            );
-        }
-
-        delta
-    }
-
     fn apply_edit(
         &mut self,
         delta: &RopeDelta,
@@ -197,28 +219,6 @@ impl<L: BufferDataListener> BufferData<L> {
             inval_count: old_hard_count,
             new_count: new_hard_count,
         });
-    }
-
-    pub fn do_undo(&mut self) -> Option<RopeDelta> {
-        if self.cur_undo > 1 {
-            self.cur_undo -= 1;
-            self.undos.insert(self.live_undos[self.cur_undo]);
-            self.last_edit_type = EditType::Undo;
-            Some(self.undo(self.undos.clone()))
-        } else {
-            None
-        }
-    }
-
-    pub fn do_redo(&mut self) -> Option<RopeDelta> {
-        if self.cur_undo < self.live_undos.len() {
-            self.undos.remove(&self.live_undos[self.cur_undo]);
-            self.cur_undo += 1;
-            self.last_edit_type = EditType::Redo;
-            Some(self.undo(self.undos.clone()))
-        } else {
-            None
-        }
     }
 
     fn undo(&mut self, groups: BTreeSet<usize>) -> RopeDelta {
