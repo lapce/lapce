@@ -8,8 +8,8 @@ use lapce_data::{
     config::LapceTheme,
     data::LapceTabData,
     editor::{LapceEditorBufferData, Syntax},
-    svg::get_svg,
 };
+use crate::svg::get_svg;
 
 pub struct LapceEditorGutter {
     view_id: WidgetId,

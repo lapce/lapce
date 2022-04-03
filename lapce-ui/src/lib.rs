@@ -21,6 +21,7 @@ pub mod settings;
 pub mod signature;
 pub mod source_control;
 pub mod split;
+mod svg;
 pub mod status;
 mod tab;
 pub mod terminal;
