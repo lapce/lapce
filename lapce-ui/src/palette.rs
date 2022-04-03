@@ -22,7 +22,6 @@ use lapce_data::{
     },
 };
 use lsp_types::SymbolKind;
-use usvg;
 
 use crate::{
     editor::view::LapceEditorView,
@@ -938,12 +937,5 @@ impl PaletteContent {
             tab_id,
             max_items,
         }
-    }
-}
-
-pub fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {
-    match *svg_tree.root().borrow() {
-        usvg::NodeKind::Svg(svg) => Size::new(svg.size.width(), svg.size.height()),
-        _ => Size::ZERO,
     }
 }

@@ -6,7 +6,7 @@ use druid::{
     WidgetId,
 };
 use druid::{
-    Data, Env, EventCtx, Size,
+    Data, Env, EventCtx,
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -17,7 +17,6 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::cmp::Ordering;
-use usvg;
 use uuid::Uuid;
 
 use crate::{
@@ -1006,12 +1005,5 @@ impl PaletteViewData {
         items
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
         items
-    }
-}
-
-pub fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {
-    match *svg_tree.root().borrow() {
-        usvg::NodeKind::Svg(svg) => Size::new(svg.size.width(), svg.size.height()),
-        _ => Size::ZERO,
     }
 }

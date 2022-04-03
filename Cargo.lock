@@ -1929,7 +1929,6 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width",
  "ureq",
- "usvg",
  "uuid",
  "xi-rope",
  "xi-unicode",
@@ -2030,7 +2029,6 @@ dependencies = [
  "toml",
  "unicode-segmentation",
  "unicode-width",
- "usvg",
  "xi-rope",
  "xi-unicode",
 ]
