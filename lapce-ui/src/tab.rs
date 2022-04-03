@@ -23,7 +23,7 @@ use lapce_data::{
     },
     editor::EditorLocationNew,
     hover::HoverStatus,
-    keypress::KeyPressData,
+    keypress::{DefaultKeyPressHandler, KeyPressData},
     movement::{self, CursorMode, Selection},
     palette::PaletteStatus,
     panel::{PanelPosition, PanelResizePosition},
@@ -1007,10 +1007,25 @@ impl Widget<LapceTabData> for LapceTabNew {
         }
         self.activity.event(ctx, event, data, env);
 
-        if let Event::MouseUp(_) = event {
-            if data.drag.is_some() {
-                *Arc::make_mut(&mut data.drag) = None;
+        match event {
+            Event::MouseUp(_) => {
+                if data.drag.is_some() {
+                    *Arc::make_mut(&mut data.drag) = None;
+                }
             }
+            Event::KeyDown(key_event) if !ctx.is_handled() => {
+                let mut keypress = data.keypress.clone();
+                let mut_keypress = Arc::make_mut(&mut keypress);
+                mut_keypress.key_down(
+                    ctx,
+                    key_event,
+                    &mut DefaultKeyPressHandler {},
+                    env,
+                );
+                data.keypress = keypress;
+                ctx.set_handled();
+            }
+            _ => (),
         }
     }
 
