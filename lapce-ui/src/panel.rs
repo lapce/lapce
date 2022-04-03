@@ -519,14 +519,10 @@ impl Widget<LapceTabData> for PanelMainHeader {
                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
             );
 
-            let bg_color_name = match self.kind {
-                PanelKind::Terminal => LapceTheme::TERMINAL_BACKGROUND,
-                _ => LapceTheme::EDITOR_BACKGROUND
-            };
-
             ctx.fill(
                 rect,
-                data.config.get_color_unchecked(bg_color_name),
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
 
             let text_layout = ctx
