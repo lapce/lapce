@@ -220,6 +220,12 @@ mode = "niv"
 when = "!search_focus"
 
 [[keymaps]]
+key = "ctrl+["
+command = "normal_mode"
+mode = "niv"
+when = "!search_focus"
+
+[[keymaps]]
 key = ":"
 command = "palette.command"
 mode = "n"
