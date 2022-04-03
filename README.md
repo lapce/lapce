@@ -50,13 +50,13 @@ A guideline about contributing to Lapce can be found in
 ### Dependencies
 #### Ubuntu
 ```sh
-sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev
+sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
 ```
 ### Building
 ```sh
 cargo build --release
 ```
-The exectuable will be available at `target/release/lapce`
+The executable will be available at `target/release/lapce`
 
 ## Feedback
 
