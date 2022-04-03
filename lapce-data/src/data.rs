@@ -11,7 +11,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
-    piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
+    piet::{PietText, PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     theme, Color, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
     Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
@@ -61,7 +61,6 @@ use crate::{
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
     state::{LapceWorkspace, LapceWorkspaceType, VisualMode},
-    svg::get_svg,
     terminal::TerminalSplitData,
 };
 
@@ -324,10 +323,6 @@ impl PanelKind {
             PanelKind::Search => "search.svg",
             PanelKind::Problem => "error.svg",
         }
-    }
-
-    pub fn svg(&self) -> Svg {
-        get_svg(self.svg_name()).unwrap()
     }
 }
 

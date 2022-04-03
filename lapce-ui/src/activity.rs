@@ -9,6 +9,7 @@ use lapce_data::{
     config::LapceTheme,
     data::LapceTabData,
     panel::PanelPosition,
+    svg::get_svg,
 };
 use serde_json::json;
 
@@ -178,7 +179,7 @@ impl Widget<LapceTabData> for ActivityBar {
             .clone();
         if let Some(panel) = data.panels.get(&PanelPosition::LeftTop) {
             for kind in panel.widgets.iter() {
-                let svg = kind.svg();
+                let svg = get_svg(kind.svg_name()).unwrap();
                 if &panel.active == kind && panel.shown {
                     ctx.fill(
                         Size::new(size, size)
