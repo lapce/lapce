@@ -56,7 +56,7 @@ sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb
 ```sh
 cargo build --release
 ```
-The exectuable will be available at `target/release/lapce`
+The executable will be available at `target/release/lapce`
 
 ## Feedback
 
