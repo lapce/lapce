@@ -345,6 +345,8 @@ impl Widget<LapceTabData> for PanelSectionHeader {
     }
 }
 
+/// This struct is used as the outer container for a panel,
+/// it contains the heading such as "Terminal" or "File Explorer".
 pub struct PanelMainHeader {
     text: String,
     icons: Vec<LapceIcon>,
@@ -517,6 +519,7 @@ impl Widget<LapceTabData> for PanelMainHeader {
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
             );
+
             ctx.fill(
                 rect,
                 data.config
