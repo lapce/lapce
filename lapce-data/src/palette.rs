@@ -2,13 +2,11 @@ use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use druid::{
-    piet::{Svg, TextAttribute},
-    Command, ExtEventSink, FontFamily, FontWeight, Lens, Modifiers, Target,
+    Command, ExtEventSink, Lens, Modifiers, Target,
     WidgetId,
 };
 use druid::{
-    piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
-    Data, Env, EventCtx, PaintCtx, Point, RenderContext, Size,
+    Data, Env, EventCtx, Size,
 };
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -18,7 +16,7 @@ use serde_json;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::{cmp::Ordering, path::Path};
+use std::cmp::Ordering;
 use usvg;
 use uuid::Uuid;
 
@@ -27,7 +25,7 @@ use crate::{
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, LapceCommand, LAPCE_NEW_COMMAND},
     command::{LapceCommandNew, LapceUICommand},
-    config::{Config, LapceTheme},
+    config::Config,
     data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
     editor::EditorLocationNew,
     find::Find,
@@ -37,7 +35,6 @@ use crate::{
     state::LapceWorkspace,
     state::LapceWorkspaceType,
     state::Mode,
-    svg::{file_svg_new, symbol_svg_new},
     terminal::TerminalSplitData,
 };
 
@@ -223,173 +220,6 @@ impl PaletteItemContent {
             }
         }
         None
-    }
-
-    pub fn paint(
-        &self,
-        ctx: &mut PaintCtx,
-        line: usize,
-        indices: &[usize],
-        line_height: f64,
-        config: &Config,
-    ) {
-        let (svg, text, text_indices, hint, hint_indices) = match &self {
-            PaletteItemContent::File(path, _) => file_paint_items(path, indices),
-            #[allow(unused_variables)]
-            PaletteItemContent::DocumentSymbol {
-                kind,
-                name,
-                range,
-                container_name,
-            } => {
-                let text = name.to_string();
-                let hint = container_name.clone().unwrap_or_else(|| "".to_string());
-                let text_indices = indices
-                    .iter()
-                    .filter_map(|i| {
-                        let i = *i;
-                        if i < text.len() {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                let hint_indices = indices
-                    .iter()
-                    .filter_map(|i| {
-                        let i = *i;
-                        if i >= text.len() {
-                            Some(i - text.len())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                (symbol_svg_new(kind), text, text_indices, hint, hint_indices)
-            }
-            PaletteItemContent::Line(_, text) => {
-                (None, text.clone(), indices.to_vec(), "".to_string(), vec![])
-            }
-            PaletteItemContent::ReferenceLocation(rel_path, _location) => {
-                file_paint_items(rel_path, indices)
-            }
-            PaletteItemContent::Workspace(w) => {
-                let text = w.path.as_ref().unwrap().to_str().unwrap();
-                let text = match &w.kind {
-                    LapceWorkspaceType::Local => text.to_string(),
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("[{user}@{host}] {text}")
-                    }
-                    LapceWorkspaceType::RemoteWSL => {
-                        format!("[wsl] {text}")
-                    }
-                };
-                (None, text, indices.to_vec(), "".to_string(), vec![])
-            }
-            PaletteItemContent::Command(command) => (
-                None,
-                command
-                    .palette_desc
-                    .as_ref()
-                    .map(|m| m.to_string())
-                    .unwrap_or_else(|| "".to_string()),
-                indices.to_vec(),
-                "".to_string(),
-                vec![],
-            ),
-            PaletteItemContent::Theme(theme) => (
-                None,
-                theme.to_string(),
-                indices.to_vec(),
-                "".to_string(),
-                vec![],
-            ),
-            PaletteItemContent::TerminalLine(_line, content) => (
-                None,
-                content.clone(),
-                indices.to_vec(),
-                "".to_string(),
-                vec![],
-            ),
-            PaletteItemContent::SshHost(user, host) => (
-                None,
-                format!("{user}@{host}"),
-                indices.to_vec(),
-                "".to_string(),
-                vec![],
-            ),
-        };
-
-        if let Some(svg) = svg.as_ref() {
-            let width = 14.0;
-            let height = 14.0;
-            let rect = Size::new(width, height).to_rect().with_origin(Point::new(
-                (line_height - width) / 2.0 + 5.0,
-                (line_height - height) / 2.0 + line_height * line as f64,
-            ));
-            ctx.draw_svg(svg, rect, None);
-        }
-
-        let svg_x = match &self {
-            &PaletteItemContent::Line(_, _) | &PaletteItemContent::Workspace(_) => {
-                0.0
-            }
-            _ => line_height,
-        };
-
-        let focus_color = config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
-
-        let mut text_layout = ctx
-            .text()
-            .new_text_layout(text)
-            .font(FontFamily::SYSTEM_UI, 14.0)
-            .text_color(
-                config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            );
-        for i in &text_indices {
-            let i = *i;
-            text_layout = text_layout.range_attribute(
-                i..i + 1,
-                TextAttribute::TextColor(focus_color.clone()),
-            );
-            text_layout = text_layout
-                .range_attribute(i..i + 1, TextAttribute::Weight(FontWeight::BOLD));
-        }
-        let text_layout = text_layout.build().unwrap();
-        let x = svg_x + 5.0;
-        let y = line_height * line as f64 + 4.0;
-        let point = Point::new(x, y);
-        ctx.draw_text(&text_layout, point);
-
-        if !hint.is_empty() {
-            let text_x = text_layout.size().width;
-            let mut text_layout = ctx
-                .text()
-                .new_text_layout(hint)
-                .font(FontFamily::SYSTEM_UI, 13.0)
-                .text_color(
-                    config.get_color_unchecked(LapceTheme::EDITOR_DIM).clone(),
-                );
-            for i in &hint_indices {
-                let i = *i;
-                text_layout = text_layout.range_attribute(
-                    i..i + 1,
-                    TextAttribute::TextColor(focus_color.clone()),
-                );
-                text_layout = text_layout.range_attribute(
-                    i..i + 1,
-                    TextAttribute::Weight(FontWeight::BOLD),
-                );
-            }
-            let text_layout = text_layout.build().unwrap();
-            ctx.draw_text(
-                &text_layout,
-                Point::new(x + text_x + 4.0, line as f64 * line_height + 5.0),
-            );
-        }
     }
 }
 
@@ -1177,51 +1007,6 @@ impl PaletteViewData {
             .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Less));
         items
     }
-}
-
-fn file_paint_items(
-    path: &Path,
-    indices: &[usize],
-) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>) {
-    let svg = file_svg_new(path);
-    let file_name = path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
-    let folder = path
-        .parent()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
-    let folder_len = folder.len();
-    let text_indices: Vec<usize> = indices
-        .iter()
-        .filter_map(|i| {
-            let i = *i;
-            if folder_len > 0 {
-                if i > folder_len {
-                    Some(i - folder_len - 1)
-                } else {
-                    None
-                }
-            } else {
-                Some(i)
-            }
-        })
-        .collect();
-    let hint_indices: Vec<usize> = indices
-        .iter()
-        .filter_map(|i| {
-            let i = *i;
-            if i < folder_len {
-                Some(i)
-            } else {
-                None
-            }
-        })
-        .collect();
-    (Some(svg), file_name, text_indices, folder, hint_indices)
 }
 
 pub fn svg_tree_size(svg_tree: &usvg::Tree) -> Size {
