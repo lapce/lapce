@@ -22,17 +22,16 @@ pub fn help(executable: &str, opts: Options) {
 
 pub fn start_cmd_line() -> bool {
     let args: Vec<String> = env::args().collect(); //get arguments
-    let exec = args[0].clone(); //executable
+    let exec = &args[0]; //executable
                                 //let mut arguments = cmdLine::new();
     let mut opts = Options::new();
     opts.optflag("v", "version", "check Lapce version");
     opts.optflag("h", "help", "help");
     //additional new options go here
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => m, //accepts from Ok()
+        Ok(m) => {m}, //accepts from Ok()
         Err(f) => {
             panic!("{}. Use --help to list recognized commands", f.to_string());
-            return false;
         } //rejects from Err()
     };
     if matches.opt_present("h") {
@@ -56,93 +55,89 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_general() {
-        let mut a = cmdLine::new();
-        let mut b = cmdLine::new();
-        let mut c = cmdLine::new();
-        a = b;
-        b = c;
-        c = a;
-        assert_eq!(a, b);
-        assert_eq!(a, c);
-        assert_eq!(b, c);
-    }
     fn test_works_not_version() {
         let args: Vec<String> = env::args().collect(); //get arguments
-        let exec = args[0].clone(); //executable
-                                    //let mut arguments = cmdLine::new();
         let mut opts = Options::new();
         opts.optflag("v", "version", "check Lapce version");
         opts.optflag("h", "help", "help");
         let matches = match opts.parse(&args[1..]) {
             Ok(m) => m, //accepts from Ok()
             Err(f) => {
-                if (f.to_string() != "version".to_string) {
-                    panic!("{}. Use --help to list recognized commands", f.to_string());
-                } //rejects from Err()
-                assert!(true)
-            }
+                let val = f.to_string();
+                if val != "version" {
+					assert!(true);
+                }
+                panic!("{}. Use --help to list recognized commands", f.to_string());
+                
+            }// //rejects from Err()
         };
+        if matches.opt_present("h") {
+            assert!(!true);
+        }
     }
 
+    
+
+    #[test]
     fn test_works_for_version() {
         let args: Vec<String> = env::args().collect(); //get arguments
-        let exec = args[0].clone(); //executable
-                                    //let mut arguments = cmdLine::new();
         let mut opts = Options::new();
         opts.optflag("v", "version", "check Lapce version");
         opts.optflag("h", "help", "help");
         let matches = match opts.parse(&args[1..]) {
             Ok(m) => m, //accepts from Ok()
             Err(f) => {
-                if (f.to_string() != "version".to_string) {
-                    panic!("{}. Use --help to list recognized commands", f.to_string());
-                } //rejects from Err()
+                //rejects from Err()
+                panic!("{}. Use --help to list recognized commands", f.to_string());
             }
         };
-        assert!(true)
+        if matches.opt_present("version") {
+            assert!(true);
+        }
     }
 
+    #[test]
     fn test_works_for_help() {
         let args: Vec<String> = env::args().collect(); //get arguments
-        let exec = args[0].clone(); //executable
-                                    //let mut arguments = cmdLine::new();
         let mut opts = Options::new();
         opts.optflag("v", "version", "check Lapce version");
         opts.optflag("h", "help", "help");
         let matches = match opts.parse(&args[1..]) {
             Ok(m) => m, //accepts from Ok()
             Err(f) => {
-                if (f.to_string() != "help".to_string) {
-                    panic!("{}. Use --help to list recognized commands", f.to_string());
-                } //rejects from Err()
+                panic!("{}. Use --help to list recognized commands", f.to_string());
+                //rejects from Err()
             }
         };
-        assert!(true)
+        if matches.opt_present("help") {
+            assert!(true);
+        }
     }
 
+    #[test]
     fn test_works_not_help() {
         let args: Vec<String> = env::args().collect(); //get arguments
-        let exec = args[0].clone(); //executable
-                                    //let mut arguments = cmdLine::new();
         let mut opts = Options::new();
         opts.optflag("v", "version", "check Lapce version");
         opts.optflag("h", "help", "help");
         let matches = match opts.parse(&args[1..]) {
             Ok(m) => m, //accepts from Ok()
             Err(f) => {
-                if (f.to_string() != "help".to_string) {
-                    panic!("{}. Use --help to list recognized commands", f.to_string());
+                if f.to_string() != "help" {
+					assert!(true)
                 } //rejects from Err()
-                assert!(true)
+                panic!("{}. Use --help to list recognized commands", f.to_string());
+
             }
         };
+        if matches.opt_present("v") {
+            assert!(true);
+        }
     }
-
-    fn test_help() {
+    #[test]
+    fn test_help_h() {
         let args: Vec<String> = env::args().collect(); //get arguments
-        let exec = args[0].clone(); //executable
-                                    //let mut arguments = cmdLine::new();
+        let exec = &args[0]; //executable
         let mut opts = Options::new();
         opts.optflag("v", "version", "check Lapce version");
         opts.optflag("h", "help", "help");
@@ -154,15 +149,14 @@ mod tests {
             } //rejects from Err()
         };
         if matches.opt_present("h") {
-            arguments.help(&exec, opts);
+            help(&exec, opts);
             assert!(true);
         }
     }
-
-    fn test_version() {
+    #[test]
+    fn test_version_v() {
         let args: Vec<String> = env::args().collect(); //get arguments
-        let exec = args[0].clone(); //executable
-                                    //let mut arguments = cmdLine::new();
+        let exec = &args[0]; //executable
         let mut opts = Options::new();
         opts.optflag("v", "version", "check Lapce version");
         opts.optflag("h", "help", "help");
@@ -174,8 +168,9 @@ mod tests {
             } //rejects from Err()
         };
         if matches.opt_present("v") {
-            arguments.version(&exec, opts);
+            version(&exec);
             assert!(true);
         }
     }
 }
+
