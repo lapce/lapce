@@ -22,6 +22,7 @@ use lapce_data::{
     keypress::KeyPressFocus,
     proxy::VERSION,
     state::Mode,
+    svg::get_svg,
 };
 
 use crate::{
@@ -29,7 +30,6 @@ use crate::{
     keymap::LapceKeymap,
     scroll::{LapcePadding, LapceScrollNew},
     split::LapceSplitNew,
-    svg::get_svg,
 };
 
 pub enum LapceSettingsKind {

@@ -14,10 +14,10 @@ use lapce_data::{
     config::LapceTheme,
     data::{DragContent, EditorTabChild, LapceTabData},
     editor::TabRect,
+    svg::{file_svg_new, get_svg},
 };
 
 use crate::editor::tab::TabRectRenderer;
-use crate::svg::{file_svg_new, get_svg};
 
 pub struct LapceEditorTabHeaderContent {
     pub widget_id: WidgetId,

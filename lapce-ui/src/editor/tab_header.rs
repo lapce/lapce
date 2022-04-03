@@ -10,11 +10,12 @@ use lapce_data::{
     },
     config::LapceTheme,
     data::LapceTabData,
+    svg::get_svg,
 };
 
 use crate::{
     editor::tab_header_content::LapceEditorTabHeaderContent, scroll::LapceScrollNew,
-    svg::get_svg, tab::LapceIcon,
+    tab::LapceIcon,
 };
 
 pub struct LapceEditorTabHeader {

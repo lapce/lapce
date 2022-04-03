@@ -15,13 +15,13 @@ use lapce_data::{
     movement::Movement,
     split::{SplitDirection, SplitMoveDirection},
     state::Mode,
+    svg::{file_svg_new, get_svg},
 };
 use lapce_rpc::source_control::FileDiff;
 
 use crate::{
     editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind},
-    svg::{file_svg_new, get_svg},
 };
 
 pub const SOURCE_CONTROL_BUFFER: &str = "[Source Control Buffer]";

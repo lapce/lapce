@@ -1,6 +1,5 @@
 use crate::{
     editor::{tab::LapceEditorTab, view::LapceEditorView},
-    svg::logo_svg,
     terminal::LapceTerminalView,
 };
 use std::sync::Arc;
@@ -26,6 +25,7 @@ use lapce_data::{
     },
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
     split::{SplitDirection, SplitMoveDirection},
+    svg::logo_svg,
     terminal::LapceTerminalData,
 };
 use lapce_rpc::terminal::TermId;
