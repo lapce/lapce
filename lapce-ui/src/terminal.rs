@@ -23,6 +23,7 @@ use lapce_data::{
     proxy::LapceProxy,
     split::SplitDirection,
     state::Mode,
+    svg::get_svg,
     terminal::{LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
@@ -32,7 +33,6 @@ use crate::{
     panel::{LapcePanel, PanelHeaderKind},
     scroll::LapcePadding,
     split::LapceSplitNew,
-    svg::get_svg,
     tab::LapceIcon,
 };
 

@@ -315,19 +315,19 @@ pub enum PanelKind {
 }
 
 impl PanelKind {
-    pub fn svg_name(&self) -> String {
+    pub fn svg_name(&self) -> &'static str {
         match &self {
-            PanelKind::FileExplorer => "file-explorer.svg".to_string(),
-            PanelKind::SourceControl => "git-icon.svg".to_string(),
-            PanelKind::Plugin => "plugin-icon.svg".to_string(),
-            PanelKind::Terminal => "terminal.svg".to_string(),
-            PanelKind::Search => "search.svg".to_string(),
-            PanelKind::Problem => "error.svg".to_string(),
+            PanelKind::FileExplorer => "file-explorer.svg",
+            PanelKind::SourceControl => "git-icon.svg",
+            PanelKind::Plugin => "plugin-icon.svg",
+            PanelKind::Terminal => "terminal.svg",
+            PanelKind::Search => "search.svg",
+            PanelKind::Problem => "error.svg",
         }
     }
 
     pub fn svg(&self) -> Svg {
-        get_svg(&self.svg_name()).unwrap()
+        get_svg(self.svg_name()).unwrap()
     }
 }
 

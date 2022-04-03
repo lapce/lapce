@@ -17,11 +17,10 @@ use lapce_data::{
     menu::MenuItem,
     proxy::ProxyStatus,
     state::LapceWorkspaceType,
+    svg::get_svg,
 };
 use serde_json::json;
 use strum::EnumMessage;
-
-use crate::svg::get_svg;
 
 pub struct Title {
     mouse_pos: Point,

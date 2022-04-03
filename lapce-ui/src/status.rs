@@ -11,9 +11,10 @@ use lapce_data::{
     data::{FocusArea, LapceTabData, PanelKind},
     panel::PanelPosition,
     state::Mode,
+    svg::get_svg, 
 };
 
-use crate::{svg::get_svg, tab::LapceIcon};
+use crate::tab::LapceIcon;
 
 pub struct LapceStatusNew {
     height: f64,
@@ -69,7 +70,7 @@ impl LapceStatusNew {
                 };
 
                 LapceIcon {
-                    icon: p.svg_name(),
+                    icon: p.svg_name().to_string(),
                     rect: Size::new(self_size.height, self_size.height)
                         .to_rect()
                         .with_origin(Point::new(

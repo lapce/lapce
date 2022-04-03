@@ -12,11 +12,12 @@ use lapce_data::{
     data::{LapceTabData, PanelKind},
     panel::PanelPosition,
     split::SplitDirection,
+    svg::get_svg,
 };
 use serde_json::json;
 
 use crate::{
-    scroll::LapceScrollNew, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
+    scroll::LapceScrollNew, split::LapceSplitNew, tab::LapceIcon,
 };
 
 pub struct LapcePanel {

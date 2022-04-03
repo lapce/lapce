@@ -13,15 +13,13 @@ use lapce_data::{
     completion::{CompletionData, CompletionStatus, ScoredCompletionItem},
     config::LapceTheme,
     data::LapceTabData,
+    svg::completion_svg,
 };
 use lsp_types::CompletionItem;
 use regex::Regex;
 use std::str::FromStr;
 
-use crate::{
-    scroll::{LapceIdentityWrapper, LapceScrollNew},
-    svg::completion_svg,
-};
+use crate::scroll::{LapceIdentityWrapper, LapceScrollNew};
 
 #[derive(Debug)]
 pub struct Snippet {

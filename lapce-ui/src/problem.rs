@@ -15,13 +15,11 @@ use lapce_data::{
     problem::ProblemData,
     proxy::path_from_url,
     split::SplitDirection,
+    svg::{file_svg_new, get_svg},
 };
 use lsp_types::DiagnosticSeverity;
 
-use crate::{
-    panel::{LapcePanel, PanelHeaderKind},
-    svg::{file_svg_new, get_svg},
-};
+use crate::panel::{LapcePanel, PanelHeaderKind};
 
 pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
     LapcePanel::new(
