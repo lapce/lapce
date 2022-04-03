@@ -84,6 +84,8 @@ impl RawTerminal {
     }
 }
 
+/// This struct represents the main body of the terminal, i.e. the part
+/// where the shell is presented.
 pub struct TerminalPanel {
     widget_id: WidgetId,
     split: WidgetPod<LapceTabData, LapceSplitNew>,
@@ -189,6 +191,11 @@ impl Widget<LapceTabData> for TerminalPanel {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let rect = ctx.size().to_rect();
+        ctx.fill(
+            rect,
+            data.config.get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
+        );
         self.split.paint(ctx, data, env);
     }
 }
@@ -289,7 +296,7 @@ impl Widget<LapceTabData> for LapceTerminalView {
             ctx.fill(
                 rect,
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    .get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
             );
         });
 
