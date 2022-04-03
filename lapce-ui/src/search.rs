@@ -11,7 +11,6 @@ use lapce_data::{
     editor::EditorLocationNew,
     search::Match,
     split::SplitDirection,
-    svg::file_svg_new,
 };
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
@@ -20,6 +19,7 @@ use crate::{
     panel::{LapcePanel, PanelHeaderKind},
     scroll::LapceScrollNew,
     split::LapceSplitNew,
+    svg::file_svg_new,
 };
 
 #[derive(Clone)]

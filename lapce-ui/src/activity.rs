@@ -9,9 +9,9 @@ use lapce_data::{
     config::LapceTheme,
     data::LapceTabData,
     panel::PanelPosition,
-    svg::get_svg,
 };
 use serde_json::json;
+use crate::svg::get_svg;
 
 pub struct ActivityBar {}
 

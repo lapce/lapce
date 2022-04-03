@@ -25,9 +25,9 @@ use lapce_data::{
     },
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
     split::{SplitDirection, SplitMoveDirection},
-    svg::logo_svg,
     terminal::LapceTerminalData,
 };
+use crate::svg::logo_svg;
 use lapce_rpc::terminal::TermId;
 use strum::EnumMessage;
 

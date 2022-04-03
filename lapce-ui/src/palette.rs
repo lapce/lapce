@@ -13,7 +13,6 @@ use druid::{
 use lapce_data::config::Config;
 use lapce_data::palette::PaletteItemContent;
 use lapce_data::state::LapceWorkspaceType;
-use lapce_data::svg::{symbol_svg_new, file_svg_new};
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
@@ -28,6 +27,7 @@ use usvg;
 use crate::{
     editor::view::LapceEditorView,
     scroll::{LapceIdentityWrapper, LapceScrollNew},
+    svg::{symbol_svg_new, file_svg_new},
 };
 
 #[derive(Clone, Debug, PartialEq)]

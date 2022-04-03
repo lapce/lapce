@@ -7,10 +7,12 @@ use lapce_data::{
     command::{CommandTarget, LapceCommand, LapceCommandNew, LAPCE_NEW_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
-    svg::get_svg,
 };
 
-use crate::{editor::view::LapceEditorView, tab::LapceIcon};
+use crate::{
+    editor::view::LapceEditorView, tab::LapceIcon,
+    svg::get_svg,
+};
 
 pub struct FindBox {
     input_width: f64,
