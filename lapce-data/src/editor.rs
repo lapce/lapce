@@ -322,7 +322,7 @@ impl LapceEditorBufferData {
                     movement,
                     Mode::Normal,
                     self.editor.code_lens,
-                    compare,
+                    compare.as_deref(),
                     &self.config,
                 );
 
@@ -385,7 +385,7 @@ impl LapceEditorBufferData {
                     movement,
                     Mode::Visual,
                     self.editor.code_lens,
-                    compare,
+                    compare.as_deref(),
                     &self.config,
                 );
                 let start = *start;
@@ -406,7 +406,7 @@ impl LapceEditorBufferData {
                     Mode::Insert,
                     mods.shift(),
                     self.editor.code_lens,
-                    compare,
+                    compare.as_deref(),
                     &self.config,
                 );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
@@ -1948,7 +1948,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &Movement::Right,
                         Mode::Insert,
                         self.editor.code_lens,
-                        self.editor.compare.clone(),
+                        self.editor.compare.as_deref(),
                         &self.config,
                     )
                     .0;
@@ -1966,7 +1966,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     &Movement::EndOfLine,
                     Mode::Insert,
                     self.editor.code_lens,
-                    self.editor.compare.clone(),
+                    self.editor.compare.as_deref(),
                     &self.config,
                 );
                 self.buffer_mut().update_edit_type();
@@ -1991,7 +1991,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &Movement::FirstNonBlank,
                             Mode::Normal,
                             self.editor.code_lens,
-                            self.editor.compare.clone(),
+                            self.editor.compare.as_deref(),
                             &self.config,
                         );
                         self.buffer_mut().update_edit_type();
@@ -2056,7 +2056,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.code_lens,
-                            self.editor.compare.clone(),
+                            self.editor.compare.as_deref(),
                             &self.config,
                         )
                     }
@@ -2209,7 +2209,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.code_lens,
-                            self.editor.compare.clone(),
+                            self.editor.compare.as_deref(),
                             &self.config,
                         )
                     }
@@ -2239,7 +2239,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.code_lens,
-                            self.editor.compare.clone(),
+                            self.editor.compare.as_deref(),
                             &self.config,
                         )
                     }
@@ -2273,7 +2273,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                         Mode::Insert,
                                         true,
                                         self.editor.code_lens,
-                                        self.editor.compare.clone(),
+                                        self.editor.compare.as_deref(),
                                         &self.config,
                                     )
                                 } else {
@@ -2304,7 +2304,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                         Mode::Insert,
                                         true,
                                         self.editor.code_lens,
-                                        self.editor.compare.clone(),
+                                        self.editor.compare.as_deref(),
                                         &self.config,
                                     )
                                 }
@@ -2376,7 +2376,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                     Mode::Insert,
                                     true,
                                     self.editor.code_lens,
-                                    self.editor.compare.clone(),
+                                    self.editor.compare.as_deref(),
                                     &self.config,
                                 )
                             } else {
@@ -2548,7 +2548,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &Movement::Up,
                         Mode::Insert,
                         self.editor.code_lens,
-                        self.editor.compare.clone(),
+                        self.editor.compare.as_deref(),
                         &self.config,
                     );
                     if new_offset != offset {
@@ -2574,7 +2574,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &Movement::Down,
                         Mode::Insert,
                         self.editor.code_lens,
-                        self.editor.compare.clone(),
+                        self.editor.compare.as_deref(),
                         &self.config,
                     );
                     if new_offset != offset {
@@ -2872,7 +2872,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         Mode::Insert,
                         true,
                         self.editor.code_lens,
-                        self.editor.compare.clone(),
+                        self.editor.compare.as_deref(),
                         &self.config,
                     )
                 } else {
@@ -3051,7 +3051,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                 &Movement::Left,
                                 Mode::Normal,
                                 self.editor.code_lens,
-                                self.editor.compare.clone(),
+                                self.editor.compare.as_deref(),
                                 &self.config,
                             )
                             .0
