@@ -2,7 +2,6 @@ pub mod activity;
 pub mod app;
 pub mod code_action;
 pub mod completion;
-pub mod container;
 pub mod editor;
 pub mod explorer;
 pub mod find;
