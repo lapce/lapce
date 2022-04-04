@@ -4,8 +4,6 @@ use druid::Modifiers;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Write};
 use std::path::PathBuf;
-use std::sync::atomic;
-use std::sync::atomic::AtomicU64;
 
 #[derive(PartialEq)]
 enum KeymapMatch {
@@ -172,23 +170,4 @@ impl Display for LapceWorkspace {
                 .unwrap_or_else(|| "".to_string())
         )
     }
-}
-
-pub struct Counter(AtomicU64);
-
-impl Counter {
-    pub const fn new() -> Counter {
-        Counter(AtomicU64::new(1))
-    }
-
-    pub fn next(&self) -> u64 {
-        self.0.fetch_add(1, atomic::Ordering::Relaxed)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_check_condition() {}
 }
