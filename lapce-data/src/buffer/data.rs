@@ -639,6 +639,10 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
         self.buffer.offset_of_line(line)
     }
 
+    pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
+        self.buffer.offset_line_end(offset, caret)
+    }
+
     pub fn offset_to_line_col(
         &self,
         offset: usize,

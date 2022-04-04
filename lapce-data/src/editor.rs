@@ -1131,54 +1131,17 @@ impl LapceEditorBufferData {
     }
 
     fn set_cursor(&mut self, cursor: Cursor) {
-        self.check_selection_history();
         let editor = Arc::make_mut(&mut self.editor);
         editor.cursor = cursor.clone();
-        if let CursorMode::Insert(selection) = cursor.mode {
-            editor.selection_history.selections.push_back(selection);
-        }
+        self.update_selection_history();
     }
 
-    fn jump_to_nearest_delta(&mut self, delta: &RopeDelta) {
-        let mut transformer = Transformer::new(delta);
+    fn update_selection_history(&mut self) {
+        self.check_selection_history();
 
-        let offset = self.editor.cursor.offset();
-        let offset = transformer.transform(offset, false);
-        let (ins, del) = delta.clone().factor();
-        let ins = ins.transform_shrink(&del);
-        for el in ins.els.iter() {
-            match el {
-                xi_rope::DeltaElement::Copy(b, e) => {
-                    // if b == e, ins.inserted_subset() will panic
-                    if b == e {
-                        return;
-                    }
-                }
-                xi_rope::DeltaElement::Insert(_) => {}
-            }
-        }
-        let mut positions = ins
-            .inserted_subset()
-            .complement_iter()
-            .map(|s| s.1)
-            .collect::<Vec<usize>>();
-        positions.append(
-            &mut del
-                .complement_iter()
-                .map(|s| transformer.transform(s.1, false))
-                .collect::<Vec<usize>>(),
-        );
-        positions.sort_by_key(|p| {
-            let p = *p as i32 - offset as i32;
-            if p > 0 {
-                p as usize
-            } else {
-                -p as usize
-            }
-        });
-        if let Some(new_offset) = positions.get(0) {
-            let selection = Selection::caret(*new_offset);
-            self.set_cursor_after_change(selection);
+        let editor = Arc::make_mut(&mut self.editor);
+        if let CursorMode::Insert(selection) = editor.cursor.mode.clone() {
+            editor.selection_history.selections.push_back(selection);
         }
     }
 
@@ -1276,7 +1239,7 @@ impl LapceEditorBufferData {
         delta
     }
 
-    fn edit_with_command(&mut self, command: &LapceCommand) -> RopeDelta {
+    fn edit_with_command(&mut self, command: &LapceCommand) -> Option<RopeDelta> {
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {}
             #[allow(unused_variables)]
@@ -1298,33 +1261,35 @@ impl LapceEditorBufferData {
             tab_width: self.config.editor.tab_width,
         };
 
-        let edit_command = factory.create_command(command).unwrap();
+        if let Some(edit_command) = factory.create_command(command) {
+            let buffer = Arc::make_mut(&mut self.buffer);
 
-        let buffer = Arc::make_mut(&mut self.buffer);
+            if let Some(delta) = edit_command.execute(buffer.editable(&self.proxy)) {
+                self.inactive_apply_delta(&delta);
+                if let Some(snippet) = self.editor.snippet.clone() {
+                    let mut transformer = Transformer::new(&delta);
+                    Arc::make_mut(&mut self.editor).snippet = Some(
+                        snippet
+                            .iter()
+                            .map(|(tab, (start, end))| {
+                                (
+                                    *tab,
+                                    (
+                                        transformer.transform(*start, false),
+                                        transformer.transform(*end, true),
+                                    ),
+                                )
+                            })
+                            .collect(),
+                    );
+                }
 
-        let delta = edit_command.execute(buffer.editable(&self.proxy));
-        self.inactive_apply_delta(&delta);
-        if let Some(snippet) = self.editor.snippet.clone() {
-            let mut transformer = Transformer::new(&delta);
-            Arc::make_mut(&mut self.editor).snippet = Some(
-                snippet
-                    .iter()
-                    .map(|(tab, (start, end))| {
-                        (
-                            *tab,
-                            (
-                                transformer.transform(*start, false),
-                                transformer.transform(*end, true),
-                            ),
-                        )
-                    })
-                    .collect(),
-            );
+                self.update_diagnositcs_offset(&delta);
+
+                return Some(delta);
+            }
         }
-
-        self.update_diagnositcs_offset(&delta);
-
-        delta
+        None
     }
 
     fn next_diff(&mut self, ctx: &mut EventCtx, _env: &Env) {
@@ -1904,20 +1869,18 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::Undo => {
                 self.initiate_diagnositcs_offset();
-                let proxy = self.proxy.clone();
-                let buffer = self.buffer_mut();
-                if let Some(delta) = buffer.editable(&proxy).do_undo() {
-                    self.jump_to_nearest_delta(&delta);
+
+                if let Some(delta) = self.edit_with_command(&LapceCommand::Undo) {
+                    self.update_selection_history();
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
                 }
             }
             LapceCommand::Redo => {
                 self.initiate_diagnositcs_offset();
-                let proxy = self.proxy.clone();
-                let buffer = self.buffer_mut();
-                if let Some(delta) = buffer.editable(&proxy).do_redo() {
-                    self.jump_to_nearest_delta(&delta);
+
+                if let Some(delta) = self.edit_with_command(&LapceCommand::Redo) {
+                    self.update_selection_history();
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
                 }
