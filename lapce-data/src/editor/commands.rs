@@ -5,7 +5,6 @@ use crate::{
         data::{BufferDataListener, EditableBufferData},
         EditType,
     },
-    command::LapceCommand,
     movement::{Cursor, CursorMode, Selection},
 };
 
@@ -16,9 +15,12 @@ pub struct EditCommandFactory<'a> {
 }
 
 impl<'a> EditCommandFactory<'a> {
-    pub fn create_command(self, command: &LapceCommand) -> Option<EditCommand<'a>> {
+    pub fn create_command(
+        self,
+        command: EditCommandKind,
+    ) -> Option<EditCommand<'a>> {
         match command {
-            LapceCommand::InsertTab => {
+            EditCommandKind::InsertTab => {
                 if let CursorMode::Insert(selection) = &self.cursor.mode {
                     Some(EditCommand::InsertTab(InsertTabCommand {
                         selection: selection.clone(),
@@ -29,21 +31,40 @@ impl<'a> EditCommandFactory<'a> {
                     None
                 }
             }
-            LapceCommand::Undo => Some(EditCommand::Undo(UndoCommand {
+            EditCommandKind::Undo => Some(EditCommand::Undo(UndoCommand {
                 cursor: self.cursor,
             })),
-            LapceCommand::Redo => Some(EditCommand::Redo(RedoCommand {
+            EditCommandKind::Redo => Some(EditCommand::Redo(RedoCommand {
                 cursor: self.cursor,
             })),
-            _ => None,
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EditCommandKind {
+    InsertTab,
+    Undo,
+    Redo,
 }
 
 pub enum EditCommand<'a> {
     InsertTab(InsertTabCommand<'a>),
     Undo(UndoCommand<'a>),
     Redo(RedoCommand<'a>),
+}
+
+impl<'a> EditCommand<'a> {
+    pub fn execute<L: BufferDataListener>(
+        self,
+        buffer: EditableBufferData<'a, L>,
+    ) -> Option<RopeDelta> {
+        match self {
+            Self::InsertTab(command) => command.execute(buffer),
+            Self::Undo(command) => command.execute(buffer),
+            Self::Redo(command) => command.execute(buffer),
+        }
+    }
 }
 
 pub struct InsertTabCommand<'a> {
@@ -202,19 +223,6 @@ impl<'a> RedoCommand<'a> {
             Some(delta)
         } else {
             None
-        }
-    }
-}
-
-impl<'a> EditCommand<'a> {
-    pub fn execute<L: BufferDataListener>(
-        self,
-        buffer: EditableBufferData<'a, L>,
-    ) -> Option<RopeDelta> {
-        match self {
-            Self::InsertTab(command) => command.execute(buffer),
-            Self::Undo(command) => command.execute(buffer),
-            Self::Redo(command) => command.execute(buffer),
         }
     }
 }

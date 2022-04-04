@@ -17,6 +17,7 @@ use crate::data::{
     RegisterData, SplitContent,
 };
 use crate::editor::commands::EditCommandFactory;
+use crate::editor::commands::EditCommandKind;
 use crate::hover::HoverData;
 use crate::hover::HoverStatus;
 use crate::movement::InsertDrift;
@@ -1239,7 +1240,7 @@ impl LapceEditorBufferData {
         delta
     }
 
-    fn edit_with_command(&mut self, command: &LapceCommand) -> Option<RopeDelta> {
+    fn edit_with_command(&mut self, command: EditCommandKind) -> Option<RopeDelta> {
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {}
             #[allow(unused_variables)]
@@ -1870,7 +1871,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::Undo => {
                 self.initiate_diagnositcs_offset();
 
-                if let Some(delta) = self.edit_with_command(&LapceCommand::Undo) {
+                if let Some(delta) = self.edit_with_command(EditCommandKind::Undo) {
                     self.update_selection_history();
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
@@ -1879,7 +1880,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::Redo => {
                 self.initiate_diagnositcs_offset();
 
-                if let Some(delta) = self.edit_with_command(&LapceCommand::Redo) {
+                if let Some(delta) = self.edit_with_command(EditCommandKind::Redo) {
                     self.update_selection_history();
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
@@ -2363,7 +2364,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::InsertTab => {
-                self.edit_with_command(&LapceCommand::InsertTab);
+                self.edit_with_command(EditCommandKind::InsertTab);
 
                 self.update_completion(ctx);
             }
