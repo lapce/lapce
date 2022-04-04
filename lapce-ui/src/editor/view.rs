@@ -69,14 +69,14 @@ impl LapceEditorView {
         self
     }
 
-    pub fn set_placeholder(mut self, placehoder: String) -> Self {
+    pub fn set_placeholder(mut self, placeholder: String) -> Self {
         self.editor
             .widget_mut()
             .editor
             .widget_mut()
             .inner_mut()
             .child_mut()
-            .placeholder = Some(placehoder);
+            .placeholder = Some(placeholder);
         self
     }
 
