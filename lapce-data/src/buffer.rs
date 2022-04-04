@@ -727,9 +727,7 @@ impl Buffer {
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
-        self.data.rope.line_of_offset(offset)
+        self.data.line_of_offset(offset)
     }
 
     pub fn offset_line_content(&self, offset: usize) -> Cow<str> {
@@ -741,13 +739,7 @@ impl Buffer {
     }
 
     pub fn offset_of_line(&self, line: usize) -> usize {
-        let last_line = self.last_line();
-        let line = if line > last_line + 1 {
-            last_line + 1
-        } else {
-            line
-        };
-        self.data.rope.offset_of_line(line)
+        self.data.offset_of_line(line)
     }
 
     pub fn select_word(&self, offset: usize) -> (usize, usize) {
@@ -938,9 +930,7 @@ impl Buffer {
     }
 
     pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
-        self.data
-            .rope
-            .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
+        self.data.slice_to_cow(range)
     }
 
     pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {

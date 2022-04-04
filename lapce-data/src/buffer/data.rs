@@ -631,6 +631,30 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
         self.buffer.is_empty()
     }
 
+    pub fn indent_unit(&self) -> &'static str {
+        self.buffer.indent_unit()
+    }
+
+    pub fn offset_of_line(&self, line: usize) -> usize {
+        self.buffer.offset_of_line(line)
+    }
+
+    pub fn offset_to_line_col(
+        &self,
+        offset: usize,
+        tab_width: usize,
+    ) -> (usize, usize) {
+        self.buffer.offset_to_line_col(offset, tab_width)
+    }
+
+    pub fn line_of_offset(&self, offset: usize) -> usize {
+        self.buffer.line_of_offset(offset)
+    }
+
+    pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
+        self.buffer.first_non_blank_character_on_line(line)
+    }
+
     pub fn edit_multiple(
         &mut self,
         edits: &[(&Selection, &str)],

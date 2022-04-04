@@ -16,6 +16,7 @@ use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     RegisterData, SplitContent,
 };
+use crate::editor::commands::EditCommandFactory;
 use crate::hover::HoverData;
 use crate::hover::HoverStatus;
 use crate::movement::InsertDrift;
@@ -57,6 +58,8 @@ use std::{collections::HashMap, sync::Arc};
 use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
 use xi_rope::{RopeDelta, Transformer};
+
+mod commands;
 
 pub struct LapceUI {}
 
@@ -849,58 +852,6 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn insert_tab(&mut self) {
-        if let CursorMode::Insert(selection) = &self.editor.cursor.mode {
-            let indent = self.buffer.indent_unit();
-            let mut edits = Vec::new();
-            for region in selection.regions() {
-                if region.is_caret() {
-                    if indent.starts_with('\t') {
-                        edits.push((
-                            Selection::caret(region.start),
-                            indent.to_string(),
-                        ));
-                    } else {
-                        let (_, col) = self.buffer.offset_to_line_col(
-                            region.start,
-                            self.config.editor.tab_width,
-                        );
-                        let indent = " ".repeat(indent.len() - col % indent.len());
-                        edits.push((Selection::caret(region.start), indent));
-                    }
-                } else {
-                    let start_line = self.buffer.line_of_offset(region.min());
-                    let end_line = self.buffer.line_of_offset(region.max());
-                    for line in start_line..end_line + 1 {
-                        let offset =
-                            self.buffer.first_non_blank_character_on_line(line);
-                        if indent.starts_with('\t') {
-                            edits.push((
-                                Selection::caret(offset),
-                                indent.to_string(),
-                            ));
-                        } else {
-                            let (_, col) = self.buffer.offset_to_line_col(
-                                offset,
-                                self.config.editor.tab_width,
-                            );
-                            let indent =
-                                " ".repeat(indent.len() - col % indent.len());
-                            edits.push((Selection::caret(offset), indent));
-                        }
-                    }
-                }
-            }
-
-            let edits = edits
-                .iter()
-                .map(|(selection, s)| (selection, s.as_str()))
-                .collect::<Vec<(&Selection, &str)>>();
-            let delta = self.edit(&edits, true, EditType::InsertChars);
-            Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
-        }
-    }
-
     fn insert_new_line(&mut self, ctx: &mut EventCtx, selection: Selection) {
         match self.buffer.content() {
             BufferContent::File(_) => {}
@@ -1301,6 +1252,57 @@ impl LapceEditorBufferData {
         let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
         let delta = buffer.editable(&proxy).edit_multiple(edits, edit_type);
+        self.inactive_apply_delta(&delta);
+        if let Some(snippet) = self.editor.snippet.clone() {
+            let mut transformer = Transformer::new(&delta);
+            Arc::make_mut(&mut self.editor).snippet = Some(
+                snippet
+                    .iter()
+                    .map(|(tab, (start, end))| {
+                        (
+                            *tab,
+                            (
+                                transformer.transform(*start, false),
+                                transformer.transform(*end, true),
+                            ),
+                        )
+                    })
+                    .collect(),
+            );
+        }
+
+        self.update_diagnositcs_offset(&delta);
+
+        delta
+    }
+
+    fn edit_with_command(&mut self, command: &LapceCommand) -> RopeDelta {
+        match &self.editor.cursor.mode {
+            CursorMode::Normal(_) => {}
+            #[allow(unused_variables)]
+            CursorMode::Visual { start, end, mode } => {
+                let data = self
+                    .editor
+                    .cursor
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
+                let register = Arc::make_mut(&mut self.main_split.register);
+                register.add_delete(data);
+            }
+            CursorMode::Insert(_) => {}
+        }
+
+        self.initiate_diagnositcs_offset();
+
+        let factory = EditCommandFactory {
+            cursor: &mut Arc::make_mut(&mut self.editor).cursor,
+            tab_width: self.config.editor.tab_width,
+        };
+
+        let edit_command = factory.create_command(command).unwrap();
+
+        let buffer = Arc::make_mut(&mut self.buffer);
+
+        let delta = edit_command.execute(buffer.editable(&self.proxy));
         self.inactive_apply_delta(&delta);
         if let Some(snippet) = self.editor.snippet.clone() {
             let mut transformer = Transformer::new(&delta);
@@ -2398,7 +2400,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::InsertTab => {
-                self.insert_tab();
+                self.edit_with_command(&LapceCommand::InsertTab);
+
                 self.update_completion(ctx);
             }
             LapceCommand::InsertNewLine => {
