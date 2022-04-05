@@ -42,6 +42,12 @@ impl Display for TestState {
     }
 }
 
+impl PartialEq<TestState> for &str {
+    fn eq(&self, other: &TestState) -> bool {
+        other.to_string() == *self
+    }
+}
+
 impl TestState {
     pub fn parse(initial: &str) -> Self {
         lazy_static! {
