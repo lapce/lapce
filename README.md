@@ -8,8 +8,8 @@
 <h4 align="center">Lightning-fast and Powerful Code Editor written in Rust</h4>
 
 <div align="center">
-  <a href="https://github.com/lapce/lapce/actions/workflows/cargo.yml" target="_blank">
-    <img src="https://github.com/lapce/lapce/actions/workflows/cargo.yml/badge.svg" />
+  <a href="https://github.com/lapce/lapce/actions/workflows/ci.yml" target="_blank">
+    <img src="https://github.com/lapce/lapce/actions/workflows/ci.yml/badge.svg" />
   </a>
   <a href="https://discord.gg/n8tGJ6Rn6D" target="_blank">
     <img src="https://img.shields.io/discord/946858761413328946?logo=discord" />
