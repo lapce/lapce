@@ -28,7 +28,9 @@ use xi_rope::{
 };
 use xi_unicode::EmojiExt;
 
-use crate::buffer::data::{BufferData, BufferDataListener, EditableBufferData};
+use crate::buffer::data::{
+    BufferData, BufferDataListener, EditableBufferData, DEFAULT_INDENT,
+};
 use crate::buffer::decoration::BufferDecoration;
 use crate::config::{Config, LapceTheme};
 use crate::editor::EditorLocationNew;
@@ -47,8 +49,6 @@ pub mod decoration;
 
 #[allow(dead_code)]
 const FIND_BATCH_SIZE: usize = 500000;
-
-const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
 
 #[derive(Debug, Clone)]
 pub struct InvalLines {
@@ -213,7 +213,6 @@ impl BufferContent {
 #[derive(Clone)]
 pub struct Buffer {
     data: BufferData,
-    pub indent_style: IndentStyle,
     pub start_to_load: Rc<RefCell<bool>>,
 
     pub history_styles: im::HashMap<String, Arc<Spans<Style>>>,
@@ -257,7 +256,6 @@ impl Buffer {
         tab_id: WidgetId,
         event_sink: ExtEventSink,
     ) -> Self {
-        let rope = Rope::from("");
         let syntax = match &content {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
@@ -265,36 +263,7 @@ impl Buffer {
         };
 
         Self {
-            data: BufferData {
-                id: BufferId::next(),
-                rope,
-                content,
-
-                max_len: 0,
-                max_len_line: 0,
-                num_lines: 0,
-
-                rev: 0,
-                atomic_rev: Arc::new(AtomicU64::new(0)),
-                dirty: false,
-
-                revs: vec![Revision {
-                    max_undo_so_far: 0,
-                    edit: Contents::Undo {
-                        toggled_groups: BTreeSet::new(),
-                        deletes_bitxor: Subset::new(0),
-                    },
-                }],
-                cur_undo: 1,
-                undos: BTreeSet::new(),
-                undo_group_id: 1,
-                live_undos: vec![0],
-                deletes_from_union: Subset::new(0),
-                undone_groups: BTreeSet::new(),
-                tombstones: Rope::default(),
-
-                last_edit_type: EditType::Other,
-            },
+            data: BufferData::new("", content),
             decoration: BufferDecoration {
                 syntax,
                 line_styles: Rc::new(RefCell::new(HashMap::new())),
@@ -307,7 +276,6 @@ impl Buffer {
                 tab_id,
                 event_sink,
             },
-            indent_style: DEFAULT_INDENT,
             start_to_load: Rc::new(RefCell::new(false)),
             history_styles: im::HashMap::new(),
             history_line_styles: Rc::new(RefCell::new(HashMap::new())),
@@ -455,7 +423,7 @@ impl Buffer {
     }
 
     pub fn detect_indent(&mut self) {
-        self.indent_style = auto_detect_indent_style(&self.data.rope)
+        self.data.indent_style = auto_detect_indent_style(&self.data.rope)
             .unwrap_or_else(|| {
                 self.syntax()
                     .map(|s| IndentStyle::from_str(s.language.indent_unit()))
@@ -464,7 +432,7 @@ impl Buffer {
     }
 
     pub fn indent_unit(&self) -> &'static str {
-        self.indent_style.as_str()
+        self.data.indent_unit()
     }
 
     fn retrieve_history_styles(&self, version: &str, content: Rope) {

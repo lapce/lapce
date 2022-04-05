@@ -1,3 +1,4 @@
+use lapce_core::indent::IndentStyle;
 use lapce_rpc::buffer::BufferId;
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -11,6 +12,8 @@ use crate::buffer::{
     Revision,
 };
 use crate::movement::Selection;
+
+pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
 
 pub trait BufferDataListener {
     fn should_apply_edit(&self) -> bool;
@@ -42,15 +45,54 @@ pub struct BufferData {
     pub(super) tombstones: Rope,
 
     pub(super) last_edit_type: EditType,
+    pub(super) indent_style: IndentStyle,
 }
 
 impl BufferData {
+    pub fn new(str: &str, content: BufferContent) -> Self {
+        Self {
+            id: BufferId::next(),
+            rope: Rope::from(str),
+            content,
+
+            max_len: 0,
+            max_len_line: 0,
+            num_lines: 0,
+
+            rev: 0,
+            atomic_rev: Arc::new(AtomicU64::new(0)),
+            dirty: false,
+
+            revs: vec![Revision {
+                max_undo_so_far: 0,
+                edit: Contents::Undo {
+                    toggled_groups: BTreeSet::new(),
+                    deletes_bitxor: Subset::new(0),
+                },
+            }],
+            cur_undo: 1,
+            undos: BTreeSet::new(),
+            undo_group_id: 1,
+            live_undos: vec![0],
+            deletes_from_union: Subset::new(str.len()),
+            undone_groups: BTreeSet::new(),
+            tombstones: Rope::default(),
+
+            last_edit_type: EditType::Other,
+            indent_style: DEFAULT_INDENT,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.rope.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn indent_unit(&self) -> &'static str {
+        self.indent_style.as_str()
     }
 
     pub(super) fn mk_new_rev(
