@@ -89,3 +89,30 @@ pub(super) fn get_first_selection_after<'a, L: BufferDataListener>(
             Cursor::new(cursor_mode, None)
         })
 }
+
+#[cfg(test)]
+mod test {
+    use crate::editor::commands::{test::MockEditor, EditCommandKind};
+
+    #[test]
+    fn undo_doesnt_do_anything_when_there_is_nothing_to_undo() {
+        let mut editor = MockEditor::new("<$0>");
+
+        editor.command(EditCommandKind::Undo);
+
+        assert_eq!("<$0>", editor.state());
+    }
+
+    #[test]
+    fn undo_reverts_last_command() {
+        let mut editor = MockEditor::new("foobar<$0>");
+
+        // Insert a tab. The command shouldn't matter here, just that the internal state changes.
+        editor.command(EditCommandKind::InsertTab);
+        assert_ne!("foobar<$0>", editor.state());
+
+        editor.command(EditCommandKind::Undo);
+
+        assert_eq!("foobar<$0>", editor.state());
+    }
+}
