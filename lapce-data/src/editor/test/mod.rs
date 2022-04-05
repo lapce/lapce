@@ -7,7 +7,7 @@ mod commands;
 use std::path::PathBuf;
 
 use test_state::TestState;
-use xi_rope::{Rope, RopeDelta};
+use xi_rope::RopeDelta;
 
 use crate::{
     buffer::{
@@ -43,7 +43,7 @@ impl MockEditor {
     pub fn from_state(initial: TestState) -> Self {
         Self {
             buffer: BufferData::new(
-                Rope::from(&initial.contents),
+                &initial.contents,
                 BufferContent::File(PathBuf::default()),
             ),
             cursor: Cursor {
