@@ -1098,20 +1098,13 @@ impl Buffer {
         mode: Mode,
         modify: bool,
         code_lens: bool,
-        compare: Option<String>,
+        compare: Option<&str>,
         config: &Config,
     ) -> Selection {
         let mut new_selection = Selection::new();
         for region in selection.regions() {
             let region = self.update_region(
-                region,
-                count,
-                movement,
-                mode,
-                modify,
-                code_lens,
-                compare.clone(),
-                config,
+                region, count, movement, mode, modify, code_lens, compare, config,
             );
             new_selection.add_region(region);
         }
@@ -1127,7 +1120,7 @@ impl Buffer {
         mode: Mode,
         modify: bool,
         code_lens: bool,
-        compare: Option<String>,
+        compare: Option<&str>,
         config: &Config,
     ) -> SelRegion {
         let (end, horiz) = self.move_offset(
@@ -1343,7 +1336,7 @@ impl Buffer {
         movement: &Movement,
         mode: Mode,
         code_lens: bool,
-        compare: Option<String>,
+        compare: Option<&str>,
         config: &Config,
     ) -> (usize, ColPosition) {
         let horiz = if let Some(horiz) = horiz {
@@ -1389,7 +1382,7 @@ impl Buffer {
                 let line = self.line_of_offset(offset);
                 let line = if line == 0 {
                     0
-                } else if let Some(compare) = compare.as_ref() {
+                } else if let Some(compare) = compare {
                     let cursor_line = self.diff_cursor_line(compare, line);
                     let cursor_line = if cursor_line > count {
                         cursor_line - count
@@ -1443,7 +1436,7 @@ impl Buffer {
                 let last_line = self.last_line();
                 let line = self.line_of_offset(offset);
 
-                let line = if let Some(compare) = compare.as_ref() {
+                let line = if let Some(compare) = compare {
                     let cursor_line = self.diff_cursor_line(compare, line);
                     let cursor_line = cursor_line + count;
 
