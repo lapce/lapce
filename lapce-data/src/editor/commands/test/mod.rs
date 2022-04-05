@@ -2,8 +2,6 @@
 
 mod test_state;
 
-mod commands;
-
 use std::path::PathBuf;
 
 use test_state::TestState;

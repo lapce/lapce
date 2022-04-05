@@ -62,9 +62,6 @@ use xi_rope::{RopeDelta, Transformer};
 
 mod commands;
 
-#[cfg(test)]
-pub mod test;
-
 pub struct LapceUI {}
 
 #[derive(Copy, Clone)]
