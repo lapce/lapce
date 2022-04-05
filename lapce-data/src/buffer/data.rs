@@ -618,8 +618,8 @@ impl BufferData {
 
 /// Make BufferData temporarily editable by attaching a listener object to it.
 pub struct EditableBufferData<'a, L> {
-    pub(super) listener: L,
-    pub(super) buffer: &'a mut BufferData,
+    pub listener: L,
+    pub buffer: &'a mut BufferData,
 }
 
 impl<L: BufferDataListener> EditableBufferData<'_, L> {
