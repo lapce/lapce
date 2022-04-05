@@ -801,7 +801,7 @@ impl LapceTabData {
                 let offset = editor.cursor.offset();
                 let (line, col) =
                     buffer.offset_to_line_col(offset, self.config.editor.tab_width);
-                let width = config.editor_text_width(text, "W");
+                let width = config.editor_char_width(text);
                 let x = col as f64 * width;
                 let y = (line + 1) as f64 * line_height;
 
@@ -836,7 +836,7 @@ impl LapceTabData {
                 let offset = self.completion.offset;
                 let (line, col) =
                     buffer.offset_to_line_col(offset, self.config.editor.tab_width);
-                let width = config.editor_text_width(text, "W");
+                let width = config.editor_char_width(text);
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
                 let mut origin = editor.window_origin - self.window_origin.to_vec2()
@@ -889,7 +889,7 @@ impl LapceTabData {
                 let offset = self.hover.offset;
                 let (line, col) =
                     buffer.offset_to_line_col(offset, self.config.editor.tab_width);
-                let width = config.editor_text_width(text, "W");
+                let width = config.editor_char_width(text);
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
                 let mut origin = editor.window_origin - self.window_origin.to_vec2()

@@ -1681,13 +1681,13 @@ impl LapceEditorBufferData {
             let line = self.buffer.diff_actual_line_from_visual(compare, line);
             (
                 line,
-                config.char_width(text, config.editor.font_size as f64),
+                config.editor_char_width(text),
             )
         } else {
             let line = (pos.y / config.editor.line_height as f64).floor() as usize;
             (
                 line,
-                config.char_width(text, config.editor.font_size as f64),
+                config.editor_char_width(text),
             )
         };
 

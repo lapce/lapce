@@ -326,7 +326,7 @@ impl LapceEditorView {
         let (line, col) = data
             .buffer
             .offset_to_line_col(offset, data.config.editor.tab_width);
-        let width = data.config.editor_text_width(text, "W");
+        let width = data.config.editor_char_width(text);
         let cursor_x = col as f64 * width;
         let line_height = data.config.editor.line_height as f64;
 

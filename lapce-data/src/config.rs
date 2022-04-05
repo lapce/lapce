@@ -539,9 +539,15 @@ impl Config {
     }
 
     /// Calculate the width of the character "W" (being the widest character)
-    /// at the specified font size in the editor's current font family.
+    /// in the editor's current font family at the specified font size.
     pub fn char_width(&self, text: &mut PietText, font_size: f64) -> f64 {
         Self::editor_text_size_internal(self.editor.font_family(), font_size, text, "W").width
+    }
+
+    /// Calculate the width of the character "W" (being the widest character)
+    /// in the editor's current font family and current font size.
+    pub fn editor_char_width(&self, text: &mut PietText) -> f64 {
+        Self::editor_text_size_internal(self.editor.font_family(), self.editor.font_size as f64, text, "W").width
     }
 
     /// Calculate the width of `text_to_measure` in the editor's current font family and font size.
@@ -559,17 +565,19 @@ impl Config {
     fn editor_text_size_internal(font_family: FontFamily, font_size: f64, text: &mut PietText, text_to_measure: &str) -> Size {
         // Lie about the lifetime of `text_to_measure`.
         //
-        // The method `new_text_layout` will take ownership of the variable `static_str`
+        // The method `new_text_layout` will take ownership of its parameter
         // and hold it inside the `text_layout` object. It will normally only do this efficiently
-        // for static strs. It is valid for it do that for static strings because they are known
-        // to live for the lifetime of the program.
+        // for `&'static str`, and not other `&'a str`. It can safely do this for static strings
+        // because they are known to live for the lifetime of the program.
         //
-        // However, in this case we want to take advantage of the optimisation inside
-        // `new_text_layout` to measure some text without allocating either a String or
-        // an Arc or an Rc. We can safely do this because the `text_layout` produced is
-        // local to this function and hence its lifetime is always stricly less than the lifetime
-        // of `text_to_measure`, irrespective of whether `text_to_measure` is actually
-        // static or not.
+        // `new_text_layout` can also work by taking ownership of an owned type such
+        // as String, Rc, or Arc. But they all require allocation. We want to measure
+        // `strs` with arbitrary lifetimes. If we 'cheat' by extending the lifetime of the
+        // `text_to_measure` (in this function only) then we can safely call `new_text_layout`
+        // because the `text_layout` value that is produced is local to this function and hence
+        // always dropped inside this function, and hence its lifetime is always stricly less
+        // than the lifetime of `text_to_measure`, irrespective of whether `text_to_measure`
+        // is actually static or not.
         let static_str: &'static str = unsafe { 
             std::mem::transmute(text_to_measure)
         };
