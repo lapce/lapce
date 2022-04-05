@@ -289,15 +289,15 @@ impl Buffer {
     }
 
     pub fn id(&self) -> BufferId {
-        self.data.id
+        self.data.id()
     }
 
     pub fn rope(&self) -> &Rope {
-        &self.data.rope
+        self.data.rope()
     }
 
     pub fn content(&self) -> &BufferContent {
-        &self.data.content
+        self.data.content()
     }
 
     pub fn max_len(&self) -> usize {

@@ -91,6 +91,18 @@ impl BufferData {
         self.len() == 0
     }
 
+    pub fn id(&self) -> BufferId {
+        self.id
+    }
+
+    pub fn rope(&self) -> &Rope {
+        &self.rope
+    }
+
+    pub fn content(&self) -> &BufferContent {
+        &self.content
+    }
+
     pub fn indent_unit(&self) -> &'static str {
         self.indent_style.as_str()
     }
