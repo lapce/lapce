@@ -79,6 +79,10 @@ impl LapceTheme {
     pub const PANEL_HOVERED: &'static str = "panel.hovered";
 
     pub const STATUS_BACKGROUND: &'static str = "status.background";
+    pub const STATUS_MODAL_NORMAL: &'static str = "status.modal.normal";
+    pub const STATUS_MODAL_INSERT: &'static str = "status.modal.insert";
+    pub const STATUS_MODAL_VISUAL: &'static str = "status.modal.visual";
+    pub const STATUS_MODAL_TERMINAL: &'static str = "status.modal.terminal";
 
     pub const INPUT_LINE_HEIGHT: druid::Key<f64> =
         druid::Key::new("lapce.input_line_height");

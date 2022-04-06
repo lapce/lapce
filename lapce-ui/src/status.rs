@@ -1,7 +1,7 @@
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
-    Color, Command, Event, EventCtx, FontFamily, MouseEvent, Point, RenderContext,
-    Size, Target, Widget,
+    Command, Event, EventCtx, FontFamily, MouseEvent, Point, RenderContext, Size,
+    Target, Widget,
 };
 use lapce_data::{
     command::{
@@ -14,7 +14,7 @@ use lapce_data::{
 };
 
 use crate::{
-    svg::get_svg, 
+    svg::get_svg,
     tab::LapceIcon,
 };
 
@@ -236,10 +236,18 @@ impl Widget<LapceTabData> for LapceStatusNew {
                             .unwrap_or(Mode::Normal)
                     };
                 match mode {
-                    Mode::Normal => ("Normal", Color::rgb8(64, 120, 242)),
-                    Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
-                    Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
-                    Mode::Terminal => ("Terminal", Color::rgb8(228, 86, 73)),
+                    Mode::Normal => (
+                        "Normal", LapceTheme::STATUS_MODAL_NORMAL,
+                    ),
+                    Mode::Insert => (
+                        "Insert", LapceTheme::STATUS_MODAL_INSERT,
+                    ),
+                    Mode::Visual => (
+                        "Visual", LapceTheme::STATUS_MODAL_VISUAL,
+                    ),
+                    Mode::Terminal => (
+                        "Terminal", LapceTheme::STATUS_MODAL_TERMINAL,
+                    ),
                 }
             };
 
@@ -256,7 +264,10 @@ impl Widget<LapceTabData> for LapceStatusNew {
                 .unwrap();
             let text_size = text_layout.size();
             let fill_size = Size::new(text_size.width + 10.0, size.height);
-            ctx.fill(fill_size.to_rect(), &color);
+            ctx.fill(
+                fill_size.to_rect(),
+                data.config.get_color_unchecked(color)
+            );
             ctx.draw_text(&text_layout, Point::new(5.0, 4.0));
             left += text_size.width + 10.0;
         }
