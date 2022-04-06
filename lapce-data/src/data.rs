@@ -30,8 +30,8 @@ use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
     buffer::{
-        matching_char, matching_pair_direction, Buffer, BufferContent, EditType,
-        LocalBufferKind,
+        data::BufferData, matching_char, matching_pair_direction, Buffer,
+        BufferContent, EditType, LocalBufferKind,
     },
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommandNew, LapceUICommand,
@@ -2314,7 +2314,7 @@ impl LapceMainSplitData {
             Some(location.path.clone()),
             config,
         );
-        editor.save_jump_location(&buffer, config.editor.tab_width);
+        editor.save_jump_location(buffer.data(), config.editor.tab_width);
         self.go_to_location(ctx, Some(editor_view_id), location, config);
         editor_view_id
     }
@@ -3071,7 +3071,7 @@ impl LapceEditorData {
         placeholders.extend_from_slice(&v[1..]);
     }
 
-    pub fn save_jump_location(&mut self, buffer: &Buffer, tab_width: usize) {
+    pub fn save_jump_location(&mut self, buffer: &BufferData, tab_width: usize) {
         if let BufferContent::File(path) = buffer.content() {
             let location = EditorLocationNew {
                 path: path.clone(),

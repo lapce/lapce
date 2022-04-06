@@ -308,7 +308,10 @@ impl LapceEditorBufferData {
     fn do_move(&mut self, movement: &Movement, count: usize, mods: Modifiers) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer, self.config.editor.tab_width);
+            editor.save_jump_location(
+                self.buffer.data(),
+                self.config.editor.tab_width,
+            );
         }
         let editor = Arc::make_mut(&mut self.editor);
         editor.last_movement = movement.clone();
@@ -1506,7 +1509,10 @@ impl LapceEditorBufferData {
         }
         if self.editor.current_location >= self.editor.locations.len() {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer, self.config.editor.tab_width);
+            editor.save_jump_location(
+                self.buffer.data(),
+                self.config.editor.tab_width,
+            );
             editor.current_location -= 1;
         }
         let editor = Arc::make_mut(&mut self.editor);
