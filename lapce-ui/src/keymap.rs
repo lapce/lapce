@@ -488,7 +488,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                 );
             let text = ctx
                 .text()
-                .new_text_layout("Save".to_string())
+                .new_text_layout("Save")
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(
                     data.config
@@ -524,7 +524,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                 );
             let text = ctx
                 .text()
-                .new_text_layout("Cancel".to_string())
+                .new_text_layout("Cancel")
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(
                     data.config
@@ -612,7 +612,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
 
         let text_layout = ctx
             .text()
-            .new_text_layout("Command".to_string())
+            .new_text_layout("Command")
             .font(FontFamily::SYSTEM_UI, 14.0)
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
             .text_color(
@@ -630,7 +630,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
 
         let text_layout = ctx
             .text()
-            .new_text_layout("Keybinding".to_string())
+            .new_text_layout("Keybinding")
             .font(FontFamily::SYSTEM_UI, 14.0)
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
             .text_color(
@@ -651,7 +651,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
 
         let text_layout = ctx
             .text()
-            .new_text_layout("When".to_string())
+            .new_text_layout("When")
             .font(FontFamily::SYSTEM_UI, 14.0)
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
             .text_color(
@@ -679,7 +679,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
         if data.config.lapce.modal {
             let text_layout = ctx
                 .text()
-                .new_text_layout("Modes".to_string())
+                .new_text_layout("Modes")
                 .font(FontFamily::SYSTEM_UI, 14.0)
                 .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
                 .text_color(

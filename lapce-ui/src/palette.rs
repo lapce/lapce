@@ -493,9 +493,7 @@ impl Widget<PaletteViewData> for NewPaletteInput {
             && data.palette.palette_type == PaletteType::SshHost
         {
             ctx.text()
-                .new_text_layout(
-                    "Enter your SSH details, like user@host".to_string(),
-                )
+                .new_text_layout("Enter your SSH details, like user@host")
                 .font(FontFamily::SYSTEM_UI, 14.0)
                 .text_color(
                     data.config

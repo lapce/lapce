@@ -557,13 +557,7 @@ impl Config {
     /// Calculate the width of the character "W" (being the widest character)
     /// in the editor's current font family and current font size.
     pub fn editor_char_width(&self, text: &mut PietText) -> f64 {
-        Self::editor_text_size_internal(
-            self.editor.font_family(),
-            self.editor.font_size as f64,
-            text,
-            "W",
-        )
-        .width
+        self.char_width(text, self.editor.font_size as f64)
     }
 
     /// Calculate the width of `text_to_measure` in the editor's current font family and font size.
@@ -618,6 +612,10 @@ impl Config {
         // always dropped inside this function, and hence its lifetime is always stricly less
         // than the lifetime of `text_to_measure`, irrespective of whether `text_to_measure`
         // is actually static or not.
+        //
+        // Note that this technique also assumes that `new_text_layout` does not stash
+        // its parameter away somewhere, such as a global cache. If it did, this would
+        // break and we would have to go back to calling `to_string` on the parameter.
         let static_str: &'static str =
             unsafe { std::mem::transmute(text_to_measure) };
 
