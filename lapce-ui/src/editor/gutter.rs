@@ -1,3 +1,4 @@
+use crate::svg::get_svg;
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
@@ -9,7 +10,6 @@ use lapce_data::{
     data::LapceTabData,
     editor::{LapceEditorBufferData, Syntax},
 };
-use crate::svg::get_svg;
 
 pub struct LapceEditorGutter {
     view_id: WidgetId,
@@ -121,7 +121,7 @@ impl LapceEditorGutter {
         let start_line = (scroll_offset.y / line_height).floor() as usize;
         let end_line =
             (scroll_offset.y + rect.height() / line_height).ceil() as usize;
-        let current_line = data.editor.cursor.current_line(&data.buffer);
+        let current_line = data.editor.cursor.current_line(data.buffer.data());
         let last_line = data.buffer.last_line();
         let width = data.config.editor_char_width(ctx.text());
 
@@ -378,9 +378,7 @@ impl LapceEditorGutter {
                     + data.config.editor.line_height,
             )
             .min(last_line);
-        let char_width = data
-            .config
-            .editor_char_width(ctx.text());
+        let char_width = data.config.editor_char_width(ctx.text());
         let max_line_width = (last_line + 1).to_string().len() as f64 * char_width;
 
         let mut y = lens.height_of_line(start_line) as f64;
@@ -484,7 +482,7 @@ impl LapceEditorGutter {
             let start_line = (scroll_offset.y / line_height).floor() as usize;
             let num_lines = (ctx.size().height / line_height).floor() as usize;
             let last_line = data.buffer.last_line();
-            let current_line = data.editor.cursor.current_line(&data.buffer);
+            let current_line = data.editor.cursor.current_line(data.buffer.data());
             let char_width = data.config.editor_char_width(ctx.text());
 
             let line_label_length =

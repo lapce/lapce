@@ -288,6 +288,10 @@ impl Buffer {
         }
     }
 
+    pub fn data(&self) -> &BufferData {
+        &self.data
+    }
+
     pub fn id(&self) -> BufferId {
         self.data.id()
     }
@@ -729,13 +733,11 @@ impl Buffer {
     }
 
     pub fn offset_line_content(&self, offset: usize) -> Cow<str> {
-        let line = self.line_of_offset(offset);
-        let start_offset = self.offset_of_line(line);
-        self.slice_to_cow(start_offset..offset)
+        self.data.offset_line_content(offset)
     }
 
     pub fn line_content(&self, line: usize) -> Cow<str> {
-        self.slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+        self.data.line_content(line)
     }
 
     pub fn offset_of_line(&self, line: usize) -> usize {
@@ -749,51 +751,27 @@ impl Buffer {
     }
 
     pub fn select_word(&self, offset: usize) -> (usize, usize) {
-        WordCursor::new(&self.data.rope, offset).select_word()
+        self.data.select_word(offset)
     }
 
     pub fn char_at_offset(&self, offset: usize) -> Option<char> {
-        if self.is_empty() {
-            return None;
-        }
-        WordCursor::new(&self.data.rope, offset)
-            .inner
-            .peek_next_codepoint()
+        self.data.char_at_offset(offset)
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
-        let last_line = self.last_line();
-        let line = if line > last_line + 1 {
-            last_line
-        } else {
-            line
-        };
-        let line_start_offset = self.data.rope.offset_of_line(line);
-        WordCursor::new(&self.data.rope, line_start_offset).next_non_blank_char()
+        self.data.first_non_blank_character_on_line(line)
     }
 
     pub fn get_max_line_len(&self) -> (usize, usize) {
-        let mut pre_offset = 0;
-        let mut max_len = 0;
-        let mut max_len_line = 0;
-        for line in 0..self.calc_num_lines() + 1 {
-            let offset = self.data.rope.offset_of_line(line);
-            let line_len = offset - pre_offset;
-            pre_offset = offset;
-            if line_len > max_len {
-                max_len = line_len;
-                max_len_line = line;
-            }
-        }
-        (max_len, max_len_line)
+        self.data.get_max_line_len()
     }
 
     pub fn len(&self) -> usize {
-        self.data.rope.len()
+        self.data.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.data.is_empty()
     }
 
     fn get_history_line_styles(
@@ -956,14 +934,7 @@ impl Buffer {
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {
-        let line_start_offset = self.data.rope.offset_of_line(line);
-        let word_boundary = WordCursor::new(&self.data.rope, line_start_offset)
-            .next_non_blank_char();
-        let indent = self
-            .data
-            .rope
-            .slice_to_cow(line_start_offset..word_boundary);
-        indent.to_string()
+        self.data.indent_on_line(line)
     }
 
     pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
@@ -973,11 +944,7 @@ impl Buffer {
     }
 
     pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {
-        let (line, col) = self.offset_to_line_col(offset, tab_width);
-        Position {
-            line: line as u32,
-            character: col as u32,
-        }
+        self.data.offset_to_position(offset, tab_width)
     }
 
     pub fn offset_of_position(&self, pos: &Position, tab_width: usize) -> usize {
@@ -990,32 +957,7 @@ impl Buffer {
         col: usize,
         tab_width: usize,
     ) -> usize {
-        let mut pos = 0;
-        let mut offset = self.offset_of_line(line);
-        for c in self
-            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
-            .chars()
-        {
-            if c == '\n' {
-                return offset;
-            }
-            let width = if c == '\t' {
-                tab_width - pos % tab_width
-            } else {
-                char_width(c)
-            };
-
-            pos += width;
-            if pos > col {
-                return offset;
-            }
-
-            offset += c.len_utf8();
-            if pos == col {
-                return offset;
-            }
-        }
-        offset
+        self.data.offset_of_line_col(line, col, tab_width)
     }
 
     pub fn offset_to_line_col(
@@ -1023,66 +965,24 @@ impl Buffer {
         offset: usize,
         tab_width: usize,
     ) -> (usize, usize) {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
-        let line = self.line_of_offset(offset);
-        let line_start = self.offset_of_line(line);
-        if offset == line_start {
-            return (line, 0);
-        }
-
-        let col = str_col(&self.slice_to_cow(line_start..offset), tab_width);
-        (line, col)
+        self.data.offset_to_line_col(offset, tab_width)
     }
 
     pub fn line_end_col(&self, line: usize, caret: bool, tab_width: usize) -> usize {
-        let line_start = self.offset_of_line(line);
-        let offset = self.line_end_offset(line, caret);
-        let col = str_col(&self.slice_to_cow(line_start..offset), tab_width);
-        col
+        self.data.line_end_col(line, caret, tab_width)
     }
 
     pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
-        let mut offset = self.offset_of_line(line + 1);
-        let mut line_content: &str = &self.line_content(line);
-        if line_content.ends_with("\r\n") {
-            offset -= 2;
-            line_content = &line_content[..line_content.len() - 2];
-        } else if line_content.ends_with('\n') {
-            offset -= 1;
-            line_content = &line_content[..line_content.len() - 1];
-        }
-        if !caret && !line_content.is_empty() {
-            offset = self.prev_grapheme_offset(offset, 1, 0);
-        }
-        offset
+        self.data.line_end_offset(line, caret)
     }
 
     pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
-        let line = self.line_of_offset(offset);
-        self.line_end_offset(line, caret)
+        self.data.offset_line_end(offset, caret)
     }
 
     pub fn line_len(&self, line: usize) -> usize {
-        self.offset_of_line(line + 1) - self.offset_of_line(line)
+        self.data.line_len(line)
     }
-
-    // pub fn line_max_col(&self, line: usize, caret: bool) -> usize {
-    //     let line_content = self.line_content(line);
-    //     let n = self.line_len(line);
-    //     match n {
-    //         n if n == 0 => 0,
-    //         n if !line_content.ends_with("\n") => match caret {
-    //             true => n,
-    //             false => n - 1,
-    //         },
-    //         n if n == 1 => 0,
-    //         n => match caret {
-    //             true => n - 1,
-    //             false => n - 2,
-    //         },
-    //     }
-    // }
 
     pub fn line_horiz_col(
         &self,
@@ -1091,14 +991,7 @@ impl Buffer {
         caret: bool,
         tab_width: usize,
     ) -> usize {
-        match *horiz {
-            ColPosition::Col(n) => n.min(self.line_end_col(line, caret, tab_width)),
-            ColPosition::End => self.line_end_col(line, caret, tab_width),
-            ColPosition::Start => 0,
-            ColPosition::FirstNonBlank => {
-                self.first_non_blank_character_on_line(line)
-            }
-        }
+        self.data.line_horiz_col(line, horiz, caret, tab_width)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1160,20 +1053,7 @@ impl Buffer {
         count: usize,
         limit: usize,
     ) -> usize {
-        let mut cursor = Cursor::new(&self.data.rope, offset);
-        let mut new_offset = offset;
-        for _i in 0..count {
-            if let Some(prev_offset) = cursor.prev_grapheme() {
-                if prev_offset < limit {
-                    return new_offset;
-                }
-                new_offset = prev_offset;
-                cursor.set(prev_offset);
-            } else {
-                return new_offset;
-            }
-        }
-        new_offset
+        self.data.prev_grapheme_offset(offset, count, limit)
     }
 
     pub fn next_grapheme_offset(
@@ -1182,25 +1062,7 @@ impl Buffer {
         count: usize,
         limit: usize,
     ) -> usize {
-        let offset = if offset > self.len() {
-            self.len()
-        } else {
-            offset
-        };
-        let mut cursor = Cursor::new(&self.data.rope, offset);
-        let mut new_offset = offset;
-        for _i in 0..count {
-            if let Some(next_offset) = cursor.next_grapheme() {
-                if next_offset > limit {
-                    return new_offset;
-                }
-                new_offset = next_offset;
-                cursor.set(next_offset);
-            } else {
-                return new_offset;
-            }
-        }
-        new_offset
+        self.data.next_grapheme_offset(offset, count, limit)
     }
 
     pub fn diff_visual_line(&self, compare: &str, line: usize) -> usize {

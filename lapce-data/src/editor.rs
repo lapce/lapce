@@ -1074,10 +1074,12 @@ impl LapceEditorBufferData {
                         let offset = (offset + 1).min(line_end);
                         Selection::caret(offset)
                     }
-                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                 };
                 let after =
                     self.editor.cursor.is_insert() || !data.content.contains('\n');
@@ -1133,7 +1135,7 @@ impl LapceEditorBufferData {
                     }
                     CursorMode::Visual { mode, .. } => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
                         let data = match mode {
@@ -1303,7 +1305,7 @@ impl LapceEditorBufferData {
                 let data = self
                     .editor
                     .cursor
-                    .yank(&self.buffer, self.config.editor.tab_width);
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_delete(data);
             }
@@ -1678,16 +1680,10 @@ impl LapceEditorBufferData {
         } else if let Some(compare) = self.editor.compare.as_ref() {
             let line = (pos.y / config.editor.line_height as f64).floor() as usize;
             let line = self.buffer.diff_actual_line_from_visual(compare, line);
-            (
-                line,
-                config.editor_char_width(text),
-            )
+            (line, config.editor_char_width(text))
         } else {
             let line = (pos.y / config.editor.line_height as f64).floor() as usize;
-            (
-                line,
-                config.editor_char_width(text),
-            )
+            (line, config.editor_char_width(text))
         };
 
         let last_line = self.buffer.last_line();
@@ -2006,7 +2002,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             .editor
                             .cursor
                             .edit_selection(
-                                &self.buffer,
+                                self.buffer.data(),
                                 self.config.editor.tab_width,
                             )
                             .regions()
@@ -2023,7 +2019,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 };
             }
             LapceCommand::NewLineAbove => {
-                let line = self.editor.cursor.current_line(&self.buffer);
+                let line = self.editor.cursor.current_line(self.buffer.data());
                 let offset = if line > 0 {
                     self.buffer.line_end_offset(line - 1, true)
                 } else {
@@ -2038,13 +2034,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteToBeginningOfLine => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
 
@@ -2085,7 +2083,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let data = self
                     .editor
                     .cursor
-                    .yank(&self.buffer, self.config.editor.tab_width);
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_yank(data);
                 match &self.editor.cursor.mode {
@@ -2107,7 +2105,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let data = self
                     .editor
                     .cursor
-                    .yank(&self.buffer, self.config.editor.tab_width);
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
                 Application::global().clipboard().put_string(data.content);
 
                 let selection = if let CursorMode::Insert(mut selection) =
@@ -2124,9 +2122,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                     selection
                 } else {
-                    self.editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width)
+                    self.editor.cursor.edit_selection(
+                        self.buffer.data(),
+                        self.config.editor.tab_width,
+                    )
                 };
 
                 let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
@@ -2143,7 +2142,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     let data = self
                         .editor
                         .cursor
-                        .yank(&self.buffer, self.config.editor.tab_width);
+                        .yank(self.buffer.data(), self.config.editor.tab_width);
                     let register = Arc::make_mut(&mut self.main_split.register);
                     register.add_yank(data);
                 } else {
@@ -2154,7 +2153,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let data = self
                     .editor
                     .cursor
-                    .yank(&self.buffer, self.config.editor.tab_width);
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
                 Application::global().clipboard().put_string(data.content);
                 match &self.editor.cursor.mode {
                     CursorMode::Visual {
@@ -2191,13 +2190,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteWordForward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
 
@@ -2221,13 +2222,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteWordBackward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
 
@@ -2251,14 +2254,16 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteBackward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let indent = self.buffer.indent_unit();
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
                         let mut new_selection = Selection::new();
@@ -2356,13 +2361,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteForward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
                         let mut new_selection = Selection::new();
@@ -2393,10 +2400,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::DeleteForwardAndInsert => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
                 let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
@@ -2857,10 +2864,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::ListSelect => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
 
                 let count = self.completion.input.len();
                 let _selection = if count > 0 {
@@ -2915,25 +2922,25 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::IndentLine => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
                 self.indent_line(selection);
             }
             LapceCommand::OutdentLine => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
                 self.outdent_line(selection);
             }
             LapceCommand::ToggleLineComment => {
                 let mut lines = HashSet::new();
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
                 let comment_token = self
                     .buffer
                     .syntax()
@@ -3443,7 +3450,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             let mut selection = self
                 .editor
                 .cursor
-                .edit_selection(&self.buffer, self.config.editor.tab_width);
+                .edit_selection(self.buffer.data(), self.config.editor.tab_width);
             let cursor_char =
                 self.buffer.char_at_offset(selection.get_cursor_offset());
 

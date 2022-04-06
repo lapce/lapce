@@ -1,17 +1,19 @@
 use lapce_core::indent::IndentStyle;
 use lapce_rpc::buffer::BufferId;
+use lsp_types::Position;
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::ops::Range;
 use std::sync::atomic::{self, AtomicU64};
 use std::{collections::BTreeSet, sync::Arc};
-use xi_rope::Delta;
 use xi_rope::{multiset::Subset, rope::Rope, DeltaBuilder, RopeDelta};
+use xi_rope::{Cursor, Delta};
 
 use crate::buffer::{
-    shuffle, shuffle_tombstones, BufferContent, Contents, EditType, InvalLines,
-    Revision,
+    char_width, shuffle, shuffle_tombstones, str_col, BufferContent, Contents,
+    EditType, InvalLines, Revision, WordCursor,
 };
-use crate::movement::Selection;
+use crate::movement::{ColPosition, Selection};
 
 pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
 
@@ -105,6 +107,145 @@ impl BufferData {
 
     pub fn indent_unit(&self) -> &'static str {
         self.indent_style.as_str()
+    }
+
+    pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
+        self.rope
+            .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
+    }
+
+    pub fn offset_line_content(&self, offset: usize) -> Cow<str> {
+        let line = self.line_of_offset(offset);
+        let start_offset = self.offset_of_line(line);
+        self.slice_to_cow(start_offset..offset)
+    }
+
+    pub fn select_word(&self, offset: usize) -> (usize, usize) {
+        WordCursor::new(&self.rope, offset).select_word()
+    }
+
+    pub fn char_at_offset(&self, offset: usize) -> Option<char> {
+        if self.is_empty() {
+            return None;
+        }
+        WordCursor::new(&self.rope, offset)
+            .inner
+            .peek_next_codepoint()
+    }
+
+    pub fn indent_on_line(&self, line: usize) -> String {
+        let line_start_offset = self.rope.offset_of_line(line);
+        let word_boundary =
+            WordCursor::new(&self.rope, line_start_offset).next_non_blank_char();
+        let indent = self.rope.slice_to_cow(line_start_offset..word_boundary);
+        indent.to_string()
+    }
+
+    pub fn offset_to_line_col(
+        &self,
+        offset: usize,
+        tab_width: usize,
+    ) -> (usize, usize) {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
+        let line = self.line_of_offset(offset);
+        let line_start = self.offset_of_line(line);
+        if offset == line_start {
+            return (line, 0);
+        }
+
+        let col = str_col(&self.slice_to_cow(line_start..offset), tab_width);
+        (line, col)
+    }
+
+    pub fn line_end_col(&self, line: usize, caret: bool, tab_width: usize) -> usize {
+        let line_start = self.offset_of_line(line);
+        let offset = self.line_end_offset(line, caret);
+        str_col(&self.slice_to_cow(line_start..offset), tab_width)
+    }
+
+    pub fn line_of_offset(&self, offset: usize) -> usize {
+        let max = self.len();
+        let offset = if offset > max { max } else { offset };
+        self.rope.line_of_offset(offset)
+    }
+
+    pub fn line_content(&self, line: usize) -> Cow<str> {
+        self.slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+    }
+
+    pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
+        let mut offset = self.offset_of_line(line + 1);
+        let mut line_content: &str = &self.line_content(line);
+        if line_content.ends_with("\r\n") {
+            offset -= 2;
+            line_content = &line_content[..line_content.len() - 2];
+        } else if line_content.ends_with('\n') {
+            offset -= 1;
+            line_content = &line_content[..line_content.len() - 1];
+        }
+        if !caret && !line_content.is_empty() {
+            offset = self.prev_grapheme_offset(offset, 1, 0);
+        }
+        offset
+    }
+
+    pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
+        let line = self.line_of_offset(offset);
+        self.line_end_offset(line, caret)
+    }
+
+    pub fn offset_to_position(&self, offset: usize, tab_width: usize) -> Position {
+        let (line, col) = self.offset_to_line_col(offset, tab_width);
+        Position {
+            line: line as u32,
+            character: col as u32,
+        }
+    }
+
+    pub fn offset_of_line_col(
+        &self,
+        line: usize,
+        col: usize,
+        tab_width: usize,
+    ) -> usize {
+        let mut pos = 0;
+        let mut offset = self.offset_of_line(line);
+        for c in self
+            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+            .chars()
+        {
+            if c == '\n' {
+                return offset;
+            }
+            let width = if c == '\t' {
+                tab_width - pos % tab_width
+            } else {
+                char_width(c)
+            };
+
+            pos += width;
+            if pos > col {
+                return offset;
+            }
+
+            offset += c.len_utf8();
+            if pos == col {
+                return offset;
+            }
+        }
+        offset
+    }
+
+    pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
+        let last_line = self.last_line();
+        let line = if line > last_line + 1 {
+            last_line
+        } else {
+            line
+        };
+        let line_start_offset = self.rope.offset_of_line(line);
+        WordCursor::new(&self.rope, line_start_offset).next_non_blank_char()
     }
 
     pub(super) fn mk_new_rev(
@@ -367,14 +508,25 @@ impl BufferData {
         self.rope.offset_of_line(line)
     }
 
-    pub fn line_of_offset(&self, offset: usize) -> usize {
-        let max = self.len();
-        let offset = if offset > max { max } else { offset };
-        self.rope.line_of_offset(offset)
-    }
-
     pub fn line_len(&self, line: usize) -> usize {
         self.offset_of_line(line + 1) - self.offset_of_line(line)
+    }
+
+    pub fn line_horiz_col(
+        &self,
+        line: usize,
+        horiz: &ColPosition,
+        caret: bool,
+        tab_width: usize,
+    ) -> usize {
+        match *horiz {
+            ColPosition::Col(n) => n.min(self.line_end_col(line, caret, tab_width)),
+            ColPosition::End => self.line_end_col(line, caret, tab_width),
+            ColPosition::Start => 0,
+            ColPosition::FirstNonBlank => {
+                self.first_non_blank_character_on_line(line)
+            }
+        }
     }
 
     pub fn num_lines(&self) -> usize {
@@ -412,6 +564,55 @@ impl BufferData {
         self.deletes_from_union = Subset::new(0);
         self.undone_groups = BTreeSet::new();
         self.tombstones = Rope::default();
+    }
+
+    pub fn prev_grapheme_offset(
+        &self,
+        offset: usize,
+        count: usize,
+        limit: usize,
+    ) -> usize {
+        let mut cursor = Cursor::new(&self.rope, offset);
+        let mut new_offset = offset;
+        for _i in 0..count {
+            if let Some(prev_offset) = cursor.prev_grapheme() {
+                if prev_offset < limit {
+                    return new_offset;
+                }
+                new_offset = prev_offset;
+                cursor.set(prev_offset);
+            } else {
+                return new_offset;
+            }
+        }
+        new_offset
+    }
+
+    pub fn next_grapheme_offset(
+        &self,
+        offset: usize,
+        count: usize,
+        limit: usize,
+    ) -> usize {
+        let offset = if offset > self.len() {
+            self.len()
+        } else {
+            offset
+        };
+        let mut cursor = Cursor::new(&self.rope, offset);
+        let mut new_offset = offset;
+        for _i in 0..count {
+            if let Some(next_offset) = cursor.next_grapheme() {
+                if next_offset > limit {
+                    return new_offset;
+                }
+                new_offset = next_offset;
+                cursor.set(next_offset);
+            } else {
+                return new_offset;
+            }
+        }
+        new_offset
     }
 }
 

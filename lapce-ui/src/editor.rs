@@ -944,7 +944,7 @@ impl LapceEditor {
                 CursorMode::Normal(_) | CursorMode::Visual { .. } => {
                     if is_focused {
                         let (x0, x1) = data.editor.cursor.current_char(
-                            &data.buffer,
+                            data.buffer.data(),
                             char_width,
                             &data.config,
                         );
@@ -987,7 +987,7 @@ impl LapceEditor {
 
                 if is_focused {
                     let (x0, x1) = data.editor.cursor.current_char(
-                        &data.buffer,
+                        data.buffer.data(),
                         width,
                         &data.config,
                     );
@@ -1094,7 +1094,7 @@ impl LapceEditor {
                         let line = data.buffer.line_of_offset(*end);
 
                         let (x0, x1) = data.editor.cursor.current_char(
-                            &data.buffer,
+                            data.buffer.data(),
                             width,
                             &data.config,
                         );
