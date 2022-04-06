@@ -37,6 +37,10 @@ pub struct BufferDecoration {
 }
 
 impl BufferDecoration {
+    pub fn syntax(&self) -> Option<&Syntax> {
+        self.syntax.as_ref()
+    }
+
     pub fn update_styles(&mut self, delta: &RopeDelta) {
         if let Some(styles) = self.semantic_styles.as_mut() {
             Arc::make_mut(styles).apply_shape(delta);

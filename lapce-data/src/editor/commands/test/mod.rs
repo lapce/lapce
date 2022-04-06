@@ -73,6 +73,7 @@ impl MockEditor {
 
         let factory = EditCommandFactory {
             cursor: &mut self.cursor,
+            syntax: None,
             tab_width: 4,
         };
         if let Some(edit_command) = factory.create_command(command) {

@@ -1,4 +1,5 @@
 use lapce_core::indent::IndentStyle;
+use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::Position;
 use std::borrow::Cow;
@@ -626,6 +627,19 @@ impl BufferData {
             new_selection.add_region(SelRegion::caret(new_offset));
         }
         new_selection
+    }
+
+    pub fn previous_unmatched(
+        &self,
+        syntax: Option<&Syntax>,
+        c: char,
+        offset: usize,
+    ) -> Option<usize> {
+        if let Some(syntax) = syntax {
+            syntax.find_tag(offset, true, &c.to_string())
+        } else {
+            WordCursor::new(&self.rope, offset).previous_unmatched(c)
+        }
     }
 }
 
