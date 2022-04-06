@@ -3333,26 +3333,24 @@ impl KeyPressFocus for LapceEditorBufferData {
                     if cursor_char == Some(c) {
                         self.do_move(&Movement::Right, 1, Modifiers::empty());
                         return;
-                    } else {
-                        let offset = selection.get_cursor_offset();
-                        let line = self.buffer.line_of_offset(offset);
-                        let line_start = self.buffer.offset_of_line(line);
-                        if self.buffer.slice_to_cow(line_start..offset).trim() == ""
-                        {
-                            if let Some(c) = matching_char(c) {
-                                if let Some(previous_offset) =
-                                    self.buffer.previous_unmatched(c, offset)
-                                {
-                                    let previous_line =
-                                        self.buffer.line_of_offset(previous_offset);
-                                    let line_indent =
-                                        self.buffer.indent_on_line(previous_line);
-                                    content = line_indent + &content;
-                                    selection =
-                                        Selection::region(line_start, offset);
-                                }
+                    }
+
+                    let offset = selection.get_cursor_offset();
+                    let line = self.buffer.line_of_offset(offset);
+                    let line_start = self.buffer.offset_of_line(line);
+                    if self.buffer.slice_to_cow(line_start..offset).trim() == "" {
+                        if let Some(c) = matching_char(c) {
+                            if let Some(previous_offset) =
+                                self.buffer.previous_unmatched(c, offset)
+                            {
+                                let previous_line =
+                                    self.buffer.line_of_offset(previous_offset);
+                                let line_indent =
+                                    self.buffer.indent_on_line(previous_line);
+                                content = line_indent + &content;
+                                selection = Selection::region(line_start, offset);
                             }
-                        };
+                        }
                     }
                 }
             }
