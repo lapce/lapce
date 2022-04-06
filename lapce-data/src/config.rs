@@ -608,6 +608,10 @@ impl Config {
         // always dropped inside this function, and hence its lifetime is always stricly less
         // than the lifetime of `text_to_measure`, irrespective of whether `text_to_measure`
         // is actually static or not.
+        //
+        // Note that this technique also assumes that `new_text_layout` does not stash
+        // its parameter away somewhere, such as a global cache. If it did, this would
+        // break and we would have to go back to calling `to_string` on the parameter.
         let static_str: &'static str =
             unsafe { std::mem::transmute(text_to_measure) };
 
