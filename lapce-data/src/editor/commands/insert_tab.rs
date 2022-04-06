@@ -54,6 +54,7 @@ mod test {
 
         assert_eq!("    <$0>", editor.state());
     }
+
     #[test]
     fn insert_tab_inserts_at_multiple_places() {
         let mut editor = MockEditor::new(

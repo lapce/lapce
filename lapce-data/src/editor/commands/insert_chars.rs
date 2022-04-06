@@ -97,3 +97,102 @@ impl<'a> InsertCharsCommand<'a> {
         None
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::editor::commands::{test::MockEditor, EditCommandKind};
+
+    #[test]
+    fn characters_are_inserted_where_the_cursor_is() {
+        let mut editor = MockEditor::new("foo<$0>baz");
+
+        editor.command(EditCommandKind::InsertChars { chars: "b" });
+        editor.command(EditCommandKind::InsertChars { chars: "a" });
+        editor.command(EditCommandKind::InsertChars { chars: "r" });
+
+        assert_eq!("foobar<$0>baz", editor.state());
+    }
+
+    #[test]
+    fn can_insert_matching_pair() {
+        let mut editor = MockEditor::new("foo<$0>");
+
+        editor.command(EditCommandKind::InsertChars { chars: "(" });
+        editor.command(EditCommandKind::InsertChars { chars: "[" });
+        editor.command(EditCommandKind::InsertChars { chars: "{" });
+
+        assert_eq!("foo([{<$0>}])", editor.state());
+    }
+
+    #[test]
+    fn can_insert_matching_pair_multi() {
+        let mut editor = MockEditor::new("foo<$0> bar<$1>");
+
+        editor.command(EditCommandKind::InsertChars { chars: "(" });
+        editor.command(EditCommandKind::InsertChars { chars: "[" });
+        editor.command(EditCommandKind::InsertChars { chars: "{" });
+
+        assert_eq!("foo([{<$0>}]) bar([{<$1>}])", editor.state());
+    }
+
+    #[test]
+    fn inserting_matching_pair_just_skips_over() {
+        let mut editor = MockEditor::new("foo<$0>");
+
+        editor.command(EditCommandKind::InsertChars { chars: "(" });
+        editor.command(EditCommandKind::InsertChars { chars: "[" });
+        editor.command(EditCommandKind::InsertChars { chars: "{" });
+        editor.command(EditCommandKind::InsertChars { chars: "}" });
+        editor.command(EditCommandKind::InsertChars { chars: "]" });
+        editor.command(EditCommandKind::InsertChars { chars: ")" });
+
+        assert_eq!("foo([{}])<$0>", editor.state());
+    }
+
+    #[test]
+    fn inserting_matching_pair_just_skips_over_multi() {
+        let mut editor = MockEditor::new("foo<$0> bar<$1>");
+
+        editor.command(EditCommandKind::InsertChars { chars: "(" });
+        editor.command(EditCommandKind::InsertChars { chars: "[" });
+        editor.command(EditCommandKind::InsertChars { chars: "{" });
+        editor.command(EditCommandKind::InsertChars { chars: "}" });
+        editor.command(EditCommandKind::InsertChars { chars: "]" });
+        editor.command(EditCommandKind::InsertChars { chars: ")" });
+
+        assert_eq!("foo([{}])<$0> bar([{}])<$1>", editor.state());
+    }
+
+    #[test]
+    fn does_not_insert_matching_pair_inside_word() {
+        let mut editor = MockEditor::new("foo<$0>bar");
+
+        editor.command(EditCommandKind::InsertChars { chars: "(" });
+        editor.command(EditCommandKind::InsertChars { chars: "[" });
+        editor.command(EditCommandKind::InsertChars { chars: "{" });
+
+        assert_eq!("foo([{<$0>bar", editor.state());
+    }
+
+    #[test]
+    fn typing_character_overwrites_selection() {
+        let mut editor = MockEditor::new("<$0>foo</$0>");
+
+        editor.command(EditCommandKind::InsertChars { chars: "b" });
+        editor.command(EditCommandKind::InsertChars { chars: "a" });
+        editor.command(EditCommandKind::InsertChars { chars: "r" });
+
+        assert_eq!("bar<$0>", editor.state());
+    }
+
+    #[test]
+    fn typing_character_overwrites_selection_multi() {
+        let mut editor = MockEditor::new("<$0>foo</$0> <$1>baz</$1>");
+
+        editor.command(EditCommandKind::InsertChars { chars: "b" });
+        editor.command(EditCommandKind::InsertChars { chars: "a" });
+        editor.command(EditCommandKind::InsertChars { chars: "r" });
+
+        assert_eq!("bar<$0> bar<$1>", editor.state());
+    }
+}
