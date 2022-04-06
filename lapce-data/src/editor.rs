@@ -3319,9 +3319,10 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
-            let mut selection = self
-                .editor
-                .cursor
+            let editor = Arc::make_mut(&mut self.editor);
+            let cursor = &mut editor.cursor;
+
+            let mut selection = cursor
                 .edit_selection(self.buffer.data(), self.config.editor.tab_width);
             let cursor_char =
                 self.buffer.char_at_offset(selection.get_cursor_offset());
@@ -3331,7 +3332,14 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let c = c.chars().next().unwrap();
                 if !matching_pair_direction(c).unwrap_or(true) {
                     if cursor_char == Some(c) {
-                        self.do_move(&Movement::Right, 1, Modifiers::empty());
+                        editor.last_movement = Movement::Right;
+
+                        let selection =
+                            self.buffer.data().move_cursor_to_right(&selection, 1);
+
+                        *cursor = Cursor::new(CursorMode::Insert(selection), None);
+                        self.update_selection_history();
+
                         return;
                     }
 
@@ -3359,9 +3367,13 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.edit(&[(&selection, &content)], true, EditType::InsertChars);
             let selection =
                 selection.apply_delta(&delta, true, InsertDrift::Default);
+
+            // TODO this make_mut can probably be removed after this code is transformed into a command.
             let editor = Arc::make_mut(&mut self.editor);
-            editor.cursor.mode = CursorMode::Insert(selection.clone());
-            editor.cursor.horiz = None;
+            let cursor = &mut editor.cursor;
+            *cursor = Cursor::new(CursorMode::Insert(selection.clone()), None);
+            self.update_selection_history();
+
             if c.chars().count() == 1 {
                 let c = c.chars().next().unwrap();
                 let is_whitespace_or_punct = cursor_char
