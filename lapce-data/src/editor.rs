@@ -316,8 +316,8 @@ impl LapceEditorBufferData {
         let editor = Arc::make_mut(&mut self.editor);
         editor.last_movement = movement.clone();
         let compare = editor.compare.clone();
-        match &self.editor.cursor.mode {
-            &CursorMode::Normal(offset) => {
+        match self.editor.cursor.mode {
+            CursorMode::Normal(offset) => {
                 let (new_offset, horiz) = self.buffer.move_offset(
                     offset,
                     self.editor.cursor.horiz.as_ref(),
@@ -330,45 +330,26 @@ impl LapceEditorBufferData {
                 );
 
                 if self.editor.motion_mode.is_some() {
+                    let (moved_new_offset, _) = self.buffer.move_offset(
+                        new_offset,
+                        None,
+                        1,
+                        &Movement::Right,
+                        Mode::Insert,
+                        false,
+                        None,
+                        &self.config,
+                    );
+
                     let (start, end) = match movement {
                         Movement::EndOfLine | Movement::WordEndForward => {
-                            let (end, _) = self.buffer.move_offset(
-                                new_offset,
-                                None,
-                                1,
-                                &Movement::Right,
-                                Mode::Insert,
-                                false,
-                                None,
-                                &self.config,
-                            );
-                            (offset, end)
+                            (offset, moved_new_offset)
                         }
                         Movement::MatchPairs => {
                             if new_offset > offset {
-                                let (end, _) = self.buffer.move_offset(
-                                    new_offset,
-                                    None,
-                                    1,
-                                    &Movement::Right,
-                                    Mode::Insert,
-                                    false,
-                                    None,
-                                    &self.config,
-                                );
-                                (offset, end)
+                                (offset, moved_new_offset)
                             } else {
-                                let (start, _) = self.buffer.move_offset(
-                                    offset,
-                                    None,
-                                    1,
-                                    &Movement::Right,
-                                    Mode::Insert,
-                                    false,
-                                    None,
-                                    &self.config,
-                                );
-                                (start, new_offset)
+                                (moved_new_offset, new_offset)
                             }
                         }
                         _ => (offset, new_offset),
@@ -376,13 +357,13 @@ impl LapceEditorBufferData {
                     self.execute_motion_mode(start, end, movement.is_vertical());
                 } else {
                     let editor = Arc::make_mut(&mut self.editor);
-                    editor.cursor.mode = CursorMode::Normal(new_offset);
-                    editor.cursor.horiz = Some(horiz);
+                    editor.cursor =
+                        Cursor::new(CursorMode::Normal(new_offset), Some(horiz));
                 }
             }
             CursorMode::Visual { start, end, mode } => {
                 let (new_offset, horiz) = self.buffer.move_offset(
-                    *end,
+                    end,
                     self.editor.cursor.horiz.as_ref(),
                     count,
                     movement,
@@ -391,17 +372,17 @@ impl LapceEditorBufferData {
                     compare.as_deref(),
                     &self.config,
                 );
-                let start = *start;
-                let mode = *mode;
                 let editor = Arc::make_mut(&mut self.editor);
-                editor.cursor.mode = CursorMode::Visual {
-                    start,
-                    end: new_offset,
-                    mode,
-                };
-                editor.cursor.horiz = Some(horiz);
+                editor.cursor = Cursor::new(
+                    CursorMode::Visual {
+                        start,
+                        end: new_offset,
+                        mode,
+                    },
+                    Some(horiz),
+                );
             }
-            CursorMode::Insert(selection) => {
+            CursorMode::Insert(ref selection) => {
                 let selection = self.buffer.update_selection(
                     selection,
                     count,
