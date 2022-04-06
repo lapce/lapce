@@ -88,7 +88,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
     ) -> Size {
         let data = data.editor_view_content(self.view_id);
         let last_line = data.buffer.last_line() + 1;
-        let char_width = data.config.editor_text_width(ctx.text(), "W");
+        let char_width = data.config.editor_char_width(ctx.text());
         self.width = (char_width * last_line.to_string().len() as f64).ceil();
         let mut width = self.width + 16.0 + char_width * 2.0;
         if data.editor.compare.is_some() {
@@ -123,7 +123,7 @@ impl LapceEditorGutter {
             (scroll_offset.y + rect.height() / line_height).ceil() as usize;
         let current_line = data.editor.cursor.current_line(&data.buffer);
         let last_line = data.buffer.last_line();
-        let width = data.config.editor_text_width(ctx.text(), "W");
+        let width = data.config.editor_char_width(ctx.text());
 
         let mut line = 0;
         for change in changes.iter() {
@@ -380,7 +380,7 @@ impl LapceEditorGutter {
             .min(last_line);
         let char_width = data
             .config
-            .char_width(ctx.text(), data.config.editor.font_size as f64);
+            .editor_char_width(ctx.text());
         let max_line_width = (last_line + 1).to_string().len() as f64 * char_width;
 
         let mut y = lens.height_of_line(start_line) as f64;
@@ -450,7 +450,7 @@ impl LapceEditorGutter {
                 let svg = get_svg("lightbulb.svg").unwrap();
                 let width = 16.0;
                 let height = 16.0;
-                let char_width = data.config.editor_text_width(ctx.text(), "W");
+                let char_width = data.config.editor_char_width(ctx.text());
                 let rect =
                     Size::new(width, height).to_rect().with_origin(Point::new(
                         self.width + char_width + 3.0,
@@ -485,7 +485,7 @@ impl LapceEditorGutter {
             let num_lines = (ctx.size().height / line_height).floor() as usize;
             let last_line = data.buffer.last_line();
             let current_line = data.editor.cursor.current_line(&data.buffer);
-            let char_width = data.config.editor_text_width(ctx.text(), "W");
+            let char_width = data.config.editor_char_width(ctx.text());
 
             let line_label_length =
                 (last_line + 1).to_string().len() as f64 * char_width;

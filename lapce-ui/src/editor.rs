@@ -230,7 +230,7 @@ impl LapceEditor {
         env: &Env,
     ) -> Size {
         let line_height = data.config.editor.line_height as f64;
-        let width = data.config.editor_text_width(text, "W");
+        let width = data.config.editor_char_width(text);
         match &data.editor.content {
             BufferContent::File(_) => {
                 if data.editor.code_lens {
@@ -1322,7 +1322,7 @@ impl LapceEditor {
             + data.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
-        let width = data.config.editor_text_width(ctx.text(), "W");
+        let width = data.config.editor_char_width(ctx.text());
         if let Some(snippet) = data.editor.snippet.as_ref() {
             for (_, (start, end)) in snippet {
                 let paint_start_line = start_line;
@@ -1386,7 +1386,7 @@ impl LapceEditor {
             / line_height)
             .ceil() as usize;
 
-        let width = data.config.editor_text_width(ctx.text(), "W");
+        let width = data.config.editor_char_width(ctx.text());
         let mut current = None;
         let cursor_offset = data.editor.cursor.offset();
         if let Some(diagnostics) = data.diagnostics() {
