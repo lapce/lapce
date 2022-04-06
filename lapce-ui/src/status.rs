@@ -237,24 +237,16 @@ impl Widget<LapceTabData> for LapceStatusNew {
                     };
                 match mode {
                     Mode::Normal => (
-                        "Normal",
-                        data.config
-                            .get_color_unchecked(LapceTheme::STATUS_MODAL_NORMAL),
+                        "Normal", LapceTheme::STATUS_MODAL_NORMAL,
                     ),
                     Mode::Insert => (
-                        "Insert",
-                        data.config
-                            .get_color_unchecked(LapceTheme::STATUS_MODAL_INSERT),
+                        "Insert", LapceTheme::STATUS_MODAL_INSERT,
                     ),
                     Mode::Visual => (
-                        "Visual",
-                        data.config
-                            .get_color_unchecked(LapceTheme::STATUS_MODAL_VISUAL),
+                        "Visual", LapceTheme::STATUS_MODAL_VISUAL,
                     ),
                     Mode::Terminal => (
-                        "Terminal",
-                        data.config
-                            .get_color_unchecked(LapceTheme::STATUS_MODAL_TERMINAL),
+                        "Terminal", LapceTheme::STATUS_MODAL_TERMINAL,
                     ),
                 }
             };
@@ -272,7 +264,10 @@ impl Widget<LapceTabData> for LapceStatusNew {
                 .unwrap();
             let text_size = text_layout.size();
             let fill_size = Size::new(text_size.width + 10.0, size.height);
-            ctx.fill(fill_size.to_rect(), color);
+            ctx.fill(
+                fill_size.to_rect(),
+                data.config.get_color_unchecked(color)
+            );
             ctx.draw_text(&text_layout, Point::new(5.0, 4.0));
             left += text_size.width + 10.0;
         }
