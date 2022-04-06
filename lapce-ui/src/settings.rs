@@ -357,15 +357,15 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
 
-            static SETTINGS_SECTIONS: [&str; 3] = ["Core Settings", "Editor Settings", "Keybindings"];
+            const SETTINGS_SECTIONS: [&str; 3] = ["Core Settings", "Editor Settings", "Keybindings"];
 
             for (i, text) in SETTINGS_SECTIONS
-                .iter()
+                .into_iter()
                 .enumerate()
             {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(*text)
+                    .new_text_layout(text)
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(
                         data.config
