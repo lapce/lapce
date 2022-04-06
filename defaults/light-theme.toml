@@ -63,6 +63,10 @@ magenta = "#A626A4"
 "panel.hovered" = "#E4E4E6"
 
 "status.background" = "#eaeaeb"
+"status.modal.normal" = "$blue"
+"status.modal.insert" = "$red"
+"status.modal.visual" = "$yellow"
+"status.modal.terminal" = "$purple"
 
 "style.comment" = "#A0A1A7"
 

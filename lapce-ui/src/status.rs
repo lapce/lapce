@@ -1,7 +1,7 @@
 use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
-    Color, Command, Event, EventCtx, FontFamily, MouseEvent, Point, RenderContext,
-    Size, Target, Widget,
+    Command, Event, EventCtx, FontFamily, MouseEvent, Point, RenderContext, Size,
+    Target, Widget,
 };
 use lapce_data::{
     command::{
@@ -14,7 +14,7 @@ use lapce_data::{
 };
 
 use crate::{
-    svg::get_svg, 
+    svg::get_svg,
     tab::LapceIcon,
 };
 
@@ -236,10 +236,30 @@ impl Widget<LapceTabData> for LapceStatusNew {
                             .unwrap_or(Mode::Normal)
                     };
                 match mode {
-                    Mode::Normal => ("Normal", Color::rgb8(64, 120, 242)),
-                    Mode::Insert => ("Insert", Color::rgb8(228, 86, 73)),
-                    Mode::Visual => ("Visual", Color::rgb8(193, 132, 1)),
-                    Mode::Terminal => ("Terminal", Color::rgb8(228, 86, 73)),
+                    Mode::Normal => (
+                        "Normal",
+                        data.config
+                            .get_color_unchecked(LapceTheme::STATUS_MODAL_NORMAL)
+                            .clone(),
+                    ),
+                    Mode::Insert => (
+                        "Insert",
+                        data.config
+                            .get_color_unchecked(LapceTheme::STATUS_MODAL_INSERT)
+                            .clone(),
+                    ),
+                    Mode::Visual => (
+                        "Visual",
+                        data.config
+                            .get_color_unchecked(LapceTheme::STATUS_MODAL_VISUAL)
+                            .clone(),
+                    ),
+                    Mode::Terminal => (
+                        "Terminal",
+                        data.config
+                            .get_color_unchecked(LapceTheme::STATUS_MODAL_TERMINAL)
+                            .clone(),
+                    ),
                 }
             };
 
