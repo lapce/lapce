@@ -374,7 +374,20 @@ impl LspClient {
         options: Option<Value>,
         dispatcher: Dispatcher,
     ) -> Arc<LspClient> {
-        let mut process = Self::process(exec_path);
+        //TODO: better handling of binary args in plugin
+        let mut process = if language_id == "go" {
+            println!("Executing gopls!");
+            let mut process = Command::new(exec_path);
+            process.arg("-logfile=gopls-err.txt");
+            process
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Error Occurred")
+        } else {
+            Self::process(exec_path)
+        };
+        // let mut process = Self::process(exec_path);
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
@@ -407,6 +420,9 @@ impl LspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
+                        // if &local_lsp_client.language_id == "go" {
+                        //     println!("Received message for client {}:\n{:#?}", &local_lsp_client.language_id, &message_str);
+                        // }
                         local_lsp_client.handle_message(message_str.as_ref());
                     }
                     Err(_err) => {
@@ -477,10 +493,48 @@ impl LspClient {
             .clone()
     }
 
+    fn pretty_print(&self, m: &str) {
+        match  JsonRpc::parse(m) {
+            Ok(value @JsonRpc::Request(_)) => {
+                println!("[REQUEST] ID => {:?}, method => {}, params => {:?}\n",
+                        value.get_id().unwrap(), value.get_method().unwrap(), value.get_params().unwrap());
+            },
+            Ok(value @ JsonRpc::Notification(_)) => {
+                if value.get_method().unwrap() != "window/logMessage" {
+                    println!("[NOTIFICATION] method => {}, params => {:?}\n",
+                            value.get_method().unwrap(), value.get_params().unwrap());
+                }
+            },
+            Ok(value @ JsonRpc::Success(_)) => {
+                if value.get_result().unwrap().clone() != serde_json::Value::Null {
+                    println!("[SUCCESS] ID => {:?}, result => {}\n",
+                            value.get_id().unwrap(), value.get_result().unwrap());
+                }
+            },
+            Ok(value @ JsonRpc::Error(_)) => {
+                println!("[ERROR] ID => {:?}, error => {}\n",
+                        value.get_id().unwrap(), value.get_error().unwrap());
+
+            },
+            Err(err) => {
+                println!("[OTHER] Received Error => {}\n", err);
+            }
+        }
+    }
+
     pub fn handle_message(&self, message: &str) {
+        //FIXME: remove
+        if self.language_id == "go" {
+            self.pretty_print(message);
+        }
+
         match JsonRpc::parse(message) {
-            Ok(JsonRpc::Request(_obj)) => {
-                // trace!("client received unexpected request: {:?}", obj)
+            Ok(value @JsonRpc::Request(_)) => {
+                let id = value.get_id().unwrap();
+                self.handle_request(
+                    value.get_method().unwrap(),
+                    id,
+                    value.get_params().unwrap())
             }
             Ok(value @ JsonRpc::Notification(_)) => {
                 self.handle_notification(
@@ -496,9 +550,28 @@ impl LspClient {
             Ok(value @ JsonRpc::Error(_)) => {
                 let id = number_from_id(&value.get_id().unwrap());
                 let error = value.get_error().unwrap();
+                println!("Got Response erro: {}", error);
                 self.handle_response(id, Err(anyhow!("{}", error)));
             }
             Err(_err) => {}
+        }
+    }
+
+    pub fn handle_request(&self, method: &str, id: Id, _params: Params) {
+        match method {
+            "window/workDoneProgress/create" => {
+                self.send_success_response(id, &json!({}));
+
+                // self.dispatcher.send_notification(
+                //     "work_done_progress_create",
+                //     json!({
+                //         "token": params
+                //     })
+                // );
+            },
+            method => {
+                println!("Received unhandled request {}", method);
+            },
         }
     }
 
@@ -519,8 +592,24 @@ impl LspClient {
                         "progress": params,
                     }),
                 );
-            }
-            _ => (),
+            },
+            "window/showMessage" => {
+                println!("Show Message => {:?}", params);
+                // TODO: send message to display
+
+            },
+            "window/logMessage" => {
+                // We should log the message here. Waiting for
+                // the discussion about logs before doing anything
+
+                // println!("Log Message => {:?}", params);
+            },
+            "experimental/serverStatus" => {
+                println!("Received serverStatus data:\n{:?}", params);
+            },
+            method => {
+                println!("Received unhandled notification {}", method);
+            },
         }
     }
 
@@ -547,6 +636,11 @@ impl LspClient {
             Err(err) => panic!("Encoding Error {:?}", err),
         };
 
+        //FIXME: remove
+        // if self.language_id == "go" {
+        //     println!("Sending following message through rpc for lsp {}: {}\n", &self.language_id, &rpc);
+        // }
+
         let _ = self.write(rpc.as_ref());
     }
 
@@ -566,7 +660,22 @@ impl LspClient {
             JsonRpc::request_with_params(Id::Num(next_id as i64), method, params)
         };
 
+        // FIXME: remove
+        // println!("REQUEST TO SEND: {:?}", &request);
+
         self.send_rpc(&to_value(&request).unwrap());
+    }
+
+    pub fn send_success_response(&self, id: Id, result: &Value) {
+        let response = JsonRpc::success(id, result);
+
+        self.send_rpc(&to_value(&response).unwrap());
+    }
+
+    pub fn send_error_response(&self, id: jsonrpc_lite::Id, error: jsonrpc_lite::Error) {
+        let response = JsonRpc::error(id, error);
+
+        self.send_rpc(&to_value(&response).unwrap());
     }
 
     fn initialize(&self) {
@@ -579,6 +688,8 @@ impl LspClient {
                         let init_result: InitializeResult =
                             serde_json::from_value(result).unwrap();
                         let mut state = lsp_client.state.lock();
+                        //FIXME: remove
+                        // println!("Capabilities for client {}: {:?}", &lsp_client.language_id, init_result.capabilities);
                         state.server_capabilities = Some(init_result.capabilities);
                         state.is_initialized = true;
                     }

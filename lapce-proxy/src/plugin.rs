@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use home::home_dir;
 use hotwatch::Hotwatch;
 use lapce_rpc::counter::Counter;
-use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo};
+use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo, PluginConfiguration};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -143,10 +143,12 @@ impl PluginCatalog {
 
         let output = Pipe::new();
         let input = Pipe::new();
+        let env = self.get_plugin_env(&plugin_desc);
         let mut wasi_env = WasiState::new("Lapce")
             .map_dir("/", plugin_desc.dir.clone().unwrap())?
             .stdin(Box::new(input))
             .stdout(Box::new(output))
+            .envs(env)
             .finalize()?;
         let wasi = wasi_env.import_object(&module)?;
 
@@ -181,6 +183,62 @@ impl PluginCatalog {
         });
 
         Ok(plugin)
+    }
+
+
+    fn get_plugin_env(&mut self, plugin_desc: &PluginDescription) -> Vec<(String, String)> {
+        let conf = match plugin_desc.configuration.clone() {
+                Some(val) => val,
+                None => serde_json::Value::Null,
+        };
+
+        let t = serde_json::from_value::<PluginConfiguration>(conf);
+        let mut vars = Vec::new();
+
+        if t.is_ok() {
+            let t = t.unwrap();
+            let args = t.env_command;
+            if args.is_empty() {
+                return vars;
+            }
+
+            let output= if cfg!(target_os = "windows") {
+                Command::new("cmd")
+                    .arg("/c")
+                    .arg(args)
+                    .output()
+            } else {
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(args)
+                    .output()
+            };
+
+            if output.is_ok() {
+                let output = output.unwrap();
+                let data = match String::from_utf8(output.stdout){
+                    Ok(val) => val,
+                    Err(_err) => String::from(""),
+                };
+
+                let lines = data.lines();
+
+                for l in lines {
+                    let s : Vec<&str> = l.split('=').collect();
+                    if s.len() < 2 {
+                        continue
+                    }
+                    vars.push((String::from(s[0]), String::from(s[1])));
+                }
+
+                return vars;
+            } else {
+                return vars;
+            }
+
+        } else {
+            return vars;
+        }
     }
 
     pub fn next_plugin_id(&mut self) -> PluginId {
