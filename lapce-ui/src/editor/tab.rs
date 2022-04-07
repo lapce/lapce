@@ -6,7 +6,7 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
-    buffer::BufferContent,
+    buffer::{BufferContent, LocalBufferKind},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{
@@ -351,6 +351,13 @@ impl Widget<LapceTabData> for LapceEditorTab {
                             let active = &tab.children[tab.active];
                             let EditorTabChildInfo::Editor(info) =
                                 active.child_info(data, 4);
+
+                            if info.content
+                                == BufferContent::Local(LocalBufferKind::Empty)
+                            {
+                                // File has not yet been loaded, most likely.
+                                return;
+                            }
 
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
