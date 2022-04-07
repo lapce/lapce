@@ -48,7 +48,7 @@ pub fn paint_file_node_item(
     if current + item.children_open_count < min {
         return current + item.children_open_count;
     }
-    if current >= min && current <= max {
+    if current >= min {
         let background = if current == active {
             Some(LapceTheme::PANEL_CURRENT)
         } else if Some(current) == hovered {
