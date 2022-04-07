@@ -103,6 +103,11 @@ impl LapceEditorTab {
             if focus {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureEditorTabActiveVisble,
+                    Target::Widget(editor_tab.widget_id),
+                ));
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
                     Target::Widget(editor_tab.children[new_index].widget_id()),
                 ));
