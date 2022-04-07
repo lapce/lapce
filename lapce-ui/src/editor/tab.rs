@@ -6,14 +6,15 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
+    buffer::BufferContent,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{
         DragContent, EditorTabChild, LapceEditorTabData, LapceTabData, SplitContent,
     },
+    db::EditorTabChildInfo,
     editor::TabRect,
     split::{SplitDirection, SplitMoveDirection},
-    
 };
 
 use crate::editor::{
@@ -342,6 +343,30 @@ impl Widget<LapceTabData> for LapceEditorTab {
                             Target::Widget(widget_id),
                         ));
                         return;
+                    }
+                    LapceUICommand::EnsureEditorTabActiveVisble => {
+                        if let Some(tab) =
+                            data.main_split.editor_tabs.get(&self.widget_id)
+                        {
+                            let active = &tab.children[tab.active];
+                            let EditorTabChildInfo::Editor(info) =
+                                active.child_info(data, 4);
+
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ActiveFileChanged {
+                                    path: if let BufferContent::File(path) =
+                                        info.content
+                                    {
+                                        Some(path.clone())
+                                    } else {
+                                        None
+                                    },
+                                },
+                                Target::Widget(data.file_explorer.widget_id),
+                            ));
+                            return;
+                        }
                     }
                     _ => (),
                 }

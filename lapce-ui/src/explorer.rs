@@ -367,6 +367,16 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         data: &mut LapceTabData,
         _env: &Env,
     ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+
+                if let LapceUICommand::ActiveFileChanged { path } = command {
+                    println!("{path:?}");
+                }
+            }
+            _ => {}
+        }
         if !ctx.is_hot() {
             return;
         }

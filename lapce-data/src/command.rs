@@ -560,6 +560,7 @@ pub enum EnsureVisiblePosition {
     CenterOfWindow,
 }
 
+#[derive(Debug)]
 pub enum LapceUICommand {
     InitChildren,
     InitTerminalPanel(bool),
@@ -704,4 +705,7 @@ pub enum LapceUICommand {
     GotoDefinition(WidgetId, usize, EditorLocationNew),
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
+    ActiveFileChanged {
+        path: Option<PathBuf>,
+    },
 }
