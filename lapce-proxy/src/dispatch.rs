@@ -342,10 +342,10 @@ impl Dispatcher {
             }
             TerminalWrite { term_id, content } => {
                 let terminals = self.terminals.lock();
-                let tx = terminals.get(&term_id).unwrap();
-
-                #[allow(deprecated)]
-                let _ = tx.send(Msg::Input(content.into_bytes().into()));
+                if let Some(tx) = terminals.get(&term_id) {
+                    #[allow(deprecated)]
+                    let _ = tx.send(Msg::Input(content.into_bytes().into()));
+                }
             }
             TerminalResize {
                 term_id,
@@ -445,7 +445,7 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_hover(id, request_id, buffer, position);
             }
-            GetSignature {                
+            GetSignature {
                 buffer_id,
                 position,
             } => {
