@@ -450,6 +450,13 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             LapceUICommand::OpenFile(node.path_buf.clone()),
                             Target::Widget(data.id),
                         ));
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ActiveFileChanged {
+                                path: Some(node.path_buf.clone()),
+                            },
+                            Target::Widget(file_explorer.widget_id),
+                        ));
                     }
                 }
             }
