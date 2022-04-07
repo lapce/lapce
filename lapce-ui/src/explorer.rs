@@ -49,17 +49,15 @@ pub fn paint_file_node_item(
         return current + item.children_open_count;
     }
     if current >= min && current <= max {
-        if current == active {
-            ctx.fill(
-                Rect::ZERO
-                    .with_origin(Point::new(
-                        0.0,
-                        current as f64 * line_height - line_height,
-                    ))
-                    .with_size(Size::new(width, line_height)),
-                config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
-            );
+        let background = if current == active {
+            Some(LapceTheme::PANEL_CURRENT)
         } else if Some(current) == hovered {
+            Some(LapceTheme::PANEL_HOVERED)
+        } else {
+            None
+        };
+
+        if let Some(background) = background {
             ctx.fill(
                 Rect::ZERO
                     .with_origin(Point::new(
@@ -67,9 +65,10 @@ pub fn paint_file_node_item(
                         current as f64 * line_height - line_height,
                     ))
                     .with_size(Size::new(width, line_height)),
-                config.get_color_unchecked(LapceTheme::PANEL_HOVERED),
+                config.get_color_unchecked(background),
             );
         }
+
         let y = current as f64 * line_height - line_height;
         let svg_y = y + 4.0;
         let svg_size = 15.0;
