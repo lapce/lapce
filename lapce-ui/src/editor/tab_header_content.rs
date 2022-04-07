@@ -258,17 +258,35 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 self.mouse_down(ctx, data, mouse_event);
             }
             Event::MouseUp(mouse_event) => {
+                let mut close_tab = |tab_idx: usize, was_active: bool| {
+                    if was_active {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ActiveFileChanged { path: None },
+                            Target::Widget(data.file_explorer.widget_id),
+                        ));
+                    }
+
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::EditorTabRemove(tab_idx, true, true),
+                        Target::Widget(self.widget_id),
+                    ));
+                };
+
+                let editor_tab = data
+                    .main_split
+                    .editor_tabs
+                    .get_mut(&self.widget_id)
+                    .unwrap();
+
                 match self.mouse_down_target.take() {
                     // Was the left button released on the close icon that started the close?
                     Some((MouseAction::CloseViaIcon, target))
                         if self.is_close_icon_hit(target, mouse_event.pos)
                             && mouse_event.button.is_left() =>
                     {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::EditorTabRemove(target, true, true),
-                            Target::Widget(self.widget_id),
-                        ));
+                        close_tab(target, target == editor_tab.active);
                     }
 
                     // Was the middle button released on the tab that started the close?
@@ -276,11 +294,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                         if self.is_tab_hit(target, mouse_event.pos)
                             && mouse_event.button.is_middle() =>
                     {
-                        ctx.submit_command(Command::new(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::EditorTabRemove(target, true, true),
-                            Target::Widget(self.widget_id),
-                        ));
+                        close_tab(target, target == editor_tab.active);
                     }
 
                     None if mouse_event.button.is_left() => {
