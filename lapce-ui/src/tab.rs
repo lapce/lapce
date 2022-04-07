@@ -1601,7 +1601,10 @@ impl Widget<LapceTabData> for LapceTabHeader {
             .path
             .as_ref()
             .map(|p| {
-                let dir = p.file_name().unwrap().to_str().unwrap();
+                let dir = p
+                    .file_name()
+                    .unwrap_or_else(|| p.as_os_str())
+                    .to_string_lossy();
                 let dir = match &data.workspace.kind {
                     LapceWorkspaceType::Local => dir.to_string(),
                     LapceWorkspaceType::RemoteSSH(user, host) => {
