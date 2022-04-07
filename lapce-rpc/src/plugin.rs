@@ -26,3 +26,9 @@ pub struct PluginInfo {
     pub os: String,
     pub configuration: Option<Value>,
 }
+
+pub struct PluginConfiguration {
+    pub language_id: String,
+    pub env_command: String,
+    pub options: Option<Value>,
+}
