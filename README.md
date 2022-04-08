@@ -31,10 +31,10 @@ Lapce is written in pure Rust, with the UI in [Druid](https://github.com/lineben
 ## Features
 
 * Modal Editing (Vim like) support as first class citizen (can be turned off as well)
-* Built in LSP support to give you code intelligence like code completion, diagnostics and code actions etc.
-* Built in remote development support (inspired by [VSCode Remote Development](https://code.visualstudio.com/docs/remote/remote-overview)) for a seamless "local" experience, benefiting from the full power of the remote system.
+* Built-in LSP (Language Server Protocol) support to give you code intelligence like code completion, diagnostics and code actions etc.
+* Built-in remote development support (inspired by [VSCode Remote Development](https://code.visualstudio.com/docs/remote/remote-overview)) for a seamless "local" experience, benefiting from the full power of the remote system.
 * Plugins can be written in programming languages that can compile to the [WASI](https://wasi.dev/) format (C, Rust, [AssemblyScript](https://www.assemblyscript.org/))
-* Built in terminal, so you can execute commands in your workspace, without leaving Lapce.
+* Built-in terminal, so you can execute commands in your workspace, without leaving Lapce.
 
 ## Contributing
 
@@ -61,4 +61,4 @@ The compiled executable will be available at `target/release/lapce`
 ## Feedback
 
 * Chat on [Discord](https://discord.gg/n8tGJ6Rn6D)
-* Or Join the discussion on [Reddit](https://www.reddit.com/r/lapce/)
+* Or join the discussion on [Reddit](https://www.reddit.com/r/lapce/)
