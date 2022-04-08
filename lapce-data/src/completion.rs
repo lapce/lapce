@@ -7,6 +7,7 @@ use itertools::Itertools;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
+use serde_json::Value;
 use std::str::FromStr;
 
 use crate::{
@@ -322,7 +323,7 @@ impl CompletionData {
             request_id,
             buffer_id,
             position,
-            Box::new(move |result| {
+            Box::new(move |result : Result<Value, Value>| {
                 if let Ok(res) = result {
                     if let Ok(resp) =
                         serde_json::from_value::<CompletionResponse>(res)

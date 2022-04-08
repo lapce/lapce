@@ -660,9 +660,6 @@ impl LspClient {
             JsonRpc::request_with_params(Id::Num(next_id as i64), method, params)
         };
 
-        // FIXME: remove
-        // println!("REQUEST TO SEND: {:?}", &request);
-
         self.send_rpc(&to_value(&request).unwrap());
     }
 

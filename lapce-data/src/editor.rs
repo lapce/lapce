@@ -541,7 +541,7 @@ impl LapceEditorBufferData {
                     })
                     .collect::<Vec<(Selection, String)>>()
             });
-        let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
+        let additional_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
             edits
                 .iter()
                 .map(|(selection, c)| (selection, c.as_str()))
@@ -574,7 +574,7 @@ impl LapceEditorBufferData {
                             let delta = self.edit(
                                 &[
                                     &[(&selection, edit.new_text.as_str())][..],
-                                    &additioal_edit.unwrap_or_default()[..],
+                                    &additional_edit.unwrap_or_default()[..],
                                 ]
                                 .concat(),
                                 true,
@@ -594,7 +594,7 @@ impl LapceEditorBufferData {
                             let delta = self.edit(
                                 &[
                                     &[(&selection, text.as_str())][..],
-                                    &additioal_edit.unwrap_or_default()[..],
+                                    &additional_edit.unwrap_or_default()[..],
                                 ]
                                 .concat(),
                                 true,
@@ -647,7 +647,7 @@ impl LapceEditorBufferData {
                         .as_deref()
                         .unwrap_or_else(|| item.label.as_str()),
                 )][..],
-                &additioal_edit.unwrap_or_default()[..],
+                &additional_edit.unwrap_or_default()[..],
             ]
             .concat(),
             true,

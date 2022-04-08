@@ -27,6 +27,7 @@ pub struct PluginInfo {
     pub configuration: Option<Value>,
 }
 
+#[derive(Deserialize, Clone, Debug, Serialize)]
 pub struct PluginConfiguration {
     pub language_id: String,
     pub env_command: String,
