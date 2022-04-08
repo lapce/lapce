@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use lapce_core::syntax::Syntax;
 use xi_rope::RopeDelta;
 
@@ -154,10 +155,10 @@ impl<'a> InsertCharsCommand<'a> {
 
         // Adjust selection according to previous late edits
         let mut adjustment = 0;
-        for (region, (_, insert)) in selection
+        for region in selection
             .regions_mut()
             .iter_mut()
-            .zip(edits_after.into_iter())
+            .sorted_by(|region_a, region_b| region_a.start().cmp(&region_b.start()))
         {
             *region = SelRegion::new(
                 region.start + adjustment,
@@ -171,7 +172,19 @@ impl<'a> InsertCharsCommand<'a> {
                 }),
             );
 
-            adjustment += insert.len();
+            if let Some(inserted) =
+                edits_after.iter().find_map(|(selection, str)| {
+                    if selection.last_inserted().map(|r| r.start())
+                        == Some(region.start())
+                    {
+                        Some(str)
+                    } else {
+                        None
+                    }
+                })
+            {
+                adjustment += inserted.len();
+            }
         }
 
         *cursor = Cursor::new(CursorMode::Insert(selection), None);
