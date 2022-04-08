@@ -7,7 +7,7 @@ use crate::{
         get_word_property, matching_char, matching_pair_direction, EditType,
         WordProperty,
     },
-    movement::{Cursor, CursorMode, InsertDrift, Selection},
+    movement::{ColPosition, Cursor, CursorMode, InsertDrift, SelRegion, Selection},
 };
 
 pub struct InsertCharsCommand<'a> {
@@ -22,6 +22,13 @@ impl<'a> InsertCharsCommand<'a> {
         self,
         mut buffer: EditableBufferData<'a, L>,
     ) -> Option<RopeDelta> {
+        fn region_to_selection(region: SelRegion) -> Selection {
+            let mut current_selection = Selection::new();
+            current_selection.add_region(region);
+
+            current_selection
+        }
+
         let Self {
             cursor,
             tab_width,
@@ -41,61 +48,133 @@ impl<'a> InsertCharsCommand<'a> {
             return None;
         }
 
-        let mut content = chars.to_string();
-        let cursor_char =
-            buffer.buffer.char_at_offset(selection.get_cursor_offset());
-
         let c = chars.chars().next().unwrap();
-        if !matching_pair_direction(c).unwrap_or(true) {
-            if cursor_char == Some(c) {
-                let selection = buffer.buffer.move_cursor_to_right(&selection, 1);
+        let matching_pair_type = matching_pair_direction(c);
 
-                *cursor = Cursor::new(CursorMode::Insert(selection), None);
-                return None;
-            }
+        // The main edit operations
+        let mut edits = vec![];
 
-            let offset = selection.get_cursor_offset();
-            let line = buffer.buffer.line_of_offset(offset);
-            let line_start = buffer.buffer.offset_of_line(line);
-            if buffer.buffer.slice_to_cow(line_start..offset).trim() == "" {
-                if let Some(c) = matching_char(c) {
-                    if let Some(previous_offset) =
-                        buffer.buffer.previous_unmatched(syntax.as_ref(), c, offset)
-                    {
+        // "Late edits" - characters to be inserted after particular regions
+        let mut edits_after = vec![];
+
+        // Create edits
+        for (idx, region) in selection.regions_mut().iter_mut().enumerate() {
+            let offset = region.end;
+            let cursor_char = buffer.buffer.char_at_offset(offset);
+
+            if matching_pair_type == Some(false) {
+                if cursor_char == Some(c) {
+                    // Skip the closing character
+                    let new_offset = buffer.buffer.next_grapheme_offset(
+                        offset,
+                        1,
+                        buffer.buffer.len(),
+                    );
+
+                    *region = SelRegion::caret(new_offset);
+                    continue;
+                }
+
+                let line = buffer.buffer.line_of_offset(offset);
+                let line_start = buffer.buffer.offset_of_line(line);
+                if buffer.buffer.slice_to_cow(line_start..offset).trim() == "" {
+                    let opening_character = matching_char(c).unwrap();
+                    if let Some(previous_offset) = buffer.buffer.previous_unmatched(
+                        syntax.as_ref(),
+                        opening_character,
+                        offset,
+                    ) {
+                        // Auto-indent closing character to the same level as the opening.
                         let previous_line =
                             buffer.buffer.line_of_offset(previous_offset);
                         let line_indent =
                             buffer.buffer.indent_on_line(previous_line);
-                        content = line_indent + &content;
-                        selection = Selection::region(line_start, offset);
+
+                        let current_selection = region_to_selection(SelRegion::new(
+                            line_start, offset, None,
+                        ));
+
+                        edits.push((current_selection, format!("{line_indent}{c}")));
+                        continue;
                     }
                 }
             }
+
+            if matching_pair_type == Some(true) {
+                // Create a late edit to insert the closing pair, if allowed.
+                let is_whitespace_or_punct = cursor_char
+                    .map(|c| {
+                        let prop = get_word_property(c);
+                        prop == WordProperty::Lf
+                            || prop == WordProperty::Space
+                            || prop == WordProperty::Punctuation
+                    })
+                    .unwrap_or(true);
+
+                if is_whitespace_or_punct {
+                    let insert_after = matching_char(c).unwrap();
+                    edits_after.push((idx, insert_after));
+                }
+            };
+
+            let current_selection = region_to_selection(*region);
+
+            edits.push((current_selection, c.to_string()));
         }
 
-        let delta =
-            buffer.edit_multiple(&[(&selection, &content)], EditType::InsertChars);
-        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+        // Apply edits to current selection
+        let edits = edits
+            .iter()
+            .map(|(selection, content)| (selection, content.as_str()))
+            .collect::<Vec<_>>();
 
-        *cursor = Cursor::new(CursorMode::Insert(selection.clone()), None);
+        let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
 
-        let is_whitespace_or_punct = cursor_char
-            .map(|c| {
-                let prop = get_word_property(c);
-                prop == WordProperty::Lf
-                    || prop == WordProperty::Space
-                    || prop == WordProperty::Punctuation
+        // Update selection
+        let mut selection =
+            selection.apply_delta(&delta, true, InsertDrift::Default);
+
+        // Apply late edits
+        let edits_after = edits_after
+            .iter()
+            .map(|(idx, content)| {
+                (
+                    region_to_selection(selection.regions()[*idx]),
+                    content.to_string(),
+                )
             })
-            .unwrap_or(true);
+            .collect::<Vec<_>>();
 
-        if is_whitespace_or_punct && matching_pair_direction(c).unwrap_or(false) {
-            if let Some(c) = matching_char(c) {
-                buffer.edit_multiple(
-                    &[(&selection, &c.to_string())],
-                    EditType::InsertChars,
-                );
-            }
+        let edits_after = edits_after
+            .iter()
+            .map(|(selection, content)| (selection, content.as_str()))
+            .collect::<Vec<_>>();
+
+        buffer.edit_multiple(&edits_after, EditType::InsertChars);
+
+        // Adjust selection according to previous late edits
+        let mut adjustment = 0;
+        for (region, (_, insert)) in selection
+            .regions_mut()
+            .iter_mut()
+            .zip(edits_after.into_iter())
+        {
+            *region = SelRegion::new(
+                region.start + adjustment,
+                region.end + adjustment,
+                region.horiz().map(|pos| {
+                    if let ColPosition::Col(col) = pos {
+                        ColPosition::Col(*col + adjustment)
+                    } else {
+                        *pos
+                    }
+                }),
+            );
+
+            adjustment += insert.len();
         }
+
+        *cursor = Cursor::new(CursorMode::Insert(selection), None);
 
         None
     }
@@ -114,6 +193,17 @@ mod test {
         editor.command(EditCommandKind::InsertChars { chars: "r" });
 
         assert_eq!("foobar<$0>baz", editor.state());
+    }
+
+    #[test]
+    fn characters_are_inserted_where_the_cursors_are() {
+        let mut editor = MockEditor::new("foo<$0>baz<$1>");
+
+        editor.command(EditCommandKind::InsertChars { chars: "b" });
+        editor.command(EditCommandKind::InsertChars { chars: "a" });
+        editor.command(EditCommandKind::InsertChars { chars: "r" });
+
+        assert_eq!("foobar<$0>bazbar<$1>", editor.state());
     }
 
     #[test]
