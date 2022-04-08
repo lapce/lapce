@@ -145,4 +145,14 @@ mod test_state_tests {
 
         assert_eq!(text, state.to_string());
     }
+
+    #[test]
+    fn can_format_into_string_multi() {
+        let text = r#"fo<$0>o</$0> <$1>bar</$1>"#;
+
+        let state = TestState::parse(text);
+        assert_eq!("foo bar", state.contents);
+
+        assert_eq!(text, state.to_string());
+    }
 }
