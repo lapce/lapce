@@ -1,7 +1,7 @@
 on: 
   push:
-  schedule:
-    - cron: '30 2 5 * *'
+    branches:
+      - master
 
 name: CI
 
