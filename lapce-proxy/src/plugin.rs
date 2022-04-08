@@ -185,7 +185,6 @@ impl PluginCatalog {
         Ok(plugin)
     }
 
-
     fn get_plugin_env(&mut self, plugin_desc: &PluginDescription) -> Vec<(String, String)> {
         let conf = match plugin_desc.configuration.clone() {
                 Some(val) => val,

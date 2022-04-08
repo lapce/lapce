@@ -33,3 +33,8 @@ pub struct PluginConfiguration {
     pub env_command: String,
     pub options: Option<Value>,
 }
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct PluginOptions {
+    pub binary_args: Vec<String>,
+}

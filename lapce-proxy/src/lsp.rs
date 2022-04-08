@@ -59,6 +59,7 @@ pub struct LspClient {
     #[allow(dead_code)]
     language_id: String,
     exec_path: String,
+    binary_args: Vec<String>,
     options: Option<Value>,
     state: Arc<Mutex<LspState>>,
     dispatcher: Dispatcher,
@@ -86,10 +87,12 @@ impl LspCatalog {
         language_id: &str,
         options: Option<Value>,
     ) {
+        let binary_args = self.get_plugin_binary_args(options.clone());
         let client = LspClient::new(
             language_id.to_string(),
             exec_path,
             options,
+            binary_args,
             self.dispatcher.clone().unwrap(),
         );
         self.clients.insert(language_id.to_string(), client);
@@ -114,6 +117,43 @@ impl LspCatalog {
             client.send_did_save(uri);
         }
     }
+
+    fn get_plugin_binary_args(&mut self, option: Option<Value>) -> Vec<String> {
+        let option = match option{
+            Some(val) => val,
+            None => Value::Null,
+        };
+
+        if option == Value::Null {
+            return Vec::new();
+        }
+
+        println!("HEY {}", option);
+        let binary = &option["binary"];
+        if binary.clone() == Value::Null {
+            return Vec::new();
+        }
+
+        let option = &binary["binary_args"];
+        if option.clone() == Value::Null {
+            return Vec::new();
+        }
+
+        if !option.is_array() {
+            println!("binar_args value should be of type [String].");
+            return Vec::new();
+        }
+
+        let option  = option.as_array().unwrap();
+        let mut vals = Vec::new();
+
+        for val in option {
+            vals.push(String::from(val.as_str().unwrap()));
+        }
+
+        return vals;
+    }
+
 
     pub fn get_semantic_tokens(&self, buffer: &Buffer) {
         let buffer_id = buffer.id;
@@ -372,28 +412,18 @@ impl LspClient {
         language_id: String,
         exec_path: &str,
         options: Option<Value>,
+        binary_args: Vec<String>,
         dispatcher: Dispatcher,
     ) -> Arc<LspClient> {
         //TODO: better handling of binary args in plugin
-        let mut process = if language_id == "go" {
-            println!("Executing gopls!");
-            let mut process = Command::new(exec_path);
-            process.arg("-logfile=gopls-err.txt");
-            process
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Error Occurred")
-        } else {
-            Self::process(exec_path)
-        };
-        // let mut process = Self::process(exec_path);
+        let mut process = Self::process(exec_path, binary_args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
         let lsp_client = Arc::new(LspClient {
             dispatcher,
             exec_path: exec_path.to_string(),
+            binary_args: binary_args,
             language_id,
             options,
             state: Arc::new(Mutex::new(LspState {
@@ -435,8 +465,14 @@ impl LspClient {
         });
     }
 
-    fn process(exec_path: &str) -> Child {
+    fn process(exec_path: &str, binary_args: Vec<String>) -> Child {
         let mut process = Command::new(exec_path);
+
+        for arg in binary_args {
+            println!("Adding arg: {}", arg);
+            process.arg(arg);
+        }
+
         #[cfg(target_os = "windows")]
         let process = process.creation_flags(0x08000000);
         process
@@ -447,7 +483,7 @@ impl LspClient {
     }
 
     fn reload(&self) {
-        let mut process = Self::process(&self.exec_path);
+        let mut process = Self::process(&self.exec_path, self.binary_args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
