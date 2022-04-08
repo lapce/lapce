@@ -13,7 +13,6 @@ use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::hex_to_color,
     state::{LapceWorkspace, LapceWorkspaceType},
 };
 
@@ -167,11 +166,11 @@ impl Theme {
         for (k, v) in theme_colors.iter() {
             if let Some(stripped) = v.strip_prefix('$') {
                 if let Some(hex) = theme_colors.get(stripped) {
-                    if let Ok(color) = hex_to_color(hex) {
+                    if let Ok(color) = Color::from_hex_str(hex) {
                         theme.insert(k.clone(), color);
                     }
                 }
-            } else if let Ok(color) = hex_to_color(v) {
+            } else if let Ok(color) = Color::from_hex_str(v) {
                 theme.insert(k.clone(), color);
             }
         }

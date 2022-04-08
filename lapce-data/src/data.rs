@@ -8,11 +8,11 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::{PietText, PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    theme, Color, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
+    theme, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
     Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
@@ -3101,38 +3101,6 @@ impl LapceEditorData {
     }
 }
 
-pub fn hex_to_color(hex: &str) -> Result<Color> {
-    let hex = hex.trim_start_matches('#');
-    match hex.len() {
-        // The 3-digit CSS-like form, where #RGB is shorthand for #RRGGBB.
-        3 => {
-            let r = u8::from_str_radix(&hex[0..1], 16)?;
-            let r = r * 16 + r;
-            let g = u8::from_str_radix(&hex[1..2], 16)?;
-            let g = g * 16 + g;
-            let b = u8::from_str_radix(&hex[2..3], 16)?;
-            let b = b * 16 + b;
-            Ok(Color::rgba8(r, g, b, 255))
-        }
-        // The standard form #RRGGBB.
-        6 => {
-            let r = u8::from_str_radix(&hex[0..2], 16)?;
-            let g = u8::from_str_radix(&hex[2..4], 16)?;
-            let b = u8::from_str_radix(&hex[4..6], 16)?;
-            Ok(Color::rgba8(r, g, b, 255))
-        }
-        // The standard form #RRGGBBAA (alpha channel).
-        8 => {
-            let r = u8::from_str_radix(&hex[0..2], 16)?;
-            let g = u8::from_str_radix(&hex[2..4], 16)?;
-            let b = u8::from_str_radix(&hex[4..6], 16)?;
-            let a = u8::from_str_radix(&hex[6..8], 16)?;
-            Ok(Color::rgba8(r, g, b, a))
-        }
-        _ => Err(anyhow!("invalid hex color")),
-    }
-}
-
 #[allow(dead_code)]
 fn str_is_pair_left(c: &str) -> bool {
     if c.chars().count() == 1 {
@@ -3164,77 +3132,3 @@ fn str_matching_pair(c: &str) -> Option<char> {
 
 #[allow(dead_code)]
 fn progress_term_event() {}
-
-#[cfg(test)]
-mod hex_to_color_tests {
-    use super::hex_to_color;
-    use druid::piet::Color;
-
-    #[test]
-    pub fn hex_to_color_for_invalid_inputs() {
-        assert!(hex_to_color("").is_err());
-        assert!(hex_to_color(" ").is_err());
-        assert!(hex_to_color("#").is_err());
-        assert!(hex_to_color("11").is_err());
-        assert!(hex_to_color("11 ").is_err());
-        assert!(hex_to_color(" 11 ").is_err());
-        assert!(hex_to_color("1 1").is_err());
-        assert!(hex_to_color("#1").is_err());
-        assert!(hex_to_color("#11").is_err());
-        assert!(hex_to_color("#11Z").is_err());
-        assert!(hex_to_color("#1234").is_err());
-        assert!(hex_to_color("#12345").is_err());
-        assert!(hex_to_color("#12345Z").is_err());
-        assert!(hex_to_color("#1234567").is_err());
-        assert!(hex_to_color("#1234567Z").is_err());
-        assert!(hex_to_color("#123456789").is_err());
-    }
-
-    #[test]
-    pub fn hex_to_color_for_valid_3_digit_colors() {
-        assert_eq!(
-            hex_to_color("#123").unwrap(),
-            Color::rgba8(0x11, 0x22, 0x33, 255)
-        );
-        assert_eq!(
-            hex_to_color("#a2f").unwrap(),
-            Color::rgba8(0xAA, 0x22, 0xFF, 255)
-        );
-        assert_eq!(
-            hex_to_color("#A2F").unwrap(),
-            Color::rgba8(0xAA, 0x22, 0xFF, 255)
-        );
-    }
-
-    #[test]
-    pub fn hex_to_color_for_valid_6_digit_colors() {
-        assert_eq!(
-            hex_to_color("#112233").unwrap(),
-            Color::rgba8(0x11, 0x22, 0x33, 255)
-        );
-        assert_eq!(
-            hex_to_color("#Da2e1f").unwrap(),
-            Color::rgba8(0xDA, 0x2E, 0x1F, 255)
-        );
-        assert_eq!(
-            hex_to_color("#A0020F").unwrap(),
-            Color::rgba8(0xA0, 0x02, 0x0F, 255)
-        );
-    }
-
-    #[test]
-    pub fn hex_to_color_for_valid_8_digit_colors() {
-        assert_eq!(
-            hex_to_color("#11223300").unwrap(),
-            Color::rgba8(0x11, 0x22, 0x33, 0x00)
-        );
-        assert_eq!(
-            hex_to_color("#Da2e1faf").unwrap(),
-            Color::rgba8(0xDA, 0x2E, 0x1F, 0xAF)
-        );
-        assert_eq!(
-            hex_to_color("#A0020FFF").unwrap(),
-            Color::rgba8(0xA0, 0x02, 0x0F, 0xFF)
-        );
-    }
-}
