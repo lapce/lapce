@@ -288,4 +288,13 @@ mod test {
 
         assert_eq!("bar<$0> bar<$1>", editor.state());
     }
+
+    #[test]
+    fn inserting_matching_pair_correctly_cursor_positions() {
+        let mut editor = MockEditor::new("a<$0>b<$1> \n<$2>");
+
+        editor.command(EditCommandKind::InsertChars { chars: "(" });
+
+        assert_eq!("a(<$0>b(<$1>) \n(<$2>)", editor.state());
+    }
 }
