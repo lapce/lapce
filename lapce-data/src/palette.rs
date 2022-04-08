@@ -835,7 +835,7 @@ impl PaletteViewData {
         let last_line_number_len = last_line_number.to_string().len();
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = buffer
-            .rope
+            .rope()
             .lines(0..buffer.len())
             .enumerate()
             .map(|(i, l)| {
@@ -871,7 +871,7 @@ impl PaletteViewData {
 
         if let BufferContent::File(path) = &editor.content {
             let path = path.clone();
-            let buffer_id = self.main_split.open_files.get(&path).unwrap().id;
+            let buffer_id = self.main_split.open_files.get(&path).unwrap().id();
             let run_id = self.palette.run_id.clone();
             let event_sink = ctx.get_external_handle();
 

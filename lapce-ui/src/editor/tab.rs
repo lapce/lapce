@@ -560,7 +560,7 @@ impl TabRectRenderer for TabRect {
             let is_dirty = match &editor_tab.children[i] {
                 EditorTabChild::Editor(editor_id, _) => {
                     let buffer = data.main_split.editor_buffer(*editor_id);
-                    buffer.dirty
+                    buffer.dirty()
                 }
             };
 
