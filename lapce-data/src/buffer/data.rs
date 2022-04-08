@@ -618,8 +618,8 @@ impl BufferData {
 
 /// Make BufferData temporarily editable by attaching a listener object to it.
 pub struct EditableBufferData<'a, L> {
-    pub(super) listener: L,
-    pub(super) buffer: &'a mut BufferData,
+    pub listener: L,
+    pub buffer: &'a mut BufferData,
 }
 
 impl<L: BufferDataListener> EditableBufferData<'_, L> {
@@ -629,6 +629,34 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
 
     pub fn is_empty(&self) -> bool {
         self.buffer.is_empty()
+    }
+
+    pub fn indent_unit(&self) -> &'static str {
+        self.buffer.indent_unit()
+    }
+
+    pub fn offset_of_line(&self, line: usize) -> usize {
+        self.buffer.offset_of_line(line)
+    }
+
+    pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
+        self.buffer.offset_line_end(offset, caret)
+    }
+
+    pub fn offset_to_line_col(
+        &self,
+        offset: usize,
+        tab_width: usize,
+    ) -> (usize, usize) {
+        self.buffer.offset_to_line_col(offset, tab_width)
+    }
+
+    pub fn line_of_offset(&self, offset: usize) -> usize {
+        self.buffer.line_of_offset(offset)
+    }
+
+    pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
+        self.buffer.first_non_blank_character_on_line(line)
     }
 
     pub fn edit_multiple(
