@@ -937,57 +937,6 @@ impl Buffer {
         self.data.offset_to_position(offset, tab_width)
     }
 
-    /// character_offset returns the effective offset based on special character and text width.
-    /// Special Characters such as tab (\t) have a different effective width
-    /// TODO: refactor to avoid code duplicate
-    pub fn character_offset(
-        &self,
-        line: usize,
-        col: usize,
-        width: f64,
-        tab_width: usize,
-    ) -> f64 {
-        // col is the number of character, and does not take into acount char_width
-        // We update updated_col all along to reflect the actual size to compare with
-        let mut updated_col = 0;
-        let mut pos = 0;
-        let mut idx = 0;
-        let mut offset: f64 = 0.0;
-
-        for c in self
-            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
-            .chars()
-        {
-            idx += 1;
-
-            if c == '\n' {
-                return offset;
-            }
-
-            let char_width = if c == '\t' {
-                tab_width - pos % tab_width
-            } else {
-                char_width(c)
-            };
-
-            if idx <= col {
-                updated_col += char_width
-            }
-
-            pos += char_width;
-            if pos > updated_col {
-                return offset;
-            }
-
-            offset += char_width as f64 * width;
-            if pos > updated_col {
-                return offset;
-            }
-        }
-
-        offset
-    }
-
     pub fn offset_of_position(&self, pos: &Position, tab_width: usize) -> usize {
         self.offset_of_line_col(pos.line as usize, pos.character as usize, tab_width)
     }

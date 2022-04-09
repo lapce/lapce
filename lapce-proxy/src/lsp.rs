@@ -566,7 +566,7 @@ impl LspClient {
             }
             method => {
                 println!("Received unhandled request {method}");
-            },
+            }
         }
     }
 
