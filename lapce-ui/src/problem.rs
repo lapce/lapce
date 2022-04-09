@@ -75,7 +75,7 @@ impl ProblemContent {
             .filter_map(|(path, diagnostic)| {
                 let diagnostics: Vec<&EditorDiagnostic> = diagnostic
                     .iter()
-                    .filter(|d| d.diagnositc.severity == Some(self.severity))
+                    .filter(|d| d.diagnostic.severity == Some(self.severity))
                     .collect();
                 if !diagnostics.is_empty() {
                     Some((path, diagnostics))
@@ -98,11 +98,11 @@ impl ProblemContent {
 
         let items = self.items(data);
         let mut i = 0;
-        for (path, diagnositcs) in items {
-            let diagnositcs_len = diagnositcs
+        for (path, diagnostics) in items {
+            let diagnostics_len = diagnostics
                 .iter()
                 .map(|d| {
-                    d.diagnositc
+                    d.diagnostic
                         .related_information
                         .as_ref()
                         .map(|r| r.len())
@@ -110,12 +110,12 @@ impl ProblemContent {
                         + 1
                 })
                 .sum::<usize>();
-            if diagnositcs_len + 1 + i < n {
-                i += diagnositcs_len + 1;
+            if diagnostics_len + 1 + i < n {
+                i += diagnostics_len + 1;
                 continue;
             }
 
-            for d in diagnositcs {
+            for d in diagnostics {
                 i += 1;
                 if i == n {
                     ctx.submit_command(Command::new(
@@ -130,7 +130,7 @@ impl ProblemContent {
                                             line: line as u32,
                                             character: col as u32,
                                         })
-                                        .unwrap_or_else(|| d.diagnositc.range.start),
+                                        .unwrap_or_else(|| d.diagnostic.range.start),
                                 ),
                                 scroll_offset: None,
                                 history: None,
@@ -141,7 +141,7 @@ impl ProblemContent {
                     return;
                 }
                 for related in d
-                    .diagnositc
+                    .diagnostic
                     .related_information
                     .as_ref()
                     .unwrap_or(&Vec::new())
@@ -236,11 +236,11 @@ impl Widget<LapceTabData> for ProblemContent {
         let items = self.items(data);
         let n = items
             .iter()
-            .map(|(_, diagnositcs)| {
-                diagnositcs
+            .map(|(_, diagnostics)| {
+                diagnostics
                     .iter()
                     .map(|d| {
-                        d.diagnositc
+                        d.diagnostic
                             .related_information
                             .as_ref()
                             .map(|r| r.len())
@@ -280,11 +280,11 @@ impl Widget<LapceTabData> for ProblemContent {
 
         let items = self.items(data);
         let mut i = 0;
-        for (path, diagnositcs) in items {
-            let diagnositcs_len = diagnositcs
+        for (path, diagnostics) in items {
+            let diagnostics_len = diagnostics
                 .iter()
                 .map(|d| {
-                    d.diagnositc
+                    d.diagnostic
                         .related_information
                         .as_ref()
                         .map(|r| r.len())
@@ -292,8 +292,8 @@ impl Widget<LapceTabData> for ProblemContent {
                         + 1
                 })
                 .sum::<usize>();
-            if diagnositcs_len + 1 + i < min {
-                i += diagnositcs_len + 1;
+            if diagnostics_len + 1 + i < min {
+                i += diagnostics_len + 1;
                 continue;
             }
 
@@ -363,7 +363,7 @@ impl Widget<LapceTabData> for ProblemContent {
                 );
             }
 
-            for d in diagnositcs {
+            for d in diagnostics {
                 i += 1;
                 if i > max {
                     return;
@@ -389,7 +389,7 @@ impl Widget<LapceTabData> for ProblemContent {
 
                     let text_layout = ctx
                         .text()
-                        .new_text_layout(d.diagnositc.message.clone())
+                        .new_text_layout(d.diagnostic.message.clone())
                         .font(FontFamily::SYSTEM_UI, 13.0)
                         .text_color(
                             data.config
@@ -409,7 +409,7 @@ impl Widget<LapceTabData> for ProblemContent {
                 }
 
                 for related in d
-                    .diagnositc
+                    .diagnostic
                     .related_information
                     .as_ref()
                     .unwrap_or(&Vec::new())

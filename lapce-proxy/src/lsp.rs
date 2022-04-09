@@ -128,7 +128,6 @@ impl LspCatalog {
             return Vec::new();
         }
 
-        println!("HEY {}", option);
         let binary = &option["binary"];
         if binary.clone() == Value::Null {
             return Vec::new();
