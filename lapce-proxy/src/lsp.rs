@@ -119,32 +119,31 @@ impl LspCatalog {
     }
 
     fn get_plugin_binary_args(&mut self, option: Option<Value>) -> Vec<String> {
-        let option = match option{
+        let mut vals = Vec::new();
+
+        let option = match option {
             Some(val) => val,
-            None => Value::Null,
+            None => {
+                return vals;
+            }
         };
 
-        if option == Value::Null {
-            return Vec::new();
-        }
-
         let binary = &option["binary"];
-        if binary.clone() == Value::Null {
-            return Vec::new();
+        if binary.is_null() {
+            return vals;
         }
 
         let option = &binary["binary_args"];
-        if option.clone() == Value::Null {
-            return Vec::new();
+        if option.is_null() {
+            return vals;
         }
 
-        if !option.is_array() {
+        let option = if let Some(option) = option.as_array() {
+            option
+        } else {
             println!("binar_args value should be of type [String].");
-            return Vec::new();
-        }
-
-        let option  = option.as_array().unwrap();
-        let mut vals = Vec::new();
+            return vals;
+        };
 
         for val in option {
             vals.push(String::from(val.as_str().unwrap()));
@@ -152,7 +151,6 @@ impl LspCatalog {
 
         return vals;
     }
-
 
     pub fn get_semantic_tokens(&self, buffer: &Buffer) {
         let buffer_id = buffer.id;
@@ -529,12 +527,13 @@ impl LspClient {
 
     pub fn handle_message(&self, message: &str) {
         match JsonRpc::parse(message) {
-            Ok(value @JsonRpc::Request(_)) => {
+            Ok(value @ JsonRpc::Request(_)) => {
                 let id = value.get_id().unwrap();
                 self.handle_request(
                     value.get_method().unwrap(),
                     id,
-                    value.get_params().unwrap())
+                    value.get_params().unwrap(),
+                )
             }
             Ok(value @ JsonRpc::Notification(_)) => {
                 self.handle_notification(
@@ -564,7 +563,7 @@ impl LspClient {
                 // In the future, for multiple workProgress Handling we should
                 // probably store the token
                 self.send_success_response(id, &json!({}));
-            },
+            }
             method => {
                 println!("Received unhandled request {method}");
             },
@@ -588,21 +587,20 @@ impl LspClient {
                         "progress": params,
                     }),
                 );
-            },
+            }
             "window/showMessage" => {
                 // TODO: send message to display
-
-            },
+            }
             "window/logMessage" => {
                 // TODO: We should log the message here. Waiting for
                 // the discussion about handling plugins logs before doing anything
-            },
+            }
             "experimental/serverStatus" => {
                 //TODO: Logging of server status
-            },
+            }
             method => {
                 println!("Received unhandled notification {}", method);
-            },
+            }
         }
     }
 
@@ -662,7 +660,11 @@ impl LspClient {
         self.send_rpc(&to_value(&response).unwrap());
     }
 
-    pub fn send_error_response(&self, id: jsonrpc_lite::Id, error: jsonrpc_lite::Error) {
+    pub fn send_error_response(
+        &self,
+        id: jsonrpc_lite::Id,
+        error: jsonrpc_lite::Error,
+    ) {
         let response = JsonRpc::error(id, error);
 
         self.send_rpc(&to_value(&response).unwrap());

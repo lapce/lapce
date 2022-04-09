@@ -323,7 +323,7 @@ impl CompletionData {
             request_id,
             buffer_id,
             position,
-            Box::new(move |result : Result<Value, Value>| {
+            Box::new(move |result: Result<Value, Value>| {
                 if let Ok(res) = result {
                     if let Ok(resp) =
                         serde_json::from_value::<CompletionResponse>(res)

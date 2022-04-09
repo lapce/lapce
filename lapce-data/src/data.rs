@@ -12,8 +12,8 @@ use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::{PietText, PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    theme, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
-    Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
+    theme, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens, Point,
+    Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
 use lapce_rpc::{

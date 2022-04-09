@@ -13,10 +13,7 @@ use lapce_data::{
     state::Mode,
 };
 
-use crate::{
-    svg::get_svg,
-    tab::LapceIcon,
-};
+use crate::{svg::get_svg, tab::LapceIcon};
 
 pub struct LapceStatusNew {
     height: f64,
@@ -236,18 +233,12 @@ impl Widget<LapceTabData> for LapceStatusNew {
                             .unwrap_or(Mode::Normal)
                     };
                 match mode {
-                    Mode::Normal => (
-                        "Normal", LapceTheme::STATUS_MODAL_NORMAL,
-                    ),
-                    Mode::Insert => (
-                        "Insert", LapceTheme::STATUS_MODAL_INSERT,
-                    ),
-                    Mode::Visual => (
-                        "Visual", LapceTheme::STATUS_MODAL_VISUAL,
-                    ),
-                    Mode::Terminal => (
-                        "Terminal", LapceTheme::STATUS_MODAL_TERMINAL,
-                    ),
+                    Mode::Normal => ("Normal", LapceTheme::STATUS_MODAL_NORMAL),
+                    Mode::Insert => ("Insert", LapceTheme::STATUS_MODAL_INSERT),
+                    Mode::Visual => ("Visual", LapceTheme::STATUS_MODAL_VISUAL),
+                    Mode::Terminal => {
+                        ("Terminal", LapceTheme::STATUS_MODAL_TERMINAL)
+                    }
                 }
             };
 
@@ -264,10 +255,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
                 .unwrap();
             let text_size = text_layout.size();
             let fill_size = Size::new(text_size.width + 10.0, size.height);
-            ctx.fill(
-                fill_size.to_rect(),
-                data.config.get_color_unchecked(color)
-            );
+            ctx.fill(fill_size.to_rect(), data.config.get_color_unchecked(color));
             ctx.draw_text(&text_layout, Point::new(5.0, 4.0));
             left += text_size.width + 10.0;
         }

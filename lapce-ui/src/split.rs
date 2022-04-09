@@ -4,6 +4,7 @@ use crate::{
 };
 use std::sync::Arc;
 
+use crate::svg::logo_svg;
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
@@ -27,7 +28,6 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
-use crate::svg::logo_svg;
 use lapce_rpc::terminal::TermId;
 use strum::EnumMessage;
 

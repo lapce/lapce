@@ -1416,8 +1416,12 @@ impl LapceEditor {
                         }
 
                         let x0 = if line == start.line as usize {
-                            data.buffer.character_offset(start.line as usize,
-                                start.character as usize, width, data.config.editor.tab_width)
+                            data.buffer.character_offset(
+                                start.line as usize,
+                                start.character as usize,
+                                width,
+                                data.config.editor.tab_width,
+                            )
                         } else {
                             //TODO: check if tab_width is respect in the offset calculation
                             let (_, col) = data.buffer.offset_to_line_col(
@@ -1427,8 +1431,12 @@ impl LapceEditor {
                             col as f64 * width
                         };
                         let x1 = if line == end.line as usize {
-                            data.buffer.character_offset(end.line as usize,
-                                end.character as usize, width, data.config.editor.tab_width)
+                            data.buffer.character_offset(
+                                end.line as usize,
+                                end.character as usize,
+                                width,
+                                data.config.editor.tab_width,
+                            )
                         } else {
                             //TODO: check if tab_width is respect in the offset calculation
                             (data.buffer.line_end_col(

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::svg::get_svg;
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder},
@@ -18,7 +19,6 @@ use lapce_data::{
     proxy::ProxyStatus,
     state::LapceWorkspaceType,
 };
-use crate::svg::get_svg;
 use serde_json::json;
 use strum::EnumMessage;
 

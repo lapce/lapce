@@ -16,8 +16,7 @@ use lapce_data::{
 use serde_json::json;
 
 use crate::{
-    scroll::LapceScrollNew, split::LapceSplitNew, tab::LapceIcon,
-    svg::get_svg,
+    scroll::LapceScrollNew, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
 };
 
 pub struct LapcePanel {

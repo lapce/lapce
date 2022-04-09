@@ -219,7 +219,7 @@ impl BufferData {
             .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
             .chars()
         {
-            idx+=1;
+            idx += 1;
 
             if c == '\n' {
                 return offset;

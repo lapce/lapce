@@ -940,7 +940,13 @@ impl Buffer {
     /// character_offset returns the effective offset based on special character and text width.
     /// Special Characters such as tab (\t) have a different effective width
     /// TODO: refactor to avoid code duplicate
-    pub fn character_offset(&self, line: usize, col: usize, width : f64, tab_width: usize) -> f64 {
+    pub fn character_offset(
+        &self,
+        line: usize,
+        col: usize,
+        width: f64,
+        tab_width: usize,
+    ) -> f64 {
         // col is the number of character, and does not take into acount char_width
         // We update updated_col all along to reflect the actual size to compare with
         let mut updated_col = 0;
@@ -952,7 +958,7 @@ impl Buffer {
             .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
             .chars()
         {
-            idx+=1;
+            idx += 1;
 
             if c == '\n' {
                 return offset;

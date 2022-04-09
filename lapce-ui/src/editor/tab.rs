@@ -13,7 +13,6 @@ use lapce_data::{
     },
     editor::TabRect,
     split::{SplitDirection, SplitMoveDirection},
-    
 };
 
 use crate::editor::{
