@@ -566,7 +566,7 @@ impl LspClient {
                 self.send_success_response(id, &json!({}));
             },
             method => {
-                println!("Received unhandled request {}", method);
+                println!("Received unhandled request {method}");
             },
         }
     }
