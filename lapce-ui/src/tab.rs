@@ -528,15 +528,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                         let diagnostics = diagnostics
                             .diagnostics
                             .iter()
-                            .map(|d| {
-                                if d.message.contains("imported but not used") {
-                                    println!("Diagnostic:\nrange => {:?}\n message => {}", d.range, d.message);
-                                }
-                                EditorDiagnostic {
+                            .map(|d| EditorDiagnostic {
                                 range: None,
                                 diagnostic: d.clone(),
-                            }
-                        })
+                            })
                             .collect();
                         data.main_split
                             .diagnostics

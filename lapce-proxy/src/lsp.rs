@@ -468,7 +468,6 @@ impl LspClient {
         let mut process = Command::new(exec_path);
 
         for arg in binary_args {
-            println!("Adding arg: {}", arg);
             process.arg(arg);
         }
 
@@ -528,41 +527,7 @@ impl LspClient {
             .clone()
     }
 
-    fn pretty_print(&self, m: &str) {
-        match  JsonRpc::parse(m) {
-            Ok(value @JsonRpc::Request(_)) => {
-                println!("[REQUEST] ID => {:?}, method => {}, params => {:?}\n",
-                        value.get_id().unwrap(), value.get_method().unwrap(), value.get_params().unwrap());
-            },
-            Ok(value @ JsonRpc::Notification(_)) => {
-                if value.get_method().unwrap() != "window/logMessage" {
-                    println!("[NOTIFICATION] method => {}, params => {:?}\n",
-                            value.get_method().unwrap(), value.get_params().unwrap());
-                }
-            },
-            Ok(value @ JsonRpc::Success(_)) => {
-                if value.get_result().unwrap().clone() != serde_json::Value::Null {
-                    println!("[SUCCESS] ID => {:?}, result => {}\n",
-                            value.get_id().unwrap(), value.get_result().unwrap());
-                }
-            },
-            Ok(value @ JsonRpc::Error(_)) => {
-                println!("[ERROR] ID => {:?}, error => {}\n",
-                        value.get_id().unwrap(), value.get_error().unwrap());
-
-            },
-            Err(err) => {
-                println!("[OTHER] Received Error => {}\n", err);
-            }
-        }
-    }
-
     pub fn handle_message(&self, message: &str) {
-        //FIXME: remove
-        if self.language_id == "go" {
-            self.pretty_print(message);
-        }
-
         match JsonRpc::parse(message) {
             Ok(value @JsonRpc::Request(_)) => {
                 let id = value.get_id().unwrap();
@@ -595,14 +560,10 @@ impl LspClient {
     pub fn handle_request(&self, method: &str, id: Id, _params: Params) {
         match method {
             "window/workDoneProgress/create" => {
+                // Token is ignored as the workProgress Widget is always working
+                // In the future, for multiple workProgress Handling we should
+                // probably store the token
                 self.send_success_response(id, &json!({}));
-
-                // self.dispatcher.send_notification(
-                //     "work_done_progress_create",
-                //     json!({
-                //         "token": params
-                //     })
-                // );
             },
             method => {
                 println!("Received unhandled request {}", method);
@@ -629,18 +590,15 @@ impl LspClient {
                 );
             },
             "window/showMessage" => {
-                println!("Show Message => {:?}", params);
                 // TODO: send message to display
 
             },
             "window/logMessage" => {
-                // We should log the message here. Waiting for
-                // the discussion about logs before doing anything
-
-                // println!("Log Message => {:?}", params);
+                // TODO: We should log the message here. Waiting for
+                // the discussion about handling plugins logs before doing anything
             },
             "experimental/serverStatus" => {
-                println!("Received serverStatus data:\n{:?}", params);
+                //TODO: Logging of server status
             },
             method => {
                 println!("Received unhandled notification {}", method);
