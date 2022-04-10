@@ -236,11 +236,9 @@ impl PluginCatalog {
         };
 
         for l in data.lines() {
-            let s: Vec<&str> = l.split('=').collect();
-            if s.len() < 2 {
-                continue;
-            }
-            vars.push((String::from(s[0]), String::from(s[1])));
+            if let Some((key, value)) = l.split_once('=') {
+                vars.push((String::from(key), String::from(val)));
+            };
         }
 
         return vars;
