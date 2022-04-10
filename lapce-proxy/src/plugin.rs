@@ -237,7 +237,7 @@ impl PluginCatalog {
 
         for l in data.lines() {
             if let Some((key, value)) = l.split_once('=') {
-                vars.push((String::from(key), String::from(val)));
+                vars.push((String::from(key), String::from(value)));
             };
         }
 
