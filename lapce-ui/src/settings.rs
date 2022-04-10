@@ -114,9 +114,7 @@ impl LapceSettingsPanel {
         mouse_event: &MouseEvent,
         data: &mut LapceTabData,
     ) {
-        if self.close_rect.contains(mouse_event.pos)
-            || !self.content_rect.contains(mouse_event.pos)
-        {
+        if self.icon_hit_test(mouse_event) || !self.panel_hit_test(mouse_event) {
             let settings = Arc::make_mut(&mut data.settings);
             settings.shown = false;
             ctx.clear_cursor();
@@ -138,6 +136,10 @@ impl LapceSettingsPanel {
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
         self.close_rect.contains(mouse_event.pos)
+    }
+
+    fn panel_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        self.content_rect.contains(mouse_event.pos)
     }
 }
 
