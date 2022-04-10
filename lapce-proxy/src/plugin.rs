@@ -235,9 +235,7 @@ impl PluginCatalog {
             },
         };
 
-        let lines = data.lines();
-
-        for l in lines {
+        for l in data.lines() {
             let s: Vec<&str> = l.split('=').collect();
             if s.len() < 2 {
                 continue;
