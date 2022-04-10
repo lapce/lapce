@@ -193,12 +193,12 @@ impl PluginCatalog {
     ) -> Vec<(String, String)> {
         let mut vars = Vec::new();
 
-        let conf = match plugin_desc.configuration.clone() {
+        let conf = match &plugin_desc.configuration {
             Some(val) => val,
             None => return vars,
         };
 
-        let t = match serde_json::from_value::<PluginConfiguration>(conf) {
+        let t = match PluginConfiguration::deserialize(conf) {
             Ok(val) => val,
             Err(_err) => {
                 // We do not print any error as the primary error is missing field, which is allowed.
@@ -230,7 +230,9 @@ impl PluginCatalog {
 
         let data = match String::from_utf8(output.stdout) {
             Ok(val) => val,
-            Err(_err) => String::from(""),
+            Err(_err) => {
+                return vars;
+            },
         };
 
         let lines = data.lines();
