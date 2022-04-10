@@ -191,51 +191,59 @@ impl PluginCatalog {
         &mut self,
         plugin_desc: &PluginDescription,
     ) -> Vec<(String, String)> {
-        let conf = match plugin_desc.configuration.clone() {
-            Some(val) => val,
-            None => serde_json::Value::Null,
-        };
-
-        let t = serde_json::from_value::<PluginConfiguration>(conf);
         let mut vars = Vec::new();
 
-        if t.is_ok() {
-            let t = t.unwrap();
-            let args = t.env_command;
-            if args.is_empty() {
+        let conf = match plugin_desc.configuration.clone() {
+            Some(val) => val,
+            None => return vars,
+        };
+
+        let t = match serde_json::from_value::<PluginConfiguration>(conf) {
+            Ok(val) => val,
+            Err(_err) => {
+                // We do not print any error as the primary error is missing field, which is allowed.
+                // Note that the error is a custom std::Error from serde:
+                // serde::de::Error::missing_field("missing field `env_command`") and as such cannot be checked
+                // unless we create one to compare with.
                 return vars;
             }
+        };
 
-            let output = if cfg!(target_os = "windows") {
-                Command::new("cmd").arg("/c").arg(args).output()
-            } else {
-                Command::new("sh").arg("-c").arg(args).output()
-            };
+        let args = t.env_command.as_str();
 
-            if output.is_ok() {
-                let output = output.unwrap();
-                let data = match String::from_utf8(output.stdout) {
-                    Ok(val) => val,
-                    Err(_err) => String::from(""),
-                };
-
-                let lines = data.lines();
-
-                for l in lines {
-                    let s: Vec<&str> = l.split('=').collect();
-                    if s.len() < 2 {
-                        continue;
-                    }
-                    vars.push((String::from(s[0]), String::from(s[1])));
-                }
-
-                return vars;
-            } else {
-                return vars;
-            }
+        let output = if cfg!(target_os = "windows") {
+            Command::new("cmd").arg("/c").arg(args).output()
         } else {
-            return vars;
+            Command::new("sh").arg("-c").arg(args).output()
+        };
+
+        let output = match output {
+            Ok(val) => val,
+            Err(err) => {
+                println!(
+                    "Error during env command execution for plugin {}: {}",
+                    plugin_desc.name, err
+                );
+                return vars;
+            }
+        };
+
+        let data = match String::from_utf8(output.stdout) {
+            Ok(val) => val,
+            Err(_err) => String::from(""),
+        };
+
+        let lines = data.lines();
+
+        for l in lines {
+            let s: Vec<&str> = l.split('=').collect();
+            if s.len() < 2 {
+                continue;
+            }
+            vars.push((String::from(s[0]), String::from(s[1])));
         }
+
+        return vars;
     }
 
     pub fn next_plugin_id(&mut self) -> PluginId {

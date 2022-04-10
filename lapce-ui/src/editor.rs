@@ -1421,7 +1421,6 @@ impl LapceEditor {
                                 data.config.editor.tab_width,
                             ) as f64
                         } else {
-                            //TODO: check if tab_width is respect in the offset calculation
                             let (_, col) = data.buffer.offset_to_line_col(
                                 data.buffer.first_non_blank_character_on_line(line),
                                 data.config.editor.tab_width,
@@ -1434,7 +1433,6 @@ impl LapceEditor {
                                 data.config.editor.tab_width,
                             ) as f64
                         } else {
-                            //TODO: check if tab_width is respect in the offset calculation
                             (data.buffer.line_end_col(
                                 line,
                                 false,
