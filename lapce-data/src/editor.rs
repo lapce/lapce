@@ -298,12 +298,16 @@ impl LapceEditorBufferData {
                     self.add_register(start, end, is_vertical, RegisterKind::Yank);
                 }
                 MotionMode::Indent => {
-                    let selection = Selection::region(start, end);
-                    self.indent_line(selection);
+                    let selection = Some(Selection::region(start, end));
+                    self.execute_edit_command(EditCommandKind::IndentLine {
+                        selection,
+                    });
                 }
                 MotionMode::Outdent => {
-                    let selection = Selection::region(start, end);
-                    self.outdent_line(selection);
+                    let selection = Some(Selection::region(start, end));
+                    self.execute_edit_command(EditCommandKind::OutdentLine {
+                        selection,
+                    });
                 }
             }
         }
@@ -400,105 +404,6 @@ impl LapceEditorBufferData {
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
             }
         }
-    }
-
-    fn indent_line(&mut self, selection: Selection) {
-        let indent = self.buffer.indent_unit();
-        let mut edits = Vec::new();
-
-        let mut lines = HashSet::new();
-        for region in selection.regions() {
-            let start_line = self.buffer.line_of_offset(region.min());
-            let mut end_line = self.buffer.line_of_offset(region.max());
-            if end_line > start_line {
-                let end_line_start = self.buffer.offset_of_line(end_line);
-                if end_line_start == region.max() {
-                    end_line -= 1;
-                }
-            }
-            for line in start_line..end_line + 1 {
-                if lines.contains(&line) {
-                    continue;
-                }
-                lines.insert(line);
-                let line_content = self.buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = self.buffer.first_non_blank_character_on_line(line);
-                if indent.starts_with('\t') {
-                    edits.push((Selection::caret(nonblank), indent.to_string()));
-                } else {
-                    let (_, col) = self
-                        .buffer
-                        .offset_to_line_col(nonblank, self.config.editor.tab_width);
-                    let indent = " ".repeat(indent.len() - col % indent.len());
-                    edits.push((Selection::caret(nonblank), indent));
-                }
-            }
-        }
-
-        let edits = edits
-            .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
-            .collect::<Vec<(&Selection, &str)>>();
-        let delta = self.edit(&edits, true, EditType::InsertChars);
-        Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
-    }
-
-    fn outdent_line(&mut self, selection: Selection) {
-        let indent = self.buffer.indent_unit();
-        let mut edits = Vec::new();
-
-        let mut lines = HashSet::new();
-        for region in selection.regions() {
-            let start_line = self.buffer.line_of_offset(region.min());
-            let mut end_line = self.buffer.line_of_offset(region.max());
-            if end_line > start_line {
-                let end_line_start = self.buffer.offset_of_line(end_line);
-                if end_line_start == region.max() {
-                    end_line -= 1;
-                }
-            }
-            for line in start_line..end_line + 1 {
-                if lines.contains(&line) {
-                    continue;
-                }
-                lines.insert(line);
-                let line_content = self.buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = self.buffer.first_non_blank_character_on_line(line);
-                let (_, col) = self
-                    .buffer
-                    .offset_to_line_col(nonblank, self.config.editor.tab_width);
-                if col == 0 {
-                    continue;
-                }
-
-                if indent.starts_with('\t') {
-                    edits.push((
-                        Selection::region(nonblank - 1, nonblank),
-                        "".to_string(),
-                    ));
-                } else {
-                    let r = col % indent.len();
-                    let r = if r == 0 { indent.len() } else { r };
-                    edits.push((
-                        Selection::region(nonblank - r, nonblank),
-                        "".to_string(),
-                    ));
-                }
-            }
-        }
-
-        let edits = edits
-            .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
-            .collect::<Vec<(&Selection, &str)>>();
-        let delta = self.edit(&edits, true, EditType::InsertChars);
-        Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
     }
 
     fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
@@ -1240,6 +1145,24 @@ impl LapceEditorBufferData {
         delta
     }
 
+    fn execute_edit_command(
+        &mut self,
+        command: EditCommandKind,
+    ) -> Option<RopeDelta> {
+        let factory = EditCommandFactory {
+            cursor: &mut Arc::make_mut(&mut self.editor).cursor,
+            tab_width: self.config.editor.tab_width,
+        };
+
+        if let Some(edit_command) = factory.create_command(command) {
+            let buffer = Arc::make_mut(&mut self.buffer);
+
+            edit_command.execute(buffer.editable(&self.proxy))
+        } else {
+            None
+        }
+    }
+
     fn edit_with_command(&mut self, command: EditCommandKind) -> Option<RopeDelta> {
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {}
@@ -1257,39 +1180,31 @@ impl LapceEditorBufferData {
 
         self.initiate_diagnositcs_offset();
 
-        let factory = EditCommandFactory {
-            cursor: &mut Arc::make_mut(&mut self.editor).cursor,
-            tab_width: self.config.editor.tab_width,
-        };
-
-        if let Some(edit_command) = factory.create_command(command) {
-            let buffer = Arc::make_mut(&mut self.buffer);
-
-            if let Some(delta) = edit_command.execute(buffer.editable(&self.proxy)) {
-                self.inactive_apply_delta(&delta);
-                if let Some(snippet) = self.editor.snippet.clone() {
-                    let mut transformer = Transformer::new(&delta);
-                    Arc::make_mut(&mut self.editor).snippet = Some(
-                        snippet
-                            .iter()
-                            .map(|(tab, (start, end))| {
+        if let Some(delta) = self.execute_edit_command(command) {
+            self.inactive_apply_delta(&delta);
+            if let Some(snippet) = self.editor.snippet.clone() {
+                let mut transformer = Transformer::new(&delta);
+                Arc::make_mut(&mut self.editor).snippet = Some(
+                    snippet
+                        .iter()
+                        .map(|(tab, (start, end))| {
+                            (
+                                *tab,
                                 (
-                                    *tab,
-                                    (
-                                        transformer.transform(*start, false),
-                                        transformer.transform(*end, true),
-                                    ),
-                                )
-                            })
-                            .collect(),
-                    );
-                }
-
-                self.update_diagnositcs_offset(&delta);
-
-                return Some(delta);
+                                    transformer.transform(*start, false),
+                                    transformer.transform(*end, true),
+                                ),
+                            )
+                        })
+                        .collect(),
+                );
             }
+
+            self.update_diagnositcs_offset(&delta);
+
+            return Some(delta);
         }
+
         None
     }
 
@@ -2880,14 +2795,18 @@ impl KeyPressFocus for LapceEditorBufferData {
                     self.buffer.data(),
                     self.config.editor.tab_width,
                 );
-                self.indent_line(selection);
+                self.edit_with_command(EditCommandKind::IndentLine {
+                    selection: Some(selection),
+                });
             }
             LapceCommand::OutdentLine => {
                 let selection = self.editor.cursor.edit_selection(
                     self.buffer.data(),
                     self.config.editor.tab_width,
                 );
-                self.outdent_line(selection);
+                self.edit_with_command(EditCommandKind::OutdentLine {
+                    selection: Some(selection),
+                });
             }
             LapceCommand::ToggleLineComment => {
                 let mut lines = HashSet::new();

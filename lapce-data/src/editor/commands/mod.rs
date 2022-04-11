@@ -3,9 +3,10 @@ use xi_rope::RopeDelta;
 use crate::{
     buffer::data::{BufferDataListener, EditableBufferData},
     editor::commands::{
-        insert_tab::InsertTabCommand, redo::RedoCommand, undo::UndoCommand,
+        indent_line::IndentLineCommand, insert_tab::InsertTabCommand,
+        outdent_line::OutdentLineCommand, redo::RedoCommand, undo::UndoCommand,
     },
-    movement::{Cursor, CursorMode},
+    movement::{Cursor, CursorMode, Selection},
 };
 
 #[cfg(test)]
@@ -14,6 +15,9 @@ pub mod test;
 pub mod insert_tab;
 pub mod redo;
 pub mod undo;
+
+pub mod indent_line;
+pub mod outdent_line;
 
 /// This structure handles text editing commands.
 pub struct EditCommandFactory<'a> {
@@ -44,21 +48,39 @@ impl<'a> EditCommandFactory<'a> {
             EditCommandKind::Redo => Some(EditCommand::Redo(RedoCommand {
                 cursor: self.cursor,
             })),
+            EditCommandKind::IndentLine { selection } => {
+                Some(EditCommand::IndentLine(IndentLineCommand {
+                    selection,
+                    cursor: self.cursor,
+                    tab_width: self.tab_width,
+                }))
+            }
+            EditCommandKind::OutdentLine { selection } => {
+                Some(EditCommand::OutdentLine(OutdentLineCommand {
+                    selection,
+                    cursor: self.cursor,
+                    tab_width: self.tab_width,
+                }))
+            }
         }
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum EditCommandKind {
     InsertTab,
     Undo,
     Redo,
+    IndentLine { selection: Option<Selection> },
+    OutdentLine { selection: Option<Selection> },
 }
 
 pub enum EditCommand<'a> {
     InsertTab(InsertTabCommand<'a>),
     Undo(UndoCommand<'a>),
     Redo(RedoCommand<'a>),
+    IndentLine(IndentLineCommand<'a>),
+    OutdentLine(OutdentLineCommand<'a>),
 }
 
 impl<'a> EditCommand<'a> {
@@ -70,6 +92,8 @@ impl<'a> EditCommand<'a> {
             Self::InsertTab(command) => command.execute(buffer),
             Self::Undo(command) => command.execute(buffer),
             Self::Redo(command) => command.execute(buffer),
+            Self::IndentLine(command) => command.execute(buffer),
+            Self::OutdentLine(command) => command.execute(buffer),
         }
     }
 }
