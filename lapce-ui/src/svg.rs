@@ -49,12 +49,17 @@ pub fn get_svg(name: &str) -> Option<Svg> {
 }
 
 pub fn file_svg_new(path: &Path) -> Svg {
+    let extension = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
     let file_type = match path.file_name().and_then(|f| f.to_str()).unwrap_or("") {
         "LICENSE" => "license",
-        _ => match path.extension().and_then(|s| s.to_str()).unwrap_or("") {
+        _ => match extension.as_str() {
             "rs" => "rust",
             "md" => "markdown",
-            "cc" => "cpp",
+            "cxx" | "cc" | "c++" => "cpp",
             s => s,
         },
     };
