@@ -53,13 +53,13 @@ impl<'a> IndentLineCommand<'a> {
                     continue;
                 }
                 let nonblank = buffer.first_non_blank_character_on_line(line);
-                if indent.starts_with('\t') {
-                    edits.push((Selection::caret(nonblank), indent.to_string()));
+                let new_indent = if indent.starts_with('\t') {
+                    indent.to_string()
                 } else {
                     let (_, col) = buffer.offset_to_line_col(nonblank, tab_width);
-                    let indent = " ".repeat(indent.len() - col % indent.len());
-                    edits.push((Selection::caret(nonblank), indent));
-                }
+                    " ".repeat(indent.len() - col % indent.len())
+                };
+                edits.push((Selection::caret(nonblank), new_indent));
             }
         }
 

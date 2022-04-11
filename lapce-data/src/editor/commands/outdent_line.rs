@@ -58,25 +58,21 @@ impl<'a> OutdentLineCommand<'a> {
                     continue;
                 }
 
-                if indent.starts_with('\t') {
-                    edits.push((
-                        Selection::region(nonblank - 1, nonblank),
-                        "".to_string(),
-                    ));
+                let start = if indent.starts_with('\t') {
+                    nonblank - 1
                 } else {
                     let r = col % indent.len();
                     let r = if r == 0 { indent.len() } else { r };
-                    edits.push((
-                        Selection::region(nonblank - r, nonblank),
-                        "".to_string(),
-                    ));
-                }
+                    nonblank - r
+                };
+
+                edits.push((Selection::region(start, nonblank), ""));
             }
         }
 
         let edits = edits
             .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
+            .map(|(selection, s)| (selection, *s))
             .collect::<Vec<(&Selection, &str)>>();
 
         let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
