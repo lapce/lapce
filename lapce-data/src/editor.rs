@@ -442,15 +442,12 @@ impl LapceEditorBufferData {
                                 self.config.editor.tab_width,
                             ),
                         );
-                        (selection, edit.new_text.clone())
+                        (selection, edit.new_text.as_str())
                     })
-                    .collect::<Vec<(Selection, String)>>()
+                    .collect::<Vec<(Selection, &str)>>()
             });
         let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
-            edits
-                .iter()
-                .map(|(selection, c)| (selection, c.as_str()))
-                .collect()
+            edits.iter().map(|(selection, c)| (selection, *c)).collect()
         });
 
         let text_format = item
