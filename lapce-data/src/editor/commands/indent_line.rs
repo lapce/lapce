@@ -89,6 +89,26 @@ mod test {
     }
 
     #[test]
+    fn indent_indents_to_next_width_if_leading_space_is_selected() {
+        // indent width is 4 characters, this test case intentionally has 3 spaces
+        let mut editor = MockEditor::new("line\n<$0>   foo</$0>\nthird line");
+
+        editor.command(EditCommandKind::IndentLine { selection: None });
+
+        assert_eq!("line\n<$0>    foo</$0>\nthird line", editor.state());
+    }
+
+    #[test]
+    fn indent_partially_indented_line_indents_to_next_width() {
+        // indent width is 4 characters, this test case intentionally has 3 spaces
+        let mut editor = MockEditor::new("line\n   fo<$0>o</$0>\nthird line");
+
+        editor.command(EditCommandKind::IndentLine { selection: None });
+
+        assert_eq!("line\n    fo<$0>o</$0>\nthird line", editor.state());
+    }
+
+    #[test]
     fn indent_line_indents_partially_selected() {
         let mut editor = MockEditor::new("line\nf<$0>o</$0>o\nthird line");
 
