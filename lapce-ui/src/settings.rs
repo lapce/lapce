@@ -114,11 +114,10 @@ impl LapceSettingsPanel {
         mouse_event: &MouseEvent,
         data: &mut LapceTabData,
     ) {
-        if self.close_rect.contains(mouse_event.pos)
-            || !self.content_rect.contains(mouse_event.pos)
-        {
+        if self.icon_hit_test(mouse_event) || !self.panel_hit_test(mouse_event) {
             let settings = Arc::make_mut(&mut data.settings);
             settings.shown = false;
+            ctx.clear_cursor();
             return;
         }
 
@@ -137,6 +136,10 @@ impl LapceSettingsPanel {
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
         self.close_rect.contains(mouse_event.pos)
+    }
+
+    fn panel_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        self.content_rect.contains(mouse_event.pos)
     }
 }
 
@@ -357,12 +360,10 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
 
-            const SETTINGS_SECTIONS: [&str; 3] = ["Core Settings", "Editor Settings", "Keybindings"];
+            const SETTINGS_SECTIONS: [&str; 3] =
+                ["Core Settings", "Editor Settings", "Keybindings"];
 
-            for (i, text) in SETTINGS_SECTIONS
-                .into_iter()
-                .enumerate()
-            {
+            for (i, text) in SETTINGS_SECTIONS.into_iter().enumerate() {
                 let text_layout = ctx
                     .text()
                     .new_text_layout(text)

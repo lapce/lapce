@@ -52,8 +52,8 @@ pub enum LapceLanguage {
 
 impl LapceLanguage {
     pub fn from_path(path: &Path) -> Option<LapceLanguage> {
-        let extension = path.extension()?.to_str()?;
-        Some(match extension {
+        let extension = path.extension()?.to_str()?.to_lowercase();
+        Some(match extension.as_str() {
             "rs" => LapceLanguage::Rust,
             "js" => LapceLanguage::Javascript,
             "jsx" => LapceLanguage::Jsx,
@@ -65,7 +65,9 @@ impl LapceLanguage {
             "php" => LapceLanguage::Php,
             "ex" | "exs" => LapceLanguage::Elixir,
             "c" | "h" => LapceLanguage::C,
-            "cpp" | "cxx" | "cc" | "hpp" | "hxx" => LapceLanguage::Cpp,
+            "cpp" | "cxx" | "cc" | "c++" | "hpp" | "hxx" | "hh" | "h++" => {
+                LapceLanguage::Cpp
+            }
             "json" => LapceLanguage::Json,
             _ => return None,
         })
