@@ -194,7 +194,8 @@ impl Widget<LapceTabData> for TerminalPanel {
         let rect = ctx.size().to_rect();
         ctx.fill(
             rect,
-            data.config.get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
+            data.config
+                .get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
         );
         self.split.paint(ctx, data, env);
     }
@@ -579,9 +580,11 @@ impl Widget<LapceTabData> for LapceTerminal {
                     &mut term_data,
                     env,
                 ) {
+                    // 4 byte buffer used to store encoded characters.
+                    let mut char_buffer = [0; 4];
                     let s = match &key_event.key {
                         KbKey::Character(c) => {
-                            let mut s = "".to_string();
+                            let mut s = "";
                             let mut mods = key_event.mods;
                             if mods.ctrl() {
                                 mods.set(Modifiers::CONTROL, false);
@@ -592,21 +595,21 @@ impl Widget<LapceTabData> for LapceTerminal {
                                     {
                                         s = char::from_u32(i as u32)
                                             .unwrap()
-                                            .to_string()
+                                            .encode_utf8(&mut char_buffer);
                                     }
                                 }
                             }
 
                             s
                         }
-                        KbKey::Backspace => "\x08".to_string(),
-                        KbKey::Tab => "\x09".to_string(),
-                        KbKey::Enter => "\r".to_string(),
-                        KbKey::Escape => "\x1b".to_string(),
-                        _ => "".to_string(),
+                        KbKey::Backspace => "\x08",
+                        KbKey::Tab => "\x09",
+                        KbKey::Enter => "\r",
+                        KbKey::Escape => "\x1b",
+                        _ => "",
                     };
                     if term_data.terminal.mode == Mode::Terminal && !s.is_empty() {
-                        term_data.receive_char(ctx, &s);
+                        term_data.receive_char(ctx, s);
                     }
                 }
                 data.keypress = keypress.clone();
