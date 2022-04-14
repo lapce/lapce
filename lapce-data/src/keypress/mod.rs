@@ -38,7 +38,7 @@ const DEFAULT_KEYMAPS_MACOS: &str =
 const DEFAULT_KEYMAPS_NONMACOS: &str =
     include_str!("../../../defaults/keymaps-nonmacos.toml");
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum KeymapMatch {
     Full(String),
     Multiple(Vec<String>),

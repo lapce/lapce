@@ -609,6 +609,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                         term_data.receive_char(ctx, &s);
                     }
                 }
+                ctx.set_handled();
                 data.keypress = keypress.clone();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
