@@ -224,11 +224,10 @@ impl Widget<LapceTabData> for LapceStatusNew {
             let (mode, color) = {
                 let mode =
                     if data.focus_area == FocusArea::Panel(PanelKind::Terminal) {
-                        data.terminal
-                            .terminals
-                            .get(&data.terminal.active_term_id)
-                            .unwrap()
-                            .mode
+                        match data.terminal.terminals.get(&data.terminal.active_term_id) {
+                            Some(terminal) => terminal.mode,
+                            None => Mode::Normal
+                        }
                     } else {
                         data.main_split
                             .active_editor()
