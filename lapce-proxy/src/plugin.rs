@@ -2,7 +2,9 @@ use anyhow::{anyhow, Result};
 use home::home_dir;
 use hotwatch::Hotwatch;
 use lapce_rpc::counter::Counter;
-use lapce_rpc::plugin::{PluginDescription, PluginId, PluginInfo};
+use lapce_rpc::plugin::{
+    PluginConfiguration, PluginDescription, PluginId, PluginInfo,
+};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -143,10 +145,12 @@ impl PluginCatalog {
 
         let output = Pipe::new();
         let input = Pipe::new();
+        let env = self.get_plugin_env(&plugin_desc);
         let mut wasi_env = WasiState::new("Lapce")
             .map_dir("/", plugin_desc.dir.clone().unwrap())?
             .stdin(Box::new(input))
             .stdout(Box::new(output))
+            .envs(env)
             .finalize()?;
         let wasi = wasi_env.import_object(&module)?;
 
@@ -181,6 +185,63 @@ impl PluginCatalog {
         });
 
         Ok(plugin)
+    }
+
+    fn get_plugin_env(
+        &mut self,
+        plugin_desc: &PluginDescription,
+    ) -> Vec<(String, String)> {
+        let mut vars = Vec::new();
+
+        let conf = match &plugin_desc.configuration {
+            Some(val) => val,
+            None => return vars,
+        };
+
+        let t = match PluginConfiguration::deserialize(conf) {
+            Ok(val) => val,
+            Err(_err) => {
+                // We do not print any error as the primary error is missing field, which is allowed.
+                // Note that the error is a custom std::Error from serde:
+                // serde::de::Error::missing_field("missing field `env_command`") and as such cannot be checked
+                // unless we create one to compare with.
+                return vars;
+            }
+        };
+
+        let args = t.env_command.as_str();
+
+        let output = if cfg!(target_os = "windows") {
+            Command::new("cmd").arg("/c").arg(args).output()
+        } else {
+            Command::new("sh").arg("-c").arg(args).output()
+        };
+
+        let output = match output {
+            Ok(val) => val,
+            Err(err) => {
+                println!(
+                    "Error during env command execution for plugin {}: {}",
+                    plugin_desc.name, err
+                );
+                return vars;
+            }
+        };
+
+        let data = match String::from_utf8(output.stdout) {
+            Ok(val) => val,
+            Err(_err) => {
+                return vars;
+            },
+        };
+
+        for l in data.lines() {
+            if let Some((key, value)) = l.split_once('=') {
+                vars.push((String::from(key), String::from(value)));
+            };
+        }
+
+        return vars;
     }
 
     pub fn next_plugin_id(&mut self) -> PluginId {

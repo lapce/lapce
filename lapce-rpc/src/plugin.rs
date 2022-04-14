@@ -26,3 +26,15 @@ pub struct PluginInfo {
     pub os: String,
     pub configuration: Option<Value>,
 }
+
+#[derive(Deserialize, Clone, Debug, Serialize)]
+pub struct PluginConfiguration {
+    pub language_id: String,
+    pub env_command: String,
+    pub options: Option<Value>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct PluginOptions {
+    pub binary_args: Vec<String>,
+}

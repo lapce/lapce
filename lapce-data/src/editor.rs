@@ -541,12 +541,13 @@ impl LapceEditorBufferData {
                     })
                     .collect::<Vec<(Selection, String)>>()
             });
-        let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
-            edits
-                .iter()
-                .map(|(selection, c)| (selection, c.as_str()))
-                .collect()
-        });
+        let additional_edit: Option<Vec<_>> =
+            additional_edit.as_ref().map(|edits| {
+                edits
+                    .iter()
+                    .map(|(selection, c)| (selection, c.as_str()))
+                    .collect()
+            });
 
         let text_format = item
             .insert_text_format
@@ -574,7 +575,7 @@ impl LapceEditorBufferData {
                             let delta = self.edit(
                                 &[
                                     &[(&selection, edit.new_text.as_str())][..],
-                                    &additioal_edit.unwrap_or_default()[..],
+                                    &additional_edit.unwrap_or_default()[..],
                                 ]
                                 .concat(),
                                 true,
@@ -594,7 +595,7 @@ impl LapceEditorBufferData {
                             let delta = self.edit(
                                 &[
                                     &[(&selection, text.as_str())][..],
-                                    &additioal_edit.unwrap_or_default()[..],
+                                    &additional_edit.unwrap_or_default()[..],
                                 ]
                                 .concat(),
                                 true,
@@ -647,7 +648,7 @@ impl LapceEditorBufferData {
                         .as_deref()
                         .unwrap_or_else(|| item.label.as_str()),
                 )][..],
-                &additioal_edit.unwrap_or_default()[..],
+                &additional_edit.unwrap_or_default()[..],
             ]
             .concat(),
             true,
@@ -1146,7 +1147,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn initiate_diagnositcs_offset(&mut self) {
+    fn initiate_diagnostics_offset(&mut self) {
         let buffer = self.buffer.clone();
         let tab_width = self.config.editor.tab_width;
         if let Some(diagnostics) = self.diagnostics_mut() {
@@ -1154,11 +1155,11 @@ impl LapceEditorBufferData {
                 if diagnostic.range.is_none() {
                     diagnostic.range = Some((
                         buffer.offset_of_position(
-                            &diagnostic.diagnositc.range.start,
+                            &diagnostic.diagnostic.range.start,
                             tab_width,
                         ),
                         buffer.offset_of_position(
-                            &diagnostic.diagnositc.range.end,
+                            &diagnostic.diagnostic.range.end,
                             tab_width,
                         ),
                     ));
@@ -1167,7 +1168,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn update_diagnositcs_offset(&mut self, delta: &RopeDelta) {
+    fn update_diagnostics_offset(&mut self, delta: &RopeDelta) {
         let buffer = self.buffer.clone();
         let tab_width = self.config.editor.tab_width;
         if let Some(diagnostics) = self.diagnostics_mut() {
@@ -1180,11 +1181,11 @@ impl LapceEditorBufferData {
                 );
                 diagnostic.range = Some((new_start, new_end));
                 if start != new_start {
-                    diagnostic.diagnositc.range.start =
+                    diagnostic.diagnostic.range.start =
                         buffer.offset_to_position(new_start, tab_width);
                 }
                 if end != new_end {
-                    diagnostic.diagnositc.range.end =
+                    diagnostic.diagnostic.range.end =
                         buffer.offset_to_position(new_end, tab_width);
                 }
             }
@@ -1211,7 +1212,7 @@ impl LapceEditorBufferData {
             CursorMode::Insert(_) => {}
         }
 
-        self.initiate_diagnositcs_offset();
+        self.initiate_diagnostics_offset();
 
         let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
@@ -1235,7 +1236,7 @@ impl LapceEditorBufferData {
             );
         }
 
-        self.update_diagnositcs_offset(&delta);
+        self.update_diagnostics_offset(&delta);
 
         delta
     }
@@ -1255,7 +1256,7 @@ impl LapceEditorBufferData {
             CursorMode::Insert(_) => {}
         }
 
-        self.initiate_diagnositcs_offset();
+        self.initiate_diagnostics_offset();
 
         let factory = EditCommandFactory {
             cursor: &mut Arc::make_mut(&mut self.editor).cursor,
@@ -1285,7 +1286,7 @@ impl LapceEditorBufferData {
                     );
                 }
 
-                self.update_diagnositcs_offset(&delta);
+                self.update_diagnostics_offset(&delta);
 
                 return Some(delta);
             }
@@ -1378,19 +1379,19 @@ impl LapceEditorBufferData {
                 .main_split
                 .diagnostics
                 .iter()
-                .filter_map(|(path, diagnositics)| {
+                .filter_map(|(path, diagnostics)| {
                     //let buffer = self.get_buffer_from_path(ctx, ui_state, path);
-                    let mut errors: Vec<Position> = diagnositics
+                    let mut errors: Vec<Position> = diagnostics
                         .iter()
                         .filter_map(|d| {
                             let severity = d
-                                .diagnositc
+                                .diagnostic
                                 .severity
                                 .unwrap_or(DiagnosticSeverity::Hint);
                             if severity != DiagnosticSeverity::Error {
                                 return None;
                             }
-                            Some(d.diagnositc.range.start)
+                            Some(d.diagnostic.range.start)
                         })
                         .collect();
                     if errors.is_empty() {
@@ -1869,20 +1870,20 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.main_split.editor_close(ctx, self.view_id);
             }
             LapceCommand::Undo => {
-                self.initiate_diagnositcs_offset();
+                self.initiate_diagnostics_offset();
 
                 if let Some(delta) = self.edit_with_command(EditCommandKind::Undo) {
                     self.update_selection_history();
-                    self.update_diagnositcs_offset(&delta);
+                    self.update_diagnostics_offset(&delta);
                     self.update_completion(ctx);
                 }
             }
             LapceCommand::Redo => {
-                self.initiate_diagnositcs_offset();
+                self.initiate_diagnostics_offset();
 
                 if let Some(delta) = self.edit_with_command(EditCommandKind::Redo) {
                     self.update_selection_history();
-                    self.update_diagnositcs_offset(&delta);
+                    self.update_diagnostics_offset(&delta);
                     self.update_completion(ctx);
                 }
             }

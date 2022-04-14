@@ -59,6 +59,7 @@ pub struct LspClient {
     #[allow(dead_code)]
     language_id: String,
     exec_path: String,
+    binary_args: Vec<String>,
     options: Option<Value>,
     state: Arc<Mutex<LspState>>,
     dispatcher: Dispatcher,
@@ -86,10 +87,12 @@ impl LspCatalog {
         language_id: &str,
         options: Option<Value>,
     ) {
+        let binary_args = self.get_plugin_binary_args(options.clone());
         let client = LspClient::new(
             language_id.to_string(),
             exec_path,
             options,
+            binary_args,
             self.dispatcher.clone().unwrap(),
         );
         self.clients.insert(language_id.to_string(), client);
@@ -113,6 +116,40 @@ impl LspCatalog {
             let uri = client.get_uri(buffer);
             client.send_did_save(uri);
         }
+    }
+
+    fn get_plugin_binary_args(&mut self, option: Option<Value>) -> Vec<String> {
+        let mut vals = Vec::new();
+
+        let option = match option {
+            Some(val) => val,
+            None => {
+                return vals;
+            }
+        };
+
+        let binary = &option["binary"];
+        if binary.is_null() {
+            return vals;
+        }
+
+        let option = &binary["binary_args"];
+        if option.is_null() {
+            return vals;
+        }
+
+        let option = if let Some(option) = option.as_array() {
+            option
+        } else {
+            println!("binar_args value should be of type [String].");
+            return vals;
+        };
+
+        for val in option {
+            vals.push(String::from(val.as_str().unwrap()));
+        }
+
+        return vals;
     }
 
     pub fn get_semantic_tokens(&self, buffer: &Buffer) {
@@ -372,15 +409,18 @@ impl LspClient {
         language_id: String,
         exec_path: &str,
         options: Option<Value>,
+        binary_args: Vec<String>,
         dispatcher: Dispatcher,
     ) -> Arc<LspClient> {
-        let mut process = Self::process(exec_path);
+        //TODO: better handling of binary args in plugin
+        let mut process = Self::process(exec_path, binary_args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
         let lsp_client = Arc::new(LspClient {
             dispatcher,
             exec_path: exec_path.to_string(),
+            binary_args: binary_args,
             language_id,
             options,
             state: Arc::new(Mutex::new(LspState {
@@ -407,6 +447,9 @@ impl LspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
+                        // if &local_lsp_client.language_id == "go" {
+                        //     println!("Received message for client {}:\n{:#?}", &local_lsp_client.language_id, &message_str);
+                        // }
                         local_lsp_client.handle_message(message_str.as_ref());
                     }
                     Err(_err) => {
@@ -419,8 +462,13 @@ impl LspClient {
         });
     }
 
-    fn process(exec_path: &str) -> Child {
+    fn process(exec_path: &str, binary_args: Vec<String>) -> Child {
         let mut process = Command::new(exec_path);
+
+        for arg in binary_args {
+            process.arg(arg);
+        }
+
         #[cfg(target_os = "windows")]
         let process = process.creation_flags(0x08000000);
         process
@@ -431,7 +479,7 @@ impl LspClient {
     }
 
     fn reload(&self) {
-        let mut process = Self::process(&self.exec_path);
+        let mut process = Self::process(&self.exec_path, self.binary_args.clone());
         let writer = Box::new(BufWriter::new(process.stdin.take().unwrap()));
         let stdout = process.stdout.take().unwrap();
 
@@ -479,8 +527,13 @@ impl LspClient {
 
     pub fn handle_message(&self, message: &str) {
         match JsonRpc::parse(message) {
-            Ok(JsonRpc::Request(_obj)) => {
-                // trace!("client received unexpected request: {:?}", obj)
+            Ok(value @ JsonRpc::Request(_)) => {
+                let id = value.get_id().unwrap();
+                self.handle_request(
+                    value.get_method().unwrap(),
+                    id,
+                    value.get_params().unwrap(),
+                )
             }
             Ok(value @ JsonRpc::Notification(_)) => {
                 self.handle_notification(
@@ -496,9 +549,24 @@ impl LspClient {
             Ok(value @ JsonRpc::Error(_)) => {
                 let id = number_from_id(&value.get_id().unwrap());
                 let error = value.get_error().unwrap();
+                println!("Got Response erro: {}", error);
                 self.handle_response(id, Err(anyhow!("{}", error)));
             }
             Err(_err) => {}
+        }
+    }
+
+    pub fn handle_request(&self, method: &str, id: Id, _params: Params) {
+        match method {
+            "window/workDoneProgress/create" => {
+                // Token is ignored as the workProgress Widget is always working
+                // In the future, for multiple workProgress Handling we should
+                // probably store the token
+                self.send_success_response(id, &json!({}));
+            }
+            method => {
+                println!("Received unhandled request {method}");
+            }
         }
     }
 
@@ -520,7 +588,19 @@ impl LspClient {
                     }),
                 );
             }
-            _ => (),
+            "window/showMessage" => {
+                // TODO: send message to display
+            }
+            "window/logMessage" => {
+                // TODO: We should log the message here. Waiting for
+                // the discussion about handling plugins logs before doing anything
+            }
+            "experimental/serverStatus" => {
+                //TODO: Logging of server status
+            }
+            method => {
+                println!("Received unhandled notification {}", method);
+            }
         }
     }
 
@@ -547,6 +627,11 @@ impl LspClient {
             Err(err) => panic!("Encoding Error {:?}", err),
         };
 
+        //FIXME: remove
+        // if self.language_id == "go" {
+        //     println!("Sending following message through rpc for lsp {}: {}\n", &self.language_id, &rpc);
+        // }
+
         let _ = self.write(rpc.as_ref());
     }
 
@@ -569,6 +654,22 @@ impl LspClient {
         self.send_rpc(&to_value(&request).unwrap());
     }
 
+    pub fn send_success_response(&self, id: Id, result: &Value) {
+        let response = JsonRpc::success(id, result);
+
+        self.send_rpc(&to_value(&response).unwrap());
+    }
+
+    pub fn send_error_response(
+        &self,
+        id: jsonrpc_lite::Id,
+        error: jsonrpc_lite::Error,
+    ) {
+        let response = JsonRpc::error(id, error);
+
+        self.send_rpc(&to_value(&response).unwrap());
+    }
+
     fn initialize(&self) {
         if let Some(workspace) = self.dispatcher.workspace.lock().clone() {
             let root_url = Url::from_directory_path(workspace).unwrap();
@@ -579,6 +680,8 @@ impl LspClient {
                         let init_result: InitializeResult =
                             serde_json::from_value(result).unwrap();
                         let mut state = lsp_client.state.lock();
+                        //FIXME: remove
+                        // println!("Capabilities for client {}: {:?}", &lsp_client.language_id, init_result.capabilities);
                         state.server_capabilities = Some(init_result.capabilities);
                         state.is_initialized = true;
                     }

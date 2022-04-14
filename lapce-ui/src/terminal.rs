@@ -194,7 +194,8 @@ impl Widget<LapceTabData> for TerminalPanel {
         let rect = ctx.size().to_rect();
         ctx.fill(
             rect,
-            data.config.get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
+            data.config
+                .get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
         );
         self.split.paint(ctx, data, env);
     }

@@ -13,12 +13,11 @@ use lapce_data::{
     data::LapceTabData,
     editor::LapceEditorBufferData,
     state::LapceWorkspace,
-    
 };
 
 use crate::{
     svg::{file_svg_new, get_svg},
-    tab::LapceIcon
+    tab::LapceIcon,
 };
 
 pub struct LapceEditorHeader {

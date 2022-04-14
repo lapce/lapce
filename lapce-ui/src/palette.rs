@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use druid::FontWeight;
 use druid::piet::{Svg, TextAttribute, TextLayout};
+use druid::FontWeight;
 use druid::{
     kurbo::Rect,
     piet::{Text, TextLayoutBuilder},
@@ -26,7 +26,7 @@ use lsp_types::SymbolKind;
 use crate::{
     editor::view::LapceEditorView,
     scroll::{LapceIdentityWrapper, LapceScrollNew},
-    svg::{symbol_svg_new, file_svg_new},
+    svg::{file_svg_new, symbol_svg_new},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -546,95 +546,98 @@ impl NewPaletteContent {
         indices: &[usize],
         line_height: f64,
         config: &Config,
-        )
-    {
-        let (svg, text, text_indices, hint, hint_indices) = match palette_item_content {
-            PaletteItemContent::File(path, _) => Self::file_paint_items(path, indices),
-            #[allow(unused_variables)]
-            PaletteItemContent::DocumentSymbol {
-                kind,
-                name,
-                range,
-                container_name,
-            } => {
-                let text = name.to_string();
-                let hint = container_name.clone().unwrap_or_else(|| "".to_string());
-                let text_indices = indices
-                    .iter()
-                    .filter_map(|i| {
-                        let i = *i;
-                        if i < text.len() {
-                            Some(i)
-                        } else {
-                            None
+    ) {
+        let (svg, text, text_indices, hint, hint_indices) =
+            match palette_item_content {
+                PaletteItemContent::File(path, _) => {
+                    Self::file_paint_items(path, indices)
+                }
+                #[allow(unused_variables)]
+                PaletteItemContent::DocumentSymbol {
+                    kind,
+                    name,
+                    range,
+                    container_name,
+                } => {
+                    let text = name.to_string();
+                    let hint =
+                        container_name.clone().unwrap_or_else(|| "".to_string());
+                    let text_indices = indices
+                        .iter()
+                        .filter_map(|i| {
+                            let i = *i;
+                            if i < text.len() {
+                                Some(i)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    let hint_indices = indices
+                        .iter()
+                        .filter_map(|i| {
+                            let i = *i;
+                            if i >= text.len() {
+                                Some(i - text.len())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    (symbol_svg_new(kind), text, text_indices, hint, hint_indices)
+                }
+                PaletteItemContent::Line(_, text) => {
+                    (None, text.clone(), indices.to_vec(), "".to_string(), vec![])
+                }
+                PaletteItemContent::ReferenceLocation(rel_path, _location) => {
+                    Self::file_paint_items(rel_path, indices)
+                }
+                PaletteItemContent::Workspace(w) => {
+                    let text = w.path.as_ref().unwrap().to_str().unwrap();
+                    let text = match &w.kind {
+                        LapceWorkspaceType::Local => text.to_string(),
+                        LapceWorkspaceType::RemoteSSH(user, host) => {
+                            format!("[{user}@{host}] {text}")
                         }
-                    })
-                    .collect();
-                let hint_indices = indices
-                    .iter()
-                    .filter_map(|i| {
-                        let i = *i;
-                        if i >= text.len() {
-                            Some(i - text.len())
-                        } else {
-                            None
+                        LapceWorkspaceType::RemoteWSL => {
+                            format!("[wsl] {text}")
                         }
-                    })
-                    .collect();
-                (symbol_svg_new(kind), text, text_indices, hint, hint_indices)
-            }
-            PaletteItemContent::Line(_, text) => {
-                (None, text.clone(), indices.to_vec(), "".to_string(), vec![])
-            }
-            PaletteItemContent::ReferenceLocation(rel_path, _location) => {
-                Self::file_paint_items(rel_path, indices)
-            }
-            PaletteItemContent::Workspace(w) => {
-                let text = w.path.as_ref().unwrap().to_str().unwrap();
-                let text = match &w.kind {
-                    LapceWorkspaceType::Local => text.to_string(),
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("[{user}@{host}] {text}")
-                    }
-                    LapceWorkspaceType::RemoteWSL => {
-                        format!("[wsl] {text}")
-                    }
-                };
-                (None, text, indices.to_vec(), "".to_string(), vec![])
-            }
-            PaletteItemContent::Command(command) => (
-                None,
-                command
-                    .palette_desc
-                    .as_ref()
-                    .map(|m| m.to_string())
-                    .unwrap_or_else(|| "".to_string()),
-                indices.to_vec(),
-                "".to_string(),
-                vec![],
-            ),
-            PaletteItemContent::Theme(theme) => (
-                None,
-                theme.to_string(),
-                indices.to_vec(),
-                "".to_string(),
-                vec![],
-            ),
-            PaletteItemContent::TerminalLine(_line, content) => (
-                None,
-                content.clone(),
-                indices.to_vec(),
-                "".to_string(),
-                vec![],
-            ),
-            PaletteItemContent::SshHost(user, host) => (
-                None,
-                format!("{user}@{host}"),
-                indices.to_vec(),
-                "".to_string(),
-                vec![],
-            ),
-        };
+                    };
+                    (None, text, indices.to_vec(), "".to_string(), vec![])
+                }
+                PaletteItemContent::Command(command) => (
+                    None,
+                    command
+                        .palette_desc
+                        .as_ref()
+                        .map(|m| m.to_string())
+                        .unwrap_or_else(|| "".to_string()),
+                    indices.to_vec(),
+                    "".to_string(),
+                    vec![],
+                ),
+                PaletteItemContent::Theme(theme) => (
+                    None,
+                    theme.to_string(),
+                    indices.to_vec(),
+                    "".to_string(),
+                    vec![],
+                ),
+                PaletteItemContent::TerminalLine(_line, content) => (
+                    None,
+                    content.clone(),
+                    indices.to_vec(),
+                    "".to_string(),
+                    vec![],
+                ),
+                PaletteItemContent::SshHost(user, host) => (
+                    None,
+                    format!("{user}@{host}"),
+                    indices.to_vec(),
+                    "".to_string(),
+                    vec![],
+                ),
+            };
 
         if let Some(svg) = svg.as_ref() {
             let width = 14.0;
@@ -711,8 +714,7 @@ impl NewPaletteContent {
     fn file_paint_items(
         path: &Path,
         indices: &[usize],
-    ) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>)
-    {
+    ) -> (Option<Svg>, String, Vec<usize>, String, Vec<usize>) {
         let svg = file_svg_new(path);
         let file_name = path
             .file_name()
@@ -844,7 +846,7 @@ impl Widget<PaletteViewData> for NewPaletteContent {
             }
 
             let item = &items[line];
-            
+
             Self::paint_palette_item(
                 &item.content,
                 ctx,
@@ -856,8 +858,6 @@ impl Widget<PaletteViewData> for NewPaletteContent {
         }
     }
 }
-
-
 
 pub struct PalettePreview {}
 

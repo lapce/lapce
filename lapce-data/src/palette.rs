@@ -1,22 +1,17 @@
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
-use druid::{
-    Command, ExtEventSink, Lens, Modifiers, Target,
-    WidgetId,
-};
-use druid::{
-    Data, Env, EventCtx,
-};
+use druid::{Command, ExtEventSink, Lens, Modifiers, Target, WidgetId};
+use druid::{Data, Env, EventCtx};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use serde_json;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::cmp::Ordering;
 use uuid::Uuid;
 
 use crate::{

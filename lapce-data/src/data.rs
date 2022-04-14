@@ -12,8 +12,8 @@ use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::{PietText, PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    theme, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
-    Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
+    theme, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens, Point,
+    Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
 use lapce_rpc::{
@@ -300,7 +300,7 @@ impl LapceWindowData {
 #[derive(Clone)]
 pub struct EditorDiagnostic {
     pub range: Option<(usize, usize)>,
-    pub diagnositc: Diagnostic,
+    pub diagnostic: Diagnostic,
 }
 
 #[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug)]
@@ -1978,18 +1978,18 @@ impl LapceMainSplitData {
         );
     }
 
-    fn initiate_diagnositcs_offset(&mut self, path: &Path, config: &Config) {
+    fn initiate_diagnostics_offset(&mut self, path: &Path, config: &Config) {
         if let Some(diagnostics) = self.diagnostics.get_mut(path) {
             if let Some(buffer) = self.open_files.get(path) {
                 for diagnostic in Arc::make_mut(diagnostics).iter_mut() {
                     if diagnostic.range.is_none() {
                         diagnostic.range = Some((
                             buffer.offset_of_position(
-                                &diagnostic.diagnositc.range.start,
+                                &diagnostic.diagnostic.range.start,
                                 config.editor.tab_width,
                             ),
                             buffer.offset_of_position(
-                                &diagnostic.diagnositc.range.end,
+                                &diagnostic.diagnostic.range.end,
                                 config.editor.tab_width,
                             ),
                         ));
@@ -1999,7 +1999,7 @@ impl LapceMainSplitData {
         }
     }
 
-    fn update_diagnositcs_offset(
+    fn update_diagnostics_offset(
         &mut self,
         path: &Path,
         delta: &RopeDelta,
@@ -2016,11 +2016,11 @@ impl LapceMainSplitData {
                     );
                     diagnostic.range = Some((new_start, new_end));
                     if start != new_start {
-                        diagnostic.diagnositc.range.start = buffer
+                        diagnostic.diagnostic.range.start = buffer
                             .offset_to_position(new_start, config.editor.tab_width);
                     }
                     if end != new_end {
-                        diagnostic.diagnositc.range.end = buffer
+                        diagnostic.diagnostic.range.end = buffer
                             .offset_to_position(new_end, config.editor.tab_width);
                         buffer.offset_to_position(new_end, config.editor.tab_width);
                     }
@@ -2046,7 +2046,7 @@ impl LapceMainSplitData {
         edit_type: EditType,
         config: &Config,
     ) -> Option<RopeDelta> {
-        self.initiate_diagnositcs_offset(path, config);
+        self.initiate_diagnostics_offset(path, config);
         let proxy = self.proxy.clone();
         let buffer = self.open_files.get_mut(path)?;
 
@@ -2067,7 +2067,7 @@ impl LapceMainSplitData {
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
-        self.update_diagnositcs_offset(path, &delta, config);
+        self.update_diagnostics_offset(path, &delta, config);
         Some(delta)
     }
 

@@ -1,3 +1,4 @@
+use crate::svg::get_svg;
 use druid::{
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
@@ -11,7 +12,6 @@ use lapce_data::{
     panel::PanelPosition,
 };
 use serde_json::json;
-use crate::svg::get_svg;
 
 pub struct ActivityBar {}
 

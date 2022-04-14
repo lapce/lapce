@@ -1393,8 +1393,8 @@ impl LapceEditor {
         let cursor_offset = data.editor.cursor.offset();
         if let Some(diagnostics) = data.diagnostics() {
             for diagnostic in diagnostics.iter() {
-                let start = diagnostic.diagnositc.range.start;
-                let end = diagnostic.diagnositc.range.end;
+                let start = diagnostic.diagnostic.range.start;
+                let end = diagnostic.diagnostic.range.end;
                 if (start.line as usize) <= end_line
                     && (end.line as usize) >= start_line
                 {
@@ -1416,7 +1416,10 @@ impl LapceEditor {
                         }
 
                         let x0 = if line == start.line as usize {
-                            start.character as f64 * width
+                            data.buffer.offset_of_position(
+                                &start,
+                                data.config.editor.tab_width,
+                            ) as f64
                         } else {
                             let (_, col) = data.buffer.offset_to_line_col(
                                 data.buffer.first_non_blank_character_on_line(line),
@@ -1425,7 +1428,10 @@ impl LapceEditor {
                             col as f64 * width
                         };
                         let x1 = if line == end.line as usize {
-                            end.character as f64 * width
+                            data.buffer.offset_of_position(
+                                &end,
+                                data.config.editor.tab_width,
+                            ) as f64
                         } else {
                             (data.buffer.line_end_col(
                                 line,
@@ -1438,7 +1444,7 @@ impl LapceEditor {
                         let y0 = (line + 1) as f64 * line_height - 4.0;
 
                         let severity = diagnostic
-                            .diagnositc
+                            .diagnostic
                             .severity
                             .as_ref()
                             .unwrap_or(&DiagnosticSeverity::Information);
@@ -1456,7 +1462,7 @@ impl LapceEditor {
                         Self::paint_wave_line(
                             ctx,
                             Point::new(x0, y0),
-                            x1 - x0,
+                            (x1 - x0) * width,
                             color,
                         );
                     }
@@ -1468,7 +1474,7 @@ impl LapceEditor {
             if data.editor.cursor.is_normal() {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(diagnostic.diagnositc.message.clone())
+                    .new_text_layout(diagnostic.diagnostic.message.clone())
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(
                         data.config
@@ -1482,7 +1488,7 @@ impl LapceEditor {
                 let mut text_height = text_size.height;
 
                 let related = diagnostic
-                    .diagnositc
+                    .diagnostic
                     .related_information
                     .map(|related| {
                         related
@@ -1511,7 +1517,7 @@ impl LapceEditor {
                     })
                     .unwrap_or_else(Vec::new);
 
-                let start = diagnostic.diagnositc.range.start;
+                let start = diagnostic.diagnostic.range.start;
                 let rect = Rect::ZERO
                     .with_origin(Point::new(
                         0.0,
@@ -1528,7 +1534,7 @@ impl LapceEditor {
                 );
 
                 let severity = diagnostic
-                    .diagnositc
+                    .diagnostic
                     .severity
                     .as_ref()
                     .unwrap_or(&DiagnosticSeverity::Information);

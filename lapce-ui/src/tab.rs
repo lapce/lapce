@@ -530,7 +530,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .iter()
                             .map(|d| EditorDiagnostic {
                                 range: None,
-                                diagnositc: d.clone(),
+                                diagnostic: d.clone(),
                             })
                             .collect();
                         data.main_split
@@ -539,10 +539,10 @@ impl Widget<LapceTabData> for LapceTabNew {
 
                         let mut errors = 0;
                         let mut warnings = 0;
-                        for (_, diagnositics) in data.main_split.diagnostics.iter() {
-                            for diagnositic in diagnositics.iter() {
+                        for (_, diagnostics) in data.main_split.diagnostics.iter() {
+                            for diagnostic in diagnostics.iter() {
                                 if let Some(severity) =
-                                    diagnositic.diagnositc.severity
+                                    diagnostic.diagnostic.severity
                                 {
                                     match severity {
                                         DiagnosticSeverity::Error => errors += 1,

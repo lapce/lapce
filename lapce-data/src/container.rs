@@ -1,4 +1,3 @@
-
 use druid::{Point, Size};
 
 pub struct ChildState {
