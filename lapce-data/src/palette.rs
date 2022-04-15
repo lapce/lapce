@@ -761,12 +761,18 @@ impl PaletteViewData {
 
     #[allow(unused_variables)]
     fn get_commands(&mut self, ctx: &mut EventCtx) {
+        const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
+
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = self
             .keypress
             .commands
             .iter()
             .filter_map(|(_, c)| {
+                if EXCLUDED_ITEMS.contains(&c.cmd.as_str()) {
+                    return None;
+                }
+
                 c.palette_desc.as_ref().map(|m| NewPaletteItem {
                     content: PaletteItemContent::Command(c.clone()),
                     filter_text: m.to_string(),
