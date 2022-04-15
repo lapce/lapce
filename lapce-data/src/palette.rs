@@ -761,9 +761,7 @@ impl PaletteViewData {
 
     #[allow(unused_variables)]
     fn get_commands(&mut self, ctx: &mut EventCtx) {
-        let excluded_items: Vec<String> = vec![
-            String::from("palette.command")
-        ];
+        const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = self
@@ -771,7 +769,7 @@ impl PaletteViewData {
             .commands
             .iter()
             .filter_map(|(_, c)| {
-                if excluded_items.contains(&c.cmd) {
+                if EXCLUDED_ITEMS.contains(&c.cmd.as_str()) {
                     return None;
                 }
 
