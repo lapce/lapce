@@ -1871,6 +1871,7 @@ dependencies = [
  "tree-sitter-json",
  "tree-sitter-php",
  "tree-sitter-python",
+ "tree-sitter-ruby",
  "tree-sitter-rust",
  "tree-sitter-toml",
  "tree-sitter-typescript",
@@ -4147,6 +4148,15 @@ name = "tree-sitter-python"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83c46916553ebc2a5b23763cd2da8d2b104c515c8f828eb678d1477ccd8c379c"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-ruby"
+version = "0.19.0"
+source = "git+https://github.com/Liberatys/tree-sitter-ruby.git?branch=chore/allow-range-of-tree-sitter#26086eeb072266abf51273af631a2cb62d0fd1e8"
 dependencies = [
  "cc",
  "tree-sitter",
