@@ -603,9 +603,9 @@ impl Widget<LapceTabData> for LapceTerminal {
                             s
                         }
                         KbKey::Backspace => if key_event.mods.ctrl() {
-                            "\x08" // ^H
+                            "\x08" // backspace
                         } else {
-                            "\x7f" // ^?
+                            "\x7f" // DEL
                         },
                         KbKey::Tab => "\x09",
                         KbKey::Enter => "\r",
