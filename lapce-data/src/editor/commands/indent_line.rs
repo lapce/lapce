@@ -9,6 +9,7 @@ use crate::{
     },
     movement::{Cursor, Selection},
 };
+use super::indent;
 
 pub struct IndentLineCommand<'a> {
     pub(super) selection: Option<Selection>,
@@ -53,19 +54,15 @@ impl<'a> IndentLineCommand<'a> {
                     continue;
                 }
                 let nonblank = buffer.first_non_blank_character_on_line(line);
-                let new_indent = if indent.starts_with('\t') {
-                    indent.to_string()
-                } else {
-                    let (_, col) = buffer.offset_to_line_col(nonblank, tab_width);
-                    " ".repeat(indent.len() - col % indent.len())
-                };
-                edits.push((Selection::caret(nonblank), new_indent));
+                edits.push(indent::create_edit(
+                    &buffer, nonblank, indent, tab_width
+                ));
             }
         }
 
         let edits = edits
             .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
+            .map(|(selection, s)| (selection, *s))
             .collect::<Vec<(&Selection, &str)>>();
 
         let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
