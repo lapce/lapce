@@ -602,7 +602,11 @@ impl Widget<LapceTabData> for LapceTerminal {
 
                             s
                         }
-                        KbKey::Backspace => "\x08",
+                        KbKey::Backspace => if key_event.mods.ctrl() {
+                            "\x08" // ^H
+                        } else {
+                            "\x7f" // ^?
+                        },
                         KbKey::Tab => "\x09",
                         KbKey::Enter => "\r",
                         KbKey::Escape => "\x1b",
