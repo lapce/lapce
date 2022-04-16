@@ -19,6 +19,8 @@ pub mod undo;
 pub mod indent_line;
 pub mod outdent_line;
 
+mod indent;
+
 /// This structure handles text editing commands.
 pub struct EditCommandFactory<'a> {
     pub cursor: &'a mut Cursor,

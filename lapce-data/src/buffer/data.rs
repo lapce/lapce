@@ -1,4 +1,4 @@
-use lapce_core::indent::IndentStyle;
+use lapce_core::indent::{IndentStyle, DEFAULT_INDENT};
 use lapce_rpc::buffer::BufferId;
 use lsp_types::Position;
 use std::borrow::Cow;
@@ -14,8 +14,6 @@ use crate::buffer::{
     EditType, InvalLines, Revision, WordCursor,
 };
 use crate::movement::{ColPosition, Selection};
-
-pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
 
 pub trait BufferDataListener {
     fn should_apply_edit(&self) -> bool;

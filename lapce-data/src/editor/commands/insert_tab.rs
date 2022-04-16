@@ -1,3 +1,4 @@
+
 use xi_rope::RopeDelta;
 
 use crate::{
@@ -7,6 +8,7 @@ use crate::{
     },
     movement::{Cursor, Selection},
 };
+use super::indent;
 
 pub struct InsertTabCommand<'a> {
     pub(super) selection: Selection,
@@ -22,32 +24,26 @@ impl<'a> InsertTabCommand<'a> {
         let indent = buffer.indent_unit();
         let mut edits = Vec::new();
 
-        let mut create_edit = |offset| {
-            let indent = if indent.starts_with('\t') {
-                indent.to_string()
-            } else {
-                let (_, col) = buffer.offset_to_line_col(offset, self.tab_width);
-                " ".repeat(indent.len() - col % indent.len())
-            };
-            edits.push((Selection::caret(offset), indent));
-        };
-
         for region in self.selection.regions() {
             if region.is_caret() {
-                create_edit(region.start);
+                edits.push(indent::create_edit(
+                    &buffer, region.start, indent, self.tab_width
+                ))
             } else {
                 let start_line = buffer.line_of_offset(region.min());
                 let end_line = buffer.line_of_offset(region.max());
                 for line in start_line..end_line + 1 {
                     let offset = buffer.first_non_blank_character_on_line(line);
-                    create_edit(offset);
+                    edits.push(indent::create_edit(
+                        &buffer, offset, indent, self.tab_width
+                    ))
                 }
             }
         }
 
         let edits = edits
             .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
+            .map(|(selection, s)| (selection, *s))
             .collect::<Vec<(&Selection, &str)>>();
 
         let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
