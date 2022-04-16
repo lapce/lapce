@@ -43,7 +43,6 @@ pub fn launch() {
             .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
             .show_titlebar(false)
             .window_size(window_data.size)
-            .with_min_size(Size::new(400.0, 270.0))
             .set_position(window_data.pos);
         launcher = launcher.with_window(window);
     }
