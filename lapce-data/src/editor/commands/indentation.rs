@@ -38,7 +38,10 @@ pub(super) fn apply_edits<'b, L: BufferDataListener>(
     delta
 }
 
-pub(super) fn create_multi_edits<'s, 'b, L: BufferDataListener, F>(
+/// Run indentation changes in regions of `selection` in `buffer`.  The
+/// `edit_one_line` function can indent or outdent, depending on the calling
+/// command (either `IndentLine` or `OutdentLine`).
+pub(super) fn execute<'s, 'b, L: BufferDataListener, F>(
     buffer: EditableBufferData<'b, L>,
     selection: Option<Selection>,
     cursor: &mut Cursor,

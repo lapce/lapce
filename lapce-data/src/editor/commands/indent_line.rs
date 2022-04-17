@@ -24,13 +24,13 @@ impl<'a> IndentLineCommand<'a> {
             tab_width,
         } = self;
 
-        Some(indentation::create_multi_edits(
-            buffer, selection, cursor, tab_width, edit_one_line
+        Some(indentation::execute(
+            buffer, selection, cursor, tab_width, indent_one_line
         ))
     }
 }
 
-fn edit_one_line<'s, 'b, L: BufferDataListener>(
+fn indent_one_line<'s, 'b, L: BufferDataListener>(
     buffer: &EditableBufferData<'b, L>,
     offset: usize,
     indent: &'s str,
