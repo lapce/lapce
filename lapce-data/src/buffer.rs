@@ -825,7 +825,7 @@ impl Buffer {
                 .or_else(|| self.syntax().and_then(|s| s.styles.as_ref()));
 
             let line_styles = styles
-                .map(|styles| line_styles(&self.data.rope, line, &styles))
+                .map(|styles| line_styles(&self.data.rope, line, styles))
                 .unwrap_or_default();
             self.line_styles()
                 .borrow_mut()

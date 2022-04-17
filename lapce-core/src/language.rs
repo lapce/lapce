@@ -48,6 +48,7 @@ pub enum LapceLanguage {
     C,
     Cpp,
     Json,
+    Html,
 }
 
 impl LapceLanguage {
@@ -69,6 +70,7 @@ impl LapceLanguage {
                 LapceLanguage::Cpp
             }
             "json" => LapceLanguage::Json,
+            "html" | "htm" => LapceLanguage::Html,
             _ => return None,
         })
     }
@@ -88,6 +90,7 @@ impl LapceLanguage {
             LapceLanguage::C => "//",
             LapceLanguage::Cpp => "//",
             LapceLanguage::Json => "",
+            LapceLanguage::Html => "",
         }
     }
 
@@ -106,6 +109,7 @@ impl LapceLanguage {
             LapceLanguage::C => "  ",
             LapceLanguage::Cpp => "    ",
             LapceLanguage::Json => "    ",
+            LapceLanguage::Html => "    ",
         }
     }
 
@@ -126,6 +130,7 @@ impl LapceLanguage {
             LapceLanguage::C => tree_sitter_c::language(),
             LapceLanguage::Cpp => tree_sitter_cpp::language(),
             LapceLanguage::Json => tree_sitter_json::language(),
+            LapceLanguage::Html => tree_sitter_html::language(),
         }
     }
 
@@ -152,6 +157,7 @@ impl LapceLanguage {
             LapceLanguage::C => tree_sitter_c::HIGHLIGHT_QUERY,
             LapceLanguage::Cpp => tree_sitter_cpp::HIGHLIGHT_QUERY,
             LapceLanguage::Json => tree_sitter_json::HIGHLIGHT_QUERY,
+            LapceLanguage::Html => tree_sitter_html::HIGHLIGHT_QUERY,
         };
 
         HighlightConfiguration::new(language, query, "", "").unwrap()

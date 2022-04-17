@@ -49,7 +49,7 @@ where
     F: Fn(&EditableBufferData<'b, L>, usize, &'s str, usize) -> Option<(Selection, &'s str)>
 {
     let selection = selection
-        .unwrap_or_else(|| cursor.edit_selection(&buffer.buffer, tab_width));
+        .unwrap_or_else(|| cursor.edit_selection(buffer.buffer, tab_width));
 
     let indent = buffer.indent_unit();
     let mut edits = Vec::new();
