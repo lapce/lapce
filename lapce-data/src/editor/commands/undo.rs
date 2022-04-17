@@ -16,7 +16,7 @@ impl<'a> UndoCommand<'a> {
     ) -> Option<RopeDelta> {
         if let Some(delta) = buffer.do_undo() {
             if let Some(cursor) =
-                get_first_selection_after(&self.cursor, &buffer, &delta)
+                get_first_selection_after(self.cursor, &buffer, &delta)
             {
                 *self.cursor = cursor;
             }

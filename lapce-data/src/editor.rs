@@ -549,8 +549,7 @@ impl LapceEditorBufferData {
                 &[(
                     &selection,
                     item.insert_text
-                        .as_deref()
-                        .unwrap_or_else(|| item.label.as_str()),
+                        .as_deref().unwrap_or(item.label.as_str()),
                 )][..],
                 &additioal_edit.unwrap_or_default()[..],
             ]
@@ -1038,7 +1037,7 @@ impl LapceEditorBufferData {
 
     fn set_cursor(&mut self, cursor: Cursor) {
         let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor = cursor.clone();
+        editor.cursor = cursor;
         self.update_selection_history();
     }
 
@@ -2532,7 +2531,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         find.set_find(&search_str, false, false, false);
                         let mut offset = 0;
                         while let Some((start, end)) =
-                            find.next(&self.buffer.rope(), offset, false, false)
+                            find.next(self.buffer.rope(), offset, false, false)
                         {
                             offset = end;
                             new_selection
@@ -2569,7 +2568,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
-                                find.next(&self.buffer.rope(), offset, false, true)
+                                find.next(self.buffer.rope(), offset, false, true)
                             {
                                 if !selection
                                     .regions()
@@ -2614,7 +2613,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
-                                find.next(&self.buffer.rope(), offset, false, true)
+                                find.next(self.buffer.rope(), offset, false, true)
                             {
                                 if !selection
                                     .regions()
@@ -3125,7 +3124,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     Target::Widget(*self.main_split.tab_id),
                 ));
                 Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
-                let next = self.find.next(&self.buffer.rope(), offset, false, true);
+                let next = self.find.next(self.buffer.rope(), offset, false, true);
                 if let Some((start, _end)) = next {
                     self.do_move(&Movement::Offset(start), 1, mods);
                 }
@@ -3145,7 +3144,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let offset = self.editor.cursor.offset();
                 let line = self.buffer.line_of_offset(offset);
                 let offset = self.buffer.offset_of_line(line);
-                let next = self.find.next(&self.buffer.rope(), offset, false, false);
+                let next = self.find.next(self.buffer.rope(), offset, false, false);
 
                 if let Some(start) = next
                     .map(|(start, _)| start)
@@ -3155,7 +3154,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 } else {
                     let start_offset = self.buffer.offset_of_line(start_line);
                     if let Some((start, _)) = self.find.next(
-                        &self.buffer.rope(),
+                        self.buffer.rope(),
                         start_offset,
                         false,
                         true,
@@ -3167,7 +3166,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::SearchForward => {
                 Arc::make_mut(&mut self.find).visual = true;
                 let offset = self.editor.cursor.offset();
-                let next = self.find.next(&self.buffer.rope(), offset, false, true);
+                let next = self.find.next(self.buffer.rope(), offset, false, true);
                 if let Some((start, _end)) = next {
                     self.do_move(&Movement::Offset(start), 1, mods);
                 }
@@ -3190,7 +3189,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     Arc::make_mut(&mut self.find).visual = true;
                     let offset = self.editor.cursor.offset();
                     let next =
-                        self.find.next(&self.buffer.rope(), offset, true, true);
+                        self.find.next(self.buffer.rope(), offset, true, true);
                     if let Some((start, _end)) = next {
                         self.do_move(&Movement::Offset(start), 1, mods);
                     }
