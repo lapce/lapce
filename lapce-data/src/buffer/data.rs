@@ -747,7 +747,7 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
         );
 
         self.buffer.update_size(&inval_lines);
-        self.listener.on_edit_applied(&self.buffer, delta);
+        self.listener.on_edit_applied(self.buffer, delta);
     }
 
     fn undo(&mut self, groups: BTreeSet<usize>) -> RopeDelta {

@@ -28,7 +28,7 @@ impl<'a> IndentLineCommand<'a> {
         } = self;
 
         let selection = selection
-            .unwrap_or_else(|| cursor.edit_selection(&buffer.buffer, tab_width));
+            .unwrap_or_else(|| cursor.edit_selection(buffer.buffer, tab_width));
 
         let indent = buffer.indent_unit();
         let mut edits = Vec::new();
