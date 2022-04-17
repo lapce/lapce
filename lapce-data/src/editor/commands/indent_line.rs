@@ -5,7 +5,7 @@ use crate::{
     buffer::data::{BufferDataListener, EditableBufferData},
     movement::{Cursor, Selection},
 };
-use super::indent;
+use super::indentation;
 
 pub struct IndentLineCommand<'a> {
     pub(super) selection: Option<Selection>,
@@ -24,7 +24,7 @@ impl<'a> IndentLineCommand<'a> {
             tab_width,
         } = self;
 
-        Some(indent::create_multi_edits(
+        Some(indentation::create_multi_edits(
             buffer, selection, cursor, tab_width, edit_one_line
         ))
     }
@@ -36,7 +36,7 @@ fn edit_one_line<'s, 'b, L: BufferDataListener>(
     indent: &'s str,
     tab_width: usize,
 ) -> Option<(Selection, &'s str)> {
-    Some(indent::create_edit(buffer, offset, indent, tab_width))
+    Some(indentation::create_edit(buffer, offset, indent, tab_width))
 }
 
 #[cfg(test)]

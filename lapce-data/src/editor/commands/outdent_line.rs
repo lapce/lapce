@@ -6,7 +6,7 @@ use crate::{
     movement::{Cursor, Selection},
 };
 
-use super::indent;
+use super::indentation;
 
 pub struct OutdentLineCommand<'a> {
     pub(super) selection: Option<Selection>,
@@ -25,7 +25,7 @@ impl<'a> OutdentLineCommand<'a> {
             tab_width,
         } = self;
 
-        Some(indent::create_multi_edits(
+        Some(indentation::create_multi_edits(
             buffer, selection, cursor, tab_width, edit_one_line
         ))
     }

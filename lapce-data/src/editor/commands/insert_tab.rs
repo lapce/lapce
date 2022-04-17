@@ -5,7 +5,7 @@ use crate::{
     buffer::data::{BufferDataListener, EditableBufferData},
     movement::{Cursor, Selection},
 };
-use super::indent;
+use super::indentation;
 
 pub struct InsertTabCommand<'a> {
     pub(super) selection: Selection,
@@ -23,7 +23,7 @@ impl<'a> InsertTabCommand<'a> {
 
         for region in self.selection.regions() {
             if region.is_caret() {
-                edits.push(indent::create_edit(
+                edits.push(indentation::create_edit(
                     &buffer, region.start, indent, self.tab_width
                 ))
             } else {
@@ -31,14 +31,14 @@ impl<'a> InsertTabCommand<'a> {
                 let end_line = buffer.line_of_offset(region.max());
                 for line in start_line..end_line + 1 {
                     let offset = buffer.first_non_blank_character_on_line(line);
-                    edits.push(indent::create_edit(
+                    edits.push(indentation::create_edit(
                         &buffer, offset, indent, self.tab_width
                     ))
                 }
             }
         }
 
-        Some(indent::apply_edits(buffer, self.cursor, edits))
+        Some(indentation::apply_edits(buffer, self.cursor, edits))
     }
 }
 
