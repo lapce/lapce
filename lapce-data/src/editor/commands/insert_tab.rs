@@ -2,10 +2,7 @@
 use xi_rope::RopeDelta;
 
 use crate::{
-    buffer::{
-        data::{BufferDataListener, EditableBufferData},
-        EditType,
-    },
+    buffer::data::{BufferDataListener, EditableBufferData},
     movement::{Cursor, Selection},
 };
 use super::indent;
@@ -19,7 +16,7 @@ pub struct InsertTabCommand<'a> {
 impl<'a> InsertTabCommand<'a> {
     pub fn execute<L: BufferDataListener>(
         self,
-        mut buffer: EditableBufferData<'a, L>,
+        buffer: EditableBufferData<'a, L>,
     ) -> Option<RopeDelta> {
         let indent = buffer.indent_unit();
         let mut edits = Vec::new();
@@ -41,16 +38,7 @@ impl<'a> InsertTabCommand<'a> {
             }
         }
 
-        let edits = edits
-            .iter()
-            .map(|(selection, s)| (selection, *s))
-            .collect::<Vec<(&Selection, &str)>>();
-
-        let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
-
-        self.cursor.apply_delta(&delta);
-
-        Some(delta)
+        Some(indent::apply_edits(buffer, self.cursor, edits))
     }
 }
 

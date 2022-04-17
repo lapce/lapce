@@ -1,12 +1,8 @@
-use std::collections::HashSet;
 
 use xi_rope::RopeDelta;
 
 use crate::{
-    buffer::{
-        data::{BufferDataListener, EditableBufferData},
-        EditType,
-    },
+    buffer::data::{BufferDataListener, EditableBufferData},
     movement::{Cursor, Selection},
 };
 use super::indent;
@@ -20,7 +16,7 @@ pub struct IndentLineCommand<'a> {
 impl<'a> IndentLineCommand<'a> {
     pub fn execute<L: BufferDataListener>(
         self,
-        mut buffer: EditableBufferData<'a, L>,
+        buffer: EditableBufferData<'a, L>,
     ) -> Option<RopeDelta> {
         let Self {
             selection,
@@ -28,48 +24,19 @@ impl<'a> IndentLineCommand<'a> {
             tab_width,
         } = self;
 
-        let selection = selection
-            .unwrap_or_else(|| cursor.edit_selection(&buffer.buffer, tab_width));
-
-        let indent = buffer.indent_unit();
-        let mut edits = Vec::new();
-
-        let mut lines = HashSet::new();
-        for region in selection.regions() {
-            let start_line = buffer.line_of_offset(region.min());
-            let mut end_line = buffer.line_of_offset(region.max());
-            if end_line > start_line {
-                let end_line_start = buffer.offset_of_line(end_line);
-                if end_line_start == region.max() {
-                    end_line -= 1;
-                }
-            }
-            for line in start_line..end_line + 1 {
-                if lines.contains(&line) {
-                    continue;
-                }
-                lines.insert(line);
-                let line_content = buffer.buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = buffer.first_non_blank_character_on_line(line);
-                edits.push(indent::create_edit(
-                    &buffer, nonblank, indent, tab_width
-                ));
-            }
-        }
-
-        let edits = edits
-            .iter()
-            .map(|(selection, s)| (selection, *s))
-            .collect::<Vec<(&Selection, &str)>>();
-
-        let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
-        cursor.apply_delta(&delta);
-
-        Some(delta)
+        Some(indent::create_multi_edits(
+            buffer, selection, cursor, tab_width, edit_one_line
+        ))
     }
+}
+
+fn edit_one_line<'s, 'b, L: BufferDataListener>(
+    buffer: &EditableBufferData<'b, L>,
+    offset: usize,
+    indent: &'s str,
+    tab_width: usize,
+) -> Option<(Selection, &'s str)> {
+    Some(indent::create_edit(buffer, offset, indent, tab_width))
 }
 
 #[cfg(test)]
