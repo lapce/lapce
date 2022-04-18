@@ -29,7 +29,7 @@ use xi_rope::{
 use xi_unicode::EmojiExt;
 
 use crate::buffer::data::{
-    BufferData, BufferDataListener, EditableBufferData, DEFAULT_INDENT,
+    BufferData, BufferDataListener, EditableBufferData,
 };
 use crate::buffer::decoration::BufferDecoration;
 use crate::config::{Config, LapceTheme};
@@ -431,7 +431,7 @@ impl Buffer {
             .unwrap_or_else(|| {
                 self.syntax()
                     .map(|s| IndentStyle::from_str(s.language.indent_unit()))
-                    .unwrap_or(DEFAULT_INDENT)
+                    .unwrap_or(IndentStyle::DEFAULT_INDENT)
             });
     }
 

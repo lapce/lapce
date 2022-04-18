@@ -15,8 +15,6 @@ use crate::buffer::{
 };
 use crate::movement::{ColPosition, Selection};
 
-pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
-
 pub trait BufferDataListener {
     fn should_apply_edit(&self) -> bool;
 
@@ -81,7 +79,7 @@ impl BufferData {
             tombstones: Rope::default(),
 
             last_edit_type: EditType::Other,
-            indent_style: DEFAULT_INDENT,
+            indent_style: IndentStyle::DEFAULT_INDENT,
         }
     }
 

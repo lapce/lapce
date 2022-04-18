@@ -1,12 +1,11 @@
+
 use xi_rope::RopeDelta;
 
 use crate::{
-    buffer::{
-        data::{BufferDataListener, EditableBufferData},
-        EditType,
-    },
+    buffer::data::{BufferDataListener, EditableBufferData},
     movement::{Cursor, Selection},
 };
+use super::indentation;
 
 pub struct InsertTabCommand<'a> {
     pub(super) selection: Selection,
@@ -17,44 +16,29 @@ pub struct InsertTabCommand<'a> {
 impl<'a> InsertTabCommand<'a> {
     pub fn execute<L: BufferDataListener>(
         self,
-        mut buffer: EditableBufferData<'a, L>,
+        buffer: EditableBufferData<'a, L>,
     ) -> Option<RopeDelta> {
         let indent = buffer.indent_unit();
         let mut edits = Vec::new();
 
-        let mut create_edit = |offset| {
-            let indent = if indent.starts_with('\t') {
-                indent.to_string()
-            } else {
-                let (_, col) = buffer.offset_to_line_col(offset, self.tab_width);
-                " ".repeat(indent.len() - col % indent.len())
-            };
-            edits.push((Selection::caret(offset), indent));
-        };
-
         for region in self.selection.regions() {
             if region.is_caret() {
-                create_edit(region.start);
+                edits.push(indentation::create_edit(
+                    &buffer, region.start, indent, self.tab_width
+                ))
             } else {
                 let start_line = buffer.line_of_offset(region.min());
                 let end_line = buffer.line_of_offset(region.max());
                 for line in start_line..end_line + 1 {
                     let offset = buffer.first_non_blank_character_on_line(line);
-                    create_edit(offset);
+                    edits.push(indentation::create_edit(
+                        &buffer, offset, indent, self.tab_width
+                    ))
                 }
             }
         }
 
-        let edits = edits
-            .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
-            .collect::<Vec<(&Selection, &str)>>();
-
-        let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
-
-        self.cursor.apply_delta(&delta);
-
-        Some(delta)
+        Some(indentation::apply_edits(buffer, self.cursor, edits))
     }
 }
 
