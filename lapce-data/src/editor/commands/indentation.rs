@@ -2,8 +2,11 @@ use std::collections::HashSet;
 use xi_rope::RopeDelta;
 
 use crate::{
-    buffer::{data::{BufferDataListener, EditableBufferData}, EditType},
-    movement::{Selection, Cursor},
+    buffer::{
+        data::{BufferDataListener, EditableBufferData},
+        EditType,
+    },
+    movement::{Cursor, Selection},
 };
 use lapce_core::indent::IndentStyle;
 
@@ -26,13 +29,8 @@ pub(super) fn create_edit<'s, 'b, L: BufferDataListener>(
 pub(super) fn apply_edits<'b, L: BufferDataListener>(
     mut buffer: EditableBufferData<'b, L>,
     cursor: &mut Cursor,
-    edits: Vec<(Selection, &str)>
+    edits: &[(Selection, &str)],
 ) -> RopeDelta {
-    let edits = edits
-        .iter()
-        .map(|(selection, s)| (selection, *s))
-        .collect::<Vec<(&Selection, &str)>>();
-
     let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
     cursor.apply_delta(&delta);
     delta
@@ -49,10 +47,15 @@ pub(super) fn execute<'s, 'b, L: BufferDataListener, F>(
     edit_one_line: F,
 ) -> RopeDelta
 where
-    F: Fn(&EditableBufferData<'b, L>, usize, &'s str, usize) -> Option<(Selection, &'s str)>
+    F: Fn(
+        &EditableBufferData<'b, L>,
+        usize,
+        &'s str,
+        usize,
+    ) -> Option<(Selection, &'s str)>,
 {
-    let selection = selection
-        .unwrap_or_else(|| cursor.edit_selection(buffer.buffer, tab_width));
+    let selection =
+        selection.unwrap_or_else(|| cursor.edit_selection(buffer.buffer, tab_width));
 
     let indent = buffer.indent_unit();
     let mut edits = Vec::new();
@@ -67,7 +70,7 @@ where
                 end_line -= 1;
             }
         }
-        for line in start_line..end_line + 1 {
+        for line in start_line..=end_line {
             if lines.contains(&line) {
                 continue;
             }
@@ -78,9 +81,9 @@ where
             }
             let nonblank = buffer.first_non_blank_character_on_line(line);
             if let Some(edit) = edit_one_line(&buffer, nonblank, indent, tab_width) {
-                edits.push(edit)
+                edits.push(edit);
             }
         }
     }
-    apply_edits(buffer, cursor, edits)
+    apply_edits(buffer, cursor, &edits)
 }
