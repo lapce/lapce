@@ -22,8 +22,9 @@ impl IndentStyle {
     #[allow(clippy::should_implement_trait)]
     #[inline]
     pub fn from_str(indent: &str) -> Self {
+        debug_assert!(!indent.is_empty() && indent.len() <= Self::LONGEST_INDENT.len());
         if indent.starts_with(' ') {
-            IndentStyle::Spaces((indent.len() % Self::LONGEST_INDENT.len()) as u8)
+            IndentStyle::Spaces(indent.len() as u8)
         } else {
             IndentStyle::Tabs
         }
@@ -36,7 +37,10 @@ impl IndentStyle {
             IndentStyle::Spaces(x) if x <= Self::LONGEST_INDENT.len() as u8 => Self::LONGEST_INDENT.split_at(x.into()).0,
             // Unsupported indentation style.  This should never happen,
             // but just in case fall back to the default of 4 spaces
-            _ => "    "
+            IndentStyle::Spaces(n) => {
+                debug_assert!(n > 0 && n <= Self::LONGEST_INDENT.len() as u8);
+                "    "
+            }
         }
     }
 }
