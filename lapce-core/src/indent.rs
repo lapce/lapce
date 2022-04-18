@@ -11,10 +11,10 @@ pub enum IndentStyle {
     Spaces(u8),
 }
 
-pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
-
 impl IndentStyle {
     pub const LONGEST_INDENT: &'static str = "        "; // 8 spaces
+    pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
+
 
     /// Creates an `IndentStyle` from an indentation string.
     ///

@@ -1,4 +1,4 @@
-use lapce_core::indent::{IndentStyle, DEFAULT_INDENT};
+use lapce_core::indent::IndentStyle;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::Position;
 use std::borrow::Cow;
@@ -79,7 +79,7 @@ impl BufferData {
             tombstones: Rope::default(),
 
             last_edit_type: EditType::Other,
-            indent_style: DEFAULT_INDENT,
+            indent_style: IndentStyle::DEFAULT_INDENT,
         }
     }
 

@@ -4,7 +4,7 @@ use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
     Data, ExtEventSink, Target, WidgetId, WindowId,
 };
-use lapce_core::indent::{auto_detect_indent_style, IndentStyle, DEFAULT_INDENT};
+use lapce_core::indent::{auto_detect_indent_style, IndentStyle};
 use lapce_core::style::line_styles;
 use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
@@ -431,7 +431,7 @@ impl Buffer {
             .unwrap_or_else(|| {
                 self.syntax()
                     .map(|s| IndentStyle::from_str(s.language.indent_unit()))
-                    .unwrap_or(DEFAULT_INDENT)
+                    .unwrap_or(IndentStyle::DEFAULT_INDENT)
             });
     }
 
