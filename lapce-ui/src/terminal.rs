@@ -11,15 +11,14 @@ use alacritty_terminal::{
 use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, FontFamily,
-    FontWeight, KbKey, KeyEvent, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers,
-    MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
-    Widget, WidgetExt, WidgetId, WidgetPod,
+    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    keypress::KeyPressFocus,
     proxy::LapceProxy,
     split::SplitDirection,
     state::Mode,
@@ -35,11 +34,6 @@ use crate::{
     svg::get_svg,
     tab::LapceIcon,
 };
-
-const CTRL_CHARS: &[char] = &[
-    '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
-];
 
 pub type TermConfig = alacritty_terminal::config::Config;
 
