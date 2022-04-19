@@ -951,15 +951,16 @@ impl LapceTabData {
                     let event_sink = ctx.get_external_handle();
                     let window_id = self.window_id;
                     thread::spawn(move || {
-                        let dir = directories::UserDirs::new()
-                            .and_then(|u| {
-                                u.home_dir().to_str().map(|s| s.to_string())
-                            })
-                            .unwrap_or_else(|| ".".to_string());
-                        if let Some(folder) = tinyfiledialogs::select_folder_dialog(
-                            "Open folder",
-                            &dir,
-                        ) {
+                        let dirs = directories::UserDirs::new();
+
+                        let dir = dirs
+                            .as_ref()
+                            .and_then(|u| u.home_dir().to_str())
+                            .unwrap_or(".");
+
+                        if let Some(folder) =
+                            tinyfiledialogs::select_folder_dialog("Open folder", dir)
+                        {
                             let path = PathBuf::from(folder);
                             let workspace = LapceWorkspace {
                                 kind: LapceWorkspaceType::Local,
@@ -1025,20 +1026,21 @@ impl LapceTabData {
                     let event_sink = ctx.get_external_handle();
                     let tab_id = self.id;
                     thread::spawn(move || {
-                        let dir = workspace.path.clone().unwrap_or_else(|| {
-                            PathBuf::from(
-                                directories::UserDirs::new()
-                                    .and_then(|u| {
-                                        u.home_dir().to_str().map(|s| s.to_string())
-                                    })
-                                    .unwrap_or_else(|| ".".to_string()),
-                            )
-                        });
-                        if let Some(path) = tinyfiledialogs::open_file_dialog(
-                            "Open file",
-                            dir.to_str().unwrap(),
-                            None,
-                        ) {
+                        let dirs;
+                        let dir =
+                            match workspace.path.as_deref().and_then(Path::to_str) {
+                                Some(path) => path,
+                                None => {
+                                    dirs = directories::UserDirs::new();
+                                    dirs.as_ref()
+                                        .and_then(|u| u.home_dir().to_str())
+                                        .unwrap_or(".")
+                                }
+                            };
+
+                        if let Some(path) =
+                            tinyfiledialogs::open_file_dialog("Open file", dir, None)
+                        {
                             let path = PathBuf::from(path);
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
