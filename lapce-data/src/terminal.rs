@@ -662,7 +662,7 @@ impl LapceTerminalData {
         }
 
         // Generates ANSI sequences to move the cursor by one position.
-        macro_rules! move_cursor_one {
+        macro_rules! term_sequence {
             ([], $evt:ident, $pre:literal, $post:literal) => {
                 if $evt.mods.is_empty() {
                     return Some(concat!($pre, $post));
@@ -670,21 +670,21 @@ impl LapceTerminalData {
             };
             ([all], $evt:ident, $pre:literal, $post:literal) => {
                 {
-                    move_cursor_one!([], $evt, $pre, $post);
-                    move_cursor_one!([shift, alt, ctrl], $evt, $pre, $post);
-                    move_cursor_one!([alt | shift, ctrl | shift, alt | ctrl], $evt, $pre, $post);
-                    move_cursor_one!([alt | ctrl | shift], $evt, $pre, $post);
+                    term_sequence!([], $evt, $pre, $post);
+                    term_sequence!([shift, alt, ctrl], $evt, $pre, $post);
+                    term_sequence!([alt | shift, ctrl | shift, alt | ctrl], $evt, $pre, $post);
+                    term_sequence!([alt | ctrl | shift], $evt, $pre, $post);
                     return None;
                 }
             };
             ([$($mod:ident)|+], $evt:ident, $pre:literal, $post:literal) => {
                 if $evt.mods == modifiers!($($mod)|+) {
-                    return Some(concat!($pre, "1;", modval!($($mod)|+), $post));
+                    return Some(concat!($pre, ";", modval!($($mod)|+), $post));
                 }
             };
             ([$($($mod:ident)|+),+], $evt:ident, $pre:literal, $post:literal) => {
                 $(
-                    move_cursor_one!([$($mod)|+], $evt, $pre, $post);
+                    term_sequence!([$($mod)|+], $evt, $pre, $post);
                 )+
             };
         }
@@ -746,12 +746,14 @@ impl LapceTerminalData {
             Key::Escape => Some("\x1b"),
 
             // The following either expands to `\x1b[X` or `\x1b[1;NX` where N is a modifier value
-            Key::ArrowUp => move_cursor_one!([all], key, "\x1b[", "A"),
-            Key::ArrowDown => move_cursor_one!([all], key, "\x1b[", "B"),
-            Key::ArrowRight => move_cursor_one!([all], key, "\x1b[", "C"),
-            Key::ArrowLeft => move_cursor_one!([all], key, "\x1b[", "D"),
-            Key::Home => move_cursor_one!([all], key, "\x1b[", "H"),
-            Key::End => move_cursor_one!([all], key, "\x1b[", "F"),
+            Key::ArrowUp => term_sequence!([all], key, "\x1b[1", "A"),
+            Key::ArrowDown => term_sequence!([all], key, "\x1b[1", "B"),
+            Key::ArrowRight => term_sequence!([all], key, "\x1b[1", "C"),
+            Key::ArrowLeft => term_sequence!([all], key, "\x1b[1", "D"),
+            Key::Home => term_sequence!([all], key, "\x1b[1", "H"),
+            Key::End => term_sequence!([all], key, "\x1b[1", "F"),
+            Key::Insert => term_sequence!([all], key, "\x1b[2", "~"),
+            Key::Delete => term_sequence!([all], key, "\x1b[3", "~"),
             _ => None,
         }
     }
