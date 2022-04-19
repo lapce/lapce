@@ -660,35 +660,38 @@ impl LapceTerminalData {
         // Generates modifier values for ANSI sequences.
         macro_rules! modval {
             (shift) => {
+                // 1
                 "2"
             };
             (alt) => {
+                // 2
                 "3"
             };
             (alt | shift) => {
+                // 1 + 2
                 "4"
             };
             (ctrl) => {
+                // 4
                 "5"
             };
             (ctrl | shift) => {
+                // 1 + 4
                 "6"
             };
             (alt | ctrl) => {
+                // 2 + 4
                 "7"
             };
             (alt | ctrl | shift) => {
+                // 1 + 2 + 4
                 "8"
             };
         }
 
         // Generates ANSI sequences to move the cursor by one position.
         macro_rules! term_sequence {
-            ([], $evt:ident, $pre:literal, $post:literal) => {
-                if $evt.mods.is_empty() {
-                    return Some(concat!($pre, $post));
-                }
-            };
+            // Generate every modifier combination (except meta)
             ([all], $evt:ident, $pre:literal, $post:literal) => {
                 {
                     term_sequence!([], $evt, $pre, $post);
@@ -698,11 +701,19 @@ impl LapceTerminalData {
                     return None;
                 }
             };
+            // No modifiers
+            ([], $evt:ident, $pre:literal, $post:literal) => {
+                if $evt.mods.is_empty() {
+                    return Some(concat!($pre, $post));
+                }
+            };
+            // A single modifier combination
             ([$($mod:ident)|+], $evt:ident, $pre:literal, $post:literal) => {
                 if $evt.mods == modifiers!($($mod)|+) {
                     return Some(concat!($pre, ";", modval!($($mod)|+), $post));
                 }
             };
+            // Break down multiple modifiers into a series of single combination branches
             ([$($($mod:ident)|+),+], $evt:ident, $pre:literal, $post:literal) => {
                 $(
                     term_sequence!([$($mod)|+], $evt, $pre, $post);
@@ -713,6 +724,8 @@ impl LapceTerminalData {
         match key.key {
             Key::Character(ref c) => {
                 if key.mods == Modifiers::CONTROL {
+                    // Convert the character into its index (into a control character).
+                    // In essence, this turns `ctrl+h` into `^h`
                     let str = match c.as_str() {
                         "@" => "\x00",
                         "a" => "\x01",
@@ -766,7 +779,7 @@ impl LapceTerminalData {
             Key::Enter => Some("\r"),
             Key::Escape => Some("\x1b"),
 
-            // The following either expands to `\x1b[X` or `\x1b[1;NX` where N is a modifier value
+            // The following either expands to `\x1b[1X` or `\x1b[1;NX` where N is a modifier value
             Key::ArrowUp => term_sequence!([all], key, "\x1b[1", "A"),
             Key::ArrowDown => term_sequence!([all], key, "\x1b[1", "B"),
             Key::ArrowRight => term_sequence!([all], key, "\x1b[1", "C"),
