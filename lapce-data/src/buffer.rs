@@ -28,9 +28,7 @@ use xi_rope::{
 };
 use xi_unicode::EmojiExt;
 
-use crate::buffer::data::{
-    BufferData, BufferDataListener, EditableBufferData,
-};
+use crate::buffer::data::{BufferData, BufferDataListener, EditableBufferData};
 use crate::buffer::decoration::BufferDecoration;
 use crate::config::{Config, LapceTheme};
 use crate::editor::EditorLocationNew;
@@ -872,11 +870,7 @@ impl Buffer {
                 }
             }
         }
-        Some(layout_builder.build_with_info(
-            true,
-            config.editor.tab_width,
-            Some(bounds),
-        ))
+        Some(layout_builder.build().unwrap())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -922,7 +916,7 @@ impl Buffer {
                 }
             }
         }
-        layout_builder.build_with_info(true, config.editor.tab_width, Some(bounds))
+        layout_builder.build().unwrap()
     }
 
     pub fn indent_on_line(&self, line: usize) -> String {

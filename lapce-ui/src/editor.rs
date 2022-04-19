@@ -561,11 +561,8 @@ impl LapceEditor {
                                         )
                                         .clone(),
                                 )
-                                .build_with_info(
-                                    true,
-                                    data.config.editor.tab_width,
-                                    Some([rect.x0, rect.x1]),
-                                );
+                                .build()
+                                .unwrap();
                             ctx.draw_text(
                                 &text_layout,
                                 Point::new(0.0, line_height * line as f64 + y_shift),
@@ -721,7 +718,9 @@ impl LapceEditor {
                     &text_layout,
                     Point::new(
                         0.0,
-                        line_height * line as f64 + y_shift + line_padding,
+                        line_height * line as f64
+                            + (line_height - text_layout.size().height) / 2.0
+                            + line_padding,
                     ),
                 );
             }

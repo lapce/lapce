@@ -13,12 +13,11 @@ use lapce_data::{
     data::LapceTabData,
     editor::LapceEditorBufferData,
     state::LapceWorkspace,
-    
 };
 
 use crate::{
     svg::{file_svg_new, get_svg},
-    tab::LapceIcon
+    tab::LapceIcon,
 };
 
 pub struct LapceEditorHeader {
@@ -120,7 +119,8 @@ impl LapceEditorHeader {
         workspace: &LapceWorkspace,
     ) {
         let shadow_width = 5.0;
-        let rect = ctx.size().to_rect();
+        let size = ctx.size();
+        let rect = size.to_rect();
         ctx.blurred_rect(
             rect,
             shadow_width,
@@ -174,7 +174,13 @@ impl LapceEditorHeader {
                     )
                     .build()
                     .unwrap();
-                ctx.draw_text(&text_layout, Point::new(30.0, 7.0));
+                ctx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        30.0,
+                        (size.height - text_layout.size().height) / 2.0,
+                    ),
+                );
 
                 if let Some(workspace_path) = workspace.path.as_ref() {
                     path = path
@@ -201,7 +207,13 @@ impl LapceEditorHeader {
                         )
                         .build()
                         .unwrap();
-                    ctx.draw_text(&text_layout, Point::new(30.0 + x + 5.0, 7.0));
+                    ctx.draw_text(
+                        &text_layout,
+                        Point::new(
+                            30.0 + x + 5.0,
+                            (size.height - text_layout.size().height) / 2.0,
+                        ),
+                    );
                 }
             });
         }
