@@ -949,7 +949,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::OpenFolder => {
                 if !self.workspace.kind.is_remote() {
                     let event_sink = ctx.get_external_handle();
-                    let tab_id = self.id;
+                    let window_id = self.window_id;
                     thread::spawn(move || {
                         let dir = directories::UserDirs::new()
                             .and_then(|u| {
@@ -973,7 +973,7 @@ impl LapceTabData {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::SetWorkspace(workspace),
-                                Target::Auto,
+                                Target::Window(window_id),
                             );
                         }
                     });
