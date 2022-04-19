@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use alacritty_terminal::{
     ansi,
-    event::EventListener,
     grid::Dimensions,
     index::{Direction, Side},
     term::{cell::Flags, search::RegexSearch, SizeInfo},
@@ -22,7 +21,7 @@ use lapce_data::{
     proxy::LapceProxy,
     split::SplitDirection,
     state::Mode,
-    terminal::{LapceTerminalData, LapceTerminalViewData},
+    terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
@@ -851,33 +850,6 @@ impl Widget<LapceTabData> for LapceTerminal {
                     }
                 }
             }
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct EventProxy {
-    term_id: TermId,
-    proxy: Arc<LapceProxy>,
-    event_sink: ExtEventSink,
-}
-
-impl EventProxy {}
-
-impl EventListener for EventProxy {
-    fn send_event(&self, event: alacritty_terminal::event::Event) {
-        match event {
-            alacritty_terminal::event::Event::PtyWrite(s) => {
-                self.proxy.terminal_write(self.term_id, &s);
-            }
-            alacritty_terminal::event::Event::Title(title) => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateTerminalTitle(self.term_id, title),
-                    Target::Widget(self.proxy.tab_id),
-                );
-            }
-            _ => (),
         }
     }
 }
