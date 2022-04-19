@@ -665,6 +665,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         {
             ctx.request_paint();
         }
+        self.editor.update(ctx, data, env);
     }
 
     fn layout(

@@ -388,12 +388,15 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 );
             }
 
-            ctx.blurred_rect(
-                self.header_rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            ctx.with_save(|ctx| {
+                ctx.clip(self.header_rect.inflate(0.0, 50.0) + Vec2::new(0.0, 50.0));
+                ctx.blurred_rect(
+                    self.header_rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            });
             let text_layout = ctx
                 .text()
                 .new_text_layout("Settings")
@@ -1024,10 +1027,6 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
         let text = ctx.text();
         let text = self.name(text, data);
-        text.set_color(
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-        );
         y += padding;
         ctx.draw_text(text, Point::new(0.0, y));
         y += text.size().height + padding;
@@ -1063,10 +1062,6 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         };
         let text = ctx.text();
         let text = self.desc(text, data);
-        text.set_color(
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-        );
         ctx.draw_text(text, Point::new(x, y));
 
         if let Some(input) = self.input_widget.as_mut() {

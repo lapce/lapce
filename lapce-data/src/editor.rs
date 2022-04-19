@@ -1,4 +1,3 @@
-use crate::buffer::get_word_property;
 use crate::buffer::matching_char;
 use crate::buffer::{
     has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
@@ -20,9 +19,9 @@ use crate::editor::commands::EditCommandFactory;
 use crate::editor::commands::EditCommandKind;
 use crate::hover::HoverData;
 use crate::hover::HoverStatus;
+use crate::movement::CursorMode;
 use crate::movement::InsertDrift;
 use crate::proxy::path_from_url;
-use crate::{buffer::WordProperty, movement::CursorMode};
 use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     movement::{Movement, SelRegion, Selection},
@@ -442,15 +441,12 @@ impl LapceEditorBufferData {
                                 self.config.editor.tab_width,
                             ),
                         );
-                        (selection, edit.new_text.clone())
+                        (selection, edit.new_text.as_str())
                     })
-                    .collect::<Vec<(Selection, String)>>()
+                    .collect::<Vec<(Selection, &str)>>()
             });
         let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
-            edits
-                .iter()
-                .map(|(selection, c)| (selection, c.as_str()))
-                .collect()
+            edits.iter().map(|(selection, c)| (selection, *c)).collect()
         });
 
         let text_format = item
@@ -548,9 +544,7 @@ impl LapceEditorBufferData {
             &[
                 &[(
                     &selection,
-                    item.insert_text
-                        .as_deref()
-                        .unwrap_or_else(|| item.label.as_str()),
+                    item.insert_text.as_deref().unwrap_or(item.label.as_str()),
                 )][..],
                 &additioal_edit.unwrap_or_default()[..],
             ]
@@ -1038,7 +1032,7 @@ impl LapceEditorBufferData {
 
     fn set_cursor(&mut self, cursor: Cursor) {
         let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor = cursor.clone();
+        editor.cursor = cursor;
         self.update_selection_history();
     }
 
@@ -1152,6 +1146,7 @@ impl LapceEditorBufferData {
         let factory = EditCommandFactory {
             cursor: &mut Arc::make_mut(&mut self.editor).cursor,
             tab_width: self.config.editor.tab_width,
+            syntax: self.buffer.syntax().cloned(),
         };
 
         if let Some(edit_command) = factory.create_command(command) {
@@ -2532,7 +2527,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         find.set_find(&search_str, false, false, false);
                         let mut offset = 0;
                         while let Some((start, end)) =
-                            find.next(&self.buffer.rope(), offset, false, false)
+                            find.next(self.buffer.rope(), offset, false, false)
                         {
                             offset = end;
                             new_selection
@@ -2569,7 +2564,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
-                                find.next(&self.buffer.rope(), offset, false, true)
+                                find.next(self.buffer.rope(), offset, false, true)
                             {
                                 if !selection
                                     .regions()
@@ -2614,7 +2609,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
-                                find.next(&self.buffer.rope(), offset, false, true)
+                                find.next(self.buffer.rope(), offset, false, true)
                             {
                                 if !selection
                                     .regions()
@@ -3125,7 +3120,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     Target::Widget(*self.main_split.tab_id),
                 ));
                 Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
-                let next = self.find.next(&self.buffer.rope(), offset, false, true);
+                let next = self.find.next(self.buffer.rope(), offset, false, true);
                 if let Some((start, _end)) = next {
                     self.do_move(&Movement::Offset(start), 1, mods);
                 }
@@ -3145,7 +3140,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let offset = self.editor.cursor.offset();
                 let line = self.buffer.line_of_offset(offset);
                 let offset = self.buffer.offset_of_line(line);
-                let next = self.find.next(&self.buffer.rope(), offset, false, false);
+                let next = self.find.next(self.buffer.rope(), offset, false, false);
 
                 if let Some(start) = next
                     .map(|(start, _)| start)
@@ -3154,12 +3149,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                     self.do_move(&Movement::Offset(start), 1, mods);
                 } else {
                     let start_offset = self.buffer.offset_of_line(start_line);
-                    if let Some((start, _)) = self.find.next(
-                        &self.buffer.rope(),
-                        start_offset,
-                        false,
-                        true,
-                    ) {
+                    if let Some((start, _)) =
+                        self.find
+                            .next(self.buffer.rope(), start_offset, false, true)
+                    {
                         self.do_move(&Movement::Offset(start), 1, mods);
                     }
                 }
@@ -3167,7 +3160,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::SearchForward => {
                 Arc::make_mut(&mut self.find).visual = true;
                 let offset = self.editor.cursor.offset();
-                let next = self.find.next(&self.buffer.rope(), offset, false, true);
+                let next = self.find.next(self.buffer.rope(), offset, false, true);
                 if let Some((start, _end)) = next {
                     self.do_move(&Movement::Offset(start), 1, mods);
                 }
@@ -3190,7 +3183,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     Arc::make_mut(&mut self.find).visual = true;
                     let offset = self.editor.cursor.offset();
                     let next =
-                        self.find.next(&self.buffer.rope(), offset, true, true);
+                        self.find.next(self.buffer.rope(), offset, true, true);
                     if let Some((start, _end)) = next {
                         self.do_move(&Movement::Offset(start), 1, mods);
                     }
@@ -3320,73 +3313,9 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
-            let mut selection = self
-                .editor
-                .cursor
-                .edit_selection(self.buffer.data(), self.config.editor.tab_width);
-            let cursor_char =
-                self.buffer.char_at_offset(selection.get_cursor_offset());
+            self.edit_with_command(EditCommandKind::InsertChars { chars: c });
 
-            let mut content = c.to_string();
-            if c.chars().count() == 1 {
-                let c = c.chars().next().unwrap();
-                if !matching_pair_direction(c).unwrap_or(true) {
-                    if cursor_char == Some(c) {
-                        self.do_move(&Movement::Right, 1, Modifiers::empty());
-                        return;
-                    } else {
-                        let offset = selection.get_cursor_offset();
-                        let line = self.buffer.line_of_offset(offset);
-                        let line_start = self.buffer.offset_of_line(line);
-                        if self.buffer.slice_to_cow(line_start..offset).trim() == ""
-                        {
-                            if let Some(c) = matching_char(c) {
-                                if let Some(previous_offset) =
-                                    self.buffer.previous_unmatched(c, offset)
-                                {
-                                    let previous_line =
-                                        self.buffer.line_of_offset(previous_offset);
-                                    let line_indent =
-                                        self.buffer.indent_on_line(previous_line);
-                                    content = line_indent + &content;
-                                    selection =
-                                        Selection::region(line_start, offset);
-                                }
-                            }
-                        };
-                    }
-                }
-            }
-
-            let delta =
-                self.edit(&[(&selection, &content)], true, EditType::InsertChars);
-            let selection =
-                selection.apply_delta(&delta, true, InsertDrift::Default);
-            let editor = Arc::make_mut(&mut self.editor);
-            editor.cursor.mode = CursorMode::Insert(selection.clone());
-            editor.cursor.horiz = None;
-            if c.chars().count() == 1 {
-                let c = c.chars().next().unwrap();
-                let is_whitespace_or_punct = cursor_char
-                    .map(|c| {
-                        let prop = get_word_property(c);
-                        prop == WordProperty::Lf
-                            || prop == WordProperty::Space
-                            || prop == WordProperty::Punctuation
-                    })
-                    .unwrap_or(true);
-                if is_whitespace_or_punct
-                    && matching_pair_direction(c).unwrap_or(false)
-                {
-                    if let Some(c) = matching_char(c) {
-                        self.edit(
-                            &[(&selection, &c.to_string())],
-                            false,
-                            EditType::InsertChars,
-                        );
-                    }
-                }
-            }
+            self.update_selection_history();
             self.update_completion(ctx);
             self.cancel_hover();
         } else if let Some(direction) = self.editor.inline_find.clone() {

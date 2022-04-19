@@ -23,5 +23,7 @@ tree-sitter-ruby = { git = "https://github.com/Liberatys/tree-sitter-ruby.git", 
 tree-sitter-c = "0.20.1"
 tree-sitter-cpp = "0.20.0"
 tree-sitter-json = "0.19.0"
+tree-sitter-html = "0.19.0"
+tree-sitter-java = { git = "https://github.com/tree-sitter/tree-sitter-java.git", version = "0.20.0" }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 lapce-rpc = { path = "../lapce-rpc" }

@@ -295,8 +295,7 @@ impl Widget<LapceWindowData> for Title {
         x += size.height;
         let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
             workspace_path
-                .file_name()
-                .unwrap_or_else(|| workspace_path.as_os_str())
+                .file_name().unwrap_or(workspace_path.as_os_str())
                 .to_string_lossy()
                 .to_string()
         } else {

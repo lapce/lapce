@@ -1,4 +1,5 @@
 use lapce_core::indent::IndentStyle;
+use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::Position;
 use std::borrow::Cow;
@@ -13,9 +14,7 @@ use crate::buffer::{
     char_width, shuffle, shuffle_tombstones, str_col, BufferContent, Contents,
     EditType, InvalLines, Revision, WordCursor,
 };
-use crate::movement::{ColPosition, Selection};
-
-pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
+use crate::movement::{ColPosition, SelRegion, Selection};
 
 pub trait BufferDataListener {
     fn should_apply_edit(&self) -> bool;
@@ -81,7 +80,7 @@ impl BufferData {
             tombstones: Rope::default(),
 
             last_edit_type: EditType::Other,
-            indent_style: DEFAULT_INDENT,
+            indent_style: IndentStyle::DEFAULT_INDENT,
         }
     }
 
@@ -614,6 +613,34 @@ impl BufferData {
         }
         new_offset
     }
+
+    pub fn move_cursor_to_right(
+        &self,
+        selection: &Selection,
+        count: usize,
+    ) -> Selection {
+        let mut new_selection = Selection::new();
+        for region in selection.regions() {
+            let new_offset =
+                self.next_grapheme_offset(region.end(), count, self.len());
+
+            new_selection.add_region(SelRegion::caret(new_offset));
+        }
+        new_selection
+    }
+
+    pub fn previous_unmatched(
+        &self,
+        syntax: Option<&Syntax>,
+        c: char,
+        offset: usize,
+    ) -> Option<usize> {
+        if let Some(syntax) = syntax {
+            syntax.find_tag(offset, true, &c.to_string())
+        } else {
+            WordCursor::new(&self.rope, offset).previous_unmatched(c)
+        }
+    }
 }
 
 /// Make BufferData temporarily editable by attaching a listener object to it.
@@ -661,14 +688,14 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
 
     pub fn edit_multiple(
         &mut self,
-        edits: &[(&Selection, &str)],
+        edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
         let mut interval_rope = Vec::new();
         for (selection, content) in edits {
             let rope = Rope::from(content);
-            for region in selection.regions() {
+            for region in selection.as_ref().regions() {
                 interval_rope.push((region.min(), region.max(), rope.clone()));
             }
         }
@@ -747,7 +774,7 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
         );
 
         self.buffer.update_size(&inval_lines);
-        self.listener.on_edit_applied(&self.buffer, delta);
+        self.listener.on_edit_applied(self.buffer, delta);
     }
 
     fn undo(&mut self, groups: BTreeSet<usize>) -> RopeDelta {

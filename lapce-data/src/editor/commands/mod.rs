@@ -1,17 +1,21 @@
+use lapce_core::syntax::Syntax;
 use xi_rope::RopeDelta;
 
 use crate::{
     buffer::data::{BufferDataListener, EditableBufferData},
     editor::commands::{
-        indent_line::IndentLineCommand, insert_tab::InsertTabCommand,
-        outdent_line::OutdentLineCommand, redo::RedoCommand, undo::UndoCommand,
+        indent_line::IndentLineCommand, insert_chars::InsertCharsCommand,
+        insert_tab::InsertTabCommand, outdent_line::OutdentLineCommand,
+        redo::RedoCommand, undo::UndoCommand,
     },
     movement::{Cursor, CursorMode, Selection},
+    state::Mode,
 };
 
 #[cfg(test)]
 pub mod test;
 
+pub mod insert_chars;
 pub mod insert_tab;
 pub mod redo;
 pub mod undo;
@@ -19,16 +23,19 @@ pub mod undo;
 pub mod indent_line;
 pub mod outdent_line;
 
+mod indentation;
+
 /// This structure handles text editing commands.
 pub struct EditCommandFactory<'a> {
     pub cursor: &'a mut Cursor,
+    pub syntax: Option<Syntax>,
     pub tab_width: usize,
 }
 
 impl<'a> EditCommandFactory<'a> {
     pub fn create_command(
         self,
-        command: EditCommandKind,
+        command: EditCommandKind<'a>,
     ) -> Option<EditCommand<'a>> {
         match command {
             EditCommandKind::InsertTab => {
@@ -62,13 +69,26 @@ impl<'a> EditCommandFactory<'a> {
                     tab_width: self.tab_width,
                 }))
             }
+            EditCommandKind::InsertChars { chars } => {
+                if self.cursor.get_mode() == Mode::Insert {
+                    Some(EditCommand::InsertChars(InsertCharsCommand {
+                        cursor: self.cursor,
+                        tab_width: self.tab_width,
+                        syntax: self.syntax,
+                        chars,
+                    }))
+                } else {
+                    None
+                }
+            }
         }
     }
 }
 
 #[derive(Clone)]
-pub enum EditCommandKind {
+pub enum EditCommandKind<'a> {
     InsertTab,
+    InsertChars { chars: &'a str },
     Undo,
     Redo,
     IndentLine { selection: Option<Selection> },
@@ -81,6 +101,7 @@ pub enum EditCommand<'a> {
     Redo(RedoCommand<'a>),
     IndentLine(IndentLineCommand<'a>),
     OutdentLine(OutdentLineCommand<'a>),
+    InsertChars(InsertCharsCommand<'a>),
 }
 
 impl<'a> EditCommand<'a> {
@@ -94,6 +115,7 @@ impl<'a> EditCommand<'a> {
             Self::Redo(command) => command.execute(buffer),
             Self::IndentLine(command) => command.execute(buffer),
             Self::OutdentLine(command) => command.execute(buffer),
+            Self::InsertChars(command) => command.execute(buffer),
         }
     }
 }

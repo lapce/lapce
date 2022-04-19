@@ -220,11 +220,13 @@ impl Widget<LapceWindowData> for Menu {
             if let Some(keymaps) =
                 data.keypress.command_keymaps.get(&item.command.cmd)
             {
-                let origin = Point::new(
-                    rect.x1,
-                    self.line_height * i as f64 + self.line_height / 2.0,
-                );
-                keymaps[0].paint(ctx, origin, Alignment::Right, &data.config);
+                if !keymaps.is_empty() {
+                    let origin = Point::new(
+                        rect.x1,
+                        self.line_height * i as f64 + self.line_height / 2.0,
+                    );
+                    keymaps[0].paint(ctx, origin, Alignment::Right, &data.config);
+                }
             }
         }
     }
