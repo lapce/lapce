@@ -774,9 +774,9 @@ impl LapceTerminalData {
 
 #[derive(Clone)]
 pub struct EventProxy {
-    term_id: TermId,
-    proxy: Arc<LapceProxy>,
-    event_sink: ExtEventSink,
+    pub term_id: TermId,
+    pub proxy: Arc<LapceProxy>,
+    pub event_sink: ExtEventSink,
 }
 
 impl EventProxy {}
