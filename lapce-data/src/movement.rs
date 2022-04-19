@@ -502,6 +502,12 @@ pub struct Selection {
     last_inserted: usize,
 }
 
+impl AsRef<Selection> for Selection {
+    fn as_ref(&self) -> &Selection {
+        self
+    }
+}
+
 impl Selection {
     pub fn new() -> Selection {
         Selection {

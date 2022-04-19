@@ -688,14 +688,14 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
 
     pub fn edit_multiple(
         &mut self,
-        edits: &[(&Selection, &str)],
+        edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
     ) -> RopeDelta {
         let mut builder = DeltaBuilder::new(self.len());
         let mut interval_rope = Vec::new();
         for (selection, content) in edits {
             let rope = Rope::from(content);
-            for region in selection.regions() {
+            for region in selection.as_ref().regions() {
                 interval_rope.push((region.min(), region.max(), rope.clone()));
             }
         }

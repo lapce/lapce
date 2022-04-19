@@ -12,8 +12,8 @@ use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
     piet::{PietText, PietTextLayout, Text, TextLayout, TextLayoutBuilder},
-    theme, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
-    Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
+    theme, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens, Point,
+    Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
 use lapce_rpc::{
@@ -1916,7 +1916,7 @@ impl LapceMainSplitData {
                 if !edits.is_empty() {
                     let buffer = self.open_files.get_mut(path).unwrap();
 
-                    let edits: Vec<(Selection, String)> = edits
+                    let edits: Vec<(Selection, &str)> = edits
                         .iter()
                         .map(|edit| {
                             let selection = Selection::region(
@@ -1929,20 +1929,11 @@ impl LapceMainSplitData {
                                     config.editor.tab_width,
                                 ),
                             );
-                            (selection, edit.new_text.clone())
+                            (selection, edit.new_text.as_str())
                         })
                         .collect();
 
-                    self.edit(
-                        path,
-                        &edits.iter().map(|(s, c)| (s, c.as_str())).collect::<Vec<(
-                            &Selection,
-                            &str,
-                        )>>(
-                        ),
-                        EditType::Other,
-                        config,
-                    );
+                    self.edit(path, &edits, EditType::Other, config);
                 }
             }
         }
@@ -2042,7 +2033,7 @@ impl LapceMainSplitData {
     pub fn edit(
         &mut self,
         path: &Path,
-        edits: &[(&Selection, &str)],
+        edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
         config: &Config,
     ) -> Option<RopeDelta> {
@@ -2053,6 +2044,7 @@ impl LapceMainSplitData {
         let buffer_len = buffer.len();
         let mut move_cursor = true;
         for (selection, _) in edits.iter() {
+            let selection = selection.as_ref();
             if selection.min_offset() == 0
                 && selection.max_offset() >= buffer_len - 1
             {
