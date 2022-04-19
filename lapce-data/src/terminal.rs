@@ -638,12 +638,6 @@ impl LapceTerminalData {
     }
 
     pub fn resolve_key_event(key: &KeyEvent) -> Option<&str> {
-        const CTRL_CHARS: &[&str] = &[
-            "@", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-            "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "[",
-            "\\", "]", "^", "_",
-        ];
-
         // Generates a `Modifiers` value to check against.
         macro_rules! modifiers {
             (ctrl) => {
@@ -719,7 +713,43 @@ impl LapceTerminalData {
         match key.key {
             Key::Character(ref c) => {
                 if key.mods == Modifiers::CONTROL {
-                    CTRL_CHARS.iter().cloned().find(|e| &c == e)
+                    let str = match c.as_str() {
+                        "@" => "\x00",
+                        "a" => "\x01",
+                        "b" => "\x02",
+                        "c" => "\x03",
+                        "d" => "\x04",
+                        "e" => "\x05",
+                        "f" => "\x06",
+                        "g" => "\x07",
+                        "h" => "\x08",
+                        "i" => "\x09",
+                        "j" => "\x0a",
+                        "k" => "\x0b",
+                        "l" => "\x0c",
+                        "m" => "\x0d",
+                        "n" => "\x0e",
+                        "o" => "\x0f",
+                        "p" => "\x10",
+                        "q" => "\x11",
+                        "r" => "\x12",
+                        "s" => "\x13",
+                        "t" => "\x14",
+                        "u" => "\x15",
+                        "v" => "\x16",
+                        "w" => "\x17",
+                        "x" => "\x18",
+                        "y" => "\x19",
+                        "z" => "\x1a",
+                        "[" => "\x1b",
+                        "\\" => "\x1c",
+                        "]" => "\x1d",
+                        "^" => "\x1e",
+                        "_" => "\x1f",
+                        _ => return None,
+                    };
+
+                    Some(str)
                 } else {
                     None
                 }
