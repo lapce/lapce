@@ -558,12 +558,11 @@ impl NewPaletteContent {
                 PaletteItemContent::File(path, _) => {
                     Self::file_paint_items(path, indices)
                 }
-                #[allow(unused_variables)]
                 PaletteItemContent::DocumentSymbol {
                     kind,
                     name,
-                    range,
                     container_name,
+                    ..
                 } => {
                     let text = name.to_string();
                     let hint =

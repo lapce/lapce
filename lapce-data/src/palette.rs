@@ -1,22 +1,17 @@
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
-use druid::{
-    Command, ExtEventSink, Lens, Modifiers, Target,
-    WidgetId,
-};
-use druid::{
-    Data, Env, EventCtx,
-};
+use druid::{Command, ExtEventSink, Lens, Modifiers, Target, WidgetId};
+use druid::{Data, Env, EventCtx};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use serde_json;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::cmp::Ordering;
 use uuid::Uuid;
 
 use crate::{
@@ -125,13 +120,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            #[allow(unused_variables)]
-            PaletteItemContent::DocumentSymbol {
-                kind,
-                name,
-                range,
-                container_name,
-            } => {
+            PaletteItemContent::DocumentSymbol { range, .. } => {
                 let editor_id = if preview {
                     Some(preview_editor_id)
                 } else {
@@ -686,8 +675,7 @@ impl PaletteViewData {
         }));
     }
 
-    #[allow(unused_variables)]
-    fn get_ssh_hosts(&mut self, ctx: &mut EventCtx) {
+    fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {
         let workspaces = Config::recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
@@ -711,8 +699,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_workspaces(&mut self, ctx: &mut EventCtx) {
+    fn get_workspaces(&mut self, _ctx: &mut EventCtx) {
         let workspaces = Config::recent_workspaces().unwrap_or_default();
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = workspaces
@@ -744,8 +731,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_themes(&mut self, ctx: &mut EventCtx, config: &Config) {
+    fn get_themes(&mut self, _ctx: &mut EventCtx, config: &Config) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = config
             .themes
@@ -759,8 +745,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_commands(&mut self, ctx: &mut EventCtx) {
+    fn get_commands(&mut self, _ctx: &mut EventCtx) {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
         let palette = Arc::make_mut(&mut self.palette);
@@ -783,8 +768,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_lines(&mut self, ctx: &mut EventCtx) {
+    fn get_lines(&mut self, _ctx: &mut EventCtx) {
         if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
             if let Some(terminal) =
                 self.terminal.terminals.get(&self.terminal.active_term_id)
@@ -863,8 +847,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_global_search(&mut self, ctx: &mut EventCtx) {}
+    fn get_global_search(&mut self, _ctx: &mut EventCtx) {}
 
     fn get_document_symbols(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
@@ -986,9 +969,8 @@ impl PaletteViewData {
         }
     }
 
-    #[allow(unused_variables)]
     fn filter_items(
-        run_id: &str,
+        _run_id: &str,
         input: &str,
         items: Vec<NewPaletteItem>,
         matcher: &SkimMatcherV2,

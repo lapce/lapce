@@ -679,8 +679,7 @@ impl LapceTabData {
         }
     }
 
-    #[allow(unused_variables)]
-    pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
+    pub fn code_action_size(&self, text: &mut PietText, _env: &Env) -> Size {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,
@@ -775,11 +774,10 @@ impl LapceTabData {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn code_action_origin(
         &self,
         text: &mut PietText,
-        tab_size: Size,
+        _tab_size: Size,
         config: &Config,
     ) -> Point {
         let line_height = self.config.editor.line_height as f64;
@@ -925,14 +923,13 @@ impl LapceTabData {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn run_workbench_command(
         &mut self,
         ctx: &mut EventCtx,
         command: &LapceWorkbenchCommand,
         data: Option<serde_json::Value>,
-        count: Option<usize>,
-        env: &Env,
+        _count: Option<usize>,
+        _env: &Env,
     ) {
         match command {
             LapceWorkbenchCommand::CloseFolder => {
@@ -1451,14 +1448,13 @@ impl LapceTabData {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn terminal_update_process(
         tab_id: WidgetId,
-        palette_widget_id: WidgetId,
+        _palette_widget_id: WidgetId,
         receiver: Receiver<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
-        workspace: Arc<LapceWorkspace>,
-        proxy: Arc<LapceProxy>,
+        _workspace: Arc<LapceWorkspace>,
+        _proxy: Arc<LapceProxy>,
     ) {
         let mut terminals = HashMap::new();
         let mut last_redraw = std::time::Instant::now();
@@ -2588,10 +2584,9 @@ impl LapceMainSplitData {
         self.editors.insert(editor.view_id, Arc::new(editor));
     }
 
-    #[allow(unused_variables)]
     pub fn split_close(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         split_id: WidgetId,
         from_content: SplitContent,
     ) {
