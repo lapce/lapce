@@ -1243,7 +1243,7 @@ dependencies = [
 [[package]]
 name = "fount"
 version = "0.1.0"
-source = "git+https://github.com/lapce/fount#684eb99db1c53a4fd6cd99d21884b86db7b50e95"
+source = "git+https://github.com/lapce/fount#870d0a005ac6eb85b5ecc29a07ce7cc732afa84d"
 dependencies = [
  "memmap2 0.5.3",
  "swash",
@@ -2965,7 +2965,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=opengl#215749dce6d1e4dcb214dfe95faa2e85e8e26f22"
+source = "git+https://github.com/lapce/piet-wgpu?branch=opengl#258a1d75352c0c625531e52f0f8f8987ca400d84"
 dependencies = [
  "bytemuck",
  "font-kit",
