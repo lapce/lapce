@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::svg::get_svg;
 use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder},
@@ -18,7 +19,6 @@ use lapce_data::{
     proxy::ProxyStatus,
     state::LapceWorkspaceType,
 };
-use crate::svg::get_svg;
 use serde_json::json;
 use strum::EnumMessage;
 
@@ -204,7 +204,8 @@ impl Widget<LapceWindowData> for Title {
         let remote_svg = get_svg("remote.svg").unwrap();
         ctx.draw_svg(
             &remote_svg,
-            remote_rect
+            Size::new(size.height, size.height)
+                .to_rect()
                 .with_origin(Point::new(x + 5.0, 0.0))
                 .inflate(-5.0, -5.0),
             Some(
@@ -295,7 +296,8 @@ impl Widget<LapceWindowData> for Title {
         x += size.height;
         let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
             workspace_path
-                .file_name().unwrap_or(workspace_path.as_os_str())
+                .file_name()
+                .unwrap_or(workspace_path.as_os_str())
                 .to_string_lossy()
                 .to_string()
         } else {
