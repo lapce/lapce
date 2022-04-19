@@ -1,4 +1,3 @@
-use crate::buffer::get_word_property;
 use crate::buffer::matching_char;
 use crate::buffer::{
     has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
@@ -16,10 +15,13 @@ use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     RegisterData, SplitContent,
 };
+use crate::editor::commands::EditCommandFactory;
+use crate::editor::commands::EditCommandKind;
+use crate::hover::HoverData;
+use crate::hover::HoverStatus;
+use crate::movement::CursorMode;
 use crate::movement::InsertDrift;
 use crate::proxy::path_from_url;
-use crate::state::LapceWorkspace;
-use crate::{buffer::WordProperty, movement::CursorMode};
 use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     movement::{Movement, SelRegion, Selection},
@@ -56,6 +58,8 @@ use std::{collections::HashMap, sync::Arc};
 use std::{iter::Iterator, path::PathBuf};
 use std::{str::FromStr, time::Duration};
 use xi_rope::{RopeDelta, Transformer};
+
+mod commands;
 
 pub struct LapceUI {}
 
@@ -110,7 +114,7 @@ pub struct EditorLocationNew {
     pub path: PathBuf,
     pub position: Option<Position>,
     pub scroll_offset: Option<Vec2>,
-    pub hisotry: Option<String>,
+    pub history: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -125,7 +129,7 @@ pub struct LapceEditorBufferData {
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<Buffer>,
     pub completion: Arc<CompletionData>,
-    pub workspace: Arc<LapceWorkspace>,
+    pub hover: Arc<HoverData>,
     pub main_split: LapceMainSplitData,
     pub source_control: Arc<SourceControlData>,
     pub find: Arc<Find>,
@@ -181,22 +185,22 @@ impl LapceEditorBufferData {
     }
 
     pub fn get_code_actions(&self, ctx: &mut EventCtx) {
-        if !self.buffer.loaded {
+        if !self.buffer.loaded() {
             return;
         }
-        if self.buffer.local {
+        if self.buffer.local() {
             return;
         }
-        if let BufferContent::File(path) = &self.buffer.content {
+        if let BufferContent::File(path) = self.buffer.content() {
             let path = path.clone();
             let offset = self.editor.cursor.offset();
             let prev_offset = self.buffer.prev_code_boundary(offset);
             if self.buffer.code_actions.get(&prev_offset).is_none() {
-                let buffer_id = self.buffer.id;
+                let buffer_id = self.buffer.id();
                 let position = self
                     .buffer
                     .offset_to_position(prev_offset, self.config.editor.tab_width);
-                let rev = self.buffer.rev;
+                let rev = self.buffer.rev();
                 let event_sink = ctx.get_external_handle();
                 self.proxy.get_code_actions(
                     buffer_id,
@@ -293,12 +297,16 @@ impl LapceEditorBufferData {
                     self.add_register(start, end, is_vertical, RegisterKind::Yank);
                 }
                 MotionMode::Indent => {
-                    let selection = Selection::region(start, end);
-                    self.indent_line(selection);
+                    let selection = Some(Selection::region(start, end));
+                    self.execute_edit_command(EditCommandKind::IndentLine {
+                        selection,
+                    });
                 }
                 MotionMode::Outdent => {
-                    let selection = Selection::region(start, end);
-                    self.outdent_line(selection);
+                    let selection = Some(Selection::region(start, end));
+                    self.execute_edit_command(EditCommandKind::OutdentLine {
+                        selection,
+                    });
                 }
             }
         }
@@ -307,13 +315,16 @@ impl LapceEditorBufferData {
     fn do_move(&mut self, movement: &Movement, count: usize, mods: Modifiers) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer, self.config.editor.tab_width);
+            editor.save_jump_location(
+                self.buffer.data(),
+                self.config.editor.tab_width,
+            );
         }
         let editor = Arc::make_mut(&mut self.editor);
         editor.last_movement = movement.clone();
         let compare = editor.compare.clone();
-        match &self.editor.cursor.mode {
-            &CursorMode::Normal(offset) => {
+        match self.editor.cursor.mode {
+            CursorMode::Normal(offset) => {
                 let (new_offset, horiz) = self.buffer.move_offset(
                     offset,
                     self.editor.cursor.horiz.as_ref(),
@@ -321,50 +332,31 @@ impl LapceEditorBufferData {
                     movement,
                     Mode::Normal,
                     self.editor.code_lens,
-                    compare,
+                    compare.as_deref(),
                     &self.config,
                 );
 
                 if self.editor.motion_mode.is_some() {
+                    let (moved_new_offset, _) = self.buffer.move_offset(
+                        new_offset,
+                        None,
+                        1,
+                        &Movement::Right,
+                        Mode::Insert,
+                        false,
+                        None,
+                        &self.config,
+                    );
+
                     let (start, end) = match movement {
                         Movement::EndOfLine | Movement::WordEndForward => {
-                            let (end, _) = self.buffer.move_offset(
-                                new_offset,
-                                None,
-                                1,
-                                &Movement::Right,
-                                Mode::Insert,
-                                false,
-                                None,
-                                &self.config,
-                            );
-                            (offset, end)
+                            (offset, moved_new_offset)
                         }
                         Movement::MatchPairs => {
                             if new_offset > offset {
-                                let (end, _) = self.buffer.move_offset(
-                                    new_offset,
-                                    None,
-                                    1,
-                                    &Movement::Right,
-                                    Mode::Insert,
-                                    false,
-                                    None,
-                                    &self.config,
-                                );
-                                (offset, end)
+                                (offset, moved_new_offset)
                             } else {
-                                let (start, _) = self.buffer.move_offset(
-                                    offset,
-                                    None,
-                                    1,
-                                    &Movement::Right,
-                                    Mode::Insert,
-                                    false,
-                                    None,
-                                    &self.config,
-                                );
-                                (start, new_offset)
+                                (moved_new_offset, new_offset)
                             }
                         }
                         _ => (offset, new_offset),
@@ -372,32 +364,32 @@ impl LapceEditorBufferData {
                     self.execute_motion_mode(start, end, movement.is_vertical());
                 } else {
                     let editor = Arc::make_mut(&mut self.editor);
-                    editor.cursor.mode = CursorMode::Normal(new_offset);
-                    editor.cursor.horiz = Some(horiz);
+                    editor.cursor =
+                        Cursor::new(CursorMode::Normal(new_offset), Some(horiz));
                 }
             }
             CursorMode::Visual { start, end, mode } => {
                 let (new_offset, horiz) = self.buffer.move_offset(
-                    *end,
+                    end,
                     self.editor.cursor.horiz.as_ref(),
                     count,
                     movement,
                     Mode::Visual,
                     self.editor.code_lens,
-                    compare,
+                    compare.as_deref(),
                     &self.config,
                 );
-                let start = *start;
-                let mode = *mode;
                 let editor = Arc::make_mut(&mut self.editor);
-                editor.cursor.mode = CursorMode::Visual {
-                    start,
-                    end: new_offset,
-                    mode,
-                };
-                editor.cursor.horiz = Some(horiz);
+                editor.cursor = Cursor::new(
+                    CursorMode::Visual {
+                        start,
+                        end: new_offset,
+                        mode,
+                    },
+                    Some(horiz),
+                );
             }
-            CursorMode::Insert(selection) => {
+            CursorMode::Insert(ref selection) => {
                 let selection = self.buffer.update_selection(
                     selection,
                     count,
@@ -405,7 +397,7 @@ impl LapceEditorBufferData {
                     Mode::Insert,
                     mods.shift(),
                     self.editor.code_lens,
-                    compare,
+                    compare.as_deref(),
                     &self.config,
                 );
                 self.set_cursor(Cursor::new(CursorMode::Insert(selection), None));
@@ -413,109 +405,10 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn indent_line(&mut self, selection: Selection) {
-        let indent = self.buffer.indent_unit();
-        let mut edits = Vec::new();
-
-        let mut lines = HashSet::new();
-        for region in selection.regions() {
-            let start_line = self.buffer.line_of_offset(region.min());
-            let mut end_line = self.buffer.line_of_offset(region.max());
-            if end_line > start_line {
-                let end_line_start = self.buffer.offset_of_line(end_line);
-                if end_line_start == region.max() {
-                    end_line -= 1;
-                }
-            }
-            for line in start_line..end_line + 1 {
-                if lines.contains(&line) {
-                    continue;
-                }
-                lines.insert(line);
-                let line_content = self.buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = self.buffer.first_non_blank_character_on_line(line);
-                if indent.starts_with('\t') {
-                    edits.push((Selection::caret(nonblank), indent.to_string()));
-                } else {
-                    let (_, col) = self
-                        .buffer
-                        .offset_to_line_col(nonblank, self.config.editor.tab_width);
-                    let indent = " ".repeat(indent.len() - col % indent.len());
-                    edits.push((Selection::caret(nonblank), indent));
-                }
-            }
-        }
-
-        let edits = edits
-            .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
-            .collect::<Vec<(&Selection, &str)>>();
-        let delta = self.edit(&edits, true, EditType::InsertChars);
-        Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
-    }
-
-    fn outdent_line(&mut self, selection: Selection) {
-        let indent = self.buffer.indent_unit();
-        let mut edits = Vec::new();
-
-        let mut lines = HashSet::new();
-        for region in selection.regions() {
-            let start_line = self.buffer.line_of_offset(region.min());
-            let mut end_line = self.buffer.line_of_offset(region.max());
-            if end_line > start_line {
-                let end_line_start = self.buffer.offset_of_line(end_line);
-                if end_line_start == region.max() {
-                    end_line -= 1;
-                }
-            }
-            for line in start_line..end_line + 1 {
-                if lines.contains(&line) {
-                    continue;
-                }
-                lines.insert(line);
-                let line_content = self.buffer.line_content(line);
-                if line_content == "\n" || line_content == "\r\n" {
-                    continue;
-                }
-                let nonblank = self.buffer.first_non_blank_character_on_line(line);
-                let (_, col) = self
-                    .buffer
-                    .offset_to_line_col(nonblank, self.config.editor.tab_width);
-                if col == 0 {
-                    continue;
-                }
-
-                if indent.starts_with('\t') {
-                    edits.push((
-                        Selection::region(nonblank - 1, nonblank),
-                        "".to_string(),
-                    ));
-                } else {
-                    let r = col % indent.len();
-                    let r = if r == 0 { indent.len() } else { r };
-                    edits.push((
-                        Selection::region(nonblank - r, nonblank),
-                        "".to_string(),
-                    ));
-                }
-            }
-        }
-
-        let edits = edits
-            .iter()
-            .map(|(selection, s)| (selection, s.as_str()))
-            .collect::<Vec<(&Selection, &str)>>();
-        let delta = self.edit(&edits, true, EditType::InsertChars);
-        Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
-    }
-
     fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
         for (view_id, editor) in self.main_split.editors.iter_mut() {
             if view_id != &self.editor.view_id
-                && self.buffer.content == editor.content
+                && self.buffer.content() == &editor.content
             {
                 Arc::make_mut(editor).cursor.apply_delta(delta);
             }
@@ -526,6 +419,10 @@ impl LapceEditorBufferData {
     fn has_completions(&self) -> bool {
         self.completion.status != CompletionStatus::Inactive
             && self.completion.len() > 0
+    }
+
+    fn has_hover(&self) -> bool {
+        self.hover.status != HoverStatus::Inactive && !self.hover.is_empty()
     }
 
     pub fn apply_completion_item(&mut self, item: &CompletionItem) -> Result<()> {
@@ -544,15 +441,12 @@ impl LapceEditorBufferData {
                                 self.config.editor.tab_width,
                             ),
                         );
-                        (selection, edit.new_text.clone())
+                        (selection, edit.new_text.as_str())
                     })
-                    .collect::<Vec<(Selection, String)>>()
+                    .collect::<Vec<(Selection, &str)>>()
             });
         let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
-            edits
-                .iter()
-                .map(|(selection, c)| (selection, c.as_str()))
-                .collect()
+            edits.iter().map(|(selection, c)| (selection, *c)).collect()
         });
 
         let text_format = item
@@ -668,14 +562,19 @@ impl LapceEditorBufferData {
         completion.cancel();
     }
 
+    pub fn cancel_hover(&mut self) {
+        let hover = Arc::make_mut(&mut self.hover);
+        hover.cancel();
+    }
+
     fn update_completion(&mut self, ctx: &mut EventCtx) {
         if self.get_mode() != Mode::Insert {
             return;
         }
-        if !self.buffer.loaded {
+        if !self.buffer.loaded() {
             return;
         }
-        if self.buffer.local {
+        if self.buffer.local() {
             return;
         }
         let offset = self.editor.cursor.offset();
@@ -700,7 +599,7 @@ impl LapceEditorBufferData {
 
         if completion.status != CompletionStatus::Inactive
             && completion.offset == start_offset
-            && completion.buffer_id == self.buffer.id
+            && completion.buffer_id == self.buffer.id()
         {
             completion.update_input(input.clone());
 
@@ -709,7 +608,7 @@ impl LapceEditorBufferData {
                 completion.request(
                     self.proxy.clone(),
                     completion.request_id,
-                    self.buffer.id,
+                    self.buffer.id(),
                     "".to_string(),
                     self.buffer.offset_to_position(
                         start_offset,
@@ -725,7 +624,7 @@ impl LapceEditorBufferData {
                 completion.request(
                     self.proxy.clone(),
                     completion.request_id,
-                    self.buffer.id,
+                    self.buffer.id(),
                     input,
                     self.buffer
                         .offset_to_position(offset, self.config.editor.tab_width),
@@ -737,7 +636,7 @@ impl LapceEditorBufferData {
             return;
         }
 
-        completion.buffer_id = self.buffer.id;
+        completion.buffer_id = self.buffer.id();
         completion.offset = start_offset;
         completion.input = input.clone();
         completion.status = CompletionStatus::Started;
@@ -747,7 +646,7 @@ impl LapceEditorBufferData {
         completion.request(
             self.proxy.clone(),
             completion.request_id,
-            self.buffer.id,
+            self.buffer.id(),
             "".to_string(),
             self.buffer
                 .offset_to_position(start_offset, self.config.editor.tab_width),
@@ -758,7 +657,7 @@ impl LapceEditorBufferData {
             completion.request(
                 self.proxy.clone(),
                 completion.request_id,
-                self.buffer.id,
+                self.buffer.id(),
                 input,
                 self.buffer
                     .offset_to_position(offset, self.config.editor.tab_width),
@@ -766,6 +665,50 @@ impl LapceEditorBufferData {
                 event_sink,
             );
         }
+    }
+
+    pub fn update_hover(&mut self, ctx: &mut EventCtx, offset: usize) {
+        if !self.buffer.loaded() {
+            return;
+        }
+
+        if self.buffer.local() {
+            return;
+        }
+
+        let start_offset = self.buffer.prev_code_boundary(offset);
+        let end_offset = self.buffer.next_code_boundary(offset);
+        let input = self.buffer.slice_to_cow(start_offset..end_offset);
+        if input.trim().is_empty() {
+            return;
+        }
+
+        let mut hover = Arc::make_mut(&mut self.hover);
+
+        if hover.status != HoverStatus::Inactive
+            && hover.offset == start_offset
+            && hover.buffer_id == self.buffer.id()
+        {
+            // We're hovering over the same location, but are trying to update
+            return;
+        }
+
+        hover.buffer_id = self.buffer.id();
+        hover.offset = start_offset;
+        hover.status = HoverStatus::Started;
+        Arc::make_mut(&mut hover.items).clear();
+        hover.request_id += 1;
+
+        let event_sink = ctx.get_external_handle();
+        hover.request(
+            self.proxy.clone(),
+            hover.request_id,
+            self.buffer.id(),
+            self.buffer
+                .offset_to_position(start_offset, self.config.editor.tab_width),
+            hover.id,
+            event_sink,
+        );
     }
 
     pub fn update_global_search(&self, ctx: &mut EventCtx, pattern: String) {
@@ -809,60 +752,8 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn insert_tab(&mut self) {
-        if let CursorMode::Insert(selection) = &self.editor.cursor.mode {
-            let indent = self.buffer.indent_unit();
-            let mut edits = Vec::new();
-            for region in selection.regions() {
-                if region.is_caret() {
-                    if indent.starts_with('\t') {
-                        edits.push((
-                            Selection::caret(region.start),
-                            indent.to_string(),
-                        ));
-                    } else {
-                        let (_, col) = self.buffer.offset_to_line_col(
-                            region.start,
-                            self.config.editor.tab_width,
-                        );
-                        let indent = " ".repeat(indent.len() - col % indent.len());
-                        edits.push((Selection::caret(region.start), indent));
-                    }
-                } else {
-                    let start_line = self.buffer.line_of_offset(region.min());
-                    let end_line = self.buffer.line_of_offset(region.max());
-                    for line in start_line..end_line + 1 {
-                        let offset =
-                            self.buffer.first_non_blank_character_on_line(line);
-                        if indent.starts_with('\t') {
-                            edits.push((
-                                Selection::caret(offset),
-                                indent.to_string(),
-                            ));
-                        } else {
-                            let (_, col) = self.buffer.offset_to_line_col(
-                                offset,
-                                self.config.editor.tab_width,
-                            );
-                            let indent =
-                                " ".repeat(indent.len() - col % indent.len());
-                            edits.push((Selection::caret(offset), indent));
-                        }
-                    }
-                }
-            }
-
-            let edits = edits
-                .iter()
-                .map(|(selection, s)| (selection, s.as_str()))
-                .collect::<Vec<(&Selection, &str)>>();
-            let delta = self.edit(&edits, true, EditType::InsertChars);
-            Arc::make_mut(&mut self.editor).cursor.apply_delta(&delta);
-        }
-    }
-
     fn insert_new_line(&mut self, ctx: &mut EventCtx, selection: Selection) {
-        match &self.buffer.content {
+        match self.buffer.content() {
             BufferContent::File(_) => {}
             BufferContent::Value(_name) => {
                 return;
@@ -870,7 +761,7 @@ impl LapceEditorBufferData {
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Keymap => {
                     let tab_id = *self.main_split.tab_id;
-                    let pattern = self.buffer.rope.to_string();
+                    let pattern = self.buffer.rope().to_string();
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateKeymapsFilter(pattern),
@@ -880,7 +771,7 @@ impl LapceEditorBufferData {
                 }
                 LocalBufferKind::Settings => {
                     let tab_id = *self.main_split.tab_id;
-                    let pattern = self.buffer.rope.to_string();
+                    let pattern = self.buffer.rope().to_string();
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateSettingsFilter(pattern),
@@ -889,7 +780,7 @@ impl LapceEditorBufferData {
                     return;
                 }
                 LocalBufferKind::Search => {
-                    let pattern = self.buffer.rope.to_string();
+                    let pattern = self.buffer.rope().to_string();
                     if let Some(parent_view_id) = self.editor.parent_view_id {
                         ctx.submit_command(Command::new(
                             LAPCE_NEW_COMMAND,
@@ -907,7 +798,7 @@ impl LapceEditorBufferData {
                     return;
                 }
                 LocalBufferKind::FilePicker => {
-                    let pwd = self.buffer.rope.to_string();
+                    let pwd = self.buffer.rope().to_string();
                     let pwd = PathBuf::from(pwd);
                     let tab_id = *self.main_split.tab_id;
                     ctx.submit_command(Command::new(
@@ -1018,10 +909,12 @@ impl LapceEditorBufferData {
                         let offset = (offset + 1).min(line_end);
                         Selection::caret(offset)
                     }
-                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                 };
                 let after =
                     self.editor.cursor.is_insert() || !data.content.contains('\n');
@@ -1077,7 +970,7 @@ impl LapceEditorBufferData {
                     }
                     CursorMode::Visual { mode, .. } => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
                         let data = match mode {
@@ -1128,64 +1021,27 @@ impl LapceEditorBufferData {
 
     fn check_selection_history(&mut self) {
         if self.editor.content != self.editor.selection_history.content
-            || self.buffer.rev != self.editor.selection_history.rev
+            || self.buffer.rev() != self.editor.selection_history.rev
         {
             let editor = Arc::make_mut(&mut self.editor);
             editor.selection_history.content = editor.content.clone();
-            editor.selection_history.rev = self.buffer.rev;
+            editor.selection_history.rev = self.buffer.rev();
             editor.selection_history.selections.clear();
         }
     }
 
     fn set_cursor(&mut self, cursor: Cursor) {
-        self.check_selection_history();
         let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor = cursor.clone();
-        if let CursorMode::Insert(selection) = cursor.mode {
-            editor.selection_history.selections.push_back(selection);
-        }
+        editor.cursor = cursor;
+        self.update_selection_history();
     }
 
-    fn jump_to_nearest_delta(&mut self, delta: &RopeDelta) {
-        let mut transformer = Transformer::new(delta);
+    fn update_selection_history(&mut self) {
+        self.check_selection_history();
 
-        let offset = self.editor.cursor.offset();
-        let offset = transformer.transform(offset, false);
-        let (ins, del) = delta.clone().factor();
-        let ins = ins.transform_shrink(&del);
-        for el in ins.els.iter() {
-            match el {
-                xi_rope::DeltaElement::Copy(b, e) => {
-                    // if b == e, ins.inserted_subset() will panic
-                    if b == e {
-                        return;
-                    }
-                }
-                xi_rope::DeltaElement::Insert(_) => {}
-            }
-        }
-        let mut positions = ins
-            .inserted_subset()
-            .complement_iter()
-            .map(|s| s.1)
-            .collect::<Vec<usize>>();
-        positions.append(
-            &mut del
-                .complement_iter()
-                .map(|s| transformer.transform(s.1, false))
-                .collect::<Vec<usize>>(),
-        );
-        positions.sort_by_key(|p| {
-            let p = *p as i32 - offset as i32;
-            if p > 0 {
-                p as usize
-            } else {
-                -p as usize
-            }
-        });
-        if let Some(new_offset) = positions.get(0) {
-            let selection = Selection::caret(*new_offset);
-            self.set_cursor_after_change(selection);
+        let editor = Arc::make_mut(&mut self.editor);
+        if let CursorMode::Insert(selection) = editor.cursor.mode.clone() {
+            editor.selection_history.selections.push_back(selection);
         }
     }
 
@@ -1247,7 +1103,7 @@ impl LapceEditorBufferData {
                 let data = self
                     .editor
                     .cursor
-                    .yank(&self.buffer, self.config.editor.tab_width);
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_delete(data);
             }
@@ -1258,7 +1114,7 @@ impl LapceEditorBufferData {
 
         let proxy = self.proxy.clone();
         let buffer = self.buffer_mut();
-        let delta = buffer.edit_multiple(edits, proxy, edit_type);
+        let delta = buffer.editable(&proxy).edit_multiple(edits, edit_type);
         self.inactive_apply_delta(&delta);
         if let Some(snippet) = self.editor.snippet.clone() {
             let mut transformer = Transformer::new(&delta);
@@ -1283,8 +1139,72 @@ impl LapceEditorBufferData {
         delta
     }
 
+    fn execute_edit_command(
+        &mut self,
+        command: EditCommandKind,
+    ) -> Option<RopeDelta> {
+        let factory = EditCommandFactory {
+            cursor: &mut Arc::make_mut(&mut self.editor).cursor,
+            tab_width: self.config.editor.tab_width,
+            syntax: self.buffer.syntax().cloned(),
+        };
+
+        if let Some(edit_command) = factory.create_command(command) {
+            let buffer = Arc::make_mut(&mut self.buffer);
+
+            edit_command.execute(buffer.editable(&self.proxy))
+        } else {
+            None
+        }
+    }
+
+    fn edit_with_command(&mut self, command: EditCommandKind) -> Option<RopeDelta> {
+        match &self.editor.cursor.mode {
+            CursorMode::Normal(_) => {}
+            #[allow(unused_variables)]
+            CursorMode::Visual { start, end, mode } => {
+                let data = self
+                    .editor
+                    .cursor
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
+                let register = Arc::make_mut(&mut self.main_split.register);
+                register.add_delete(data);
+            }
+            CursorMode::Insert(_) => {}
+        }
+
+        self.initiate_diagnositcs_offset();
+
+        if let Some(delta) = self.execute_edit_command(command) {
+            self.inactive_apply_delta(&delta);
+            if let Some(snippet) = self.editor.snippet.clone() {
+                let mut transformer = Transformer::new(&delta);
+                Arc::make_mut(&mut self.editor).snippet = Some(
+                    snippet
+                        .iter()
+                        .map(|(tab, (start, end))| {
+                            (
+                                *tab,
+                                (
+                                    transformer.transform(*start, false),
+                                    transformer.transform(*end, true),
+                                ),
+                            )
+                        })
+                        .collect(),
+                );
+            }
+
+            self.update_diagnositcs_offset(&delta);
+
+            return Some(delta);
+        }
+
+        None
+    }
+
     fn next_diff(&mut self, ctx: &mut EventCtx, _env: &Env) {
-        if let BufferContent::File(buffer_path) = &self.buffer.content {
+        if let BufferContent::File(buffer_path) = self.buffer.content() {
             if self.source_control.file_diffs.is_empty() {
                 return;
             }
@@ -1352,7 +1272,7 @@ impl LapceEditorBufferData {
                 path,
                 position: Some(position),
                 scroll_offset: None,
-                hisotry: Some("head".to_string()),
+                history: Some("head".to_string()),
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -1363,7 +1283,7 @@ impl LapceEditorBufferData {
     }
 
     fn next_error(&mut self, ctx: &mut EventCtx, _env: &Env) {
-        if let BufferContent::File(buffer_path) = &self.buffer.content {
+        if let BufferContent::File(buffer_path) = self.buffer.content() {
             let mut file_diagnostics = self
                 .main_split
                 .diagnostics
@@ -1406,7 +1326,7 @@ impl LapceEditorBufferData {
                 path,
                 position: Some(position),
                 scroll_offset: None,
-                hisotry: None,
+                history: None,
             };
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -1448,7 +1368,10 @@ impl LapceEditorBufferData {
         }
         if self.editor.current_location >= self.editor.locations.len() {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(&self.buffer, self.config.editor.tab_width);
+            editor.save_jump_location(
+                self.buffer.data(),
+                self.config.editor.tab_width,
+            );
             editor.current_location -= 1;
         }
         let editor = Arc::make_mut(&mut self.editor);
@@ -1576,7 +1499,7 @@ impl LapceEditorBufferData {
     }
 
     pub fn diagnostics(&self) -> Option<&Arc<Vec<EditorDiagnostic>>> {
-        if let BufferContent::File(path) = &self.buffer.content {
+        if let BufferContent::File(path) = self.buffer.content() {
             self.main_split.diagnostics.get(path)
         } else {
             None
@@ -1584,7 +1507,7 @@ impl LapceEditorBufferData {
     }
 
     pub fn diagnostics_mut(&mut self) -> Option<&mut Vec<EditorDiagnostic>> {
-        if let BufferContent::File(path) = &self.buffer.content {
+        if let BufferContent::File(path) = self.buffer.content() {
             self.main_split.diagnostics.get_mut(path).map(Arc::make_mut)
         } else {
             None
@@ -1598,8 +1521,7 @@ impl LapceEditorBufferData {
         config: &Config,
     ) -> usize {
         let (line, char_width) = if self.editor.code_lens {
-            let (line, font_size) = if let Some(syntax) = self.buffer.syntax.as_ref()
-            {
+            let (line, font_size) = if let Some(syntax) = self.buffer.syntax() {
                 let line = syntax.lens.line_of_height(pos.y.floor() as usize);
                 let line_height = syntax.lens.height_of_line(line + 1)
                     - syntax.lens.height_of_line(line);
@@ -1623,16 +1545,10 @@ impl LapceEditorBufferData {
         } else if let Some(compare) = self.editor.compare.as_ref() {
             let line = (pos.y / config.editor.line_height as f64).floor() as usize;
             let line = self.buffer.diff_actual_line_from_visual(compare, line);
-            (
-                line,
-                config.char_width(text, config.editor.font_size as f64),
-            )
+            (line, config.editor_char_width(text))
         } else {
             let line = (pos.y / config.editor.line_height as f64).floor() as usize;
-            (
-                line,
-                config.char_width(text, config.editor.font_size as f64),
-            )
+            (line, config.editor_char_width(text))
         };
 
         let last_line = self.buffer.last_line();
@@ -1760,8 +1676,9 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             "in_snippet" => self.editor.snippet.is_some(),
             "completion_focus" => self.has_completions(),
+            "hover_focus" => self.has_hover(),
             "list_focus" => self.has_completions(),
-            "modal_focus" => self.has_completions(),
+            "modal_focus" => self.has_completions() || self.has_hover(),
             _ => false,
         }
     }
@@ -1790,6 +1707,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             self.cancel_completion();
+            self.cancel_hover();
             Arc::make_mut(&mut self.editor).motion_mode = None;
             return CommandExecuted::Yes;
         }
@@ -1862,20 +1780,18 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::Undo => {
                 self.initiate_diagnositcs_offset();
-                let proxy = self.proxy.clone();
-                let buffer = self.buffer_mut();
-                if let Some(delta) = buffer.do_undo(proxy) {
-                    self.jump_to_nearest_delta(&delta);
+
+                if let Some(delta) = self.edit_with_command(EditCommandKind::Undo) {
+                    self.update_selection_history();
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
                 }
             }
             LapceCommand::Redo => {
                 self.initiate_diagnositcs_offset();
-                let proxy = self.proxy.clone();
-                let buffer = self.buffer_mut();
-                if let Some(delta) = buffer.do_redo(proxy) {
-                    self.jump_to_nearest_delta(&delta);
+
+                if let Some(delta) = self.edit_with_command(EditCommandKind::Redo) {
+                    self.update_selection_history();
                     self.update_diagnositcs_offset(&delta);
                     self.update_completion(ctx);
                 }
@@ -1890,7 +1806,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &Movement::Right,
                         Mode::Insert,
                         self.editor.code_lens,
-                        self.editor.compare.clone(),
+                        self.editor.compare.as_deref(),
                         &self.config,
                     )
                     .0;
@@ -1908,7 +1824,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     &Movement::EndOfLine,
                     Mode::Insert,
                     self.editor.code_lens,
-                    self.editor.compare.clone(),
+                    self.editor.compare.as_deref(),
                     &self.config,
                 );
                 self.buffer_mut().update_edit_type();
@@ -1933,7 +1849,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             &Movement::FirstNonBlank,
                             Mode::Normal,
                             self.editor.code_lens,
-                            self.editor.compare.clone(),
+                            self.editor.compare.as_deref(),
                             &self.config,
                         );
                         self.buffer_mut().update_edit_type();
@@ -1949,7 +1865,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             .editor
                             .cursor
                             .edit_selection(
-                                &self.buffer,
+                                self.buffer.data(),
                                 self.config.editor.tab_width,
                             )
                             .regions()
@@ -1966,7 +1882,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 };
             }
             LapceCommand::NewLineAbove => {
-                let line = self.editor.cursor.current_line(&self.buffer);
+                let line = self.editor.cursor.current_line(self.buffer.data());
                 let offset = if line > 0 {
                     self.buffer.line_end_offset(line - 1, true)
                 } else {
@@ -1981,13 +1897,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteToBeginningOfLine => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
 
@@ -1998,7 +1916,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.code_lens,
-                            self.editor.compare.clone(),
+                            self.editor.compare.as_deref(),
                             &self.config,
                         )
                     }
@@ -2028,7 +1946,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let data = self
                     .editor
                     .cursor
-                    .yank(&self.buffer, self.config.editor.tab_width);
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_yank(data);
                 match &self.editor.cursor.mode {
@@ -2050,7 +1968,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let data = self
                     .editor
                     .cursor
-                    .yank(&self.buffer, self.config.editor.tab_width);
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
                 Application::global().clipboard().put_string(data.content);
 
                 let selection = if let CursorMode::Insert(mut selection) =
@@ -2067,9 +1985,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                     }
                     selection
                 } else {
-                    self.editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width)
+                    self.editor.cursor.edit_selection(
+                        self.buffer.data(),
+                        self.config.editor.tab_width,
+                    )
                 };
 
                 let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
@@ -2086,7 +2005,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     let data = self
                         .editor
                         .cursor
-                        .yank(&self.buffer, self.config.editor.tab_width);
+                        .yank(self.buffer.data(), self.config.editor.tab_width);
                     let register = Arc::make_mut(&mut self.main_split.register);
                     register.add_yank(data);
                 } else {
@@ -2097,7 +2016,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let data = self
                     .editor
                     .cursor
-                    .yank(&self.buffer, self.config.editor.tab_width);
+                    .yank(self.buffer.data(), self.config.editor.tab_width);
                 Application::global().clipboard().put_string(data.content);
                 match &self.editor.cursor.mode {
                     CursorMode::Visual {
@@ -2134,13 +2053,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteWordForward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
 
@@ -2151,7 +2072,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.code_lens,
-                            self.editor.compare.clone(),
+                            self.editor.compare.as_deref(),
                             &self.config,
                         )
                     }
@@ -2164,13 +2085,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteWordBackward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
 
@@ -2181,7 +2104,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Mode::Insert,
                             true,
                             self.editor.code_lens,
-                            self.editor.compare.clone(),
+                            self.editor.compare.as_deref(),
                             &self.config,
                         )
                     }
@@ -2194,14 +2117,16 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteBackward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let indent = self.buffer.indent_unit();
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
                         let mut new_selection = Selection::new();
@@ -2215,7 +2140,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                         Mode::Insert,
                                         true,
                                         self.editor.code_lens,
-                                        self.editor.compare.clone(),
+                                        self.editor.compare.as_deref(),
                                         &self.config,
                                     )
                                 } else {
@@ -2246,7 +2171,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                         Mode::Insert,
                                         true,
                                         self.editor.code_lens,
-                                        self.editor.compare.clone(),
+                                        self.editor.compare.as_deref(),
                                         &self.config,
                                     )
                                 }
@@ -2299,13 +2224,15 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             LapceCommand::DeleteForward => {
                 let selection = match self.editor.cursor.mode {
-                    CursorMode::Normal(_) | CursorMode::Visual { .. } => self
-                        .editor
-                        .cursor
-                        .edit_selection(&self.buffer, self.config.editor.tab_width),
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        self.editor.cursor.edit_selection(
+                            self.buffer.data(),
+                            self.config.editor.tab_width,
+                        )
+                    }
                     CursorMode::Insert(_) => {
                         let selection = self.editor.cursor.edit_selection(
-                            &self.buffer,
+                            self.buffer.data(),
                             self.config.editor.tab_width,
                         );
                         let mut new_selection = Selection::new();
@@ -2318,7 +2245,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                     Mode::Insert,
                                     true,
                                     self.editor.code_lens,
-                                    self.editor.compare.clone(),
+                                    self.editor.compare.as_deref(),
                                     &self.config,
                                 )
                             } else {
@@ -2336,10 +2263,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::DeleteForwardAndInsert => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
                 let delta = self.edit(&[(&selection, "")], true, EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
@@ -2347,7 +2274,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.update_completion(ctx);
             }
             LapceCommand::InsertTab => {
-                self.insert_tab();
+                self.edit_with_command(EditCommandKind::InsertTab);
+
                 self.update_completion(ctx);
             }
             LapceCommand::InsertNewLine => {
@@ -2490,7 +2418,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &Movement::Up,
                         Mode::Insert,
                         self.editor.code_lens,
-                        self.editor.compare.clone(),
+                        self.editor.compare.as_deref(),
                         &self.config,
                     );
                     if new_offset != offset {
@@ -2516,7 +2444,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         &Movement::Down,
                         Mode::Insert,
                         self.editor.code_lens,
-                        self.editor.compare.clone(),
+                        self.editor.compare.as_deref(),
                         &self.config,
                     );
                     if new_offset != offset {
@@ -2599,7 +2527,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         find.set_find(&search_str, false, false, false);
                         let mut offset = 0;
                         while let Some((start, end)) =
-                            find.next(&self.buffer.rope, offset, false, false)
+                            find.next(self.buffer.rope(), offset, false, false)
                         {
                             offset = end;
                             new_selection
@@ -2636,7 +2564,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
-                                find.next(&self.buffer.rope, offset, false, true)
+                                find.next(self.buffer.rope(), offset, false, true)
                             {
                                 if !selection
                                     .regions()
@@ -2681,7 +2609,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) =
-                                find.next(&self.buffer.rope, offset, false, true)
+                                find.next(self.buffer.rope(), offset, false, true)
                             {
                                 if !selection
                                     .regions()
@@ -2736,8 +2664,14 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let completion = Arc::make_mut(&mut self.completion);
                 completion.previous();
             }
-            LapceCommand::ModalClose if self.has_completions() => {
-                self.cancel_completion();
+            LapceCommand::ModalClose => {
+                if self.has_completions() {
+                    self.cancel_completion();
+                }
+
+                if self.has_hover() {
+                    self.cancel_hover();
+                }
             }
             LapceCommand::JumpToNextSnippetPlaceholder => {
                 if let Some(snippet) = self.editor.snippet.as_ref() {
@@ -2794,10 +2728,10 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::ListSelect => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
 
                 let count = self.completion.input.len();
                 let _selection = if count > 0 {
@@ -2808,7 +2742,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         Mode::Insert,
                         true,
                         self.editor.code_lens,
-                        self.editor.compare.clone(),
+                        self.editor.compare.as_deref(),
                         &self.config,
                     )
                 } else {
@@ -2819,8 +2753,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.cancel_completion();
                 if item.data.is_some() {
                     let view_id = self.editor.view_id;
-                    let buffer_id = self.buffer.id;
-                    let rev = self.buffer.rev;
+                    let buffer_id = self.buffer.id();
+                    let rev = self.buffer.rev();
                     let offset = self.editor.cursor.offset();
                     let event_sink = ctx.get_external_handle();
                     self.proxy.completion_resolve(
@@ -2852,29 +2786,32 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::IndentLine => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
-                self.indent_line(selection);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
+                self.edit_with_command(EditCommandKind::IndentLine {
+                    selection: Some(selection),
+                });
             }
             LapceCommand::OutdentLine => {
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
-                self.outdent_line(selection);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
+                self.edit_with_command(EditCommandKind::OutdentLine {
+                    selection: Some(selection),
+                });
             }
             LapceCommand::ToggleLineComment => {
                 let mut lines = HashSet::new();
-                let selection = self
-                    .editor
-                    .cursor
-                    .edit_selection(&self.buffer, self.config.editor.tab_width);
+                let selection = self.editor.cursor.edit_selection(
+                    self.buffer.data(),
+                    self.config.editor.tab_width,
+                );
                 let comment_token = self
                     .buffer
-                    .syntax
-                    .as_ref()
+                    .syntax()
                     .map(|s| s.language.comment_token())
                     .unwrap_or("//")
                     .to_string();
@@ -2890,7 +2827,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         self.buffer.offset_of_line(end_line + 1)
                     };
                     let start = self.buffer.offset_of_line(line);
-                    for content in self.buffer.rope.lines(start..end) {
+                    for content in self.buffer.rope().lines(start..end) {
                         let trimed_content = content.trim_start();
                         if trimed_content.is_empty() {
                             line += 1;
@@ -2987,7 +2924,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                 &Movement::Left,
                                 Mode::Normal,
                                 self.editor.code_lens,
-                                self.editor.compare.clone(),
+                                self.editor.compare.as_deref(),
                                 &self.config,
                             )
                             .0
@@ -3018,7 +2955,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     .buffer
                     .offset_to_position(start_offset, self.config.editor.tab_width);
                 let event_sink = ctx.get_external_handle();
-                let buffer_id = self.buffer.id;
+                let buffer_id = self.buffer.id();
                 let position = self
                     .buffer
                     .offset_to_position(offset, self.config.editor.tab_width);
@@ -3075,7 +3012,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                                                         location.range.start,
                                                     ),
                                                     scroll_offset: None,
-                                                    hisotry: None,
+                                                    history: None,
                                                 },
                                             ),
                                             Target::Auto,
@@ -3183,7 +3120,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                     Target::Widget(*self.main_split.tab_id),
                 ));
                 Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
-                let next = self.find.next(&self.buffer.rope, offset, false, true);
+                let next = self.find.next(self.buffer.rope(), offset, false, true);
                 if let Some((start, _end)) = next {
                     self.do_move(&Movement::Offset(start), 1, mods);
                 }
@@ -3203,7 +3140,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let offset = self.editor.cursor.offset();
                 let line = self.buffer.line_of_offset(offset);
                 let offset = self.buffer.offset_of_line(line);
-                let next = self.find.next(&self.buffer.rope, offset, false, false);
+                let next = self.find.next(self.buffer.rope(), offset, false, false);
 
                 if let Some(start) = next
                     .map(|(start, _)| start)
@@ -3213,7 +3150,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                 } else {
                     let start_offset = self.buffer.offset_of_line(start_line);
                     if let Some((start, _)) =
-                        self.find.next(&self.buffer.rope, start_offset, false, true)
+                        self.find
+                            .next(self.buffer.rope(), start_offset, false, true)
                     {
                         self.do_move(&Movement::Offset(start), 1, mods);
                     }
@@ -3222,7 +3160,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             LapceCommand::SearchForward => {
                 Arc::make_mut(&mut self.find).visual = true;
                 let offset = self.editor.cursor.offset();
-                let next = self.find.next(&self.buffer.rope, offset, false, true);
+                let next = self.find.next(self.buffer.rope(), offset, false, true);
                 if let Some((start, _end)) = next {
                     self.do_move(&Movement::Offset(start), 1, mods);
                 }
@@ -3244,7 +3182,8 @@ impl KeyPressFocus for LapceEditorBufferData {
                 } else {
                     Arc::make_mut(&mut self.find).visual = true;
                     let offset = self.editor.cursor.offset();
-                    let next = self.find.next(&self.buffer.rope, offset, true, true);
+                    let next =
+                        self.find.next(self.buffer.rope(), offset, true, true);
                     if let Some((start, _end)) = next {
                         self.do_move(&Movement::Offset(start), 1, mods);
                     }
@@ -3303,11 +3242,11 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::FormatDocument => {
-                if let BufferContent::File(path) = &self.buffer.content {
+                if let BufferContent::File(path) = self.buffer.content() {
                     let path = path.clone();
                     let proxy = self.proxy.clone();
-                    let buffer_id = self.buffer.id;
-                    let rev = self.buffer.rev;
+                    let buffer_id = self.buffer.id();
+                    let rev = self.buffer.rev();
                     let event_sink = ctx.get_external_handle();
                     let (sender, receiver) = bounded(1);
                     thread::spawn(move || {
@@ -3333,15 +3272,15 @@ impl KeyPressFocus for LapceEditorBufferData {
                 }
             }
             LapceCommand::Save => {
-                if !self.buffer.dirty {
+                if !self.buffer.dirty() {
                     return CommandExecuted::Yes;
                 }
 
-                if let BufferContent::File(path) = &self.buffer.content {
+                if let BufferContent::File(path) = self.buffer.content() {
                     let path = path.clone();
                     let proxy = self.proxy.clone();
-                    let buffer_id = self.buffer.id;
-                    let rev = self.buffer.rev;
+                    let buffer_id = self.buffer.id();
+                    let rev = self.buffer.rev();
                     let event_sink = ctx.get_external_handle();
                     let (sender, receiver) = bounded(1);
                     thread::spawn(move || {
@@ -3374,74 +3313,11 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
-            let mut selection = self
-                .editor
-                .cursor
-                .edit_selection(&self.buffer, self.config.editor.tab_width);
-            let cursor_char =
-                self.buffer.char_at_offset(selection.get_cursor_offset());
+            self.edit_with_command(EditCommandKind::InsertChars { chars: c });
 
-            let mut content = c.to_string();
-            if c.chars().count() == 1 {
-                let c = c.chars().next().unwrap();
-                if !matching_pair_direction(c).unwrap_or(true) {
-                    if cursor_char == Some(c) {
-                        self.do_move(&Movement::Right, 1, Modifiers::empty());
-                        return;
-                    } else {
-                        let offset = selection.get_cursor_offset();
-                        let line = self.buffer.line_of_offset(offset);
-                        let line_start = self.buffer.offset_of_line(line);
-                        if self.buffer.slice_to_cow(line_start..offset).trim() == ""
-                        {
-                            if let Some(c) = matching_char(c) {
-                                if let Some(previous_offset) =
-                                    self.buffer.previous_unmatched(c, offset)
-                                {
-                                    let previous_line =
-                                        self.buffer.line_of_offset(previous_offset);
-                                    let line_indent =
-                                        self.buffer.indent_on_line(previous_line);
-                                    content = line_indent + &content;
-                                    selection =
-                                        Selection::region(line_start, offset);
-                                }
-                            }
-                        };
-                    }
-                }
-            }
-
-            let delta =
-                self.edit(&[(&selection, &content)], true, EditType::InsertChars);
-            let selection =
-                selection.apply_delta(&delta, true, InsertDrift::Default);
-            let editor = Arc::make_mut(&mut self.editor);
-            editor.cursor.mode = CursorMode::Insert(selection.clone());
-            editor.cursor.horiz = None;
-            if c.chars().count() == 1 {
-                let c = c.chars().next().unwrap();
-                let is_whitespace_or_punct = cursor_char
-                    .map(|c| {
-                        let prop = get_word_property(c);
-                        prop == WordProperty::Lf
-                            || prop == WordProperty::Space
-                            || prop == WordProperty::Punctuation
-                    })
-                    .unwrap_or(true);
-                if is_whitespace_or_punct
-                    && matching_pair_direction(c).unwrap_or(false)
-                {
-                    if let Some(c) = matching_char(c) {
-                        self.edit(
-                            &[(&selection, &c.to_string())],
-                            false,
-                            EditType::InsertChars,
-                        );
-                    }
-                }
-            }
+            self.update_selection_history();
             self.update_completion(ctx);
+            self.cancel_hover();
         } else if let Some(direction) = self.editor.inline_find.clone() {
             self.inline_find(direction.clone(), c);
             let editor = Arc::make_mut(&mut self.editor);
@@ -3570,7 +3446,7 @@ fn process_get_references(
                     path: path_from_url(&location.uri),
                     position: Some(location.range.start),
                     scroll_offset: None,
-                    hisotry: None,
+                    history: None,
                 },
             ),
             Target::Auto,

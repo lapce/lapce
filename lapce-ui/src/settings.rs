@@ -114,11 +114,10 @@ impl LapceSettingsPanel {
         mouse_event: &MouseEvent,
         data: &mut LapceTabData,
     ) {
-        if self.close_rect.contains(mouse_event.pos)
-            || !self.content_rect.contains(mouse_event.pos)
-        {
+        if self.icon_hit_test(mouse_event) || !self.panel_hit_test(mouse_event) {
             let settings = Arc::make_mut(&mut data.settings);
             settings.shown = false;
+            ctx.clear_cursor();
             return;
         }
 
@@ -137,6 +136,10 @@ impl LapceSettingsPanel {
 
     fn icon_hit_test(&self, mouse_event: &MouseEvent) -> bool {
         self.close_rect.contains(mouse_event.pos)
+    }
+
+    fn panel_hit_test(&self, mouse_event: &MouseEvent) -> bool {
+        self.content_rect.contains(mouse_event.pos)
     }
 }
 
@@ -357,13 +360,13 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
 
-            for (i, text) in ["Core Settings", "Editor Settings", "Keybindings"]
-                .iter()
-                .enumerate()
-            {
+            const SETTINGS_SECTIONS: [&str; 3] =
+                ["Core Settings", "Editor Settings", "Keybindings"];
+
+            for (i, text) in SETTINGS_SECTIONS.into_iter().enumerate() {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(text.to_string())
+                    .new_text_layout(text)
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(
                         data.config
@@ -385,15 +388,18 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 );
             }
 
-            ctx.blurred_rect(
-                self.header_rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            ctx.with_save(|ctx| {
+                ctx.clip(self.header_rect.inflate(0.0, 50.0) + Vec2::new(0.0, 50.0));
+                ctx.blurred_rect(
+                    self.header_rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            });
             let text_layout = ctx
                 .text()
-                .new_text_layout("Settings".to_string())
+                .new_text_layout("Settings")
                 .font(FontFamily::SYSTEM_UI, 16.0)
                 .text_color(
                     data.config
@@ -957,14 +963,14 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                 let buffer = data.main_split.value_buffers.get(name).unwrap();
                 let old_buffer =
                     old_data.main_split.value_buffers.get(name).unwrap();
-                if buffer.rope.len() != old_buffer.rope.len()
-                    || buffer.rope.slice_to_cow(..)
-                        != old_buffer.rope.slice_to_cow(..)
+                if buffer.len() != old_buffer.len()
+                    || buffer.rope().slice_to_cow(..)
+                        != old_buffer.rope().slice_to_cow(..)
                 {
                     let new_value = match &self.value {
                         serde_json::Value::Number(_n) => {
                             if let Ok(new_n) =
-                                buffer.rope.slice_to_cow(..).parse::<i64>()
+                                buffer.rope().slice_to_cow(..).parse::<i64>()
                             {
                                 serde_json::json!(new_n)
                             } else {
@@ -972,7 +978,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                             }
                         }
                         serde_json::Value::String(_s) => {
-                            serde_json::json!(&buffer.rope.slice_to_cow(..))
+                            serde_json::json!(&buffer.rope().slice_to_cow(..))
                         }
                         _ => return,
                     };
@@ -1021,10 +1027,6 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
         let text = ctx.text();
         let text = self.name(text, data);
-        text.set_color(
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-        );
         y += padding;
         ctx.draw_text(text, Point::new(0.0, y));
         y += text.size().height + padding;
@@ -1060,10 +1062,6 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         };
         let text = ctx.text();
         let text = self.desc(text, data);
-        text.set_color(
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-        );
         ctx.draw_text(text, Point::new(x, y));
 
         if let Some(input) = self.input_widget.as_mut() {

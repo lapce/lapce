@@ -30,7 +30,6 @@ im = { version = "15.0.0", features = ["serde"] }
 crossbeam-channel = "0.5.0"
 crossbeam-utils = "0.8.4"
 regex = "1.4.2"
-usvg = "0.14.0"
 jsonrpc-lite = "0.5.0"
 bit-vec = "0.5.0"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
@@ -48,14 +47,15 @@ xi-unicode = "0.3.0"
 fuzzy-matcher = "0.3.7"
 uuid = { version = "0.8.2", features = ["v4"] }
 lsp-types = { version = "0.89.2", features = ["proposed"] }
-druid = { git = "https://github.com/lapce/druid", features = [ "svg", "im", "serde", ] }
-#druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
+druid = { git = "https://github.com/lapce/druid", branch = "opengl", features = [ "svg", "im", "serde", ] }
+# druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 toml = { version = "0.5.8", features = ["preserve_order"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 #structdesc = { path = "../../structdesc" }
 lapce-core = { path = "../lapce-core" }
 lapce-rpc = { path = "../lapce-rpc" }
 lapce-proxy = { path = "../lapce-proxy" }
+bytemuck = "1.8.0"
 
 [build-dependencies]
 cc = "1"

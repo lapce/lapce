@@ -10,7 +10,7 @@ use druid::{
 use lapce_data::{
     command::{
         CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::LapceWindowData,
@@ -18,10 +18,9 @@ use lapce_data::{
     proxy::ProxyStatus,
     state::LapceWorkspaceType,
 };
+use crate::svg::get_svg;
 use serde_json::json;
 use strum::EnumMessage;
-
-use crate::svg::get_svg;
 
 pub struct Title {
     mouse_pos: Point,
@@ -159,6 +158,25 @@ impl Widget<LapceWindowData> for Title {
                     .unwrap();
                 Some(text_layout)
             }
+            LapceWorkspaceType::RemoteWSL => {
+                let text = match *tab.proxy_status {
+                    ProxyStatus::Connecting => "Connecting to WSL ...".to_string(),
+                    ProxyStatus::Connected => "WSL".to_string(),
+                    ProxyStatus::Disconnected => "Disconnected WSL".to_string(),
+                };
+                let text_layout = ctx
+                    .text()
+                    .new_text_layout(text)
+                    .font(FontFamily::SYSTEM_UI, 13.0)
+                    .text_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
+                            .clone(),
+                    )
+                    .build()
+                    .unwrap();
+                Some(text_layout)
+            }
         };
 
         let remote_rect = Size::new(
@@ -174,11 +192,13 @@ impl Widget<LapceWindowData> for Title {
         .with_origin(Point::new(x, 0.0));
         let color = match &tab.workspace.kind {
             LapceWorkspaceType::Local => Color::rgb8(64, 120, 242),
-            LapceWorkspaceType::RemoteSSH(_, _) => match *tab.proxy_status {
-                ProxyStatus::Connecting => Color::rgb8(193, 132, 1),
-                ProxyStatus::Connected => Color::rgb8(80, 161, 79),
-                ProxyStatus::Disconnected => Color::rgb8(228, 86, 73),
-            },
+            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL => {
+                match *tab.proxy_status {
+                    ProxyStatus::Connecting => Color::rgb8(193, 132, 1),
+                    ProxyStatus::Connected => Color::rgb8(80, 161, 79),
+                    ProxyStatus::Disconnected => Color::rgb8(228, 86, 73),
+                }
+            }
         };
         ctx.fill(remote_rect, &color);
         let remote_svg = get_svg("remote.svg").unwrap();
@@ -204,17 +224,56 @@ impl Widget<LapceWindowData> for Title {
         x += remote_rect.width();
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
-        self.commands.push((
-            command_rect,
-            Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
+
+        let mut menu_items = vec![MenuItem {
+            text: LapceWorkbenchCommand::ConnectSshHost
+                .get_message()
+                .unwrap()
+                .to_string(),
+            command: LapceCommandNew {
+                cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
+                palette_desc: None,
+                data: None,
+                target: CommandTarget::Workbench,
+            },
+        }];
+
+        if cfg!(target_os = "windows") {
+            menu_items.push(MenuItem {
+                text: LapceWorkbenchCommand::ConnectWsl
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::ConnectWsl.to_string(),
                     palette_desc: None,
                     data: None,
                     target: CommandTarget::Workbench,
                 },
-                Target::Widget(data.active_id),
+            });
+        }
+
+        if tab.workspace.kind.is_remote() {
+            menu_items.push(MenuItem {
+                text: "Disconnect Remote".to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::DisconnectRemote.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            });
+        }
+
+        self.commands.push((
+            command_rect,
+            Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::ShowMenu(
+                    Point::new(command_rect.x0, command_rect.y1),
+                    Arc::new(menu_items),
+                ),
+                Target::Auto,
             ),
         ));
 
@@ -236,10 +295,8 @@ impl Widget<LapceWindowData> for Title {
         x += size.height;
         let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
             workspace_path
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
+                .file_name().unwrap_or(workspace_path.as_os_str())
+                .to_string_lossy()
                 .to_string()
         } else {
             "Open Folder".to_string()

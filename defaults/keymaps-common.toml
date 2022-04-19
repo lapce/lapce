@@ -220,18 +220,24 @@ mode = "niv"
 when = "!search_focus"
 
 [[keymaps]]
+key = "ctrl+["
+command = "normal_mode"
+mode = "niv"
+when = "!search_focus"
+
+[[keymaps]]
 key = ":"
 command = "palette.command"
 mode = "n"
 
 [[keymaps]]
 key = "G"
-command = "go_to_line_deault_last"
+command = "go_to_line_default_last"
 mode = "nv"
 
 [[keymaps]]
 key = "g g"
-command = "go_to_line_deault_first"
+command = "go_to_line_default_first"
 mode = "nv"
 
 [[keymaps]]

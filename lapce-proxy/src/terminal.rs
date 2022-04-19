@@ -3,7 +3,6 @@ use std::{
     collections::VecDeque,
     io::{self, ErrorKind, Read, Write},
     path::PathBuf,
-    sync::atomic::{self, AtomicU64},
 };
 
 use alacritty_terminal::{
@@ -28,18 +27,6 @@ use serde_json::json;
 use crate::dispatch::Dispatcher;
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
-
-pub struct Counter(AtomicU64);
-
-impl Counter {
-    pub const fn new() -> Counter {
-        Counter(AtomicU64::new(1))
-    }
-
-    pub fn next(&self) -> u64 {
-        self.0.fetch_add(1, atomic::Ordering::Relaxed)
-    }
-}
 
 pub type TermConfig = alacritty_terminal::config::Config;
 

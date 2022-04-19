@@ -13,16 +13,16 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::LapceTheme,
+    config::{Config, LapceTheme},
     data::LapceTabData,
 };
 use lapce_rpc::file::FileNodeItem;
 
 use crate::{
     editor::view::LapceEditorView,
-    explorer::{get_item_children, get_item_children_mut, paint_file_node_item},
+    explorer::{get_item_children, get_item_children_mut},
     scroll::LapceScrollNew,
-    svg::get_svg,
+    svg::{file_svg_new, get_svg},
     tab::LapceButton,
 };
 
@@ -683,7 +683,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
         if let Some(item) = data.picker.get_file_node(&data.picker.pwd) {
             let mut i = 0;
             for item in item.sorted_children() {
-                i = paint_file_node_item(
+                i = paint_file_node_item_by_index(
                     ctx,
                     item,
                     min,
@@ -693,6 +693,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
                     level + 1,
                     i + 1,
                     index,
+                    None,
                     &data.config,
                     &mut self.toggle_rects,
                 );
@@ -702,6 +703,137 @@ impl Widget<LapceTabData> for FilePickerExplorer {
             }
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn paint_file_node_item_by_index(
+    ctx: &mut PaintCtx,
+    item: &FileNodeItem,
+    min: usize,
+    max: usize,
+    line_height: f64,
+    width: f64,
+    level: usize,
+    current: usize,
+    active: usize,
+    hovered: Option<usize>,
+    config: &Config,
+    toggle_rects: &mut HashMap<usize, Rect>,
+) -> usize {
+    if current > max {
+        return current;
+    }
+    if current + item.children_open_count < min {
+        return current + item.children_open_count;
+    }
+    if current >= min {
+        let background = if current == active {
+            Some(LapceTheme::PANEL_CURRENT)
+        } else if Some(current) == hovered {
+            Some(LapceTheme::PANEL_HOVERED)
+        } else {
+            None
+        };
+
+        if let Some(background) = background {
+            ctx.fill(
+                Rect::ZERO
+                    .with_origin(Point::new(
+                        0.0,
+                        current as f64 * line_height - line_height,
+                    ))
+                    .with_size(Size::new(width, line_height)),
+                config.get_color_unchecked(background),
+            );
+        }
+
+        let y = current as f64 * line_height - line_height;
+        let svg_y = y + 4.0;
+        let svg_size = 15.0;
+        let padding = 15.0 * level as f64;
+        if item.is_dir {
+            let icon_name = if item.open {
+                "chevron-down.svg"
+            } else {
+                "chevron-right.svg"
+            };
+            let svg = get_svg(icon_name).unwrap();
+            let rect = Size::new(svg_size, svg_size)
+                .to_rect()
+                .with_origin(Point::new(1.0 + padding, svg_y));
+            ctx.draw_svg(
+                &svg,
+                rect,
+                Some(config.get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)),
+            );
+            toggle_rects.insert(current, rect);
+
+            let icon_name = if item.open {
+                "default_folder_opened.svg"
+            } else {
+                "default_folder.svg"
+            };
+            let svg = get_svg(icon_name).unwrap();
+            let rect = Size::new(svg_size, svg_size)
+                .to_rect()
+                .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
+            ctx.draw_svg(&svg, rect, None);
+        } else {
+            let svg = file_svg_new(&item.path_buf);
+            let rect = Size::new(svg_size, svg_size)
+                .to_rect()
+                .with_origin(Point::new(1.0 + 16.0 + padding, svg_y));
+            ctx.draw_svg(&svg, rect, None);
+        }
+        let text_layout = ctx
+            .text()
+            .new_text_layout(
+                item.path_buf
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            )
+            .font(FontFamily::SYSTEM_UI, 13.0)
+            .text_color(
+                config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            )
+            .build()
+            .unwrap();
+        ctx.draw_text(
+            &text_layout,
+            Point::new(
+                38.0 + padding,
+                y + (line_height - text_layout.size().height) / 2.0,
+            ),
+        );
+    }
+    let mut i = current;
+    if item.open {
+        for item in item.sorted_children() {
+            i = paint_file_node_item_by_index(
+                ctx,
+                item,
+                min,
+                max,
+                line_height,
+                width,
+                level + 1,
+                i + 1,
+                active,
+                hovered,
+                config,
+                toggle_rects,
+            );
+            if i > max {
+                return i;
+            }
+        }
+    }
+    i
 }
 
 pub struct FilePickerControl {

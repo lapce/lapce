@@ -1,6 +1,5 @@
 use crate::{
     editor::{tab::LapceEditorTab, view::LapceEditorView},
-    svg::logo_svg,
     terminal::LapceTerminalView,
 };
 use std::sync::Arc;
@@ -28,6 +27,7 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
+use crate::svg::logo_svg;
 use lapce_rpc::terminal::TermId;
 use strum::EnumMessage;
 

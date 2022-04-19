@@ -38,7 +38,7 @@ const DEFAULT_KEYMAPS_MACOS: &str =
 const DEFAULT_KEYMAPS_NONMACOS: &str =
     include_str!("../../../defaults/keymaps-nonmacos.toml");
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum KeymapMatch {
     Full(String),
     Multiple(Vec<String>),
@@ -490,9 +490,7 @@ impl KeyPressData {
                     let cmd = commands.get(&i.command).unwrap();
                     let text = cmd
                         .palette_desc
-                        .as_ref()
-                        .map(|s| s.as_str())
-                        .unwrap_or_else(|| cmd.cmd.as_str());
+                        .as_deref().unwrap_or(cmd.cmd.as_str());
 
                     matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                 })
@@ -506,9 +504,7 @@ impl KeyPressData {
                     .filter_map(|i| {
                         let text = i
                             .palette_desc
-                            .as_ref()
-                            .map(|s| s.as_str())
-                            .unwrap_or_else(|| i.cmd.as_str());
+                            .as_deref().unwrap_or(i.cmd.as_str());
 
                         matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                     })

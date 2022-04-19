@@ -49,6 +49,11 @@ impl KeyPressFocus for MenuData {
                 LapceUICommand::HideMenu,
                 Target::Auto,
             ));
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Auto,
+            ));
             CommandExecuted::Yes
         } else {
             CommandExecuted::No

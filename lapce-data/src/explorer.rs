@@ -22,7 +22,7 @@ pub struct FileExplorerData {
     pub tab_id: WidgetId,
     pub widget_id: WidgetId,
     pub workspace: Option<FileNodeItem>,
-    pub index: usize,
+    pub active_selected: Option<PathBuf>,
 
     #[allow(dead_code)]
     count: usize,
@@ -82,7 +82,7 @@ impl FileExplorerData {
                 children: HashMap::new(),
                 children_open_count: 0,
             }),
-            index: 0,
+            active_selected: None,
             count: 0,
         }
     }

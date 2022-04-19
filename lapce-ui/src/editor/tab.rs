@@ -6,19 +6,22 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
+    buffer::{BufferContent, LocalBufferKind},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{
         DragContent, EditorTabChild, LapceEditorTabData, LapceTabData, SplitContent,
     },
+    db::EditorTabChildInfo,
     editor::TabRect,
     split::{SplitDirection, SplitMoveDirection},
-    svg::get_svg,
 };
 
 use crate::editor::{
     tab_header::LapceEditorTabHeader, view::editor_tab_child_widget,
 };
+
+use crate::svg::get_svg;
 
 pub struct LapceEditorTab {
     pub widget_id: WidgetId,
@@ -98,6 +101,11 @@ impl LapceEditorTab {
                 i
             };
             if focus {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureEditorTabActiveVisble,
+                    Target::Widget(editor_tab.widget_id),
+                ));
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
@@ -341,6 +349,37 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         ));
                         return;
                     }
+                    LapceUICommand::EnsureEditorTabActiveVisble => {
+                        if let Some(tab) =
+                            data.main_split.editor_tabs.get(&self.widget_id)
+                        {
+                            let active = &tab.children[tab.active];
+                            let EditorTabChildInfo::Editor(info) =
+                                active.child_info(data, 4);
+
+                            if info.content
+                                == BufferContent::Local(LocalBufferKind::Empty)
+                            {
+                                // File has not yet been loaded, most likely.
+                                return;
+                            }
+
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ActiveFileChanged {
+                                    path: if let BufferContent::File(path) =
+                                        info.content
+                                    {
+                                        Some(path.clone())
+                                    } else {
+                                        None
+                                    },
+                                },
+                                Target::Widget(data.file_explorer.widget_id),
+                            ));
+                            return;
+                        }
+                    }
                     _ => (),
                 }
             }
@@ -558,7 +597,7 @@ impl TabRectRenderer for TabRect {
             let is_dirty = match &editor_tab.children[i] {
                 EditorTabChild::Editor(editor_id, _) => {
                     let buffer = data.main_split.editor_buffer(*editor_id);
-                    buffer.dirty
+                    buffer.dirty()
                 }
             };
 

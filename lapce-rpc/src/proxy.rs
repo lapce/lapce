@@ -72,6 +72,11 @@ pub enum ProxyRequest {
         buffer_id: BufferId,
         completion_item: Box<CompletionItem>,
     },
+    GetHover {
+        request_id: usize,
+        buffer_id: BufferId,
+        position: Position,
+    },
     GetSignature {
         buffer_id: BufferId,
         position: Position,

@@ -9,8 +9,8 @@ use lapce_rpc::{
     source_control::DiffInfo, style::Style, terminal::TermId,
 };
 use lsp_types::{
-    CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
-    ProgressParams, PublishDiagnosticsParams, TextEdit,
+    CodeActionResponse, CompletionItem, CompletionResponse, Hover, Location,
+    Position, ProgressParams, PublishDiagnosticsParams, TextEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
@@ -161,6 +161,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "connect_ssh_host")]
     #[strum(message = "Connect to SSH Host")]
     ConnectSshHost,
+
+    #[strum(serialize = "connect_wsl")]
+    #[strum(message = "Connect to WSL")]
+    ConnectWsl,
+
+    #[strum(serialize = "disconnect_remote")]
+    #[strum(message = "Disconnect From Remote")]
+    DisconnectRemote,
 
     #[strum(serialize = "palette.line")]
     PaletteLine,
@@ -406,9 +414,9 @@ pub enum LapceCommand {
     LineStart,
     #[strum(serialize = "line_start_non_blank")]
     LineStartNonBlank,
-    #[strum(serialize = "go_to_line_deault_last")]
+    #[strum(serialize = "go_to_line_default_last")]
     GotoLineDefaultLast,
-    #[strum(serialize = "go_to_line_deault_first")]
+    #[strum(serialize = "go_to_line_default_first")]
     GotoLineDefaultFirst,
     #[strum(serialize = "append")]
     Append,
@@ -552,6 +560,7 @@ pub enum EnsureVisiblePosition {
     CenterOfWindow,
 }
 
+#[derive(Debug)]
 pub enum LapceUICommand {
     InitChildren,
     InitTerminalPanel(bool),
@@ -585,6 +594,7 @@ pub enum LapceUICommand {
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse),
+    UpdateHover(usize, Hover),
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
     ShowCodeActions,
@@ -645,7 +655,7 @@ pub enum LapceUICommand {
         rev: u64,
         syntax: Syntax,
     },
-    UpdateHisotryChanges {
+    UpdateHistoryChanges {
         id: BufferId,
         path: PathBuf,
         rev: u64,
@@ -695,4 +705,7 @@ pub enum LapceUICommand {
     GotoDefinition(WidgetId, usize, EditorLocationNew),
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
+    ActiveFileChanged {
+        path: Option<PathBuf>,
+    },
 }

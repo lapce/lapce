@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
-    buffer::Buffer,
+    buffer::data::BufferData,
     config::Config,
     data::RegisterData,
     state::{Mode, VisualMode},
@@ -70,7 +70,7 @@ impl Cursor {
         }
     }
 
-    pub fn current_line(&self, buffer: &Buffer) -> usize {
+    pub fn current_line(&self, buffer: &BufferData) -> usize {
         buffer.line_of_offset(self.offset())
     }
 
@@ -209,7 +209,7 @@ impl Cursor {
 
     pub fn current_char(
         &self,
-        buffer: &Buffer,
+        buffer: &BufferData,
         char_width: f64,
         config: &Config,
     ) -> (f64, f64) {
@@ -228,7 +228,7 @@ impl Cursor {
         (x0, x1)
     }
 
-    pub fn lines(&self, buffer: &Buffer) -> (usize, usize) {
+    pub fn lines(&self, buffer: &BufferData) -> (usize, usize) {
         match &self.mode {
             CursorMode::Normal(offset) => {
                 let line = buffer.line_of_offset(*offset);
@@ -247,7 +247,7 @@ impl Cursor {
         }
     }
 
-    pub fn yank(&self, buffer: &Buffer, tab_width: usize) -> RegisterData {
+    pub fn yank(&self, buffer: &BufferData, tab_width: usize) -> RegisterData {
         let (content, mode) = match &self.mode {
             CursorMode::Insert(selection) => {
                 let mut mode = VisualMode::Normal;
@@ -340,7 +340,11 @@ impl Cursor {
         RegisterData { content, mode }
     }
 
-    pub fn edit_selection(&self, buffer: &Buffer, tab_width: usize) -> Selection {
+    pub fn edit_selection(
+        &self,
+        buffer: &BufferData,
+        tab_width: usize,
+    ) -> Selection {
         match &self.mode {
             CursorMode::Insert(selection) => selection.clone(),
             CursorMode::Normal(offset) => Selection::region(
@@ -496,6 +500,12 @@ impl SelRegion {
 pub struct Selection {
     regions: Vec<SelRegion>,
     last_inserted: usize,
+}
+
+impl AsRef<Selection> for Selection {
+    fn as_ref(&self) -> &Selection {
+        self
+    }
 }
 
 impl Selection {

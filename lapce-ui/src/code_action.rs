@@ -12,7 +12,6 @@ use lapce_data::{
     data::{LapceMainSplitData, LapceTabData},
     keypress::KeyPressFocus,
     movement::{Movement, Selection},
-    proxy::LapceProxy,
     state::Mode,
 };
 use lsp_types::{
@@ -25,7 +24,6 @@ pub struct CodeAction {}
 #[derive(Clone, Data)]
 pub struct CodeActionData {
     pub main_split: LapceMainSplitData,
-    pub proxy: Arc<LapceProxy>,
     pub config: Arc<Config>,
 }
 
@@ -137,7 +135,7 @@ impl CodeActionData {
                                     .open_files
                                     .get_mut(&path)
                                     .unwrap();
-                                let edits: Vec<(Selection, String)> = edits
+                                let edits: Vec<(Selection, &str)> = edits
                                     .iter()
                                     .map(|edit| {
                                         let selection = Selection::region(
@@ -150,15 +148,12 @@ impl CodeActionData {
                                                 self.config.editor.tab_width,
                                             ),
                                         );
-                                        (selection, edit.new_text.clone())
+                                        (selection, edit.new_text.as_str())
                                     })
                                     .collect();
                                 self.main_split.edit(
                                     &path,
-                                    &edits
-                                        .iter()
-                                        .map(|(s, c)| (s, c.as_str()))
-                                        .collect::<Vec<(&Selection, &str)>>(),
+                                    &edits,
                                     EditType::Other,
                                     &self.config,
                                 );
@@ -221,7 +216,6 @@ impl Widget<LapceTabData> for CodeAction {
                 let mut_keypress = Arc::make_mut(&mut keypress);
                 let mut code_action_data = CodeActionData {
                     main_split: data.main_split.clone(),
-                    proxy: data.proxy.clone(),
                     config: data.config.clone(),
                 };
                 mut_keypress.key_down(ctx, key_event, &mut code_action_data, env);

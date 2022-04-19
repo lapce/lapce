@@ -11,6 +11,7 @@ use lapce_data::{
     panel::PanelPosition,
 };
 use serde_json::json;
+use crate::svg::get_svg;
 
 pub struct ActivityBar {}
 
@@ -178,7 +179,7 @@ impl Widget<LapceTabData> for ActivityBar {
             .clone();
         if let Some(panel) = data.panels.get(&PanelPosition::LeftTop) {
             for kind in panel.widgets.iter() {
-                let svg = kind.svg();
+                let svg = get_svg(kind.svg_name()).unwrap();
                 if &panel.active == kind && panel.shown {
                     ctx.fill(
                         Size::new(size, size)

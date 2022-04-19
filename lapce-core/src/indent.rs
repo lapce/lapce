@@ -12,15 +12,17 @@ pub enum IndentStyle {
 }
 
 impl IndentStyle {
+    pub const LONGEST_INDENT: &'static str = "        "; // 8 spaces
+    pub const DEFAULT_INDENT: IndentStyle = IndentStyle::Spaces(4);
+
+
     /// Creates an `IndentStyle` from an indentation string.
     ///
     /// For example, passing `"    "` (four spaces) will create `IndentStyle::Spaces(4)`.
     #[allow(clippy::should_implement_trait)]
     #[inline]
     pub fn from_str(indent: &str) -> Self {
-        // XXX: do we care about validating the input more than this?  Probably not...?
-        debug_assert!(!indent.is_empty() && indent.len() <= 8);
-
+        debug_assert!(!indent.is_empty() && indent.len() <= Self::LONGEST_INDENT.len());
         if indent.starts_with(' ') {
             IndentStyle::Spaces(indent.len() as u8)
         } else {
@@ -32,20 +34,12 @@ impl IndentStyle {
     pub fn as_str(&self) -> &'static str {
         match *self {
             IndentStyle::Tabs => "\t",
-            IndentStyle::Spaces(1) => " ",
-            IndentStyle::Spaces(2) => "  ",
-            IndentStyle::Spaces(3) => "   ",
-            IndentStyle::Spaces(4) => "    ",
-            IndentStyle::Spaces(5) => "     ",
-            IndentStyle::Spaces(6) => "      ",
-            IndentStyle::Spaces(7) => "       ",
-            IndentStyle::Spaces(8) => "        ",
-
+            IndentStyle::Spaces(x) if x <= Self::LONGEST_INDENT.len() as u8 => Self::LONGEST_INDENT.split_at(x.into()).0,
             // Unsupported indentation style.  This should never happen,
-            // but just in case fall back to two spaces.
+            // but just in case fall back to the default of 4 spaces
             IndentStyle::Spaces(n) => {
-                debug_assert!(n > 0 && n <= 8); // Always triggers. `debug_panic!()` wanted.
-                "  "
+                debug_assert!(n > 0 && n <= Self::LONGEST_INDENT.len() as u8);
+                "    "
             }
         }
     }
