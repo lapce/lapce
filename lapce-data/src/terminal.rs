@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::Arc};
+use std::sync::Arc;
 
 use alacritty_terminal::{
     ansi,
@@ -829,7 +829,7 @@ mod test {
     #[test]
     fn test_arrow_without_modifier() {
         assert_eq!(
-            Some("\x1b[D"),
+            Some("\x1b[1D"),
             LapceTerminalData::resolve_key_event(&KeyEvent::for_test(
                 Modifiers::empty(),
                 KbKey::ArrowLeft
