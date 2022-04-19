@@ -243,16 +243,40 @@ impl LapceTerminalViewData {
             let term = &mut raw.term;
             match movement {
                 Movement::Left => {
-                    term.vi_motion(ViMotion::Left);
+                    if term.mode().contains(TermMode::VI) {
+                        term.vi_motion(ViMotion::Left);
+                    } else {
+                        self.terminal
+                            .proxy
+                            .terminal_write(self.terminal.term_id, "\x1b[D");
+                    }
                 }
                 Movement::Right => {
-                    term.vi_motion(ViMotion::Right);
+                    if term.mode().contains(TermMode::VI) {
+                        term.vi_motion(ViMotion::Right);
+                    } else {
+                        self.terminal
+                            .proxy
+                            .terminal_write(self.terminal.term_id, "\x1b[C");
+                    }
                 }
                 Movement::Up => {
-                    term.vi_motion(ViMotion::Up);
+                    if term.mode().contains(TermMode::VI) {
+                        term.vi_motion(ViMotion::Up);
+                    } else {
+                        self.terminal
+                            .proxy
+                            .terminal_write(self.terminal.term_id, "\x1b[A");
+                    }
                 }
                 Movement::Down => {
-                    term.vi_motion(ViMotion::Down);
+                    if term.mode().contains(TermMode::VI) {
+                        term.vi_motion(ViMotion::Down);
+                    } else {
+                        self.terminal
+                            .proxy
+                            .terminal_write(self.terminal.term_id, "\x1b[B");
+                    }
                 }
                 Movement::FirstNonBlank => {
                     term.vi_motion(ViMotion::FirstOccupied);
