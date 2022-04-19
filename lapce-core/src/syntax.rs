@@ -37,6 +37,21 @@ pub struct Syntax {
     pub styles: Option<Arc<Spans<Style>>>,
 }
 
+impl std::fmt::Debug for Syntax {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Syntax")
+            .field("rev", &self.rev)
+            .field("language", &self.language)
+            .field("text", &self.text)
+            .field("tree", &self.tree)
+            .field("normal_lines", &self.normal_lines)
+            .field("line_height", &self.line_height)
+            .field("lens_height", &self.lens_height)
+            .field("styles", &self.styles)
+            .finish()
+    }
+}
+
 impl Syntax {
     pub fn init(path: &Path) -> Option<Syntax> {
         LapceLanguage::from_path(path).map(|l| Syntax {

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::{collections::HashMap, path::Path};
 
 use druid::{
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -37,7 +37,7 @@ pub fn paint_file_node_item(
     width: f64,
     level: usize,
     current: usize,
-    active: usize,
+    active: Option<&Path>,
     hovered: Option<usize>,
     config: &Config,
     toggle_rects: &mut HashMap<usize, Rect>,
@@ -48,18 +48,16 @@ pub fn paint_file_node_item(
     if current + item.children_open_count < min {
         return current + item.children_open_count;
     }
-    if current >= min && current <= max {
-        if current == active {
-            ctx.fill(
-                Rect::ZERO
-                    .with_origin(Point::new(
-                        0.0,
-                        current as f64 * line_height - line_height,
-                    ))
-                    .with_size(Size::new(width, line_height)),
-                config.get_color_unchecked(LapceTheme::PANEL_CURRENT),
-            );
+    if current >= min {
+        let background = if Some(item.path_buf.as_ref()) == active {
+            Some(LapceTheme::PANEL_CURRENT)
         } else if Some(current) == hovered {
+            Some(LapceTheme::PANEL_HOVERED)
+        } else {
+            None
+        };
+
+        if let Some(background) = background {
             ctx.fill(
                 Rect::ZERO
                     .with_origin(Point::new(
@@ -67,9 +65,10 @@ pub fn paint_file_node_item(
                         current as f64 * line_height - line_height,
                     ))
                     .with_size(Size::new(width, line_height)),
-                config.get_color_unchecked(LapceTheme::PANEL_HOVERED),
+                config.get_color_unchecked(background),
             );
         }
+
         let y = current as f64 * line_height - line_height;
         let svg_y = y + 4.0;
         let svg_size = 15.0;
@@ -367,6 +366,18 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         data: &mut LapceTabData,
         _env: &Env,
     ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+
+                if let LapceUICommand::ActiveFileChanged { path } = command {
+                    let file_explorer = Arc::make_mut(&mut data.file_explorer);
+                    file_explorer.active_selected = path.clone();
+                    ctx.request_paint();
+                }
+            }
+            _ => {}
+        }
         if !ctx.is_hot() {
             return;
         }
@@ -439,8 +450,14 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             LapceUICommand::OpenFile(node.path_buf.clone()),
                             Target::Widget(data.id),
                         ));
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ActiveFileChanged {
+                                path: Some(node.path_buf.clone()),
+                            },
+                            Target::Widget(file_explorer.widget_id),
+                        ));
                     }
-                    file_explorer.active_selected = index;
                 }
             }
             _ => (),
@@ -502,7 +519,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
         let rect = ctx.region().bounding_box();
         let size = ctx.size();
         let width = size.width;
-        let index = data.file_explorer.active_selected;
+        let active = data.file_explorer.active_selected.as_deref();
         let min = (rect.y0 / self.line_height).floor() as usize;
         let max = (rect.y1 / self.line_height) as usize + 2;
         let level = 0;
@@ -519,7 +536,7 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     width,
                     level + 1,
                     i + 1,
-                    index,
+                    active,
                     self.hovered,
                     &data.config,
                     &mut HashMap::new(),
