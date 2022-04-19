@@ -1784,7 +1784,10 @@ impl Widget<LapceTabData> for LapceEditor {
     ) {
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
-        if !old_editor_data.buffer.same(&editor_data.buffer) {
+        if !old_editor_data.buffer.same(&editor_data.buffer)
+            || old_editor_data.config.editor.font_family
+                != editor_data.config.editor.font_family
+        {
             self.text_layouts.clear();
         }
     }
