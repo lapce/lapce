@@ -15,13 +15,12 @@ use lapce_data::{
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
-    editor::LapceEditorView,
+    editor::view::LapceEditorView,
     panel::{LapcePanel, PanelHeaderKind},
     scroll::LapceScrollNew,
     split::LapceSplitNew,
     svg::file_svg_new,
 };
-
 
 #[derive(Clone)]
 pub struct SearchData {
@@ -158,7 +157,7 @@ impl SearchContent {
                                     character: *start as u32,
                                 }),
                                 scroll_offset: None,
-                                hisotry: None,
+                                history: None,
                             },
                         ),
                         Target::Widget(data.id),

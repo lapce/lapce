@@ -11,3 +11,4 @@ code-lens-font-size = 2
 line-height = 25
 tab-width = 4
 show-tab = true
+hover-delay = 300 # ms

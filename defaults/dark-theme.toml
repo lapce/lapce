@@ -57,10 +57,17 @@ magenta = "#C678DD"
 "completion.background" = "#21252B"
 "completion.current" = "#2C313A"
 
+"hover.background" = "#21252B"
+
 "panel.background" = "#21252B"
 "panel.current" = "#2C313A"
+"panel.hovered" = "#343A45"
 
 "status.background" = "#21252B"
+"status.modal.normal" = "$blue"
+"status.modal.insert" = "$red"
+"status.modal.visual" = "$yellow"
+"status.modal.terminal" = "$purple"
 
 "style.comment" = "#5C6370"
 

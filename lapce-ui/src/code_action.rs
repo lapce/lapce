@@ -12,7 +12,6 @@ use lapce_data::{
     data::{LapceMainSplitData, LapceTabData},
     keypress::KeyPressFocus,
     movement::{Movement, Selection},
-    proxy::LapceProxy,
     state::Mode,
 };
 use lsp_types::{
@@ -25,7 +24,6 @@ pub struct CodeAction {}
 #[derive(Clone, Data)]
 pub struct CodeActionData {
     pub main_split: LapceMainSplitData,
-    pub proxy: Arc<LapceProxy>,
     pub config: Arc<Config>,
 }
 
@@ -64,7 +62,7 @@ impl KeyPressFocus for CodeActionData {
                 self.previous(ctx);
             }
             LapceCommand::ListSelect => {
-                self.select(ctx);
+                self.select();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::CancelCodeActions,
@@ -103,7 +101,7 @@ impl CodeActionData {
         }
     }
 
-    pub fn select(&mut self, ctx: &mut EventCtx) {
+    pub fn select(&mut self) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,
@@ -137,7 +135,7 @@ impl CodeActionData {
                                     .open_files
                                     .get_mut(&path)
                                     .unwrap();
-                                let edits: Vec<(Selection, String)> = edits
+                                let edits: Vec<(Selection, &str)> = edits
                                     .iter()
                                     .map(|edit| {
                                         let selection = Selection::region(
@@ -150,16 +148,12 @@ impl CodeActionData {
                                                 self.config.editor.tab_width,
                                             ),
                                         );
-                                        (selection, edit.new_text.clone())
+                                        (selection, edit.new_text.as_str())
                                     })
                                     .collect();
                                 self.main_split.edit(
-                                    ctx,
                                     &path,
-                                    &edits
-                                        .iter()
-                                        .map(|(s, c)| (s, c.as_str()))
-                                        .collect::<Vec<(&Selection, &str)>>(),
+                                    &edits,
                                     EditType::Other,
                                     &self.config,
                                 );
@@ -222,7 +216,6 @@ impl Widget<LapceTabData> for CodeAction {
                 let mut_keypress = Arc::make_mut(&mut keypress);
                 let mut code_action_data = CodeActionData {
                     main_split: data.main_split.clone(),
-                    proxy: data.proxy.clone(),
                     config: data.config.clone(),
                 };
                 mut_keypress.key_down(ctx, key_event, &mut code_action_data, env);
@@ -253,11 +246,18 @@ impl Widget<LapceTabData> for CodeAction {
 
     fn lifecycle(
         &mut self,
-        _ctx: &mut LifeCycleCtx,
-        _event: &LifeCycle,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
         _data: &LapceTabData,
         _env: &Env,
     ) {
+        if let LifeCycle::FocusChanged(false) = event {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::CancelCodeActions,
+                Target::Auto,
+            ));
+        }
     }
 
     fn update(

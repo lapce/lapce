@@ -8,17 +8,16 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
-    piet::{PietText, PietTextLayout, Svg, Text, TextLayout, TextLayoutBuilder},
-    theme, Color, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens,
-    Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
+    piet::{PietText, PietTextLayout, Text, TextLayout, TextLayoutBuilder},
+    theme, Command, Data, Env, EventCtx, ExtEventSink, FontFamily, Lens, Point,
+    Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
-use lapce_proxy::{
-    dispatch::{FileDiff, FileNodeItem},
-    plugin::PluginDescription,
+use lapce_rpc::{
+    file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
 };
 use lsp_types::{
@@ -31,8 +30,8 @@ use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
     buffer::{
-        matching_char, matching_pair_direction, Buffer, BufferContent, EditType,
-        LocalBufferKind,
+        data::BufferData, matching_char, matching_pair_direction, Buffer,
+        BufferContent, EditType, LocalBufferKind,
     },
     command::{
         CommandTarget, EnsureVisiblePosition, LapceCommandNew, LapceUICommand,
@@ -47,6 +46,7 @@ use crate::{
     editor::{EditorLocationNew, LapceEditorBufferData, TabRect},
     explorer::FileExplorerData,
     find::Find,
+    hover::HoverData,
     keypress::KeyPressData,
     menu::MenuData,
     movement::{Cursor, CursorMode, Movement, Selection},
@@ -61,7 +61,6 @@ use crate::{
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
     state::{LapceWorkspace, LapceWorkspaceType, VisualMode},
-    svg::get_svg,
     terminal::TerminalSplitData,
 };
 
@@ -182,6 +181,7 @@ impl Data for LapceWindowData {
             && self.size.same(&other.size)
             && self.pos.same(&other.pos)
             && self.keypress.same(&other.keypress)
+            && self.plugins.same(&other.plugins)
     }
 }
 
@@ -314,19 +314,15 @@ pub enum PanelKind {
 }
 
 impl PanelKind {
-    pub fn svg_name(&self) -> String {
+    pub fn svg_name(&self) -> &'static str {
         match &self {
-            PanelKind::FileExplorer => "file-explorer.svg".to_string(),
-            PanelKind::SourceControl => "git-icon.svg".to_string(),
-            PanelKind::Plugin => "plugin-icon.svg".to_string(),
-            PanelKind::Terminal => "terminal.svg".to_string(),
-            PanelKind::Search => "search.svg".to_string(),
-            PanelKind::Problem => "error.svg".to_string(),
+            PanelKind::FileExplorer => "file-explorer.svg",
+            PanelKind::SourceControl => "git-icon.svg",
+            PanelKind::Plugin => "plugin-icon.svg",
+            PanelKind::Terminal => "terminal.svg",
+            PanelKind::Search => "search.svg",
+            PanelKind::Problem => "error.svg",
         }
-    }
-
-    pub fn svg(&self) -> Svg {
-        get_svg(&self.svg_name()).unwrap()
     }
 }
 
@@ -386,6 +382,7 @@ pub struct LapceTabData {
     pub workspace: Arc<LapceWorkspace>,
     pub main_split: LapceMainSplitData,
     pub completion: Arc<CompletionData>,
+    pub hover: Arc<HoverData>,
     pub terminal: Arc<TerminalSplitData>,
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
@@ -419,6 +416,7 @@ impl Data for LapceTabData {
     fn same(&self, other: &Self) -> bool {
         self.main_split.same(&other.main_split)
             && self.completion.same(&other.completion)
+            && self.hover.same(&other.hover)
             && self.palette.same(&other.palette)
             && self.workspace.same(&other.workspace)
             && self.source_control.same(&other.source_control)
@@ -477,6 +475,7 @@ impl LapceTabData {
         ));
         let palette = Arc::new(PaletteData::new(proxy.clone()));
         let completion = Arc::new(CompletionData::new());
+        let hover = Arc::new(HoverData::new());
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
         let plugin = Arc::new(PluginData::new());
@@ -573,6 +572,7 @@ impl LapceTabData {
             focus,
             main_split,
             completion,
+            hover,
             terminal,
             plugin,
             problem,
@@ -669,13 +669,13 @@ impl LapceTabData {
             view_id: editor_view_id,
             main_split: self.main_split.clone(),
             completion: self.completion.clone(),
+            hover: self.hover.clone(),
             source_control: self.source_control.clone(),
             proxy: self.proxy.clone(),
             find: self.find.clone(),
             buffer,
             editor: editor.clone(),
             config: self.config.clone(),
-            workspace: self.workspace.clone(),
         }
     }
 
@@ -746,6 +746,7 @@ impl LapceTabData {
         buffer: &Arc<Buffer>,
     ) {
         self.completion = editor_buffer_data.completion.clone();
+        self.hover = editor_buffer_data.hover.clone();
         self.main_split = editor_buffer_data.main_split.clone();
         self.find = editor_buffer_data.find.clone();
         if !editor_buffer_data.editor.same(editor) {
@@ -754,7 +755,7 @@ impl LapceTabData {
                 .insert(editor.view_id, editor_buffer_data.editor);
         }
         if !editor_buffer_data.buffer.same(buffer) {
-            match &buffer.content {
+            match buffer.content() {
                 BufferContent::File(path) => {
                     self.main_split
                         .open_files
@@ -800,7 +801,7 @@ impl LapceTabData {
                 let offset = editor.cursor.offset();
                 let (line, col) =
                     buffer.offset_to_line_col(offset, self.config.editor.tab_width);
-                let width = config.editor_text_width(text, "W");
+                let width = config.editor_char_width(text);
                 let x = col as f64 * width;
                 let y = (line + 1) as f64 * line_height;
 
@@ -835,7 +836,7 @@ impl LapceTabData {
                 let offset = self.completion.offset;
                 let (line, col) =
                     buffer.offset_to_line_col(offset, self.config.editor.tab_width);
-                let width = config.editor_text_width(text, "W");
+                let width = config.editor_char_width(text);
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
                 let mut origin = editor.window_origin - self.window_origin.to_vec2()
@@ -852,6 +853,55 @@ impl LapceTabData {
                 }
                 if origin.x + self.completion.size.width + 1.0 > tab_size.width {
                     origin.x = tab_size.width - self.completion.size.width - 1.0;
+                }
+                if origin.x <= 0.0 {
+                    origin.x = 0.0;
+                }
+
+                origin
+            }
+        }
+    }
+
+    pub fn hover_origin(
+        &self,
+        text: &mut PietText,
+        tab_size: Size,
+        config: &Config,
+    ) -> Point {
+        let line_height = self.config.editor.line_height as f64;
+
+        let editor = self.main_split.active_editor();
+        let editor = match editor {
+            Some(editor) => editor,
+            None => return Point::ZERO,
+        };
+
+        match &editor.content {
+            BufferContent::Local(_) => {
+                editor.window_origin - self.window_origin.to_vec2()
+            }
+            BufferContent::Value(_) => {
+                editor.window_origin - self.window_origin.to_vec2()
+            }
+            BufferContent::File(path) => {
+                let buffer = self.main_split.open_files.get(path).unwrap();
+                let offset = self.hover.offset;
+                let (line, col) =
+                    buffer.offset_to_line_col(offset, self.config.editor.tab_width);
+                let width = config.editor_char_width(text);
+                let x = col as f64 * width - line_height - 5.0;
+                let y = (line + 1) as f64 * line_height;
+                let mut origin = editor.window_origin - self.window_origin.to_vec2()
+                    + Vec2::new(x, y);
+                if origin.y + self.hover.size.height + 1.0 > tab_size.height {
+                    let height = self.hover.size.height;
+                    origin.y = editor.window_origin.y - self.window_origin.y
+                        + line as f64 * line_height
+                        - height;
+                }
+                if origin.x + self.hover.size.width + 1.0 > tab_size.width {
+                    origin.x = tab_size.width - self.hover.size.width - 1.0;
                 }
                 if origin.x <= 0.0 {
                     origin.x = 0.0;
@@ -899,7 +949,7 @@ impl LapceTabData {
             LapceWorkbenchCommand::OpenFolder => {
                 if !self.workspace.kind.is_remote() {
                     let event_sink = ctx.get_external_handle();
-                    let tab_id = self.id;
+                    let window_id = self.window_id;
                     thread::spawn(move || {
                         let dir = directories::UserDirs::new()
                             .and_then(|u| {
@@ -923,7 +973,7 @@ impl LapceTabData {
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::SetWorkspace(workspace),
-                                Target::Auto,
+                                Target::Window(window_id),
                             );
                         }
                     });
@@ -1066,7 +1116,7 @@ impl LapceTabData {
                             path,
                             position: None,
                             scroll_offset: None,
-                            hisotry: None,
+                            history: None,
                         },
                         &self.config,
                     );
@@ -1091,7 +1141,7 @@ impl LapceTabData {
                             path,
                             position: None,
                             scroll_offset: None,
-                            hisotry: None,
+                            history: None,
                         },
                         &self.config,
                     );
@@ -1116,7 +1166,7 @@ impl LapceTabData {
                             path,
                             position: None,
                             scroll_offset: None,
-                            hisotry: None,
+                            history: None,
                         },
                         &self.config,
                     );
@@ -1324,7 +1374,7 @@ impl LapceTabData {
                     .local_buffers
                     .get_mut(&LocalBufferKind::SourceControl)
                     .unwrap();
-                let message = buffer.rope.to_string();
+                let message = buffer.rope().to_string();
                 let message = message.trim();
                 if message.is_empty() {
                     return;
@@ -1349,6 +1399,26 @@ impl LapceTabData {
                     LapceUICommand::RunPalette(Some(PaletteType::SshHost)),
                     Target::Widget(self.palette.widget_id),
                 ));
+            }
+            LapceWorkbenchCommand::ConnectWsl => ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::SetWorkspace(LapceWorkspace {
+                    kind: LapceWorkspaceType::RemoteWSL,
+                    path: None,
+                    last_open: 0,
+                }),
+                Target::Auto,
+            )),
+            LapceWorkbenchCommand::DisconnectRemote => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetWorkspace(LapceWorkspace {
+                        kind: LapceWorkspaceType::Local,
+                        path: None,
+                        last_open: 0,
+                    }),
+                    Target::Auto,
+                ))
             }
         }
     }
@@ -1829,14 +1899,13 @@ impl LapceMainSplitData {
 
     pub fn document_format(
         &mut self,
-        ctx: &mut EventCtx,
         path: &Path,
         rev: u64,
         result: &Result<Value>,
         config: &Config,
     ) {
         let buffer = self.open_files.get(path).unwrap();
-        if buffer.rev != rev {
+        if buffer.rev() != rev {
             return;
         }
 
@@ -1847,7 +1916,7 @@ impl LapceMainSplitData {
                 if !edits.is_empty() {
                     let buffer = self.open_files.get_mut(path).unwrap();
 
-                    let edits: Vec<(Selection, String)> = edits
+                    let edits: Vec<(Selection, &str)> = edits
                         .iter()
                         .map(|edit| {
                             let selection = Selection::region(
@@ -1860,21 +1929,11 @@ impl LapceMainSplitData {
                                     config.editor.tab_width,
                                 ),
                             );
-                            (selection, edit.new_text.clone())
+                            (selection, edit.new_text.as_str())
                         })
                         .collect();
 
-                    self.edit(
-                        ctx,
-                        path,
-                        &edits.iter().map(|(s, c)| (s, c.as_str())).collect::<Vec<(
-                            &Selection,
-                            &str,
-                        )>>(
-                        ),
-                        EditType::Other,
-                        config,
-                    );
+                    self.edit(path, &edits, EditType::Other, config);
                 }
             }
         }
@@ -1888,11 +1947,11 @@ impl LapceMainSplitData {
         result: &Result<Value>,
         config: &Config,
     ) {
-        self.document_format(ctx, path, rev, result, config);
+        self.document_format(path, rev, result, config);
 
         let buffer = self.open_files.get(path).unwrap();
-        let rev = buffer.rev;
-        let buffer_id = buffer.id;
+        let rev = buffer.rev();
+        let buffer_id = buffer.id();
         let event_sink = ctx.get_external_handle();
         let path = PathBuf::from(path);
         self.proxy.save(
@@ -1973,9 +2032,8 @@ impl LapceMainSplitData {
 
     pub fn edit(
         &mut self,
-        ctx: &mut EventCtx,
         path: &Path,
-        edits: &[(&Selection, &str)],
+        edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
         config: &Config,
     ) -> Option<RopeDelta> {
@@ -1986,6 +2044,7 @@ impl LapceMainSplitData {
         let buffer_len = buffer.len();
         let mut move_cursor = true;
         for (selection, _) in edits.iter() {
+            let selection = selection.as_ref();
             if selection.min_offset() == 0
                 && selection.max_offset() >= buffer_len - 1
             {
@@ -1994,8 +2053,9 @@ impl LapceMainSplitData {
             }
         }
 
-        let delta =
-            Arc::make_mut(buffer).edit_multiple(ctx, edits, proxy, edit_type);
+        let delta = Arc::make_mut(buffer)
+            .editable(&proxy)
+            .edit_multiple(edits, edit_type);
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
@@ -2218,7 +2278,7 @@ impl LapceMainSplitData {
                 path: path.clone(),
                 position: Some(position),
                 scroll_offset: None,
-                hisotry: None,
+                history: None,
             };
             self.jump_to_location(ctx, editor_view_id, location, config);
         }
@@ -2246,7 +2306,7 @@ impl LapceMainSplitData {
             Some(location.path.clone()),
             config,
         );
-        editor.save_jump_location(&buffer, config.editor.tab_width);
+        editor.save_jump_location(buffer.data(), config.editor.tab_width);
         self.go_to_location(ctx, Some(editor_view_id), location, config);
         editor_view_id
     }
@@ -2267,7 +2327,7 @@ impl LapceMainSplitData {
             )
             .view_id;
         let buffer = self.editor_buffer(editor_view_id);
-        let new_buffer = match &buffer.content {
+        let new_buffer = match buffer.content() {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
             BufferContent::Value(_) => true,
@@ -2276,7 +2336,7 @@ impl LapceMainSplitData {
             self.db.save_buffer_position(&self.workspace, &buffer);
         } else if location.position.is_none()
             && location.scroll_offset.is_none()
-            && location.hisotry.is_none()
+            && location.history.is_none()
         {
             return;
         }
@@ -2320,8 +2380,8 @@ impl LapceMainSplitData {
                 None => (buffer.cursor_offset, Some(&buffer.scroll_offset)),
             };
 
-            if let Some(compare) = location.hisotry.as_ref() {
-                if !buffer.histories.contains_key(compare) {
+            if let Some(compare) = location.history.as_ref() {
+                if !buffer.histories().contains_key(compare) {
                     buffer.retrieve_file_head(
                         *self.tab_id,
                         self.proxy.clone(),
@@ -2337,7 +2397,7 @@ impl LapceMainSplitData {
                 config,
             );
             editor.content = BufferContent::File(path.clone());
-            editor.compare = location.hisotry.clone();
+            editor.compare = location.history.clone();
             editor.cursor = if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(offset), None)
             } else {
@@ -3003,15 +3063,15 @@ impl LapceEditorData {
         placeholders.extend_from_slice(&v[1..]);
     }
 
-    pub fn save_jump_location(&mut self, buffer: &Buffer, tab_width: usize) {
-        if let BufferContent::File(path) = &buffer.content {
+    pub fn save_jump_location(&mut self, buffer: &BufferData, tab_width: usize) {
+        if let BufferContent::File(path) = buffer.content() {
             let location = EditorLocationNew {
                 path: path.clone(),
                 position: Some(
                     buffer.offset_to_position(self.cursor.offset(), tab_width),
                 ),
                 scroll_offset: Some(self.scroll_offset),
-                hisotry: None,
+                history: None,
             };
             self.locations.push(location);
             self.current_location = self.locations.len();
@@ -3030,38 +3090,6 @@ impl LapceEditorData {
             },
         };
         info
-    }
-}
-
-pub fn hex_to_color(hex: &str) -> Result<Color> {
-    let hex = hex.trim_start_matches('#');
-    match hex.len() {
-        // The 3-digit CSS-like form, where #RGB is shorthand for #RRGGBB.
-        3 => {
-            let r = u8::from_str_radix(&hex[0..1], 16)?;
-            let r = r * 16 + r;
-            let g = u8::from_str_radix(&hex[1..2], 16)?;
-            let g = g * 16 + g;
-            let b = u8::from_str_radix(&hex[2..3], 16)?;
-            let b = b * 16 + b;
-            Ok(Color::rgba8(r, g, b, 255))
-        }
-        // The standard form #RRGGBB.
-        6 => {
-            let r = u8::from_str_radix(&hex[0..2], 16)?;
-            let g = u8::from_str_radix(&hex[2..4], 16)?;
-            let b = u8::from_str_radix(&hex[4..6], 16)?;
-            Ok(Color::rgba8(r, g, b, 255))
-        }
-        // The standard form #RRGGBBAA (alpha channel).
-        8 => {
-            let r = u8::from_str_radix(&hex[0..2], 16)?;
-            let g = u8::from_str_radix(&hex[2..4], 16)?;
-            let b = u8::from_str_radix(&hex[4..6], 16)?;
-            let a = u8::from_str_radix(&hex[6..8], 16)?;
-            Ok(Color::rgba8(r, g, b, a))
-        }
-        _ => Err(anyhow!("invalid hex color")),
     }
 }
 
@@ -3096,77 +3124,3 @@ fn str_matching_pair(c: &str) -> Option<char> {
 
 #[allow(dead_code)]
 fn progress_term_event() {}
-
-#[cfg(test)]
-mod hex_to_color_tests {
-    use super::hex_to_color;
-    use druid::piet::Color;
-
-    #[test]
-    pub fn hex_to_color_for_invalid_inputs() {
-        assert!(hex_to_color("").is_err());
-        assert!(hex_to_color(" ").is_err());
-        assert!(hex_to_color("#").is_err());
-        assert!(hex_to_color("11").is_err());
-        assert!(hex_to_color("11 ").is_err());
-        assert!(hex_to_color(" 11 ").is_err());
-        assert!(hex_to_color("1 1").is_err());
-        assert!(hex_to_color("#1").is_err());
-        assert!(hex_to_color("#11").is_err());
-        assert!(hex_to_color("#11Z").is_err());
-        assert!(hex_to_color("#1234").is_err());
-        assert!(hex_to_color("#12345").is_err());
-        assert!(hex_to_color("#12345Z").is_err());
-        assert!(hex_to_color("#1234567").is_err());
-        assert!(hex_to_color("#1234567Z").is_err());
-        assert!(hex_to_color("#123456789").is_err());
-    }
-
-    #[test]
-    pub fn hex_to_color_for_valid_3_digit_colors() {
-        assert_eq!(
-            hex_to_color("#123").unwrap(),
-            Color::rgba8(0x11, 0x22, 0x33, 255)
-        );
-        assert_eq!(
-            hex_to_color("#a2f").unwrap(),
-            Color::rgba8(0xAA, 0x22, 0xFF, 255)
-        );
-        assert_eq!(
-            hex_to_color("#A2F").unwrap(),
-            Color::rgba8(0xAA, 0x22, 0xFF, 255)
-        );
-    }
-
-    #[test]
-    pub fn hex_to_color_for_valid_6_digit_colors() {
-        assert_eq!(
-            hex_to_color("#112233").unwrap(),
-            Color::rgba8(0x11, 0x22, 0x33, 255)
-        );
-        assert_eq!(
-            hex_to_color("#Da2e1f").unwrap(),
-            Color::rgba8(0xDA, 0x2E, 0x1F, 255)
-        );
-        assert_eq!(
-            hex_to_color("#A0020F").unwrap(),
-            Color::rgba8(0xA0, 0x02, 0x0F, 255)
-        );
-    }
-
-    #[test]
-    pub fn hex_to_color_for_valid_8_digit_colors() {
-        assert_eq!(
-            hex_to_color("#11223300").unwrap(),
-            Color::rgba8(0x11, 0x22, 0x33, 0x00)
-        );
-        assert_eq!(
-            hex_to_color("#Da2e1faf").unwrap(),
-            Color::rgba8(0xDA, 0x2E, 0x1F, 0xAF)
-        );
-        assert_eq!(
-            hex_to_color("#A0020FFF").unwrap(),
-            Color::rgba8(0xA0, 0x02, 0x0F, 0xFF)
-        );
-    }
-}

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io::BufReader;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -13,32 +12,30 @@ use crossbeam_channel::Sender;
 use druid::Target;
 use druid::{ExtEventSink, WidgetId};
 use flate2::read::GzDecoder;
-use lapce_proxy::dispatch::FileDiff;
-use lapce_proxy::dispatch::FileNodeItem;
-use lapce_proxy::dispatch::{DiffInfo, Dispatcher};
-use lapce_proxy::plugin::PluginDescription;
-use lapce_proxy::style::LineStyle;
-use lapce_proxy::terminal::TermId;
+use lapce_proxy::dispatch::Dispatcher;
+use lapce_rpc::buffer::BufferId;
+use lapce_rpc::core::{CoreNotification, CoreRequest};
+use lapce_rpc::plugin::PluginDescription;
+use lapce_rpc::source_control::FileDiff;
+use lapce_rpc::terminal::TermId;
 use lapce_rpc::RpcHandler;
 use lapce_rpc::{stdio_transport, Callback};
 use lapce_rpc::{ControlFlow, Handler};
 use lsp_types::CompletionItem;
 use lsp_types::Position;
-use lsp_types::ProgressParams;
-use lsp_types::PublishDiagnosticsParams;
+use lsp_types::Url;
 use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use xi_rope::spans::SpansBuilder;
 use xi_rope::{Interval, RopeDelta};
 
 use crate::command::LapceUICommand;
+use crate::command::LAPCE_UI_COMMAND;
 use crate::config::Config;
 use crate::state::LapceWorkspace;
 use crate::state::LapceWorkspaceType;
 use crate::terminal::RawTerminal;
-use crate::{buffer::BufferId, command::LAPCE_UI_COMMAND};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -65,12 +62,13 @@ pub struct LapceProxy {
 }
 
 impl Handler for LapceProxy {
-    type Notification = Notification;
-    type Request = Request;
+    type Notification = CoreNotification;
+    type Request = CoreRequest;
 
     fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow {
+        use lapce_rpc::core::CoreNotification::*;
         match rpc {
-            Notification::SemanticStyles {
+            SemanticStyles {
                 rev,
                 buffer_id,
                 path,
@@ -100,7 +98,7 @@ impl Handler for LapceProxy {
                     );
                 });
             }
-            Notification::ReloadBuffer {
+            ReloadBuffer {
                 buffer_id,
                 new_content,
                 rev,
@@ -111,21 +109,21 @@ impl Handler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::PublishDiagnostics { diagnostics } => {
+            PublishDiagnostics { diagnostics } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::PublishDiagnostics(diagnostics),
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::WorkDoneProgress { progress } => {
+            WorkDoneProgress { progress } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::WorkDoneProgress(progress),
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::InstalledPlugins { plugins } => {
+            InstalledPlugins { plugins } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateInstalledPlugins(plugins),
@@ -133,22 +131,22 @@ impl Handler for LapceProxy {
                 );
             }
             #[allow(unused_variables)]
-            Notification::ListDir { items } => {}
+            ListDir { items } => {}
             #[allow(unused_variables)]
-            Notification::DiffFiles { files } => {}
-            Notification::DiffInfo { diff } => {
+            DiffFiles { files } => {}
+            DiffInfo { diff } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::UpdateDiffInfo(diff),
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::UpdateTerminal { term_id, content } => {
+            UpdateTerminal { term_id, content } => {
                 let _ = self
                     .term_tx
                     .send((term_id, TermEvent::UpdateContent(content)));
             }
-            Notification::CloseTerminal { term_id } => {
+            CloseTerminal { term_id } => {
                 let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -156,14 +154,14 @@ impl Handler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::ProxyConnected {} => {
+            ProxyConnected {} => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connected),
                     Target::Widget(self.tab_id),
                 );
             }
-            Notification::HomeDir { path } => {
+            HomeDir { path } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::HomeDir(path),
@@ -221,111 +219,98 @@ impl LapceProxy {
         let (core_sender, core_receiver) = crossbeam_channel::unbounded();
         match workspace.kind {
             LapceWorkspaceType::Local => {
-                let proxy_reciever = (*self.proxy_receiver).clone();
+                let proxy_receiver = (*self.proxy_receiver).clone();
                 thread::spawn(move || {
                     let dispatcher = Dispatcher::new(core_sender);
-                    let _ = dispatcher.mainloop(proxy_reciever);
+                    let _ = dispatcher.mainloop(proxy_receiver);
                 });
-
-                let mut proxy = self.clone();
-                let mut handler = self.clone();
-                proxy.rpc.mainloop(core_receiver, &mut handler);
             }
             LapceWorkspaceType::RemoteSSH(user, host) => {
-                let ssh_args = &[
-                    "-o",
-                    "ControlMaster=auto",
-                    "-o",
-                    "ControlPath=~/.ssh/cm-%r@%h:%p",
-                    "-o",
-                    "ControlPersist=30m",
-                    "-o",
-                    "ConnectTimeout=15",
-                ];
-                let mut cmd = Command::new("ssh");
-                #[cfg(target_os = "windows")]
-                let cmd = cmd.creation_flags(0x08000000);
-                let cmd = cmd
-                    .arg(format!("{}@{}", user, host))
-                    .args(ssh_args)
-                    .arg("test")
-                    .arg("-e")
-                    .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
-                    .output()?;
-                if !cmd.status.success() {
-                    let local_proxy_file = Config::dir()
-                        .ok_or_else(|| anyhow!("can't find config dir"))?
-                        .join(format!("lapce-proxy-{}", VERSION));
-                    if !local_proxy_file.exists() {
-                        let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
-                        let mut data = ureq::get(&url)
-                            .call()
-                            .expect("request failed")
-                            .into_reader();
-                        let mut out = std::fs::File::create(&local_proxy_file)
-                            .expect("failed to create file");
-                        let mut gz = GzDecoder::new(&mut data);
-                        std::io::copy(&mut gz, &mut out)
-                            .expect("failed to copy content");
-                    }
-
-                    let mut cmd = Command::new("ssh");
-                    #[cfg(target_os = "windows")]
-                    let cmd = cmd.creation_flags(0x08000000);
-                    cmd.arg(format!("{}@{}", user, host))
-                        .args(ssh_args)
-                        .arg("mkdir")
-                        .arg("~/.lapce/")
-                        .output()?;
-
-                    let mut cmd = Command::new("scp");
-                    #[cfg(target_os = "windows")]
-                    let cmd = cmd.creation_flags(0x08000000);
-                    cmd.args(ssh_args)
-                        .arg(&local_proxy_file)
-                        .arg(format!("{user}@{host}:~/.lapce/lapce-proxy-{VERSION}"))
-                        .output()?;
-
-                    let mut cmd = Command::new("ssh");
-                    #[cfg(target_os = "windows")]
-                    let cmd = cmd.creation_flags(0x08000000);
-                    cmd.arg(format!("{}@{}", user, host))
-                        .args(ssh_args)
-                        .arg("chmod")
-                        .arg("+x")
-                        .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
-                        .output()?;
-                }
-
-                let mut child = Command::new("ssh");
-                #[cfg(target_os = "windows")]
-                let child = child.creation_flags(0x08000000);
-                let mut child = child
-                    .arg(format!("{}@{}", user, host))
-                    .args(ssh_args)
-                    .arg(format!("~/.lapce/lapce-proxy-{}", VERSION))
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-                let stdin = child
-                    .stdin
-                    .take()
-                    .ok_or_else(|| anyhow!("can't find stdin"))?;
-                let stdout = BufReader::new(
-                    child
-                        .stdout
-                        .take()
-                        .ok_or_else(|| anyhow!("can't find stdout"))?,
-                );
-
-                let proxy_reciever = (*self.proxy_receiver).clone();
-                stdio_transport(stdin, proxy_reciever, stdout, core_sender);
-
-                let mut handler = self.clone();
-                let mut proxy = self.clone();
-                proxy.rpc.mainloop(core_receiver, &mut handler);
+                self.start_remote(SshRemote { user, host }, core_sender)?;
+            }
+            LapceWorkspaceType::RemoteWSL => {
+                let distro = WslDistro::all()?
+                    .into_iter()
+                    .find(|distro| distro.default)
+                    .ok_or_else(|| anyhow!("no default distro found"))?
+                    .name;
+                self.start_remote(WslRemote { distro }, core_sender)?;
             }
         }
+
+        let mut proxy = self.clone();
+        let mut handler = self.clone();
+        proxy.rpc.mainloop(core_receiver, &mut handler);
+
+        Ok(())
+    }
+
+    fn start_remote(
+        &self,
+        remote: impl Remote,
+        core_sender: Sender<Value>,
+    ) -> Result<()> {
+        let proxy_filename = format!("lapce-proxy-{VERSION}");
+        let remote_proxy_file = format!("~/.lapce/{}", proxy_filename);
+
+        let cmd = remote
+            .command_builder()
+            .arg("test")
+            .arg("-e")
+            .arg(&remote_proxy_file)
+            .status()?;
+        if !cmd.success() {
+            let local_proxy_file = Config::dir()
+                .ok_or_else(|| anyhow!("can't find config dir"))?
+                .join(&proxy_filename);
+            if !local_proxy_file.exists() {
+                let url = format!("https://github.com/lapce/lapce/releases/download/v{VERSION}/lapce-proxy-linux.gz");
+                let mut data = ureq::get(&url)
+                    .call()
+                    .expect("request failed")
+                    .into_reader();
+                let mut out = std::fs::File::create(&local_proxy_file)
+                    .expect("failed to create file");
+                let mut gz = GzDecoder::new(&mut data);
+                std::io::copy(&mut gz, &mut out).expect("failed to copy content");
+            }
+
+            remote
+                .command_builder()
+                .arg("mkdir")
+                .arg("~/.lapce/")
+                .status()?;
+
+            remote.upload_file(&local_proxy_file, &remote_proxy_file)?;
+
+            remote
+                .command_builder()
+                .arg("chmod")
+                .arg("+x")
+                .arg(&remote_proxy_file)
+                .status()?;
+        }
+
+        let mut child = remote
+            .command_builder()
+            .arg(&remote_proxy_file)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow!("can't find stdin"))?;
+        let stdout = BufReader::new(
+            child
+                .stdout
+                .take()
+                .ok_or_else(|| anyhow!("can't find stdout"))?,
+        );
+
+        let proxy_receiver = (*self.proxy_receiver).clone();
+        stdio_transport(stdin, proxy_receiver, stdout, core_sender);
+
         Ok(())
     }
 
@@ -491,6 +476,24 @@ impl LapceProxy {
         );
     }
 
+    pub fn get_hover(
+        &self,
+        request_id: usize,
+        buffer_id: BufferId,
+        position: Position,
+        f: Box<dyn Callback>,
+    ) {
+        self.rpc.send_rpc_request_async(
+            "get_hover",
+            &json!({
+                "request_id": request_id,
+                "buffer_id": buffer_id,
+                "position": position,
+            }),
+            f,
+        );
+    }
+
     pub fn get_signature(
         &self,
         buffer_id: BufferId,
@@ -610,175 +613,138 @@ impl LapceProxy {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CursorShape {
-    /// Cursor is a block like `▒`.
-    Block,
-
-    /// Cursor is an underscore like `_`.
-    Underline,
-
-    /// Cursor is a vertical bar `⎸`.
-    Beam,
-
-    /// Cursor is a box like `☐`.
-    HollowBlock,
-
-    /// Invisible cursor.
-    Hidden,
+fn new_command(program: &str) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
+    cmd
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum Notification {
-    ProxyConnected {},
-    SemanticStyles {
-        rev: u64,
-        buffer_id: BufferId,
-        path: PathBuf,
-        len: usize,
-        styles: Vec<LineStyle>,
-    },
-    ReloadBuffer {
-        buffer_id: BufferId,
-        new_content: String,
-        rev: u64,
-    },
-    PublishDiagnostics {
-        diagnostics: PublishDiagnosticsParams,
-    },
-    WorkDoneProgress {
-        progress: ProgressParams,
-    },
-    HomeDir {
-        path: PathBuf,
-    },
-    InstalledPlugins {
-        plugins: HashMap<String, PluginDescription>,
-    },
-    ListDir {
-        items: Vec<FileNodeItem>,
-    },
-    DiffFiles {
-        files: Vec<PathBuf>,
-    },
-    DiffInfo {
-        diff: DiffInfo,
-    },
-    UpdateTerminal {
-        term_id: TermId,
-        content: String,
-    },
-    CloseTerminal {
-        term_id: TermId,
-    },
+trait Remote: Sized {
+    fn home_dir(&self) -> Result<String> {
+        let cmd = self
+            .command_builder()
+            .arg("echo")
+            .arg("-n")
+            .arg("$HOME")
+            .stdout(Stdio::piped())
+            .output()?;
+
+        Ok(String::from_utf8(cmd.stdout)?)
+    }
+
+    fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()>;
+
+    fn command_builder(&self) -> Command;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Request {}
-
-pub struct ProxyHandlerNew {
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-
-    #[allow(dead_code)]
-    term_tx: Sender<(TermId, TermEvent)>,
-
-    #[allow(dead_code)]
-    event_sink: ExtEventSink,
+struct SshRemote {
+    user: String,
+    host: String,
 }
-//
-// impl Handler for ProxyHandlerNew {
-//     type Notification = Notification;
-//     type Request = Request;
-//
-//     fn handle_notification(
-//         &mut self,
-//         ctx: &xi_rpc::RpcCtx,
-//         rpc: Self::Notification,
-//     ) {
-//         match rpc {
-//             Notification::SemanticTokens {
-//                 rev,
-//                 buffer_id,
-//                 path,
-//                 tokens,
-//             } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::UpdateSemanticTokens(
-//                         buffer_id, path, rev, tokens,
-//                     ),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::ReloadBuffer {
-//                 buffer_id,
-//                 new_content,
-//                 rev,
-//             } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::PublishDiagnostics { diagnostics } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::PublishDiagnostics(diagnostics),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::WorkDoneProgress { progress } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::WorkDoneProgress(progress),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::InstalledPlugins { plugins } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::UpdateInstalledPlugins(plugins),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::ListDir { items } => {}
-//             Notification::DiffFiles { files } => {}
-//             Notification::FileDiffs { diffs } => {
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::UpdateFileDiffs(diffs),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//             Notification::UpdateTerminal { term_id, content } => {
-//                 self.term_tx
-//                     .send((term_id, TermEvent::UpdateContent(content)));
-//             }
-//             Notification::CloseTerminal { term_id } => {
-//                 self.term_tx.send((term_id, TermEvent::CloseTerminal));
-//                 self.event_sink.submit_command(
-//                     LAPCE_UI_COMMAND,
-//                     LapceUICommand::CloseTerminal(term_id),
-//                     Target::Widget(self.tab_id),
-//                 );
-//             }
-//         }
-//     }
-//
-//     fn handle_request(
-//         &mut self,
-//         ctx: &xi_rpc::RpcCtx,
-//         rpc: Self::Request,
-//     ) -> Result<serde_json::Value, xi_rpc::RemoteError> {
-//         Err(xi_rpc::RemoteError::InvalidRequest(None))
-//     }
-// }
 
-use lsp_types::Url;
+impl SshRemote {
+    #[cfg(target_os = "windows")]
+    const SSH_ARGS: &'static [&'static str] = &["-o", "ConnectTimeout=15"];
+
+    #[cfg(not(target_os = "windows"))]
+    const SSH_ARGS: &'static [&'static str] = &[
+        "-o",
+        "ControlMaster=auto",
+        "-o",
+        "ControlPath=~/.ssh/cm-%r@%h:%p",
+        "-o",
+        "ControlPersist=30m",
+        "-o",
+        "ConnectTimeout=15",
+    ];
+
+    fn command_builder(user: &str, host: &str) -> Command {
+        let mut cmd = new_command("ssh");
+        cmd.arg(format!("{}@{}", user, host)).args(Self::SSH_ARGS);
+        cmd
+    }
+}
+
+impl Remote for SshRemote {
+    fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
+        new_command("scp")
+            .args(Self::SSH_ARGS)
+            .arg(local.as_ref())
+            .arg(dbg!(format!("{}@{}:{remote}", self.user, self.host)))
+            .status()?;
+        Ok(())
+    }
+
+    fn command_builder(&self) -> Command {
+        Self::command_builder(&self.user, &self.host)
+    }
+}
+
+#[derive(Debug)]
+struct WslDistro {
+    pub name: String,
+    pub default: bool,
+}
+
+impl WslDistro {
+    fn all() -> Result<Vec<WslDistro>> {
+        let cmd = new_command("wsl")
+            .arg("-l")
+            .arg("-v")
+            .stdout(Stdio::piped())
+            .output()?;
+
+        if !cmd.status.success() {
+            return Err(anyhow!("failed to execute `wsl -l -v`"));
+        }
+
+        let distros = String::from_utf16(bytemuck::cast_slice(&cmd.stdout))?
+            .lines()
+            .skip(1)
+            .filter_map(|line| {
+                let line = line.trim_start();
+                let default = line.starts_with('*');
+                let name = line
+                    .trim_start_matches('*')
+                    .trim_start()
+                    .split(' ')
+                    .next()?;
+                Some(WslDistro {
+                    name: name.to_string(),
+                    default,
+                })
+            })
+            .collect();
+
+        Ok(distros)
+    }
+}
+
+struct WslRemote {
+    distro: String,
+}
+
+impl Remote for WslRemote {
+    fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
+        let mut wsl_path = Path::new(r"\\wsl.localhost\").join(&self.distro);
+        wsl_path = if remote.starts_with('~') {
+            let home_dir = self.home_dir()?;
+            wsl_path.join(remote.replacen('~', &home_dir, 1))
+        } else {
+            wsl_path.join(remote)
+        };
+        std::fs::copy(local, wsl_path)?;
+        Ok(())
+    }
+
+    fn command_builder(&self) -> Command {
+        let mut cmd = new_command("wsl");
+        cmd.arg("-d").arg(&self.distro).arg("--");
+        cmd
+    }
+}
 
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
 // as "/<drive>://" which is then interpreted by PathBuf::new() as a UNIX-like path from root.

@@ -9,7 +9,10 @@ use lapce_data::{
     data::LapceTabData,
 };
 
-use crate::{editor::LapceEditorView, svg::get_svg, tab::LapceIcon};
+use crate::{
+    editor::view::LapceEditorView, tab::LapceIcon,
+    svg::get_svg,
+};
 
 pub struct FindBox {
     input_width: f64,

@@ -55,11 +55,6 @@ impl Menu {
         let n = (mouse_event.pos.y / self.line_height).floor() as usize;
         if let Some(item) = data.menu.items.get(n) {
             ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::Focus,
-                Target::Widget(data.active_id),
-            ));
-            ctx.submit_command(Command::new(
                 LAPCE_NEW_COMMAND,
                 item.command.clone(),
                 Target::Widget(data.active_id),
@@ -225,11 +220,13 @@ impl Widget<LapceWindowData> for Menu {
             if let Some(keymaps) =
                 data.keypress.command_keymaps.get(&item.command.cmd)
             {
-                let origin = Point::new(
-                    rect.x1,
-                    self.line_height * i as f64 + self.line_height / 2.0,
-                );
-                keymaps[0].paint(ctx, origin, Alignment::Right, &data.config);
+                if !keymaps.is_empty() {
+                    let origin = Point::new(
+                        rect.x1,
+                        self.line_height * i as f64 + self.line_height / 2.0,
+                    );
+                    keymaps[0].paint(ctx, origin, Alignment::Right, &data.config);
+                }
             }
         }
     }

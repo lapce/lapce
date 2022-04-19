@@ -6,7 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use lapce_proxy::style::Style;
+use lapce_rpc::style::Style;
 use tree_sitter::{Node, Parser, Point, Tree};
 use xi_rope::{
     spans::{Spans, SpansBuilder},
@@ -35,6 +35,21 @@ pub struct Syntax {
     pub line_height: usize,
     pub lens_height: usize,
     pub styles: Option<Arc<Spans<Style>>>,
+}
+
+impl std::fmt::Debug for Syntax {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Syntax")
+            .field("rev", &self.rev)
+            .field("language", &self.language)
+            .field("text", &self.text)
+            .field("tree", &self.tree)
+            .field("normal_lines", &self.normal_lines)
+            .field("line_height", &self.line_height)
+            .field("lens_height", &self.lens_height)
+            .field("styles", &self.styles)
+            .finish()
+    }
 }
 
 impl Syntax {

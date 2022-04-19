@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use druid::{
     kurbo::Line,
     widget::{LensWrap, WidgetExt},
@@ -12,6 +11,7 @@ use lapce_data::{
     data::{LapceTabData, LapceTabLens, LapceWindowData},
     state::LapceWorkspace,
 };
+use std::cmp::Ordering;
 use std::sync::Arc;
 
 use crate::{
@@ -142,8 +142,8 @@ impl LapceWindowNew {
                     LapceUICommand::Focus,
                     Target::Widget(data.active_id),
                 ));
-            },
-            _ => ()
+            }
+            _ => (),
         }
 
         data.tabs_order = Arc::new(self.tabs.iter().map(|t| t.id()).collect());
@@ -206,6 +206,14 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     LapceUICommand::UpdatePluginDescriptions(plugins) => {
                         data.plugins = Arc::new(plugins.to_owned());
                     }
+                    LapceUICommand::Focus => {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(data.active_id),
+                        ));
+                        ctx.set_handled();
+                    }
                     LapceUICommand::ReloadConfig => {
                         data.config = Arc::new(
                             Config::load(&LapceWorkspace::default())
@@ -224,23 +232,14 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     LapceUICommand::ReloadWindow => {
                         let tab = data.tabs.get(&data.active_id).unwrap();
 
-                        #[allow(mutable_borrow_reservation_conflict)]
-                        self.new_tab(ctx, data, (*tab.workspace).clone(), true);
+                        let workspace = (*tab.workspace).clone();
+                        self.new_tab(ctx, data, workspace, true);
                         return;
                     }
                     LapceUICommand::HideMenu => {
                         ctx.set_handled();
                         let menu = Arc::make_mut(&mut data.menu);
                         menu.shown = false;
-                        let active_tab_id = data.active_id;
-                        let active_id = data
-                            .tabs
-                            .get(&active_tab_id)
-                            .and_then(|t| t.main_split.active_editor())
-                            .map(|e| e.view_id);
-                        if let Some(active_id) = active_id {
-                            ctx.set_focus(active_id)
-                        }
                     }
                     LapceUICommand::ShowMenu(point, items) => {
                         ctx.set_handled();

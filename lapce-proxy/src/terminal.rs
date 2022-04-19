@@ -3,7 +3,6 @@ use std::{
     collections::VecDeque,
     io::{self, ErrorKind, Read, Write},
     path::PathBuf,
-    sync::atomic::{self, AtomicU64},
 };
 
 use alacritty_terminal::{
@@ -15,6 +14,7 @@ use alacritty_terminal::{
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
 use directories::BaseDirs;
+use lapce_rpc::terminal::TermId;
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
 #[allow(deprecated)]
@@ -22,34 +22,11 @@ use mio::{
     channel::{channel, Receiver, Sender},
     Events, PollOpt, Ready,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::dispatch::Dispatcher;
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
-
-pub struct Counter(AtomicU64);
-
-impl Counter {
-    pub const fn new() -> Counter {
-        Counter(AtomicU64::new(1))
-    }
-
-    pub fn next(&self) -> u64 {
-        self.0.fetch_add(1, atomic::Ordering::Relaxed)
-    }
-}
-
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct TermId(pub u64);
-
-impl TermId {
-    pub fn next() -> Self {
-        static TERMINAL_ID_COUNTER: Counter = Counter::new();
-        Self(TERMINAL_ID_COUNTER.next())
-    }
-}
 
 pub type TermConfig = alacritty_terminal::config::Config;
 

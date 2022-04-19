@@ -1,7 +1,7 @@
 on: 
   push:
-  schedule:
-    - cron: '30 2 5 * *'
+    branches:
+      - master
 
 name: CI
 
@@ -29,3 +29,8 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
+  
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace

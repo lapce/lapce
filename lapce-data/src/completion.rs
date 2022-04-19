@@ -4,12 +4,12 @@ use anyhow::Error;
 use druid::{Command, EventCtx, ExtEventSink, Size, Target, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
+use lapce_rpc::buffer::BufferId;
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
 use std::str::FromStr;
 
 use crate::{
-    buffer::BufferId,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     movement::Movement,
     proxy::LapceProxy,
@@ -405,14 +405,16 @@ impl CompletionData {
                     self.matcher.fuzzy_indices(filter_text, &self.input)
                 {
                     if shift > 0 {
-                        indices = indices.iter().map(|i| i + shift).collect();
+                        for idx in indices.iter_mut() {
+                            *idx += shift;
+                        }
                     }
                     let mut item = i.clone();
                     item.score = score;
                     item.label_score = score;
                     item.indices = indices;
-                    if let Some((score, _)) =
-                        self.matcher.fuzzy_indices(&i.item.label, &self.input)
+                    if let Some(score) =
+                        self.matcher.fuzzy_match(&i.item.label, &self.input)
                     {
                         item.label_score = score;
                     }
@@ -422,14 +424,11 @@ impl CompletionData {
                 }
             })
             .collect();
-        items.sort_by(|a, b| match b.score.cmp(&a.score) {
-            Ordering::Less => Ordering::Less,
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Equal => match b.label_score.cmp(&a.label_score) {
-                Ordering::Less => Ordering::Less,
-                Ordering::Greater => Ordering::Greater,
-                Ordering::Equal => a.item.label.len().cmp(&b.item.label.len()),
-            },
+        items.sort_by(|a, b| {
+            b.score
+                .cmp(&a.score)
+                .then_with(|| b.label_score.cmp(&a.label_score))
+                .then_with(|| a.item.label.len().cmp(&b.item.label.len()))
         });
         self.filtered_items = Arc::new(items);
     }

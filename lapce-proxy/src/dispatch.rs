@@ -1,7 +1,7 @@
-use crate::buffer::{get_mod_time, Buffer, BufferId};
+use crate::buffer::{get_mod_time, Buffer};
 use crate::lsp::LspCatalog;
-use crate::plugin::{PluginCatalog, PluginDescription};
-use crate::terminal::{TermId, Terminal};
+use crate::plugin::PluginCatalog;
+use crate::terminal::Terminal;
 use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
@@ -12,21 +12,23 @@ use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
+use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
+use lapce_rpc::file::FileNodeItem;
+use lapce_rpc::proxy::{ProxyNotification, ProxyRequest};
+use lapce_rpc::source_control::{DiffInfo, FileDiff};
+use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcObject};
-use lsp_types::{CompletionItem, Position, TextDocumentContentChangeEvent};
+use lsp_types::TextDocumentContentChangeEvent;
 use notify::Watcher;
 use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
-use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
-use std::{cmp, fs};
 use std::{collections::HashSet, io::BufRead};
-use xi_rope::RopeDelta;
 
 #[derive(Clone)]
 pub struct Dispatcher {
@@ -112,222 +114,6 @@ impl notify::EventHandler for Dispatcher {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum Notification {
-    Initialize {
-        workspace: PathBuf,
-    },
-    Shutdown {},
-    Update {
-        buffer_id: BufferId,
-        delta: RopeDelta,
-        rev: u64,
-    },
-    NewTerminal {
-        term_id: TermId,
-        cwd: Option<PathBuf>,
-        shell: String,
-    },
-    InstallPlugin {
-        plugin: PluginDescription,
-    },
-    GitCommit {
-        message: String,
-        diffs: Vec<FileDiff>,
-    },
-    TerminalWrite {
-        term_id: TermId,
-        content: String,
-    },
-    TerminalResize {
-        term_id: TermId,
-        width: usize,
-        height: usize,
-    },
-    TerminalClose {
-        term_id: TermId,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "method", content = "params")]
-pub enum Request {
-    NewBuffer {
-        buffer_id: BufferId,
-        path: PathBuf,
-    },
-    BufferHead {
-        buffer_id: BufferId,
-        path: PathBuf,
-    },
-    GetCompletion {
-        request_id: usize,
-        buffer_id: BufferId,
-        position: Position,
-    },
-    GlobalSearch {
-        pattern: String,
-    },
-    CompletionResolve {
-        buffer_id: BufferId,
-        completion_item: Box<CompletionItem>,
-    },
-    GetSignature {
-        buffer_id: BufferId,
-        position: Position,
-    },
-    GetReferences {
-        buffer_id: BufferId,
-        position: Position,
-    },
-    GetDefinition {
-        request_id: usize,
-        buffer_id: BufferId,
-        position: Position,
-    },
-    GetCodeActions {
-        buffer_id: BufferId,
-        position: Position,
-    },
-    GetDocumentSymbols {
-        buffer_id: BufferId,
-    },
-    GetDocumentFormatting {
-        buffer_id: BufferId,
-    },
-    GetFiles {
-        path: String,
-    },
-    ReadDir {
-        path: PathBuf,
-    },
-    Save {
-        rev: u64,
-        buffer_id: BufferId,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NewBufferResponse {
-    pub content: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BufferHeadResponse {
-    pub id: String,
-    pub content: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct DiffInfo {
-    pub head: String,
-    pub branches: Vec<String>,
-    pub diffs: Vec<FileDiff>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum FileDiff {
-    Modified(PathBuf),
-    Added(PathBuf),
-    Deleted(PathBuf),
-    Renamed(PathBuf, PathBuf),
-}
-
-impl FileDiff {
-    pub fn path(&self) -> &PathBuf {
-        match &self {
-            FileDiff::Modified(p)
-            | FileDiff::Added(p)
-            | FileDiff::Deleted(p)
-            | FileDiff::Renamed(_, p) => p,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FileNodeItem {
-    pub path_buf: PathBuf,
-    pub is_dir: bool,
-    pub read: bool,
-    pub open: bool,
-    pub children: HashMap<PathBuf, FileNodeItem>,
-    pub children_open_count: usize,
-}
-
-impl std::cmp::PartialOrd for FileNodeItem {
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        let self_dir = self.is_dir;
-        let other_dir = other.is_dir;
-        if self_dir && !other_dir {
-            return Some(cmp::Ordering::Less);
-        }
-        if !self_dir && other_dir {
-            return Some(cmp::Ordering::Greater);
-        }
-
-        let self_file_name = self.path_buf.file_name()?.to_str()?.to_lowercase();
-        let other_file_name = other.path_buf.file_name()?.to_str()?.to_lowercase();
-        if self_file_name.starts_with('.') && !other_file_name.starts_with('.') {
-            return Some(cmp::Ordering::Less);
-        }
-        if !self_file_name.starts_with('.') && other_file_name.starts_with('.') {
-            return Some(cmp::Ordering::Greater);
-        }
-        self_file_name.partial_cmp(&other_file_name)
-    }
-}
-
-impl FileNodeItem {
-    pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
-        let mut children = self
-            .children
-            .iter()
-            .map(|(_, item)| item)
-            .collect::<Vec<&FileNodeItem>>();
-        children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-            (true, true) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            (false, false) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
-        });
-        children
-    }
-
-    pub fn sorted_children_mut(&mut self) -> Vec<&mut FileNodeItem> {
-        let mut children = self
-            .children
-            .iter_mut()
-            .map(|(_, item)| item)
-            .collect::<Vec<&mut FileNodeItem>>();
-        children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
-            (true, true) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            (false, false) => a
-                .path_buf
-                .to_str()
-                .unwrap()
-                .cmp(b.path_buf.to_str().unwrap()),
-        });
-        children
-    }
-}
-
 impl Dispatcher {
     pub fn new(sender: Sender<Value>) -> Dispatcher {
         let plugins = PluginCatalog::new();
@@ -388,12 +174,12 @@ impl Dispatcher {
             let rpc: RpcObject = msg.into();
             if rpc.is_response() {
             } else {
-                match rpc.into_rpc::<Notification, Request>() {
+                match rpc.into_rpc::<ProxyNotification, ProxyRequest>() {
                     Ok(Call::Request(id, request)) => {
                         self.handle_request(id, request);
                     }
                     Ok(Call::Notification(notification)) => {
-                        if let Notification::Shutdown {} = &notification {
+                        if let ProxyNotification::Shutdown {} = &notification {
                             for (_, sender) in self.terminals.lock().iter() {
                                 #[allow(deprecated)]
                                 let _ = sender.send(Msg::Shutdown);
@@ -484,9 +270,10 @@ impl Dispatcher {
         }));
     }
 
-    fn handle_notification(&self, rpc: Notification) {
+    fn handle_notification(&self, rpc: ProxyNotification) {
+        use ProxyNotification::*;
         match rpc {
-            Notification::Initialize { workspace } => {
+            Initialize { workspace } => {
                 *self.workspace.lock() = Some(workspace.clone());
                 let _ = self
                     .watcher
@@ -504,8 +291,8 @@ impl Dispatcher {
                     *self.last_diff.lock() = diff;
                 }
             }
-            Notification::Shutdown {} => {}
-            Notification::Update {
+            Shutdown {} => {}
+            Update {
                 buffer_id,
                 delta,
                 rev,
@@ -516,7 +303,7 @@ impl Dispatcher {
                     self.lsp.lock().update(buffer, &content_change, buffer.rev);
                 }
             }
-            Notification::InstallPlugin { plugin } => {
+            InstallPlugin { plugin } => {
                 let catalog = self.plugins.clone();
                 let dispatcher = self.clone();
                 std::thread::spawn(move || {
@@ -533,7 +320,7 @@ impl Dispatcher {
                     );
                 });
             }
-            Notification::NewTerminal {
+            NewTerminal {
                 term_id,
                 cwd,
                 shell,
@@ -546,21 +333,21 @@ impl Dispatcher {
                     terminal.run(dispatcher);
                 });
             }
-            Notification::TerminalClose { term_id } => {
+            TerminalClose { term_id } => {
                 let mut terminals = self.terminals.lock();
                 if let Some(tx) = terminals.remove(&term_id) {
                     #[allow(deprecated)]
                     let _ = tx.send(Msg::Shutdown);
                 }
             }
-            Notification::TerminalWrite { term_id, content } => {
+            TerminalWrite { term_id, content } => {
                 let terminals = self.terminals.lock();
-                let tx = terminals.get(&term_id).unwrap();
-
-                #[allow(deprecated)]
-                let _ = tx.send(Msg::Input(content.into_bytes().into()));
+                if let Some(tx) = terminals.get(&term_id) {
+                    #[allow(deprecated)]
+                    let _ = tx.send(Msg::Input(content.into_bytes().into()));
+                }
             }
-            Notification::TerminalResize {
+            TerminalResize {
                 term_id,
                 width,
                 height,
@@ -581,7 +368,7 @@ impl Dispatcher {
                     let _ = tx.send(Msg::Resize(size));
                 }
             }
-            Notification::GitCommit { message, diffs } => {
+            GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     if let Err(_e) = git_commit(&workspace, &message, diffs) {}
                 }
@@ -589,9 +376,10 @@ impl Dispatcher {
         }
     }
 
-    fn handle_request(&self, id: RequestId, rpc: Request) {
+    fn handle_request(&self, id: RequestId, rpc: ProxyRequest) {
+        use ProxyRequest::*;
         match rpc {
-            Request::NewBuffer { buffer_id, path } => {
+            NewBuffer { buffer_id, path } => {
                 let _ = self
                     .watcher
                     .lock()
@@ -612,7 +400,7 @@ impl Dispatcher {
                 }));
             }
             #[allow(unused_variables)]
-            Request::BufferHead { buffer_id, path } => {
+            BufferHead { buffer_id, path } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     let result = file_get_head(&workspace, &path);
                     if let Ok((_blob_id, content)) = result {
@@ -627,7 +415,7 @@ impl Dispatcher {
                     }
                 }
             }
-            Request::GetCompletion {
+            GetCompletion {
                 buffer_id,
                 position,
                 request_id,
@@ -638,7 +426,7 @@ impl Dispatcher {
                     .lock()
                     .get_completion(id, request_id, buffer, position);
             }
-            Request::CompletionResolve {
+            CompletionResolve {
                 buffer_id,
                 completion_item,
             } => {
@@ -648,7 +436,16 @@ impl Dispatcher {
                     .lock()
                     .completion_resolve(id, buffer, &completion_item);
             }
-            Request::GetSignature {
+            GetHover {
+                buffer_id,
+                position,
+                request_id,
+            } => {
+                let buffers = self.buffers.lock();
+                let buffer = buffers.get(&buffer_id).unwrap();
+                self.lsp.lock().get_hover(id, request_id, buffer, position);
+            }
+            GetSignature {
                 buffer_id,
                 position,
             } => {
@@ -656,7 +453,7 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_signature(id, buffer, position);
             }
-            Request::GetReferences {
+            GetReferences {
                 buffer_id,
                 position,
             } => {
@@ -664,7 +461,7 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_references(id, buffer, position);
             }
-            Request::GetDefinition {
+            GetDefinition {
                 buffer_id,
                 position,
                 request_id,
@@ -675,7 +472,7 @@ impl Dispatcher {
                     .lock()
                     .get_definition(id, request_id, buffer, position);
             }
-            Request::GetCodeActions {
+            GetCodeActions {
                 buffer_id,
                 position,
             } => {
@@ -683,17 +480,17 @@ impl Dispatcher {
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_code_actions(id, buffer, position);
             }
-            Request::GetDocumentSymbols { buffer_id } => {
+            GetDocumentSymbols { buffer_id } => {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_document_symbols(id, buffer);
             }
-            Request::GetDocumentFormatting { buffer_id } => {
+            GetDocumentFormatting { buffer_id } => {
                 let buffers = self.buffers.lock();
                 let buffer = buffers.get(&buffer_id).unwrap();
                 self.lsp.lock().get_document_formatting(id, buffer);
             }
-            Request::ReadDir { path } => {
+            ReadDir { path } => {
                 let local_dispatcher = self.clone();
                 thread::spawn(move || {
                     let result = fs::read_dir(path)
@@ -720,7 +517,7 @@ impl Dispatcher {
                 });
             }
             #[allow(unused_variables)]
-            Request::GetFiles { path } => {
+            GetFiles { path } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     let local_dispatcher = self.clone();
                     thread::spawn(move || {
@@ -737,14 +534,14 @@ impl Dispatcher {
                     });
                 }
             }
-            Request::Save { rev, buffer_id } => {
+            Save { rev, buffer_id } => {
                 let mut buffers = self.buffers.lock();
                 let buffer = buffers.get_mut(&buffer_id).unwrap();
                 let resp = buffer.save(rev).map(|_r| json!({}));
                 self.lsp.lock().save_buffer(buffer);
                 self.respond(id, resp);
             }
-            Request::GlobalSearch { pattern } => {
+            GlobalSearch { pattern } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
                     let local_dispatcher = self.clone();
                     thread::spawn(move || {
@@ -769,24 +566,18 @@ impl Dispatcher {
                                                     .unwrap();
                                                 line_matches.push((
                                                     lnum,
-                                                    (
-                                                        mymatch.start(),
-                                                        mymatch.end(),
-                                                    ),
+                                                    (mymatch.start(), mymatch.end()),
                                                     line.to_string(),
                                                 ));
                                                 Ok(true)
                                             }),
                                         );
                                         if !line_matches.is_empty() {
-                                            matches.insert(
-                                                path.clone(),
-                                                line_matches,
-                                            );
+                                            matches
+                                                .insert(path.clone(), line_matches);
                                         }
                                     }
                                 }
-
                             }
                         }
                         local_dispatcher

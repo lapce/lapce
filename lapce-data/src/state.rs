@@ -4,8 +4,6 @@ use druid::Modifiers;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Write};
 use std::path::PathBuf;
-use std::sync::atomic;
-use std::sync::atomic::AtomicU64;
 
 #[derive(PartialEq)]
 enum KeymapMatch {
@@ -118,14 +116,15 @@ pub struct KeyMap {
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(String, String),
+    RemoteWSL,
 }
 
 impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
-        if let LapceWorkspaceType::RemoteSSH(_, _) = &self {
-            return true;
-        }
-        false
+        matches!(
+            self,
+            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL
+        )
     }
 }
 
@@ -136,6 +135,7 @@ impl Display for LapceWorkspaceType {
             LapceWorkspaceType::RemoteSSH(user, host) => {
                 write!(f, "ssh://{}@{}", user, host)
             }
+            LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
         }
     }
 }
@@ -170,23 +170,4 @@ impl Display for LapceWorkspace {
                 .unwrap_or_else(|| "".to_string())
         )
     }
-}
-
-pub struct Counter(AtomicU64);
-
-impl Counter {
-    pub const fn new() -> Counter {
-        Counter(AtomicU64::new(1))
-    }
-
-    pub fn next(&self) -> u64 {
-        self.0.fetch_add(1, atomic::Ordering::Relaxed)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_check_condition() {}
 }

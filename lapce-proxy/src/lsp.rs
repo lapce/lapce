@@ -13,14 +13,17 @@ use std::os::windows::process::CommandExt;
 
 use anyhow::{anyhow, Result};
 use jsonrpc_lite::{Id, JsonRpc, Params};
-use lapce_rpc::RequestId;
+use lapce_rpc::{
+    buffer::BufferId,
+    style::{LineStyle, Style},
+    RequestId,
+};
 use lsp_types::*;
 use parking_lot::Mutex;
 use serde_json::{json, to_value, Value};
 
+use crate::buffer::Buffer;
 use crate::dispatch::Dispatcher;
-use crate::{buffer::Buffer, style::LineStyle};
-use crate::{buffer::BufferId, style::Style};
 
 pub type Callback = Box<dyn Callable>;
 const HEADER_CONTENT_LENGTH: &str = "content-length";
@@ -216,6 +219,31 @@ impl LspCatalog {
                         resp["error"] = json!({
                             "code": 0,
                             "message": format!("{}",e),
+                        })
+                    }
+                }
+                let _ = lsp_client.dispatcher.sender.send(resp);
+            });
+        }
+    }
+
+    pub fn get_hover(
+        &self,
+        id: RequestId,
+        _request_id: usize,
+        buffer: &Buffer,
+        position: Position,
+    ) {
+        if let Some(client) = self.clients.get(&buffer.language_id) {
+            let uri = client.get_uri(buffer);
+            client.request_hover(uri, position, move |lsp_client, result| {
+                let mut resp = json!({ "id": id });
+                match result {
+                    Ok(v) => resp["result"] = v,
+                    Err(e) => {
+                        resp["error"] = json!({
+                            "code": 0,
+                            "message": format!("{}", e),
                         })
                     }
                 }
@@ -639,6 +667,10 @@ impl LspClient {
                 //     }),
                 //     ..Default::default()
                 // }),
+                // We could set content_format to specify our preferences but RA seems to only
+                // check if the preferences contains markdown, rather than paying attention to our
+                // given priority ordering
+                hover: Some(HoverClientCapabilities::default()),
                 code_action: Some(CodeActionClientCapabilities {
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {
@@ -835,6 +867,21 @@ impl LspClient {
     {
         let params = Params::from(serde_json::to_value(completion_item).unwrap());
         self.send_request("completionItem/resolve", params, Box::new(on_result));
+    }
+
+    pub fn request_hover<CB>(&self, document_uri: Url, position: Position, cb: CB)
+    where
+        CB: 'static + Send + FnOnce(&LspClient, Result<Value>),
+    {
+        let hover_params = HoverParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: document_uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let params = Params::from(serde_json::to_value(hover_params).unwrap());
+        self.send_request("textDocument/hover", params, Box::new(cb));
     }
 
     pub fn request_signature<CB>(

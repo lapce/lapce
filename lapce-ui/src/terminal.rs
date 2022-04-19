@@ -25,7 +25,7 @@ use lapce_data::{
     state::Mode,
     terminal::{LapceTerminalData, LapceTerminalViewData},
 };
-use lapce_proxy::terminal::TermId;
+use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
@@ -84,6 +84,8 @@ impl RawTerminal {
     }
 }
 
+/// This struct represents the main body of the terminal, i.e. the part
+/// where the shell is presented.
 pub struct TerminalPanel {
     widget_id: WidgetId,
     split: WidgetPod<LapceTabData, LapceSplitNew>,
@@ -189,6 +191,12 @@ impl Widget<LapceTabData> for TerminalPanel {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        let rect = ctx.size().to_rect();
+        ctx.fill(
+            rect,
+            data.config
+                .get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
+        );
         self.split.paint(ctx, data, env);
     }
 }
@@ -289,7 +297,7 @@ impl Widget<LapceTabData> for LapceTerminalView {
             ctx.fill(
                 rect,
                 data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    .get_color_unchecked(LapceTheme::TERMINAL_BACKGROUND),
             );
         });
 
@@ -572,9 +580,11 @@ impl Widget<LapceTabData> for LapceTerminal {
                     &mut term_data,
                     env,
                 ) {
+                    // 4 byte buffer used to store encoded characters.
+                    let mut char_buffer = [0; 4];
                     let s = match &key_event.key {
                         KbKey::Character(c) => {
-                            let mut s = "".to_string();
+                            let mut s = "";
                             let mut mods = key_event.mods;
                             if mods.ctrl() {
                                 mods.set(Modifiers::CONTROL, false);
@@ -585,23 +595,28 @@ impl Widget<LapceTabData> for LapceTerminal {
                                     {
                                         s = char::from_u32(i as u32)
                                             .unwrap()
-                                            .to_string()
+                                            .encode_utf8(&mut char_buffer);
                                     }
                                 }
                             }
 
                             s
                         }
-                        KbKey::Backspace => "\x08".to_string(),
-                        KbKey::Tab => "\x09".to_string(),
-                        KbKey::Enter => "\r".to_string(),
-                        KbKey::Escape => "\x1b".to_string(),
-                        _ => "".to_string(),
+                        KbKey::Backspace => if key_event.mods.ctrl() {
+                            "\x08" // backspace
+                        } else {
+                            "\x7f" // DEL
+                        },
+                        KbKey::Tab => "\x09",
+                        KbKey::Enter => "\r",
+                        KbKey::Escape => "\x1b",
+                        _ => "",
                     };
                     if term_data.terminal.mode == Mode::Terminal && !s.is_empty() {
-                        term_data.receive_char(ctx, &s);
+                        term_data.receive_char(ctx, s);
                     }
                 }
+                ctx.set_handled();
                 data.keypress = keypress.clone();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
@@ -651,7 +666,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         if self.width != size.width || self.height != size.height {
             self.width = size.width;
             self.height = size.height;
-            let width = data.config.editor_text_width(ctx.text(), "W");
+            let width = data.config.editor_char_width(ctx.text());
             let line_height = data.config.editor.line_height as f64;
             let width = if width > 0.0 {
                 (self.width / width).floor() as usize

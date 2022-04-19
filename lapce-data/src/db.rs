@@ -272,7 +272,7 @@ impl EditorInfo {
                         self.scroll_offset.0,
                         self.scroll_offset.1,
                     )),
-                    hisotry: None,
+                    history: None,
                 },
             ));
 
@@ -486,7 +486,7 @@ impl LapceDb {
     }
 
     pub fn save_buffer_position(&self, workspace: &LapceWorkspace, buffer: &Buffer) {
-        if let BufferContent::File(path) = &buffer.content {
+        if let BufferContent::File(path) = buffer.content() {
             let info = BufferInfo {
                 workspace: workspace.clone(),
                 path: path.clone(),
