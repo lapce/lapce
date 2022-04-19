@@ -902,7 +902,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#4132af82f6ab00d10fa7229d43dd01d064e75c02"
+source = "git+https://github.com/lapce/druid?branch=opengl#2cc4891983ad334b21158a17c9418717e524debc"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -926,7 +926,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#4132af82f6ab00d10fa7229d43dd01d064e75c02"
+source = "git+https://github.com/lapce/druid?branch=opengl#2cc4891983ad334b21158a17c9418717e524debc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -936,7 +936,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#4132af82f6ab00d10fa7229d43dd01d064e75c02"
+source = "git+https://github.com/lapce/druid?branch=opengl#2cc4891983ad334b21158a17c9418717e524debc"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
@@ -1243,7 +1243,7 @@ dependencies = [
 [[package]]
 name = "fount"
 version = "0.1.0"
-source = "git+https://github.com/lapce/fount#870d0a005ac6eb85b5ecc29a07ce7cc732afa84d"
+source = "git+https://github.com/lapce/fount#6061637d1005ef0be6b51a16d29772c35307f6c7"
 dependencies = [
  "memmap2 0.5.3",
  "swash",
