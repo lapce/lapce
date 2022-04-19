@@ -11,9 +11,9 @@ use alacritty_terminal::{
 use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, FontFamily,
-    FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
-    WidgetExt, WidgetId, WidgetPod,
+    FontWeight, KbKey, KeyEvent, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers,
+    MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
+    Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -539,6 +539,48 @@ impl LapceTerminal {
             }
         }
     }
+
+    fn default_handle(
+        term_data: &mut LapceTerminalViewData,
+        key_event: &KeyEvent,
+        ctx: &mut EventCtx,
+    ) {
+        // 4 byte buffer used to store encoded characters.
+        let mut char_buffer = [0; 4];
+        let s = match &key_event.key {
+            KbKey::Character(c) => {
+                let mut s = "";
+                let mut mods = key_event.mods;
+                if mods.ctrl() {
+                    mods.set(Modifiers::CONTROL, false);
+                    if mods.is_empty() && c.chars().count() == 1 {
+                        let c = c.chars().next().unwrap();
+                        if let Some(i) = CTRL_CHARS.iter().position(|e| &c == e) {
+                            s = char::from_u32(i as u32)
+                                .unwrap()
+                                .encode_utf8(&mut char_buffer);
+                        }
+                    }
+                }
+
+                s
+            }
+            KbKey::Backspace => {
+                if key_event.mods.ctrl() {
+                    "\x08" // backspace
+                } else {
+                    "\x7f" // DEL
+                }
+            }
+            KbKey::Tab => "\x09",
+            KbKey::Enter => "\r",
+            KbKey::Escape => "\x1b",
+            _ => "",
+        };
+        if term_data.terminal.mode == Mode::Terminal && !s.is_empty() {
+            term_data.receive_char(ctx, s);
+        }
+    }
 }
 
 impl Widget<LapceTabData> for LapceTerminal {
@@ -580,41 +622,7 @@ impl Widget<LapceTabData> for LapceTerminal {
                     &mut term_data,
                     env,
                 ) {
-                    // 4 byte buffer used to store encoded characters.
-                    let mut char_buffer = [0; 4];
-                    let s = match &key_event.key {
-                        KbKey::Character(c) => {
-                            let mut s = "";
-                            let mut mods = key_event.mods;
-                            if mods.ctrl() {
-                                mods.set(Modifiers::CONTROL, false);
-                                if mods.is_empty() && c.chars().count() == 1 {
-                                    let c = c.chars().next().unwrap();
-                                    if let Some(i) =
-                                        CTRL_CHARS.iter().position(|e| &c == e)
-                                    {
-                                        s = char::from_u32(i as u32)
-                                            .unwrap()
-                                            .encode_utf8(&mut char_buffer);
-                                    }
-                                }
-                            }
-
-                            s
-                        }
-                        KbKey::Backspace => if key_event.mods.ctrl() {
-                            "\x08" // backspace
-                        } else {
-                            "\x7f" // DEL
-                        },
-                        KbKey::Tab => "\x09",
-                        KbKey::Enter => "\r",
-                        KbKey::Escape => "\x1b",
-                        _ => "",
-                    };
-                    if term_data.terminal.mode == Mode::Terminal && !s.is_empty() {
-                        term_data.receive_char(ctx, s);
-                    }
+                    Self::default_handle(&mut term_data, key_event, ctx);
                 }
                 ctx.set_handled();
                 data.keypress = keypress.clone();
