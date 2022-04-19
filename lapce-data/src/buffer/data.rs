@@ -1,4 +1,5 @@
 use lapce_core::indent::IndentStyle;
+use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::Position;
 use std::borrow::Cow;
@@ -13,7 +14,7 @@ use crate::buffer::{
     char_width, shuffle, shuffle_tombstones, str_col, BufferContent, Contents,
     EditType, InvalLines, Revision, WordCursor,
 };
-use crate::movement::{ColPosition, Selection};
+use crate::movement::{ColPosition, SelRegion, Selection};
 
 pub trait BufferDataListener {
     fn should_apply_edit(&self) -> bool;
@@ -611,6 +612,34 @@ impl BufferData {
             }
         }
         new_offset
+    }
+
+    pub fn move_cursor_to_right(
+        &self,
+        selection: &Selection,
+        count: usize,
+    ) -> Selection {
+        let mut new_selection = Selection::new();
+        for region in selection.regions() {
+            let new_offset =
+                self.next_grapheme_offset(region.end(), count, self.len());
+
+            new_selection.add_region(SelRegion::caret(new_offset));
+        }
+        new_selection
+    }
+
+    pub fn previous_unmatched(
+        &self,
+        syntax: Option<&Syntax>,
+        c: char,
+        offset: usize,
+    ) -> Option<usize> {
+        if let Some(syntax) = syntax {
+            syntax.find_tag(offset, true, &c.to_string())
+        } else {
+            WordCursor::new(&self.rope, offset).previous_unmatched(c)
+        }
     }
 }
 

@@ -224,7 +224,7 @@ pub struct Buffer {
 
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
 
-    decoration: BufferDecoration,
+    pub decoration: BufferDecoration,
 }
 
 pub struct BufferEditListener<'a> {
