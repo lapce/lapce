@@ -11,8 +11,8 @@ use alacritty_terminal::{
     Term,
 };
 use druid::{
-    Application, Color, Command, Env, EventCtx, ExtEventSink, Modifiers, Target,
-    WidgetId,
+    Application, Color, Command, Env, EventCtx, ExtEventSink, KeyEvent, Modifiers,
+    Target, WidgetId,
 };
 use hashbrown::HashMap;
 use lapce_rpc::terminal::TermId;
@@ -226,6 +226,14 @@ impl LapceTerminalViewData {
         );
         if let Some(selection) = term.selection.as_mut() {
             selection.include_all();
+        }
+    }
+
+    pub fn send_keypress(&mut self, key: &KeyEvent) {
+        if let Some(command) = self.terminal.resolve_key_event(key) {
+            self.terminal
+                .proxy
+                .terminal_write(self.terminal.term_id, command);
         }
     }
 }
@@ -630,6 +638,10 @@ impl LapceTerminalData {
             }
             _ => self.start_selection(term, ty, point, side),
         }
+    }
+
+    pub fn resolve_key_event(&self, key: &KeyEvent) -> Option<&str> {
+        todo!()
     }
 }
 
