@@ -165,8 +165,7 @@ impl CodeActionData {
         }
     }
 
-    #[allow(unused_variables)]
-    pub fn previous(&mut self, ctx: &mut EventCtx) {
+    pub fn previous(&mut self, _ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,

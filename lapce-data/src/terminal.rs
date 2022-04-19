@@ -42,8 +42,7 @@ pub struct TerminalSplitData {
 }
 
 impl TerminalSplitData {
-    #[allow(unused_variables)]
-    pub fn new(proxy: Arc<LapceProxy>) -> Self {
+    pub fn new(_proxy: Arc<LapceProxy>) -> Self {
         let split_id = WidgetId::next();
         let terminals = im::HashMap::new();
 

@@ -130,10 +130,6 @@ impl Handler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            #[allow(unused_variables)]
-            ListDir { items } => {}
-            #[allow(unused_variables)]
-            DiffFiles { files } => {}
             DiffInfo { diff } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -168,6 +164,7 @@ impl Handler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
+            ListDir { .. } | DiffFiles { .. } => {}
         }
         ControlFlow::Continue
     }

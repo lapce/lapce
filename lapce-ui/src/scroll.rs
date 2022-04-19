@@ -927,8 +927,7 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     ///
     /// If the target region is larger than the viewport, we will display the
     /// portion that fits, prioritizing the portion closest to the origin.
-    #[allow(unused_variables)]
-    pub fn scroll_to_visible(&mut self, region: Rect, env: &Env) -> bool {
+    pub fn scroll_to_visible(&mut self, region: Rect, _env: &Env) -> bool {
         self.clip.pan_to_visible(region)
     }
 }

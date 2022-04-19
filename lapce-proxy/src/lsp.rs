@@ -178,11 +178,10 @@ impl LspCatalog {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn get_completion(
         &self,
         id: RequestId,
-        request_id: usize,
+        _request_id: usize,
         buffer: &Buffer,
         position: Position,
     ) {
@@ -323,11 +322,10 @@ impl LspCatalog {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn get_definition(
         &self,
         id: RequestId,
-        request_id: usize,
+        _request_id: usize,
         buffer: &Buffer,
         position: Position,
     ) {
