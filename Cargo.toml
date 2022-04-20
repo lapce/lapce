@@ -21,8 +21,8 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 [workspace]
 members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
 
-# A profile which compiles all dependencies in release mode but lapce
-# code in dev mode. This gives a good debugging experience for your
+# A profile which compiles all (non-workspace) dependencies in release mode
+# but Lapce code in dev mode. This gives a good debugging experience for your
 # code and fast performance of other people's code. After the initial
 # build subsequent ones are as fast as dev mode builds.
 # See https://doc.rust-lang.org/cargo/reference/profiles.html
