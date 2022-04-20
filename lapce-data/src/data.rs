@@ -65,14 +65,25 @@ use crate::{
     terminal::TerminalSplitData,
 };
 
+/// `LapceData` is the topmost structure in a tree of structures that holds
+/// the application model for Lapce.
+/// 
+/// Druid requires that application models implement the
+/// [Data trait](https://linebender.org/druid/data.html). 
 #[derive(Clone, Data)]
 pub struct LapceData {
+    /// The set of top-level windows in Lapce. Normally there is only one;
+    /// a new window can be created using the "New Window" command.
     pub windows: im::HashMap<WindowId, LapceWindowData>,
+    /// How key presses are to be processed.
     pub keypress: Arc<KeyPressData>,
+    /// The persistent state of the program, such as recent workspaces.
     pub db: Arc<LapceDb>,
 }
 
 impl LapceData {
+    /// Create a new `LapceData` struct by loading configuration, and state
+    /// previously written to the Lapce database.
     pub fn load(event_sink: ExtEventSink) -> Self {
         let db = Arc::new(LapceDb::new().unwrap());
         let mut windows = im::HashMap::new();
