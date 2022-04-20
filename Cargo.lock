@@ -1924,7 +1924,6 @@ dependencies = [
  "bit-vec",
  "bitflags",
  "bytemuck",
- "cc",
  "chrono",
  "config",
  "crossbeam-channel",
@@ -1959,7 +1958,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "threadpool",
  "tinyfiledialogs",
  "toml",
  "unicode-segmentation",
@@ -2027,7 +2025,6 @@ dependencies = [
  "anyhow",
  "base64",
  "bit-vec",
- "cc",
  "chrono",
  "config",
  "crossbeam-channel",
@@ -2060,7 +2057,6 @@ dependencies = [
  "structdesc",
  "strum",
  "strum_macros",
- "threadpool",
  "tinyfiledialogs",
  "toml",
  "unicode-segmentation",
@@ -4037,15 +4033,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8018d24e04c95ac8790716a5987d0fec4f8b27249ffa0f7d33f1369bdfb88cbd"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "threadpool"
-version = "1.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d050e60b33d41c19108b32cea32164033a9013fe3b46cbd4457559bfbf77afaa"
-dependencies = [
- "num_cpus",
 ]
 
 [[package]]
