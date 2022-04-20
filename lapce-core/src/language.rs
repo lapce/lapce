@@ -49,6 +49,7 @@ pub enum LapceLanguage {
     Cpp,
     Json,
     Markdown,
+    Ruby,
     Html,
     Java,
 }
@@ -73,6 +74,7 @@ impl LapceLanguage {
             }
             "json" => LapceLanguage::Json,
             "md" => LapceLanguage::Markdown,
+            "rb" => LapceLanguage::Ruby,
             "html" | "htm" => LapceLanguage::Html,
             "java" => LapceLanguage::Java,
             _ => return None,
@@ -95,6 +97,7 @@ impl LapceLanguage {
             LapceLanguage::Cpp => "//",
             LapceLanguage::Json => "",
             LapceLanguage::Markdown => "",
+            LapceLanguage::Ruby => "#",
             LapceLanguage::Html => "",
             LapceLanguage::Java => "//",
         }
@@ -116,6 +119,7 @@ impl LapceLanguage {
             LapceLanguage::Cpp => "    ",
             LapceLanguage::Json => "    ",
             LapceLanguage::Markdown => "    ",
+            LapceLanguage::Ruby => "  ",
             LapceLanguage::Html => "    ",
             LapceLanguage::Java => "  ",
         }
@@ -139,6 +143,7 @@ impl LapceLanguage {
             LapceLanguage::Cpp => tree_sitter_cpp::language(),
             LapceLanguage::Json => tree_sitter_json::language(),
             LapceLanguage::Markdown => tree_sitter_markdown::language(),
+            LapceLanguage::Ruby => tree_sitter_ruby::language(),
             LapceLanguage::Html => tree_sitter_html::language(),
             LapceLanguage::Java => tree_sitter_java::language(),
         }
@@ -168,6 +173,7 @@ impl LapceLanguage {
             LapceLanguage::Cpp => tree_sitter_cpp::HIGHLIGHT_QUERY,
             LapceLanguage::Json => tree_sitter_json::HIGHLIGHT_QUERY,
             LapceLanguage::Markdown => tree_sitter_markdown::HIGHLIGHTS_QUERY,
+            LapceLanguage::Ruby => tree_sitter_ruby::HIGHLIGHT_QUERY,
             LapceLanguage::Html => tree_sitter_html::HIGHLIGHT_QUERY,
             LapceLanguage::Java => tree_sitter_java::HIGHLIGHT_QUERY,
         };

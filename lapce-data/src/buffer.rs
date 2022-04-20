@@ -838,9 +838,8 @@ impl Buffer {
         history: &str,
         line: usize,
 
-        #[allow(unused_variables)] cursor_index: Option<usize>,
-
-        bounds: [f64; 2],
+        _cursor_index: Option<usize>,
+        _bounds: [f64; 2],
         config: &Config,
     ) -> Option<PietTextLayout> {
         let rope = self.decoration.histories.get(history)?;
@@ -881,7 +880,7 @@ impl Buffer {
         line_content: &str,
         cursor_index: Option<usize>,
         font_size: usize,
-        bounds: [f64; 2],
+        _bounds: [f64; 2],
         config: &Config,
     ) -> PietTextLayout {
         let styles = self.line_style(line);

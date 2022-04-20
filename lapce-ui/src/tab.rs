@@ -859,7 +859,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .as_ref()
                             .map(|p| {
                                 let dir = p
-                                    .file_name().unwrap_or(p.as_os_str())
+                                    .file_name()
+                                    .unwrap_or(p.as_os_str())
                                     .to_string_lossy();
                                 let dir = match &data.workspace.kind {
                                     LapceWorkspaceType::Local => dir.to_string(),
@@ -920,13 +921,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                             }
                         }
                     }
-                    #[allow(unused_variables)]
                     LapceUICommand::UpdateHistoryChanges {
-                        id,
                         path,
                         rev,
                         history,
                         changes,
+                        ..
                     } => {
                         ctx.set_handled();
                         let buffer =
@@ -937,12 +937,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                             changes.clone(),
                         );
                     }
-                    #[allow(unused_variables)]
                     LapceUICommand::UpdateHistoryStyle {
-                        id,
                         path,
                         history,
                         highlights,
+                        ..
                     } => {
                         ctx.set_handled();
                         let buffer =
@@ -1600,9 +1599,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
             .path
             .as_ref()
             .map(|p| {
-                let dir = p
-                    .file_name().unwrap_or(p.as_os_str())
-                    .to_string_lossy();
+                let dir = p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
                 let dir = match &data.workspace.kind {
                     LapceWorkspaceType::Local => dir.to_string(),
                     LapceWorkspaceType::RemoteSSH(user, host) => {

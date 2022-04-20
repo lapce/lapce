@@ -679,8 +679,7 @@ impl LapceTabData {
         }
     }
 
-    #[allow(unused_variables)]
-    pub fn code_action_size(&self, text: &mut PietText, env: &Env) -> Size {
+    pub fn code_action_size(&self, text: &mut PietText, _env: &Env) -> Size {
         let editor = self.main_split.active_editor();
         let editor = match editor {
             Some(editor) => editor,
@@ -775,11 +774,10 @@ impl LapceTabData {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn code_action_origin(
         &self,
         text: &mut PietText,
-        tab_size: Size,
+        _tab_size: Size,
         config: &Config,
     ) -> Point {
         let line_height = self.config.editor.line_height as f64;
@@ -925,14 +923,13 @@ impl LapceTabData {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn run_workbench_command(
         &mut self,
         ctx: &mut EventCtx,
         command: &LapceWorkbenchCommand,
         data: Option<serde_json::Value>,
-        count: Option<usize>,
-        env: &Env,
+        _count: Option<usize>,
+        _env: &Env,
     ) {
         match command {
             LapceWorkbenchCommand::CloseFolder => {
@@ -951,15 +948,16 @@ impl LapceTabData {
                     let event_sink = ctx.get_external_handle();
                     let window_id = self.window_id;
                     thread::spawn(move || {
-                        let dir = directories::UserDirs::new()
-                            .and_then(|u| {
-                                u.home_dir().to_str().map(|s| s.to_string())
-                            })
-                            .unwrap_or_else(|| ".".to_string());
-                        if let Some(folder) = tinyfiledialogs::select_folder_dialog(
-                            "Open folder",
-                            &dir,
-                        ) {
+                        let dirs = directories::UserDirs::new();
+
+                        let dir = dirs
+                            .as_ref()
+                            .and_then(|u| u.home_dir().to_str())
+                            .unwrap_or(".");
+
+                        if let Some(folder) =
+                            tinyfiledialogs::select_folder_dialog("Open folder", dir)
+                        {
                             let path = PathBuf::from(folder);
                             let workspace = LapceWorkspace {
                                 kind: LapceWorkspaceType::Local,
@@ -1025,20 +1023,21 @@ impl LapceTabData {
                     let event_sink = ctx.get_external_handle();
                     let tab_id = self.id;
                     thread::spawn(move || {
-                        let dir = workspace.path.clone().unwrap_or_else(|| {
-                            PathBuf::from(
-                                directories::UserDirs::new()
-                                    .and_then(|u| {
-                                        u.home_dir().to_str().map(|s| s.to_string())
-                                    })
-                                    .unwrap_or_else(|| ".".to_string()),
-                            )
-                        });
-                        if let Some(path) = tinyfiledialogs::open_file_dialog(
-                            "Open file",
-                            dir.to_str().unwrap(),
-                            None,
-                        ) {
+                        let dirs;
+                        let dir =
+                            match workspace.path.as_deref().and_then(Path::to_str) {
+                                Some(path) => path,
+                                None => {
+                                    dirs = directories::UserDirs::new();
+                                    dirs.as_ref()
+                                        .and_then(|u| u.home_dir().to_str())
+                                        .unwrap_or(".")
+                                }
+                            };
+
+                        if let Some(path) =
+                            tinyfiledialogs::open_file_dialog("Open file", dir, None)
+                        {
                             let path = PathBuf::from(path);
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
@@ -1451,14 +1450,13 @@ impl LapceTabData {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn terminal_update_process(
         tab_id: WidgetId,
-        palette_widget_id: WidgetId,
+        _palette_widget_id: WidgetId,
         receiver: Receiver<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
-        workspace: Arc<LapceWorkspace>,
-        proxy: Arc<LapceProxy>,
+        _workspace: Arc<LapceWorkspace>,
+        _proxy: Arc<LapceProxy>,
     ) {
         let mut terminals = HashMap::new();
         let mut last_redraw = std::time::Instant::now();
@@ -2588,10 +2586,9 @@ impl LapceMainSplitData {
         self.editors.insert(editor.view_id, Arc::new(editor));
     }
 
-    #[allow(unused_variables)]
     pub fn split_close(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         split_id: WidgetId,
         from_content: SplitContent,
     ) {

@@ -1098,8 +1098,7 @@ impl LapceEditorBufferData {
     ) -> RopeDelta {
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {}
-            #[allow(unused_variables)]
-            CursorMode::Visual { start, end, mode } => {
+            CursorMode::Visual { .. } => {
                 let data = self
                     .editor
                     .cursor
@@ -1161,8 +1160,7 @@ impl LapceEditorBufferData {
     fn edit_with_command(&mut self, command: EditCommandKind) -> Option<RopeDelta> {
         match &self.editor.cursor.mode {
             CursorMode::Normal(_) => {}
-            #[allow(unused_variables)]
-            CursorMode::Visual { start, end, mode } => {
+            CursorMode::Visual { .. } => {
                 let data = self
                     .editor
                     .cursor
@@ -1858,8 +1856,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             Some(horiz),
                         ));
                     }
-                    #[allow(unused_variables)]
-                    CursorMode::Visual { start, end, mode } => {
+                    CursorMode::Visual { .. } => {
                         let mut selection = Selection::new();
                         for region in self
                             .editor
@@ -1950,8 +1947,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let register = Arc::make_mut(&mut self.main_split.register);
                 register.add_yank(data);
                 match &self.editor.cursor.mode {
-                    #[allow(unused_variables)]
-                    CursorMode::Visual { start, end, mode } => {
+                    CursorMode::Visual { start, end, .. } => {
                         let offset = *start.min(end);
                         let offset =
                             self.buffer.offset_line_end(offset, false).min(offset);
@@ -2929,8 +2925,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             )
                             .0
                     }
-                    #[allow(unused_variables)]
-                    CursorMode::Visual { start, end, mode } => {
+                    CursorMode::Visual { end, .. } => {
                         self.buffer.offset_line_end(*end, false).min(*end)
                     }
                     CursorMode::Normal(offset) => *offset,
