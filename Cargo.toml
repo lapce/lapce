@@ -32,8 +32,5 @@ members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
 [profile.fastdev.package."*"]
 opt-level = 3
 
-[profile.fastdev.build-override]
-opt-level = 3
-
 [profile.fastdev]
 inherits = "dev"
