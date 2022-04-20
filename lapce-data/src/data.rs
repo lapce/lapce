@@ -167,12 +167,34 @@ impl LapceData {
     }
 }
 
+/// `LapceWindowData` is the application model for a top-level window,
+/// that is a window which can be independently moved around and
+/// resized using your window manager. Normally Lapce has only one
+/// top-level window, but new ones can be created using the "New Window"
+/// command.
+/// 
+/// Each window has its own collection of tabs (again, there is normally
+/// only one tab), size, position etc. and `Arc` references to state that is
+/// common to this instance of Lapce, such as configuration and the
+/// keymap setup.
 #[derive(Clone)]
 pub struct LapceWindowData {
+    /// The unique identifier for the Window. Assigned by Druid.
     pub window_id: WindowId,
+    /// The set of tabs within the window. These tabs are high-level
+    /// groupings, in particular they are not **editor tabs**, which are
+    /// lower down the hierarchy. 
+    /// 
+    /// Normally there is only one high-level tab, and it is not visible
+    /// on screen as a separate thing - only its contents are. If you
+    /// create a new tab using the "Create New Tab" command then both
+    /// tabs will appear in the user interface at the top of the window.
     pub tabs: im::HashMap<WidgetId, LapceTabData>,
+    /// The order of the tabs in the user interface.
     pub tabs_order: Arc<Vec<WidgetId>>,
+    /// The index of the active tab.
     pub active: usize,
+    /// The Id of the active tab.
     pub active_id: WidgetId,
     pub keypress: Arc<KeyPressData>,
     pub config: Arc<Config>,
@@ -180,7 +202,9 @@ pub struct LapceWindowData {
     pub db: Arc<LapceDb>,
     pub watcher: Arc<notify::RecommendedWatcher>,
     pub menu: Arc<MenuData>,
+    /// The size of the window.
     pub size: Size,
+    /// The position of the window.
     pub pos: Point,
 }
 
