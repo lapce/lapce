@@ -20,3 +20,8 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
 members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
+
+[profile.release-lto]
+inherits = "release"
+lto = true
+codegen-units = 1
