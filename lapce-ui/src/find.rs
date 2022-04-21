@@ -4,15 +4,15 @@ use druid::{
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
-    command::{CommandTarget, LapceCommand, LapceCommandNew, LAPCE_NEW_COMMAND},
+    command::{
+        CommandKind, CommandTarget, LapceCommand, LapceCommandNew,
+        LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+    },
     config::LapceTheme,
     data::LapceTabData,
 };
 
-use crate::{
-    editor::view::LapceEditorView, tab::LapceIcon,
-    svg::get_svg,
-};
+use crate::{editor::view::LapceEditorView, svg::get_svg, tab::LapceIcon};
 
 pub struct FindBox {
     input_width: f64,
@@ -35,6 +35,9 @@ impl FindBox {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::SearchBackward.to_string(),
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::TogglePanelVisual,
+                        ),
                         data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,
@@ -49,6 +52,9 @@ impl FindBox {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::SearchForward.to_string(),
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::TogglePanelVisual,
+                        ),
                         data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,
@@ -63,6 +69,9 @@ impl FindBox {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::ClearSearch.to_string(),
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::TogglePanelVisual,
+                        ),
                         data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,

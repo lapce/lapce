@@ -286,43 +286,54 @@ impl KeyPressFocus for PaletteViewData {
         matches!(condition, "list_focus" | "palette_focus" | "modal_focus")
     }
 
-    fn run_command(
-        &mut self,
-        ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
-    ) -> CommandExecuted {
-        match command {
-            LapceCommand::ModalClose => {
-                self.cancel(ctx);
-            }
-            LapceCommand::DeleteBackward => {
-                self.delete_backward(ctx);
-            }
-            LapceCommand::DeleteToBeginningOfLine => {
-                self.delete_to_beginning_of_line(ctx);
-            }
-            LapceCommand::ListNext => {
-                self.next(ctx);
-            }
-            LapceCommand::ListPrevious => {
-                self.previous(ctx);
-            }
-            LapceCommand::ListSelect => {
-                self.select(ctx);
-            }
-            _ => return CommandExecuted::No,
-        }
-        CommandExecuted::Yes
-    }
+    // fn run_command(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     match command {
+    //         LapceCommand::ModalClose => {
+    //             self.cancel(ctx);
+    //         }
+    //         LapceCommand::DeleteBackward => {
+    //             self.delete_backward(ctx);
+    //         }
+    //         LapceCommand::DeleteToBeginningOfLine => {
+    //             self.delete_to_beginning_of_line(ctx);
+    //         }
+    //         LapceCommand::ListNext => {
+    //             self.next(ctx);
+    //         }
+    //         LapceCommand::ListPrevious => {
+    //             self.previous(ctx);
+    //         }
+    //         LapceCommand::ListSelect => {
+    //             self.select(ctx);
+    //         }
+    //         _ => return CommandExecuted::No,
+    //     }
+    //     CommandExecuted::Yes
+    // }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.input.insert_str(palette.cursor, c);
         palette.cursor += c.len();
         self.update_palette(ctx);
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommandNew,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
+    ) -> CommandExecuted {
+        todo!()
     }
 }
 

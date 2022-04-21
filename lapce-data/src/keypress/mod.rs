@@ -21,8 +21,8 @@ mod keypress;
 mod loader;
 
 use crate::command::{
-    lapce_internal_commands, CommandExecuted, CommandTarget, LapceCommandNew,
-    LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    lapce_internal_commands, CommandExecuted, CommandKind, CommandTarget,
+    LapceCommandNew, LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
 };
 use crate::config::{Config, LapceTheme};
 use crate::keypress::loader::KeyMapLoader;
@@ -131,7 +131,7 @@ pub trait KeyPressFocus {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommand,
+        command: &LapceCommandNew,
         count: Option<usize>,
         mods: Modifiers,
         env: &Env,
@@ -223,9 +223,15 @@ impl KeyPressData {
         env: &Env,
     ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
+            match cmd.kind {
+                CommandKind::Workbench(_) => {}
+                CommandKind::Move(_) | CommandKind::Edit(_) => {
+                    focus.run_command(ctx, &cmd, count, mods, env);
+                }
+            };
             if let CommandTarget::Focus = cmd.target {
                 if let Ok(cmd) = LapceCommand::from_str(command) {
-                    focus.run_command(ctx, &cmd, count, mods, env)
+                    CommandExecuted::Yes
                 } else {
                     CommandExecuted::No
                 }
@@ -359,7 +365,7 @@ impl KeyPressData {
                     {
                         if let Ok(cmd) = LapceCommand::from_str(&command) {
                             if cmd.move_command(None).is_some() {
-                                focus.run_command(ctx, &cmd, None, mods, env);
+                                // focus.run_command(ctx, &cmd, None, mods, env);
                                 return true;
                             }
                         }
@@ -488,9 +494,8 @@ impl KeyPressData {
                 .iter()
                 .filter_map(|i| {
                     let cmd = commands.get(&i.command).unwrap();
-                    let text = cmd
-                        .palette_desc
-                        .as_deref().unwrap_or(cmd.cmd.as_str());
+                    let text =
+                        cmd.palette_desc.as_deref().unwrap_or(cmd.cmd.as_str());
 
                     matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                 })
@@ -502,9 +507,8 @@ impl KeyPressData {
                 commands_without_keymap
                     .iter()
                     .filter_map(|i| {
-                        let text = i
-                            .palette_desc
-                            .as_deref().unwrap_or(i.cmd.as_str());
+                        let text =
+                            i.palette_desc.as_deref().unwrap_or(i.cmd.as_str());
 
                         matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                     })
@@ -677,7 +681,7 @@ impl KeyPressFocus for DefaultKeyPressHandler {
     fn run_command(
         &mut self,
         _ctx: &mut EventCtx,
-        _command: &LapceCommand,
+        _command: &LapceCommandNew,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
@@ -747,7 +751,7 @@ mod test {
         fn run_command(
             &mut self,
             _ctx: &mut druid::EventCtx,
-            _command: &crate::command::LapceCommand,
+            _command: &crate::command::LapceCommandNew,
             _count: Option<usize>,
             _mods: druid::Modifiers,
             _env: &druid::Env,

@@ -4,6 +4,7 @@ use crate::{
 };
 use std::sync::Arc;
 
+use crate::svg::logo_svg;
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
@@ -15,8 +16,8 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, CommandTarget, LapceCommandNew, LapceUICommand,
+        LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{
@@ -27,7 +28,6 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
-use crate::svg::logo_svg;
 use lapce_rpc::terminal::TermId;
 use strum::EnumMessage;
 
@@ -1183,6 +1183,9 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
         vec![
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                kind: CommandKind::Workbench(
+                    LapceWorkbenchCommand::TogglePanelVisual,
+                ),
                 data: None,
                 palette_desc: Some("Show All Commands".to_string()),
                 target: CommandTarget::Workbench,
@@ -1190,6 +1193,9 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             if modal {
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     data: None,
                     palette_desc: LapceWorkbenchCommand::DisableModal
                         .get_message()
@@ -1199,6 +1205,9 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             } else {
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     data: None,
                     palette_desc: LapceWorkbenchCommand::EnableModal
                         .get_message()
@@ -1208,12 +1217,18 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             },
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+                kind: CommandKind::Workbench(
+                    LapceWorkbenchCommand::TogglePanelVisual,
+                ),
                 data: None,
                 palette_desc: Some("Open Folder".to_string()),
                 target: CommandTarget::Workbench,
             },
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+                kind: CommandKind::Workbench(
+                    LapceWorkbenchCommand::TogglePanelVisual,
+                ),
                 data: None,
                 palette_desc: Some("Open Recent".to_string()),
                 target: CommandTarget::Workbench,
@@ -1223,6 +1238,9 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
         vec![
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                kind: CommandKind::Workbench(
+                    LapceWorkbenchCommand::TogglePanelVisual,
+                ),
                 data: None,
                 palette_desc: Some("Show All Commands".to_string()),
                 target: CommandTarget::Workbench,
@@ -1230,6 +1248,9 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             if modal {
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     data: None,
                     palette_desc: LapceWorkbenchCommand::DisableModal
                         .get_message()
@@ -1239,6 +1260,9 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             } else {
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     data: None,
                     palette_desc: LapceWorkbenchCommand::EnableModal
                         .get_message()
@@ -1248,6 +1272,9 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             },
             LapceCommandNew {
                 cmd: LapceWorkbenchCommand::Palette.to_string(),
+                kind: CommandKind::Workbench(
+                    LapceWorkbenchCommand::TogglePanelVisual,
+                ),
                 data: None,
                 palette_desc: Some("Go To File".to_string()),
                 target: CommandTarget::Workbench,

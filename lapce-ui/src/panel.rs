@@ -6,7 +6,8 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+        CommandKind, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
+        LAPCE_NEW_COMMAND,
     },
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
@@ -16,8 +17,7 @@ use lapce_data::{
 use serde_json::json;
 
 use crate::{
-    scroll::LapceScrollNew, split::LapceSplitNew, tab::LapceIcon,
-    svg::get_svg,
+    scroll::LapceScrollNew, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
 };
 
 pub struct LapcePanel {
@@ -383,6 +383,9 @@ impl PanelMainHeader {
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
                     cmd: LapceWorkbenchCommand::HidePanel.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     data: Some(json!(self.kind)),
                     palette_desc: None,
                     target: CommandTarget::Workbench,
@@ -419,6 +422,9 @@ impl PanelMainHeader {
                         LapceCommandNew {
                             cmd: LapceWorkbenchCommand::ToggleMaximizedPanel
                                 .to_string(),
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::TogglePanelVisual,
+                            ),
                             data: Some(json!(self.kind)),
                             palette_desc: None,
                             target: CommandTarget::Workbench,

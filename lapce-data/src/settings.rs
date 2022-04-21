@@ -34,27 +34,38 @@ impl KeyPressFocus for LapceSettingsPanelData {
         matches!(condition, "modal_focus")
     }
 
+    // fn run_command(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     if let LapceCommand::ModalClose = command {
+    //         ctx.submit_command(Command::new(
+    //             LAPCE_UI_COMMAND,
+    //             LapceUICommand::Hide,
+    //             Target::Widget(self.panel_widget_id),
+    //         ));
+    //         CommandExecuted::Yes
+    //     } else {
+    //         CommandExecuted::No
+    //     }
+    // }
+
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
+
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
+        command: &crate::command::LapceCommandNew,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
     ) -> CommandExecuted {
-        if let LapceCommand::ModalClose = command {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::Hide,
-                Target::Widget(self.panel_widget_id),
-            ));
-            CommandExecuted::Yes
-        } else {
-            CommandExecuted::No
-        }
+        todo!()
     }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl LapceSettingsPanelData {
@@ -96,37 +107,48 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         false
     }
 
+    // fn run_command(
+    //     &mut self,
+    //     _ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     match command {
+    //         LapceCommand::Right => {
+    //             self.cursor += 1;
+    //             if self.cursor > self.input.len() {
+    //                 self.cursor = self.input.len();
+    //             }
+    //         }
+    //         LapceCommand::Left => {
+    //             if self.cursor == 0 {
+    //                 return CommandExecuted::Yes;
+    //             }
+    //             self.cursor -= 1;
+    //         }
+    //         LapceCommand::DeleteBackward => {
+    //             if self.cursor == 0 {
+    //                 return CommandExecuted::Yes;
+    //             }
+    //             self.input.remove(self.cursor - 1);
+    //             self.cursor -= 1;
+    //         }
+    //         _ => return CommandExecuted::No,
+    //     }
+    //     CommandExecuted::Yes
+    // }
+
     fn run_command(
         &mut self,
-        _ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
+        ctx: &mut EventCtx,
+        command: &crate::command::LapceCommandNew,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
     ) -> CommandExecuted {
-        match command {
-            LapceCommand::Right => {
-                self.cursor += 1;
-                if self.cursor > self.input.len() {
-                    self.cursor = self.input.len();
-                }
-            }
-            LapceCommand::Left => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
-                }
-                self.cursor -= 1;
-            }
-            LapceCommand::DeleteBackward => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
-                }
-                self.input.remove(self.cursor - 1);
-                self.cursor -= 1;
-            }
-            _ => return CommandExecuted::No,
-        }
-        CommandExecuted::Yes
+        todo!()
     }
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {

@@ -35,32 +35,43 @@ impl KeyPressFocus for MenuData {
         matches!(condition, "list_focus" | "menu_focus" | "modal_focus")
     }
 
+    // fn run_command(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     if let LapceCommand::ModalClose = command {
+    //         ctx.submit_command(Command::new(
+    //             LAPCE_UI_COMMAND,
+    //             LapceUICommand::HideMenu,
+    //             Target::Auto,
+    //         ));
+    //         ctx.submit_command(Command::new(
+    //             LAPCE_UI_COMMAND,
+    //             LapceUICommand::Focus,
+    //             Target::Auto,
+    //         ));
+    //         CommandExecuted::Yes
+    //     } else {
+    //         CommandExecuted::No
+    //     }
+    // }
+
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
+
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
+        command: &LapceCommandNew,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
     ) -> CommandExecuted {
-        if let LapceCommand::ModalClose = command {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::HideMenu,
-                Target::Auto,
-            ));
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::Focus,
-                Target::Auto,
-            ));
-            CommandExecuted::Yes
-        } else {
-            CommandExecuted::No
-        }
+        todo!()
     }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl MenuData {

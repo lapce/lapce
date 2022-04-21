@@ -3,10 +3,10 @@ use crate::buffer::{
     has_unmatched_pair, BufferContent, DiffLines, EditType, LocalBufferKind,
 };
 use crate::buffer::{matching_pair_direction, Buffer};
-use crate::command::CommandExecuted;
 use crate::command::CommandTarget;
 use crate::command::LapceCommandNew;
 use crate::command::LAPCE_NEW_COMMAND;
+use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
 use crate::data::MotionMode;
@@ -15,6 +15,7 @@ use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     RegisterData, SplitContent,
 };
+use crate::document::Document;
 use crate::editor::commands::EditCommandFactory;
 use crate::editor::commands::EditCommandKind;
 use crate::hover::HoverData;
@@ -42,6 +43,9 @@ use druid::{
     WidgetId,
 };
 use druid::{Application, ExtEventSink, MouseEvent};
+use lapce_core::command::EditCommand;
+use lapce_core::editor::Editor;
+use lapce_core::movement::MoveCommand;
 pub use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::CompletionTextEdit;
@@ -128,6 +132,7 @@ pub struct LapceEditorBufferData {
     pub view_id: WidgetId,
     pub editor: Arc<LapceEditorData>,
     pub buffer: Arc<Buffer>,
+    pub doc: Arc<Document>,
     pub completion: Arc<CompletionData>,
     pub hover: Arc<HoverData>,
     pub main_split: LapceMainSplitData,
@@ -786,6 +791,7 @@ impl LapceEditorBufferData {
                             LAPCE_NEW_COMMAND,
                             LapceCommandNew {
                                 cmd: LapceCommand::SearchForward.to_string(),
+                                kind: CommandKind::Edit(EditCommand::MoveLineUp),
                                 data: None,
                                 palette_desc: None,
                                 target: CommandTarget::Focus,
@@ -1599,6 +1605,7 @@ impl LapceEditorBufferData {
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
                     cmd: LapceCommand::GotoDefinition.to_string(),
+                    kind: CommandKind::Edit(EditCommand::MoveLineUp),
                     data: None,
                     palette_desc: None,
                     target: CommandTarget::Workbench,
@@ -1646,39 +1653,33 @@ impl LapceEditorBufferData {
             mouse_event.mods.alt(),
         );
     }
-}
 
-impl KeyPressFocus for LapceEditorBufferData {
-    fn get_mode(&self) -> Mode {
-        self.editor.cursor.get_mode()
+    fn run_move_command(
+        &mut self,
+        cmd: &MoveCommand,
+        count: Option<usize>,
+        mods: Modifiers,
+    ) -> CommandExecuted {
+        let movement = cmd.to_movement(count);
+        Arc::make_mut(&mut self.editor).new_cursor.do_movement(
+            &movement,
+            count.unwrap_or(1),
+            mods.shift(),
+            self.doc.buffer(),
+            self.doc.syntax(),
+        );
+        CommandExecuted::Yes
     }
 
-    fn expect_char(&self) -> bool {
-        self.editor.inline_find.is_some()
-    }
+    fn run_edit_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        cmd: &EditCommand,
+    ) -> CommandExecuted {
+        let doc = Arc::make_mut(&mut self.doc);
+        doc.do_edit(&mut Arc::make_mut(&mut self.editor).new_cursor, cmd);
 
-    fn check_condition(&self, condition: &str) -> bool {
-        match condition {
-            "search_focus" => {
-                self.editor.content == BufferContent::Local(LocalBufferKind::Search)
-            }
-            "editor_focus" => match self.editor.content {
-                BufferContent::File(_) => true,
-                BufferContent::Local(_) => false,
-                BufferContent::Value(_) => false,
-            },
-            "diff_focus" => self.editor.compare.is_some(),
-            "source_control_focus" => {
-                self.editor.content
-                    == BufferContent::Local(LocalBufferKind::SourceControl)
-            }
-            "in_snippet" => self.editor.snippet.is_some(),
-            "completion_focus" => self.has_completions(),
-            "hover_focus" => self.has_hover(),
-            "list_focus" => self.has_completions(),
-            "modal_focus" => self.has_completions() || self.has_hover(),
-            _ => false,
-        }
+        CommandExecuted::Yes
     }
 
     fn run_command(
@@ -3091,6 +3092,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
                             cmd: LapceCommand::SelectAll.to_string(),
+                            kind: CommandKind::Edit(EditCommand::MoveLineUp),
                             data: None,
                             palette_desc: None,
                             target: CommandTarget::Focus,
@@ -3167,6 +3169,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                             LAPCE_NEW_COMMAND,
                             LapceCommandNew {
                                 cmd: LapceCommand::SearchBackward.to_string(),
+                                kind: CommandKind::Edit(EditCommand::MoveLineUp),
                                 data: None,
                                 palette_desc: None,
                                 target: CommandTarget::Focus,
@@ -3305,6 +3308,40 @@ impl KeyPressFocus for LapceEditorBufferData {
         }
         CommandExecuted::Yes
     }
+}
+
+impl KeyPressFocus for LapceEditorBufferData {
+    fn get_mode(&self) -> Mode {
+        self.editor.cursor.get_mode()
+    }
+
+    fn expect_char(&self) -> bool {
+        self.editor.inline_find.is_some()
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        match condition {
+            "search_focus" => {
+                self.editor.content == BufferContent::Local(LocalBufferKind::Search)
+            }
+            "editor_focus" => match self.editor.content {
+                BufferContent::File(_) => true,
+                BufferContent::Local(_) => false,
+                BufferContent::Value(_) => false,
+            },
+            "diff_focus" => self.editor.compare.is_some(),
+            "source_control_focus" => {
+                self.editor.content
+                    == BufferContent::Local(LocalBufferKind::SourceControl)
+            }
+            "in_snippet" => self.editor.snippet.is_some(),
+            "completion_focus" => self.has_completions(),
+            "hover_focus" => self.has_hover(),
+            "list_focus" => self.has_completions(),
+            "modal_focus" => self.has_completions() || self.has_hover(),
+            _ => false,
+        }
+    }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
@@ -3318,6 +3355,21 @@ impl KeyPressFocus for LapceEditorBufferData {
             let editor = Arc::make_mut(&mut self.editor);
             editor.last_inline_find = Some((direction, c.to_string()));
             editor.inline_find = None;
+        }
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommandNew,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
+    ) -> CommandExecuted {
+        match &command.kind {
+            CommandKind::Edit(cmd) => self.run_edit_command(ctx, cmd),
+            CommandKind::Move(cmd) => self.run_move_command(cmd, count, mods),
+            CommandKind::Workbench(_) => CommandExecuted::No,
         }
     }
 }

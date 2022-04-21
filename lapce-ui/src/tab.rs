@@ -12,8 +12,8 @@ use itertools::Itertools;
 use lapce_data::{
     buffer::LocalBufferKind,
     command::{
-        CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
+        LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
@@ -324,6 +324,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).load_content(content);
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        Arc::make_mut(doc).load_content(content);
                         for (view_id, location) in locations {
                             data.main_split.go_to_location(
                                 ctx,
@@ -359,6 +361,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                                         LapceCommandNew {
                                             cmd: LapceCommand::SearchInView
                                                 .to_string(),
+                                            kind: CommandKind::Workbench(
+                                                LapceWorkbenchCommand::TogglePanelVisual,
+                                            ),
                                             data: None,
                                             palette_desc: None,
                                             target: CommandTarget::Focus,

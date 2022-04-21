@@ -1,17 +1,18 @@
+use crate::svg::get_svg;
 use druid::{
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+        CommandKind, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
+        LAPCE_NEW_COMMAND,
     },
     config::LapceTheme,
     data::LapceTabData,
     panel::PanelPosition,
 };
 use serde_json::json;
-use crate::svg::get_svg;
 
 pub struct ActivityBar {}
 
@@ -49,6 +50,9 @@ impl Widget<LapceTabData> for ActivityBar {
                                         cmd:
                                             LapceWorkbenchCommand::TogglePanelVisual
                                                 .to_string(),
+                                        kind: CommandKind::Workbench(
+                                            LapceWorkbenchCommand::TogglePanelVisual,
+                                        ),
                                         data: Some(json!(kind)),
                                         palette_desc: None,
                                         target: CommandTarget::Workbench,
@@ -61,6 +65,9 @@ impl Widget<LapceTabData> for ActivityBar {
                                     LapceCommandNew {
                                         cmd: LapceWorkbenchCommand::ShowPanel
                                             .to_string(),
+                                        kind: CommandKind::Workbench(
+                                            LapceWorkbenchCommand::ShowPanel,
+                                        ),
                                         data: Some(json!(kind)),
                                         palette_desc: None,
                                         target: CommandTarget::Workbench,

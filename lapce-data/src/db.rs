@@ -20,6 +20,7 @@ use crate::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
         LapceMainSplitData, LapceTabData, LapceWindowData, SplitContent, SplitData,
     },
+    document::Document,
     editor::EditorLocationNew,
     split::SplitDirection,
     state::LapceWorkspace,
@@ -283,6 +284,8 @@ impl EditorInfo {
                     event_sink,
                 ));
                 data.open_files.insert(path.clone(), buffer);
+                let doc = Arc::new(Document::new());
+                data.open_docs.insert(path.clone(), doc);
             }
         }
         data.insert_editor(Arc::new(editor_data.clone()), config);

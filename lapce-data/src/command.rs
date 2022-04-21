@@ -4,6 +4,7 @@ use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
 use lapce_core::syntax::Syntax;
+use lapce_core::{command::EditCommand, movement::MoveCommand};
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
     source_control::DiffInfo, style::Style, terminal::TermId,
@@ -40,9 +41,17 @@ pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
 #[derive(Clone, Debug)]
 pub struct LapceCommandNew {
     pub cmd: String,
+    pub kind: CommandKind,
     pub data: Option<serde_json::Value>,
     pub palette_desc: Option<String>,
     pub target: CommandTarget,
+}
+
+#[derive(Clone, Debug)]
+pub enum CommandKind {
+    Workbench(LapceWorkbenchCommand),
+    Edit(EditCommand),
+    Move(MoveCommand),
 }
 
 impl LapceCommandNew {
@@ -68,6 +77,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
     for c in LapceWorkbenchCommand::iter() {
         let command = LapceCommandNew {
             cmd: c.to_string(),
+            kind: CommandKind::Workbench(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
             target: CommandTarget::Workbench,
@@ -75,9 +85,21 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         commands.insert(command.cmd.clone(), command);
     }
 
-    for c in LapceCommand::iter() {
+    for c in EditCommand::iter() {
         let command = LapceCommandNew {
             cmd: c.to_string(),
+            kind: CommandKind::Edit(c.clone()),
+            data: None,
+            palette_desc: c.get_message().map(|m| m.to_string()),
+            target: CommandTarget::Focus,
+        };
+        commands.insert(command.cmd.clone(), command);
+    }
+
+    for c in MoveCommand::iter() {
+        let command = LapceCommandNew {
+            cmd: c.to_string(),
+            kind: CommandKind::Move(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
             target: CommandTarget::Focus,

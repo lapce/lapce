@@ -228,16 +228,6 @@ impl LapceTerminalViewData {
             selection.include_all();
         }
     }
-}
-
-impl KeyPressFocus for LapceTerminalViewData {
-    fn get_mode(&self) -> Mode {
-        self.terminal.mode
-    }
-
-    fn check_condition(&self, condition: &str) -> bool {
-        matches!(condition, "terminal_focus" | "panel_focus")
-    }
 
     fn run_command(
         &mut self,
@@ -422,11 +412,32 @@ impl KeyPressFocus for LapceTerminalViewData {
         }
         CommandExecuted::Yes
     }
+}
+
+impl KeyPressFocus for LapceTerminalViewData {
+    fn get_mode(&self) -> Mode {
+        self.terminal.mode
+    }
+
+    fn check_condition(&self, condition: &str) -> bool {
+        matches!(condition, "terminal_focus" | "panel_focus")
+    }
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         if self.terminal.mode == Mode::Terminal {
             self.terminal.proxy.terminal_write(self.terminal.term_id, c);
         }
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &crate::command::LapceCommandNew,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
+    ) -> CommandExecuted {
+        todo!()
     }
 }
 

@@ -19,6 +19,7 @@ use lapce_data::{
     },
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
+    document::Document,
     keypress::KeyPressFocus,
     proxy::VERSION,
     state::Mode,
@@ -660,7 +661,12 @@ impl LapceSettingsItem {
             let mut buffer =
                 Buffer::new(content.clone(), data.id, event_sink).set_local();
             buffer.load_content(&input);
-            data.main_split.value_buffers.insert(name, Arc::new(buffer));
+            data.main_split
+                .value_buffers
+                .insert(name.clone(), Arc::new(buffer));
+            data.main_split
+                .value_docs
+                .insert(name, Arc::new(Document::new()));
             let editor = LapceEditorData::new(None, None, content, &data.config);
             let view_id = editor.view_id;
             let input = LapceEditorView::new(editor.view_id, None)
@@ -793,42 +799,53 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         false
     }
 
-    fn run_command(
-        &mut self,
-        _ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
-    ) -> CommandExecuted {
-        match command {
-            LapceCommand::Right => {
-                self.cursor += 1;
-                if self.cursor > self.input.len() {
-                    self.cursor = self.input.len();
-                }
-            }
-            LapceCommand::Left => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
-                }
-                self.cursor -= 1;
-            }
-            LapceCommand::DeleteBackward => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
-                }
-                self.input.remove(self.cursor - 1);
-                self.cursor -= 1;
-            }
-            _ => return CommandExecuted::No,
-        }
-        CommandExecuted::Yes
-    }
+    // fn run_command(
+    //     &mut self,
+    //     _ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     match command {
+    //         LapceCommand::Right => {
+    //             self.cursor += 1;
+    //             if self.cursor > self.input.len() {
+    //                 self.cursor = self.input.len();
+    //             }
+    //         }
+    //         LapceCommand::Left => {
+    //             if self.cursor == 0 {
+    //                 return CommandExecuted::Yes;
+    //             }
+    //             self.cursor -= 1;
+    //         }
+    //         LapceCommand::DeleteBackward => {
+    //             if self.cursor == 0 {
+    //                 return CommandExecuted::Yes;
+    //             }
+    //             self.input.remove(self.cursor - 1);
+    //             self.cursor -= 1;
+    //         }
+    //         _ => return CommandExecuted::No,
+    //     }
+    //     CommandExecuted::Yes
+    // }
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         self.input.insert_str(self.cursor, c);
         self.cursor += c.len();
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &lapce_data::command::LapceCommandNew,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
+    ) -> CommandExecuted {
+        todo!()
     }
 }
 

@@ -8,8 +8,9 @@ use druid::{
 use lapce_data::{
     buffer::{BufferContent, LocalBufferKind},
     command::{
-        CommandTarget, EnsureVisiblePosition, LapceCommand, LapceCommandNew,
-        LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, CommandTarget, EnsureVisiblePosition, LapceCommand,
+        LapceCommandNew, LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+        LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::{EditorTabChild, FocusArea, LapceTabData, PanelData, PanelKind},
@@ -459,22 +460,14 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
-                if let Ok(command) = LapceCommand::from_str(&command.cmd) {
-                    editor_data.run_command(
-                        ctx,
-                        &command,
-                        None,
-                        Modifiers::empty(),
-                        env,
-                    );
-                    self.ensure_cursor_visible(
-                        ctx,
-                        &editor_data,
-                        &data.panels,
-                        None,
-                        env,
-                    );
-                }
+                editor_data.run_command(ctx, command, None, Modifiers::empty(), env);
+                self.ensure_cursor_visible(
+                    ctx,
+                    &editor_data,
+                    &data.panels,
+                    None,
+                    env,
+                );
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let cmd = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -558,6 +551,9 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::InsertMode.to_string(),
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::TogglePanelVisual,
+                        ),
                         data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,
@@ -569,6 +565,9 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::NormalMode.to_string(),
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::TogglePanelVisual,
+                        ),
                         data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,

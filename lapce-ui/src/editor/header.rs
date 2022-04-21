@@ -8,7 +8,10 @@ use druid::{
 };
 use lapce_data::{
     buffer::BufferContent,
-    command::{CommandTarget, LapceCommand, LapceCommandNew, LAPCE_NEW_COMMAND},
+    command::{
+        CommandKind, CommandTarget, LapceCommand, LapceCommandNew,
+        LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+    },
     config::LapceTheme,
     data::LapceTabData,
     editor::LapceEditorBufferData,
@@ -63,6 +66,9 @@ impl LapceEditorHeader {
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
                     cmd: LapceCommand::SplitClose.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     data: None,
                     palette_desc: None,
                     target: CommandTarget::Focus,
@@ -83,6 +89,9 @@ impl LapceEditorHeader {
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
                     cmd: LapceCommand::SplitVertical.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     data: None,
                     palette_desc: None,
                     target: CommandTarget::Focus,

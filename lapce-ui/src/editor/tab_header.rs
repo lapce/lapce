@@ -5,8 +5,8 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
+        LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::LapceTabData,
@@ -14,8 +14,7 @@ use lapce_data::{
 
 use crate::{
     editor::tab_header_content::LapceEditorTabHeaderContent, scroll::LapceScrollNew,
-    svg::get_svg,
-    tab::LapceIcon,
+    svg::get_svg, tab::LapceIcon,
 };
 
 pub struct LapceEditorTabHeader {
@@ -176,6 +175,9 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
                             cmd: LapceCommand::SplitVertical.to_string(),
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::TogglePanelVisual,
+                            ),
                             data: None,
                             palette_desc: None,
                             target: CommandTarget::Focus,

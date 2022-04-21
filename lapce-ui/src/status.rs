@@ -5,7 +5,8 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
+        CommandKind, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
+        LAPCE_NEW_COMMAND,
     },
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
@@ -80,6 +81,9 @@ impl LapceStatusNew {
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
                             cmd: cmd.to_string(),
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::TogglePanelVisual,
+                            ),
                             data: None,
                             palette_desc: None,
                             target: CommandTarget::Workbench,

@@ -39,42 +39,53 @@ impl KeyPressFocus for CodeActionData {
         )
     }
 
+    // fn run_command(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     match command {
+    //         LapceCommand::ModalClose => {
+    //             ctx.submit_command(Command::new(
+    //                 LAPCE_UI_COMMAND,
+    //                 LapceUICommand::CancelCodeActions,
+    //                 Target::Auto,
+    //             ));
+    //         }
+    //         LapceCommand::ListNext => {
+    //             self.next(ctx);
+    //         }
+    //         LapceCommand::ListPrevious => {
+    //             self.previous(ctx);
+    //         }
+    //         LapceCommand::ListSelect => {
+    //             self.select();
+    //             ctx.submit_command(Command::new(
+    //                 LAPCE_UI_COMMAND,
+    //                 LapceUICommand::CancelCodeActions,
+    //                 Target::Auto,
+    //             ));
+    //         }
+    //         _ => return CommandExecuted::No,
+    //     }
+    //     CommandExecuted::Yes
+    // }
+
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
+
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
+        command: &lapce_data::command::LapceCommandNew,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
     ) -> CommandExecuted {
-        match command {
-            LapceCommand::ModalClose => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::CancelCodeActions,
-                    Target::Auto,
-                ));
-            }
-            LapceCommand::ListNext => {
-                self.next(ctx);
-            }
-            LapceCommand::ListPrevious => {
-                self.previous(ctx);
-            }
-            LapceCommand::ListSelect => {
-                self.select();
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::CancelCodeActions,
-                    Target::Auto,
-                ));
-            }
-            _ => return CommandExecuted::No,
-        }
-        CommandExecuted::Yes
+        todo!()
     }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl CodeActionData {

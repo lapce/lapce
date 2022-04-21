@@ -353,6 +353,18 @@ impl Syntax {
     }
 }
 
+pub fn matching_pair_direction(c: char) -> Option<bool> {
+    Some(match c {
+        '{' => true,
+        '}' => false,
+        '(' => true,
+        ')' => false,
+        '[' => true,
+        ']' => false,
+        _ => return None,
+    })
+}
+
 pub fn matching_char(c: char) -> Option<char> {
     Some(match c {
         '{' => '}',

@@ -11,6 +11,7 @@ use druid::{
     Widget, WidgetId,
 };
 use druid::{Data, TimerToken};
+use lapce_data::command::CommandKind;
 use lapce_data::{
     buffer::{matching_pair_direction, BufferContent, DiffLines, LocalBufferKind},
     command::{
@@ -203,6 +204,9 @@ impl LapceEditor {
                     .to_string(),
                 command: LapceCommandNew {
                     cmd: LapceCommand::GotoDefinition.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     palette_desc: None,
                     data: None,
                     target: CommandTarget::Focus,
@@ -212,6 +216,9 @@ impl LapceEditor {
                 text: "Command Palette".to_string(),
                 command: LapceCommandNew {
                     cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::TogglePanelVisual,
+                    ),
                     palette_desc: None,
                     data: None,
                     target: CommandTarget::Workbench,
@@ -713,42 +720,40 @@ impl LapceEditor {
             }
             return;
         } else {
-            let cursor_offset = data.editor.cursor.offset();
-            let cursor_line = data.buffer.line_of_offset(cursor_offset);
-            let last_line = data.buffer.last_line();
+            let cursor_offset = data.editor.new_cursor.offset();
+            let cursor_line = data.doc.buffer().line_of_offset(cursor_offset);
+            let last_line = data.doc.buffer().last_line();
             let bounds = [rect.x0, rect.x1];
-            let mode = data.editor.cursor.get_mode();
+            let mode = data.editor.new_cursor.get_mode();
 
             for line in start_line..end_line + 1 {
                 if line > last_line {
                     break;
                 }
 
-                let cursor_index =
-                    if is_focused && mode != Mode::Insert && line == cursor_line {
-                        let cursor_line_start = data
-                            .buffer
-                            .offset_of_line(cursor_line)
-                            .min(data.buffer.len());
-                        let index = data
-                            .buffer
-                            .slice_to_cow(cursor_line_start..cursor_offset)
-                            .len();
-                        Some(index)
-                    } else {
-                        None
-                    };
+                let cursor_index = if is_focused
+                    && mode != lapce_core::mode::Mode::Insert
+                    && line == cursor_line
+                {
+                    let cursor_line_start = data
+                        .doc
+                        .buffer()
+                        .offset_of_line(cursor_line)
+                        .min(data.buffer.len());
+                    let index = data
+                        .doc
+                        .buffer()
+                        .slice_to_cow(cursor_line_start..cursor_offset)
+                        .len();
+                    Some(index)
+                } else {
+                    None
+                };
 
-                let text_layout = self.get_text_layout(
-                    ctx,
-                    data,
-                    line,
-                    cursor_index,
-                    font_size,
-                    bounds,
-                );
+                let text_layout =
+                    data.doc.get_text_layout(ctx, line, font_size, &data.config);
                 ctx.draw_text(
-                    text_layout,
+                    &text_layout,
                     Point::new(
                         0.0,
                         line_height * line as f64
