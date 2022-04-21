@@ -170,6 +170,64 @@ impl LapceWindowNew {
     pub fn close_tab(&mut self, ctx: &mut EventCtx, data: &mut LapceWindowData) {
         self.close_index_tab(ctx, data, data.active);
     }
+
+    /// Renders the window tab bar and returns its height.
+    fn paint_tab_bar(
+        &mut self,
+        ctx: &mut PaintCtx,
+        data: &LapceWindowData,
+        env: &Env,
+        y: f64,
+    ) -> f64 {
+        if self.tabs.len() <= 1 {
+            return 0.0;
+        }
+
+        let active_tab_rect = self.tab_headers[data.active].layout_rect();
+        let size = Size::new(ctx.size().width, active_tab_rect.height());
+
+        // tab row background
+        ctx.fill(
+            size.to_rect().with_origin(Point::new(0.0, y)),
+            data.config
+                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+        );
+
+        // active tab background with drop shadow (clipped so only the sides show)
+        ctx.with_save(|ctx| {
+            ctx.clip(size.to_rect().with_origin(Point::new(0.0, y)));
+            ctx.blurred_rect(
+                active_tab_rect,
+                5.0,
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+            );
+            ctx.fill(
+                active_tab_rect,
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+            );
+        });
+
+        // tab separator lines
+        let num = self.tabs.len();
+        let tab_width = size.width / num as f64;
+        let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
+        for x in (1..num).map(|i| i as f64 * tab_width) {
+            ctx.stroke(
+                Line::new(Point::new(x, y), Point::new(x, y + size.height)),
+                line_color,
+                1.0,
+            );
+        }
+
+        // tab header contents
+        for tab_header in self.tab_headers.iter_mut() {
+            tab_header.paint(ctx, data, env);
+        }
+
+        size.height
+    }
 }
 
 impl Widget<LapceWindowData> for LapceWindowNew {
@@ -442,21 +500,22 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         data: &LapceWindowData,
         env: &Env,
     ) -> Size {
-        let self_size = bc.max();
-
+        // The menu popup is independent of the window's widgets
         self.menu.layout(ctx, bc, data, env);
         self.menu.set_origin(ctx, data, env, data.menu.origin);
 
-        let title_size = self.title.layout(ctx, bc, data, env);
-        self.title.set_origin(ctx, data, env, Point::ZERO);
+        let self_size = bc.max();
 
-        let (tab_size, tab_origin) = if self.tabs.len() > 1 {
+        let mut y = 0.0;
+
+        let title_size = self.title.layout(ctx, bc, data, env);
+
+        let (tab_header_height, tab_size) = if self.tabs.len() > 1 {
             let tab_height = 25.0;
             let tab_size = Size::new(
                 self_size.width,
                 self_size.height - tab_height - title_size.height,
             );
-            let tab_origin = Point::new(0.0, tab_height + title_size.height);
 
             let num = self.tabs.len();
             let section = self_size.width / num as f64;
@@ -465,10 +524,10 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             for (i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 let bc = BoxConstraints::tight(Size::new(section, tab_height));
                 tab_header.layout(ctx, &bc, data, env);
-                let mut origin = Point::new(section * i as f64, title_size.height);
+                let mut origin = Point::new(section * i as f64, y);
                 let header = tab_header.widget().child();
                 if let Some(o) = header.origin() {
-                    origin = Point::new(o.x, title_size.height);
+                    origin = Point::new(o.x, y);
                     drag = Some((i, header.mouse_pos));
                 }
                 tab_header.set_origin(ctx, data, env, origin);
@@ -490,7 +549,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                 }
             }
 
-            (tab_size, tab_origin)
+            (tab_height, tab_size)
         } else {
             for (_i, tab_header) in self.tab_headers.iter_mut().enumerate() {
                 let bc = BoxConstraints::tight(Size::new(self_size.width, 0.0));
@@ -502,14 +561,20 @@ impl Widget<LapceWindowData> for LapceWindowNew {
                     Point::new(0.0, title_size.height),
                 );
             }
-            let tab_size =
-                Size::new(self_size.width, self_size.height - title_size.height);
-            (tab_size, Point::new(0.0, title_size.height))
+
+            (
+                0.0,
+                Size::new(self_size.width, self_size.height - title_size.height),
+            )
         };
+        y += tab_header_height;
+
+        self.title.set_origin(ctx, data, env, Point::new(0.0, y));
+        y += title_size.height;
 
         let bc = BoxConstraints::tight(tab_size);
         self.tabs[data.active].layout(ctx, &bc, data, env);
-        self.tabs[data.active].set_origin(ctx, data, env, tab_origin);
+        self.tabs[data.active].set_origin(ctx, data, env, Point::new(0.0, y));
 
         self_size
     }
@@ -517,70 +582,28 @@ impl Widget<LapceWindowData> for LapceWindowNew {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, env: &Env) {
         let _start = std::time::SystemTime::now();
 
-        let title_height = self.title.layout_rect().height();
+        let width = ctx.size().width;
+        let border_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
 
-        let tab_height = 25.0;
-        let size = ctx.size();
-        if self.tabs.len() > 1 {
-            ctx.fill(
-                Size::new(size.width, tab_height)
-                    .to_rect()
-                    .with_origin(Point::new(0.0, title_height)),
-                data.config
-                    .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-            );
-            for tab_header in self.tab_headers.iter_mut() {
-                tab_header.paint(ctx, data, env);
-            }
-        }
+        let mut y = 0.0;
+        y += self.paint_tab_bar(ctx, data, env, y);
 
-        self.tabs[data.active].paint(ctx, data, env);
-
-        let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
-        if self.tabs.len() > 1 {
-            let num = self.tabs.len();
-            let section = ctx.size().width / num as f64;
-            for i in 1..num {
-                let line = Line::new(
-                    Point::new(i as f64 * section, title_height),
-                    Point::new(i as f64 * section, title_height + tab_height),
-                );
-                ctx.stroke(line, line_color, 1.0);
-            }
-
-            let rect = self.tab_headers[data.active].layout_rect();
-            let clip_rect = Size::new(size.width, tab_height)
-                .to_rect()
-                .with_origin(Point::new(0.0, title_height));
-            ctx.with_save(|ctx| {
-                ctx.clip(clip_rect);
-                ctx.blurred_rect(
-                    rect,
-                    5.0,
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-                );
-                ctx.fill(
-                    rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
-                );
-            });
-            self.tab_headers[data.active].paint(ctx, data, env);
-
-            let line = Line::new(
-                Point::new(0.0, title_height + tab_height - 0.5),
-                Point::new(size.width, title_height + tab_height - 0.5),
-            );
-            ctx.stroke(line, line_color, 1.0);
-        }
+        ctx.stroke(
+            Line::new(Point::new(0.0, y - 0.5), Point::new(width, y - 0.5)),
+            border_color,
+            1.0,
+        );
 
         self.title.paint(ctx, data, env);
-        let line = Line::new(
-            Point::new(0.0, title_height - 0.5),
-            Point::new(size.width, title_height - 0.5),
+        y += self.title.layout_rect().height();
+
+        ctx.stroke(
+            Line::new(Point::new(0.0, y - 0.5), Point::new(width, y - 0.5)),
+            border_color,
+            1.0,
         );
-        ctx.stroke(line, line_color, 1.0);
+
+        self.tabs[data.active].paint(ctx, data, env);
 
         self.menu.paint(ctx, data, env);
     }

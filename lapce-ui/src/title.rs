@@ -293,7 +293,7 @@ impl Widget<LapceWindowData> for Title {
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
             ),
         );
-        x += size.height;
+        x += size.height; // FIXME: this can't possibly be correct
         let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
             workspace_path
                 .file_name()
