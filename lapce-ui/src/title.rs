@@ -228,6 +228,10 @@ impl Widget<LapceWindowData> for Title {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceWindowData, _env: &Env) {
         let size = ctx.size();
         let rect = size.to_rect();
+
+        let icon_width = size.height; // icons are square
+        let icon_size = Size::new(icon_width, icon_width);
+
         ctx.fill(
             rect,
             data.config
@@ -292,7 +296,7 @@ impl Widget<LapceWindowData> for Title {
         };
 
         let remote_rect = Size::new(
-            size.height
+            icon_width
                 + 10.0
                 + remote_text
                     .as_ref()
@@ -302,6 +306,8 @@ impl Widget<LapceWindowData> for Title {
         )
         .to_rect()
         .with_origin(Point::new(x, 0.0));
+
+        // TODO: make these theme colors
         let color = match &tab.workspace.kind {
             LapceWorkspaceType::Local => Color::rgb8(64, 120, 242),
             LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL => {
@@ -316,7 +322,7 @@ impl Widget<LapceWindowData> for Title {
         let remote_svg = get_svg("remote.svg").unwrap();
         ctx.draw_svg(
             &remote_svg,
-            Size::new(size.height, size.height)
+            icon_size
                 .to_rect()
                 .with_origin(Point::new(x + 5.0, 0.0))
                 .inflate(-5.0, -5.0),
@@ -354,9 +360,7 @@ impl Widget<LapceWindowData> for Title {
 
         x += 5.0;
         let folder_svg = get_svg("default_folder.svg").unwrap();
-        let folder_rect = Size::new(size.height, size.height)
-            .to_rect()
-            .with_origin(Point::new(x, 0.0));
+        let folder_rect = icon_size.to_rect().with_origin(Point::new(x, 0.0));
         ctx.draw_svg(
             &folder_svg,
             folder_rect.inflate(-5.0, -5.0),
@@ -365,7 +369,7 @@ impl Widget<LapceWindowData> for Title {
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
             ),
         );
-        x += size.height; // FIXME: this can't possibly be correct
+        x += icon_width;
         let text = if let Some(workspace_path) = tab.workspace.path.as_ref() {
             workspace_path
                 .file_name()
@@ -414,9 +418,7 @@ impl Widget<LapceWindowData> for Title {
 
             x += 5.0;
             let folder_svg = get_svg("git-icon.svg").unwrap();
-            let folder_rect = Size::new(size.height, size.height)
-                .to_rect()
-                .with_origin(Point::new(x, 0.0));
+            let folder_rect = icon_size.to_rect().with_origin(Point::new(x, 0.0));
             ctx.draw_svg(
                 &folder_svg,
                 folder_rect.inflate(-6.5, -6.5),
@@ -425,7 +427,7 @@ impl Widget<LapceWindowData> for Title {
                         .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
                 ),
             );
-            x += size.height;
+            x += icon_width;
 
             let mut branch = tab.source_control.branch.clone();
             if !tab.source_control.file_diffs.is_empty() {
@@ -482,11 +484,10 @@ impl Widget<LapceWindowData> for Title {
             ctx.stroke(line, line_color, 1.0);
         }
 
-        x = size.width;
-        x -= size.height;
-        let settings_rect = Size::new(size.height, size.height)
-            .to_rect()
-            .with_origin(Point::new(x, 0.0));
+        // Right align
+        x = size.width - icon_width;
+
+        let settings_rect = icon_size.to_rect().with_origin(Point::new(x, 0.0));
         let settings_svg = get_svg("settings.svg").unwrap();
         ctx.draw_svg(
             &settings_svg,
