@@ -25,6 +25,9 @@ use strum::EnumMessage;
 pub struct Title {
     mouse_pos: Point,
     commands: Vec<(Rect, Command)>,
+    workspace_menu_items: Arc<Vec<MenuItem>>,
+    settings_menu_items: Arc<Vec<MenuItem>>,
+    remote_menu_items: Arc<Vec<MenuItem>>,
 }
 
 impl Title {
@@ -32,6 +35,72 @@ impl Title {
         Self {
             mouse_pos: Point::ZERO,
             commands: Vec::new(),
+            workspace_menu_items: Arc::new(vec![
+                MenuItem {
+                    text: LapceWorkbenchCommand::OpenFolder
+                        .get_message()
+                        .unwrap()
+                        .to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+                        palette_desc: None,
+                        data: None,
+                        target: CommandTarget::Workbench,
+                    },
+                },
+                MenuItem {
+                    text: LapceWorkbenchCommand::PaletteWorkspace
+                        .get_message()
+                        .unwrap()
+                        .to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+                        palette_desc: None,
+                        data: None,
+                        target: CommandTarget::Workbench,
+                    },
+                },
+            ]),
+            settings_menu_items: Arc::new(vec![
+                MenuItem {
+                    text: LapceWorkbenchCommand::PaletteCommand
+                        .get_message()
+                        .unwrap()
+                        .to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                        palette_desc: None,
+                        data: None,
+                        target: CommandTarget::Workbench,
+                    },
+                },
+                MenuItem {
+                    text: LapceWorkbenchCommand::OpenSettings
+                        .get_message()
+                        .unwrap()
+                        .to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceWorkbenchCommand::OpenSettings.to_string(),
+                        palette_desc: None,
+                        data: None,
+                        target: CommandTarget::Workbench,
+                    },
+                },
+                MenuItem {
+                    text: LapceWorkbenchCommand::OpenKeyboardShortcuts
+                        .get_message()
+                        .unwrap()
+                        .to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceWorkbenchCommand::OpenKeyboardShortcuts
+                            .to_string(),
+                        palette_desc: None,
+                        data: None,
+                        target: CommandTarget::Workbench,
+                    },
+                },
+            ]),
+            remote_menu_items: Arc::new(vec![]),
         }
     }
 
@@ -98,9 +167,52 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         _ctx: &mut UpdateCtx,
         _old_data: &LapceWindowData,
-        _data: &LapceWindowData,
+        data: &LapceWindowData,
         _env: &Env,
     ) {
+        let mut remote_menu_items = vec![
+            MenuItem {
+                text: LapceWorkbenchCommand::ConnectSshHost
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            },
+            #[cfg(target_os = "windows")]
+            MenuItem {
+                text: LapceWorkbenchCommand::ConnectWsl
+                    .get_message()
+                    .unwrap()
+                    .to_string(),
+                command: LapceCommandNew {
+                    cmd: LapceWorkbenchCommand::ConnectWsl.to_string(),
+                    palette_desc: None,
+                    data: None,
+                    target: CommandTarget::Workbench,
+                },
+            },
+        ];
+
+        if let Some(tab) = data.tabs.get(&data.active_id) {
+            if tab.workspace.kind.is_remote() {
+                remote_menu_items.push(MenuItem {
+                    text: "Disconnect Remote".to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceWorkbenchCommand::DisconnectRemote.to_string(),
+                        palette_desc: None,
+                        data: None,
+                        target: CommandTarget::Workbench,
+                    },
+                });
+            }
+        }
+
+        self.remote_menu_items = Arc::new(remote_menu_items);
     }
 
     fn layout(
@@ -226,53 +338,13 @@ impl Widget<LapceWindowData> for Title {
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
 
-        let mut menu_items = vec![MenuItem {
-            text: LapceWorkbenchCommand::ConnectSshHost
-                .get_message()
-                .unwrap()
-                .to_string(),
-            command: LapceCommandNew {
-                cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
-                palette_desc: None,
-                data: None,
-                target: CommandTarget::Workbench,
-            },
-        }];
-
-        if cfg!(target_os = "windows") {
-            menu_items.push(MenuItem {
-                text: LapceWorkbenchCommand::ConnectWsl
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::ConnectWsl.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-            });
-        }
-
-        if tab.workspace.kind.is_remote() {
-            menu_items.push(MenuItem {
-                text: "Disconnect Remote".to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::DisconnectRemote.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-            });
-        }
-
         self.commands.push((
             command_rect,
             Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ShowMenu(
                     Point::new(command_rect.x0, command_rect.y1),
-                    Arc::new(menu_items),
+                    self.remote_menu_items.clone(),
                 ),
                 Target::Auto,
             ),
@@ -319,32 +391,6 @@ impl Widget<LapceWindowData> for Title {
             Point::new(x, (size.height - text_layout.size().height) / 2.0),
         );
         x += text_layout.size().width.round() + padding;
-        let menu_items = vec![
-            MenuItem {
-                text: LapceWorkbenchCommand::OpenFolder
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-            },
-            MenuItem {
-                text: LapceWorkbenchCommand::PaletteWorkspace
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-            },
-        ];
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
         self.commands.push((
@@ -353,7 +399,7 @@ impl Widget<LapceWindowData> for Title {
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ShowMenu(
                     Point::new(command_rect.x0, command_rect.y1),
-                    Arc::new(menu_items),
+                    self.workspace_menu_items.clone(),
                 ),
                 Target::Auto,
             ),
@@ -450,51 +496,14 @@ impl Widget<LapceWindowData> for Title {
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
             ),
         );
-        let menu_items = vec![
-            MenuItem {
-                text: LapceWorkbenchCommand::PaletteCommand
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-            },
-            MenuItem {
-                text: LapceWorkbenchCommand::OpenSettings
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenSettings.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-            },
-            MenuItem {
-                text: LapceWorkbenchCommand::OpenKeyboardShortcuts
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenKeyboardShortcuts.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-            },
-        ];
+
         self.commands.push((
             settings_rect,
             Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ShowMenu(
                     Point::new(size.width - 300.0, settings_rect.y1),
-                    Arc::new(menu_items),
+                    self.settings_menu_items.clone(),
                 ),
                 Target::Auto,
             ),
