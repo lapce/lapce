@@ -1486,6 +1486,7 @@ pub struct LapceTabHeader {
     pub drag_start: Option<(Point, Point)>,
     pub mouse_pos: Point,
     cross_rect: Rect,
+    dir: Arc<String>,
 }
 
 impl LapceTabHeader {
@@ -1494,6 +1495,7 @@ impl LapceTabHeader {
             cross_rect: Rect::ZERO,
             drag_start: None,
             mouse_pos: Point::ZERO,
+            dir: Arc::new(String::new()),
         }
     }
 
@@ -1567,11 +1569,35 @@ impl Widget<LapceTabData> for LapceTabHeader {
 
     fn update(
         &mut self,
-        _ctx: &mut druid::UpdateCtx,
-        _old_data: &LapceTabData,
-        _data: &LapceTabData,
+        ctx: &mut druid::UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
         _env: &Env,
     ) {
+        if self.dir.is_empty() || old_data.workspace.path != data.workspace.path {
+            self.dir = Arc::new(
+                data.workspace
+                    .path
+                    .as_ref()
+                    .map(|p| {
+                        let dir =
+                            p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
+                        let dir = match &data.workspace.kind {
+                            LapceWorkspaceType::Local => dir.to_string(),
+                            LapceWorkspaceType::RemoteSSH(user, host) => {
+                                format!("{} [{}@{}]", dir, user, host)
+                            }
+                            LapceWorkspaceType::RemoteWSL => {
+                                format!("{dir} [wsl]")
+                            }
+                        };
+                        dir
+                    })
+                    .unwrap_or_else(|| "Lapce".to_string()),
+            );
+            ctx.request_layout();
+            ctx.request_paint();
+        }
     }
 
     fn layout(
@@ -1594,27 +1620,9 @@ impl Widget<LapceTabData> for LapceTabHeader {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let dir = data
-            .workspace
-            .path
-            .as_ref()
-            .map(|p| {
-                let dir = p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
-                let dir = match &data.workspace.kind {
-                    LapceWorkspaceType::Local => dir.to_string(),
-                    LapceWorkspaceType::RemoteSSH(user, host) => {
-                        format!("{} [{}@{}]", dir, user, host)
-                    }
-                    LapceWorkspaceType::RemoteWSL => {
-                        format!("{dir} [wsl]")
-                    }
-                };
-                dir
-            })
-            .unwrap_or_else(|| "Lapce".to_string());
         let text_layout = ctx
             .text()
-            .new_text_layout(dir)
+            .new_text_layout(self.dir.clone())
             .font(FontFamily::SYSTEM_UI, 13.0)
             .text_color(
                 data.config

@@ -488,6 +488,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         if old_tab.workspace != tab.workspace {
             ctx.request_layout();
         }
+        for tab_header in self.tab_headers.iter_mut() {
+            tab_header.update(ctx, data, env);
+        }
         for tab in self.tabs.iter_mut() {
             tab.update(ctx, data, env);
         }
