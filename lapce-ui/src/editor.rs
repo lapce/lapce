@@ -113,6 +113,8 @@ pub struct LapceEditor {
     mouse_hover_timer: TimerToken,
 
     text_layouts: HashMap<usize, PietTextLayout>,
+
+    right_click_menu_items: Arc<Vec<MenuItem>>,
 }
 
 impl LapceEditor {
@@ -125,6 +127,30 @@ impl LapceEditor {
             mouse_pos: Point::ZERO,
             mouse_hover_timer: TimerToken::INVALID,
             text_layouts: HashMap::new(),
+
+            right_click_menu_items: Arc::new(vec![
+                MenuItem {
+                    text: LapceCommand::GotoDefinition
+                        .get_message()
+                        .unwrap()
+                        .to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceCommand::GotoDefinition.to_string(),
+                        palette_desc: None,
+                        data: None,
+                        target: CommandTarget::Focus,
+                    },
+                },
+                MenuItem {
+                    text: "Command Palette".to_string(),
+                    command: LapceCommandNew {
+                        cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+                        palette_desc: None,
+                        data: None,
+                        target: CommandTarget::Workbench,
+                    },
+                },
+            ]),
         }
     }
 
@@ -195,33 +221,12 @@ impl LapceEditor {
         config: &Config,
     ) {
         editor_data.single_click(ctx, mouse_event, config);
-        let menu_items = vec![
-            MenuItem {
-                text: LapceCommand::GotoDefinition
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceCommand::GotoDefinition.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Focus,
-                },
-            },
-            MenuItem {
-                text: "Command Palette".to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
-                    palette_desc: None,
-                    data: None,
-                    target: CommandTarget::Workbench,
-                },
-            },
-        ];
-        let point = mouse_event.pos + editor_data.editor.window_origin.to_vec2();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::ShowMenu(point.round(), Arc::new(menu_items)),
+            LapceUICommand::ShowMenu(
+                ctx.to_window(mouse_event.pos).round(),
+                self.right_click_menu_items.clone(),
+            ),
             Target::Auto,
         ));
     }
