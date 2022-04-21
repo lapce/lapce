@@ -272,9 +272,9 @@ impl Widget<LapceWindowData> for Title {
             }
             LapceWorkspaceType::RemoteWSL => {
                 let text = match *tab.proxy_status {
-                    ProxyStatus::Connecting => "Connecting to WSL ...".to_string(),
-                    ProxyStatus::Connected => "WSL".to_string(),
-                    ProxyStatus::Disconnected => "Disconnected WSL".to_string(),
+                    ProxyStatus::Connecting => "Connecting to WSL ...",
+                    ProxyStatus::Connected => "WSL",
+                    ProxyStatus::Disconnected => "Disconnected WSL",
                 };
                 let text_layout = ctx
                     .text()
