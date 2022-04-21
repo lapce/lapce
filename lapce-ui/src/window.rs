@@ -603,7 +603,10 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             1.0,
         );
 
-        self.tabs[data.active].paint(ctx, data, env);
+        ctx.with_save(|ctx| {
+            ctx.clip(self.tabs[data.active].layout_rect());
+            self.tabs[data.active].paint(ctx, data, env);
+        });
 
         self.menu.paint(ctx, data, env);
     }
