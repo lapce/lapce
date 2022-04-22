@@ -1,4 +1,5 @@
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
+use lapce_core::mode::Mode;
 use lapce_rpc::source_control::FileDiff;
 
 use crate::{
@@ -6,7 +7,6 @@ use crate::{
     keypress::KeyPressFocus,
     movement::Movement,
     split::{SplitDirection, SplitMoveDirection},
-    state::Mode,
 };
 
 pub const SOURCE_CONTROL_BUFFER: &str = "[Source Control Buffer]";

@@ -11,6 +11,7 @@ use druid::{
     WidgetExt, WidgetId, WidgetPod,
 };
 use inflector::Inflector;
+use lapce_core::mode::Mode;
 use lapce_data::{
     buffer::{Buffer, BufferContent},
     command::{
@@ -22,7 +23,6 @@ use lapce_data::{
     document::Document,
     keypress::KeyPressFocus,
     proxy::VERSION,
-    state::Mode,
 };
 
 use crate::{

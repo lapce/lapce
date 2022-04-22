@@ -14,10 +14,11 @@ use xi_rope::{
 };
 
 use crate::{
+    cursor::ColPosition,
     editor::EditType,
     mode::Mode,
     movement::{LinePosition, Movement},
-    selection::{ColPosition, Selection},
+    selection::Selection,
     syntax::Syntax,
     word::WordCursor,
 };
@@ -145,7 +146,7 @@ impl Buffer {
         &mut self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
-    ) -> RopeDelta {
+    ) -> (RopeDelta, InvalLines) {
         let mut builder = DeltaBuilder::new(self.len());
         let mut interval_rope = Vec::new();
         for (selection, content) in edits {
@@ -173,7 +174,7 @@ impl Buffer {
         let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
 
-        self.apply_edit(
+        let inval_lines = self.apply_edit(
             &delta,
             new_rev,
             new_text,
@@ -181,7 +182,7 @@ impl Buffer {
             new_deletes_from_union,
         );
 
-        delta
+        (delta, inval_lines)
     }
 
     fn apply_edit(
@@ -486,29 +487,30 @@ impl Buffer {
     }
 
     pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
-        self.offset_of_line(line) + col
+        let mut pos = 0;
+        let mut offset = self.offset_of_line(line);
+        for c in self
+            .slice_to_cow(offset..self.offset_of_line(line + 1))
+            .chars()
+        {
+            if c == '\n' {
+                return offset;
+            }
+
+            let char_len = c.len_utf8();
+            if pos + char_len > col {
+                return offset;
+            }
+            pos += char_len;
+            offset += char_len;
+        }
+        offset
     }
 
     pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
         let line_start = self.offset_of_line(line);
         let offset = self.line_end_offset(line, caret);
         offset - line_start
-    }
-
-    pub fn line_horiz_col(
-        &self,
-        line: usize,
-        horiz: &ColPosition,
-        caret: bool,
-    ) -> usize {
-        match *horiz {
-            ColPosition::Col(n) => n.min(self.line_end_col(line, caret)),
-            ColPosition::End => self.line_end_col(line, caret),
-            ColPosition::Start => 0,
-            ColPosition::FirstNonBlank => {
-                self.first_non_blank_character_on_line(line)
-            }
-        }
     }
 
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
@@ -633,183 +635,6 @@ impl Buffer {
 
     pub fn len(&self) -> usize {
         self.text.len()
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn move_offset(
-        &self,
-        offset: usize,
-        horiz: Option<&ColPosition>,
-        count: usize,
-        movement: &Movement,
-        mode: Mode,
-        syntax: Option<&Syntax>,
-    ) -> (usize, ColPosition) {
-        let horiz = if let Some(horiz) = horiz {
-            *horiz
-        } else {
-            let (_, col) = self.offset_to_line_col(offset);
-            ColPosition::Col(col)
-        };
-        match movement {
-            Movement::Left => {
-                let line = self.line_of_offset(offset);
-                let line_start_offset = self.offset_of_line(line);
-
-                let min_offset = if mode == Mode::Insert {
-                    0
-                } else {
-                    line_start_offset
-                };
-
-                let new_offset =
-                    self.prev_grapheme_offset(offset, count, min_offset);
-                let (_, col) = self.offset_to_line_col(new_offset);
-                (new_offset, ColPosition::Col(col))
-            }
-            Movement::Right => {
-                let line_end = self.offset_line_end(offset, mode != Mode::Normal);
-
-                let max_offset = if mode == Mode::Insert {
-                    self.len()
-                } else {
-                    line_end
-                };
-
-                let new_offset =
-                    self.next_grapheme_offset(offset, count, max_offset);
-
-                let (_, col) = self.offset_to_line_col(new_offset);
-                (new_offset, ColPosition::Col(col))
-            }
-            Movement::Up => {
-                let line = self.line_of_offset(offset);
-                let line = if line == 0 {
-                    0
-                } else {
-                    line.saturating_sub(count)
-                };
-
-                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
-                let new_offset = self.offset_of_line_col(line, col);
-                (new_offset, horiz)
-            }
-            Movement::Down => {
-                let last_line = self.last_line();
-                let line = self.line_of_offset(offset);
-
-                let line = (line + count).min(last_line);
-
-                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
-                let new_offset = self.offset_of_line_col(line, col);
-                (new_offset, horiz)
-            }
-            Movement::DocumentStart => (0, ColPosition::Start),
-            Movement::DocumentEnd => {
-                let last_offset =
-                    self.offset_line_end(self.len(), mode != Mode::Normal);
-                (last_offset, ColPosition::End)
-            }
-            Movement::FirstNonBlank => {
-                let line = self.line_of_offset(offset);
-                let new_offset = self.first_non_blank_character_on_line(line);
-                (new_offset, ColPosition::FirstNonBlank)
-            }
-            Movement::StartOfLine => {
-                let line = self.line_of_offset(offset);
-                let new_offset = self.offset_of_line(line);
-                (new_offset, ColPosition::Start)
-            }
-            Movement::EndOfLine => {
-                let new_offset = self.offset_line_end(offset, mode != Mode::Normal);
-                (new_offset, ColPosition::End)
-            }
-            Movement::Line(position) => {
-                let line = match position {
-                    LinePosition::Line(line) => (line - 1).min(self.last_line()),
-                    LinePosition::First => 0,
-                    LinePosition::Last => self.last_line(),
-                };
-                let col = self.line_horiz_col(line, &horiz, mode != Mode::Normal);
-                let new_offset = self.offset_of_line_col(line, col);
-                (new_offset, horiz)
-            }
-            Movement::Offset(offset) => {
-                let new_offset = *offset;
-                let new_offset =
-                    self.text.prev_grapheme_offset(new_offset + 1).unwrap();
-                let (_, col) = self.offset_to_line_col(new_offset);
-                (new_offset, ColPosition::Col(col))
-            }
-            Movement::WordEndForward => {
-                let mut new_offset = WordCursor::new(&self.text, offset)
-                    .end_boundary()
-                    .unwrap_or(offset);
-                if mode != Mode::Insert {
-                    new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
-                }
-                let (_, col) = self.offset_to_line_col(new_offset);
-                (new_offset, ColPosition::Col(col))
-            }
-            Movement::WordForward => {
-                let new_offset = WordCursor::new(&self.text, offset)
-                    .next_boundary()
-                    .unwrap_or(offset);
-                let (_, col) = self.offset_to_line_col(new_offset);
-                (new_offset, ColPosition::Col(col))
-            }
-            Movement::WordBackward => {
-                let new_offset = WordCursor::new(&self.text, offset)
-                    .prev_boundary()
-                    .unwrap_or(offset);
-                let (_, col) = self.offset_to_line_col(new_offset);
-                (new_offset, ColPosition::Col(col))
-            }
-            Movement::NextUnmatched(c) => {
-                if let Some(syntax) = syntax {
-                    let new_offset = syntax
-                        .find_tag(offset, false, &c.to_string())
-                        .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
-                    (new_offset, ColPosition::Col(col))
-                } else {
-                    let new_offset = WordCursor::new(&self.text, offset)
-                        .next_unmatched(*c)
-                        .map_or(offset, |new| new - 1);
-                    let (_, col) = self.offset_to_line_col(new_offset);
-                    (new_offset, ColPosition::Col(col))
-                }
-            }
-            Movement::PreviousUnmatched(c) => {
-                if let Some(syntax) = syntax {
-                    let new_offset = syntax
-                        .find_tag(offset, true, &c.to_string())
-                        .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
-                    (new_offset, ColPosition::Col(col))
-                } else {
-                    let new_offset = WordCursor::new(&self.text, offset)
-                        .previous_unmatched(*c)
-                        .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
-                    (new_offset, ColPosition::Col(col))
-                }
-            }
-            Movement::MatchPairs => {
-                if let Some(syntax) = syntax {
-                    let new_offset =
-                        syntax.find_matching_pair(offset).unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
-                    (new_offset, ColPosition::Col(col))
-                } else {
-                    let new_offset = WordCursor::new(&self.text, offset)
-                        .match_pairs()
-                        .unwrap_or(offset);
-                    let (_, col) = self.offset_to_line_col(new_offset);
-                    (new_offset, ColPosition::Col(col))
-                }
-            }
-        }
     }
 }
 

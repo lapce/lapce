@@ -1,9 +1,13 @@
 use itertools::Itertools;
+use xi_rope::RopeDelta;
 
 use crate::{
-    buffer::Buffer,
+    buffer::{Buffer, InvalLines},
     command::EditCommand,
     cursor::{Cursor, CursorMode},
+    mode::{Mode, VisualMode},
+    movement::Movement,
+    register::RegisterData,
     selection::{InsertDrift, SelRegion, Selection},
     syntax::{matching_char, matching_pair_direction, Syntax},
     word::{get_word_property, WordProperty},
@@ -37,7 +41,8 @@ impl Editor {
     ) {
         if let CursorMode::Insert(selection) = &cursor.mode {
             if s.chars().count() != 1 {
-                let delta = buffer.edit(&[(selection, s)], EditType::InsertChars);
+                let (delta, _) =
+                    buffer.edit(&[(selection, s)], EditType::InsertChars);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
@@ -122,7 +127,7 @@ impl Editor {
                     .map(|(selection, content)| (selection, content.as_str()))
                     .collect::<Vec<_>>();
 
-                let delta = buffer.edit(&edits, EditType::InsertChars);
+                let (delta, _) = buffer.edit(&edits, EditType::InsertChars);
 
                 // Update selection
                 let mut selection =
@@ -155,6 +160,7 @@ impl Editor {
                     *region = SelRegion::new(
                         region.start + adjustment,
                         region.end + adjustment,
+                        None,
                     );
 
                     if let Some(inserted) =
@@ -177,12 +183,141 @@ impl Editor {
         }
     }
 
+    fn toggle_visual(cursor: &mut Cursor, visual_mode: VisualMode, modal: bool) {
+        if !modal {
+            return;
+        }
+
+        match &cursor.mode {
+            CursorMode::Visual { start, end, mode } => {
+                if mode != &visual_mode {
+                    cursor.mode = CursorMode::Visual {
+                        start: *start,
+                        end: *end,
+                        mode: visual_mode,
+                    };
+                } else {
+                    cursor.mode = CursorMode::Normal(*end);
+                };
+            }
+            _ => {
+                let offset = cursor.offset();
+                cursor.mode = CursorMode::Visual {
+                    start: offset,
+                    end: offset,
+                    mode: visual_mode,
+                };
+            }
+        }
+    }
+
+    pub fn do_paste(
+        cursor: &mut Cursor,
+        buffer: &mut Buffer,
+        data: &RegisterData,
+    ) -> Vec<(RopeDelta, InvalLines)> {
+        let mut deltas = Vec::new();
+        match data.mode {
+            VisualMode::Normal => {
+                let selection = match cursor.mode {
+                    CursorMode::Normal(offset) => {
+                        let line_end = buffer.offset_line_end(offset, true);
+                        let offset = (offset + 1).min(line_end);
+                        Selection::caret(offset)
+                    }
+                    CursorMode::Insert { .. } | CursorMode::Visual { .. } => {
+                        cursor.edit_selection(buffer)
+                    }
+                };
+                let after = cursor.is_insert() || !data.content.contains('\n');
+                let (delta, inval_lines) = buffer
+                    .edit(&[(&selection, &data.content)], EditType::InsertChars);
+                let selection =
+                    selection.apply_delta(&delta, after, InsertDrift::Default);
+                deltas.push((delta, inval_lines));
+                if !after {
+                    cursor.update_selection(buffer, selection);
+                } else {
+                    match cursor.mode {
+                        CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                            let offset = buffer.prev_grapheme_offset(
+                                selection.min_offset(),
+                                1,
+                                0,
+                            );
+                            cursor.mode = CursorMode::Normal(offset);
+                        }
+                        CursorMode::Insert { .. } => {
+                            cursor.mode = CursorMode::Insert(selection);
+                        }
+                    }
+                }
+            }
+            VisualMode::Linewise | VisualMode::Blockwise => {
+                let (selection, content) = match &cursor.mode {
+                    CursorMode::Normal(offset) => {
+                        let line = buffer.line_of_offset(*offset);
+                        let offset = buffer.offset_of_line(line + 1);
+                        (Selection::caret(offset), data.content.clone())
+                    }
+                    CursorMode::Insert(selection) => {
+                        let mut selection = selection.clone();
+                        for region in selection.regions_mut() {
+                            if region.is_caret() {
+                                let line = buffer.line_of_offset(region.start);
+                                let start = buffer.offset_of_line(line);
+                                region.start = start;
+                                region.end = start;
+                            }
+                        }
+                        (selection, data.content.clone())
+                    }
+                    CursorMode::Visual { mode, .. } => {
+                        let selection = cursor.edit_selection(buffer);
+                        let data = match mode {
+                            VisualMode::Linewise => data.content.clone(),
+                            _ => "\n".to_string() + &data.content,
+                        };
+                        (selection, data)
+                    }
+                };
+                let (delta, inval_lines) =
+                    buffer.edit(&[(&selection, &content)], EditType::InsertChars);
+                let selection = selection.apply_delta(
+                    &delta,
+                    cursor.is_insert(),
+                    InsertDrift::Default,
+                );
+                deltas.push((delta, inval_lines));
+                match cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        let offset = selection.min_offset();
+                        let offset = if cursor.is_visual() {
+                            offset + 1
+                        } else {
+                            offset
+                        };
+                        let line = buffer.line_of_offset(offset);
+                        let offset = buffer.first_non_blank_character_on_line(line);
+                        cursor.mode = CursorMode::Normal(offset);
+                    }
+                    CursorMode::Insert(_) => {
+                        cursor.mode = CursorMode::Insert(selection);
+                    }
+                }
+            }
+        }
+        deltas
+    }
+
     pub fn do_edit(
         cursor: &mut Cursor,
         buffer: &mut Buffer,
         cmd: &EditCommand,
         syntax: Option<&Syntax>,
-    ) {
+        modal: bool,
+    ) -> Vec<(RopeDelta, InvalLines)> {
+        let mut deltas = Vec::new();
         use crate::command::EditCommand::*;
         match cmd {
             MoveLineUp => {
@@ -198,7 +333,7 @@ impl Editor {
                             let end = buffer.offset_of_line(end_line + 1);
                             let content =
                                 buffer.slice_to_cow(start..end).to_string();
-                            buffer.edit(
+                            let (delta, inval_lines) = buffer.edit(
                                 &[
                                     (&Selection::region(start, end), ""),
                                     (
@@ -210,6 +345,7 @@ impl Editor {
                                 ],
                                 EditType::InsertChars,
                             );
+                            deltas.push((delta, inval_lines));
                             region.start -= previous_line_len;
                             region.end -= previous_line_len;
                         }
@@ -217,28 +353,65 @@ impl Editor {
                     cursor.mode = CursorMode::Insert(selection);
                 }
             }
-            Down => todo!(),
-            Up => todo!(),
-            Left => todo!(),
-            Right => todo!(),
-            PageUp => todo!(),
-            PageDown => todo!(),
-            WordBackward => todo!(),
-            WordForward => todo!(),
-            WordEndForward => todo!(),
-            DocumentStart => todo!(),
-            DocumentEnd => todo!(),
-            LineEnd => todo!(),
-            LineStart => todo!(),
-            LineStartNonBlank => todo!(),
-            GotoLineDefaultLast => todo!(),
-            GotoLineDefaultFirst => todo!(),
-            MatchPairs => todo!(),
-            NextUnmatchedRightBracket => todo!(),
-            PreviousUnmatchedLeftBracket => todo!(),
-            NextUnmatchedRightCurlyBracket => todo!(),
-            PreviousUnmatchedLeftCurlyBracket => todo!(),
+            NormalMode => {
+                if !modal {
+                    if let CursorMode::Insert(selection) = &cursor.mode {
+                        match selection.regions().len() {
+                            i if i > 1 => {
+                                if let Some(region) = selection.last_inserted() {
+                                    let new_selection =
+                                        Selection::region(region.start, region.end);
+                                    cursor.mode = CursorMode::Insert(new_selection);
+                                    return deltas;
+                                }
+                            }
+                            i if i == 1 => {
+                                let region = selection.regions()[0];
+                                if !region.is_caret() {
+                                    let new_selection = Selection::caret(region.end);
+                                    cursor.mode = CursorMode::Insert(new_selection);
+                                    return deltas;
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+
+                    return deltas;
+                }
+
+                let offset = match &cursor.mode {
+                    CursorMode::Insert(selection) => {
+                        let offset = selection.min_offset();
+                        buffer.prev_grapheme_offset(
+                            offset,
+                            1,
+                            buffer.offset_of_line(buffer.line_of_offset(offset)),
+                        )
+                    }
+                    CursorMode::Visual { end, .. } => {
+                        buffer.offset_line_end(*end, false).min(*end)
+                    }
+                    CursorMode::Normal(offset) => *offset,
+                };
+
+                cursor.mode = CursorMode::Normal(offset);
+                cursor.horiz = None;
+            }
+            InsertMode => {
+                cursor.mode = CursorMode::Insert(Selection::caret(cursor.offset()));
+            }
+            ToggleVisualMode => {
+                Self::toggle_visual(cursor, VisualMode::Normal, modal);
+            }
+            ToggleLinewiseVisualMode => {
+                Self::toggle_visual(cursor, VisualMode::Linewise, modal);
+            }
+            ToggleBlockwiseVisualMode => {
+                Self::toggle_visual(cursor, VisualMode::Blockwise, modal);
+            }
         }
+        deltas
     }
 }
 

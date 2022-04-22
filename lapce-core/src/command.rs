@@ -7,6 +7,20 @@ pub enum EditCommand {
     #[strum(serialize = "move_line_up")]
     MoveLineUp,
 
+    #[strum(serialize = "normal_mode")]
+    NormalMode,
+    #[strum(serialize = "insert_mode")]
+    InsertMode,
+    #[strum(serialize = "toggle_visual_mode")]
+    ToggleVisualMode,
+    #[strum(serialize = "toggle_linewise_visual_mode")]
+    ToggleLinewiseVisualMode,
+    #[strum(serialize = "toggle_blockwise_visual_mode")]
+    ToggleBlockwiseVisualMode,
+}
+
+#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+pub enum MoveCommand {
     #[strum(serialize = "down")]
     Down,
     #[strum(serialize = "up")]
@@ -15,10 +29,6 @@ pub enum EditCommand {
     Left,
     #[strum(serialize = "right")]
     Right,
-    #[strum(serialize = "page_up")]
-    PageUp,
-    #[strum(serialize = "page_down")]
-    PageDown,
     #[strum(serialize = "word_backward")]
     WordBackward,
     #[strum(serialize = "word_forward")]
@@ -53,38 +63,41 @@ pub enum EditCommand {
     PreviousUnmatchedLeftCurlyBracket,
 }
 
-impl EditCommand {
-    pub fn move_command(&self, count: Option<usize>) -> Option<Movement> {
-        use EditCommand::*;
+impl MoveCommand {
+    pub fn to_movement(&self, count: Option<usize>) -> Movement {
+        use MoveCommand::*;
         match self {
-            Left => Some(Movement::Left),
-            Right => Some(Movement::Right),
-            Up => Some(Movement::Up),
-            Down => Some(Movement::Down),
-            DocumentStart => Some(Movement::DocumentStart),
-            DocumentEnd => Some(Movement::DocumentEnd),
-            LineStart => Some(Movement::StartOfLine),
-            LineStartNonBlank => Some(Movement::FirstNonBlank),
-            LineEnd => Some(Movement::EndOfLine),
-            GotoLineDefaultFirst => Some(match count {
+            Left => Movement::Left,
+            Right => Movement::Right,
+            Up => Movement::Up,
+            Down => Movement::Down,
+            DocumentStart => Movement::DocumentStart,
+            DocumentEnd => Movement::DocumentEnd,
+            LineStart => Movement::StartOfLine,
+            LineStartNonBlank => Movement::FirstNonBlank,
+            LineEnd => Movement::EndOfLine,
+            GotoLineDefaultFirst => match count {
                 Some(n) => Movement::Line(LinePosition::Line(n)),
                 None => Movement::Line(LinePosition::First),
-            }),
-            GotoLineDefaultLast => Some(match count {
+            },
+            GotoLineDefaultLast => match count {
                 Some(n) => Movement::Line(LinePosition::Line(n)),
                 None => Movement::Line(LinePosition::Last),
-            }),
-            WordBackward => Some(Movement::WordBackward),
-            WordForward => Some(Movement::WordForward),
-            WordEndForward => Some(Movement::WordEndForward),
-            MatchPairs => Some(Movement::MatchPairs),
-            NextUnmatchedRightBracket => Some(Movement::NextUnmatched(')')),
-            PreviousUnmatchedLeftBracket => Some(Movement::PreviousUnmatched('(')),
-            NextUnmatchedRightCurlyBracket => Some(Movement::NextUnmatched('}')),
-            PreviousUnmatchedLeftCurlyBracket => {
-                Some(Movement::PreviousUnmatched('{'))
-            }
-            _ => None,
+            },
+            WordBackward => Movement::WordBackward,
+            WordForward => Movement::WordForward,
+            WordEndForward => Movement::WordEndForward,
+            MatchPairs => Movement::MatchPairs,
+            NextUnmatchedRightBracket => Movement::NextUnmatched(')'),
+            PreviousUnmatchedLeftBracket => Movement::PreviousUnmatched('('),
+            NextUnmatchedRightCurlyBracket => Movement::NextUnmatched('}'),
+            PreviousUnmatchedLeftCurlyBracket => Movement::PreviousUnmatched('{'),
         }
     }
+}
+
+#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+pub enum FocusCommand {
+    #[strum(serialize = "clipboard_paste")]
+    ClipboardPaste,
 }

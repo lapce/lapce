@@ -10,10 +10,9 @@ use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
 use crate::data::MotionMode;
-use crate::data::RegisterKind;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
-    RegisterData, SplitContent,
+    SplitContent,
 };
 use crate::document::Document;
 use crate::editor::commands::EditCommandFactory;
@@ -27,8 +26,6 @@ use crate::{
     command::{LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     movement::{Movement, SelRegion, Selection},
     split::SplitMoveDirection,
-    state::Mode,
-    state::VisualMode,
 };
 use crate::{find::Find, split::SplitDirection};
 use crate::{keypress::KeyPressFocus, movement::Cursor};
@@ -43,9 +40,9 @@ use druid::{
     WidgetId,
 };
 use druid::{Application, ExtEventSink, MouseEvent};
-use lapce_core::command::EditCommand;
-use lapce_core::editor::Editor;
-use lapce_core::movement::MoveCommand;
+use lapce_core::command::{EditCommand, FocusCommand, MoveCommand};
+use lapce_core::mode::{Mode, VisualMode};
+use lapce_core::register::{RegisterData, RegisterKind};
 pub use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::CompletionTextEdit;
@@ -1656,17 +1653,20 @@ impl LapceEditorBufferData {
 
     fn run_move_command(
         &mut self,
+        ctx: &mut EventCtx,
         cmd: &MoveCommand,
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
         let movement = cmd.to_movement(count);
-        Arc::make_mut(&mut self.editor).new_cursor.do_movement(
+        self.doc.move_cursor(
+            ctx.text(),
+            &mut Arc::make_mut(&mut self.editor).new_cursor,
             &movement,
             count.unwrap_or(1),
             mods.shift(),
-            self.doc.buffer(),
-            self.doc.syntax(),
+            self.config.editor.font_size,
+            &self.config,
         );
         CommandExecuted::Yes
     }
@@ -1677,9 +1677,41 @@ impl LapceEditorBufferData {
         cmd: &EditCommand,
     ) -> CommandExecuted {
         let doc = Arc::make_mut(&mut self.doc);
-        doc.do_edit(&mut Arc::make_mut(&mut self.editor).new_cursor, cmd);
+        doc.do_edit(
+            &mut Arc::make_mut(&mut self.editor).new_cursor,
+            cmd,
+            self.config.lapce.modal,
+        );
 
         CommandExecuted::Yes
+    }
+
+    fn run_focus_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        cmd: &FocusCommand,
+    ) -> CommandExecuted {
+        use FocusCommand::*;
+        match cmd {
+            ClipboardPaste => {
+                if let Some(s) = Application::global().clipboard().get_string() {
+                    let mode = if s.ends_with('\n') {
+                        VisualMode::Linewise
+                    } else {
+                        VisualMode::Normal
+                    };
+                    let data = RegisterData { content: s, mode };
+                    self.do_paste(&data);
+                }
+            }
+        }
+        CommandExecuted::Yes
+    }
+
+    fn do_paste(&mut self, data: &RegisterData) {
+        let doc = Arc::make_mut(&mut self.doc);
+        let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
+        doc.do_paste(cursor, data);
     }
 
     fn run_command(
@@ -3312,7 +3344,7 @@ impl LapceEditorBufferData {
 
 impl KeyPressFocus for LapceEditorBufferData {
     fn get_mode(&self) -> Mode {
-        self.editor.cursor.get_mode()
+        self.editor.new_cursor.get_mode()
     }
 
     fn expect_char(&self) -> bool {
@@ -3368,7 +3400,8 @@ impl KeyPressFocus for LapceEditorBufferData {
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Edit(cmd) => self.run_edit_command(ctx, cmd),
-            CommandKind::Move(cmd) => self.run_move_command(cmd, count, mods),
+            CommandKind::Move(cmd) => self.run_move_command(ctx, cmd, count, mods),
+            CommandKind::Focus(cmd) => self.run_focus_command(ctx, cmd),
             CommandKind::Workbench(_) => CommandExecuted::No,
         }
     }

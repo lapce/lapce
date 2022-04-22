@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
 use druid::{Command, Env, EventCtx, Modifiers, Point, Target, WidgetId};
+use lapce_core::mode::Mode;
 
 use crate::{
-    command::{
-        CommandExecuted, LapceCommand, LapceCommandNew, LapceUICommand,
-        LAPCE_UI_COMMAND,
-    },
+    command::{CommandExecuted, LapceCommand, LapceCommandNew, LapceUICommand},
     keypress::KeyPressFocus,
-    state::Mode,
 };
 
 #[derive(Debug)]

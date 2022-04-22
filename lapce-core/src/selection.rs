@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::cmp::{max, min, Ordering};
 use xi_rope::{RopeDelta, Transformer};
 
-use crate::{buffer::Buffer, mode::Mode, movement::Movement, syntax::Syntax};
+use crate::{
+    buffer::Buffer, cursor::ColPosition, mode::Mode, movement::Movement,
+    syntax::Syntax,
+};
 
 #[derive(Copy, Clone)]
 pub enum InsertDrift {
@@ -15,17 +18,10 @@ pub enum InsertDrift {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
-pub enum ColPosition {
-    FirstNonBlank,
-    Start,
-    End,
-    Col(usize),
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct SelRegion {
     pub start: usize,
     pub end: usize,
+    pub horiz: Option<ColPosition>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -41,14 +37,15 @@ impl AsRef<Selection> for Selection {
 }
 
 impl SelRegion {
-    pub fn new(start: usize, end: usize) -> SelRegion {
-        SelRegion { start, end }
+    pub fn new(start: usize, end: usize, horiz: Option<ColPosition>) -> SelRegion {
+        SelRegion { start, end, horiz }
     }
 
     pub fn caret(offset: usize) -> SelRegion {
         SelRegion {
             start: offset,
             end: offset,
+            horiz: None,
         }
     }
 
@@ -86,26 +83,7 @@ impl SelRegion {
         } else {
             (new_max, new_min)
         };
-        SelRegion::new(start, end)
-    }
-
-    pub fn do_movement(
-        &self,
-        movement: &Movement,
-        mode: Mode,
-        count: usize,
-        modify: bool,
-        buffer: &Buffer,
-        syntax: Option<&Syntax>,
-        horiz: Option<&ColPosition>,
-    ) -> SelRegion {
-        let (end, _) =
-            buffer.move_offset(self.end, horiz, count, movement, mode, syntax);
-        let start = match modify {
-            true => self.start(),
-            false => end,
-        };
-        SelRegion::new(start, end)
+        SelRegion::new(start, end, None)
     }
 }
 
@@ -126,7 +104,11 @@ impl Selection {
 
     pub fn region(start: usize, end: usize) -> Selection {
         Selection {
-            regions: vec![SelRegion { start, end }],
+            regions: vec![SelRegion {
+                start,
+                end,
+                horiz: None,
+            }],
             last_inserted: 0,
         }
     }
@@ -142,7 +124,7 @@ impl Selection {
     pub fn min(&self) -> Selection {
         let mut selection = Self::new();
         for region in &self.regions {
-            let new_region = SelRegion::new(region.min(), region.min());
+            let new_region = SelRegion::new(region.min(), region.min(), None);
             selection.add_region(new_region);
         }
         selection
@@ -182,6 +164,14 @@ impl Selection {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn min_offset(&self) -> usize {
+        let mut offset = self.regions()[0].min();
+        for region in &self.regions {
+            offset = offset.min(region.min());
+        }
+        offset
     }
 
     pub fn regions_in_range(&self, start: usize, end: usize) -> &[SelRegion] {
@@ -260,32 +250,11 @@ impl Selection {
             let new_region = SelRegion::new(
                 transformer.transform(region.start, start_after),
                 transformer.transform(region.end, end_after),
+                None,
             );
             result.add_region(new_region);
         }
         result
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn do_movement(
-        &self,
-        movement: &Movement,
-        mode: Mode,
-        count: usize,
-        modify: bool,
-        buffer: &Buffer,
-        syntax: Option<&Syntax>,
-        horiz: Option<&ColPosition>,
-    ) -> Selection {
-        let mut new_selection = Selection::new();
-        for region in self.regions() {
-            new_selection.add_region(
-                region.do_movement(
-                    movement, mode, count, modify, buffer, syntax, horiz,
-                ),
-            );
-        }
-        new_selection
     }
 
     pub fn get_cursor_offset(&self) -> usize {

@@ -5,6 +5,7 @@ use druid::{
     Data, ExtEventSink, Target, WidgetId, WindowId,
 };
 use lapce_core::indent::{auto_detect_indent_style, IndentStyle};
+use lapce_core::mode::Mode;
 use lapce_core::style::line_styles;
 use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
@@ -39,7 +40,6 @@ use crate::{
     find::Find,
     movement::{ColPosition, LinePosition, Movement, SelRegion, Selection},
     proxy::LapceProxy,
-    state::Mode,
 };
 
 pub mod data;

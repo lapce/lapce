@@ -438,6 +438,7 @@ impl Widget<LapceTabData> for LapceEditorView {
 
         let mut editor_data = data.editor_view_content(self.view_id);
         let buffer = editor_data.buffer.clone();
+        let doc = editor_data.doc.clone();
 
         match event {
             Event::KeyDown(key_event) => {
@@ -488,7 +489,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             _ => (),
         }
-        data.update_from_editor_buffer_data(editor_data, &editor, &buffer);
+        data.update_from_editor_buffer_data(editor_data, &editor, &buffer, &doc);
 
         self.header.event(ctx, event, data, env);
         self.editor.event(ctx, event, data, env);

@@ -5,6 +5,7 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect,
     RenderContext, Size, Target, TextLayout, UpdateCtx, Widget,
 };
+use lapce_core::mode::Mode;
 use lapce_data::{
     buffer::{BufferContent, EditType},
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
@@ -12,7 +13,6 @@ use lapce_data::{
     data::{LapceMainSplitData, LapceTabData},
     keypress::KeyPressFocus,
     movement::{Movement, Selection},
-    state::Mode,
 };
 use lsp_types::{
     CodeActionOrCommand, DocumentChangeOperation, DocumentChanges, OneOf, TextEdit,

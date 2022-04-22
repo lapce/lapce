@@ -14,13 +14,13 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
+use lapce_core::mode::Mode;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
     proxy::LapceProxy,
     split::SplitDirection,
-    state::Mode,
     terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;

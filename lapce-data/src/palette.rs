@@ -6,6 +6,7 @@ use druid::{Data, Env, EventCtx};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
+use lapce_core::mode::Mode;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use serde_json;
 use std::cmp::Ordering;
@@ -28,7 +29,6 @@ use crate::{
     proxy::LapceProxy,
     state::LapceWorkspace,
     state::LapceWorkspaceType,
-    state::Mode,
     terminal::TerminalSplitData,
 };
 

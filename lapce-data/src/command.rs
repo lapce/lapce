@@ -3,8 +3,8 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
+use lapce_core::command::{EditCommand, FocusCommand, MoveCommand};
 use lapce_core::syntax::Syntax;
-use lapce_core::{command::EditCommand, movement::MoveCommand};
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
     source_control::DiffInfo, style::Style, terminal::TermId,
@@ -52,6 +52,7 @@ pub enum CommandKind {
     Workbench(LapceWorkbenchCommand),
     Edit(EditCommand),
     Move(MoveCommand),
+    Focus(FocusCommand),
 }
 
 impl LapceCommandNew {
@@ -100,6 +101,17 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             cmd: c.to_string(),
             kind: CommandKind::Move(c.clone()),
+            data: None,
+            palette_desc: c.get_message().map(|m| m.to_string()),
+            target: CommandTarget::Focus,
+        };
+        commands.insert(command.cmd.clone(), command);
+    }
+
+    for c in FocusCommand::iter() {
+        let command = LapceCommandNew {
+            cmd: c.to_string(),
+            kind: CommandKind::Focus(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
             target: CommandTarget::Focus,

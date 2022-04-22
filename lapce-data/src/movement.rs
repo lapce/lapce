@@ -1,12 +1,11 @@
+use lapce_core::{
+    mode::{Mode, VisualMode},
+    register::RegisterData,
+};
 use serde::{Deserialize, Serialize};
 use xi_rope::{RopeDelta, Transformer};
 
-use crate::{
-    buffer::data::BufferData,
-    config::Config,
-    data::RegisterData,
-    state::{Mode, VisualMode},
-};
+use crate::{buffer::data::BufferData, config::Config};
 use std::cmp::{max, min, Ordering};
 
 #[derive(Copy, Clone)]

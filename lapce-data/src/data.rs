@@ -16,6 +16,7 @@ use druid::{
     Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
+use lapce_core::{mode::VisualMode, register::Register};
 use lapce_rpc::{
     file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
@@ -61,15 +62,15 @@ use crate::{
     settings::LapceSettingsPanelData,
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
-    state::{LapceWorkspace, LapceWorkspaceType, VisualMode},
+    state::{LapceWorkspace, LapceWorkspaceType},
     terminal::TerminalSplitData,
 };
 
 /// `LapceData` is the topmost structure in a tree of structures that holds
 /// the application model for Lapce.
-/// 
+///
 /// Druid requires that application models implement the
-/// [Data trait](https://linebender.org/druid/data.html). 
+/// [Data trait](https://linebender.org/druid/data.html).
 #[derive(Clone, Data)]
 pub struct LapceData {
     /// The set of top-level windows in Lapce. Normally there is only one;
@@ -169,12 +170,12 @@ impl LapceData {
 }
 
 /// `LapceWindowData` is the application model for a top-level window.
-/// 
+///
 /// A top-level window can be independently moved around and
 /// resized using your window manager. Normally Lapce has only one
 /// top-level window, but new ones can be created using the "New Window"
 /// command.
-/// 
+///
 /// Each window has its own collection of "window tabs" (again, there is
 /// normally only one window tab), size, position etc. and `Arc` references to
 /// state that is common to this instance of Lapce, such as configuration and the
@@ -186,7 +187,7 @@ pub struct LapceWindowData {
     /// The set of tabs within the window. These tabs are high-level
     /// constructs, in particular they are not **editor tabs**, which are
     /// lower down the hierarchy at [LapceEditorTabData].
-    /// 
+    ///
     /// Normally there is only one window-level tab, and it is not visible
     /// on screen as a separate thing - only its contents are. If you
     /// create a new tab using the "Create New Tab" command then both
@@ -792,6 +793,7 @@ impl LapceTabData {
         editor_buffer_data: LapceEditorBufferData,
         editor: &Arc<LapceEditorData>,
         buffer: &Arc<Buffer>,
+        doc: &Arc<Document>,
     ) {
         self.completion = editor_buffer_data.completion.clone();
         self.hover = editor_buffer_data.hover.clone();
@@ -818,6 +820,22 @@ impl LapceTabData {
                     self.main_split
                         .value_buffers
                         .insert(name.clone(), editor_buffer_data.buffer);
+                }
+            }
+        }
+        if !editor_buffer_data.doc.same(doc) {
+            match buffer.content() {
+                BufferContent::File(path) => {
+                    self.main_split
+                        .open_docs
+                        .insert(path.clone(), editor_buffer_data.doc);
+                }
+                BufferContent::Local(kind) => {
+                    self.main_split
+                        .local_docs
+                        .insert(kind.clone(), editor_buffer_data.doc);
+                }
+                BufferContent::Value(name) => {
                     self.main_split
                         .value_docs
                         .insert(name.clone(), editor_buffer_data.doc);
@@ -1856,47 +1874,6 @@ impl SplitData {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct RegisterData {
-    pub content: String,
-    pub mode: VisualMode,
-}
-
-#[derive(Clone, Default)]
-pub struct Register {
-    pub unamed: RegisterData,
-    last_yank: RegisterData,
-
-    #[allow(dead_code)]
-    last_deletes: [RegisterData; 10],
-
-    #[allow(dead_code)]
-    newest_delete: usize,
-}
-
-pub enum RegisterKind {
-    Delete,
-    Yank,
-}
-
-impl Register {
-    pub fn add(&mut self, kind: RegisterKind, data: RegisterData) {
-        match kind {
-            RegisterKind::Delete => self.add_delete(data),
-            RegisterKind::Yank => self.add_yank(data),
-        }
-    }
-
-    pub fn add_delete(&mut self, data: RegisterData) {
-        self.unamed = data;
-    }
-
-    pub fn add_yank(&mut self, data: RegisterData) {
-        self.unamed = data.clone();
-        self.last_yank = data;
-    }
-}
-
 // #[derive(Clone, Debug)]
 // pub enum EditorKind {
 //     PalettePreview,
@@ -1948,6 +1925,16 @@ impl LapceMainSplitData {
             }
         };
         buffer
+    }
+
+    pub fn editor_doc(&self, editor_view_id: WidgetId) -> Arc<Document> {
+        let editor = self.editors.get(&editor_view_id).unwrap();
+        let doc = match &editor.content {
+            BufferContent::File(path) => self.open_docs.get(path).unwrap().clone(),
+            BufferContent::Local(kind) => self.local_docs.get(kind).unwrap().clone(),
+            BufferContent::Value(name) => self.value_docs.get(name).unwrap().clone(),
+        };
+        doc
     }
 
     pub fn document_format(

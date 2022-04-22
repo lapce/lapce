@@ -3,6 +3,7 @@ use druid::{
     Command, Event, EventCtx, FontFamily, MouseEvent, Point, RenderContext, Size,
     Target, Widget,
 };
+use lapce_core::mode::Mode;
 use lapce_data::{
     command::{
         CommandKind, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
@@ -11,7 +12,6 @@ use lapce_data::{
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
     panel::PanelPosition,
-    state::Mode,
 };
 
 use crate::{svg::get_svg, tab::LapceIcon};

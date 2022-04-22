@@ -15,18 +15,22 @@ use druid::{
     KeyEvent, Modifiers, Target, WidgetId,
 };
 use hashbrown::HashMap;
+use lapce_core::mode::{Mode, VisualMode};
 use lapce_rpc::terminal::TermId;
 use parking_lot::Mutex;
 
 use crate::{
-    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandExecuted, LapceCommand, LapceCommandNew, LapceUICommand,
+        LAPCE_UI_COMMAND,
+    },
     config::{Config, LapceTheme},
     find::Find,
     keypress::KeyPressFocus,
     movement::{LinePosition, Movement},
     proxy::LapceProxy,
     split::SplitMoveDirection,
-    state::{LapceWorkspace, Mode, VisualMode},
+    state::LapceWorkspace,
 };
 
 pub type TermConfig = alacritty_terminal::config::Config;
@@ -250,213 +254,188 @@ impl KeyPressFocus for LapceTerminalViewData {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommand,
+        command: &LapceCommandNew,
         count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        ctx.request_paint();
-        if let Some(movement) = command.move_command(count) {
-            let mut raw = self.terminal.raw.lock();
-            let term = &mut raw.term;
-            match movement {
-                Movement::Left => {
-                    term.vi_motion(ViMotion::Left);
-                }
-                Movement::Right => {
-                    term.vi_motion(ViMotion::Right);
-                }
-                Movement::Up => {
-                    term.vi_motion(ViMotion::Up);
-                }
-                Movement::Down => {
-                    term.vi_motion(ViMotion::Down);
-                }
-                Movement::FirstNonBlank => {
-                    term.vi_motion(ViMotion::FirstOccupied);
-                }
-                Movement::StartOfLine => {
-                    term.vi_motion(ViMotion::First);
-                }
-                Movement::EndOfLine => {
-                    term.vi_motion(ViMotion::Last);
-                }
-                Movement::WordForward => {
-                    term.vi_motion(ViMotion::SemanticRight);
-                }
-                Movement::WordEndForward => {
-                    term.vi_motion(ViMotion::SemanticRightEnd);
-                }
-                Movement::WordBackward => {
-                    term.vi_motion(ViMotion::SemanticLeft);
-                }
-                Movement::Line(line) => {
-                    match line {
-                        LinePosition::First => {
-                            term.scroll_display(Scroll::Top);
-                            term.vi_mode_cursor.point.line = term.topmost_line();
-                        }
-                        LinePosition::Last => {
-                            term.scroll_display(Scroll::Bottom);
-                            term.vi_mode_cursor.point.line = term.bottommost_line();
-                        }
-                        LinePosition::Line(_) => {}
-                    };
-                }
-                _ => (),
-            };
-            return CommandExecuted::Yes;
-        }
-        match command {
-            LapceCommand::NormalMode => {
-                if !self.config.lapce.modal {
-                    return CommandExecuted::Yes;
-                }
-                self.terminal_mut().mode = Mode::Normal;
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                if !term.mode().contains(TermMode::VI) {
-                    term.toggle_vi_mode();
-                }
-                self.terminal.clear_selection(term);
-            }
-            LapceCommand::ToggleVisualMode => {
-                self.toggle_visual(VisualMode::Normal);
-            }
-            LapceCommand::ToggleLinewiseVisualMode => {
-                self.toggle_visual(VisualMode::Linewise);
-            }
-            LapceCommand::ToggleBlockwiseVisualMode => {
-                self.toggle_visual(VisualMode::Blockwise);
-            }
-            LapceCommand::InsertMode => {
-                self.terminal_mut().mode = Mode::Terminal;
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                if term.mode().contains(TermMode::VI) {
-                    term.toggle_vi_mode();
-                }
-                let scroll = alacritty_terminal::grid::Scroll::Bottom;
-                term.scroll_display(scroll);
-                self.terminal.clear_selection(term);
-            }
-            LapceCommand::PageUp => {
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                let scroll_lines = term.screen_lines() as i32 / 2;
-                term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, scroll_lines);
+        // ctx.request_paint();
+        // if let Some(movement) = command.move_command(count) {
+        //     let mut raw = self.terminal.raw.lock();
+        //     let term = &mut raw.term;
+        //     match movement {
+        //         Movement::Left => {
+        //             term.vi_motion(ViMotion::Left);
+        //         }
+        //         Movement::Right => {
+        //             term.vi_motion(ViMotion::Right);
+        //         }
+        //         Movement::Up => {
+        //             term.vi_motion(ViMotion::Up);
+        //         }
+        //         Movement::Down => {
+        //             term.vi_motion(ViMotion::Down);
+        //         }
+        //         Movement::FirstNonBlank => {
+        //             term.vi_motion(ViMotion::FirstOccupied);
+        //         }
+        //         Movement::StartOfLine => {
+        //             term.vi_motion(ViMotion::First);
+        //         }
+        //         Movement::EndOfLine => {
+        //             term.vi_motion(ViMotion::Last);
+        //         }
+        //         Movement::WordForward => {
+        //             term.vi_motion(ViMotion::SemanticRight);
+        //         }
+        //         Movement::WordEndForward => {
+        //             term.vi_motion(ViMotion::SemanticRightEnd);
+        //         }
+        //         Movement::WordBackward => {
+        //             term.vi_motion(ViMotion::SemanticLeft);
+        //         }
+        //         Movement::Line(line) => {
+        //             match line {
+        //                 LinePosition::First => {
+        //                     term.scroll_display(Scroll::Top);
+        //                     term.vi_mode_cursor.point.line = term.topmost_line();
+        //                 }
+        //                 LinePosition::Last => {
+        //                     term.scroll_display(Scroll::Bottom);
+        //                     term.vi_mode_cursor.point.line = term.bottommost_line();
+        //                 }
+        //                 LinePosition::Line(_) => {}
+        //             };
+        //         }
+        //         _ => (),
+        //     };
+        //     return CommandExecuted::Yes;
+        // }
+        // match command {
+        //     LapceCommand::NormalMode => {
+        //         if !self.config.lapce.modal {
+        //             return CommandExecuted::Yes;
+        //         }
+        //         self.terminal_mut().mode = Mode::Normal;
+        //         let mut raw = self.terminal.raw.lock();
+        //         let term = &mut raw.term;
+        //         if !term.mode().contains(TermMode::VI) {
+        //             term.toggle_vi_mode();
+        //         }
+        //         self.terminal.clear_selection(term);
+        //     }
+        //     LapceCommand::ToggleVisualMode => {
+        //         self.toggle_visual(VisualMode::Normal);
+        //     }
+        //     LapceCommand::ToggleLinewiseVisualMode => {
+        //         self.toggle_visual(VisualMode::Linewise);
+        //     }
+        //     LapceCommand::ToggleBlockwiseVisualMode => {
+        //         self.toggle_visual(VisualMode::Blockwise);
+        //     }
+        //     LapceCommand::InsertMode => {
+        //         self.terminal_mut().mode = Mode::Terminal;
+        //         let mut raw = self.terminal.raw.lock();
+        //         let term = &mut raw.term;
+        //         if term.mode().contains(TermMode::VI) {
+        //             term.toggle_vi_mode();
+        //         }
+        //         let scroll = alacritty_terminal::grid::Scroll::Bottom;
+        //         term.scroll_display(scroll);
+        //         self.terminal.clear_selection(term);
+        //     }
+        //     LapceCommand::PageUp => {
+        //         let mut raw = self.terminal.raw.lock();
+        //         let term = &mut raw.term;
+        //         let scroll_lines = term.screen_lines() as i32 / 2;
+        //         term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, scroll_lines);
 
-                term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
-                    scroll_lines,
-                ));
-            }
-            LapceCommand::PageDown => {
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                let scroll_lines = -(term.screen_lines() as i32 / 2);
-                term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, scroll_lines);
+        //         term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
+        //             scroll_lines,
+        //         ));
+        //     }
+        //     LapceCommand::PageDown => {
+        //         let mut raw = self.terminal.raw.lock();
+        //         let term = &mut raw.term;
+        //         let scroll_lines = -(term.screen_lines() as i32 / 2);
+        //         term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, scroll_lines);
 
-                term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
-                    scroll_lines,
-                ));
-            }
-            LapceCommand::SplitVertical => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitTerminal(true, self.terminal.widget_id),
-                    Target::Widget(self.terminal.split_id),
-                ));
-            }
-            LapceCommand::SplitLeft => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorMove(
-                        SplitMoveDirection::Left,
-                        self.terminal.widget_id,
-                    ),
-                    Target::Widget(self.terminal.split_id),
-                ));
-            }
-            LapceCommand::SplitRight => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorMove(
-                        SplitMoveDirection::Right,
-                        self.terminal.widget_id,
-                    ),
-                    Target::Widget(self.terminal.split_id),
-                ));
-            }
-            LapceCommand::SplitExchange => {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::SplitEditorExchange(self.terminal.widget_id),
-                    Target::Widget(self.terminal.split_id),
-                ));
-            }
-            LapceCommand::ClipboardCopy => {
-                if self.terminal.mode == Mode::Visual {
-                    self.terminal_mut().mode = Mode::Normal;
-                }
-                let mut raw = self.terminal.raw.lock();
-                let term = &mut raw.term;
-                if let Some(content) = term.selection_to_string() {
-                    Application::global().clipboard().put_string(content);
-                }
-                self.terminal.clear_selection(term);
-            }
-            LapceCommand::ClipboardPaste => {
-                if let Some(s) = Application::global().clipboard().get_string() {
-                    self.receive_char(ctx, &s);
-                }
-            }
-            LapceCommand::SearchForward => {
-                if let Some(search_string) = self.find.search_string.as_ref() {
-                    let mut raw = self.terminal.raw.lock();
-                    let term = &mut raw.term;
-                    self.terminal
-                        .search_next(term, search_string, Direction::Right);
-                }
-            }
-            LapceCommand::SearchBackward => {
-                if let Some(search_string) = self.find.search_string.as_ref() {
-                    let mut raw = self.terminal.raw.lock();
-                    let term = &mut raw.term;
-                    self.terminal
-                        .search_next(term, search_string, Direction::Left);
-                }
-            }
-            _ => return CommandExecuted::No,
-        }
+        //         term.scroll_display(alacritty_terminal::grid::Scroll::Delta(
+        //             scroll_lines,
+        //         ));
+        //     }
+        //     LapceCommand::SplitVertical => {
+        //         ctx.submit_command(Command::new(
+        //             LAPCE_UI_COMMAND,
+        //             LapceUICommand::SplitTerminal(true, self.terminal.widget_id),
+        //             Target::Widget(self.terminal.split_id),
+        //         ));
+        //     }
+        //     LapceCommand::SplitLeft => {
+        //         ctx.submit_command(Command::new(
+        //             LAPCE_UI_COMMAND,
+        //             LapceUICommand::SplitEditorMove(
+        //                 SplitMoveDirection::Left,
+        //                 self.terminal.widget_id,
+        //             ),
+        //             Target::Widget(self.terminal.split_id),
+        //         ));
+        //     }
+        //     LapceCommand::SplitRight => {
+        //         ctx.submit_command(Command::new(
+        //             LAPCE_UI_COMMAND,
+        //             LapceUICommand::SplitEditorMove(
+        //                 SplitMoveDirection::Right,
+        //                 self.terminal.widget_id,
+        //             ),
+        //             Target::Widget(self.terminal.split_id),
+        //         ));
+        //     }
+        //     LapceCommand::SplitExchange => {
+        //         ctx.submit_command(Command::new(
+        //             LAPCE_UI_COMMAND,
+        //             LapceUICommand::SplitEditorExchange(self.terminal.widget_id),
+        //             Target::Widget(self.terminal.split_id),
+        //         ));
+        //     }
+        //     LapceCommand::ClipboardCopy => {
+        //         if self.terminal.mode == Mode::Visual {
+        //             self.terminal_mut().mode = Mode::Normal;
+        //         }
+        //         let mut raw = self.terminal.raw.lock();
+        //         let term = &mut raw.term;
+        //         if let Some(content) = term.selection_to_string() {
+        //             Application::global().clipboard().put_string(content);
+        //         }
+        //         self.terminal.clear_selection(term);
+        //     }
+        //     LapceCommand::ClipboardPaste => {
+        //         if let Some(s) = Application::global().clipboard().get_string() {
+        //             self.receive_char(ctx, &s);
+        //         }
+        //     }
+        //     LapceCommand::SearchForward => {
+        //         if let Some(search_string) = self.find.search_string.as_ref() {
+        //             let mut raw = self.terminal.raw.lock();
+        //             let term = &mut raw.term;
+        //             self.terminal
+        //                 .search_next(term, search_string, Direction::Right);
+        //         }
+        //     }
+        //     LapceCommand::SearchBackward => {
+        //         if let Some(search_string) = self.find.search_string.as_ref() {
+        //             let mut raw = self.terminal.raw.lock();
+        //             let term = &mut raw.term;
+        //             self.terminal
+        //                 .search_next(term, search_string, Direction::Left);
+        //         }
+        //     }
+        //     _ => return CommandExecuted::No,
+        // }
         CommandExecuted::Yes
     }
-}
 
-impl KeyPressFocus for LapceTerminalViewData {
-    fn get_mode(&self) -> Mode {
-        self.terminal.mode
-    }
-
-    fn check_condition(&self, condition: &str) -> bool {
-        matches!(condition, "terminal_focus" | "panel_focus")
-    }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
-        if self.terminal.mode == Mode::Terminal {
-            self.terminal.proxy.terminal_write(self.terminal.term_id, c);
-        }
-    }
-
-    fn run_command(
-        &mut self,
-        ctx: &mut EventCtx,
-        command: &crate::command::LapceCommandNew,
-        count: Option<usize>,
-        mods: Modifiers,
-        env: &Env,
-    ) -> CommandExecuted {
-        todo!()
-    }
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {}
 }
 
 pub struct RawTerminal {

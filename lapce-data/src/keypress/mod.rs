@@ -15,19 +15,19 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use indexmap::IndexMap;
 use itertools::Itertools;
+use lapce_core::mode::{Mode, Modes};
 use toml;
 
 mod keypress;
 mod loader;
 
+use crate::command::LapceCommand;
 use crate::command::{
     lapce_internal_commands, CommandExecuted, CommandKind, CommandTarget,
     LapceCommandNew, LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
 };
 use crate::config::{Config, LapceTheme};
 use crate::keypress::loader::KeyMapLoader;
-use crate::state::Modes;
-use crate::{command::LapceCommand, state::Mode};
 
 pub use keypress::KeyPress;
 
@@ -225,7 +225,9 @@ impl KeyPressData {
         if let Some(cmd) = self.commands.get(command) {
             match cmd.kind {
                 CommandKind::Workbench(_) => {}
-                CommandKind::Move(_) | CommandKind::Edit(_) => {
+                CommandKind::Move(_)
+                | CommandKind::Edit(_)
+                | CommandKind::Focus(_) => {
                     focus.run_command(ctx, &cmd, count, mods, env);
                 }
             };
@@ -734,6 +736,7 @@ impl<'a> Condition<'a> {
 #[cfg(test)]
 mod test {
     use crate::keypress::{Condition, KeyPressData, KeyPressFocus};
+    use lapce_core::mode::Mode;
 
     struct MockFocus {
         accepted_conditions: &'static [&'static str],
@@ -744,7 +747,7 @@ mod test {
             self.accepted_conditions.contains(&condition)
         }
 
-        fn get_mode(&self) -> crate::state::Mode {
+        fn get_mode(&self) -> Mode {
             unimplemented!()
         }
 

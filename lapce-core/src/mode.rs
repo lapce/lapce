@@ -1,6 +1,20 @@
 use std::fmt::Write;
 
 use bitflags::bitflags;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy, Deserialize, Serialize)]
+pub enum VisualMode {
+    Normal,
+    Linewise,
+    Blockwise,
+}
+
+impl Default for VisualMode {
+    fn default() -> Self {
+        VisualMode::Normal
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Copy, PartialOrd, Ord)]
 pub enum Mode {

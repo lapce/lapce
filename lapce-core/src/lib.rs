@@ -8,6 +8,7 @@ pub mod language;
 pub mod lens;
 pub mod mode;
 pub mod movement;
+pub mod register;
 pub mod selection;
 pub mod style;
 pub mod syntax;

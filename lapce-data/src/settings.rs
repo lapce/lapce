@@ -1,9 +1,9 @@
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
+use lapce_core::mode::Mode;
 
 use crate::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     keypress::KeyPressFocus,
-    state::Mode,
 };
 
 pub enum LapceSettingsKind {

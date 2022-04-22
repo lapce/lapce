@@ -7,6 +7,7 @@ use druid::{
     LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
+use lapce_core::mode::Mode;
 use lapce_data::{
     command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
@@ -14,7 +15,6 @@ use lapce_data::{
     keypress::KeyPressFocus,
     movement::Movement,
     split::{SplitDirection, SplitMoveDirection},
-    state::Mode,
 };
 use lapce_rpc::source_control::FileDiff;
 
