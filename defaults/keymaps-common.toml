@@ -29,10 +29,12 @@ mode = "i"
 [[keymaps]]
 key = "Home"
 command = "line_start_non_blank"
+mode = "inv"
 
 [[keymaps]]
 key = "End"
 command = "line_end"
+mode = "inv"
 
 [[keymaps]]
 key = "PageUp"
@@ -167,20 +169,24 @@ mode = "i"
 [[keymaps]]
 key = "right"
 command = "right"
+mode = "inv"
 
 [[keymaps]]
 key = "left"
 command = "left"
+mode = "inv"
 
 [[keymaps]]
 key = "up"
 command = "up"
 when = "!list_focus"
+mode = "inv"
 
 [[keymaps]]
 key = "down"
 command = "down"
 when = "!list_focus"
+mode = "inv"
 
 [[keymaps]]
 key = "ctrl+h"
