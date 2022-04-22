@@ -1,8 +1,10 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use druid::{
-    piet::{PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
-    PaintCtx,
+    piet::{
+        PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
+    },
+    PaintCtx, Point,
 };
 use lapce_core::{
     buffer::Buffer, command::EditCommand, cursor::Cursor, editor::Editor,
@@ -70,9 +72,33 @@ impl Document {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
+    pub fn point_of_line_col(
+        &self,
+        text: &mut PietText,
+        line: usize,
+        col: usize,
+        font_size: usize,
+        config: &Config,
+    ) -> Point {
+        let text_layout = self.get_text_layout(text, line, font_size, config);
+        text_layout.hit_test_text_position(col).point
+    }
+
+    pub fn point_of_offset(
+        &self,
+        text: &mut PietText,
+        offset: usize,
+        font_size: usize,
+        config: &Config,
+    ) -> Point {
+        let (line, col) = self.buffer.offset_to_line_col(offset);
+        let text_layout = self.get_text_layout(text, line, font_size, config);
+        text_layout.hit_test_text_position(col).point
+    }
+
     pub fn get_text_layout(
         &self,
-        ctx: &mut PaintCtx,
+        text: &mut PietText,
         line: usize,
         font_size: usize,
         config: &Config,
@@ -80,7 +106,7 @@ impl Document {
         if self.text_layouts.borrow().get(&line).is_none() {
             self.text_layouts.borrow_mut().insert(
                 line,
-                Arc::new(self.new_text_layout(ctx, line, font_size, config)),
+                Arc::new(self.new_text_layout(text, line, font_size, config)),
             );
         }
         self.text_layouts.borrow().get(&line).cloned().unwrap()
@@ -88,14 +114,13 @@ impl Document {
 
     fn new_text_layout(
         &self,
-        ctx: &mut PaintCtx,
+        text: &mut PietText,
         line: usize,
         font_size: usize,
         config: &Config,
     ) -> PietTextLayout {
         let line_content = self.buffer.line_content(line);
-        let mut layout_builder = ctx
-            .text()
+        let mut layout_builder = text
             .new_text_layout(line_content.to_string())
             .font(config.editor.font_family(), font_size as f64)
             .text_color(

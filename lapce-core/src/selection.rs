@@ -184,6 +184,15 @@ impl Selection {
         self.len() == 0
     }
 
+    pub fn regions_in_range(&self, start: usize, end: usize) -> &[SelRegion] {
+        let first = self.search(start);
+        let mut last = self.search(end);
+        if last < self.regions.len() && self.regions[last].min() <= end {
+            last += 1;
+        }
+        &self.regions[first..last]
+    }
+
     pub fn search(&self, offset: usize) -> usize {
         if self.regions.is_empty() || offset > self.regions.last().unwrap().max() {
             return self.regions.len();
