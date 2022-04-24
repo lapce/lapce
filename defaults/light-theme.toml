@@ -45,6 +45,7 @@ magenta = "#A626A4"
 "editor.caret" = "#526FFF"
 "editor.selection" = "$grey"
 "editor.current_line" = "$light_grey"
+"editor.link" = "$cyan"
 
 "source_control.added" = "#50a14f32"
 "source_control.removed" = "#ff526632"
@@ -67,6 +68,8 @@ magenta = "#A626A4"
 "status.modal.insert" = "$red"
 "status.modal.visual" = "$yellow"
 "status.modal.terminal" = "$purple"
+
+"markdown.blockquote" = "#686868"
 
 "style.comment" = "#A0A1A7"
 
