@@ -575,6 +575,19 @@ impl Buffer {
         new_offset
     }
 
+    pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
+        let line_end = self.offset_line_end(offset, mode != Mode::Normal);
+
+        let max_offset = if mode == Mode::Insert {
+            self.len()
+        } else {
+            line_end
+        };
+
+        let new_offset = self.next_grapheme_offset(offset, count, max_offset);
+        new_offset
+    }
+
     pub fn next_grapheme_offset(
         &self,
         offset: usize,

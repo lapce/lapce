@@ -377,6 +377,34 @@ pub fn matching_char(c: char) -> Option<char> {
     })
 }
 
+pub fn has_unmatched_pair(line: &str) -> bool {
+    let mut count = HashMap::new();
+    let mut pair_first = HashMap::new();
+    for c in line.chars().rev() {
+        if let Some(left) = matching_pair_direction(c) {
+            let key = if left { c } else { matching_char(c).unwrap() };
+            let pair_count = *count.get(&key).unwrap_or(&0i32);
+            pair_first.entry(key).or_insert(left);
+            if left {
+                count.insert(key, pair_count - 1);
+            } else {
+                count.insert(key, pair_count + 1);
+            }
+        }
+    }
+    for (_, pair_count) in count.iter() {
+        if *pair_count < 0 {
+            return true;
+        }
+    }
+    for (_, left) in pair_first.iter() {
+        if *left {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

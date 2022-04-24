@@ -84,6 +84,12 @@ impl Document {
         self.text_layouts.borrow_mut().clear();
     }
 
+    pub fn do_insert(&mut self, cursor: &mut Cursor, s: &str) {
+        let deltas =
+            Editor::insert(cursor, &mut self.buffer, s, self.syntax.as_ref());
+        self.apply_deltas(&deltas)
+    }
+
     pub fn do_edit(&mut self, curosr: &mut Cursor, cmd: &EditCommand, modal: bool) {
         let deltas = Editor::do_edit(
             curosr,

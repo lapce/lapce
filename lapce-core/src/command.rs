@@ -6,11 +6,21 @@ use crate::movement::{LinePosition, Movement};
 pub enum EditCommand {
     #[strum(serialize = "move_line_up")]
     MoveLineUp,
+    #[strum(serialize = "insert_new_line")]
+    InsertNewLine,
+    #[strum(serialize = "new_line_above")]
+    NewLineAbove,
+    #[strum(serialize = "new_line_below")]
+    NewLineBelow,
 
     #[strum(serialize = "normal_mode")]
     NormalMode,
     #[strum(serialize = "insert_mode")]
     InsertMode,
+    #[strum(serialize = "append")]
+    Append,
+    #[strum(serialize = "append_end_of_line")]
+    AppendEndOfLine,
     #[strum(serialize = "toggle_visual_mode")]
     ToggleVisualMode,
     #[strum(serialize = "toggle_linewise_visual_mode")]

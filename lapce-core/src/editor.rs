@@ -9,7 +9,7 @@ use crate::{
     movement::Movement,
     register::RegisterData,
     selection::{InsertDrift, SelRegion, Selection},
-    syntax::{matching_char, matching_pair_direction, Syntax},
+    syntax::{has_unmatched_pair, matching_char, matching_pair_direction, Syntax},
     word::{get_word_property, WordProperty},
 };
 
@@ -38,13 +38,15 @@ impl Editor {
         buffer: &mut Buffer,
         s: &str,
         syntax: Option<&Syntax>,
-    ) {
+    ) -> Vec<(RopeDelta, InvalLines)> {
+        let mut deltas = Vec::new();
         if let CursorMode::Insert(selection) = &cursor.mode {
             if s.chars().count() != 1 {
-                let (delta, _) =
+                let (delta, inval_lines) =
                     buffer.edit(&[(selection, s)], EditType::InsertChars);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
+                deltas.push((delta, inval_lines));
                 cursor.mode = CursorMode::Insert(selection);
             } else {
                 let c = s.chars().next().unwrap();
@@ -127,12 +129,14 @@ impl Editor {
                     .map(|(selection, content)| (selection, content.as_str()))
                     .collect::<Vec<_>>();
 
-                let (delta, _) = buffer.edit(&edits, EditType::InsertChars);
+                let (delta, inval_lines) =
+                    buffer.edit(&edits, EditType::InsertChars);
 
                 // Update selection
                 let mut selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
 
+                deltas.push((delta, inval_lines));
                 // Apply late edits
                 let edits_after = edits_after
                     .iter()
@@ -150,7 +154,9 @@ impl Editor {
                     .map(|(selection, content)| (selection, content.as_str()))
                     .collect::<Vec<_>>();
 
-                buffer.edit(&edits_after, EditType::InsertChars);
+                let (delta, inval_lines) =
+                    buffer.edit(&edits_after, EditType::InsertChars);
+                deltas.push((delta, inval_lines));
 
                 // Adjust selection according to previous late edits
                 let mut adjustment = 0;
@@ -181,6 +187,7 @@ impl Editor {
                 cursor.mode = CursorMode::Insert(selection);
             }
         }
+        deltas
     }
 
     fn toggle_visual(cursor: &mut Cursor, visual_mode: VisualMode, modal: bool) {
@@ -209,6 +216,82 @@ impl Editor {
                 };
             }
         }
+    }
+
+    fn insert_new_line(
+        buffer: &mut Buffer,
+        cursor: &mut Cursor,
+        selection: Selection,
+    ) {
+        let mut edits = Vec::new();
+        let mut extra_edits = Vec::new();
+        let mut shift = 0i32;
+        for region in selection.regions() {
+            let offset = region.max();
+            let line = buffer.line_of_offset(offset);
+            let line_start = buffer.offset_of_line(line);
+            let line_end = buffer.line_end_offset(line, true);
+            let line_indent = buffer.indent_on_line(line);
+            let first_half = buffer.slice_to_cow(line_start..offset).to_string();
+            let second_half = buffer.slice_to_cow(offset..line_end).to_string();
+
+            let indent = if has_unmatched_pair(&first_half) {
+                format!("{}    ", line_indent)
+            } else {
+                let next_line_indent = buffer.indent_on_line(line + 1);
+                if next_line_indent.len() > line_indent.len() {
+                    next_line_indent
+                } else {
+                    line_indent.clone()
+                }
+            };
+
+            let selection = Selection::region(region.min(), region.max());
+            let content = format!("{}{}", "\n", indent);
+
+            shift -= (region.max() - region.min()) as i32;
+            shift += content.len() as i32;
+
+            edits.push((selection, content));
+
+            for c in first_half.chars().rev() {
+                if c != ' ' {
+                    if let Some(pair_start) = matching_pair_direction(c) {
+                        if pair_start {
+                            if let Some(c) = matching_char(c) {
+                                if second_half.trim().starts_with(&c.to_string()) {
+                                    let selection = Selection::caret(
+                                        (region.max() as i32 + shift) as usize,
+                                    );
+                                    let content = format!("{}{}", "\n", line_indent);
+                                    extra_edits.push((selection.clone(), content));
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        let edits = edits
+            .iter()
+            .map(|(selection, s)| (selection, s.as_str()))
+            .collect::<Vec<(&Selection, &str)>>();
+        let (delta, _) = buffer.edit(&edits, EditType::InsertNewline);
+        let mut selection =
+            selection.apply_delta(&delta, true, InsertDrift::Default);
+
+        if !extra_edits.is_empty() {
+            let edits = extra_edits
+                .iter()
+                .map(|(selection, s)| (selection, s.as_str()))
+                .collect::<Vec<(&Selection, &str)>>();
+            let (delta, _) = buffer.edit(&edits, EditType::InsertNewline);
+            selection = selection.apply_delta(&delta, false, InsertDrift::Default);
+        }
+
+        cursor.mode = CursorMode::Insert(selection);
     }
 
     pub fn do_paste(
@@ -353,6 +436,34 @@ impl Editor {
                     cursor.mode = CursorMode::Insert(selection);
                 }
             }
+            InsertNewLine => match cursor.mode.clone() {
+                CursorMode::Normal(offset) => {
+                    Self::insert_new_line(buffer, cursor, Selection::caret(offset));
+                }
+                CursorMode::Insert(selection) => {
+                    Self::insert_new_line(buffer, cursor, selection);
+                }
+                CursorMode::Visual {
+                    start: _,
+                    end: _,
+                    mode: _,
+                } => {}
+            },
+            NewLineAbove => {
+                let offset = cursor.offset();
+                let line = buffer.line_of_offset(offset);
+                let offset = if line > 0 {
+                    buffer.line_end_offset(line - 1, true)
+                } else {
+                    buffer.first_non_blank_character_on_line(line)
+                };
+                Self::insert_new_line(buffer, cursor, Selection::caret(offset));
+            }
+            NewLineBelow => {
+                let offset = cursor.offset();
+                let offset = buffer.offset_line_end(offset, true);
+                Self::insert_new_line(buffer, cursor, Selection::caret(offset));
+            }
             NormalMode => {
                 if !modal {
                     if let CursorMode::Insert(selection) = &cursor.mode {
@@ -400,6 +511,16 @@ impl Editor {
             }
             InsertMode => {
                 cursor.mode = CursorMode::Insert(Selection::caret(cursor.offset()));
+            }
+            Append => {
+                let offset = buffer.move_right(cursor.offset(), Mode::Insert, 1);
+                cursor.mode = CursorMode::Insert(Selection::caret(offset));
+            }
+            AppendEndOfLine => {
+                let offset = cursor.offset();
+                let line = buffer.line_of_offset(offset);
+                let offset = buffer.line_end_offset(line, true);
+                cursor.mode = CursorMode::Insert(Selection::caret(offset));
             }
             ToggleVisualMode => {
                 Self::toggle_visual(cursor, VisualMode::Normal, modal);

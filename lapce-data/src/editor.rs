@@ -3377,6 +3377,10 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
+            let doc = Arc::make_mut(&mut self.doc);
+            let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
+            doc.do_insert(cursor, c);
+
             self.edit_with_command(EditCommandKind::InsertChars { chars: c });
 
             self.update_selection_history();
