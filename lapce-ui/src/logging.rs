@@ -22,8 +22,7 @@ fn set_level(
         "info" => apply(dispatch, module, Info),
         "debug" => apply(dispatch, module, Debug),
         "trace" => apply(dispatch, module, Trace),
-        val @ _ => {
-            // TODO: throw an error? logger is not configured yet
+        val => {
             eprint!("RUST_LOG: ");
             if let Some(module) = module {
                 eprint!("module '{module}' ");
@@ -51,22 +50,19 @@ fn parse_log_levels(value: &str, mut dispatch: fern::Dispatch) -> fern::Dispatch
     // This sets the threshold at Error for all modules but 'module1' and
     // 'module2' which are at Info and Debug, respectively:
     // RUST_LOG="error,path::to::module1=info,path::to::module2=debug"
-    for module in value.split(',').filter(|s| !s.is_empty()) {
-        let mut iter = module.split('=');
-        if let Some(val) = iter.next() {
-            if let Some(level) = iter.next() {
-                println!("module='{val}', level='{level}'");
-                // "module=level"
-                //
-                // NOTE: The dash characters in crate names are converted into
-                // underscores by the compiler.  For example, path to this
-                // module will be "lapce_ui::loggings".
-                dispatch = set_level(dispatch, Some(val), level);
-            } else {
-                println!("level='{val}' for all modules");
-                // just "level"
-                dispatch = set_level(dispatch, None, val);
-            }
+    for section in value.split(',').filter(|s| !s.is_empty()) {
+        if let Some((module, level)) = section.split_once("=") {
+            println!("module='{module}', level='{level}'");
+            // "module=level"
+            //
+            // NOTE: The dash characters in crate names are converted into
+            // underscores by the compiler.  For example, path to this
+            // module will be "lapce_ui::loggings".
+            dispatch = set_level(dispatch, Some(module), level);
+        } else {
+            println!("level='{section}' for all modules");
+            // just "level"
+            dispatch = set_level(dispatch, None, section);
         }
     }
     dispatch
@@ -77,7 +73,6 @@ pub(super) fn override_log_levels(dispatch: Dispatch) -> Dispatch {
         // Not an error if the env var does not exist.
         Err(std::env::VarError::NotPresent) => dispatch,
         Err(std::env::VarError::NotUnicode(val)) => {
-            // TODO: throw an error? logger is not configured yet
             let val = val.to_string_lossy();
             eprintln!("RUST_LOG: ignored invalid unicode value: '{val}'");
             dispatch
