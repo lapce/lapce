@@ -147,44 +147,43 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
 
             let editor_tab =
                 data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-            if self.is_hot || *editor_tab.content_is_hot.borrow() {
-                let icon_size = 24.0;
-                let gap = (height - icon_size) / 2.0;
-                let x =
-                    size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
-                let icon = LapceIcon {
-                    icon: "close.svg".to_string(),
-                    rect: Size::new(icon_size, icon_size)
-                        .to_rect()
-                        .with_origin(Point::new(x, gap)),
-                    command: Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SplitClose,
-                        Target::Widget(self.widget_id),
-                    ),
-                };
-                self.icons.push(icon);
 
-                let x =
-                    size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
-                let icon = LapceIcon {
-                    icon: "split-horizontal.svg".to_string(),
-                    rect: Size::new(icon_size, icon_size)
-                        .to_rect()
-                        .with_origin(Point::new(x, gap)),
-                    command: Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
-                            cmd: LapceCommand::SplitVertical.to_string(),
-                            data: None,
-                            palette_desc: None,
-                            target: CommandTarget::Focus,
-                        },
-                        Target::Widget(self.widget_id),
-                    ),
-                };
-                self.icons.push(icon);
-            }
+            //    if self.is_hot || *editor_tab.content_is_hot.borrow() {
+            let icon_size = 24.0;
+            let gap = (height - icon_size) / 2.0;
+            let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
+            let icon = LapceIcon {
+                icon: "close.svg".to_string(),
+                rect: Size::new(icon_size, icon_size)
+                    .to_rect()
+                    .with_origin(Point::new(x, gap)),
+                command: Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SplitClose,
+                    Target::Widget(self.widget_id),
+                ),
+            };
+            self.icons.push(icon);
+
+            let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
+            let icon = LapceIcon {
+                icon: "split-horizontal.svg".to_string(),
+                rect: Size::new(icon_size, icon_size)
+                    .to_rect()
+                    .with_origin(Point::new(x, gap)),
+                command: Command::new(
+                    LAPCE_NEW_COMMAND,
+                    LapceCommandNew {
+                        cmd: LapceCommand::SplitVertical.to_string(),
+                        data: None,
+                        palette_desc: None,
+                        target: CommandTarget::Focus,
+                    },
+                    Target::Widget(self.widget_id),
+                ),
+            };
+            self.icons.push(icon);
+            //}
 
             size
         } else {
