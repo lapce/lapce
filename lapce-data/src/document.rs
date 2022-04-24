@@ -46,6 +46,7 @@ impl Document {
 
     pub fn load_content(&mut self, content: &str) {
         self.buffer.load_content(content);
+        self.text_layouts.borrow_mut().clear();
     }
 
     pub fn buffer(&self) -> &Buffer {
@@ -164,6 +165,8 @@ impl Document {
         config: &Config,
     ) -> PietTextLayout {
         let line_content = self.buffer.line_content(line);
+        let tab_width =
+            config.tab_width(text, config.editor.font_family(), font_size);
         let mut layout_builder = text
             .new_text_layout(line_content.to_string())
             .font(config.editor.font_family(), font_size as f64)
@@ -171,7 +174,8 @@ impl Document {
                 config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
                     .clone(),
-            );
+            )
+            .set_tab_width(tab_width);
 
         let styles = self.line_style(line);
         for line_style in styles.iter() {

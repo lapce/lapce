@@ -1243,7 +1243,7 @@ dependencies = [
 [[package]]
 name = "fount"
 version = "0.1.0"
-source = "git+https://github.com/lapce/fount#6061637d1005ef0be6b51a16d29772c35307f6c7"
+source = "git+https://github.com/lapce/fount#a28c1415d105ea40989b281258686164a8968ddc"
 dependencies = [
  "memmap2 0.5.3",
  "swash",
@@ -2900,7 +2900,7 @@ dependencies = [
 [[package]]
 name = "parley"
 version = "0.1.0"
-source = "git+https://github.com/lapce/parley#d9ad6158172da121a0143e5637a65a28d9fd98c6"
+source = "git+https://github.com/lapce/parley#bb096b6c30d33c9d5fba2851e8fd6a41523d8ae1"
 dependencies = [
  "fount",
  "swash",
@@ -2969,7 +2969,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=opengl#a714562a071a9ed0b4c9b04517d0988c20b3944f"
+source = "git+https://github.com/lapce/piet-wgpu?branch=opengl#0f41ced5e93e8d3ce3163f1cf1a33687e3c88167"
 dependencies = [
  "bytemuck",
  "font-kit",
@@ -3967,7 +3967,7 @@ dependencies = [
 [[package]]
 name = "swash"
 version = "0.1.4"
-source = "git+https://github.com/dfrg/swash#d3f8bbfa5f96688ab94278db6f85e00ba383e3f8"
+source = "git+https://github.com/lapce/swash#1d9b8c700a415f0f4216dd30026b3a2149db8e1e"
 dependencies = [
  "yazi",
  "zeno",

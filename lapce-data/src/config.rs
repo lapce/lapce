@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf};
+use std::{cell::RefCell, io::Write, path::PathBuf, rc::Rc};
 
 use anyhow::Result;
 use directories::ProjectDirs;
@@ -332,6 +332,8 @@ pub struct Config {
     pub editor: EditorConfig,
     #[serde(skip)]
     pub themes: Themes,
+    #[serde(skip)]
+    tab_layout_info: Rc<RefCell<HashMap<(FontFamily, usize), f64>>>,
 }
 
 pub struct ConfigWatcher {
@@ -715,5 +717,26 @@ impl Config {
                 .open(&path);
         }
         Some(path)
+    }
+
+    pub fn tab_width(
+        &self,
+        text: &mut PietText,
+        font_family: FontFamily,
+        font_size: usize,
+    ) -> f64 {
+        let mut info = self.tab_layout_info.borrow_mut();
+        let width =
+            info.entry((font_family.clone(), font_size))
+                .or_insert_with(|| {
+                    text.new_text_layout(" a")
+                        .font(font_family.clone(), font_size as f64)
+                        .build()
+                        .unwrap()
+                        .hit_test_text_position(1)
+                        .point
+                        .x
+                });
+        self.editor.tab_width as f64 * *width
     }
 }
