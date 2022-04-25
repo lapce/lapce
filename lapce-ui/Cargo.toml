@@ -49,8 +49,3 @@ toml = { version = "0.5.8", features = ["preserve_order"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 lapce-data = { path = "../lapce-data" }
 lapce-rpc = { path = "../lapce-rpc" }
-
-[build-dependencies]
-cc = "1"
-anyhow = "1.0.32"
-threadpool = "1.0"

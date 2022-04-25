@@ -25,3 +25,17 @@ members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
 inherits = "release"
 lto = true
 codegen-units = 1
+
+# A profile which compiles all (non-workspace) dependencies in release mode
+# but Lapce code in dev mode. This gives a good debugging experience for your
+# code and fast performance of other people's code. After the initial
+# build subsequent ones are as fast as dev mode builds.
+# See https://doc.rust-lang.org/cargo/reference/profiles.html
+# To use this profile:
+#   cargo build --profile fastdev
+#   cargo run --profile fastdev --bin lapce
+[profile.fastdev.package."*"]
+opt-level = 3
+
+[profile.fastdev]
+inherits = "dev"

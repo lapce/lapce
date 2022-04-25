@@ -11,8 +11,8 @@ use alacritty_terminal::{
     Term,
 };
 use druid::{
-    Application, Color, Command, Env, EventCtx, ExtEventSink, Modifiers, Target,
-    WidgetId,
+    keyboard_types::Key, Application, Color, Command, Env, EventCtx, ExtEventSink,
+    KeyEvent, Modifiers, Target, WidgetId,
 };
 use hashbrown::HashMap;
 use lapce_rpc::terminal::TermId;
@@ -226,6 +226,14 @@ impl LapceTerminalViewData {
         );
         if let Some(selection) = term.selection.as_mut() {
             selection.include_all();
+        }
+    }
+
+    pub fn send_keypress(&mut self, key: &KeyEvent) {
+        if let Some(command) = LapceTerminalData::resolve_key_event(key) {
+            self.terminal
+                .proxy
+                .terminal_write(self.terminal.term_id, command.as_ref());
         }
     }
 }
@@ -607,13 +615,168 @@ impl LapceTerminalData {
             _ => self.start_selection(term, ty, point, side),
         }
     }
+
+    pub fn resolve_key_event(key: &KeyEvent) -> Option<&str> {
+        // Generates a `Modifiers` value to check against.
+        macro_rules! modifiers {
+            (ctrl) => {
+                Modifiers::CONTROL
+            };
+
+            (alt) => {
+                Modifiers::ALT
+            };
+
+            (shift) => {
+                Modifiers::SHIFT
+            };
+
+            ($mod:ident $(| $($mods:ident)|+)?) => {
+                modifiers!($mod) $(| modifiers!($($mods)|+) )?
+            };
+        }
+
+        // Generates modifier values for ANSI sequences.
+        macro_rules! modval {
+            (shift) => {
+                // 1
+                "2"
+            };
+            (alt) => {
+                // 2
+                "3"
+            };
+            (alt | shift) => {
+                // 1 + 2
+                "4"
+            };
+            (ctrl) => {
+                // 4
+                "5"
+            };
+            (ctrl | shift) => {
+                // 1 + 4
+                "6"
+            };
+            (alt | ctrl) => {
+                // 2 + 4
+                "7"
+            };
+            (alt | ctrl | shift) => {
+                // 1 + 2 + 4
+                "8"
+            };
+        }
+
+        // Generates ANSI sequences to move the cursor by one position.
+        macro_rules! term_sequence {
+            // Generate every modifier combination (except meta)
+            ([all], $evt:ident, $pre:literal, $post:literal) => {
+                {
+                    term_sequence!([], $evt, $pre, $post);
+                    term_sequence!([shift, alt, ctrl], $evt, $pre, $post);
+                    term_sequence!([alt | shift, ctrl | shift, alt | ctrl], $evt, $pre, $post);
+                    term_sequence!([alt | ctrl | shift], $evt, $pre, $post);
+                    return None;
+                }
+            };
+            // No modifiers
+            ([], $evt:ident, $pre:literal, $post:literal) => {
+                if $evt.mods.is_empty() {
+                    return Some(concat!($pre, $post));
+                }
+            };
+            // A single modifier combination
+            ([$($mod:ident)|+], $evt:ident, $pre:literal, $post:literal) => {
+                if $evt.mods == modifiers!($($mod)|+) {
+                    return Some(concat!($pre, ";", modval!($($mod)|+), $post));
+                }
+            };
+            // Break down multiple modifiers into a series of single combination branches
+            ([$($($mod:ident)|+),+], $evt:ident, $pre:literal, $post:literal) => {
+                $(
+                    term_sequence!([$($mod)|+], $evt, $pre, $post);
+                )+
+            };
+        }
+
+        match key.key {
+            Key::Character(ref c) => {
+                if key.mods == Modifiers::CONTROL {
+                    // Convert the character into its index (into a control character).
+                    // In essence, this turns `ctrl+h` into `^h`
+                    let str = match c.as_str() {
+                        "@" => "\x00",
+                        "a" => "\x01",
+                        "b" => "\x02",
+                        "c" => "\x03",
+                        "d" => "\x04",
+                        "e" => "\x05",
+                        "f" => "\x06",
+                        "g" => "\x07",
+                        "h" => "\x08",
+                        "i" => "\x09",
+                        "j" => "\x0a",
+                        "k" => "\x0b",
+                        "l" => "\x0c",
+                        "m" => "\x0d",
+                        "n" => "\x0e",
+                        "o" => "\x0f",
+                        "p" => "\x10",
+                        "q" => "\x11",
+                        "r" => "\x12",
+                        "s" => "\x13",
+                        "t" => "\x14",
+                        "u" => "\x15",
+                        "v" => "\x16",
+                        "w" => "\x17",
+                        "x" => "\x18",
+                        "y" => "\x19",
+                        "z" => "\x1a",
+                        "[" => "\x1b",
+                        "\\" => "\x1c",
+                        "]" => "\x1d",
+                        "^" => "\x1e",
+                        "_" => "\x1f",
+                        _ => return None,
+                    };
+
+                    Some(str)
+                } else {
+                    None
+                }
+            }
+            Key::Backspace => {
+                Some(if key.mods.ctrl() {
+                    "\x08" // backspace
+                } else {
+                    "\x7f" // DEL
+                })
+            }
+
+            Key::Tab => Some("\x09"),
+            Key::Enter => Some("\r"),
+            Key::Escape => Some("\x1b"),
+
+            // The following either expands to `\x1b[1X` or `\x1b[1;NX` where N is a modifier value
+            Key::ArrowUp => term_sequence!([all], key, "\x1b[1", "A"),
+            Key::ArrowDown => term_sequence!([all], key, "\x1b[1", "B"),
+            Key::ArrowRight => term_sequence!([all], key, "\x1b[1", "C"),
+            Key::ArrowLeft => term_sequence!([all], key, "\x1b[1", "D"),
+            Key::Home => term_sequence!([all], key, "\x1b[1", "H"),
+            Key::End => term_sequence!([all], key, "\x1b[1", "F"),
+            Key::Insert => term_sequence!([all], key, "\x1b[2", "~"),
+            Key::Delete => term_sequence!([all], key, "\x1b[3", "~"),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct EventProxy {
-    term_id: TermId,
-    proxy: Arc<LapceProxy>,
-    event_sink: ExtEventSink,
+    pub term_id: TermId,
+    pub proxy: Arc<LapceProxy>,
+    pub event_sink: ExtEventSink,
 }
 
 impl EventProxy {}
@@ -633,5 +796,45 @@ impl EventListener for EventProxy {
             }
             _ => (),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use druid::{KbKey, KeyEvent, Modifiers};
+
+    use crate::terminal::LapceTerminalData;
+
+    #[test]
+    fn test_arrow_without_modifier() {
+        assert_eq!(
+            Some("\x1b[1D"),
+            LapceTerminalData::resolve_key_event(&KeyEvent::for_test(
+                Modifiers::empty(),
+                KbKey::ArrowLeft
+            ))
+        );
+    }
+
+    #[test]
+    fn test_arrow_with_one_modifier() {
+        assert_eq!(
+            Some("\x1b[1;5A"),
+            LapceTerminalData::resolve_key_event(&KeyEvent::for_test(
+                Modifiers::CONTROL,
+                KbKey::ArrowUp
+            ))
+        );
+    }
+
+    #[test]
+    fn test_arrow_with_two_modifiers() {
+        assert_eq!(
+            Some("\x1b[1;6C"),
+            LapceTerminalData::resolve_key_event(&KeyEvent::for_test(
+                Modifiers::CONTROL | Modifiers::SHIFT,
+                KbKey::ArrowRight
+            ))
+        );
     }
 }

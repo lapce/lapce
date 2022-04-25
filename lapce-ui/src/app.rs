@@ -10,6 +10,7 @@ use lapce_data::{
 };
 
 use crate::window::LapceWindowNew;
+use crate::logging::override_log_levels;
 
 pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
     LapceWindowNew::new(data).lens(LapceWindowLens(data.window_id))
@@ -33,6 +34,7 @@ pub fn launch() {
         log_dispatch = log_dispatch.chain(log_file);
     }
 
+    log_dispatch = override_log_levels(log_dispatch);
     let _ = log_dispatch.apply();
 
     let mut launcher = AppLauncher::new().delegate(LapceAppDelegate::new());

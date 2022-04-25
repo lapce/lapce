@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use alacritty_terminal::{
     ansi,
-    event::EventListener,
     grid::Dimensions,
     index::{Direction, Side},
     term::{cell::Flags, search::RegexSearch, SizeInfo},
@@ -11,19 +10,18 @@ use alacritty_terminal::{
 use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, FontFamily,
-    FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
-    WidgetExt, WidgetId, WidgetPod,
+    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
+    Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    keypress::KeyPressFocus,
     proxy::LapceProxy,
     split::SplitDirection,
     state::Mode,
-    terminal::{LapceTerminalData, LapceTerminalViewData},
+    terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
@@ -35,11 +33,6 @@ use crate::{
     svg::get_svg,
     tab::LapceIcon,
 };
-
-const CTRL_CHARS: &[char] = &[
-    '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
-];
 
 pub type TermConfig = alacritty_terminal::config::Config;
 
@@ -580,40 +573,8 @@ impl Widget<LapceTabData> for LapceTerminal {
                     &mut term_data,
                     env,
                 ) {
-                    // 4 byte buffer used to store encoded characters.
-                    let mut char_buffer = [0; 4];
-                    let s = match &key_event.key {
-                        KbKey::Character(c) => {
-                            let mut s = "";
-                            let mut mods = key_event.mods;
-                            if mods.ctrl() {
-                                mods.set(Modifiers::CONTROL, false);
-                                if mods.is_empty() && c.chars().count() == 1 {
-                                    let c = c.chars().next().unwrap();
-                                    if let Some(i) =
-                                        CTRL_CHARS.iter().position(|e| &c == e)
-                                    {
-                                        s = char::from_u32(i as u32)
-                                            .unwrap()
-                                            .encode_utf8(&mut char_buffer);
-                                    }
-                                }
-                            }
-
-                            s
-                        }
-                        KbKey::Backspace => if key_event.mods.ctrl() {
-                            "\x08" // backspace
-                        } else {
-                            "\x7f" // DEL
-                        },
-                        KbKey::Tab => "\x09",
-                        KbKey::Enter => "\r",
-                        KbKey::Escape => "\x1b",
-                        _ => "",
-                    };
-                    if term_data.terminal.mode == Mode::Terminal && !s.is_empty() {
-                        term_data.receive_char(ctx, s);
+                    if term_data.terminal.mode == Mode::Terminal {
+                        term_data.send_keypress(key_event);
                     }
                 }
                 ctx.set_handled();
@@ -889,33 +850,6 @@ impl Widget<LapceTabData> for LapceTerminal {
                     }
                 }
             }
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct EventProxy {
-    term_id: TermId,
-    proxy: Arc<LapceProxy>,
-    event_sink: ExtEventSink,
-}
-
-impl EventProxy {}
-
-impl EventListener for EventProxy {
-    fn send_event(&self, event: alacritty_terminal::event::Event) {
-        match event {
-            alacritty_terminal::event::Event::PtyWrite(s) => {
-                self.proxy.terminal_write(self.term_id, &s);
-            }
-            alacritty_terminal::event::Event::Title(title) => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateTerminalTitle(self.term_id, title),
-                    Target::Widget(self.proxy.tab_id),
-                );
-            }
-            _ => (),
         }
     }
 }
