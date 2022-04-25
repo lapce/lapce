@@ -14,8 +14,7 @@ use lapce_data::{
 
 use crate::{
     editor::tab_header_content::LapceEditorTabHeaderContent, scroll::LapceScrollNew,
-    svg::get_svg,
-    tab::LapceIcon,
+    svg::get_svg, tab::LapceIcon,
 };
 
 pub struct LapceEditorTabHeader {
@@ -145,8 +144,8 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             let height = 30.0;
             let size = Size::new(bc.max().width, height);
 
-            let editor_tab =
-                data.main_split.editor_tabs.get(&self.widget_id).unwrap();
+            // let editor_tab =
+            //     data.main_split.editor_tabs.get(&self.widget_id).unwrap();
 
             //    if self.is_hot || *editor_tab.content_is_hot.borrow() {
             let icon_size = 24.0;
