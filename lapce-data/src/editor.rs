@@ -1581,12 +1581,18 @@ impl LapceEditorBufferData {
         mouse_event: &MouseEvent,
         config: &Config,
     ) {
-        let new_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
-        self.set_cursor(self.editor.cursor.set_offset(
+        let new_offset = self.doc.offset_of_point(
+            ctx.text(),
+            mouse_event.pos,
+            config.editor.font_size,
+            config,
+        );
+        let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
+        cursor.set_offset(
             new_offset,
             mouse_event.mods.shift(),
             mouse_event.mods.alt(),
-        ));
+        );
 
         let mut go_to_definition = false;
         #[cfg(target_os = "macos")]
@@ -1622,14 +1628,20 @@ impl LapceEditorBufferData {
         config: &Config,
     ) {
         ctx.set_active(true);
-        let mouse_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
-        let (start, end) = self.buffer.select_word(mouse_offset);
-        self.set_cursor(self.editor.cursor.add_region(
+        let mouse_offset = self.doc.offset_of_point(
+            ctx.text(),
+            mouse_event.pos,
+            config.editor.font_size,
+            config,
+        );
+        let (start, end) = self.doc.buffer().select_word(mouse_offset);
+        let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
+        cursor.add_region(
             start,
             end,
             mouse_event.mods.shift(),
             mouse_event.mods.alt(),
-        ));
+        );
     }
 
     pub fn triple_click(
@@ -1639,12 +1651,17 @@ impl LapceEditorBufferData {
         config: &Config,
     ) {
         ctx.set_active(true);
-        let mouse_offset = self.offset_of_mouse(ctx.text(), mouse_event.pos, config);
-        let line = self.buffer.line_of_offset(mouse_offset);
-        let start = self.buffer.offset_of_line(line);
-        let end = self.buffer.offset_of_line(line + 1);
-        let editor = Arc::make_mut(&mut self.editor);
-        editor.cursor = editor.cursor.add_region(
+        let mouse_offset = self.doc.offset_of_point(
+            ctx.text(),
+            mouse_event.pos,
+            config.editor.font_size,
+            config,
+        );
+        let line = self.doc.buffer().line_of_offset(mouse_offset);
+        let start = self.doc.buffer().offset_of_line(line);
+        let end = self.doc.buffer().offset_of_line(line + 1);
+        let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
+        cursor.add_region(
             start,
             end,
             mouse_event.mods.shift(),

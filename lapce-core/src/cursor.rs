@@ -254,6 +254,129 @@ impl Cursor {
         };
         RegisterData { content, mode }
     }
+
+    pub fn set_offset(&mut self, offset: usize, modify: bool, new_cursor: bool) {
+        match &self.mode {
+            CursorMode::Normal(old_offset) => {
+                if modify && *old_offset != offset {
+                    self.mode = CursorMode::Visual {
+                        start: *old_offset,
+                        end: offset,
+                        mode: VisualMode::Normal,
+                    };
+                } else {
+                    self.mode = CursorMode::Normal(offset);
+                }
+            }
+            CursorMode::Visual {
+                start,
+                end: _,
+                mode: _,
+            } => {
+                if modify {
+                    self.mode = CursorMode::Visual {
+                        start: *start,
+                        end: offset,
+                        mode: VisualMode::Normal,
+                    };
+                } else {
+                    self.mode = CursorMode::Normal(offset);
+                }
+            }
+            CursorMode::Insert(selection) => {
+                if new_cursor {
+                    let mut new_selection = selection.clone();
+                    if modify {
+                        if let Some(region) = new_selection.last_inserted_mut() {
+                            region.end = offset;
+                        } else {
+                            new_selection.add_region(SelRegion::caret(offset));
+                        }
+                        self.mode = CursorMode::Insert(new_selection);
+                    } else {
+                        let mut new_selection = selection.clone();
+                        new_selection.add_region(SelRegion::caret(offset));
+                        self.mode = CursorMode::Insert(new_selection);
+                    }
+                } else if modify {
+                    let mut new_selection = Selection::new();
+                    if let Some(region) = selection.first() {
+                        let new_regoin =
+                            SelRegion::new(region.start(), offset, None);
+                        new_selection.add_region(new_regoin);
+                    } else {
+                        new_selection
+                            .add_region(SelRegion::new(offset, offset, None));
+                    }
+                    self.mode = CursorMode::Insert(new_selection);
+                } else {
+                    self.mode = CursorMode::Insert(Selection::caret(offset));
+                }
+            }
+        }
+    }
+
+    pub fn add_region(
+        &mut self,
+        start: usize,
+        end: usize,
+        modify: bool,
+        new_cursor: bool,
+    ) {
+        match &self.mode {
+            CursorMode::Normal(_offset) => {
+                self.mode = CursorMode::Visual {
+                    start,
+                    end: end - 1,
+                    mode: VisualMode::Normal,
+                };
+            }
+            CursorMode::Visual {
+                start: old_start,
+                end: old_end,
+                mode: _,
+            } => {
+                let forward = old_end >= old_start;
+                let new_start = (*old_start).min(*old_end).min(start).min(end - 1);
+                let new_end = (*old_start).max(*old_end).max(start).max(end - 1);
+                let (new_start, new_end) = if forward {
+                    (new_start, new_end)
+                } else {
+                    (new_end, new_start)
+                };
+                self.mode = CursorMode::Visual {
+                    start: new_start,
+                    end: new_end,
+                    mode: VisualMode::Normal,
+                };
+            }
+            CursorMode::Insert(selection) => {
+                let new_selection = if new_cursor {
+                    let mut new_selection = selection.clone();
+                    if modify {
+                        let new_region =
+                            if let Some(last_inserted) = selection.last_inserted() {
+                                last_inserted
+                                    .merge_with(SelRegion::new(start, end, None))
+                            } else {
+                                SelRegion::new(start, end, None)
+                            };
+                        new_selection.replace_last_inserted_region(new_region);
+                    } else {
+                        new_selection.add_region(SelRegion::new(start, end, None));
+                    }
+                    new_selection
+                } else if modify {
+                    let mut new_selection = selection.clone();
+                    new_selection.add_region(SelRegion::new(start, end, None));
+                    new_selection
+                } else {
+                    Selection::region(start, end)
+                };
+                self.mode = CursorMode::Insert(new_selection);
+            }
+        }
+    }
 }
 
 pub fn get_first_selection_after(

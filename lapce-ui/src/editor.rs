@@ -1733,15 +1733,16 @@ impl Widget<LapceTabData> for LapceEditor {
                     );
                     if ctx.is_active() {
                         let editor_data = data.editor_view_content(self.view_id);
-                        let new_offset = editor_data.offset_of_mouse(
+                        let new_offset = editor_data.doc.offset_of_point(
                             ctx.text(),
                             mouse_event.pos,
+                            data.config.editor.font_size,
                             &data.config,
                         );
                         let editor =
                             data.main_split.editors.get_mut(&self.view_id).unwrap();
                         let editor = Arc::make_mut(editor);
-                        editor.cursor = editor.cursor.set_offset(
+                        editor.new_cursor.set_offset(
                             new_offset,
                             true,
                             mouse_event.mods.alt(),

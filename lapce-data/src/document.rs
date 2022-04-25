@@ -264,6 +264,19 @@ impl Document {
         text_layout.hit_test_text_position(col).point
     }
 
+    pub fn offset_of_point(
+        &self,
+        text: &mut PietText,
+        point: Point,
+        font_size: usize,
+        config: &Config,
+    ) -> usize {
+        let line = (point.y / config.editor.line_height as f64).floor() as usize;
+        let text_layout = self.get_text_layout(text, line, font_size, config);
+        let col = text_layout.hit_test_point(Point::new(point.x, 0.0)).idx;
+        self.buffer.offset_of_line_col(line, col)
+    }
+
     pub fn point_of_offset(
         &self,
         text: &mut PietText,

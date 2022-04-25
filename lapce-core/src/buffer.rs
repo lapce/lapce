@@ -422,7 +422,7 @@ impl Buffer {
         )
     }
 
-    fn undo(&mut self, groups: BTreeSet<usize>) -> RopeDelta {
+    fn undo(&mut self, groups: BTreeSet<usize>) -> (RopeDelta, InvalLines) {
         let (new_rev, new_deletes_from_union) = self.compute_undo(&groups);
         let delta = Delta::synthesize(
             &self.tombstones,
@@ -438,7 +438,7 @@ impl Buffer {
         );
         self.undone_groups = groups;
 
-        self.apply_edit(
+        let inval_lines = self.apply_edit(
             &delta,
             new_rev,
             new_text,
@@ -446,10 +446,10 @@ impl Buffer {
             new_deletes_from_union,
         );
 
-        delta
+        (delta, inval_lines)
     }
 
-    pub fn do_undo(&mut self) -> Option<RopeDelta> {
+    pub fn do_undo(&mut self) -> Option<(RopeDelta, InvalLines)> {
         if self.cur_undo > 1 {
             self.cur_undo -= 1;
             self.undos.insert(self.live_undos[self.cur_undo]);
@@ -460,7 +460,7 @@ impl Buffer {
         }
     }
 
-    pub fn do_redo(&mut self) -> Option<RopeDelta> {
+    pub fn do_redo(&mut self) -> Option<(RopeDelta, InvalLines)> {
         if self.cur_undo < self.live_undos.len() {
             self.undos.remove(&self.live_undos[self.cur_undo]);
             self.cur_undo += 1;
@@ -667,6 +667,10 @@ impl Buffer {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn select_word(&self, offset: usize) -> (usize, usize) {
+        WordCursor::new(&self.text, offset).select_word()
     }
 
     pub fn char_at_offset(&self, offset: usize) -> Option<char> {

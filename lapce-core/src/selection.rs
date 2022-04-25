@@ -74,7 +74,7 @@ impl SelRegion {
             || ((self.is_caret() || other.is_caret()) && other.min() == self.max())
     }
 
-    fn merge_with(self, other: SelRegion) -> SelRegion {
+    pub fn merge_with(self, other: SelRegion) -> SelRegion {
         let is_forward = self.end >= self.start;
         let new_min = min(self.min(), other.min());
         let new_max = max(self.max(), other.max());
@@ -151,7 +151,7 @@ impl Selection {
         Some(&self.regions[self.last_inserted])
     }
 
-    fn last_inserted_mut(&mut self) -> Option<&mut SelRegion> {
+    pub fn last_inserted_mut(&mut self) -> Option<&mut SelRegion> {
         if self.is_empty() {
             return None;
         }
@@ -270,6 +270,16 @@ impl Selection {
             return 0;
         }
         self.regions[self.last_inserted].end
+    }
+
+    pub fn replace_last_inserted_region(&mut self, region: SelRegion) {
+        if self.is_empty() {
+            self.add_region(region);
+            return;
+        }
+
+        self.regions.remove(self.last_inserted);
+        self.add_region(region);
     }
 }
 
