@@ -21,7 +21,7 @@ jobs:
       - name: Update rust
         run: rustup update
       - name: Build
-        run: cargo build --release
+        run: cargo build --profile release-lto
       - name: Install WiX
         run: nuget install WiX
       - name: Crate msi installer
@@ -64,7 +64,7 @@ jobs:
       - name: Update rust
         run: rustup update
       - name: Build
-        run: cargo build --release
+        run: cargo build --profile release-lto
       - name: Gzip 
         run: |
           mkdir Lapce

@@ -25,11 +25,11 @@ help: ## Print this help message
 binary: $(TARGET)-native ## Build a release binary
 binary-universal: $(TARGET)-universal ## Build a universal release binary
 $(TARGET)-native:
-	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --release
+	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --profile release-lto
 	@lipo target/release/$(TARGET) -create -output $(APP_BINARY)
 $(TARGET)-universal:
-	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --release --target=x86_64-apple-darwin
-	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --release --target=aarch64-apple-darwin
+	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --profile release-lto --target=x86_64-apple-darwin
+	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --profile release-lto --target=aarch64-apple-darwin
 	@lipo target/{x86_64,aarch64}-apple-darwin/release/$(TARGET) -create -output $(APP_BINARY)
 	/usr/bin/codesign -vvv --deep --entitlements $(ASSETS_DIR)/entitlements.plist --strict --options=runtime --force -s FAC8FBEA99169DC1980731029648F110628D6A32 $(APP_BINARY)
 

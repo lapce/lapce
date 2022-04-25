@@ -21,6 +21,11 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 [workspace]
 members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
 
+[profile.release-lto]
+inherits = "release"
+lto = true
+codegen-units = 1
+
 # A profile which compiles all (non-workspace) dependencies in release mode
 # but Lapce code in dev mode. This gives a good debugging experience for your
 # code and fast performance of other people's code. After the initial
