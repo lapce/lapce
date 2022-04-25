@@ -612,7 +612,7 @@ impl Editor {
                             let end = buffer.offset_of_line(end_line + 1);
                             let content =
                                 buffer.slice_to_cow(start..end).to_string();
-                            buffer.edit(
+                            let (delta, inval_lines) = buffer.edit(
                                 &[
                                     (
                                         &Selection::caret(
@@ -624,6 +624,7 @@ impl Editor {
                                 ],
                                 EditType::InsertChars,
                             );
+                            deltas.push((delta, inval_lines));
                             region.start += next_line_len;
                             region.end += next_line_len;
                         }
