@@ -162,3 +162,15 @@ pub enum MotionModeCommand {
     #[strum(serialize = "motion_mode_yank")]
     MotionModeYank,
 }
+
+#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+pub enum MultiSelectionCommand {
+    #[strum(serialize = "insert_cursor_above")]
+    InsertCursorAbove,
+    #[strum(serialize = "insert_cursor_below")]
+    InsertCursorBelow,
+    #[strum(serialize = "select_current_line")]
+    SelectCurrentLine,
+    #[strum(serialize = "select_all_current")]
+    SelectAllCurrent,
+}

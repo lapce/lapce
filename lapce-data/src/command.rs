@@ -4,7 +4,7 @@ use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
 use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
+    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_core::mode::MotionMode;
 use lapce_core::syntax::Syntax;
@@ -57,6 +57,7 @@ pub enum CommandKind {
     Move(MoveCommand),
     Focus(FocusCommand),
     MotionMode(MotionModeCommand),
+    MultiSelection(MultiSelectionCommand),
 }
 
 impl LapceCommandNew {
@@ -127,6 +128,17 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             cmd: c.to_string(),
             kind: CommandKind::MotionMode(c.clone()),
+            data: None,
+            palette_desc: c.get_message().map(|m| m.to_string()),
+            target: CommandTarget::Focus,
+        };
+        commands.insert(command.cmd.clone(), command);
+    }
+
+    for c in MultiSelectionCommand::iter() {
+        let command = LapceCommandNew {
+            cmd: c.to_string(),
+            kind: CommandKind::MultiSelection(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
             target: CommandTarget::Focus,

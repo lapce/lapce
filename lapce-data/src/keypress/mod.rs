@@ -224,12 +224,19 @@ impl KeyPressData {
     ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
             match cmd.kind {
-                CommandKind::Workbench(_) => {}
+                CommandKind::Workbench(_) => {
+                    ctx.submit_command(Command::new(
+                        LAPCE_NEW_COMMAND,
+                        cmd.clone(),
+                        Target::Auto,
+                    ));
+                }
                 CommandKind::Move(_)
                 | CommandKind::Edit(_)
                 | CommandKind::Focus(_)
-                | CommandKind::MotionMode(_) => {
-                    focus.run_command(ctx, &cmd, count, mods, env);
+                | CommandKind::MotionMode(_)
+                | CommandKind::MultiSelection(_) => {
+                    focus.run_command(ctx, cmd, count, mods, env);
                 }
             };
             if let CommandTarget::Focus = cmd.target {

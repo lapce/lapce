@@ -40,7 +40,7 @@ use druid::{
 };
 use druid::{Application, ExtEventSink, MouseEvent};
 use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
+    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_core::mode::{Mode, MotionMode, VisualMode};
 use lapce_core::register::{RegisterData, RegisterKind};
@@ -1739,10 +1739,15 @@ impl LapceEditorBufferData {
         CommandExecuted::Yes
     }
 
-    fn do_paste(&mut self, data: &RegisterData) {
-        let doc = Arc::make_mut(&mut self.doc);
+    fn run_multi_selection_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        cmd: &MultiSelectionCommand,
+    ) -> CommandExecuted {
         let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
-        doc.do_paste(cursor, data);
+        self.doc
+            .do_multi_selection(ctx.text(), cursor, cmd, &self.config);
+        CommandExecuted::Yes
     }
 
     fn run_command(
@@ -3412,8 +3417,6 @@ impl KeyPressFocus for LapceEditorBufferData {
             let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
             doc.do_insert(cursor, c);
 
-            self.edit_with_command(EditCommandKind::InsertChars { chars: c });
-
             self.update_selection_history();
             self.update_completion(ctx);
             self.cancel_hover();
@@ -3438,6 +3441,9 @@ impl KeyPressFocus for LapceEditorBufferData {
             CommandKind::Move(cmd) => self.run_move_command(ctx, cmd, count, mods),
             CommandKind::Focus(cmd) => self.run_focus_command(ctx, cmd),
             CommandKind::MotionMode(cmd) => self.run_motion_mode_command(ctx, cmd),
+            CommandKind::MultiSelection(cmd) => {
+                self.run_multi_selection_command(ctx, cmd)
+            }
             CommandKind::Workbench(_) => CommandExecuted::No,
         }
     }

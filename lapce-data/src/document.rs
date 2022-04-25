@@ -13,7 +13,7 @@ use druid::{
 };
 use lapce_core::{
     buffer::{Buffer, InvalLines},
-    command::EditCommand,
+    command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
     editor::Editor,
     mode::{Mode, MotionMode},
@@ -31,6 +31,7 @@ use crate::{
     buffer::BufferContent,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
+    find::Find,
 };
 
 pub struct SystemClipboard {}
@@ -202,6 +203,98 @@ impl Document {
             register,
         );
         self.apply_deltas(&deltas);
+    }
+
+    pub fn do_multi_selection(
+        &self,
+        text: &mut PietText,
+        cursor: &mut Cursor,
+        cmd: &MultiSelectionCommand,
+        config: &Config,
+    ) {
+        use MultiSelectionCommand::*;
+        match cmd {
+            InsertCursorAbove => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    let offset = selection.first().map(|s| s.end()).unwrap_or(0);
+                    let (new_offset, _) = self.move_offset(
+                        text,
+                        offset,
+                        cursor.horiz.as_ref(),
+                        1,
+                        &Movement::Up,
+                        Mode::Insert,
+                        config.editor.font_size,
+                        config,
+                    );
+                    if new_offset != offset {
+                        selection.add_region(SelRegion::new(
+                            new_offset, new_offset, None,
+                        ));
+                    }
+                    cursor.mode = CursorMode::Insert(selection);
+                }
+            }
+            InsertCursorBelow => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    let offset = selection.last().map(|s| s.end()).unwrap_or(0);
+                    let (new_offset, _) = self.move_offset(
+                        text,
+                        offset,
+                        cursor.horiz.as_ref(),
+                        1,
+                        &Movement::Up,
+                        Mode::Insert,
+                        config.editor.font_size,
+                        config,
+                    );
+                    if new_offset != offset {
+                        selection.add_region(SelRegion::new(
+                            new_offset, new_offset, None,
+                        ));
+                    }
+                    cursor.mode = CursorMode::Insert(selection);
+                }
+            }
+            SelectCurrentLine => {
+                if let CursorMode::Insert(selection) = cursor.mode.clone() {
+                    let mut new_selection = Selection::new();
+                    for region in selection.regions() {
+                        let start_line = self.buffer.line_of_offset(region.min());
+                        let start = self.buffer.offset_of_line(start_line);
+                        let end_line = self.buffer.line_of_offset(region.max());
+                        let end = self.buffer.offset_of_line(end_line + 1);
+                        new_selection.add_region(SelRegion::new(start, end, None));
+                    }
+                    cursor.mode = CursorMode::Insert(new_selection);
+                }
+            }
+            SelectAllCurrent => {
+                if let CursorMode::Insert(selection) = cursor.mode.clone() {
+                    let mut new_selection = Selection::new();
+                    if !selection.is_empty() {
+                        let first = selection.first().unwrap();
+                        let (start, end) = if first.is_caret() {
+                            self.buffer.select_word(first.start())
+                        } else {
+                            (first.min(), first.max())
+                        };
+                        let search_str = self.buffer.slice_to_cow(start..end);
+                        let mut find = Find::new(0);
+                        find.set_find(&search_str, false, false, false);
+                        let mut offset = 0;
+                        while let Some((start, end)) =
+                            find.next(self.buffer.text(), offset, false, false)
+                        {
+                            offset = end;
+                            new_selection
+                                .add_region(SelRegion::new(start, end, None));
+                        }
+                    }
+                    cursor.mode = CursorMode::Insert(new_selection);
+                }
+            }
+        }
     }
 
     pub fn do_motion_mode(
