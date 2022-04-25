@@ -56,8 +56,3 @@ lapce-core = { path = "../lapce-core" }
 lapce-rpc = { path = "../lapce-rpc" }
 lapce-proxy = { path = "../lapce-proxy" }
 bytemuck = "1.8.0"
-
-[build-dependencies]
-cc = "1"
-anyhow = "1.0.32"
-threadpool = "1.0"
