@@ -1,5 +1,10 @@
 use crate::mode::VisualMode;
 
+pub trait Clipboard {
+    fn get_string(&self) -> Option<String>;
+    fn put_string(&mut self, s: impl AsRef<str>);
+}
+
 #[derive(Clone, Default)]
 pub struct RegisterData {
     pub content: String,

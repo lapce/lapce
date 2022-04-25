@@ -174,6 +174,14 @@ impl Selection {
         offset
     }
 
+    pub fn max_offset(&self) -> usize {
+        let mut offset = self.regions()[0].max();
+        for region in &self.regions {
+            offset = offset.max(region.max());
+        }
+        offset
+    }
+
     pub fn regions_in_range(&self, start: usize, end: usize) -> &[SelRegion] {
         let first = self.search(start);
         let mut last = self.search(end);

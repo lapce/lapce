@@ -3,7 +3,10 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
-use lapce_core::command::{EditCommand, FocusCommand, MoveCommand};
+use lapce_core::command::{
+    EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
+};
+use lapce_core::mode::MotionMode;
 use lapce_core::syntax::Syntax;
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
@@ -20,7 +23,7 @@ use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     buffer::DiffLines,
-    data::{EditorTabChild, MotionMode, SplitContent},
+    data::{EditorTabChild, SplitContent},
     editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},
     menu::MenuItem,
@@ -53,6 +56,7 @@ pub enum CommandKind {
     Edit(EditCommand),
     Move(MoveCommand),
     Focus(FocusCommand),
+    MotionMode(MotionModeCommand),
 }
 
 impl LapceCommandNew {
@@ -112,6 +116,17 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             cmd: c.to_string(),
             kind: CommandKind::Focus(c.clone()),
+            data: None,
+            palette_desc: c.get_message().map(|m| m.to_string()),
+            target: CommandTarget::Focus,
+        };
+        commands.insert(command.cmd.clone(), command);
+    }
+
+    for c in MotionModeCommand::iter() {
+        let command = LapceCommandNew {
+            cmd: c.to_string(),
+            kind: CommandKind::MotionMode(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
             target: CommandTarget::Focus,

@@ -405,6 +405,24 @@ pub fn has_unmatched_pair(line: &str) -> bool {
     false
 }
 
+pub fn str_is_pair_left(c: &str) -> bool {
+    if c.chars().count() == 1 {
+        let c = c.chars().next().unwrap();
+        if matching_pair_direction(c).unwrap_or(false) {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn str_matching_pair(c: &str) -> Option<char> {
+    if c.chars().count() == 1 {
+        let c = c.chars().next().unwrap();
+        return matching_char(c);
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -9,7 +9,6 @@ use crate::command::LAPCE_NEW_COMMAND;
 use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
-use crate::data::MotionMode;
 use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     SplitContent,
@@ -40,8 +39,10 @@ use druid::{
     WidgetId,
 };
 use druid::{Application, ExtEventSink, MouseEvent};
-use lapce_core::command::{EditCommand, FocusCommand, MoveCommand};
-use lapce_core::mode::{Mode, VisualMode};
+use lapce_core::command::{
+    EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
+};
+use lapce_core::mode::{Mode, MotionMode, VisualMode};
 use lapce_core::register::{RegisterData, RegisterKind};
 pub use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::BufferId;
@@ -1659,13 +1660,16 @@ impl LapceEditorBufferData {
         mods: Modifiers,
     ) -> CommandExecuted {
         let movement = cmd.to_movement(count);
-        self.doc.move_cursor(
+        let register = Arc::make_mut(&mut self.main_split.register);
+        let doc = Arc::make_mut(&mut self.doc);
+        doc.move_cursor(
             ctx.text(),
             &mut Arc::make_mut(&mut self.editor).new_cursor,
             &movement,
             count.unwrap_or(1),
             mods.shift(),
             self.config.editor.font_size,
+            register,
             &self.config,
         );
         CommandExecuted::Yes
@@ -1677,10 +1681,12 @@ impl LapceEditorBufferData {
         cmd: &EditCommand,
     ) -> CommandExecuted {
         let doc = Arc::make_mut(&mut self.doc);
+        let register = Arc::make_mut(&mut self.main_split.register);
         doc.do_edit(
             &mut Arc::make_mut(&mut self.editor).new_cursor,
             cmd,
             self.config.lapce.modal,
+            register,
         );
 
         CommandExecuted::Yes
@@ -1693,18 +1699,26 @@ impl LapceEditorBufferData {
     ) -> CommandExecuted {
         use FocusCommand::*;
         match cmd {
-            ClipboardPaste => {
-                if let Some(s) = Application::global().clipboard().get_string() {
-                    let mode = if s.ends_with('\n') {
-                        VisualMode::Linewise
-                    } else {
-                        VisualMode::Normal
-                    };
-                    let data = RegisterData { content: s, mode };
-                    self.do_paste(&data);
-                }
-            }
+            SplitVertical => {}
         }
+        CommandExecuted::Yes
+    }
+
+    fn run_motion_mode_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        cmd: &MotionModeCommand,
+    ) -> CommandExecuted {
+        let motion_mode = match cmd {
+            MotionModeCommand::MotionModeDelete => MotionMode::Delete,
+            MotionModeCommand::MotionModeIndent => MotionMode::Indent,
+            MotionModeCommand::MotionModeOutdent => MotionMode::Outdent,
+            MotionModeCommand::MotionModeYank => MotionMode::Yank,
+        };
+        let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
+        let doc = Arc::make_mut(&mut self.doc);
+        let register = Arc::make_mut(&mut self.main_split.register);
+        doc.do_motion_mode(cursor, motion_mode, register);
         CommandExecuted::Yes
     }
 
@@ -3406,6 +3420,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             CommandKind::Edit(cmd) => self.run_edit_command(ctx, cmd),
             CommandKind::Move(cmd) => self.run_move_command(ctx, cmd, count, mods),
             CommandKind::Focus(cmd) => self.run_focus_command(ctx, cmd),
+            CommandKind::MotionMode(cmd) => self.run_motion_mode_command(ctx, cmd),
             CommandKind::Workbench(_) => CommandExecuted::No,
         }
     }

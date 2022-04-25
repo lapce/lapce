@@ -851,6 +851,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                             buffer.set_semantic_styles(Some(styles.clone()));
                             buffer.line_styles().borrow_mut().clear();
                         }
+
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        if doc.rev() == *rev {
+                            let doc = Arc::make_mut(doc);
+                            doc.set_semantic_styles(Some(styles.clone()));
+                        }
+
                         ctx.set_handled();
                     }
                     LapceUICommand::ShowCodeActions
@@ -924,6 +931,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                             if buffer.semantic_styles().is_none() {
                                 buffer.line_styles().borrow_mut().clear();
                             }
+                        }
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        let doc = Arc::make_mut(doc);
+                        if doc.rev() == *rev {
+                            doc.set_syntax(Some(syntax.clone()));
                         }
                     }
                     LapceUICommand::UpdateHistoryChanges {

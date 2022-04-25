@@ -6,17 +6,56 @@ use crate::movement::{LinePosition, Movement};
 pub enum EditCommand {
     #[strum(serialize = "move_line_up")]
     MoveLineUp,
+    #[strum(serialize = "move_line_down")]
+    MoveLineDown,
     #[strum(serialize = "insert_new_line")]
     InsertNewLine,
+    #[strum(serialize = "insert_tab")]
+    InsertTab,
     #[strum(serialize = "new_line_above")]
     NewLineAbove,
     #[strum(serialize = "new_line_below")]
     NewLineBelow,
+    #[strum(serialize = "delete_backward")]
+    DeleteBackward,
+    #[strum(serialize = "delete_forward")]
+    DeleteForward,
+    #[strum(serialize = "delete_forward_and_insert")]
+    DeleteForwardAndInsert,
+    #[strum(serialize = "delete_word_forward")]
+    DeleteWordForward,
+    #[strum(serialize = "delete_word_backward")]
+    DeleteWordBackward,
+    #[strum(message = "Indent Line")]
+    #[strum(serialize = "indent_line")]
+    IndentLine,
+    #[strum(message = "Outdent Line")]
+    #[strum(serialize = "outdent_line")]
+    OutdentLine,
+    #[strum(message = "Toggle Line Comment")]
+    #[strum(serialize = "toggle_line_comment")]
+    ToggleLineComment,
+    #[strum(serialize = "undo")]
+    Undo,
+    #[strum(serialize = "redo")]
+    Redo,
+    #[strum(serialize = "clipboard_copy")]
+    ClipboardCopy,
+    #[strum(serialize = "clipboard_cut")]
+    ClipboardCut,
+    #[strum(serialize = "clipboard_paste")]
+    ClipboardPaste,
+    #[strum(serialize = "yank")]
+    Yank,
+    #[strum(serialize = "paste")]
+    Paste,
 
     #[strum(serialize = "normal_mode")]
     NormalMode,
     #[strum(serialize = "insert_mode")]
     InsertMode,
+    #[strum(serialize = "insert_first_non_blank")]
+    InsertFirstNonBlank,
     #[strum(serialize = "append")]
     Append,
     #[strum(serialize = "append_end_of_line")]
@@ -108,6 +147,18 @@ impl MoveCommand {
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
 pub enum FocusCommand {
-    #[strum(serialize = "clipboard_paste")]
-    ClipboardPaste,
+    #[strum(serialize = "split_vertical")]
+    SplitVertical,
+}
+
+#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+pub enum MotionModeCommand {
+    #[strum(serialize = "motion_mode_delete")]
+    MotionModeDelete,
+    #[strum(serialize = "motion_mode_indent")]
+    MotionModeIndent,
+    #[strum(serialize = "motion_mode_outdent")]
+    MotionModeOutdent,
+    #[strum(serialize = "motion_mode_yank")]
+    MotionModeYank,
 }

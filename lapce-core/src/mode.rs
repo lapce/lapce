@@ -3,6 +3,14 @@ use std::fmt::Write;
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum MotionMode {
+    Delete,
+    Yank,
+    Indent,
+    Outdent,
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Copy, Deserialize, Serialize)]
 pub enum VisualMode {
     Normal,

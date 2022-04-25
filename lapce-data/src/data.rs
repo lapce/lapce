@@ -16,7 +16,10 @@ use druid::{
     Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
-use lapce_core::{mode::VisualMode, register::Register};
+use lapce_core::{
+    mode::{MotionMode, VisualMode},
+    register::Register,
+};
 use lapce_rpc::{
     file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
@@ -2395,7 +2398,11 @@ impl LapceMainSplitData {
             }
             let buffer = Arc::new(buffer);
             self.open_files.insert(path.clone(), buffer.clone());
-            let doc = Arc::new(Document::new());
+            let doc = Arc::new(Document::new(
+                BufferContent::File(path.clone()),
+                *self.tab_id,
+                ctx.get_external_handle(),
+            ));
             self.open_docs.insert(path.clone(), doc);
             buffer.retrieve_file(
                 *self.tab_id,
@@ -2512,7 +2519,14 @@ impl LapceMainSplitData {
 
         let open_docs = im::HashMap::new();
         let mut local_docs = im::HashMap::new();
-        local_docs.insert(LocalBufferKind::Empty, Arc::new(Document::new()));
+        local_docs.insert(
+            LocalBufferKind::Empty,
+            Arc::new(Document::new(
+                BufferContent::Local(LocalBufferKind::Empty),
+                tab_id,
+                event_sink.clone(),
+            )),
+        );
         let value_docs = im::HashMap::new();
 
         let editor = LapceEditorData::new(
@@ -2623,14 +2637,18 @@ impl LapceMainSplitData {
         let mut buffer = Buffer::new(
             BufferContent::Local(buffer_kind.clone()),
             *self.tab_id,
-            event_sink,
+            event_sink.clone(),
         )
         .set_local();
         buffer.load_content("");
         self.local_buffers
             .insert(buffer_kind.clone(), Arc::new(buffer));
 
-        let doc = Document::new();
+        let doc = Document::new(
+            BufferContent::Local(buffer_kind.clone()),
+            *self.tab_id,
+            event_sink,
+        );
         self.local_docs.insert(buffer_kind.clone(), Arc::new(doc));
 
         let editor = LapceEditorData::new(
@@ -3008,14 +3026,6 @@ pub struct SelectionHistory {
     pub selections: im::Vector<Selection>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum MotionMode {
-    Delete,
-    Yank,
-    Indent,
-    Outdent,
-}
-
 #[derive(Clone, Debug)]
 pub struct LapceEditorData {
     pub tab_id: Option<WidgetId>,
@@ -3072,12 +3082,14 @@ impl LapceEditorData {
                 lapce_core::cursor::Cursor::new(
                     lapce_core::cursor::CursorMode::Normal(0),
                     None,
+                    None,
                 )
             } else {
                 lapce_core::cursor::Cursor::new(
                     lapce_core::cursor::CursorMode::Insert(
                         lapce_core::selection::Selection::caret(0),
                     ),
+                    None,
                     None,
                 )
             },

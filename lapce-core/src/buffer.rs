@@ -14,10 +14,9 @@ use xi_rope::{
 };
 
 use crate::{
-    cursor::ColPosition,
     editor::EditType,
+    indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
-    movement::{LinePosition, Movement},
     selection::Selection,
     syntax::Syntax,
     word::WordCursor,
@@ -76,6 +75,8 @@ pub struct Buffer {
     undone_groups: BTreeSet<usize>,
     tombstones: Rope,
     last_edit_type: EditType,
+
+    indent_style: IndentStyle,
 }
 
 impl Buffer {
@@ -103,7 +104,16 @@ impl Buffer {
             tombstones: Rope::default(),
 
             last_edit_type: EditType::Other,
+            indent_style: IndentStyle::DEFAULT_INDENT,
         }
+    }
+
+    pub fn rev(&self) -> u64 {
+        self.rev
+    }
+
+    pub fn atomic_rev(&self) -> Arc<AtomicU64> {
+        self.atomic_rev.clone()
     }
 
     pub fn text(&self) -> &Rope {
@@ -140,6 +150,19 @@ impl Buffer {
             self.tombstones = new_tombstones;
             self.deletes_from_union = new_deletes_from_union;
         }
+    }
+
+    pub fn detect_indent(&mut self, syntax: Option<&Syntax>) {
+        self.indent_style =
+            auto_detect_indent_style(&self.text).unwrap_or_else(|| {
+                syntax
+                    .map(|s| IndentStyle::from_str(s.language.indent_unit()))
+                    .unwrap_or(IndentStyle::DEFAULT_INDENT)
+            });
+    }
+
+    pub fn indent_unit(&self) -> &'static str {
+        self.indent_style.as_str()
     }
 
     pub fn edit(
@@ -575,6 +598,19 @@ impl Buffer {
         new_offset
     }
 
+    pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
+        let line = self.line_of_offset(offset);
+        let line_start_offset = self.offset_of_line(line);
+        let min_offset = if mode == Mode::Insert {
+            0
+        } else {
+            line_start_offset
+        };
+
+        let new_offset = self.prev_grapheme_offset(offset, count, min_offset);
+        new_offset
+    }
+
     pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
         let line_end = self.offset_line_end(offset, mode != Mode::Normal);
 
@@ -585,6 +621,20 @@ impl Buffer {
         };
 
         let new_offset = self.next_grapheme_offset(offset, count, max_offset);
+        new_offset
+    }
+
+    pub fn move_word_forward(&self, offset: usize) -> usize {
+        let new_offset = WordCursor::new(&self.text, offset)
+            .next_boundary()
+            .unwrap_or(offset);
+        new_offset
+    }
+
+    pub fn move_word_backward(&self, offset: usize) -> usize {
+        let new_offset = WordCursor::new(&self.text, offset)
+            .prev_boundary()
+            .unwrap_or(offset);
         new_offset
     }
 

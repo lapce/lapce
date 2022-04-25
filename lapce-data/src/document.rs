@@ -1,19 +1,24 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    sync::{atomic, Arc},
+};
 
 use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    PaintCtx, Point,
+    ExtEventSink, PaintCtx, Point, Target, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, InvalLines},
     command::EditCommand,
     cursor::{ColPosition, Cursor, CursorMode},
     editor::Editor,
-    mode::Mode,
+    mode::{Mode, MotionMode},
     movement::{LinePosition, Movement},
-    register::RegisterData,
+    register::{self, Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
     syntax::Syntax,
@@ -22,31 +27,120 @@ use lapce_core::{
 use lapce_rpc::style::{LineStyle, LineStyles, Style};
 use xi_rope::{spans::Spans, RopeDelta};
 
-use crate::config::{Config, LapceTheme};
+use crate::{
+    buffer::BufferContent,
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::{Config, LapceTheme},
+};
+
+pub struct SystemClipboard {}
+
+impl Clipboard for SystemClipboard {
+    fn get_string(&self) -> Option<String> {
+        druid::Application::global().clipboard().get_string()
+    }
+
+    fn put_string(&mut self, s: impl AsRef<str>) {
+        druid::Application::global().clipboard().put_string(s)
+    }
+}
 
 #[derive(Clone)]
 pub struct Document {
+    tab_id: WidgetId,
     buffer: Buffer,
+    content: BufferContent,
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
     semantic_styles: Option<Arc<Spans<Style>>>,
     text_layouts: Rc<RefCell<HashMap<usize, Arc<PietTextLayout>>>>,
+    event_sink: ExtEventSink,
 }
 
 impl Document {
-    pub fn new() -> Self {
+    pub fn new(
+        content: BufferContent,
+        tab_id: WidgetId,
+        event_sink: ExtEventSink,
+    ) -> Self {
         Self {
+            tab_id,
             buffer: Buffer::new(""),
+            content,
             syntax: None,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             text_layouts: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
+            event_sink,
         }
+    }
+
+    pub fn rev(&self) -> u64 {
+        self.buffer.rev()
     }
 
     pub fn load_content(&mut self, content: &str) {
         self.buffer.load_content(content);
+        self.buffer.detect_indent(self.syntax.as_ref());
+        self.on_update(None);
+    }
+
+    fn on_update(&mut self, delta: Option<&RopeDelta>) {
+        self.clear_text_layout_cache();
+        self.trigger_syntax_change(delta);
+    }
+
+    pub fn set_syntax(&mut self, syntax: Option<Syntax>) {
+        self.syntax = syntax;
+        if self.semantic_styles.is_none() {
+            self.clear_style_cache();
+        }
+    }
+
+    pub fn set_semantic_styles(&mut self, styles: Option<Arc<Spans<Style>>>) {
+        self.semantic_styles = styles;
+        self.clear_style_cache();
+    }
+
+    fn clear_style_cache(&self) {
+        self.line_styles.borrow_mut().clear();
+        self.clear_text_layout_cache();
+    }
+
+    fn clear_text_layout_cache(&self) {
         self.text_layouts.borrow_mut().clear();
+    }
+
+    fn trigger_syntax_change(&self, delta: Option<&RopeDelta>) {
+        if let BufferContent::File(path) = &self.content {
+            if let Some(syntax) = self.syntax.clone() {
+                let path = path.clone();
+                let rev = self.buffer.rev();
+                let text = self.buffer.text().clone();
+                let delta = delta.cloned();
+                let atomic_rev = self.buffer.atomic_rev();
+                let event_sink = self.event_sink.clone();
+                let tab_id = self.tab_id;
+                rayon::spawn(move || {
+                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                        return;
+                    }
+                    let new_syntax = syntax.parse(rev, text, delta);
+                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                        return;
+                    }
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSyntax {
+                            path,
+                            rev,
+                            syntax: new_syntax,
+                        },
+                        Target::Widget(tab_id),
+                    );
+                });
+            }
+        }
     }
 
     pub fn buffer(&self) -> &Buffer {
@@ -80,25 +174,60 @@ impl Document {
     fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
         for (delta, _) in deltas {
             self.update_styles(delta);
+            self.on_update(Some(delta));
         }
-        self.text_layouts.borrow_mut().clear();
     }
 
     pub fn do_insert(&mut self, cursor: &mut Cursor, s: &str) {
         let deltas =
             Editor::insert(cursor, &mut self.buffer, s, self.syntax.as_ref());
-        self.apply_deltas(&deltas)
+        self.apply_deltas(&deltas);
     }
 
-    pub fn do_edit(&mut self, curosr: &mut Cursor, cmd: &EditCommand, modal: bool) {
+    pub fn do_edit(
+        &mut self,
+        curosr: &mut Cursor,
+        cmd: &EditCommand,
+        modal: bool,
+        register: &mut Register,
+    ) {
+        let mut clipboard = SystemClipboard {};
         let deltas = Editor::do_edit(
             curosr,
             &mut self.buffer,
             cmd,
             self.syntax.as_ref(),
+            &mut clipboard,
             modal,
+            register,
         );
-        self.apply_deltas(&deltas)
+        self.apply_deltas(&deltas);
+    }
+
+    pub fn do_motion_mode(
+        &mut self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        register: &mut Register,
+    ) {
+        if let Some(m) = &cursor.motion_mode {
+            if m == &motion_mode {
+                let offset = cursor.offset();
+                let deltas = Editor::execute_motion_mode(
+                    cursor,
+                    &mut self.buffer,
+                    motion_mode,
+                    offset,
+                    offset,
+                    true,
+                    register,
+                );
+                self.apply_deltas(&deltas);
+            }
+            cursor.motion_mode = None;
+        } else {
+            cursor.motion_mode = Some(motion_mode);
+        }
     }
 
     pub fn do_paste(&mut self, cursor: &mut Cursor, data: &RegisterData) {
@@ -251,13 +380,14 @@ impl Document {
     }
 
     pub fn move_cursor(
-        &self,
+        &mut self,
         text: &mut PietText,
         cursor: &mut Cursor,
         movement: &Movement,
         count: usize,
         modify: bool,
         font_size: usize,
+        register: &mut Register,
         config: &Config,
     ) {
         match cursor.mode {
@@ -272,8 +402,45 @@ impl Document {
                     font_size,
                     config,
                 );
-                cursor.mode = CursorMode::Normal(new_offset);
-                cursor.horiz = horiz;
+                if let Some(motion_mode) = cursor.motion_mode.clone() {
+                    let (moved_new_offset, _) = self.move_offset(
+                        text,
+                        new_offset,
+                        None,
+                        1,
+                        &Movement::Right,
+                        Mode::Insert,
+                        font_size,
+                        config,
+                    );
+                    let (start, end) = match movement {
+                        Movement::EndOfLine | Movement::WordEndForward => {
+                            (offset, moved_new_offset)
+                        }
+                        Movement::MatchPairs => {
+                            if new_offset > offset {
+                                (offset, moved_new_offset)
+                            } else {
+                                (moved_new_offset, new_offset)
+                            }
+                        }
+                        _ => (offset, new_offset),
+                    };
+                    let deltas = Editor::execute_motion_mode(
+                        cursor,
+                        &mut self.buffer,
+                        motion_mode,
+                        start,
+                        end,
+                        movement.is_vertical(),
+                        register,
+                    );
+                    self.apply_deltas(&deltas);
+                    cursor.motion_mode = None;
+                } else {
+                    cursor.mode = CursorMode::Normal(new_offset);
+                    cursor.horiz = horiz;
+                }
             }
             CursorMode::Visual { start, end, mode } => {
                 let (new_offset, horiz) = self.move_offset(

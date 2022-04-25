@@ -281,10 +281,14 @@ impl EditorInfo {
                 let buffer = Arc::new(Buffer::new(
                     BufferContent::File(path.clone()),
                     tab_id,
-                    event_sink,
+                    event_sink.clone(),
                 ));
                 data.open_files.insert(path.clone(), buffer);
-                let doc = Arc::new(Document::new());
+                let doc = Arc::new(Document::new(
+                    BufferContent::File(path.clone()),
+                    tab_id,
+                    event_sink,
+                ));
                 data.open_docs.insert(path.clone(), doc);
             }
         }

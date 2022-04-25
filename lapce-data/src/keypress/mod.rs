@@ -227,7 +227,8 @@ impl KeyPressData {
                 CommandKind::Workbench(_) => {}
                 CommandKind::Move(_)
                 | CommandKind::Edit(_)
-                | CommandKind::Focus(_) => {
+                | CommandKind::Focus(_)
+                | CommandKind::MotionMode(_) => {
                     focus.run_command(ctx, &cmd, count, mods, env);
                 }
             };
