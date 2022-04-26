@@ -1914,7 +1914,7 @@ dependencies = [
  "tree-sitter-java",
  "tree-sitter-javascript",
  "tree-sitter-json",
- "tree-sitter-markdown",
+ "tree-sitter-md",
  "tree-sitter-php",
  "tree-sitter-python",
  "tree-sitter-ruby",
@@ -4319,9 +4319,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "tree-sitter-markdown"
+name = "tree-sitter-md"
 version = "0.0.1"
-source = "git+https://github.com/MDeiml/tree-sitter-markdown.git#d24196f9b3e5af6fcb2ec2a0b6cbc5c06f58b85e"
+source = "git+https://github.com/MDeiml/tree-sitter-markdown.git#6d112e7a9c1694504bb78ee0b92dcd509625e0df"
 dependencies = [
  "cc",
  "tree-sitter",
