@@ -513,6 +513,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
 
         let title_size = self.title.layout(ctx, bc, data, env);
 
+        self.title.set_origin(ctx, data, env, Point::new(0.0, y));
+        y += title_size.height;
+
         let (tab_header_height, tab_size) = if self.tabs.len() > 1 {
             let tab_height = 25.0;
             let tab_size = Size::new(
@@ -572,9 +575,6 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         };
         y += tab_header_height;
 
-        self.title.set_origin(ctx, data, env, Point::new(0.0, y));
-        y += title_size.height;
-
         let bc = BoxConstraints::tight(tab_size);
         self.tabs[data.active].layout(ctx, &bc, data, env);
         self.tabs[data.active].set_origin(ctx, data, env, Point::new(0.0, y));
@@ -589,7 +589,9 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         let border_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
 
         let mut y = 0.0;
-        y += self.paint_tab_bar(ctx, data, env, y);
+
+        self.title.paint(ctx, data, env);
+        y += self.title.layout_rect().height();
 
         ctx.stroke(
             Line::new(Point::new(0.0, y - 0.5), Point::new(width, y - 0.5)),
@@ -597,8 +599,7 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             1.0,
         );
 
-        self.title.paint(ctx, data, env);
-        y += self.title.layout_rect().height();
+        y += self.paint_tab_bar(ctx, data, env, y);
 
         ctx.stroke(
             Line::new(Point::new(0.0, y - 0.5), Point::new(width, y - 0.5)),
