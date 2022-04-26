@@ -144,10 +144,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
             let height = 30.0;
             let size = Size::new(bc.max().width, height);
 
-            // let editor_tab =
-            //     data.main_split.editor_tabs.get(&self.widget_id).unwrap();
-
-            //    if self.is_hot || *editor_tab.content_is_hot.borrow() {
             let icon_size = 24.0;
             let gap = (height - icon_size) / 2.0;
             let x = size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
@@ -182,7 +178,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                 ),
             };
             self.icons.push(icon);
-            //}
 
             size
         } else {
