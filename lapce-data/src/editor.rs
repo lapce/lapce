@@ -16,7 +16,7 @@ use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
 use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{LapceUICommand, LAPCE_UI_COMMAND, EnsureVisiblePosition},
     split::SplitMoveDirection,
 };
 use crate::{find::Find, split::SplitDirection};
@@ -1523,7 +1523,21 @@ impl LapceEditorBufferData {
             CenterOfWindow => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::EnsureCursorCenter,
+                    LapceUICommand::EnsureCursorPosition(EnsureVisiblePosition::CenterOfWindow),
+                    Target::Widget(self.editor.view_id),
+                ));
+            }
+            TopOfWindow => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureCursorPosition(EnsureVisiblePosition::TopOfWindow),
+                    Target::Widget(self.editor.view_id),
+                ));
+            }
+            BottomOfWindow => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureCursorPosition(EnsureVisiblePosition::BottomOfWindow),
                     Target::Widget(self.editor.view_id),
                 ));
             }

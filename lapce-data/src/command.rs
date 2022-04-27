@@ -321,7 +321,15 @@ pub enum LapceWorkbenchCommand {
 
 #[derive(Debug)]
 pub enum EnsureVisiblePosition {
+    // Move the view so the cursor line will be at the center of the window.  If
+    // the cursor is near the beginning of the buffer, the view might not
+    // change.
     CenterOfWindow,
+    // Cursor will be at the top edge, down by a margin.
+    TopOfWindow,
+    // Cursor will be at the bottom edge, up by a margin.  If the cursor is near
+    // the beginning of the buffer, the view might not change.
+    BottomOfWindow,
 }
 
 #[derive(Debug)]
@@ -440,7 +448,7 @@ pub enum LapceUICommand {
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),
     EnsureCursorVisible(Option<EnsureVisiblePosition>),
-    EnsureCursorCenter,
+    EnsureCursorPosition(EnsureVisiblePosition),
     EditorViewSize(Size),
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),

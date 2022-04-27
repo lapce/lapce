@@ -161,8 +161,8 @@ impl LapceEditorView {
                     env,
                 );
             }
-            LapceUICommand::EnsureCursorCenter => {
-                self.ensure_cursor_center(ctx, data, panels, env);
+            LapceUICommand::EnsureCursorPosition(position) => {
+                self.ensure_cursor_position(ctx, data, panels, position, env);
             }
             LapceUICommand::EnsureRectVisible(rect) => {
                 self.ensure_rect_visible(ctx, data, *rect, env);
@@ -271,19 +271,51 @@ impl LapceEditorView {
         }
     }
 
-    pub fn ensure_cursor_center(
+    pub fn ensure_cursor_position(
         &mut self,
         ctx: &mut EventCtx,
         data: &LapceEditorBufferData,
         panels: &im::HashMap<PanelPosition, Arc<PanelData>>,
+        position: &EnsureVisiblePosition,
         env: &Env,
     ) {
-        let center = Self::cursor_region(data, ctx.text()).center();
+        // This is where the cursor currently is.
+        let cursor = Self::cursor_region(data, ctx.text()).center();
+        // FIXME: need to see how LapceEditorBufferData::scroll() handles the
+        // margin
+        //
+        // TODO: scroll margin (in number of lines) should be configurable
+        let margin = data.config.editor.line_height * 2;
 
-        let rect = Rect::ZERO.with_origin(center).inflate(
-            (data.editor.size.borrow().width / 2.0).ceil(),
-            (data.editor.size.borrow().height / 2.0).ceil(),
-        );
+        // The origin of a rect is its top-left corner.  Inflating a point
+        // creates a rect that centers at the point.
+        let width = (data.editor.size.borrow().width / 2.0).ceil();
+        let height = (data.editor.size.borrow().height / 2.0).ceil();
+
+        // Find where the center will be.
+        let center = match position {
+            EnsureVisiblePosition::CenterOfWindow => {
+                // Cursor line will be at the center of the view.
+                cursor
+            },
+            EnsureVisiblePosition::TopOfWindow => {
+                // Cursor line will be at the top edge, thus center of the view
+                // is half height down.
+                let h = height as usize;
+                let h = if h > margin { h - margin } else { margin };
+                Point::new(cursor.x, cursor.y + h as f64)
+            },
+            EnsureVisiblePosition::BottomOfWindow => {
+                // Cursor line will be at the bottom edge, thus center of the
+                // view is half height up.
+                let h = height as usize;
+                let h = if h > margin { h - margin } else { margin };
+                let y = cursor.y as usize;
+                let y = if h > y { y } else { y - h };
+                Point::new(cursor.x, y as f64)
+            }
+        };
+        let rect = Rect::ZERO.with_origin(center).inflate(width, height);
 
         let editor_size = *data.editor.size.borrow();
         let size = LapceEditor::get_size(data, ctx.text(), editor_size, panels, env);
@@ -322,16 +354,14 @@ impl LapceEditorView {
                 Target::Widget(scroll_id),
             ));
             if let Some(position) = position {
-                match position {
-                    EnsureVisiblePosition::CenterOfWindow => {
-                        self.ensure_cursor_center(ctx, data, panels, env);
-                    }
-                }
+                self.ensure_cursor_position(ctx, data, panels, position, env);
             } else {
                 let scroll_offset = scroll.offset();
                 if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
                 {
-                    self.ensure_cursor_center(ctx, data, panels, env);
+                    self.ensure_cursor_position(
+                        ctx, data, panels, &EnsureVisiblePosition::CenterOfWindow, env
+                    );
                 }
             }
         }
