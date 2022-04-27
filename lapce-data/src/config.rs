@@ -39,6 +39,7 @@ impl LapceTheme {
     pub const EDITOR_CARET: &'static str = "editor.caret";
     pub const EDITOR_SELECTION: &'static str = "editor.selection";
     pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
+    pub const EDITOR_LINK: &'static str = "editor.link";
 
     pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
     pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
@@ -89,6 +90,8 @@ impl LapceTheme {
         druid::Key::new("lapce.input_line_padding");
     pub const INPUT_FONT_SIZE: druid::Key<u64> =
         druid::Key::new("lapce.input_font_size");
+
+    pub const MARKDOWN_BLOCKQUOTE: &'static str = "markdown.blockquote";
 }
 
 #[derive(Error, Debug)]

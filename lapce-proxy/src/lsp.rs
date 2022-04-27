@@ -665,10 +665,13 @@ impl LspClient {
                 //     }),
                 //     ..Default::default()
                 // }),
-                // We could set content_format to specify our preferences but RA seems to only
-                // check if the preferences contains markdown, rather than paying attention to our
-                // given priority ordering
-                hover: Some(HoverClientCapabilities::default()),
+                hover: Some(HoverClientCapabilities {
+                    content_format: Some(vec![
+                        MarkupKind::Markdown,
+                        MarkupKind::PlainText,
+                    ]),
+                    ..Default::default()
+                }),
                 code_action: Some(CodeActionClientCapabilities {
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {
