@@ -370,7 +370,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
                                     path: if let BufferContent::File(path) =
                                         info.content
                                     {
-                                        Some(path.clone())
+                                        Some(path)
                                     } else {
                                         None
                                     },
