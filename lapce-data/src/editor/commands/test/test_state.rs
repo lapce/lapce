@@ -74,11 +74,8 @@ impl TestState {
 
             if whole_match.as_str().starts_with("</") {
                 if ends.insert(cursor_id, start).is_some() { panic!("Duplicate selection end marker: {whole_match:?}") }
-            } else {
-                starts
-                    .insert(cursor_id, start)
-                    .map(|_| panic!("Duplicate cursor marker: {whole_match:?}"));
-            }
+            } else if starts
+            .insert(cursor_id, start).is_some() { panic!("Duplicate cursor marker: {whole_match:?}") }
 
             unsafe { contents.as_mut_vec() }.drain(start..end);
 
