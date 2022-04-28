@@ -31,7 +31,7 @@ pub(super) fn apply_edits<'b, L: BufferDataListener>(
     cursor: &mut Cursor,
     edits: &[(Selection, &str)],
 ) -> RopeDelta {
-    let delta = buffer.edit_multiple(&edits, EditType::InsertChars);
+    let delta = buffer.edit_multiple(edits, EditType::InsertChars);
     cursor.apply_delta(&delta);
     delta
 }
