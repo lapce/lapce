@@ -73,9 +73,7 @@ impl TestState {
             let marker_len = end - start;
 
             if whole_match.as_str().starts_with("</") {
-                ends.insert(cursor_id, start).map(|_| {
-                    panic!("Duplicate selection end marker: {whole_match:?}")
-                });
+                if let Some(_) = ends.insert(cursor_id, start) { panic!("Duplicate selection end marker: {whole_match:?}") }
             } else {
                 starts
                     .insert(cursor_id, start)
