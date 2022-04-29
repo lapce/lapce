@@ -1,10 +1,12 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    path::PathBuf,
     rc::Rc,
     sync::{atomic, Arc},
 };
 
+use anyhow::Result;
 use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
@@ -24,14 +26,19 @@ use lapce_core::{
     syntax::Syntax,
     word::WordCursor,
 };
-use lapce_rpc::style::{LineStyle, LineStyles, Style};
+use lapce_rpc::{
+    buffer::{BufferId, NewBufferResponse},
+    style::{LineStyle, LineStyles, Style},
+};
 use xi_rope::{spans::Spans, RopeDelta};
 
 use crate::{
-    buffer::BufferContent,
+    buffer::{BufferContent, LocalBufferKind},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
+    editor::EditorLocationNew,
     find::Find,
+    proxy::LapceProxy,
 };
 
 pub struct SystemClipboard {}
@@ -48,6 +55,7 @@ impl Clipboard for SystemClipboard {
 
 #[derive(Clone)]
 pub struct Document {
+    id: BufferId,
     tab_id: WidgetId,
     buffer: Buffer,
     content: BufferContent,
@@ -56,6 +64,8 @@ pub struct Document {
     semantic_styles: Option<Arc<Spans<Style>>>,
     text_layouts: Rc<RefCell<HashMap<usize, Arc<PietTextLayout>>>>,
     event_sink: ExtEventSink,
+    load_started: Rc<RefCell<bool>>,
+    loaded: bool,
 }
 
 impl Document {
@@ -65,6 +75,7 @@ impl Document {
         event_sink: ExtEventSink,
     ) -> Self {
         Self {
+            id: BufferId::next(),
             tab_id,
             buffer: Buffer::new(""),
             content,
@@ -73,6 +84,8 @@ impl Document {
             text_layouts: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
             event_sink,
+            load_started: Rc::new(RefCell::new(false)),
+            loaded: false,
         }
     }
 
@@ -90,9 +103,94 @@ impl Document {
         self.on_update(None);
     }
 
+    pub fn retrieve_file(
+        &self,
+        proxy: Arc<LapceProxy>,
+        locations: Vec<(WidgetId, EditorLocationNew)>,
+    ) {
+        if self.loaded || *self.load_started.borrow() {
+            return;
+        }
+
+        *self.load_started.borrow_mut() = true;
+        if let BufferContent::File(path) = &self.content {
+            let id = self.id;
+            let tab_id = self.tab_id;
+            let path = path.clone();
+            let event_sink = self.event_sink.clone();
+            std::thread::spawn(move || {
+                proxy.new_buffer(
+                    id,
+                    path.clone(),
+                    Box::new(move |result| {
+                        if let Ok(res) = result {
+                            if let Ok(resp) =
+                                serde_json::from_value::<NewBufferResponse>(res)
+                            {
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::LoadBuffer {
+                                        path,
+                                        content: resp.content,
+                                        locations,
+                                    },
+                                    Target::Widget(tab_id),
+                                );
+                            }
+                        };
+                    }),
+                )
+            });
+        }
+    }
+
     fn on_update(&mut self, delta: Option<&RopeDelta>) {
         self.clear_text_layout_cache();
         self.trigger_syntax_change(delta);
+        self.notify_special();
+    }
+
+    fn notify_special(&self) {
+        match &self.content {
+            BufferContent::File(_) => {}
+            BufferContent::Local(local) => {
+                let s = self.buffer.text().to_string();
+                match local {
+                    LocalBufferKind::Search => {
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSearch(s),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                    LocalBufferKind::SourceControl => {}
+                    LocalBufferKind::Empty => {}
+                    LocalBufferKind::FilePicker => {
+                        let pwd = PathBuf::from(s);
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdatePickerPwd(pwd),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                    LocalBufferKind::Keymap => {
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateKeymapsFilter(s),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                    LocalBufferKind::Settings => {
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdateSettingsFilter(s),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
+                }
+            }
+            BufferContent::Value(_) => {}
+        }
     }
 
     pub fn set_syntax(&mut self, syntax: Option<Syntax>) {

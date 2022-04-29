@@ -2403,13 +2403,8 @@ impl LapceMainSplitData {
                 *self.tab_id,
                 ctx.get_external_handle(),
             ));
+            doc.retrieve_file(self.proxy.clone(), vec![(editor_view_id, location)]);
             self.open_docs.insert(path.clone(), doc);
-            buffer.retrieve_file(
-                *self.tab_id,
-                self.proxy.clone(),
-                ctx.get_external_handle(),
-                vec![(editor_view_id, location)],
-            );
         } else {
             let buffer = self.open_files.get_mut(&path).unwrap().clone();
 
@@ -2581,20 +2576,15 @@ impl LapceMainSplitData {
                 &mut positions,
                 tab_id,
                 config,
-                event_sink.clone(),
+                event_sink,
             );
             main_split_data.split_id = Arc::new(split_data.widget_id);
             for (path, locations) in positions.into_iter() {
                 main_split_data
-                    .open_files
+                    .open_docs
                     .get(&path)
                     .unwrap()
-                    .retrieve_file(
-                        tab_id,
-                        proxy.clone(),
-                        event_sink.clone(),
-                        locations.clone(),
-                    );
+                    .retrieve_file(proxy.clone(), locations.clone());
             }
         } else {
             main_split_data.splits.insert(
