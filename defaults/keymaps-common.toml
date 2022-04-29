@@ -537,6 +537,16 @@ command = "split_vertical"
 mode = "n"
 
 [[keymaps]]
+key = "ctrl+w c"
+command = "split_close"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+w x"
+command = "split_exchange"
+mode = "n"
+
+[[keymaps]]
 key = "space"
 command = "toggle_code_lens"
 mode = "nv"

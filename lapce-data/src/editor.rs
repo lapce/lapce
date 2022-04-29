@@ -1583,6 +1583,7 @@ impl LapceEditorBufferData {
     ) {
         let new_offset = self.doc.offset_of_point(
             ctx.text(),
+            self.get_mode(),
             mouse_event.pos,
             config.editor.font_size,
             config,
@@ -1630,6 +1631,7 @@ impl LapceEditorBufferData {
         ctx.set_active(true);
         let mouse_offset = self.doc.offset_of_point(
             ctx.text(),
+            self.get_mode(),
             mouse_event.pos,
             config.editor.font_size,
             config,
@@ -1653,6 +1655,7 @@ impl LapceEditorBufferData {
         ctx.set_active(true);
         let mouse_offset = self.doc.offset_of_point(
             ctx.text(),
+            self.get_mode(),
             mouse_event.pos,
             config.editor.font_size,
             config,
@@ -1672,17 +1675,16 @@ impl LapceEditorBufferData {
     fn run_move_command(
         &mut self,
         ctx: &mut EventCtx,
-        cmd: &MoveCommand,
+        movement: &lapce_core::movement::Movement,
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
-        let movement = cmd.to_movement(count);
         let register = Arc::make_mut(&mut self.main_split.register);
         let doc = Arc::make_mut(&mut self.doc);
         doc.move_cursor(
             ctx.text(),
             &mut Arc::make_mut(&mut self.editor).new_cursor,
-            &movement,
+            movement,
             count.unwrap_or(1),
             mods.shift(),
             self.config.editor.font_size,
@@ -1713,10 +1715,203 @@ impl LapceEditorBufferData {
         &mut self,
         ctx: &mut EventCtx,
         cmd: &FocusCommand,
+        mods: Modifiers,
     ) -> CommandExecuted {
         use FocusCommand::*;
         match cmd {
-            SplitVertical => {}
+            SplitVertical => {
+                self.main_split.split_editor(
+                    ctx,
+                    Arc::make_mut(&mut self.editor),
+                    SplitDirection::Vertical,
+                    &self.config,
+                );
+            }
+            SplitHorizontal => {
+                self.main_split.split_editor(
+                    ctx,
+                    Arc::make_mut(&mut self.editor),
+                    SplitDirection::Horizontal,
+                    &self.config,
+                );
+            }
+            SplitExchange => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split
+                        .split_exchange(ctx, SplitContent::EditorTab(*widget_id));
+                }
+            }
+            SplitClose => {
+                self.main_split.editor_close(ctx, self.view_id);
+            }
+            SplitLeft => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split.split_move(
+                        ctx,
+                        SplitContent::EditorTab(*widget_id),
+                        SplitMoveDirection::Left,
+                    );
+                }
+            }
+            SplitRight => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split.split_move(
+                        ctx,
+                        SplitContent::EditorTab(*widget_id),
+                        SplitMoveDirection::Right,
+                    );
+                }
+            }
+            SplitUp => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split.split_move(
+                        ctx,
+                        SplitContent::EditorTab(*widget_id),
+                        SplitMoveDirection::Up,
+                    );
+                }
+            }
+            SplitDown => {
+                if let Some(widget_id) = self.editor.tab_id.as_ref() {
+                    self.main_split.split_move(
+                        ctx,
+                        SplitContent::EditorTab(*widget_id),
+                        SplitMoveDirection::Down,
+                    );
+                }
+            }
+            SearchWholeWordForward => {
+                Arc::make_mut(&mut self.find).visual = true;
+                let offset = self.editor.new_cursor.offset();
+                let (start, end) = self.doc.buffer().select_word(offset);
+                let word = self.doc.buffer().slice_to_cow(start..end).to_string();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSearch(word.clone()),
+                    Target::Widget(*self.main_split.tab_id),
+                ));
+                Arc::make_mut(&mut self.find).set_find(&word, false, false, true);
+                let next =
+                    self.find
+                        .next(self.doc.buffer().text(), offset, false, true);
+                if let Some((start, _end)) = next {
+                    self.run_move_command(
+                        ctx,
+                        &lapce_core::movement::Movement::Offset(start),
+                        None,
+                        mods,
+                    );
+                }
+            }
+            SearchForward => {
+                Arc::make_mut(&mut self.find).visual = true;
+                let offset = self.editor.new_cursor.offset();
+                let next =
+                    self.find
+                        .next(self.doc.buffer().text(), offset, false, true);
+                if let Some((start, _end)) = next {
+                    self.run_move_command(
+                        ctx,
+                        &lapce_core::movement::Movement::Offset(start),
+                        None,
+                        mods,
+                    );
+                }
+            }
+            SearchBackward => {
+                if self.editor.content.is_search() {
+                    if let Some(parent_view_id) = self.editor.parent_view_id {
+                        ctx.submit_command(Command::new(
+                            LAPCE_NEW_COMMAND,
+                            LapceCommandNew {
+                                cmd: LapceCommand::SearchBackward.to_string(),
+                                kind: CommandKind::Focus(
+                                    FocusCommand::SearchBackward,
+                                ),
+                                data: None,
+                                palette_desc: None,
+                                target: CommandTarget::Focus,
+                            },
+                            Target::Widget(parent_view_id),
+                        ));
+                    }
+                } else {
+                    Arc::make_mut(&mut self.find).visual = true;
+                    let offset = self.editor.new_cursor.offset();
+                    let next =
+                        self.find.next(self.doc.buffer().text(), offset, true, true);
+                    if let Some((start, _end)) = next {
+                        self.run_move_command(
+                            ctx,
+                            &lapce_core::movement::Movement::Offset(start),
+                            None,
+                            mods,
+                        );
+                    }
+                }
+            }
+            ClearSearch => {
+                Arc::make_mut(&mut self.find).visual = false;
+                let view_id =
+                    if let Some(parent_view_id) = self.editor.parent_view_id {
+                        parent_view_id
+                    } else if self.editor.content.is_search() {
+                        (*self.main_split.active).unwrap_or(self.editor.view_id)
+                    } else {
+                        self.editor.view_id
+                    };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::Focus,
+                    Target::Widget(view_id),
+                ));
+            }
+            SearchInView => {
+                let start_line = ((self.editor.scroll_offset.y
+                    / self.config.editor.line_height as f64)
+                    .ceil() as usize)
+                    .max(self.doc.buffer().last_line());
+                let end_line = ((self.editor.scroll_offset.y
+                    + self.editor.size.borrow().height
+                        / self.config.editor.line_height as f64)
+                    .ceil() as usize)
+                    .max(self.doc.buffer().last_line());
+                let end_offset = self.doc.buffer().offset_of_line(end_line + 1);
+
+                let offset = self.editor.new_cursor.offset();
+                let line = self.doc.buffer().line_of_offset(offset);
+                let offset = self.doc.buffer().offset_of_line(line);
+                let next =
+                    self.find
+                        .next(self.doc.buffer().text(), offset, false, false);
+
+                if let Some(start) = next
+                    .map(|(start, _)| start)
+                    .filter(|start| *start < end_offset)
+                {
+                    self.run_move_command(
+                        ctx,
+                        &lapce_core::movement::Movement::Offset(start),
+                        None,
+                        mods,
+                    );
+                } else {
+                    let start_offset = self.doc.buffer().offset_of_line(start_line);
+                    if let Some((start, _)) = self.find.next(
+                        self.doc.buffer().text(),
+                        start_offset,
+                        false,
+                        true,
+                    ) {
+                        self.run_move_command(
+                            ctx,
+                            &lapce_core::movement::Movement::Offset(start),
+                            None,
+                            mods,
+                        );
+                    }
+                }
+            }
         }
         CommandExecuted::Yes
     }
@@ -3436,16 +3631,29 @@ impl KeyPressFocus for LapceEditorBufferData {
         mods: Modifiers,
         env: &Env,
     ) -> CommandExecuted {
-        match &command.kind {
+        let old_doc = self.doc.clone();
+        let executed = match &command.kind {
             CommandKind::Edit(cmd) => self.run_edit_command(ctx, cmd),
-            CommandKind::Move(cmd) => self.run_move_command(ctx, cmd, count, mods),
-            CommandKind::Focus(cmd) => self.run_focus_command(ctx, cmd),
+            CommandKind::Move(cmd) => {
+                let movement = cmd.to_movement(count);
+                self.run_move_command(ctx, &movement, count, mods)
+            }
+            CommandKind::Focus(cmd) => self.run_focus_command(ctx, cmd, mods),
             CommandKind::MotionMode(cmd) => self.run_motion_mode_command(ctx, cmd),
             CommandKind::MultiSelection(cmd) => {
                 self.run_multi_selection_command(ctx, cmd)
             }
             CommandKind::Workbench(_) => CommandExecuted::No,
+        };
+        let doc = self.doc.clone();
+        if doc.content() != old_doc.content() || doc.rev() != old_doc.rev() {
+            Arc::make_mut(&mut self.editor)
+                .new_cursor
+                .history_selections
+                .clear();
         }
+
+        executed
     }
 }
 

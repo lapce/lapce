@@ -9,6 +9,7 @@ use druid::{
     WindowConfig,
 };
 use itertools::Itertools;
+use lapce_core::command::FocusCommand;
 use lapce_data::{
     buffer::LocalBufferKind,
     command::{
@@ -345,6 +346,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         if &buffer.rope().to_string() != pattern {
                             Arc::make_mut(buffer).load_content(pattern);
                         }
+                        let doc = data
+                            .main_split
+                            .local_docs
+                            .get_mut(&LocalBufferKind::Search)
+                            .unwrap();
+                        if &doc.buffer().text().to_string() != pattern {
+                            Arc::make_mut(doc).load_content(pattern);
+                        }
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
                             Arc::make_mut(&mut data.search).matches =
@@ -361,8 +370,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                                         LapceCommandNew {
                                             cmd: LapceCommand::SearchInView
                                                 .to_string(),
-                                            kind: CommandKind::Workbench(
-                                                LapceWorkbenchCommand::TogglePanelVisual,
+                                            kind: CommandKind::Focus(
+                                                FocusCommand::SearchInView,
                                             ),
                                             data: None,
                                             palette_desc: None,

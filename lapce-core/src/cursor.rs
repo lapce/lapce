@@ -19,6 +19,7 @@ pub struct Cursor {
     pub mode: CursorMode,
     pub horiz: Option<ColPosition>,
     pub motion_mode: Option<MotionMode>,
+    pub history_selections: Vec<Selection>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -42,6 +43,7 @@ impl Cursor {
             mode,
             horiz,
             motion_mode,
+            history_selections: Vec::new(),
         }
     }
 
@@ -71,6 +73,17 @@ impl Cursor {
             CursorMode::Visual { .. } => Mode::Visual,
             CursorMode::Insert(_) => Mode::Insert,
         }
+    }
+
+    pub fn set_mode(&mut self, mode: CursorMode) {
+        if let CursorMode::Insert(selection) = &self.mode {
+            self.history_selections.push(selection.clone());
+        }
+        self.mode = mode;
+    }
+
+    pub fn set_insert(&mut self, selection: Selection) {
+        self.set_mode(CursorMode::Insert(selection));
     }
 
     pub fn update_selection(&mut self, buffer: &Buffer, selection: Selection) {
@@ -292,11 +305,11 @@ impl Cursor {
                         } else {
                             new_selection.add_region(SelRegion::caret(offset));
                         }
-                        self.mode = CursorMode::Insert(new_selection);
+                        self.set_insert(new_selection);
                     } else {
                         let mut new_selection = selection.clone();
                         new_selection.add_region(SelRegion::caret(offset));
-                        self.mode = CursorMode::Insert(new_selection);
+                        self.set_insert(new_selection);
                     }
                 } else if modify {
                     let mut new_selection = Selection::new();
@@ -308,9 +321,9 @@ impl Cursor {
                         new_selection
                             .add_region(SelRegion::new(offset, offset, None));
                     }
-                    self.mode = CursorMode::Insert(new_selection);
+                    self.set_insert(new_selection);
                 } else {
-                    self.mode = CursorMode::Insert(Selection::caret(offset));
+                    self.set_insert(Selection::caret(offset));
                 }
             }
         }

@@ -26,6 +26,9 @@ pub enum EditCommand {
     DeleteWordForward,
     #[strum(serialize = "delete_word_backward")]
     DeleteWordBackward,
+    #[strum(message = "Join Lines")]
+    #[strum(serialize = "join_lines")]
+    JoinLines,
     #[strum(message = "Indent Line")]
     #[strum(serialize = "indent_line")]
     IndentLine,
@@ -149,6 +152,30 @@ impl MoveCommand {
 pub enum FocusCommand {
     #[strum(serialize = "split_vertical")]
     SplitVertical,
+    #[strum(serialize = "split_horizontal")]
+    SplitHorizontal,
+    #[strum(serialize = "split_exchange")]
+    SplitExchange,
+    #[strum(serialize = "split_close")]
+    SplitClose,
+    #[strum(serialize = "split_right")]
+    SplitRight,
+    #[strum(serialize = "split_left")]
+    SplitLeft,
+    #[strum(serialize = "split_up")]
+    SplitUp,
+    #[strum(serialize = "split_down")]
+    SplitDown,
+    #[strum(serialize = "search_whole_word_forward")]
+    SearchWholeWordForward,
+    #[strum(serialize = "search_forward")]
+    SearchForward,
+    #[strum(serialize = "search_backward")]
+    SearchBackward,
+    #[strum(serialize = "clear_search")]
+    ClearSearch,
+    #[strum(serialize = "search_in_view")]
+    SearchInView,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
@@ -165,12 +192,22 @@ pub enum MotionModeCommand {
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
 pub enum MultiSelectionCommand {
+    #[strum(serialize = "select_undo")]
+    SelectUndo,
     #[strum(serialize = "insert_cursor_above")]
     InsertCursorAbove,
     #[strum(serialize = "insert_cursor_below")]
     InsertCursorBelow,
+    #[strum(serialize = "insert_cursor_end_of_line")]
+    InsertCursorEndOfLine,
     #[strum(serialize = "select_current_line")]
     SelectCurrentLine,
     #[strum(serialize = "select_all_current")]
     SelectAllCurrent,
+    #[strum(serialize = "select_next_current")]
+    SelectNextCurrent,
+    #[strum(serialize = "select_skip_current")]
+    SelectSkipCurrent,
+    #[strum(serialize = "select_all")]
+    SelectAll,
 }

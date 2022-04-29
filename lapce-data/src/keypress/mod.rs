@@ -373,9 +373,9 @@ impl KeyPressData {
                     if let KeymapMatch::Full(command) =
                         self.match_keymap(&[keypress], focus)
                     {
-                        if let Ok(cmd) = LapceCommand::from_str(&command) {
-                            if cmd.move_command(None).is_some() {
-                                // focus.run_command(ctx, &cmd, None, mods, env);
+                        if let Some(cmd) = self.commands.get(&command) {
+                            if let CommandKind::Move(_) = cmd.kind {
+                                focus.run_command(ctx, cmd, None, mods, env);
                                 return true;
                             }
                         }

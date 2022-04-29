@@ -3,6 +3,7 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{
         CommandKind, CommandTarget, LapceCommand, LapceCommandNew,
@@ -35,9 +36,7 @@ impl FindBox {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::SearchBackward.to_string(),
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::TogglePanelVisual,
-                        ),
+                        kind: CommandKind::Focus(FocusCommand::SearchBackward),
                         data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,
@@ -52,9 +51,7 @@ impl FindBox {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::SearchForward.to_string(),
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::TogglePanelVisual,
-                        ),
+                        kind: CommandKind::Focus(FocusCommand::SearchForward),
                         data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,
@@ -69,9 +66,7 @@ impl FindBox {
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
                         cmd: LapceCommand::ClearSearch.to_string(),
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::TogglePanelVisual,
-                        ),
+                        kind: CommandKind::Focus(FocusCommand::ClearSearch),
                         data: None,
                         palette_desc: None,
                         target: CommandTarget::Focus,

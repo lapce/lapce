@@ -13,6 +13,7 @@ use druid::{
 use druid::{Data, TimerToken};
 use lapce_core::mode::{Mode, VisualMode};
 use lapce_data::command::CommandKind;
+use lapce_data::keypress::KeyPressFocus;
 use lapce_data::{
     buffer::{matching_pair_direction, BufferContent, DiffLines, LocalBufferKind},
     command::{
@@ -1735,6 +1736,7 @@ impl Widget<LapceTabData> for LapceEditor {
                         let editor_data = data.editor_view_content(self.view_id);
                         let new_offset = editor_data.doc.offset_of_point(
                             ctx.text(),
+                            editor_data.get_mode(),
                             mouse_event.pos,
                             data.config.editor.font_size,
                             &data.config,

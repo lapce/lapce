@@ -689,6 +689,20 @@ impl Editor {
                 cursor.apply_delta(&delta);
                 vec![(delta, inval_lines)]
             }
+            JoinLines => {
+                let offset = cursor.offset();
+                let (line, _col) = buffer.offset_to_line_col(offset);
+                if line < buffer.last_line() {
+                    let start = buffer.line_end_offset(line, true);
+                    let end = buffer.first_non_blank_character_on_line(line + 1);
+                    vec![buffer.edit(
+                        &[(&Selection::region(start, end), " ")],
+                        EditType::Other,
+                    )]
+                } else {
+                    vec![]
+                }
+            }
             OutdentLine => {
                 let selection = cursor.edit_selection(buffer);
                 let (delta, inval_lines) = Self::do_outdent(buffer, selection);

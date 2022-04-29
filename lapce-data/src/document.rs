@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     rc::Rc,
     sync::{atomic, Arc},
 };
@@ -74,6 +74,10 @@ impl Document {
             semantic_styles: None,
             event_sink,
         }
+    }
+
+    pub fn content(&self) -> &BufferContent {
+        &self.content
     }
 
     pub fn rev(&self) -> u64 {
@@ -214,6 +218,16 @@ impl Document {
     ) {
         use MultiSelectionCommand::*;
         match cmd {
+            SelectUndo => {
+                if let CursorMode::Insert(_) = cursor.mode.clone() {
+                    if let Some(selection) =
+                        cursor.history_selections.last().cloned()
+                    {
+                        cursor.mode = CursorMode::Insert(selection);
+                    }
+                    cursor.history_selections.pop();
+                }
+            }
             InsertCursorAbove => {
                 if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
                     let offset = selection.first().map(|s| s.end()).unwrap_or(0);
@@ -232,7 +246,7 @@ impl Document {
                             new_offset, new_offset, None,
                         ));
                     }
-                    cursor.mode = CursorMode::Insert(selection);
+                    cursor.set_insert(selection);
                 }
             }
             InsertCursorBelow => {
@@ -243,7 +257,7 @@ impl Document {
                         offset,
                         cursor.horiz.as_ref(),
                         1,
-                        &Movement::Up,
+                        &Movement::Down,
                         Mode::Insert,
                         config.editor.font_size,
                         config,
@@ -253,7 +267,28 @@ impl Document {
                             new_offset, new_offset, None,
                         ));
                     }
-                    cursor.mode = CursorMode::Insert(selection);
+                    cursor.set_insert(selection);
+                }
+            }
+            InsertCursorEndOfLine => {
+                if let CursorMode::Insert(selection) = cursor.mode.clone() {
+                    let mut new_selection = Selection::new();
+                    for region in selection.regions() {
+                        let (start_line, _) =
+                            self.buffer.offset_to_line_col(region.min());
+                        let (end_line, end_col) =
+                            self.buffer.offset_to_line_col(region.max());
+                        for line in start_line..end_line + 1 {
+                            let offset = if line == end_line {
+                                self.buffer.offset_of_line_col(line, end_col)
+                            } else {
+                                self.buffer.line_end_offset(line, true)
+                            };
+                            new_selection
+                                .add_region(SelRegion::new(offset, offset, None));
+                        }
+                    }
+                    cursor.set_insert(new_selection);
                 }
             }
             SelectCurrentLine => {
@@ -266,7 +301,7 @@ impl Document {
                         let end = self.buffer.offset_of_line(end_line + 1);
                         new_selection.add_region(SelRegion::new(start, end, None));
                     }
-                    cursor.mode = CursorMode::Insert(new_selection);
+                    cursor.set_insert(selection);
                 }
             }
             SelectAllCurrent => {
@@ -291,8 +326,97 @@ impl Document {
                                 .add_region(SelRegion::new(start, end, None));
                         }
                     }
-                    cursor.mode = CursorMode::Insert(new_selection);
+                    cursor.set_insert(selection);
                 }
+            }
+            SelectNextCurrent => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    if !selection.is_empty() {
+                        let mut had_caret = false;
+                        for region in selection.regions_mut() {
+                            if region.is_caret() {
+                                had_caret = true;
+                                let (start, end) =
+                                    self.buffer.select_word(region.start());
+                                region.start = start;
+                                region.end = end;
+                            }
+                        }
+                        if !had_caret {
+                            let r = selection.last_inserted().unwrap();
+                            let search_str =
+                                self.buffer.slice_to_cow(r.min()..r.max());
+                            let mut find = Find::new(0);
+                            find.set_find(&search_str, false, false, false);
+                            let mut offset = r.max();
+                            let mut seen = HashSet::new();
+                            while let Some((start, end)) =
+                                find.next(self.buffer.text(), offset, false, true)
+                            {
+                                if !selection
+                                    .regions()
+                                    .iter()
+                                    .any(|r| r.min() == start && r.max() == end)
+                                {
+                                    selection.add_region(SelRegion::new(
+                                        start, end, None,
+                                    ));
+                                    break;
+                                }
+                                if seen.contains(&end) {
+                                    break;
+                                }
+                                offset = end;
+                                seen.insert(offset);
+                            }
+                        }
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            SelectSkipCurrent => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    if !selection.is_empty() {
+                        let r = selection.last_inserted().unwrap();
+                        if r.is_caret() {
+                            let (start, end) = self.buffer.select_word(r.start());
+                            selection.replace_last_inserted_region(SelRegion::new(
+                                start, end, None,
+                            ));
+                        } else {
+                            let search_str =
+                                self.buffer.slice_to_cow(r.min()..r.max());
+                            let mut find = Find::new(0);
+                            find.set_find(&search_str, false, false, false);
+                            let mut offset = r.max();
+                            let mut seen = HashSet::new();
+                            while let Some((start, end)) =
+                                find.next(self.buffer.text(), offset, false, true)
+                            {
+                                if !selection
+                                    .regions()
+                                    .iter()
+                                    .any(|r| r.min() == start && r.max() == end)
+                                {
+                                    selection.replace_last_inserted_region(
+                                        SelRegion::new(start, end, None),
+                                    );
+                                    break;
+                                }
+                                if seen.contains(&end) {
+                                    break;
+                                }
+                                offset = end;
+                                seen.insert(offset);
+                            }
+                        }
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            SelectAll => {
+                let new_selection = Selection::region(0, self.buffer.len());
+                cursor.set_insert(new_selection);
             }
         }
     }
@@ -360,6 +484,7 @@ impl Document {
     pub fn offset_of_point(
         &self,
         text: &mut PietText,
+        mode: Mode,
         point: Point,
         font_size: usize,
         config: &Config,
@@ -367,7 +492,8 @@ impl Document {
         let line = (point.y / config.editor.line_height as f64).floor() as usize;
         let text_layout = self.get_text_layout(text, line, font_size, config);
         let col = text_layout.hit_test_point(Point::new(point.x, 0.0)).idx;
-        self.buffer.offset_of_line_col(line, col)
+        let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
+        self.buffer.offset_of_line_col(line, col.min(max_col))
     }
 
     pub fn point_of_offset(
@@ -578,7 +704,7 @@ impl Document {
                     font_size,
                     config,
                 );
-                cursor.mode = CursorMode::Insert(selection);
+                cursor.set_insert(selection);
             }
         }
     }

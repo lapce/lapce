@@ -665,10 +665,10 @@ impl LapceSettingsItem {
             data.main_split
                 .value_buffers
                 .insert(name.clone(), Arc::new(buffer));
-            data.main_split.value_docs.insert(
-                name,
-                Arc::new(Document::new(content.clone(), data.id, event_sink)),
-            );
+
+            let mut doc = Document::new(content.clone(), data.id, event_sink);
+            doc.load_content(&input);
+            data.main_split.value_docs.insert(name, Arc::new(doc));
             let editor = LapceEditorData::new(None, None, content, &data.config);
             let view_id = editor.view_id;
             let input = LapceEditorView::new(editor.view_id, None)
