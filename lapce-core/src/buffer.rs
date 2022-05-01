@@ -9,6 +9,8 @@ use std::{
     },
 };
 
+use lapce_rpc::buffer::BufferId;
+use lsp_types::Position;
 use xi_rope::{
     multiset::Subset, Cursor, Delta, DeltaBuilder, Interval, Rope, RopeDelta,
 };
@@ -61,6 +63,7 @@ pub struct InvalLines {
 
 #[derive(Clone)]
 pub struct Buffer {
+    id: BufferId,
     rev: u64,
     atomic_rev: Arc<AtomicU64>,
     dirty: bool,
@@ -82,6 +85,7 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(text: &str) -> Self {
         Self {
+            id: BufferId::next(),
             text: Rope::from(text),
 
             rev: 0,
@@ -496,6 +500,18 @@ impl Buffer {
         self.text.line_of_offset(offset)
     }
 
+    pub fn offset_to_position(&self, offset: usize) -> Position {
+        let (line, col) = self.offset_to_line_col(offset);
+        Position {
+            line: line as u32,
+            character: col as u32,
+        }
+    }
+
+    pub fn offset_of_position(&self, pos: &Position) -> usize {
+        self.offset_of_line_col(pos.line as usize, pos.character as usize)
+    }
+
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
         let max = self.len();
         let offset = if offset > max { max } else { offset };
@@ -596,6 +612,14 @@ impl Buffer {
             }
         }
         new_offset
+    }
+
+    pub fn prev_code_boundary(&self, offset: usize) -> usize {
+        WordCursor::new(&self.text, offset).prev_code_boundary()
+    }
+
+    pub fn next_code_boundary(&self, offset: usize) -> usize {
+        WordCursor::new(&self.text, offset).next_code_boundary()
     }
 
     pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {

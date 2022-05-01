@@ -1435,19 +1435,15 @@ impl LapceEditor {
             for (_, (start, end)) in snippet {
                 let paint_start_line = start_line;
                 let paint_end_line = end_line;
-                let (start_line, start_col) = data.buffer.offset_to_line_col(
-                    *start.min(end),
-                    data.config.editor.tab_width,
-                );
-                let (end_line, end_col) = data.buffer.offset_to_line_col(
-                    *start.max(end),
-                    data.config.editor.tab_width,
-                );
+                let (start_line, start_col) =
+                    data.doc.buffer().offset_to_line_col(*start.min(end));
+                let (end_line, end_col) =
+                    data.doc.buffer().offset_to_line_col(*start.max(end));
                 for line in paint_start_line..paint_end_line {
                     if line < start_line || line > end_line {
                         continue;
                     }
-                    let line_content = data.buffer.line_content(line);
+                    let line_content = data.doc.buffer().line_content(line);
                     let left_col = match line {
                         _ if line == start_line => start_col,
                         _ => 0,
@@ -1456,18 +1452,10 @@ impl LapceEditor {
 
                     let right_col = match line {
                         _ if line == end_line => {
-                            let max_col = data.buffer.line_end_col(
-                                line,
-                                true,
-                                data.config.editor.tab_width,
-                            );
+                            let max_col = data.doc.buffer().line_end_col(line, true);
                             end_col.min(max_col)
                         }
-                        _ => data.buffer.line_end_col(
-                            line,
-                            true,
-                            data.config.editor.tab_width,
-                        ),
+                        _ => data.doc.buffer().line_end_col(line, true),
                     };
                     if !line_content.is_empty() {
                         let x1 = right_col as f64 * width;

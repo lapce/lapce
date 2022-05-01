@@ -170,6 +170,10 @@ pub enum BufferContent {
 }
 
 impl BufferContent {
+    pub fn is_file(&self) -> bool {
+        matches!(self, BufferContent::File(_))
+    }
+
     pub fn is_special(&self) -> bool {
         match &self {
             BufferContent::File(_) => false,

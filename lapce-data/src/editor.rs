@@ -39,6 +39,7 @@ use druid::{
     WidgetId,
 };
 use druid::{Application, ExtEventSink, MouseEvent};
+use lapce_core::buffer::InvalLines;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
@@ -199,11 +200,11 @@ impl LapceEditorBufferData {
             let offset = self.editor.cursor.offset();
             let prev_offset = self.buffer.prev_code_boundary(offset);
             if self.buffer.code_actions.get(&prev_offset).is_none() {
-                let buffer_id = self.buffer.id();
+                let buffer_id = self.doc.id();
                 let position = self
                     .buffer
                     .offset_to_position(prev_offset, self.config.editor.tab_width);
-                let rev = self.buffer.rev();
+                let rev = self.doc.rev();
                 let event_sink = ctx.get_external_handle();
                 self.proxy.get_code_actions(
                     buffer_id,
@@ -434,19 +435,13 @@ impl LapceEditorBufferData {
                 edits
                     .iter()
                     .map(|edit| {
-                        let selection = Selection::region(
-                            self.buffer.offset_of_position(
-                                &edit.range.start,
-                                self.config.editor.tab_width,
-                            ),
-                            self.buffer.offset_of_position(
-                                &edit.range.end,
-                                self.config.editor.tab_width,
-                            ),
+                        let selection = lapce_core::selection::Selection::region(
+                            self.doc.buffer().offset_of_position(&edit.range.start),
+                            self.doc.buffer().offset_of_position(&edit.range.end),
                         );
                         (selection, edit.new_text.as_str())
                     })
-                    .collect::<Vec<(Selection, &str)>>()
+                    .collect::<Vec<(lapce_core::selection::Selection, &str)>>()
             });
         let additioal_edit: Option<Vec<_>> = additional_edit.as_ref().map(|edits| {
             edits.iter().map(|(selection, c)| (selection, *c)).collect()
@@ -458,56 +453,55 @@ impl LapceEditorBufferData {
         if let Some(edit) = &item.text_edit {
             match edit {
                 CompletionTextEdit::Edit(edit) => {
-                    let offset = self.editor.cursor.offset();
-                    let start_offset = self.buffer.prev_code_boundary(offset);
-                    let end_offset = self.buffer.next_code_boundary(offset);
-                    let edit_start = self.buffer.offset_of_position(
-                        &edit.range.start,
-                        self.config.editor.tab_width,
-                    );
-                    let edit_end = self.buffer.offset_of_position(
-                        &edit.range.end,
-                        self.config.editor.tab_width,
-                    );
-                    let selection = Selection::region(
+                    let offset = self.editor.new_cursor.offset();
+                    let start_offset = self.doc.buffer().prev_code_boundary(offset);
+                    let end_offset = self.doc.buffer().next_code_boundary(offset);
+                    let edit_start =
+                        self.doc.buffer().offset_of_position(&edit.range.start);
+                    let edit_end =
+                        self.doc.buffer().offset_of_position(&edit.range.end);
+                    let selection = lapce_core::selection::Selection::region(
                         start_offset.min(edit_start),
                         end_offset.max(edit_end),
                     );
                     match text_format {
                         lsp_types::InsertTextFormat::PlainText => {
-                            let delta = self.edit(
-                                &[
-                                    &[(&selection, edit.new_text.as_str())][..],
-                                    &additioal_edit.unwrap_or_default()[..],
-                                ]
-                                .concat(),
-                                true,
-                                EditType::InsertChars,
-                            );
+                            let (delta, inval_lines) = Arc::make_mut(&mut self.doc)
+                                .do_raw_edit(
+                                    &[
+                                        &[(&selection, edit.new_text.as_str())][..],
+                                        &additioal_edit.unwrap_or_default()[..],
+                                    ]
+                                    .concat(),
+                                    lapce_core::editor::EditType::InsertChars,
+                                );
                             let selection = selection.apply_delta(
                                 &delta,
                                 true,
-                                InsertDrift::Default,
+                                lapce_core::selection::InsertDrift::Default,
                             );
-                            self.set_cursor_after_change(selection);
+                            Arc::make_mut(&mut self.editor)
+                                .new_cursor
+                                .update_selection(self.doc.buffer(), selection);
+                            self.apply_deltas(&[(delta, inval_lines)]);
                             return Ok(());
                         }
                         lsp_types::InsertTextFormat::Snippet => {
                             let snippet = Snippet::from_str(&edit.new_text)?;
                             let text = snippet.text();
-                            let delta = self.edit(
-                                &[
-                                    &[(&selection, text.as_str())][..],
-                                    &additioal_edit.unwrap_or_default()[..],
-                                ]
-                                .concat(),
-                                true,
-                                EditType::InsertChars,
-                            );
+                            let (delta, inval_lines) = Arc::make_mut(&mut self.doc)
+                                .do_raw_edit(
+                                    &[
+                                        &[(&selection, text.as_str())][..],
+                                        &additioal_edit.unwrap_or_default()[..],
+                                    ]
+                                    .concat(),
+                                    lapce_core::editor::EditType::InsertChars,
+                                );
                             let selection = selection.apply_delta(
                                 &delta,
                                 true,
-                                InsertDrift::Default,
+                                lapce_core::selection::InsertDrift::Default,
                             );
 
                             let mut transformer = Transformer::new(&delta);
@@ -516,18 +510,24 @@ impl LapceEditorBufferData {
                             let snippet_tabs = snippet.tabs(offset);
 
                             if snippet_tabs.is_empty() {
-                                self.set_cursor_after_change(selection);
+                                Arc::make_mut(&mut self.editor)
+                                    .new_cursor
+                                    .update_selection(self.doc.buffer(), selection);
+                                self.apply_deltas(&[(delta, inval_lines)]);
                                 return Ok(());
                             }
 
-                            let mut selection = Selection::new();
+                            let mut selection =
+                                lapce_core::selection::Selection::new();
                             let (_tab, (start, end)) = &snippet_tabs[0];
-                            let region = SelRegion::new(*start, *end, None);
+                            let region = lapce_core::selection::SelRegion::new(
+                                *start, *end, None,
+                            );
                             selection.add_region(region);
-                            self.set_cursor(Cursor::new(
-                                CursorMode::Insert(selection),
-                                None,
-                            ));
+                            Arc::make_mut(&mut self.editor)
+                                .new_cursor
+                                .set_insert(selection);
+                            self.apply_deltas(&[(delta, inval_lines)]);
                             Arc::make_mut(&mut self.editor)
                                 .add_snippet_placeholders(snippet_tabs);
                             return Ok(());
@@ -538,12 +538,13 @@ impl LapceEditorBufferData {
             }
         }
 
-        let offset = self.editor.cursor.offset();
-        let start_offset = self.buffer.prev_code_boundary(offset);
-        let end_offset = self.buffer.next_code_boundary(offset);
-        let selection = Selection::region(start_offset, end_offset);
+        let offset = self.editor.new_cursor.offset();
+        let start_offset = self.doc.buffer().prev_code_boundary(offset);
+        let end_offset = self.doc.buffer().next_code_boundary(offset);
+        let selection =
+            lapce_core::selection::Selection::region(start_offset, end_offset);
 
-        let delta = self.edit(
+        let (delta, inval_lines) = Arc::make_mut(&mut self.doc).do_raw_edit(
             &[
                 &[(
                     &selection,
@@ -552,11 +553,17 @@ impl LapceEditorBufferData {
                 &additioal_edit.unwrap_or_default()[..],
             ]
             .concat(),
-            true,
-            EditType::InsertChars,
+            lapce_core::editor::EditType::InsertChars,
         );
-        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
-        self.set_cursor_after_change(selection);
+        let selection = selection.apply_delta(
+            &delta,
+            true,
+            lapce_core::selection::InsertDrift::Default,
+        );
+        Arc::make_mut(&mut self.editor)
+            .new_cursor
+            .update_selection(self.doc.buffer(), selection);
+        self.apply_deltas(&[(delta, inval_lines)]);
         Ok(())
     }
 
@@ -572,25 +579,28 @@ impl LapceEditorBufferData {
 
     fn update_completion(&mut self, ctx: &mut EventCtx) {
         if self.get_mode() != Mode::Insert {
+            self.cancel_completion();
             return;
         }
-        if !self.buffer.loaded() {
+        if !self.doc.loaded() {
             return;
         }
-        if self.buffer.local() {
+        if !self.doc.content().is_file() {
             return;
         }
-        let offset = self.editor.cursor.offset();
-        let start_offset = self.buffer.prev_code_boundary(offset);
-        let end_offset = self.buffer.next_code_boundary(offset);
+        let offset = self.editor.new_cursor.offset();
+        let start_offset = self.doc.buffer().prev_code_boundary(offset);
+        let end_offset = self.doc.buffer().next_code_boundary(offset);
         let input = self
-            .buffer
+            .doc
+            .buffer()
             .slice_to_cow(start_offset..end_offset)
             .to_string();
         let char = if start_offset == 0 {
             "".to_string()
         } else {
-            self.buffer
+            self.doc
+                .buffer()
                 .slice_to_cow(start_offset - 1..start_offset)
                 .to_string()
         };
@@ -602,7 +612,7 @@ impl LapceEditorBufferData {
 
         if completion.status != CompletionStatus::Inactive
             && completion.offset == start_offset
-            && completion.buffer_id == self.buffer.id()
+            && completion.buffer_id == self.doc.id()
         {
             completion.update_input(input.clone());
 
@@ -611,12 +621,9 @@ impl LapceEditorBufferData {
                 completion.request(
                     self.proxy.clone(),
                     completion.request_id,
-                    self.buffer.id(),
+                    self.doc.id(),
                     "".to_string(),
-                    self.buffer.offset_to_position(
-                        start_offset,
-                        self.config.editor.tab_width,
-                    ),
+                    self.doc.buffer().offset_to_position(start_offset),
                     completion.id,
                     event_sink,
                 );
@@ -627,10 +634,9 @@ impl LapceEditorBufferData {
                 completion.request(
                     self.proxy.clone(),
                     completion.request_id,
-                    self.buffer.id(),
+                    self.doc.id(),
                     input,
-                    self.buffer
-                        .offset_to_position(offset, self.config.editor.tab_width),
+                    self.doc.buffer().offset_to_position(offset),
                     completion.id,
                     event_sink,
                 );
@@ -639,7 +645,7 @@ impl LapceEditorBufferData {
             return;
         }
 
-        completion.buffer_id = self.buffer.id();
+        completion.buffer_id = self.doc.id();
         completion.offset = start_offset;
         completion.input = input.clone();
         completion.status = CompletionStatus::Started;
@@ -649,10 +655,9 @@ impl LapceEditorBufferData {
         completion.request(
             self.proxy.clone(),
             completion.request_id,
-            self.buffer.id(),
+            self.doc.id(),
             "".to_string(),
-            self.buffer
-                .offset_to_position(start_offset, self.config.editor.tab_width),
+            self.doc.buffer().offset_to_position(start_offset),
             completion.id,
             event_sink.clone(),
         );
@@ -660,10 +665,9 @@ impl LapceEditorBufferData {
             completion.request(
                 self.proxy.clone(),
                 completion.request_id,
-                self.buffer.id(),
+                self.doc.id(),
                 input,
-                self.buffer
-                    .offset_to_position(offset, self.config.editor.tab_width),
+                self.doc.buffer().offset_to_position(offset),
                 completion.id,
                 event_sink,
             );
@@ -696,7 +700,7 @@ impl LapceEditorBufferData {
             return;
         }
 
-        hover.buffer_id = self.buffer.id();
+        hover.buffer_id = self.doc.id();
         hover.offset = start_offset;
         hover.status = HoverStatus::Started;
         Arc::make_mut(&mut hover.items).clear();
@@ -706,7 +710,7 @@ impl LapceEditorBufferData {
         hover.request(
             self.proxy.clone(),
             hover.request_id,
-            self.buffer.id(),
+            self.doc.id(),
             self.buffer
                 .offset_to_position(start_offset, self.config.editor.tab_width),
             hover.id,
@@ -1067,6 +1071,26 @@ impl LapceEditorBufferData {
                     ));
                 }
             }
+        }
+    }
+
+    fn update_snippet_offset(&mut self, delta: &RopeDelta) {
+        if let Some(snippet) = &self.editor.snippet {
+            let mut transformer = Transformer::new(delta);
+            Arc::make_mut(&mut self.editor).snippet = Some(
+                snippet
+                    .iter()
+                    .map(|(tab, (start, end))| {
+                        (
+                            *tab,
+                            (
+                                transformer.transform(*start, false),
+                                transformer.transform(*end, true),
+                            ),
+                        )
+                    })
+                    .collect(),
+            );
         }
     }
 
@@ -1672,6 +1696,13 @@ impl LapceEditorBufferData {
         );
     }
 
+    fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
+        for (delta, _) in deltas {
+            self.inactive_apply_delta(delta);
+            self.update_snippet_offset(delta);
+        }
+    }
+
     fn run_move_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -1691,6 +1722,21 @@ impl LapceEditorBufferData {
             register,
             &self.config,
         );
+        if let Some(snippet) = self.editor.snippet.as_ref() {
+            let offset = self.editor.new_cursor.offset();
+            let mut within_region = false;
+            for (_, (start, end)) in snippet {
+                if offset >= *start && offset <= *end {
+                    within_region = true;
+                    break;
+                }
+            }
+            if !within_region {
+                Arc::make_mut(&mut self.editor).snippet = None;
+            }
+        }
+        self.cancel_completion();
+        self.cancel_hover();
         CommandExecuted::Yes
     }
 
@@ -1701,12 +1747,14 @@ impl LapceEditorBufferData {
     ) -> CommandExecuted {
         let doc = Arc::make_mut(&mut self.doc);
         let register = Arc::make_mut(&mut self.main_split.register);
-        doc.do_edit(
+        let deltas = doc.do_edit(
             &mut Arc::make_mut(&mut self.editor).new_cursor,
             cmd,
             self.config.lapce.modal,
             register,
         );
+        self.update_completion(ctx);
+        self.apply_deltas(&deltas);
 
         CommandExecuted::Yes
     }
@@ -1912,6 +1960,108 @@ impl LapceEditorBufferData {
                     }
                 }
             }
+            ListSelect => {
+                let item = self.completion.current_item().to_owned();
+                self.cancel_completion();
+                if item.data.is_some() {
+                    let view_id = self.editor.view_id;
+                    let buffer_id = self.buffer.id();
+                    let rev = self.buffer.rev();
+                    let offset = self.editor.cursor.offset();
+                    let event_sink = ctx.get_external_handle();
+                    self.proxy.completion_resolve(
+                        buffer_id,
+                        item.clone(),
+                        Box::new(move |result| {
+                            let mut item = item.clone();
+                            if let Ok(res) = result {
+                                if let Ok(i) =
+                                    serde_json::from_value::<CompletionItem>(res)
+                                {
+                                    item = i;
+                                }
+                            };
+                            let _ = event_sink.submit_command(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ResolveCompletion(
+                                    buffer_id,
+                                    rev,
+                                    offset,
+                                    Box::new(item),
+                                ),
+                                Target::Widget(view_id),
+                            );
+                        }),
+                    );
+                } else {
+                    let _ = self.apply_completion_item(&item);
+                }
+            }
+            ListNext => {
+                let completion = Arc::make_mut(&mut self.completion);
+                completion.next();
+            }
+            ListPrevious => {
+                let completion = Arc::make_mut(&mut self.completion);
+                completion.previous();
+            }
+            JumpToNextSnippetPlaceholder => {
+                if let Some(snippet) = self.editor.snippet.as_ref() {
+                    let mut current = 0;
+                    let offset = self.editor.new_cursor.offset();
+                    for (i, (_, (start, end))) in snippet.iter().enumerate() {
+                        if *start <= offset && offset <= *end {
+                            current = i;
+                            break;
+                        }
+                    }
+
+                    let last_placeholder = current + 1 >= snippet.len() - 1;
+
+                    if let Some((_, (start, end))) = snippet.get(current + 1) {
+                        let mut selection = lapce_core::selection::Selection::new();
+                        let region = lapce_core::selection::SelRegion::new(
+                            *start, *end, None,
+                        );
+                        selection.add_region(region);
+                        Arc::make_mut(&mut self.editor)
+                            .new_cursor
+                            .set_insert(selection);
+                    }
+
+                    if last_placeholder {
+                        Arc::make_mut(&mut self.editor).snippet = None;
+                    }
+                    self.cancel_completion();
+                }
+            }
+            JumpToPrevSnippetPlaceholder => {
+                if let Some(snippet) = self.editor.snippet.as_ref() {
+                    let mut current = 0;
+                    let offset = self.editor.new_cursor.offset();
+                    for (i, (_, (start, end))) in snippet.iter().enumerate() {
+                        if *start <= offset && offset <= *end {
+                            current = i;
+                            break;
+                        }
+                    }
+
+                    if current > 0 {
+                        if let Some((_, (start, end))) = snippet.get(current - 1) {
+                            let mut selection =
+                                lapce_core::selection::Selection::new();
+                            let region = lapce_core::selection::SelRegion::new(
+                                *start, *end, None,
+                            );
+                            selection.add_region(region);
+                            Arc::make_mut(&mut self.editor)
+                                .new_cursor
+                                .set_insert(selection);
+                        }
+                        self.cancel_completion();
+                    }
+                }
+            }
         }
         CommandExecuted::Yes
     }
@@ -1942,6 +2092,7 @@ impl LapceEditorBufferData {
         let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
         self.doc
             .do_multi_selection(ctx.text(), cursor, cmd, &self.config);
+        self.cancel_completion();
         CommandExecuted::Yes
     }
 
@@ -3610,11 +3761,12 @@ impl KeyPressFocus for LapceEditorBufferData {
         if self.get_mode() == Mode::Insert {
             let doc = Arc::make_mut(&mut self.doc);
             let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
-            doc.do_insert(cursor, c);
+            let deltas = doc.do_insert(cursor, c);
 
             self.update_selection_history();
             self.update_completion(ctx);
             self.cancel_hover();
+            self.apply_deltas(&deltas);
         } else if let Some(direction) = self.editor.inline_find.clone() {
             self.inline_find(direction.clone(), c);
             let editor = Arc::make_mut(&mut self.editor);

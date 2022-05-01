@@ -6,6 +6,7 @@ use druid::{Data, Env, EventCtx};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
+use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::mode::Mode;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use serde_json;
@@ -15,6 +16,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::command::CommandKind;
 use crate::{
     buffer::BufferContent,
     command::LAPCE_UI_COMMAND,
@@ -333,7 +335,31 @@ impl KeyPressFocus for PaletteViewData {
         mods: Modifiers,
         env: &Env,
     ) -> CommandExecuted {
-        todo!()
+        match &command.kind {
+            CommandKind::Focus(cmd) => match cmd {
+                FocusCommand::ListNext => {
+                    self.next(ctx);
+                }
+                FocusCommand::ListPrevious => {
+                    self.previous(ctx);
+                }
+                FocusCommand::ListSelect => {
+                    self.select(ctx);
+                }
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Edit(cmd) => match cmd {
+                EditCommand::DeleteBackward => {
+                    self.delete_backward(ctx);
+                }
+                EditCommand::DeleteToBeginningOfLine => {
+                    self.delete_to_beginning_of_line(ctx);
+                }
+                _ => return CommandExecuted::No,
+            },
+            _ => return CommandExecuted::No,
+        }
+        CommandExecuted::Yes
     }
 }
 

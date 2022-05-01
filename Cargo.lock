@@ -1795,6 +1795,7 @@ dependencies = [
  "itertools",
  "lapce-rpc",
  "log",
+ "lsp-types",
  "serde 1.0.130",
  "serde_json",
  "strum",

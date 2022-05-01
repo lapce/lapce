@@ -1069,6 +1069,32 @@ impl Editor {
                 cursor.update_selection(buffer, selection);
                 vec![(delta, inval_lines)]
             }
+            DeleteToBeginningOfLine => {
+                let selection = match cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        cursor.edit_selection(buffer)
+                    }
+                    CursorMode::Insert(_) => {
+                        let selection = cursor.edit_selection(buffer);
+
+                        let mut new_selection = Selection::new();
+                        for region in selection.regions() {
+                            let line = buffer.line_of_offset(region.end);
+                            let end = buffer.offset_of_line(line);
+                            let new_region = SelRegion::new(region.start, end, None);
+                            new_selection.add_region(new_region);
+                        }
+
+                        new_selection
+                    }
+                };
+                let (delta, inval_lines) =
+                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                cursor.update_selection(buffer, selection);
+                vec![(delta, inval_lines)]
+            }
             DeleteForwardAndInsert => {
                 let selection = cursor.edit_selection(buffer);
                 let (delta, inval_lines) =

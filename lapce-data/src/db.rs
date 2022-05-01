@@ -288,6 +288,7 @@ impl EditorInfo {
                     BufferContent::File(path.clone()),
                     tab_id,
                     event_sink,
+                    data.proxy.clone(),
                 ));
                 data.open_docs.insert(path.clone(), doc);
             }

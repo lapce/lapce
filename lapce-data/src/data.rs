@@ -903,10 +903,9 @@ impl LapceTabData {
                 editor.window_origin - self.window_origin.to_vec2()
             }
             BufferContent::File(path) => {
-                let buffer = self.main_split.open_files.get(path).unwrap();
+                let doc = self.main_split.open_docs.get(path).unwrap();
                 let offset = self.completion.offset;
-                let (line, col) =
-                    buffer.offset_to_line_col(offset, self.config.editor.tab_width);
+                let (line, col) = doc.buffer().offset_to_line_col(offset);
                 let width = config.editor_char_width(text);
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
@@ -2402,6 +2401,7 @@ impl LapceMainSplitData {
                 BufferContent::File(path.clone()),
                 *self.tab_id,
                 ctx.get_external_handle(),
+                self.proxy.clone(),
             ));
             doc.retrieve_file(self.proxy.clone(), vec![(editor_view_id, location)]);
             self.open_docs.insert(path.clone(), doc);
@@ -2520,6 +2520,7 @@ impl LapceMainSplitData {
                 BufferContent::Local(LocalBufferKind::Empty),
                 tab_id,
                 event_sink.clone(),
+                proxy.clone(),
             )),
         );
         let value_docs = im::HashMap::new();
@@ -2638,6 +2639,7 @@ impl LapceMainSplitData {
             BufferContent::Local(buffer_kind.clone()),
             *self.tab_id,
             event_sink,
+            self.proxy.clone(),
         );
         self.local_docs.insert(buffer_kind.clone(), Arc::new(doc));
 

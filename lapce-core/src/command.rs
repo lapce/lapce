@@ -26,6 +26,8 @@ pub enum EditCommand {
     DeleteWordForward,
     #[strum(serialize = "delete_word_backward")]
     DeleteWordBackward,
+    #[strum(serialize = "delete_to_beginning_of_line")]
+    DeleteToBeginningOfLine,
     #[strum(message = "Join Lines")]
     #[strum(serialize = "join_lines")]
     JoinLines,
@@ -176,6 +178,16 @@ pub enum FocusCommand {
     ClearSearch,
     #[strum(serialize = "search_in_view")]
     SearchInView,
+    #[strum(serialize = "list.select")]
+    ListSelect,
+    #[strum(serialize = "list.next")]
+    ListNext,
+    #[strum(serialize = "list.previous")]
+    ListPrevious,
+    #[strum(serialize = "jump_to_next_snippet_placeholder")]
+    JumpToNextSnippetPlaceholder,
+    #[strum(serialize = "jump_to_prev_snippet_placeholder")]
+    JumpToPrevSnippetPlaceholder,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]

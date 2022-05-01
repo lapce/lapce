@@ -17,7 +17,7 @@ use lapce_core::{
     buffer::{Buffer, InvalLines},
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
-    editor::Editor,
+    editor::{EditType, Editor},
     mode::{Mode, MotionMode},
     movement::{LinePosition, Movement},
     register::{self, Clipboard, Register, RegisterData},
@@ -63,9 +63,10 @@ pub struct Document {
     line_styles: Rc<RefCell<LineStyles>>,
     semantic_styles: Option<Arc<Spans<Style>>>,
     text_layouts: Rc<RefCell<HashMap<usize, Arc<PietTextLayout>>>>,
-    event_sink: ExtEventSink,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
+    event_sink: ExtEventSink,
+    proxy: Arc<LapceProxy>,
 }
 
 impl Document {
@@ -73,6 +74,7 @@ impl Document {
         content: BufferContent,
         tab_id: WidgetId,
         event_sink: ExtEventSink,
+        proxy: Arc<LapceProxy>,
     ) -> Self {
         Self {
             id: BufferId::next(),
@@ -83,10 +85,19 @@ impl Document {
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             text_layouts: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
-            event_sink,
             load_started: Rc::new(RefCell::new(false)),
             loaded: false,
+            event_sink,
+            proxy,
         }
+    }
+
+    pub fn id(&self) -> BufferId {
+        self.id
+    }
+
+    pub fn loaded(&self) -> bool {
+        self.loaded
     }
 
     pub fn content(&self) -> &BufferContent {
@@ -100,6 +111,7 @@ impl Document {
     pub fn load_content(&mut self, content: &str) {
         self.buffer.load_content(content);
         self.buffer.detect_indent(self.syntax.as_ref());
+        self.loaded = true;
         self.on_update(None);
     }
 
@@ -145,7 +157,7 @@ impl Document {
     }
 
     fn on_update(&mut self, delta: Option<&RopeDelta>) {
-        self.clear_text_layout_cache();
+        self.clear_style_cache();
         self.trigger_syntax_change(delta);
         self.notify_special();
     }
@@ -270,21 +282,42 @@ impl Document {
         if let Some(syntax) = self.syntax.as_mut() {
             syntax.lens.apply_delta(delta);
         }
-
-        self.line_styles.borrow_mut().clear();
     }
 
     fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines)]) {
-        for (delta, _) in deltas {
+        let rev = self.rev() - deltas.len() as u64;
+        for (i, (delta, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
-            self.on_update(Some(delta));
+            self.proxy.update(self.id, delta, rev + i as u64 + 1);
         }
+
+        let delta = if deltas.len() == 1 {
+            Some(&deltas[0].0)
+        } else {
+            None
+        };
+        self.on_update(delta);
     }
 
-    pub fn do_insert(&mut self, cursor: &mut Cursor, s: &str) {
+    pub fn do_insert(
+        &mut self,
+        cursor: &mut Cursor,
+        s: &str,
+    ) -> Vec<(RopeDelta, InvalLines)> {
         let deltas =
             Editor::insert(cursor, &mut self.buffer, s, self.syntax.as_ref());
         self.apply_deltas(&deltas);
+        deltas
+    }
+
+    pub fn do_raw_edit(
+        &mut self,
+        edits: &[(impl AsRef<Selection>, &str)],
+        edit_type: EditType,
+    ) -> (RopeDelta, InvalLines) {
+        let (delta, inval_lines) = self.buffer.edit(edits, edit_type);
+        self.apply_deltas(&[(delta.clone(), inval_lines.clone())]);
+        (delta, inval_lines)
     }
 
     pub fn do_edit(
@@ -293,7 +326,7 @@ impl Document {
         cmd: &EditCommand,
         modal: bool,
         register: &mut Register,
-    ) {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         let mut clipboard = SystemClipboard {};
         let deltas = Editor::do_edit(
             curosr,
@@ -305,6 +338,7 @@ impl Document {
             register,
         );
         self.apply_deltas(&deltas);
+        deltas
     }
 
     pub fn do_multi_selection(
@@ -807,7 +841,7 @@ impl Document {
         }
     }
 
-    fn move_selection(
+    pub fn move_selection(
         &self,
         text: &mut PietText,
         selection: &Selection,
