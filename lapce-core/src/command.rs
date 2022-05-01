@@ -188,6 +188,14 @@ pub enum FocusCommand {
     JumpToNextSnippetPlaceholder,
     #[strum(serialize = "jump_to_prev_snippet_placeholder")]
     JumpToPrevSnippetPlaceholder,
+    #[strum(serialize = "page_up")]
+    PageUp,
+    #[strum(serialize = "page_down")]
+    PageDown,
+    #[strum(serialize = "scroll_up")]
+    ScrollUp,
+    #[strum(serialize = "scroll_down")]
+    ScrollDown,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]

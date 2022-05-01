@@ -1405,20 +1405,19 @@ impl LapceEditorBufferData {
         None
     }
 
-    fn page_move(
-        &mut self,
-        ctx: &mut EventCtx,
-        down: bool,
-        mods: Modifiers,
-        _env: &Env,
-    ) {
+    fn page_move(&mut self, ctx: &mut EventCtx, down: bool, mods: Modifiers) {
         let line_height = self.config.editor.line_height as f64;
         let lines =
             (self.editor.size.borrow().height / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
-        self.do_move(
-            if down { &Movement::Down } else { &Movement::Up },
-            lines,
+        self.run_move_command(
+            ctx,
+            if down {
+                &lapce_core::movement::Movement::Down
+            } else {
+                &lapce_core::movement::Movement::Up
+            },
+            Some(lines),
             mods,
         );
         let rect = Rect::ZERO
@@ -1440,16 +1439,13 @@ impl LapceEditorBufferData {
         down: bool,
         count: usize,
         mods: Modifiers,
-        _env: &Env,
     ) {
         let line_height = self.config.editor.line_height as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
 
-        let offset = self.editor.cursor.offset();
-        let (line, _col) = self
-            .buffer
-            .offset_to_line_col(offset, self.config.editor.tab_width);
+        let offset = self.editor.new_cursor.offset();
+        let (line, _col) = self.doc.buffer().offset_to_line_col(offset);
         let top = self.editor.scroll_offset.y + diff;
         let bottom = top + self.editor.size.borrow().height;
 
@@ -1469,9 +1465,21 @@ impl LapceEditorBufferData {
 
         match new_line.cmp(&line) {
             Ordering::Greater => {
-                self.do_move(&Movement::Down, new_line - line, mods)
+                self.run_move_command(
+                    ctx,
+                    &lapce_core::movement::Movement::Down,
+                    Some(new_line - line),
+                    mods,
+                );
             }
-            Ordering::Less => self.do_move(&Movement::Up, line - new_line, mods),
+            Ordering::Less => {
+                self.run_move_command(
+                    ctx,
+                    &lapce_core::movement::Movement::Up,
+                    Some(line - new_line),
+                    mods,
+                );
+            }
             _ => (),
         };
 
@@ -1758,6 +1766,7 @@ impl LapceEditorBufferData {
         &mut self,
         ctx: &mut EventCtx,
         cmd: &FocusCommand,
+        count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
         use FocusCommand::*;
@@ -2056,6 +2065,18 @@ impl LapceEditorBufferData {
                         self.cancel_completion();
                     }
                 }
+            }
+            PageUp => {
+                self.page_move(ctx, false, mods);
+            }
+            PageDown => {
+                self.page_move(ctx, true, mods);
+            }
+            ScrollUp => {
+                self.scroll(ctx, false, count.unwrap_or(1), mods);
+            }
+            ScrollDown => {
+                self.scroll(ctx, true, count.unwrap_or(1), mods);
             }
         }
         CommandExecuted::Yes
@@ -2717,16 +2738,16 @@ impl LapceEditorBufferData {
                 ));
             }
             LapceCommand::ScrollDown => {
-                self.scroll(ctx, true, count.unwrap_or(1), mods, env);
+                self.scroll(ctx, true, count.unwrap_or(1), mods);
             }
             LapceCommand::ScrollUp => {
-                self.scroll(ctx, false, count.unwrap_or(1), mods, env);
+                self.scroll(ctx, false, count.unwrap_or(1), mods);
             }
             LapceCommand::PageDown => {
-                self.page_move(ctx, true, mods, env);
+                self.page_move(ctx, true, mods);
             }
             LapceCommand::PageUp => {
-                self.page_move(ctx, false, mods, env);
+                self.page_move(ctx, false, mods);
             }
             LapceCommand::JumpLocationBackward => {
                 self.jump_location_backward(ctx, env);
@@ -3786,7 +3807,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 let movement = cmd.to_movement(count);
                 self.run_move_command(ctx, &movement, count, mods)
             }
-            CommandKind::Focus(cmd) => self.run_focus_command(ctx, cmd, mods),
+            CommandKind::Focus(cmd) => self.run_focus_command(ctx, cmd, count, mods),
             CommandKind::MotionMode(cmd) => self.run_motion_mode_command(ctx, cmd),
             CommandKind::MultiSelection(cmd) => {
                 self.run_multi_selection_command(ctx, cmd)
