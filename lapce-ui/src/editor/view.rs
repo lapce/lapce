@@ -639,7 +639,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if editor_data.buffer.dirty() != old_editor_data.buffer.dirty() {
             ctx.request_paint();
         }
-        if editor_data.editor.cursor != old_editor_data.editor.cursor {
+        if editor_data.editor.new_cursor != old_editor_data.editor.new_cursor {
             ctx.request_paint();
         }
 

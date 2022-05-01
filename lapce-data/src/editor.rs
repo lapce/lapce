@@ -1054,20 +1054,15 @@ impl LapceEditorBufferData {
     }
 
     fn initiate_diagnositcs_offset(&mut self) {
-        let buffer = self.buffer.clone();
-        let tab_width = self.config.editor.tab_width;
+        let doc = self.doc.clone();
         if let Some(diagnostics) = self.diagnostics_mut() {
             for diagnostic in diagnostics.iter_mut() {
                 if diagnostic.range.is_none() {
                     diagnostic.range = Some((
-                        buffer.offset_of_position(
-                            &diagnostic.diagnositc.range.start,
-                            tab_width,
-                        ),
-                        buffer.offset_of_position(
-                            &diagnostic.diagnositc.range.end,
-                            tab_width,
-                        ),
+                        doc.buffer()
+                            .offset_of_position(&diagnostic.diagnositc.range.start),
+                        doc.buffer()
+                            .offset_of_position(&diagnostic.diagnositc.range.end),
                     ));
                 }
             }
@@ -1095,8 +1090,7 @@ impl LapceEditorBufferData {
     }
 
     fn update_diagnositcs_offset(&mut self, delta: &RopeDelta) {
-        let buffer = self.buffer.clone();
-        let tab_width = self.config.editor.tab_width;
+        let doc = self.doc.clone();
         if let Some(diagnostics) = self.diagnostics_mut() {
             for diagnostic in diagnostics.iter_mut() {
                 let mut transformer = Transformer::new(delta);
@@ -1108,11 +1102,11 @@ impl LapceEditorBufferData {
                 diagnostic.range = Some((new_start, new_end));
                 if start != new_start {
                     diagnostic.diagnositc.range.start =
-                        buffer.offset_to_position(new_start, tab_width);
+                        doc.buffer().offset_to_position(new_start);
                 }
                 if end != new_end {
                     diagnostic.diagnositc.range.end =
-                        buffer.offset_to_position(new_end, tab_width);
+                        doc.buffer().offset_to_position(new_end);
                 }
             }
         }
@@ -1700,6 +1694,7 @@ impl LapceEditorBufferData {
         for (delta, _) in deltas {
             self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
+            self.update_diagnositcs_offset(delta);
         }
     }
 
@@ -3783,6 +3778,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         mods: Modifiers,
         env: &Env,
     ) -> CommandExecuted {
+        self.initiate_diagnositcs_offset();
         let old_doc = self.doc.clone();
         let executed = match &command.kind {
             CommandKind::Edit(cmd) => self.run_edit_command(ctx, cmd),

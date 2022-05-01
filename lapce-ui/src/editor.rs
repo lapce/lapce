@@ -1484,7 +1484,7 @@ impl LapceEditor {
 
         let width = data.config.editor_char_width(ctx.text());
         let mut current = None;
-        let cursor_offset = data.editor.cursor.offset();
+        let cursor_offset = data.editor.new_cursor.offset();
         if let Some(diagnostics) = data.diagnostics() {
             for diagnostic in diagnostics.iter() {
                 let start = diagnostic.diagnositc.range.start;
@@ -1495,8 +1495,7 @@ impl LapceEditor {
                     let start_offset = if let Some(range) = diagnostic.range {
                         range.0
                     } else {
-                        data.buffer
-                            .offset_of_position(&start, data.config.editor.tab_width)
+                        data.doc.buffer().offset_of_position(&start)
                     };
                     if start_offset == cursor_offset {
                         current = Some(diagnostic.clone());
@@ -1512,20 +1511,15 @@ impl LapceEditor {
                         let x0 = if line == start.line as usize {
                             start.character as f64 * width
                         } else {
-                            let (_, col) = data.buffer.offset_to_line_col(
+                            let (_, col) = data.doc.buffer().offset_to_line_col(
                                 data.buffer.first_non_blank_character_on_line(line),
-                                data.config.editor.tab_width,
                             );
                             col as f64 * width
                         };
                         let x1 = if line == end.line as usize {
                             end.character as f64 * width
                         } else {
-                            (data.buffer.line_end_col(
-                                line,
-                                false,
-                                data.config.editor.tab_width,
-                            ) + 1) as f64
+                            (data.doc.buffer().line_end_col(line, false) + 1) as f64
                                 * width
                         };
                         let _y1 = (line + 1) as f64 * line_height;
