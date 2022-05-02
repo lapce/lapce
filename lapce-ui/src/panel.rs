@@ -384,7 +384,6 @@ impl PanelMainHeader {
                 LapceCommandNew {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::HidePanel),
                     data: Some(json!(self.kind)),
-                    palette_desc: None,
                 },
                 Target::Widget(data.id),
             ),
@@ -420,7 +419,6 @@ impl PanelMainHeader {
                                 LapceWorkbenchCommand::ToggleMaximizedPanel,
                             ),
                             data: Some(json!(self.kind)),
-                            palette_desc: None,
                         },
                         Target::Widget(data.id),
                     ),

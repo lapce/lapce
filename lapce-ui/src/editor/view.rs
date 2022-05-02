@@ -561,7 +561,6 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LapceCommandNew {
                         kind: CommandKind::Edit(EditCommand::InsertMode),
                         data: None,
-                        palette_desc: None,
                     },
                     Target::Widget(self.view_id),
                 ));
@@ -571,7 +570,6 @@ impl Widget<LapceTabData> for LapceEditorView {
                     LapceCommandNew {
                         kind: CommandKind::Edit(EditCommand::NormalMode),
                         data: None,
-                        palette_desc: None,
                     },
                     Target::Widget(self.view_id),
                 ));

@@ -82,7 +82,6 @@ impl LapceStatusNew {
                         LapceCommandNew {
                             kind: CommandKind::Workbench(cmd),
                             data: None,
-                            palette_desc: None,
                         },
                         Target::Widget(data.id),
                     ),

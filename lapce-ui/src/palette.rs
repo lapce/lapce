@@ -613,8 +613,8 @@ impl NewPaletteContent {
                 PaletteItemContent::Command(command) => (
                     None,
                     command
-                        .palette_desc
-                        .as_ref()
+                        .kind
+                        .desc()
                         .map(|m| m.to_string())
                         .unwrap_or_else(|| "".to_string()),
                     indices.to_vec(),

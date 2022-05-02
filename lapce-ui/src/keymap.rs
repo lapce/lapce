@@ -265,7 +265,9 @@ impl Widget<LapceTabData> for LapceKeymap {
                 if let Some(cmd) = data.keypress.commands.get(&keymap.command) {
                     let text_layout = ctx
                         .text()
-                        .new_text_layout(cmd.kind.desc())
+                        .new_text_layout(
+                            cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
+                        )
                         .font(FontFamily::SYSTEM_UI, 13.0)
                         .text_color(
                             data.config
@@ -351,7 +353,12 @@ impl Widget<LapceTabData> for LapceKeymap {
                 if let Some(command) = commands_without_keymap.get(j) {
                     let text_layout = ctx
                         .text()
-                        .new_text_layout(command.kind.desc())
+                        .new_text_layout(
+                            command
+                                .kind
+                                .desc()
+                                .unwrap_or_else(|| command.kind.str()),
+                        )
                         .font(FontFamily::SYSTEM_UI, 13.0)
                         .text_color(
                             data.config
@@ -444,7 +451,9 @@ impl Widget<LapceTabData> for LapceKeymap {
             if let Some(cmd) = data.keypress.commands.get(&keymap.command) {
                 let text = ctx
                     .text()
-                    .new_text_layout(cmd.kind.desc())
+                    .new_text_layout(
+                        cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
+                    )
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(
                         data.config

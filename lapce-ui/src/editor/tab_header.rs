@@ -177,7 +177,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                         LapceCommandNew {
                             kind: CommandKind::Focus(FocusCommand::SplitVertical),
                             data: None,
-                            palette_desc: None,
                         },
                         Target::Widget(self.widget_id),
                     ),

@@ -491,7 +491,7 @@ impl KeyPressData {
                 .iter()
                 .filter_map(|i| {
                     let cmd = commands.get(&i.command).unwrap();
-                    let text = cmd.kind.desc();
+                    let text = cmd.kind.desc().unwrap_or_else(|| cmd.kind.str());
 
                     matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                 })
@@ -503,7 +503,7 @@ impl KeyPressData {
                 commands_without_keymap
                     .iter()
                     .filter_map(|i| {
-                        let text = i.kind.desc();
+                        let text = i.kind.desc().unwrap_or_else(|| i.kind.str());
 
                         matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                     })

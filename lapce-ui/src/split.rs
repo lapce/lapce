@@ -984,7 +984,9 @@ impl Widget<LapceTabData> for LapceSplitNew {
             .map(|(i, cmd)| {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(cmd.palette_desc.as_ref().unwrap().to_string())
+                    .new_text_layout(
+                        cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
+                    )
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(
                         data.config
@@ -1184,7 +1186,6 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             LapceCommandNew {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
-                palette_desc: Some("Show All Commands".to_string()),
             },
             if modal {
                 LapceCommandNew {
@@ -1192,30 +1193,22 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
                         LapceWorkbenchCommand::DisableModal,
                     ),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::DisableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
                 }
             } else {
                 LapceCommandNew {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::EnableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
                 }
             },
             LapceCommandNew {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                 data: None,
-                palette_desc: Some("Open Folder".to_string()),
             },
             LapceCommandNew {
                 kind: CommandKind::Workbench(
                     LapceWorkbenchCommand::PaletteWorkspace,
                 ),
                 data: None,
-                palette_desc: Some("Open Recent".to_string()),
             },
         ]
     } else {
@@ -1223,7 +1216,6 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
             LapceCommandNew {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
-                palette_desc: Some("Show All Commands".to_string()),
             },
             if modal {
                 LapceCommandNew {
@@ -1231,23 +1223,16 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
                         LapceWorkbenchCommand::DisableModal,
                     ),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::DisableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
                 }
             } else {
                 LapceCommandNew {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::EnableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
                 }
             },
             LapceCommandNew {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::Palette),
                 data: None,
-                palette_desc: Some("Go To File".to_string()),
             },
         ]
     }

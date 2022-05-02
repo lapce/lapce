@@ -206,7 +206,6 @@ impl LapceEditor {
                     .to_string(),
                 command: LapceCommandNew {
                     kind: CommandKind::Focus(FocusCommand::GotoDefinition),
-                    palette_desc: None,
                     data: None,
                 },
             },
@@ -216,7 +215,6 @@ impl LapceEditor {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteCommand,
                     ),
-                    palette_desc: None,
                     data: None,
                 },
             },

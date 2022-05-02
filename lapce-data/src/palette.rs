@@ -795,7 +795,7 @@ impl PaletteViewData {
                     return None;
                 }
 
-                c.palette_desc.as_ref().map(|m| NewPaletteItem {
+                c.kind.desc().as_ref().map(|m| NewPaletteItem {
                     content: PaletteItemContent::Command(c.clone()),
                     filter_text: m.to_string(),
                     score: 0,

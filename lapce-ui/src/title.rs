@@ -233,7 +233,6 @@ impl Widget<LapceWindowData> for Title {
                 .to_string(),
             command: LapceCommandNew {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
-                palette_desc: None,
                 data: None,
             },
         }];
@@ -246,7 +245,6 @@ impl Widget<LapceWindowData> for Title {
                     .to_string(),
                 command: LapceCommandNew {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectWsl),
-                    palette_desc: None,
                     data: None,
                 },
             });
@@ -259,7 +257,6 @@ impl Widget<LapceWindowData> for Title {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::DisconnectRemote,
                     ),
-                    palette_desc: None,
                     data: None,
                 },
             });
@@ -326,7 +323,6 @@ impl Widget<LapceWindowData> for Title {
                     .to_string(),
                 command: LapceCommandNew {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
-                    palette_desc: None,
                     data: None,
                 },
             },
@@ -339,7 +335,6 @@ impl Widget<LapceWindowData> for Title {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteWorkspace,
                     ),
-                    palette_desc: None,
                     data: None,
                 },
             },
@@ -413,7 +408,6 @@ impl Widget<LapceWindowData> for Title {
                         kind: CommandKind::Workbench(
                             LapceWorkbenchCommand::CheckoutBranch,
                         ),
-                        palette_desc: None,
                         data: Some(json!(b.to_string())),
                     },
                 })
@@ -460,7 +454,6 @@ impl Widget<LapceWindowData> for Title {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteCommand,
                     ),
-                    palette_desc: None,
                     data: None,
                 },
             },
@@ -473,7 +466,6 @@ impl Widget<LapceWindowData> for Title {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::OpenSettings,
                     ),
-                    palette_desc: None,
                     data: None,
                 },
             },
@@ -486,7 +478,6 @@ impl Widget<LapceWindowData> for Title {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::OpenKeyboardShortcuts,
                     ),
-                    palette_desc: None,
                     data: None,
                 },
             },

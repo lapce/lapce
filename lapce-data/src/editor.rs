@@ -795,7 +795,6 @@ impl LapceEditorBufferData {
                                     FocusCommand::SearchForward,
                                 ),
                                 data: None,
-                                palette_desc: None,
                             },
                             Target::Widget(parent_view_id),
                         ));
@@ -1625,7 +1624,6 @@ impl LapceEditorBufferData {
                 LapceCommandNew {
                     kind: CommandKind::Focus(FocusCommand::GotoDefinition),
                     data: None,
-                    palette_desc: None,
                 },
                 Target::Widget(self.editor.view_id),
             ));
@@ -1871,7 +1869,6 @@ impl LapceEditorBufferData {
                                     FocusCommand::SearchBackward,
                                 ),
                                 data: None,
-                                palette_desc: None,
                             },
                             Target::Widget(parent_view_id),
                         ));
@@ -2206,7 +2203,6 @@ impl LapceEditorBufferData {
                                 MultiSelectionCommand::SelectAll,
                             ),
                             data: None,
-                            palette_desc: None,
                         },
                         Target::Widget(find_view_id),
                     ));
@@ -3665,7 +3661,6 @@ impl LapceEditorBufferData {
                                 MultiSelectionCommand::SelectAll,
                             ),
                             data: None,
-                            palette_desc: None,
                         },
                         Target::Widget(find_view_id),
                     ));
@@ -3742,7 +3737,6 @@ impl LapceEditorBufferData {
                                     FocusCommand::SearchBackward,
                                 ),
                                 data: None,
-                                palette_desc: None,
                             },
                             Target::Widget(parent_view_id),
                         ));

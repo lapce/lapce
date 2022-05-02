@@ -372,7 +372,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                                                 FocusCommand::SearchInView,
                                             ),
                                             data: None,
-                                            palette_desc: None,
                                         },
                                         Target::Widget(widget_id),
                                     ));

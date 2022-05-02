@@ -47,7 +47,7 @@ pub struct LapceCommandNew {
     // pub cmd: String,
     pub kind: CommandKind,
     pub data: Option<serde_json::Value>,
-    pub palette_desc: Option<String>,
+    // pub palette_desc: Option<String>,
     // pub target: CommandTarget,
 }
 
@@ -62,26 +62,14 @@ pub enum CommandKind {
 }
 
 impl CommandKind {
-    pub fn desc(&self) -> &'static str {
+    pub fn desc(&self) -> Option<&'static str> {
         match &self {
-            CommandKind::Workbench(cmd) => {
-                cmd.get_message().unwrap_or_else(|| cmd.into())
-            }
-            CommandKind::Edit(cmd) => {
-                cmd.get_message().unwrap_or_else(|| cmd.into())
-            }
-            CommandKind::Move(cmd) => {
-                cmd.get_message().unwrap_or_else(|| cmd.into())
-            }
-            CommandKind::Focus(cmd) => {
-                cmd.get_message().unwrap_or_else(|| cmd.into())
-            }
-            CommandKind::MotionMode(cmd) => {
-                cmd.get_message().unwrap_or_else(|| cmd.into())
-            }
-            CommandKind::MultiSelection(cmd) => {
-                cmd.get_message().unwrap_or_else(|| cmd.into())
-            }
+            CommandKind::Workbench(cmd) => cmd.get_message(),
+            CommandKind::Edit(cmd) => cmd.get_message(),
+            CommandKind::Move(cmd) => cmd.get_message(),
+            CommandKind::Focus(cmd) => cmd.get_message(),
+            CommandKind::MotionMode(cmd) => cmd.get_message(),
+            CommandKind::MultiSelection(cmd) => cmd.get_message(),
         }
     }
 
@@ -121,7 +109,6 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             kind: CommandKind::Workbench(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
         };
         commands.insert(c.to_string(), command);
     }
@@ -130,7 +117,6 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             kind: CommandKind::Edit(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
         };
         commands.insert(c.to_string(), command);
     }
@@ -139,7 +125,6 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             kind: CommandKind::Move(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
         };
         commands.insert(c.to_string(), command);
     }
@@ -148,7 +133,6 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             kind: CommandKind::Focus(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
         };
         commands.insert(c.to_string(), command);
     }
@@ -157,7 +141,6 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             kind: CommandKind::MotionMode(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
         };
         commands.insert(c.to_string(), command);
     }
@@ -166,7 +149,6 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
         let command = LapceCommandNew {
             kind: CommandKind::MultiSelection(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
         };
         commands.insert(c.to_string(), command);
     }
@@ -269,6 +251,7 @@ pub enum LapceWorkbenchCommand {
     PaletteLine,
 
     #[strum(serialize = "palette")]
+    #[strum(message = "Go to File")]
     Palette,
 
     #[strum(serialize = "palette.symbol")]

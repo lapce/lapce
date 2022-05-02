@@ -37,7 +37,6 @@ impl FindBox {
                     LapceCommandNew {
                         kind: CommandKind::Focus(FocusCommand::SearchBackward),
                         data: None,
-                        palette_desc: None,
                     },
                     Target::Widget(parent_view_id),
                 ),
@@ -50,7 +49,6 @@ impl FindBox {
                     LapceCommandNew {
                         kind: CommandKind::Focus(FocusCommand::SearchForward),
                         data: None,
-                        palette_desc: None,
                     },
                     Target::Widget(parent_view_id),
                 ),
@@ -63,7 +61,6 @@ impl FindBox {
                     LapceCommandNew {
                         kind: CommandKind::Focus(FocusCommand::ClearSearch),
                         data: None,
-                        palette_desc: None,
                     },
                     Target::Widget(parent_view_id),
                 ),
