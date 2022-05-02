@@ -382,13 +382,9 @@ impl PanelMainHeader {
             command: Command::new(
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::HidePanel.to_string(),
-                    kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::TogglePanelVisual,
-                    ),
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::HidePanel),
                     data: Some(json!(self.kind)),
                     palette_desc: None,
-                    target: CommandTarget::Workbench,
                 },
                 Target::Widget(data.id),
             ),
@@ -420,14 +416,11 @@ impl PanelMainHeader {
                     command: Command::new(
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
-                            cmd: LapceWorkbenchCommand::ToggleMaximizedPanel
-                                .to_string(),
                             kind: CommandKind::Workbench(
-                                LapceWorkbenchCommand::TogglePanelVisual,
+                                LapceWorkbenchCommand::ToggleMaximizedPanel,
                             ),
                             data: Some(json!(self.kind)),
                             palette_desc: None,
-                            target: CommandTarget::Workbench,
                         },
                         Target::Widget(data.id),
                     ),

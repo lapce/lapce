@@ -92,7 +92,7 @@ impl LapceKeymap {
             if let Some(command) = commands_without_keymap.get(j) {
                 self.active_keymap = Some((
                     KeyMap {
-                        command: command.cmd.clone(),
+                        command: command.kind.str().to_string(),
                         key: Vec::new(),
                         modes: Modes::empty(),
                         when: None,
@@ -265,11 +265,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                 if let Some(cmd) = data.keypress.commands.get(&keymap.command) {
                     let text_layout = ctx
                         .text()
-                        .new_text_layout(
-                            cmd.palette_desc
-                                .clone()
-                                .unwrap_or_else(|| cmd.cmd.clone()),
-                        )
+                        .new_text_layout(cmd.kind.desc())
                         .font(FontFamily::SYSTEM_UI, 13.0)
                         .text_color(
                             data.config
@@ -355,12 +351,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                 if let Some(command) = commands_without_keymap.get(j) {
                     let text_layout = ctx
                         .text()
-                        .new_text_layout(
-                            command
-                                .palette_desc
-                                .clone()
-                                .unwrap_or_else(|| command.cmd.clone()),
-                        )
+                        .new_text_layout(command.kind.desc())
                         .font(FontFamily::SYSTEM_UI, 13.0)
                         .text_color(
                             data.config
@@ -453,9 +444,7 @@ impl Widget<LapceTabData> for LapceKeymap {
             if let Some(cmd) = data.keypress.commands.get(&keymap.command) {
                 let text = ctx
                     .text()
-                    .new_text_layout(
-                        cmd.palette_desc.clone().unwrap_or_else(|| cmd.cmd.clone()),
-                    )
+                    .new_text_layout(cmd.kind.desc())
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(
                         data.config

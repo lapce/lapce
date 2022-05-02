@@ -5,6 +5,7 @@ use druid::{
     LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext, Size,
     Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::command::EditCommand;
 use lapce_data::{
     buffer::{BufferContent, LocalBufferKind},
     command::{
@@ -558,13 +559,9 @@ impl Widget<LapceTabData> for LapceEditorView {
                 ctx.submit_command(Command::new(
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
-                        cmd: LapceCommand::InsertMode.to_string(),
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::TogglePanelVisual,
-                        ),
+                        kind: CommandKind::Edit(EditCommand::InsertMode),
                         data: None,
                         palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(self.view_id),
                 ));
@@ -572,13 +569,9 @@ impl Widget<LapceTabData> for LapceEditorView {
                 ctx.submit_command(Command::new(
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
-                        cmd: LapceCommand::NormalMode.to_string(),
-                        kind: CommandKind::Workbench(
-                            LapceWorkbenchCommand::TogglePanelVisual,
-                        ),
+                        kind: CommandKind::Edit(EditCommand::NormalMode),
                         data: None,
                         palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(self.view_id),
                 ));

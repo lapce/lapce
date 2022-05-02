@@ -80,13 +80,9 @@ impl LapceStatusNew {
                     command: Command::new(
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
-                            cmd: cmd.to_string(),
-                            kind: CommandKind::Workbench(
-                                LapceWorkbenchCommand::TogglePanelVisual,
-                            ),
+                            kind: CommandKind::Workbench(cmd),
                             data: None,
                             palette_desc: None,
-                            target: CommandTarget::Workbench,
                         },
                         Target::Widget(data.id),
                     ),

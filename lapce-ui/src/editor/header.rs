@@ -6,6 +6,7 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
     buffer::BufferContent,
     command::{
@@ -65,13 +66,9 @@ impl LapceEditorHeader {
             command: Command::new(
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
-                    cmd: LapceCommand::SplitClose.to_string(),
-                    kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::TogglePanelVisual,
-                    ),
+                    kind: CommandKind::Focus(FocusCommand::SplitClose),
                     data: None,
                     palette_desc: None,
-                    target: CommandTarget::Focus,
                 },
                 Target::Widget(self.view_id),
             ),
@@ -88,13 +85,9 @@ impl LapceEditorHeader {
             command: Command::new(
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
-                    cmd: LapceCommand::SplitVertical.to_string(),
-                    kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::TogglePanelVisual,
-                    ),
+                    kind: CommandKind::Focus(FocusCommand::SplitVertical),
                     data: None,
                     palette_desc: None,
-                    target: CommandTarget::Focus,
                 },
                 Target::Widget(self.view_id),
             ),

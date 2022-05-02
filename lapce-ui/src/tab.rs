@@ -368,14 +368,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                                     ctx.submit_command(Command::new(
                                         LAPCE_NEW_COMMAND,
                                         LapceCommandNew {
-                                            cmd: LapceCommand::SearchInView
-                                                .to_string(),
                                             kind: CommandKind::Focus(
                                                 FocusCommand::SearchInView,
                                             ),
                                             data: None,
                                             palette_desc: None,
-                                            target: CommandTarget::Focus,
                                         },
                                         Target::Widget(widget_id),
                                     ));

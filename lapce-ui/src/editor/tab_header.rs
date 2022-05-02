@@ -3,6 +3,7 @@ use druid::{
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{
         CommandKind, CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
@@ -174,13 +175,9 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                     command: Command::new(
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
-                            cmd: LapceCommand::SplitVertical.to_string(),
-                            kind: CommandKind::Workbench(
-                                LapceWorkbenchCommand::TogglePanelVisual,
-                            ),
+                            kind: CommandKind::Focus(FocusCommand::SplitVertical),
                             data: None,
                             palette_desc: None,
-                            target: CommandTarget::Focus,
                         },
                         Target::Widget(self.widget_id),
                     ),

@@ -11,6 +11,7 @@ use druid::{
     Widget, WidgetId,
 };
 use druid::{Data, TimerToken};
+use lapce_core::command::FocusCommand;
 use lapce_core::mode::{Mode, VisualMode};
 use lapce_data::command::CommandKind;
 use lapce_data::keypress::KeyPressFocus;
@@ -204,25 +205,19 @@ impl LapceEditor {
                     .unwrap()
                     .to_string(),
                 command: LapceCommandNew {
-                    cmd: LapceCommand::GotoDefinition.to_string(),
-                    kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::TogglePanelVisual,
-                    ),
+                    kind: CommandKind::Focus(FocusCommand::GotoDefinition),
                     palette_desc: None,
                     data: None,
-                    target: CommandTarget::Focus,
                 },
             },
             MenuItem {
                 text: "Command Palette".to_string(),
                 command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
                     kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::TogglePanelVisual,
+                        LapceWorkbenchCommand::PaletteCommand,
                     ),
                     palette_desc: None,
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
         ];

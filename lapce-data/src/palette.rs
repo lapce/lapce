@@ -791,7 +791,7 @@ impl PaletteViewData {
             .commands
             .iter()
             .filter_map(|(_, c)| {
-                if EXCLUDED_ITEMS.contains(&c.cmd.as_str()) {
+                if EXCLUDED_ITEMS.contains(&c.kind.str()) {
                     return None;
                 }
 

@@ -791,11 +791,11 @@ impl LapceEditorBufferData {
                         ctx.submit_command(Command::new(
                             LAPCE_NEW_COMMAND,
                             LapceCommandNew {
-                                cmd: LapceCommand::SearchForward.to_string(),
-                                kind: CommandKind::Edit(EditCommand::MoveLineUp),
+                                kind: CommandKind::Focus(
+                                    FocusCommand::SearchForward,
+                                ),
                                 data: None,
                                 palette_desc: None,
-                                target: CommandTarget::Focus,
                             },
                             Target::Widget(parent_view_id),
                         ));
@@ -1623,11 +1623,9 @@ impl LapceEditorBufferData {
             ctx.submit_command(Command::new(
                 LAPCE_NEW_COMMAND,
                 LapceCommandNew {
-                    cmd: LapceCommand::GotoDefinition.to_string(),
-                    kind: CommandKind::Edit(EditCommand::MoveLineUp),
+                    kind: CommandKind::Focus(FocusCommand::GotoDefinition),
                     data: None,
                     palette_desc: None,
-                    target: CommandTarget::Workbench,
                 },
                 Target::Widget(self.editor.view_id),
             ));
@@ -1869,13 +1867,11 @@ impl LapceEditorBufferData {
                         ctx.submit_command(Command::new(
                             LAPCE_NEW_COMMAND,
                             LapceCommandNew {
-                                cmd: LapceCommand::SearchBackward.to_string(),
                                 kind: CommandKind::Focus(
                                     FocusCommand::SearchBackward,
                                 ),
                                 data: None,
                                 palette_desc: None,
-                                target: CommandTarget::Focus,
                             },
                             Target::Widget(parent_view_id),
                         ));
@@ -2206,11 +2202,11 @@ impl LapceEditorBufferData {
                     ctx.submit_command(Command::new(
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
-                            cmd: LapceCommand::SelectAll.to_string(),
-                            kind: CommandKind::Edit(EditCommand::MoveLineUp),
+                            kind: CommandKind::MultiSelection(
+                                MultiSelectionCommand::SelectAll,
+                            ),
                             data: None,
                             palette_desc: None,
-                            target: CommandTarget::Focus,
                         },
                         Target::Widget(find_view_id),
                     ));
@@ -3665,11 +3661,11 @@ impl LapceEditorBufferData {
                     ctx.submit_command(Command::new(
                         LAPCE_NEW_COMMAND,
                         LapceCommandNew {
-                            cmd: LapceCommand::SelectAll.to_string(),
-                            kind: CommandKind::Edit(EditCommand::MoveLineUp),
+                            kind: CommandKind::MultiSelection(
+                                MultiSelectionCommand::SelectAll,
+                            ),
                             data: None,
                             palette_desc: None,
-                            target: CommandTarget::Focus,
                         },
                         Target::Widget(find_view_id),
                     ));
@@ -3742,11 +3738,11 @@ impl LapceEditorBufferData {
                         ctx.submit_command(Command::new(
                             LAPCE_NEW_COMMAND,
                             LapceCommandNew {
-                                cmd: LapceCommand::SearchBackward.to_string(),
-                                kind: CommandKind::Edit(EditCommand::MoveLineUp),
+                                kind: CommandKind::Focus(
+                                    FocusCommand::SearchBackward,
+                                ),
                                 data: None,
                                 palette_desc: None,
-                                target: CommandTarget::Focus,
                             },
                             Target::Widget(parent_view_id),
                         ));

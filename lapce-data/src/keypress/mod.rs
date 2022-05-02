@@ -201,7 +201,7 @@ impl KeyPressData {
         }
 
         for (_, cmd) in self.commands.iter() {
-            if !self.command_keymaps.contains_key(&cmd.cmd) {
+            if !self.command_keymaps.contains_key(cmd.kind.str()) {
                 commands_without_keymap.push(cmd.clone());
             }
         }
@@ -491,8 +491,7 @@ impl KeyPressData {
                 .iter()
                 .filter_map(|i| {
                     let cmd = commands.get(&i.command).unwrap();
-                    let text =
-                        cmd.palette_desc.as_deref().unwrap_or(cmd.cmd.as_str());
+                    let text = cmd.kind.desc();
 
                     matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                 })
@@ -504,8 +503,7 @@ impl KeyPressData {
                 commands_without_keymap
                     .iter()
                     .filter_map(|i| {
-                        let text =
-                            i.palette_desc.as_deref().unwrap_or(i.cmd.as_str());
+                        let text = i.kind.desc();
 
                         matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                     })

@@ -47,15 +47,11 @@ impl Widget<LapceTabData> for ActivityBar {
                                 ctx.submit_command(Command::new(
                                     LAPCE_NEW_COMMAND,
                                     LapceCommandNew {
-                                        cmd:
-                                            LapceWorkbenchCommand::TogglePanelVisual
-                                                .to_string(),
                                         kind: CommandKind::Workbench(
                                             LapceWorkbenchCommand::TogglePanelVisual,
                                         ),
                                         data: Some(json!(kind)),
                                         palette_desc: None,
-                                        target: CommandTarget::Workbench,
                                     },
                                     Target::Widget(data.id),
                                 ));
@@ -63,14 +59,11 @@ impl Widget<LapceTabData> for ActivityBar {
                                 ctx.submit_command(Command::new(
                                     LAPCE_NEW_COMMAND,
                                     LapceCommandNew {
-                                        cmd: LapceWorkbenchCommand::ShowPanel
-                                            .to_string(),
                                         kind: CommandKind::Workbench(
                                             LapceWorkbenchCommand::ShowPanel,
                                         ),
                                         data: Some(json!(kind)),
                                         palette_desc: None,
-                                        target: CommandTarget::Workbench,
                                     },
                                     Target::Widget(data.id),
                                 ));

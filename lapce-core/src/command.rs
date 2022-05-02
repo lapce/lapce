@@ -1,8 +1,17 @@
-use strum_macros::{Display, EnumIter, EnumMessage, EnumString};
+use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
 use crate::movement::{LinePosition, Movement};
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
 pub enum EditCommand {
     #[strum(serialize = "move_line_up")]
     MoveLineUp,
@@ -73,7 +82,16 @@ pub enum EditCommand {
     ToggleBlockwiseVisualMode,
 }
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
 pub enum MoveCommand {
     #[strum(serialize = "down")]
     Down,
@@ -150,7 +168,16 @@ impl MoveCommand {
     }
 }
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
 pub enum FocusCommand {
     #[strum(serialize = "split_vertical")]
     SplitVertical,
@@ -215,7 +242,16 @@ pub enum FocusCommand {
     Search,
 }
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
 pub enum MotionModeCommand {
     #[strum(serialize = "motion_mode_delete")]
     MotionModeDelete,
@@ -227,7 +263,16 @@ pub enum MotionModeCommand {
     MotionModeYank,
 }
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
 pub enum MultiSelectionCommand {
     #[strum(serialize = "select_undo")]
     SelectUndo,

@@ -35,11 +35,9 @@ impl FindBox {
                 command: Command::new(
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
-                        cmd: LapceCommand::SearchBackward.to_string(),
                         kind: CommandKind::Focus(FocusCommand::SearchBackward),
                         data: None,
                         palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),
@@ -50,11 +48,9 @@ impl FindBox {
                 command: Command::new(
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
-                        cmd: LapceCommand::SearchForward.to_string(),
                         kind: CommandKind::Focus(FocusCommand::SearchForward),
                         data: None,
                         palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),
@@ -65,11 +61,9 @@ impl FindBox {
                 command: Command::new(
                     LAPCE_NEW_COMMAND,
                     LapceCommandNew {
-                        cmd: LapceCommand::ClearSearch.to_string(),
                         kind: CommandKind::Focus(FocusCommand::ClearSearch),
                         data: None,
                         palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),

@@ -218,7 +218,7 @@ impl Widget<LapceWindowData> for Menu {
             );
 
             if let Some(keymaps) =
-                data.keypress.command_keymaps.get(&item.command.cmd)
+                data.keypress.command_keymaps.get(item.command.kind.str())
             {
                 if !keymaps.is_empty() {
                     let origin = Point::new(

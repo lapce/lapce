@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
@@ -18,7 +19,7 @@ use lsp_types::{
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
-use strum_macros::{Display, EnumIter, EnumMessage, EnumString};
+use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
@@ -43,11 +44,11 @@ pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
 
 #[derive(Clone, Debug)]
 pub struct LapceCommandNew {
-    pub cmd: String,
+    // pub cmd: String,
     pub kind: CommandKind,
     pub data: Option<serde_json::Value>,
     pub palette_desc: Option<String>,
-    pub target: CommandTarget,
+    // pub target: CommandTarget,
 }
 
 #[derive(Clone, Debug)]
@@ -58,6 +59,42 @@ pub enum CommandKind {
     Focus(FocusCommand),
     MotionMode(MotionModeCommand),
     MultiSelection(MultiSelectionCommand),
+}
+
+impl CommandKind {
+    pub fn desc(&self) -> &'static str {
+        match &self {
+            CommandKind::Workbench(cmd) => {
+                cmd.get_message().unwrap_or_else(|| cmd.into())
+            }
+            CommandKind::Edit(cmd) => {
+                cmd.get_message().unwrap_or_else(|| cmd.into())
+            }
+            CommandKind::Move(cmd) => {
+                cmd.get_message().unwrap_or_else(|| cmd.into())
+            }
+            CommandKind::Focus(cmd) => {
+                cmd.get_message().unwrap_or_else(|| cmd.into())
+            }
+            CommandKind::MotionMode(cmd) => {
+                cmd.get_message().unwrap_or_else(|| cmd.into())
+            }
+            CommandKind::MultiSelection(cmd) => {
+                cmd.get_message().unwrap_or_else(|| cmd.into())
+            }
+        }
+    }
+
+    pub fn str(&self) -> &'static str {
+        match &self {
+            CommandKind::Workbench(cmd) => cmd.into(),
+            CommandKind::Edit(cmd) => cmd.into(),
+            CommandKind::Move(cmd) => cmd.into(),
+            CommandKind::Focus(cmd) => cmd.into(),
+            CommandKind::MotionMode(cmd) => cmd.into(),
+            CommandKind::MultiSelection(cmd) => cmd.into(),
+        }
+    }
 }
 
 impl LapceCommandNew {
@@ -82,74 +119,71 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
 
     for c in LapceWorkbenchCommand::iter() {
         let command = LapceCommandNew {
-            cmd: c.to_string(),
             kind: CommandKind::Workbench(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Workbench,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
     }
 
     for c in EditCommand::iter() {
         let command = LapceCommandNew {
-            cmd: c.to_string(),
             kind: CommandKind::Edit(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Focus,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
     }
 
     for c in MoveCommand::iter() {
         let command = LapceCommandNew {
-            cmd: c.to_string(),
             kind: CommandKind::Move(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Focus,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
     }
 
     for c in FocusCommand::iter() {
         let command = LapceCommandNew {
-            cmd: c.to_string(),
             kind: CommandKind::Focus(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Focus,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
     }
 
     for c in MotionModeCommand::iter() {
         let command = LapceCommandNew {
-            cmd: c.to_string(),
             kind: CommandKind::MotionMode(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Focus,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
     }
 
     for c in MultiSelectionCommand::iter() {
         let command = LapceCommandNew {
-            cmd: c.to_string(),
             kind: CommandKind::MultiSelection(c.clone()),
             data: None,
             palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Focus,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
     }
 
     commands
 }
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
 pub enum LapceWorkbenchCommand {
     #[strum(serialize = "enable_modal_editing")]
     #[strum(message = "Enable Modal Editing")]

@@ -38,8 +38,8 @@ use crate::{
         BufferContent, EditType, LocalBufferKind,
     },
     command::{
-        CommandTarget, EnsureVisiblePosition, LapceCommandNew, LapceUICommand,
-        LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, CommandTarget, EnsureVisiblePosition, LapceCommandNew,
+        LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
@@ -1500,24 +1500,24 @@ impl LapceTabData {
         count: Option<usize>,
         env: &Env,
     ) {
-        match command.target {
-            CommandTarget::Workbench => {
-                if let Ok(cmd) = LapceWorkbenchCommand::from_str(&command.cmd) {
-                    self.run_workbench_command(
-                        ctx,
-                        &cmd,
-                        command.data.clone(),
-                        count,
-                        env,
-                    );
-                }
+        match &command.kind {
+            CommandKind::Workbench(cmd) => {
+                self.run_workbench_command(
+                    ctx,
+                    &cmd,
+                    command.data.clone(),
+                    count,
+                    env,
+                );
             }
-            CommandTarget::Plugin(_) => {}
-            CommandTarget::Focus => ctx.submit_command(Command::new(
-                LAPCE_NEW_COMMAND,
-                command.clone(),
-                Target::Widget(self.focus),
-            )),
+            CommandKind::Focus(cmd) => {
+                ctx.submit_command(Command::new(
+                    LAPCE_NEW_COMMAND,
+                    command.clone(),
+                    Target::Widget(self.focus),
+                ));
+            }
+            _ => {}
         }
     }
 
