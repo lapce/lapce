@@ -317,10 +317,7 @@ impl LapceEditorBufferData {
     fn do_move(&mut self, movement: &Movement, count: usize, mods: Modifiers) {
         if movement.is_jump() && movement != &self.editor.last_movement {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(
-                self.buffer.data(),
-                self.config.editor.tab_width,
-            );
+            editor.save_jump_location(&self.doc);
         }
         let editor = Arc::make_mut(&mut self.editor);
         editor.last_movement = movement.clone();
@@ -1386,10 +1383,7 @@ impl LapceEditorBufferData {
         }
         if self.editor.current_location >= self.editor.locations.len() {
             let editor = Arc::make_mut(&mut self.editor);
-            editor.save_jump_location(
-                self.buffer.data(),
-                self.config.editor.tab_width,
-            );
+            editor.save_jump_location(&self.doc);
             editor.current_location -= 1;
         }
         let editor = Arc::make_mut(&mut self.editor);
@@ -2086,6 +2080,79 @@ impl LapceEditorBufferData {
                         ));
                     }
                 }
+            }
+            GotoDefinition => {
+                let offset = self.editor.new_cursor.offset();
+                let start_offset = self.doc.buffer().prev_code_boundary(offset);
+                let start_position =
+                    self.doc.buffer().offset_to_position(start_offset);
+                let event_sink = ctx.get_external_handle();
+                let buffer_id = self.doc.id();
+                let position = self.doc.buffer().offset_to_position(offset);
+                let proxy = self.proxy.clone();
+                let editor_view_id = self.editor.view_id;
+                self.proxy.get_definition(
+                    offset,
+                    buffer_id,
+                    position,
+                    Box::new(move |result| {
+                        if let Ok(res) = result {
+                            if let Ok(resp) =
+                                serde_json::from_value::<GotoDefinitionResponse>(res)
+                            {
+                                if let Some(location) = match resp {
+                                    GotoDefinitionResponse::Scalar(location) => {
+                                        Some(location)
+                                    }
+                                    GotoDefinitionResponse::Array(locations) => {
+                                        if !locations.is_empty() {
+                                            Some(locations[0].clone())
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    GotoDefinitionResponse::Link(
+                                        _location_links,
+                                    ) => None,
+                                } {
+                                    if location.range.start == start_position {
+                                        proxy.get_references(
+                                            buffer_id,
+                                            position,
+                                            Box::new(move |result| {
+                                                let _ = process_get_references(
+                                                    editor_view_id,
+                                                    offset,
+                                                    result,
+                                                    event_sink,
+                                                );
+                                            }),
+                                        );
+                                    } else {
+                                        let _ = event_sink.submit_command(
+                                            LAPCE_UI_COMMAND,
+                                            LapceUICommand::GotoDefinition(
+                                                editor_view_id,
+                                                offset,
+                                                EditorLocationNew {
+                                                    path: path_from_url(
+                                                        &location.uri,
+                                                    ),
+                                                    position: Some(
+                                                        location.range.start,
+                                                    ),
+                                                    scroll_offset: None,
+                                                    history: None,
+                                                },
+                                            ),
+                                            Target::Auto,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }),
+                );
             }
             _ => return CommandExecuted::No,
         }

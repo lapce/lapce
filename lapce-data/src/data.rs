@@ -2337,14 +2337,14 @@ impl LapceMainSplitData {
                 config,
             )
             .view_id;
-        let buffer = self.editor_buffer(editor_view_id);
+        let doc = self.editor_doc(editor_view_id);
         let editor = self.get_editor_or_new(
             ctx,
             Some(editor_view_id),
             Some(location.path.clone()),
             config,
         );
-        editor.save_jump_location(buffer.data(), config.editor.tab_width);
+        editor.save_jump_location(&doc);
         self.go_to_location(ctx, Some(editor_view_id), location, config);
         editor_view_id
     }
@@ -2364,14 +2364,14 @@ impl LapceMainSplitData {
                 config,
             )
             .view_id;
-        let buffer = self.editor_buffer(editor_view_id);
-        let new_buffer = match buffer.content() {
+        let doc = self.editor_doc(editor_view_id);
+        let new_buffer = match doc.content() {
             BufferContent::File(path) => path != &location.path,
             BufferContent::Local(_) => true,
             BufferContent::Value(_) => true,
         };
         if new_buffer {
-            self.db.save_buffer_position(&self.workspace, &buffer);
+            self.db.save_doc_position(&self.workspace, &doc);
         } else if location.position.is_none()
             && location.scroll_offset.is_none()
             && location.history.is_none()
@@ -2379,35 +2379,35 @@ impl LapceMainSplitData {
             return;
         }
         let path = location.path.clone();
-        let buffer_exists = self.open_files.contains_key(&path);
-        if !buffer_exists {
-            let mut buffer = Buffer::new(
-                BufferContent::File(path.clone()),
-                *self.tab_id,
-                ctx.get_external_handle(),
-            );
-            if let Ok(info) = self.db.get_buffer_info(&self.workspace, &path) {
-                buffer.scroll_offset =
-                    Vec2::new(info.scroll_offset.0, info.scroll_offset.1);
-                buffer.cursor_offset = info.cursor_offset;
-            }
-            let buffer = Arc::new(buffer);
-            self.open_files.insert(path.clone(), buffer.clone());
-            let doc = Arc::new(Document::new(
+        let doc_exists = self.open_docs.contains_key(&path);
+        if !doc_exists {
+            let mut doc = Document::new(
                 BufferContent::File(path.clone()),
                 *self.tab_id,
                 ctx.get_external_handle(),
                 self.proxy.clone(),
-            ));
+            );
+            if let Ok(info) = self.db.get_buffer_info(&self.workspace, &path) {
+                doc.scroll_offset =
+                    Vec2::new(info.scroll_offset.0, info.scroll_offset.1);
+                doc.cursor_offset = info.cursor_offset;
+            }
             doc.retrieve_file(self.proxy.clone(), vec![(editor_view_id, location)]);
-            self.open_docs.insert(path.clone(), doc);
+            self.open_docs.insert(path.clone(), Arc::new(doc));
+            self.open_files.insert(
+                path.clone(),
+                Arc::new(Buffer::new(
+                    BufferContent::File(path.clone()),
+                    *self.tab_id,
+                    ctx.get_external_handle(),
+                )),
+            );
         } else {
-            let buffer = self.open_files.get_mut(&path).unwrap().clone();
+            let doc = self.open_docs.get_mut(&path).unwrap().clone();
 
             let (offset, scroll_offset) = match &location.position {
                 Some(position) => {
-                    let offset =
-                        buffer.offset_of_position(position, config.editor.tab_width);
+                    let offset = doc.buffer().offset_of_position(position);
                     let buffer = self.open_files.get_mut(&path).unwrap();
                     let buffer = Arc::make_mut(buffer);
                     buffer.cursor_offset = offset;
@@ -2417,17 +2417,17 @@ impl LapceMainSplitData {
 
                     (offset, location.scroll_offset.as_ref())
                 }
-                None => (buffer.cursor_offset, Some(&buffer.scroll_offset)),
+                None => (doc.cursor_offset, Some(&doc.scroll_offset)),
             };
 
             if let Some(compare) = location.history.as_ref() {
-                if !buffer.histories().contains_key(compare) {
-                    buffer.retrieve_file_head(
-                        *self.tab_id,
-                        self.proxy.clone(),
-                        ctx.get_external_handle(),
-                    );
-                }
+                // if !buffer.histories().contains_key(compare) {
+                //     buffer.retrieve_file_head(
+                //         *self.tab_id,
+                //         self.proxy.clone(),
+                //         ctx.get_external_handle(),
+                //     );
+                // }
             }
 
             let editor = self.get_editor_or_new(
@@ -2442,6 +2442,21 @@ impl LapceMainSplitData {
                 Cursor::new(CursorMode::Normal(offset), None)
             } else {
                 Cursor::new(CursorMode::Insert(Selection::caret(offset)), None)
+            };
+            editor.new_cursor = if config.lapce.modal {
+                lapce_core::cursor::Cursor::new(
+                    lapce_core::cursor::CursorMode::Normal(offset),
+                    None,
+                    None,
+                )
+            } else {
+                lapce_core::cursor::Cursor::new(
+                    lapce_core::cursor::CursorMode::Insert(
+                        lapce_core::selection::Selection::caret(offset),
+                    ),
+                    None,
+                    None,
+                )
             };
 
             if let Some(scroll_offset) = scroll_offset {
@@ -3130,12 +3145,12 @@ impl LapceEditorData {
         placeholders.extend_from_slice(&v[1..]);
     }
 
-    pub fn save_jump_location(&mut self, buffer: &BufferData, tab_width: usize) {
-        if let BufferContent::File(path) = buffer.content() {
+    pub fn save_jump_location(&mut self, doc: &Document) {
+        if let BufferContent::File(path) = doc.content() {
             let location = EditorLocationNew {
                 path: path.clone(),
                 position: Some(
-                    buffer.offset_to_position(self.cursor.offset(), tab_width),
+                    doc.buffer().offset_to_position(self.cursor.offset()),
                 ),
                 scroll_offset: Some(self.scroll_offset),
                 history: None,

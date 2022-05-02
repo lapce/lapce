@@ -740,7 +740,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     ) => {
                         if let Some(editor) = data.main_split.active_editor() {
                             if *editor_view_id == editor.view_id
-                                && *offset == editor.cursor.offset()
+                                && *offset == editor.new_cursor.offset()
                             {
                                 data.main_split.jump_to_location(
                                     ctx,

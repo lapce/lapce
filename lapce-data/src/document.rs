@@ -11,7 +11,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    ExtEventSink, PaintCtx, Point, Target, WidgetId,
+    ExtEventSink, PaintCtx, Point, Target, Vec2, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, InvalLines},
@@ -66,6 +66,8 @@ pub struct Document {
     text_layouts: Rc<RefCell<HashMap<usize, Arc<PietTextLayout>>>>,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
+    pub cursor_offset: usize,
+    pub scroll_offset: Vec2,
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
@@ -91,6 +93,8 @@ impl Document {
             semantic_styles: None,
             load_started: Rc::new(RefCell::new(false)),
             loaded: false,
+            cursor_offset: 0,
+            scroll_offset: Vec2::ZERO,
             code_actions: im::HashMap::new(),
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),

@@ -202,6 +202,9 @@ pub enum FocusCommand {
     #[strum(message = "Close Modal")]
     #[strum(serialize = "modal.close")]
     ModalClose,
+    #[strum(message = "Go to Definition")]
+    #[strum(serialize = "goto_definition")]
+    GotoDefinition,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]

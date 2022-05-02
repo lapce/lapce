@@ -493,6 +493,18 @@ impl LapceDb {
         Ok(())
     }
 
+    pub fn save_doc_position(&self, workspace: &LapceWorkspace, doc: &Document) {
+        if let BufferContent::File(path) = doc.content() {
+            let info = BufferInfo {
+                workspace: workspace.clone(),
+                path: path.clone(),
+                scroll_offset: (doc.scroll_offset.x, doc.scroll_offset.y),
+                cursor_offset: doc.cursor_offset,
+            };
+            let _ = self.save_tx.send(SaveEvent::Buffer(info));
+        }
+    }
+
     pub fn save_buffer_position(&self, workspace: &LapceWorkspace, buffer: &Buffer) {
         if let BufferContent::File(path) = buffer.content() {
             let info = BufferInfo {
