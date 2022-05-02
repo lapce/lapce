@@ -80,6 +80,9 @@ pub struct Buffer {
     last_edit_type: EditType,
 
     indent_style: IndentStyle,
+
+    max_len: usize,
+    max_len_line: usize,
 }
 
 impl Buffer {
@@ -109,6 +112,9 @@ impl Buffer {
 
             last_edit_type: EditType::Other,
             indent_style: IndentStyle::DEFAULT_INDENT,
+
+            max_len: 0,
+            max_len_line: 0,
         }
     }
 
@@ -122,6 +128,63 @@ impl Buffer {
 
     pub fn text(&self) -> &Rope {
         &self.text
+    }
+
+    pub fn num_lines(&self) -> usize {
+        self.line_of_offset(self.text.len()) + 1
+    }
+
+    fn get_max_line_len(&self) -> (usize, usize) {
+        let mut pre_offset = 0;
+        let mut max_len = 0;
+        let mut max_len_line = 0;
+        for line in 0..self.num_lines() + 1 {
+            let offset = self.offset_of_line(line);
+            let line_len = offset - pre_offset;
+            pre_offset = offset;
+            if line_len > max_len {
+                max_len = line_len;
+                max_len_line = line;
+            }
+        }
+        (max_len, max_len_line)
+    }
+
+    fn update_size(&mut self, inval_lines: &InvalLines) {
+        if self.max_len_line >= inval_lines.start_line
+            && self.max_len_line < inval_lines.start_line + inval_lines.inval_count
+        {
+            let (max_len, max_len_line) = self.get_max_line_len();
+            self.max_len = max_len;
+            self.max_len_line = max_len_line;
+        } else {
+            let mut max_len = 0;
+            let mut max_len_line = 0;
+            for line in inval_lines.start_line
+                ..inval_lines.start_line + inval_lines.new_count
+            {
+                let line_len = self.line_len(line);
+                if line_len > max_len {
+                    max_len = line_len;
+                    max_len_line = line;
+                }
+            }
+            if max_len > self.max_len {
+                self.max_len = max_len;
+                self.max_len_line = max_len_line;
+            } else if self.max_len_line >= inval_lines.start_line {
+                self.max_len_line = self.max_len_line + inval_lines.new_count
+                    - inval_lines.inval_count;
+            }
+        }
+    }
+
+    pub fn max_len(&self) -> usize {
+        self.max_len
+    }
+
+    fn line_len(&self, line: usize) -> usize {
+        self.offset_of_line(line + 1) - self.offset_of_line(line)
     }
 
     fn reset_revs(&mut self) {
@@ -237,11 +300,14 @@ impl Buffer {
         let old_hard_count = old_logical_end_line - logical_start_line;
         let new_hard_count = new_logical_end_line - logical_start_line;
 
-        InvalLines {
+        let inval_lines = InvalLines {
             start_line: logical_start_line,
             inval_count: old_hard_count,
             new_count: new_hard_count,
-        }
+        };
+        self.update_size(&inval_lines);
+
+        inval_lines
     }
 
     fn calculate_undo_group(&mut self, edit_type: EditType) -> usize {

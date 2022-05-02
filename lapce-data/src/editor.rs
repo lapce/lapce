@@ -146,14 +146,18 @@ impl LapceEditorBufferData {
         Arc::make_mut(&mut self.buffer)
     }
 
+    fn doc_mut(&mut self) -> &mut Document {
+        Arc::make_mut(&mut self.doc)
+    }
+
     pub fn sync_buffer_position(&mut self, scroll_offset: Vec2) {
         let cursor_offset = self.editor.new_cursor.offset();
-        if self.buffer.cursor_offset != cursor_offset
-            || self.buffer.scroll_offset != scroll_offset
+        if self.doc.cursor_offset != cursor_offset
+            || self.doc.scroll_offset != scroll_offset
         {
-            let buffer = self.buffer_mut();
-            buffer.cursor_offset = cursor_offset;
-            buffer.scroll_offset = scroll_offset;
+            let doc = self.doc_mut();
+            doc.cursor_offset = cursor_offset;
+            doc.scroll_offset = scroll_offset;
         }
     }
 

@@ -250,16 +250,16 @@ impl LapceEditor {
                         let height =
                             syntax.lens.height_of_line(syntax.lens.len() + 1);
                         Size::new(
-                            (width * data.buffer.max_len() as f64)
+                            (width * data.doc.buffer().max_len() as f64)
                                 .max(editor_size.width),
                             (height as f64 - line_height).max(0.0)
                                 + editor_size.height,
                         )
                     } else {
-                        let height = data.buffer.num_lines()
+                        let height = data.doc.buffer().num_lines()
                             * data.config.editor.code_lens_font_size;
                         Size::new(
-                            (width * data.buffer.max_len() as f64)
+                            (width * data.doc.buffer().max_len() as f64)
                                 .max(editor_size.width),
                             (height as f64 - line_height).max(0.0)
                                 + editor_size.height,
@@ -278,16 +278,17 @@ impl LapceEditor {
                         }
                     }
                     Size::new(
-                        (width * data.buffer.max_len() as f64)
+                        (width * data.doc.buffer().max_len() as f64)
                             .max(editor_size.width),
                         (line_height * lines as f64 - line_height).max(0.0)
                             + editor_size.height,
                     )
                 } else {
                     Size::new(
-                        (width * data.buffer.max_len() as f64)
+                        (width * data.doc.buffer().max_len() as f64)
                             .max(editor_size.width),
-                        (line_height * data.buffer.num_lines() as f64 - line_height)
+                        (line_height * data.doc.buffer().num_lines() as f64
+                            - line_height)
                             .max(0.0)
                             + editor_size.height,
                     )
@@ -298,7 +299,9 @@ impl LapceEditor {
                 | LocalBufferKind::Search
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap => Size::new(
-                    editor_size.width.max(width * data.buffer.len() as f64),
+                    editor_size
+                        .width
+                        .max(width * data.doc.buffer().len() as f64),
                     env.get(LapceTheme::INPUT_LINE_HEIGHT)
                         + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
                 ),
@@ -316,10 +319,13 @@ impl LapceEditor {
                                         let height = 100.0f64;
                                         let height = height.max(
                                             line_height
-                                                * data.buffer.num_lines() as f64,
+                                                * data.doc.buffer().num_lines()
+                                                    as f64,
                                         );
                                         Size::new(
-                                            (width * data.buffer.max_len() as f64)
+                                            (width
+                                                * data.doc.buffer().max_len()
+                                                    as f64)
                                                 .max(editor_size.width),
                                             height,
                                         )
@@ -333,7 +339,9 @@ impl LapceEditor {
                 LocalBufferKind::Empty => editor_size,
             },
             BufferContent::Value(_) => Size::new(
-                editor_size.width.max(width * data.buffer.len() as f64),
+                editor_size
+                    .width
+                    .max(width * data.doc.buffer().len() as f64),
                 env.get(LapceTheme::INPUT_LINE_HEIGHT)
                     + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
             ),
