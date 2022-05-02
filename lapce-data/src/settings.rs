@@ -1,5 +1,8 @@
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
-use lapce_core::{command::FocusCommand, mode::Mode};
+use lapce_core::{
+    command::{EditCommand, FocusCommand, MoveCommand},
+    mode::Mode,
+};
 
 use crate::{
     command::{
@@ -139,7 +142,32 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         mods: Modifiers,
         env: &Env,
     ) -> CommandExecuted {
-        todo!()
+        match &command.kind {
+            CommandKind::Move(cmd) => match cmd {
+                MoveCommand::Right => {
+                    self.cursor += 1;
+                    if self.cursor > self.input.len() {
+                        self.cursor = self.input.len();
+                    }
+                }
+                MoveCommand::Left => {
+                    if self.cursor == 0 {
+                        return CommandExecuted::Yes;
+                    }
+                    self.cursor -= 1;
+                }
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Edit(EditCommand::DeleteBackward) => {
+                if self.cursor == 0 {
+                    return CommandExecuted::Yes;
+                }
+                self.input.remove(self.cursor - 1);
+                self.cursor -= 1;
+            }
+            _ => return CommandExecuted::No,
+        }
+        CommandExecuted::Yes
     }
 
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {

@@ -11,12 +11,15 @@ use druid::{
     WidgetExt, WidgetId, WidgetPod,
 };
 use inflector::Inflector;
-use lapce_core::mode::Mode;
+use lapce_core::{
+    command::{EditCommand, MoveCommand},
+    mode::Mode,
+};
 use lapce_data::{
     buffer::{Buffer, BufferContent},
     command::{
-        CommandExecuted, LapceCommand, LapceUICommand, LAPCE_NEW_COMMAND,
-        LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommand, LapceUICommand,
+        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
@@ -806,39 +809,6 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         false
     }
 
-    // fn run_command(
-    //     &mut self,
-    //     _ctx: &mut EventCtx,
-    //     command: &LapceCommand,
-    //     _count: Option<usize>,
-    //     _mods: Modifiers,
-    //     _env: &Env,
-    // ) -> CommandExecuted {
-    //     match command {
-    //         LapceCommand::Right => {
-    //             self.cursor += 1;
-    //             if self.cursor > self.input.len() {
-    //                 self.cursor = self.input.len();
-    //             }
-    //         }
-    //         LapceCommand::Left => {
-    //             if self.cursor == 0 {
-    //                 return CommandExecuted::Yes;
-    //             }
-    //             self.cursor -= 1;
-    //         }
-    //         LapceCommand::DeleteBackward => {
-    //             if self.cursor == 0 {
-    //                 return CommandExecuted::Yes;
-    //             }
-    //             self.input.remove(self.cursor - 1);
-    //             self.cursor -= 1;
-    //         }
-    //         _ => return CommandExecuted::No,
-    //     }
-    //     CommandExecuted::Yes
-    // }
-
     fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
         self.input.insert_str(self.cursor, c);
         self.cursor += c.len();
@@ -846,13 +816,38 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
 
     fn run_command(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         command: &lapce_data::command::LapceCommandNew,
-        count: Option<usize>,
-        mods: Modifiers,
-        env: &Env,
+        _count: Option<usize>,
+        _mods: Modifiers,
+        _env: &Env,
     ) -> CommandExecuted {
-        todo!()
+        match &command.kind {
+            CommandKind::Move(cmd) => match cmd {
+                MoveCommand::Right => {
+                    self.cursor += 1;
+                    if self.cursor > self.input.len() {
+                        self.cursor = self.input.len();
+                    }
+                }
+                MoveCommand::Left => {
+                    if self.cursor == 0 {
+                        return CommandExecuted::Yes;
+                    }
+                    self.cursor -= 1;
+                }
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Edit(EditCommand::DeleteForward) => {
+                if self.cursor == 0 {
+                    return CommandExecuted::Yes;
+                }
+                self.input.remove(self.cursor - 1);
+                self.cursor -= 1;
+            }
+            _ => return CommandExecuted::No,
+        }
+        CommandExecuted::Yes
     }
 }
 

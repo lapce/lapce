@@ -184,6 +184,8 @@ pub enum FocusCommand {
     ListNext,
     #[strum(serialize = "list.previous")]
     ListPrevious,
+    #[strum(serialize = "list.expand")]
+    ListExpand,
     #[strum(serialize = "jump_to_next_snippet_placeholder")]
     JumpToNextSnippetPlaceholder,
     #[strum(serialize = "jump_to_prev_snippet_placeholder")]
