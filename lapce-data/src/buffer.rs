@@ -662,8 +662,9 @@ impl Buffer {
                 // start incremental find on visible region
                 let start = self.offset_of_line(start_line);
                 let end = self.offset_of_line(end_line + 1);
-                *find_progress =
-                    FindProgress::InProgress(Selection::region(start, end));
+                *find_progress = FindProgress::InProgress(
+                    lapce_core::selection::Selection::region(start, end),
+                );
                 Some((start, end))
             }
             FindProgress::InProgress(searched_range) => {
@@ -688,7 +689,9 @@ impl Buffer {
                     }
                     if range.is_some() {
                         let mut new_range = searched_range.clone();
-                        new_range.add_region(SelRegion::new(start, end, None));
+                        new_range.add_region(lapce_core::selection::SelRegion::new(
+                            start, end, None,
+                        ));
                         *find_progress = FindProgress::InProgress(new_range);
                     }
                     range

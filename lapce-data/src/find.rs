@@ -1,3 +1,4 @@
+use lapce_core::selection::{InsertDrift, SelRegion, Selection};
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
@@ -7,10 +8,7 @@ use xi_rope::{
     Cursor, Interval, LinesMetric, Metric, Rope, RopeDelta,
 };
 
-use crate::{
-    buffer::WordCursor,
-    movement::{InsertDrift, SelRegion, Selection},
-};
+use crate::buffer::WordCursor;
 
 const REGEX_SIZE_LIMIT: usize = 1000000;
 

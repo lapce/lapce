@@ -736,6 +736,7 @@ impl LapceEditor {
                 font_size,
                 env,
             );
+            Self::paint_find(data, ctx, char_width, env);
 
             for line in start_line..end_line + 1 {
                 if line > last_line {
@@ -1363,15 +1364,15 @@ impl LapceEditor {
             + data.editor.scroll_offset.y)
             / line_height)
             .ceil() as usize;
-        let start_offset = data.buffer.offset_of_line(start_line);
-        let end_offset = data.buffer.offset_of_line(end_line + 1);
-        let cursor_offset = data.editor.cursor.offset();
+        let start_offset = data.doc.buffer().offset_of_line(start_line);
+        let end_offset = data.doc.buffer().offset_of_line(end_line + 1);
+        let cursor_offset = data.editor.new_cursor.offset();
 
-        data.buffer.update_find(&data.find, start_line, end_line);
+        data.doc.update_find(&data.find, start_line, end_line);
         if data.find.search_string.is_some() {
             for region in data
-                .buffer
-                .find()
+                .doc
+                .find
                 .borrow()
                 .occurrences()
                 .regions_in_range(start_offset, end_offset)
@@ -1379,22 +1380,15 @@ impl LapceEditor {
                 let start = region.min();
                 let end = region.max();
                 let active = start <= cursor_offset && cursor_offset <= end;
-                let (start_line, start_col) = data
-                    .buffer
-                    .offset_to_line_col(start, data.config.editor.tab_width);
-                let (end_line, end_col) = data
-                    .buffer
-                    .offset_to_line_col(end, data.config.editor.tab_width);
+                let (start_line, start_col) =
+                    data.doc.buffer().offset_to_line_col(start);
+                let (end_line, end_col) = data.doc.buffer().offset_to_line_col(end);
                 for line in start_line..end_line + 1 {
                     let left_col = if line == start_line { start_col } else { 0 };
                     let right_col = if line == end_line {
                         end_col
                     } else {
-                        data.buffer.line_end_col(
-                            line,
-                            true,
-                            data.config.editor.tab_width,
-                        ) + 1
+                        data.doc.buffer().line_end_col(line, true) + 1
                     };
                     let x0 = left_col as f64 * char_width;
                     let x1 = right_col as f64 * char_width;

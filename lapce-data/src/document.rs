@@ -38,7 +38,7 @@ use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     editor::EditorLocationNew,
-    find::Find,
+    find::{Find, FindProgress},
     proxy::LapceProxy,
 };
 
@@ -67,6 +67,8 @@ pub struct Document {
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
+    pub find: Rc<RefCell<Find>>,
+    find_progress: Rc<RefCell<FindProgress>>,
     event_sink: ExtEventSink,
     proxy: Arc<LapceProxy>,
 }
@@ -90,6 +92,8 @@ impl Document {
             load_started: Rc::new(RefCell::new(false)),
             loaded: false,
             code_actions: im::HashMap::new(),
+            find: Rc::new(RefCell::new(Find::new(0))),
+            find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
             proxy,
         }
@@ -1076,6 +1080,100 @@ impl Document {
                         .unwrap_or(offset);
                     let (_, col) = self.buffer.offset_to_line_col(new_offset);
                     (new_offset, None)
+                }
+            }
+        }
+    }
+
+    pub fn reset_find(&self, current_find: &Find) {
+        {
+            let find = self.find.borrow();
+            if find.search_string == current_find.search_string
+                && find.case_matching == current_find.case_matching
+                && find.regex.as_ref().map(|r| r.as_str())
+                    == current_find.regex.as_ref().map(|r| r.as_str())
+                && find.whole_words == current_find.whole_words
+            {
+                return;
+            }
+        }
+
+        let mut find = self.find.borrow_mut();
+        find.unset();
+        find.search_string = current_find.search_string.clone();
+        find.case_matching = current_find.case_matching;
+        find.regex = current_find.regex.clone();
+        find.whole_words = current_find.whole_words;
+        *self.find_progress.borrow_mut() = FindProgress::Started;
+    }
+
+    pub fn update_find(
+        &self,
+        current_find: &Find,
+        start_line: usize,
+        end_line: usize,
+    ) {
+        self.reset_find(current_find);
+
+        let mut find_progress = self.find_progress.borrow_mut();
+        let search_range = match &find_progress.clone() {
+            FindProgress::Started => {
+                // start incremental find on visible region
+                let start = self.buffer.offset_of_line(start_line);
+                let end = self.buffer.offset_of_line(end_line + 1);
+                *find_progress =
+                    FindProgress::InProgress(Selection::region(start, end));
+                Some((start, end))
+            }
+            FindProgress::InProgress(searched_range) => {
+                if searched_range.regions().len() == 1
+                    && searched_range.min_offset() == 0
+                    && searched_range.max_offset() >= self.buffer.len()
+                {
+                    // the entire text has been searched
+                    // end find by executing multi-line regex queries on entire text
+                    // stop incremental find
+                    *find_progress = FindProgress::Ready;
+                    Some((0, self.buffer.len()))
+                } else {
+                    let start = self.buffer.offset_of_line(start_line);
+                    let end = self.buffer.offset_of_line(end_line + 1);
+                    let mut range = Some((start, end));
+                    for region in searched_range.regions() {
+                        if region.min() <= start && region.max() >= end {
+                            range = None;
+                            break;
+                        }
+                    }
+                    if range.is_some() {
+                        let mut new_range = searched_range.clone();
+                        new_range.add_region(SelRegion::new(start, end, None));
+                        *find_progress = FindProgress::InProgress(new_range);
+                    }
+                    range
+                }
+            }
+            _ => None,
+        };
+
+        let mut find = self.find.borrow_mut();
+        if let Some((search_range_start, search_range_end)) = search_range {
+            if !find.is_multiline_regex() {
+                find.update_find(
+                    &self.buffer.text(),
+                    search_range_start,
+                    search_range_end,
+                    true,
+                );
+            } else {
+                // only execute multi-line regex queries if we are searching the entire text (last step)
+                if search_range_start == 0 && search_range_end == self.buffer.len() {
+                    find.update_find(
+                        &self.buffer.text(),
+                        search_range_start,
+                        search_range_end,
+                        true,
+                    );
                 }
             }
         }

@@ -201,6 +201,46 @@ impl Selection {
         }
     }
 
+    pub fn search_min(&self, offset: usize) -> usize {
+        if self.regions.is_empty() || offset > self.regions.last().unwrap().max() {
+            return self.regions.len();
+        }
+        match self
+            .regions
+            .binary_search_by(|r| r.min().cmp(&(offset + 1)))
+        {
+            Ok(ix) => ix,
+            Err(ix) => ix,
+        }
+    }
+
+    pub fn full_regions_in_range(&self, start: usize, end: usize) -> &[SelRegion] {
+        let first = self.search_min(start);
+        let mut last = self.search_min(end);
+        if last < self.regions.len() && self.regions[last].min() <= end {
+            last += 1;
+        }
+        &self.regions[first..last]
+    }
+
+    pub fn delete_range(&mut self, start: usize, end: usize, delete_adjacent: bool) {
+        let mut first = self.search(start);
+        let mut last = self.search(end);
+        if first >= self.regions.len() {
+            return;
+        }
+        if !delete_adjacent && self.regions[first].max() == start {
+            first += 1;
+        }
+        if last < self.regions.len()
+            && ((delete_adjacent && self.regions[last].min() <= end)
+                || (!delete_adjacent && self.regions[last].min() < end))
+        {
+            last += 1;
+        }
+        remove_n_at(&mut self.regions, first, last - first);
+    }
+
     pub fn add_region(&mut self, region: SelRegion) {
         let mut ix = self.search(region.min());
         if ix == self.regions.len() {
