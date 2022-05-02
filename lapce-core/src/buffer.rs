@@ -122,6 +122,10 @@ impl Buffer {
         self.rev
     }
 
+    pub fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
+    }
+
     pub fn atomic_rev(&self) -> Arc<AtomicU64> {
         self.atomic_rev.clone()
     }
@@ -697,8 +701,7 @@ impl Buffer {
             line_start_offset
         };
 
-        let new_offset = self.prev_grapheme_offset(offset, count, min_offset);
-        new_offset
+        self.prev_grapheme_offset(offset, count, min_offset)
     }
 
     pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
@@ -710,8 +713,7 @@ impl Buffer {
             line_end
         };
 
-        let new_offset = self.next_grapheme_offset(offset, count, max_offset);
-        new_offset
+        self.next_grapheme_offset(offset, count, max_offset)
     }
 
     pub fn move_word_forward(&self, offset: usize) -> usize {

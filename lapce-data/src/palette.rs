@@ -20,8 +20,8 @@ use crate::command::CommandKind;
 use crate::{
     buffer::BufferContent,
     command::LAPCE_UI_COMMAND,
-    command::{CommandExecuted, LapceCommand, LAPCE_NEW_COMMAND},
-    command::{LapceCommandNew, LapceUICommand},
+    command::{CommandExecuted, LapceCommandOld, LAPCE_COMMAND},
+    command::{LapceCommand, LapceUICommand},
     config::Config,
     data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
     editor::EditorLocationNew,
@@ -101,7 +101,7 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocationNew),
     Workspace(LapceWorkspace),
     SshHost(String, String),
-    Command(LapceCommandNew),
+    Command(LapceCommand),
     Theme(String),
 }
 
@@ -177,7 +177,7 @@ impl PaletteItemContent {
             PaletteItemContent::Command(command) => {
                 if !preview {
                     ctx.submit_command(Command::new(
-                        LAPCE_NEW_COMMAND,
+                        LAPCE_COMMAND,
                         command.clone(),
                         Target::Auto,
                     ));
@@ -330,7 +330,7 @@ impl KeyPressFocus for PaletteViewData {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommandNew,
+        command: &LapceCommand,
         count: Option<usize>,
         mods: Modifiers,
         env: &Env,

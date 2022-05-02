@@ -240,6 +240,9 @@ pub enum FocusCommand {
     JumpLocationForward,
     #[strum(serialize = "search")]
     Search,
+    #[strum(message = "Save")]
+    #[strum(serialize = "save")]
+    Save,
 }
 
 #[derive(

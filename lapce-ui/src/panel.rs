@@ -5,10 +5,7 @@ use druid::{
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
-    command::{
-        CommandKind, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND,
-    },
+    command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
     panel::PanelPosition,
@@ -380,8 +377,8 @@ impl PanelMainHeader {
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
             command: Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
+                LAPCE_COMMAND,
+                LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::HidePanel),
                     data: Some(json!(self.kind)),
                 },
@@ -413,8 +410,8 @@ impl PanelMainHeader {
                         .to_rect()
                         .with_origin(Point::new(x, gap)),
                     command: Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
+                        LAPCE_COMMAND,
+                        LapceCommand {
                             kind: CommandKind::Workbench(
                                 LapceWorkbenchCommand::ToggleMaximizedPanel,
                             ),

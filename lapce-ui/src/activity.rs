@@ -4,10 +4,7 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
 };
 use lapce_data::{
-    command::{
-        CommandKind, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND,
-    },
+    command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
     panel::PanelPosition,
@@ -45,8 +42,8 @@ impl Widget<LapceTabData> for ActivityBar {
                         if let Some(kind) = panel.widgets.get(index) {
                             if panel.active == *kind {
                                 ctx.submit_command(Command::new(
-                                    LAPCE_NEW_COMMAND,
-                                    LapceCommandNew {
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
                                         kind: CommandKind::Workbench(
                                             LapceWorkbenchCommand::TogglePanelVisual,
                                         ),
@@ -56,8 +53,8 @@ impl Widget<LapceTabData> for ActivityBar {
                                 ));
                             } else {
                                 ctx.submit_command(Command::new(
-                                    LAPCE_NEW_COMMAND,
-                                    LapceCommandNew {
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
                                         kind: CommandKind::Workbench(
                                             LapceWorkbenchCommand::ShowPanel,
                                         ),

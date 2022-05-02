@@ -16,8 +16,8 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandKind, CommandTarget, LapceCommandNew, LapceUICommand,
-        LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{
@@ -29,7 +29,6 @@ use lapce_data::{
     terminal::LapceTerminalData,
 };
 use lapce_rpc::terminal::TermId;
-use strum::EnumMessage;
 
 pub struct LapceDynamicSplit {
     widget_id: WidgetId,
@@ -193,7 +192,7 @@ pub struct LapceSplitNew {
     children_ids: Vec<WidgetId>,
     direction: SplitDirection,
     show_border: bool,
-    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, Option<KeyMap>)>,
+    commands: Vec<(LapceCommand, PietTextLayout, Rect, Option<KeyMap>)>,
 }
 
 pub struct ChildWidgetNew {
@@ -815,7 +814,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     for (cmd, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
                             ctx.submit_command(Command::new(
-                                LAPCE_NEW_COMMAND,
+                                LAPCE_COMMAND,
                                 cmd.clone(),
                                 Target::Auto,
                             ));
@@ -1180,31 +1179,31 @@ impl Widget<LapceTabData> for LapceSplitNew {
     }
 }
 
-fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNew> {
+fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> {
     if !has_workspace {
         vec![
-            LapceCommandNew {
+            LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
             },
             if modal {
-                LapceCommandNew {
+                LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::DisableModal,
                     ),
                     data: None,
                 }
             } else {
-                LapceCommandNew {
+                LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
                     data: None,
                 }
             },
-            LapceCommandNew {
+            LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                 data: None,
             },
-            LapceCommandNew {
+            LapceCommand {
                 kind: CommandKind::Workbench(
                     LapceWorkbenchCommand::PaletteWorkspace,
                 ),
@@ -1213,24 +1212,24 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNe
         ]
     } else {
         vec![
-            LapceCommandNew {
+            LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
             },
             if modal {
-                LapceCommandNew {
+                LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::DisableModal,
                     ),
                     data: None,
                 }
             } else {
-                LapceCommandNew {
+                LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
                     data: None,
                 }
             },
-            LapceCommandNew {
+            LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::Palette),
                 data: None,
             },

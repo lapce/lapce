@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::{max, min, Ordering};
 use xi_rope::{RopeDelta, Transformer};
 
-use crate::{
-    buffer::Buffer, cursor::ColPosition, mode::Mode, movement::Movement,
-    syntax::Syntax,
-};
+use crate::cursor::ColPosition;
 
 #[derive(Copy, Clone)]
 pub enum InsertDrift {

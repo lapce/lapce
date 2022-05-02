@@ -9,10 +9,7 @@ use druid::{
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     buffer::BufferContent,
-    command::{
-        CommandKind, CommandTarget, LapceCommand, LapceCommandNew,
-        LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
-    },
+    command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
     editor::LapceEditorBufferData,
@@ -64,8 +61,8 @@ impl LapceEditorHeader {
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
             command: Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
+                LAPCE_COMMAND,
+                LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::SplitClose),
                     data: None,
                 },
@@ -82,8 +79,8 @@ impl LapceEditorHeader {
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
             command: Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
+                LAPCE_COMMAND,
+                LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::SplitVertical),
                     data: None,
                 },

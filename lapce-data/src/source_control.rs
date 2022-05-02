@@ -7,7 +7,8 @@ use lapce_rpc::source_control::FileDiff;
 
 use crate::{
     command::{
-        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
+        LAPCE_UI_COMMAND,
     },
     keypress::KeyPressFocus,
     movement::Movement,
@@ -139,7 +140,7 @@ impl KeyPressFocus for SourceControlData {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &crate::command::LapceCommandNew,
+        command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: Modifiers,
         env: &Env,

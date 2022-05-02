@@ -18,8 +18,8 @@ use lapce_data::keypress::KeyPressFocus;
 use lapce_data::{
     buffer::{matching_pair_direction, BufferContent, DiffLines, LocalBufferKind},
     command::{
-        CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
-        LapceWorkbenchCommand, LAPCE_UI_COMMAND,
+        LapceCommand, LapceCommandOld, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{LapceTabData, PanelData, PanelKind},
@@ -107,7 +107,7 @@ pub struct LapceEditor {
     placeholder: Option<String>,
 
     #[allow(dead_code)]
-    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, PietTextLayout)>,
+    commands: Vec<(LapceCommand, PietTextLayout, Rect, PietTextLayout)>,
 
     last_left_click: Option<(Instant, ClickKind, Point)>,
     mouse_pos: Point,
@@ -200,18 +200,18 @@ impl LapceEditor {
         editor_data.single_click(ctx, mouse_event, config);
         let menu_items = vec![
             MenuItem {
-                text: LapceCommand::GotoDefinition
+                text: LapceCommandOld::GotoDefinition
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Focus(FocusCommand::GotoDefinition),
                     data: None,
                 },
             },
             MenuItem {
                 text: "Command Palette".to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteCommand,
                     ),

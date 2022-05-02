@@ -21,10 +21,9 @@ use toml;
 mod keypress;
 mod loader;
 
-use crate::command::LapceCommand;
 use crate::command::{
-    lapce_internal_commands, CommandExecuted, CommandKind, CommandTarget,
-    LapceCommandNew, LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
+    LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
 };
 use crate::config::{Config, LapceTheme};
 use crate::keypress::loader::KeyMapLoader;
@@ -131,7 +130,7 @@ pub trait KeyPressFocus {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommandNew,
+        command: &LapceCommand,
         count: Option<usize>,
         mods: Modifiers,
         env: &Env,
@@ -145,14 +144,14 @@ pub trait KeyPressFocus {
 #[derive(Clone)]
 pub struct KeyPressData {
     pending_keypress: Vec<KeyPress>,
-    pub commands: Arc<IndexMap<String, LapceCommandNew>>,
+    pub commands: Arc<IndexMap<String, LapceCommand>>,
     pub keymaps: Arc<IndexMap<Vec<KeyPress>, Vec<KeyMap>>>,
     pub command_keymaps: Arc<IndexMap<String, Vec<KeyMap>>>,
 
     pub commands_with_keymap: Arc<Vec<KeyMap>>,
-    pub commands_without_keymap: Arc<Vec<LapceCommandNew>>,
+    pub commands_without_keymap: Arc<Vec<LapceCommand>>,
     pub filtered_commands_with_keymap: Arc<Vec<KeyMap>>,
-    pub filtered_commands_without_keymap: Arc<Vec<LapceCommandNew>>,
+    pub filtered_commands_without_keymap: Arc<Vec<LapceCommand>>,
     pub filter_pattern: String,
 
     count: Option<usize>,
@@ -226,7 +225,7 @@ impl KeyPressData {
             match cmd.kind {
                 CommandKind::Workbench(_) => {
                     ctx.submit_command(Command::new(
-                        LAPCE_NEW_COMMAND,
+                        LAPCE_COMMAND,
                         cmd.clone(),
                         Target::Auto,
                     ));
@@ -499,7 +498,7 @@ impl KeyPressData {
                 .map(|(i, _)| i.clone())
                 .collect();
 
-            let filtered_commands_without_keymap: Vec<LapceCommandNew> =
+            let filtered_commands_without_keymap: Vec<LapceCommand> =
                 commands_without_keymap
                     .iter()
                     .filter_map(|i| {
@@ -676,7 +675,7 @@ impl KeyPressFocus for DefaultKeyPressHandler {
     fn run_command(
         &mut self,
         _ctx: &mut EventCtx,
-        _command: &LapceCommandNew,
+        _command: &LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
@@ -747,7 +746,7 @@ mod test {
         fn run_command(
             &mut self,
             _ctx: &mut druid::EventCtx,
-            _command: &crate::command::LapceCommandNew,
+            _command: &crate::command::LapceCommand,
             _count: Option<usize>,
             _mods: druid::Modifiers,
             _env: &druid::Env,

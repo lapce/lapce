@@ -9,7 +9,8 @@ use lapce_core::{command::FocusCommand, mode::Mode};
 use lapce_data::{
     buffer::{BufferContent, EditType},
     command::{
-        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
+        LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{LapceMainSplitData, LapceTabData},
@@ -81,7 +82,7 @@ impl KeyPressFocus for CodeActionData {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &lapce_data::command::LapceCommandNew,
+        command: &lapce_data::command::LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,

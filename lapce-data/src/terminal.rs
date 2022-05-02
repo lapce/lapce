@@ -25,8 +25,7 @@ use parking_lot::Mutex;
 
 use crate::{
     command::{
-        CommandExecuted, CommandKind, LapceCommandNew, LapceUICommand,
-        LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     find::Find,
@@ -257,7 +256,7 @@ impl KeyPressFocus for LapceTerminalViewData {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommandNew,
+        command: &LapceCommand,
         count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,

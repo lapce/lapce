@@ -10,8 +10,8 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandKind, CommandTarget, LapceCommandNew, LapceUICommand,
-        LapceWorkbenchCommand, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::LapceWindowData,
@@ -231,7 +231,7 @@ impl Widget<LapceWindowData> for Title {
                 .get_message()
                 .unwrap()
                 .to_string(),
-            command: LapceCommandNew {
+            command: LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
                 data: None,
             },
@@ -243,7 +243,7 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectWsl),
                     data: None,
                 },
@@ -253,7 +253,7 @@ impl Widget<LapceWindowData> for Title {
         if tab.workspace.kind.is_remote() {
             menu_items.push(MenuItem {
                 text: "Disconnect Remote".to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::DisconnectRemote,
                     ),
@@ -321,7 +321,7 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                     data: None,
                 },
@@ -331,7 +331,7 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteWorkspace,
                     ),
@@ -404,7 +404,7 @@ impl Widget<LapceWindowData> for Title {
                 .iter()
                 .map(|b| MenuItem {
                     text: b.to_string(),
-                    command: LapceCommandNew {
+                    command: LapceCommand {
                         kind: CommandKind::Workbench(
                             LapceWorkbenchCommand::CheckoutBranch,
                         ),
@@ -450,7 +450,7 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteCommand,
                     ),
@@ -462,7 +462,7 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::OpenSettings,
                     ),
@@ -474,7 +474,7 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
+                command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::OpenKeyboardShortcuts,
                     ),

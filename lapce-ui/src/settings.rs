@@ -18,8 +18,8 @@ use lapce_core::{
 use lapce_data::{
     buffer::{Buffer, BufferContent},
     command::{
-        CommandExecuted, CommandKind, LapceCommand, LapceUICommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
@@ -164,7 +164,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         }
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {}
-            Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {}
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {}
             _ => {
                 self.children[self.active].event(ctx, event, data, env);
             }
@@ -817,7 +817,7 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
     fn run_command(
         &mut self,
         _ctx: &mut EventCtx,
-        command: &lapce_data::command::LapceCommandNew,
+        command: &lapce_data::command::LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,

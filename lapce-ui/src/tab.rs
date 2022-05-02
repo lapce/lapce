@@ -13,8 +13,7 @@ use lapce_core::command::FocusCommand;
 use lapce_data::{
     buffer::LocalBufferKind,
     command::{
-        CommandKind, CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
-        LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
@@ -301,8 +300,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                 }
             }
-            Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_COMMAND);
                 data.run_command(ctx, command, None, env);
                 ctx.set_handled();
             }
@@ -366,8 +365,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                             {
                                 if let Some(widget_id) = *data.main_split.active {
                                     ctx.submit_command(Command::new(
-                                        LAPCE_NEW_COMMAND,
-                                        LapceCommandNew {
+                                        LAPCE_COMMAND,
+                                        LapceCommand {
                                             kind: CommandKind::Focus(
                                                 FocusCommand::SearchInView,
                                             ),
@@ -587,10 +586,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::BufferSave(path, rev) => {
-                        let buffer =
-                            data.main_split.open_files.get_mut(path).unwrap();
-                        if buffer.rev() == *rev {
-                            Arc::make_mut(buffer).set_dirty(false);
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        if doc.rev() == *rev {
+                            Arc::make_mut(doc).buffer_mut().set_dirty(false);
                         }
                         ctx.set_handled();
                     }

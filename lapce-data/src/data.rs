@@ -3,7 +3,6 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     rc::Rc,
-    str::FromStr,
     sync::Arc,
     thread,
 };
@@ -16,10 +15,7 @@ use druid::{
     Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
-use lapce_core::{
-    mode::{MotionMode, VisualMode},
-    register::Register,
-};
+use lapce_core::{mode::MotionMode, register::Register};
 use lapce_rpc::{
     file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
@@ -34,12 +30,12 @@ use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
     buffer::{
-        data::BufferData, matching_char, matching_pair_direction, Buffer,
-        BufferContent, EditType, LocalBufferKind,
+        matching_char, matching_pair_direction, Buffer, BufferContent,
+        LocalBufferKind,
     },
     command::{
-        CommandKind, CommandTarget, EnsureVisiblePosition, LapceCommandNew,
-        LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
+        LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
@@ -1496,7 +1492,7 @@ impl LapceTabData {
     pub fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommandNew,
+        command: &LapceCommand,
         count: Option<usize>,
         env: &Env,
     ) {
@@ -1504,15 +1500,15 @@ impl LapceTabData {
             CommandKind::Workbench(cmd) => {
                 self.run_workbench_command(
                     ctx,
-                    &cmd,
+                    cmd,
                     command.data.clone(),
                     count,
                     env,
                 );
             }
-            CommandKind::Focus(cmd) => {
+            CommandKind::Focus(_cmd) => {
                 ctx.submit_command(Command::new(
-                    LAPCE_NEW_COMMAND,
+                    LAPCE_COMMAND,
                     command.clone(),
                     Target::Widget(self.focus),
                 ));
@@ -1989,9 +1985,9 @@ impl LapceMainSplitData {
     ) {
         self.document_format(path, rev, result, config);
 
-        let buffer = self.open_files.get(path).unwrap();
-        let rev = buffer.rev();
-        let buffer_id = buffer.id();
+        let doc = self.open_docs.get(path).unwrap();
+        let rev = doc.rev();
+        let buffer_id = doc.id();
         let event_sink = ctx.get_external_handle();
         let path = PathBuf::from(path);
         self.proxy.save(
@@ -2030,12 +2026,7 @@ impl LapceMainSplitData {
         }
     }
 
-    fn update_diagnositcs_offset(
-        &mut self,
-        path: &Path,
-        delta: &RopeDelta,
-        config: &Config,
-    ) {
+    fn update_diagnositcs_offset(&mut self, path: &Path, delta: &RopeDelta) {
         if let Some(diagnostics) = self.diagnostics.get_mut(path) {
             if let Some(doc) = self.open_docs.get(path) {
                 let mut transformer = Transformer::new(delta);
@@ -2078,7 +2069,6 @@ impl LapceMainSplitData {
         config: &Config,
     ) -> Option<RopeDelta> {
         self.initiate_diagnositcs_offset(path, config);
-        let proxy = self.proxy.clone();
         let doc = self.open_docs.get_mut(path)?;
 
         let buffer_len = doc.buffer().len();
@@ -2097,7 +2087,7 @@ impl LapceMainSplitData {
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
-        self.update_diagnositcs_offset(path, &delta, config);
+        self.update_diagnositcs_offset(path, &delta);
         Some(delta)
     }
 

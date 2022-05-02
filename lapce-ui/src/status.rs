@@ -5,10 +5,7 @@ use druid::{
 };
 use lapce_core::mode::Mode;
 use lapce_data::{
-    command::{
-        CommandKind, CommandTarget, LapceCommandNew, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND,
-    },
+    command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
     panel::PanelPosition,
@@ -78,8 +75,8 @@ impl LapceStatusNew {
                             0.0,
                         )),
                     command: Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
+                        LAPCE_COMMAND,
+                        LapceCommand {
                             kind: CommandKind::Workbench(cmd),
                             data: None,
                         },

@@ -1,4 +1,4 @@
-use std::{iter::Iterator, str::FromStr, sync::Arc};
+use std::{iter::Iterator, sync::Arc};
 
 use druid::{
     piet::PietText, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
@@ -9,9 +9,8 @@ use lapce_core::command::EditCommand;
 use lapce_data::{
     buffer::{BufferContent, LocalBufferKind},
     command::{
-        CommandKind, CommandTarget, EnsureVisiblePosition, LapceCommand,
-        LapceCommandNew, LapceUICommand, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
-        LAPCE_UI_COMMAND,
+        CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::{EditorTabChild, FocusArea, LapceTabData, PanelData, PanelKind},
@@ -406,7 +405,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if let Some(find) = self.find.as_mut() {
             match event {
                 Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {}
-                Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {}
+                Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {}
                 _ => {
                     find.event(ctx, event, data, env);
                 }
@@ -467,8 +466,8 @@ impl Widget<LapceTabData> for LapceEditorView {
                 data.keypress = keypress.clone();
                 ctx.set_handled();
             }
-            Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_COMMAND);
                 editor_data.run_command(ctx, command, None, Modifiers::empty(), env);
                 self.ensure_cursor_visible(
                     ctx,
@@ -557,8 +556,8 @@ impl Widget<LapceTabData> for LapceEditorView {
         if old_data.config.lapce.modal != data.config.lapce.modal {
             if !data.config.lapce.modal {
                 ctx.submit_command(Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
+                    LAPCE_COMMAND,
+                    LapceCommand {
                         kind: CommandKind::Edit(EditCommand::InsertMode),
                         data: None,
                     },
@@ -566,8 +565,8 @@ impl Widget<LapceTabData> for LapceEditorView {
                 ));
             } else {
                 ctx.submit_command(Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
+                    LAPCE_COMMAND,
+                    LapceCommand {
                         kind: CommandKind::Edit(EditCommand::NormalMode),
                         data: None,
                     },

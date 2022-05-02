@@ -6,7 +6,8 @@ use lapce_core::{
 
 use crate::{
     command::{
-        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
+        LAPCE_UI_COMMAND,
     },
     keypress::KeyPressFocus,
 };
@@ -44,7 +45,7 @@ impl KeyPressFocus for LapceSettingsPanelData {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &crate::command::LapceCommandNew,
+        command: &crate::command::LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
@@ -137,7 +138,7 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &crate::command::LapceCommandNew,
+        command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: Modifiers,
         env: &Env,

@@ -13,7 +13,8 @@ use lapce_core::{
 };
 use lapce_data::{
     command::{
-        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
+        LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},

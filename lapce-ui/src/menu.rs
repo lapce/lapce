@@ -7,7 +7,7 @@ use druid::{
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND},
+    command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceWindowData,
     keypress::Alignment,
@@ -55,7 +55,7 @@ impl Menu {
         let n = (mouse_event.pos.y / self.line_height).floor() as usize;
         if let Some(item) = data.menu.items.get(n) {
             ctx.submit_command(Command::new(
-                LAPCE_NEW_COMMAND,
+                LAPCE_COMMAND,
                 item.command.clone(),
                 Target::Widget(data.active_id),
             ));

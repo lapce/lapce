@@ -6,12 +6,11 @@ use std::{
     sync::{atomic, Arc},
 };
 
-use anyhow::Result;
 use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    ExtEventSink, PaintCtx, Point, Target, Vec2, WidgetId,
+    ExtEventSink, Point, Target, Vec2, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, InvalLines},
@@ -20,7 +19,7 @@ use lapce_core::{
     editor::{EditType, Editor},
     mode::{Mode, MotionMode},
     movement::{LinePosition, Movement},
-    register::{self, Clipboard, Register, RegisterData},
+    register::{Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
     syntax::Syntax,
@@ -899,7 +898,6 @@ impl Document {
 
                 let new_offset =
                     self.buffer.prev_grapheme_offset(offset, count, min_offset);
-                let (_, col) = self.buffer.offset_to_line_col(new_offset);
                 (new_offset, None)
             }
             Movement::Right => {
@@ -915,7 +913,6 @@ impl Document {
                 let new_offset =
                     self.buffer.next_grapheme_offset(offset, count, max_offset);
 
-                let (_, col) = self.buffer.offset_to_line_col(new_offset);
                 (new_offset, None)
             }
             Movement::Up => {
@@ -1017,7 +1014,6 @@ impl Document {
                     .text()
                     .prev_grapheme_offset(new_offset + 1)
                     .unwrap();
-                let (_, col) = self.buffer.offset_to_line_col(new_offset);
                 (new_offset, None)
             }
             Movement::WordEndForward => {
@@ -1027,21 +1023,18 @@ impl Document {
                 if mode != Mode::Insert {
                     new_offset = self.buffer.prev_grapheme_offset(new_offset, 1, 0);
                 }
-                let (_, col) = self.buffer.offset_to_line_col(new_offset);
                 (new_offset, None)
             }
             Movement::WordForward => {
                 let new_offset = WordCursor::new(self.buffer.text(), offset)
                     .next_boundary()
                     .unwrap_or(offset);
-                let (_, col) = self.buffer.offset_to_line_col(new_offset);
                 (new_offset, None)
             }
             Movement::WordBackward => {
                 let new_offset = WordCursor::new(self.buffer.text(), offset)
                     .prev_boundary()
                     .unwrap_or(offset);
-                let (_, col) = self.buffer.offset_to_line_col(new_offset);
                 (new_offset, None)
             }
             Movement::NextUnmatched(c) => {
@@ -1049,13 +1042,11 @@ impl Document {
                     let new_offset = syntax
                         .find_tag(offset, false, &c.to_string())
                         .unwrap_or(offset);
-                    let (_, col) = self.buffer.offset_to_line_col(new_offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)
                         .next_unmatched(*c)
                         .map_or(offset, |new| new - 1);
-                    let (_, col) = self.buffer.offset_to_line_col(new_offset);
                     (new_offset, None)
                 }
             }
@@ -1064,13 +1055,11 @@ impl Document {
                     let new_offset = syntax
                         .find_tag(offset, true, &c.to_string())
                         .unwrap_or(offset);
-                    let (_, col) = self.buffer.offset_to_line_col(new_offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)
                         .previous_unmatched(*c)
                         .unwrap_or(offset);
-                    let (_, col) = self.buffer.offset_to_line_col(new_offset);
                     (new_offset, None)
                 }
             }
@@ -1078,13 +1067,11 @@ impl Document {
                 if let Some(syntax) = self.syntax.as_ref() {
                     let new_offset =
                         syntax.find_matching_pair(offset).unwrap_or(offset);
-                    let (_, col) = self.buffer.offset_to_line_col(new_offset);
                     (new_offset, None)
                 } else {
                     let new_offset = WordCursor::new(self.buffer.text(), offset)
                         .match_pairs()
                         .unwrap_or(offset);
-                    let (_, col) = self.buffer.offset_to_line_col(new_offset);
                     (new_offset, None)
                 }
             }

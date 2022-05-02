@@ -5,10 +5,7 @@ use druid::{
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
-    command::{
-        CommandKind, CommandTarget, LapceCommand, LapceCommandNew,
-        LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
-    },
+    command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
 };
@@ -33,8 +30,8 @@ impl FindBox {
                 icon: "arrow-up.svg".to_string(),
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
+                    LAPCE_COMMAND,
+                    LapceCommand {
                         kind: CommandKind::Focus(FocusCommand::SearchBackward),
                         data: None,
                     },
@@ -45,8 +42,8 @@ impl FindBox {
                 icon: "arrow-down.svg".to_string(),
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
+                    LAPCE_COMMAND,
+                    LapceCommand {
                         kind: CommandKind::Focus(FocusCommand::SearchForward),
                         data: None,
                     },
@@ -57,8 +54,8 @@ impl FindBox {
                 icon: "close.svg".to_string(),
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
+                    LAPCE_COMMAND,
+                    LapceCommand {
                         kind: CommandKind::Focus(FocusCommand::ClearSearch),
                         data: None,
                     },

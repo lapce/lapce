@@ -5,8 +5,7 @@ use lapce_core::{command::FocusCommand, mode::Mode};
 
 use crate::{
     command::{
-        CommandExecuted, CommandKind, LapceCommandNew, LapceUICommand,
-        LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
     keypress::KeyPressFocus,
 };
@@ -14,7 +13,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MenuItem {
     pub text: String,
-    pub command: LapceCommandNew,
+    pub command: LapceCommand,
 }
 
 #[derive(Clone, Debug)]
@@ -40,7 +39,7 @@ impl KeyPressFocus for MenuData {
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommandNew,
+        command: &LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
