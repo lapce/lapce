@@ -743,12 +743,12 @@ impl LapceTabData {
             BufferContent::Local(_) => Size::ZERO,
             BufferContent::Value(_) => Size::ZERO,
             BufferContent::File(path) => {
-                let buffer = self.main_split.open_files.get(path).unwrap();
-                let offset = editor.cursor.offset();
-                let prev_offset = buffer.prev_code_boundary(offset);
+                let doc = self.main_split.open_docs.get(path).unwrap();
+                let offset = editor.new_cursor.offset();
+                let prev_offset = doc.buffer().prev_code_boundary(offset);
                 let empty_vec = Vec::new();
                 let code_actions =
-                    buffer.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+                    doc.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
 
                 let action_text_layouts: Vec<PietTextLayout> = code_actions
                     .iter()
@@ -1945,8 +1945,8 @@ impl LapceMainSplitData {
         result: &Result<Value>,
         config: &Config,
     ) {
-        let buffer = self.open_files.get(path).unwrap();
-        if buffer.rev() != rev {
+        let doc = self.open_docs.get(path).unwrap();
+        if doc.rev() != rev {
             return;
         }
 
@@ -1955,26 +1955,25 @@ impl LapceMainSplitData {
                 serde_json::from_value(res.clone());
             if let Ok(edits) = edits {
                 if !edits.is_empty() {
-                    let buffer = self.open_files.get_mut(path).unwrap();
+                    let doc = self.open_docs.get_mut(path).unwrap();
 
-                    let edits: Vec<(Selection, &str)> = edits
+                    let edits: Vec<(lapce_core::selection::Selection, &str)> = edits
                         .iter()
                         .map(|edit| {
-                            let selection = Selection::region(
-                                buffer.offset_of_position(
-                                    &edit.range.start,
-                                    config.editor.tab_width,
-                                ),
-                                buffer.offset_of_position(
-                                    &edit.range.end,
-                                    config.editor.tab_width,
-                                ),
+                            let selection = lapce_core::selection::Selection::region(
+                                doc.buffer().offset_of_position(&edit.range.start),
+                                doc.buffer().offset_of_position(&edit.range.end),
                             );
                             (selection, edit.new_text.as_str())
                         })
                         .collect();
 
-                    self.edit(path, &edits, EditType::Other, config);
+                    self.edit(
+                        path,
+                        &edits,
+                        lapce_core::editor::EditType::Other,
+                        config,
+                    );
                 }
             }
         }
@@ -2038,7 +2037,7 @@ impl LapceMainSplitData {
         config: &Config,
     ) {
         if let Some(diagnostics) = self.diagnostics.get_mut(path) {
-            if let Some(buffer) = self.open_files.get(path) {
+            if let Some(doc) = self.open_docs.get(path) {
                 let mut transformer = Transformer::new(delta);
                 for diagnostic in Arc::make_mut(diagnostics).iter_mut() {
                     let (start, end) = diagnostic.range.unwrap();
@@ -2048,13 +2047,13 @@ impl LapceMainSplitData {
                     );
                     diagnostic.range = Some((new_start, new_end));
                     if start != new_start {
-                        diagnostic.diagnositc.range.start = buffer
-                            .offset_to_position(new_start, config.editor.tab_width);
+                        diagnostic.diagnositc.range.start =
+                            doc.buffer().offset_to_position(new_start);
                     }
                     if end != new_end {
-                        diagnostic.diagnositc.range.end = buffer
-                            .offset_to_position(new_end, config.editor.tab_width);
-                        buffer.offset_to_position(new_end, config.editor.tab_width);
+                        diagnostic.diagnositc.range.end =
+                            doc.buffer().offset_to_position(new_end);
+                        doc.buffer().offset_to_position(new_end);
                     }
                 }
             }
@@ -2065,7 +2064,7 @@ impl LapceMainSplitData {
         for (_view_id, editor) in self.editors.iter_mut() {
             if let BufferContent::File(current_path) = &editor.content {
                 if current_path == path {
-                    Arc::make_mut(editor).cursor.apply_delta(delta);
+                    Arc::make_mut(editor).new_cursor.apply_delta(delta);
                 }
             }
         }
@@ -2074,15 +2073,15 @@ impl LapceMainSplitData {
     pub fn edit(
         &mut self,
         path: &Path,
-        edits: &[(impl AsRef<Selection>, &str)],
-        edit_type: EditType,
+        edits: &[(impl AsRef<lapce_core::selection::Selection>, &str)],
+        edit_type: lapce_core::editor::EditType,
         config: &Config,
     ) -> Option<RopeDelta> {
         self.initiate_diagnositcs_offset(path, config);
         let proxy = self.proxy.clone();
-        let buffer = self.open_files.get_mut(path)?;
+        let doc = self.open_docs.get_mut(path)?;
 
-        let buffer_len = buffer.len();
+        let buffer_len = doc.buffer().len();
         let mut move_cursor = true;
         for (selection, _) in edits.iter() {
             let selection = selection.as_ref();
@@ -2094,9 +2093,7 @@ impl LapceMainSplitData {
             }
         }
 
-        let delta = Arc::make_mut(buffer)
-            .editable(&proxy)
-            .edit_multiple(edits, edit_type);
+        let (delta, _) = Arc::make_mut(doc).do_raw_edit(edits, edit_type);
         if move_cursor {
             self.cursor_apply_delta(path, &delta);
         }
