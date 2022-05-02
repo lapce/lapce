@@ -230,28 +230,15 @@ impl KeyPressData {
                         cmd.clone(),
                         Target::Auto,
                     ));
+                    CommandExecuted::Yes
                 }
                 CommandKind::Move(_)
                 | CommandKind::Edit(_)
                 | CommandKind::Focus(_)
                 | CommandKind::MotionMode(_)
                 | CommandKind::MultiSelection(_) => {
-                    focus.run_command(ctx, cmd, count, mods, env);
+                    focus.run_command(ctx, cmd, count, mods, env)
                 }
-            };
-            if let CommandTarget::Focus = cmd.target {
-                if let Ok(cmd) = LapceCommand::from_str(command) {
-                    CommandExecuted::Yes
-                } else {
-                    CommandExecuted::No
-                }
-            } else {
-                ctx.submit_command(Command::new(
-                    LAPCE_NEW_COMMAND,
-                    cmd.clone(),
-                    Target::Auto,
-                ));
-                CommandExecuted::Yes
             }
         } else {
             CommandExecuted::No

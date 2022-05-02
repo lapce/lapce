@@ -30,6 +30,7 @@ use lapce_rpc::{
     buffer::{BufferId, NewBufferResponse},
     style::{LineStyle, LineStyles, Style},
 };
+use lsp_types::CodeActionResponse;
 use xi_rope::{spans::Spans, RopeDelta};
 
 use crate::{
@@ -65,6 +66,7 @@ pub struct Document {
     text_layouts: Rc<RefCell<HashMap<usize, Arc<PietTextLayout>>>>,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
+    pub code_actions: im::HashMap<usize, CodeActionResponse>,
     event_sink: ExtEventSink,
     proxy: Arc<LapceProxy>,
 }
@@ -87,6 +89,7 @@ impl Document {
             semantic_styles: None,
             load_started: Rc::new(RefCell::new(false)),
             loaded: false,
+            code_actions: im::HashMap::new(),
             event_sink,
             proxy,
         }

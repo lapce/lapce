@@ -781,6 +781,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                                     .insert(*offset, resp.clone());
                             }
                         }
+                        if let Some(doc) = data.main_split.open_docs.get_mut(path) {
+                            if doc.rev() == *rev {
+                                Arc::make_mut(doc)
+                                    .code_actions
+                                    .insert(*offset, resp.clone());
+                            }
+                        }
                     }
                     LapceUICommand::PaletteReferences(offset, locations) => {
                         if let Some(editor) = data.main_split.active_editor() {

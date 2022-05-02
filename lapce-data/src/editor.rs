@@ -147,7 +147,7 @@ impl LapceEditorBufferData {
     }
 
     pub fn sync_buffer_position(&mut self, scroll_offset: Vec2) {
-        let cursor_offset = self.editor.cursor.offset();
+        let cursor_offset = self.editor.new_cursor.offset();
         if self.buffer.cursor_offset != cursor_offset
             || self.buffer.scroll_offset != scroll_offset
         {
@@ -189,21 +189,19 @@ impl LapceEditorBufferData {
     }
 
     pub fn get_code_actions(&self, ctx: &mut EventCtx) {
-        if !self.buffer.loaded() {
+        if !self.doc.loaded() {
             return;
         }
-        if self.buffer.local() {
+        if !self.doc.content().is_file() {
             return;
         }
         if let BufferContent::File(path) = self.buffer.content() {
             let path = path.clone();
-            let offset = self.editor.cursor.offset();
-            let prev_offset = self.buffer.prev_code_boundary(offset);
-            if self.buffer.code_actions.get(&prev_offset).is_none() {
+            let offset = self.editor.new_cursor.offset();
+            let prev_offset = self.doc.buffer().prev_code_boundary(offset);
+            if self.doc.code_actions.get(&prev_offset).is_none() {
                 let buffer_id = self.doc.id();
-                let position = self
-                    .buffer
-                    .offset_to_position(prev_offset, self.config.editor.tab_width);
+                let position = self.doc.buffer().offset_to_position(prev_offset);
                 let rev = self.doc.rev();
                 let event_sink = ctx.get_external_handle();
                 self.proxy.get_code_actions(
@@ -1521,13 +1519,13 @@ impl LapceEditorBufferData {
     }
 
     pub fn current_code_actions(&self) -> Option<&CodeActionResponse> {
-        let offset = self.editor.cursor.offset();
-        let prev_offset = self.buffer.prev_code_boundary(offset);
-        self.buffer.code_actions.get(&prev_offset)
+        let offset = self.editor.new_cursor.offset();
+        let prev_offset = self.doc.buffer().prev_code_boundary(offset);
+        self.doc.code_actions.get(&prev_offset)
     }
 
     pub fn diagnostics(&self) -> Option<&Arc<Vec<EditorDiagnostic>>> {
-        if let BufferContent::File(path) = self.buffer.content() {
+        if let BufferContent::File(path) = self.doc.content() {
             self.main_split.diagnostics.get(path)
         } else {
             None
@@ -1535,7 +1533,7 @@ impl LapceEditorBufferData {
     }
 
     pub fn diagnostics_mut(&mut self) -> Option<&mut Vec<EditorDiagnostic>> {
-        if let BufferContent::File(path) = self.buffer.content() {
+        if let BufferContent::File(path) = self.doc.content() {
             self.main_split.diagnostics.get_mut(path).map(Arc::make_mut)
         } else {
             None
@@ -2078,6 +2076,18 @@ impl LapceEditorBufferData {
             ScrollDown => {
                 self.scroll(ctx, true, count.unwrap_or(1), mods);
             }
+            ShowCodeActions => {
+                if let Some(actions) = self.current_code_actions() {
+                    if !actions.is_empty() {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::ShowCodeActions,
+                            Target::Auto,
+                        ));
+                    }
+                }
+            }
+            _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
     }

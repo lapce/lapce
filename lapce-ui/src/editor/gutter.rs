@@ -441,10 +441,8 @@ impl LapceEditorGutter {
         if let Some(actions) = data.current_code_actions() {
             if !actions.is_empty() {
                 let line_height = data.config.editor.line_height as f64;
-                let offset = data.editor.cursor.offset();
-                let (line, _) = data
-                    .buffer
-                    .offset_to_line_col(offset, data.config.editor.tab_width);
+                let offset = data.editor.new_cursor.offset();
+                let (line, _) = data.doc.buffer().offset_to_line_col(offset);
                 let svg = get_svg("lightbulb.svg").unwrap();
                 let width = 16.0;
                 let height = 16.0;

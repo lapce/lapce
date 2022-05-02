@@ -1,8 +1,10 @@
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
-use lapce_core::mode::Mode;
+use lapce_core::{command::FocusCommand, mode::Mode};
 
 use crate::{
-    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
+    },
     keypress::KeyPressFocus,
 };
 
@@ -34,37 +36,26 @@ impl KeyPressFocus for LapceSettingsPanelData {
         matches!(condition, "modal_focus")
     }
 
-    // fn run_command(
-    //     &mut self,
-    //     ctx: &mut EventCtx,
-    //     command: &LapceCommand,
-    //     _count: Option<usize>,
-    //     _mods: Modifiers,
-    //     _env: &Env,
-    // ) -> CommandExecuted {
-    //     if let LapceCommand::ModalClose = command {
-    //         ctx.submit_command(Command::new(
-    //             LAPCE_UI_COMMAND,
-    //             LapceUICommand::Hide,
-    //             Target::Widget(self.panel_widget_id),
-    //         ));
-    //         CommandExecuted::Yes
-    //     } else {
-    //         CommandExecuted::No
-    //     }
-    // }
-
     fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
         command: &crate::command::LapceCommandNew,
-        count: Option<usize>,
-        mods: Modifiers,
-        env: &Env,
+        _count: Option<usize>,
+        _mods: Modifiers,
+        _env: &Env,
     ) -> CommandExecuted {
-        todo!()
+        if let CommandKind::Focus(FocusCommand::ModalClose) = command.kind {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Hide,
+                Target::Widget(self.panel_widget_id),
+            ));
+            CommandExecuted::Yes
+        } else {
+            CommandExecuted::No
+        }
     }
 }
 

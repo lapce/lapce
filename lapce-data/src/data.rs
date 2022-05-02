@@ -868,10 +868,9 @@ impl LapceTabData {
                 editor.window_origin - self.window_origin.to_vec2()
             }
             BufferContent::File(path) => {
-                let buffer = self.main_split.open_files.get(path).unwrap();
-                let offset = editor.cursor.offset();
-                let (line, col) =
-                    buffer.offset_to_line_col(offset, self.config.editor.tab_width);
+                let doc = self.main_split.open_docs.get(path).unwrap();
+                let offset = editor.new_cursor.offset();
+                let (line, col) = doc.buffer().offset_to_line_col(offset);
                 let width = config.editor_char_width(text);
                 let x = col as f64 * width;
                 let y = (line + 1) as f64 * line_height;

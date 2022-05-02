@@ -196,6 +196,12 @@ pub enum FocusCommand {
     ScrollUp,
     #[strum(serialize = "scroll_down")]
     ScrollDown,
+    #[strum(serialize = "show_code_actions")]
+    ShowCodeActions,
+    /// This will close a modal, such as the settings window or completion
+    #[strum(message = "Close Modal")]
+    #[strum(serialize = "modal.close")]
+    ModalClose,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
