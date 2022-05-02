@@ -124,14 +124,7 @@ impl ProblemContent {
                             None,
                             EditorLocationNew {
                                 path: path.clone(),
-                                position: Some(
-                                    d.range
-                                        .map(|(line, col)| lsp_types::Position {
-                                            line: line as u32,
-                                            character: col as u32,
-                                        })
-                                        .unwrap_or_else(|| d.diagnositc.range.start),
-                                ),
+                                position: Some(d.diagnositc.range.start),
                                 scroll_offset: None,
                                 history: None,
                             },

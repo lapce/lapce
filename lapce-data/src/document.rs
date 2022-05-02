@@ -299,7 +299,9 @@ impl Document {
         let rev = self.rev() - deltas.len() as u64;
         for (i, (delta, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
-            self.proxy.update(self.id, delta, rev + i as u64 + 1);
+            if self.content.is_file() {
+                self.proxy.update(self.id, delta, rev + i as u64 + 1);
+            }
         }
 
         let delta = if deltas.len() == 1 {

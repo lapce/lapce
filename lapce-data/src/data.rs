@@ -3048,6 +3048,7 @@ pub struct LapceEditorData {
     pub locations: Vec<EditorLocationNew>,
     pub current_location: usize,
     pub last_movement: Movement,
+    pub last_movement_new: lapce_core::movement::Movement,
     pub last_inline_find: Option<(InlineFindDirection, String)>,
     pub inline_find: Option<InlineFindDirection>,
     pub motion_mode: Option<MotionMode>,
@@ -3104,6 +3105,7 @@ impl LapceEditorData {
             locations: vec![],
             current_location: 0,
             last_movement: Movement::Left,
+            last_movement_new: lapce_core::movement::Movement::Left,
             inline_find: None,
             last_inline_find: None,
             motion_mode: None,
@@ -3150,7 +3152,7 @@ impl LapceEditorData {
             let location = EditorLocationNew {
                 path: path.clone(),
                 position: Some(
-                    doc.buffer().offset_to_position(self.cursor.offset()),
+                    doc.buffer().offset_to_position(self.new_cursor.offset()),
                 ),
                 scroll_offset: Some(self.scroll_offset),
                 history: None,

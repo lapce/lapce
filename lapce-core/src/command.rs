@@ -205,6 +205,10 @@ pub enum FocusCommand {
     #[strum(message = "Go to Definition")]
     #[strum(serialize = "goto_definition")]
     GotoDefinition,
+    #[strum(serialize = "jump_location_backward")]
+    JumpLocationBackward,
+    #[strum(serialize = "jump_location_forward")]
+    JumpLocationForward,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]

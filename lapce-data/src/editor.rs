@@ -1351,11 +1351,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn jump_location_forward(
-        &mut self,
-        ctx: &mut EventCtx,
-        _env: &Env,
-    ) -> Option<()> {
+    fn jump_location_forward(&mut self, ctx: &mut EventCtx) -> Option<()> {
         if self.editor.locations.is_empty() {
             return None;
         }
@@ -1373,11 +1369,7 @@ impl LapceEditorBufferData {
         None
     }
 
-    fn jump_location_backward(
-        &mut self,
-        ctx: &mut EventCtx,
-        _env: &Env,
-    ) -> Option<()> {
+    fn jump_location_backward(&mut self, ctx: &mut EventCtx) -> Option<()> {
         if self.editor.current_location < 1 {
             return None;
         }
@@ -1705,6 +1697,11 @@ impl LapceEditorBufferData {
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
+        if movement.is_jump() && movement != &self.editor.last_movement_new {
+            Arc::make_mut(&mut self.editor).save_jump_location(&self.doc);
+        }
+        Arc::make_mut(&mut self.editor).last_movement_new = movement.clone();
+
         let register = Arc::make_mut(&mut self.main_split.register);
         let doc = Arc::make_mut(&mut self.doc);
         doc.move_cursor(
@@ -2153,6 +2150,12 @@ impl LapceEditorBufferData {
                         }
                     }),
                 );
+            }
+            JumpLocationBackward => {
+                self.jump_location_backward(ctx);
+            }
+            JumpLocationForward => {
+                self.jump_location_forward(ctx);
             }
             _ => return CommandExecuted::No,
         }
@@ -2827,10 +2830,10 @@ impl LapceEditorBufferData {
                 self.page_move(ctx, false, mods);
             }
             LapceCommand::JumpLocationBackward => {
-                self.jump_location_backward(ctx, env);
+                self.jump_location_backward(ctx);
             }
             LapceCommand::JumpLocationForward => {
-                self.jump_location_forward(ctx, env);
+                self.jump_location_forward(ctx);
             }
             LapceCommand::MoveLineUp => {
                 if let CursorMode::Insert(mut selection) =
@@ -3852,6 +3855,7 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
+            self.initiate_diagnositcs_offset();
             let doc = Arc::make_mut(&mut self.doc);
             let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
             let deltas = doc.do_insert(cursor, c);

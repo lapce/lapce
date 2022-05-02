@@ -293,8 +293,9 @@ impl Editor {
                 .iter()
                 .map(|(selection, s)| (selection, s.as_str()))
                 .collect::<Vec<(&Selection, &str)>>();
-            let (delta, _) = buffer.edit(&edits, EditType::InsertNewline);
+            let (delta, inval_lines) = buffer.edit(&edits, EditType::InsertNewline);
             selection = selection.apply_delta(&delta, false, InsertDrift::Default);
+            deltas.push((delta, inval_lines));
         }
 
         cursor.mode = CursorMode::Insert(selection);
