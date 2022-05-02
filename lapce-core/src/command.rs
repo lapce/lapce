@@ -209,6 +209,8 @@ pub enum FocusCommand {
     JumpLocationBackward,
     #[strum(serialize = "jump_location_forward")]
     JumpLocationForward,
+    #[strum(serialize = "search")]
+    Search,
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]

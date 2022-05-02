@@ -2157,6 +2157,66 @@ impl LapceEditorBufferData {
             JumpLocationForward => {
                 self.jump_location_forward(ctx);
             }
+            Search => {
+                Arc::make_mut(&mut self.find).visual = true;
+                let region = match &self.editor.new_cursor.mode {
+                    lapce_core::cursor::CursorMode::Normal(offset) => {
+                        lapce_core::selection::SelRegion::caret(*offset)
+                    }
+                    lapce_core::cursor::CursorMode::Visual {
+                        start,
+                        end,
+                        mode: _,
+                    } => lapce_core::selection::SelRegion::new(
+                        *start.min(end),
+                        self.doc.buffer().next_grapheme_offset(
+                            *start.max(end),
+                            1,
+                            self.doc.buffer().len(),
+                        ),
+                        None,
+                    ),
+                    lapce_core::cursor::CursorMode::Insert(selection) => {
+                        *selection.last_inserted().unwrap()
+                    }
+                };
+                let pattern = if region.is_caret() {
+                    let (start, end) = self.doc.buffer().select_word(region.start);
+                    self.doc.buffer().slice_to_cow(start..end).to_string()
+                } else {
+                    self.doc
+                        .buffer()
+                        .slice_to_cow(region.min()..region.max())
+                        .to_string()
+                };
+                if !pattern.contains('\n') {
+                    Arc::make_mut(&mut self.find)
+                        .set_find(&pattern, false, false, false);
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateSearch(pattern),
+                        Target::Widget(*self.main_split.tab_id),
+                    ));
+                }
+                if let Some(find_view_id) = self.editor.find_view_id {
+                    ctx.submit_command(Command::new(
+                        LAPCE_NEW_COMMAND,
+                        LapceCommandNew {
+                            cmd: LapceCommand::SelectAll.to_string(),
+                            kind: CommandKind::Edit(EditCommand::MoveLineUp),
+                            data: None,
+                            palette_desc: None,
+                            target: CommandTarget::Focus,
+                        },
+                        Target::Widget(find_view_id),
+                    ));
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::Focus,
+                        Target::Widget(find_view_id),
+                    ));
+                }
+            }
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
