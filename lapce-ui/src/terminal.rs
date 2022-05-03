@@ -21,7 +21,6 @@ use lapce_data::{
     data::{FocusArea, LapceTabData, PanelKind},
     proxy::LapceProxy,
     split::SplitDirection,
-    state::Mode,
     terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;

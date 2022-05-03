@@ -225,6 +225,8 @@ pub enum FocusCommand {
     ScrollUp,
     #[strum(serialize = "scroll_down")]
     ScrollDown,
+    #[strum(serialize = "center_of_window")]
+    CenterOfWindow,
     #[strum(serialize = "show_code_actions")]
     ShowCodeActions,
     /// This will close a modal, such as the settings window or completion
@@ -238,6 +240,19 @@ pub enum FocusCommand {
     JumpLocationBackward,
     #[strum(serialize = "jump_location_forward")]
     JumpLocationForward,
+    #[strum(serialize = "next_error")]
+    NextError,
+    #[strum(serialize = "previous_error")]
+    PreviousError,
+    #[strum(message = "Go to Next Difference")]
+    #[strum(serialize = "next_diff")]
+    NextDiff,
+    #[strum(message = "Go to Previous Difference")]
+    #[strum(serialize = "previous_diff")]
+    PreviousDiff,
+    #[strum(serialize = "format_document")]
+    #[strum(message = "Format Document")]
+    FormatDocument,
     #[strum(serialize = "search")]
     Search,
     #[strum(message = "Save")]

@@ -1220,7 +1220,7 @@ impl LapceEditorBufferData {
         None
     }
 
-    fn next_diff(&mut self, ctx: &mut EventCtx, _env: &Env) {
+    fn next_diff(&mut self, ctx: &mut EventCtx) {
         if let BufferContent::File(buffer_path) = self.buffer.content() {
             if self.source_control.file_diffs.is_empty() {
                 return;
@@ -1299,7 +1299,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn next_error(&mut self, ctx: &mut EventCtx, _env: &Env) {
+    fn next_error(&mut self, ctx: &mut EventCtx) {
         if let BufferContent::File(buffer_path) = self.buffer.content() {
             let mut file_diagnostics = self
                 .main_split
@@ -2063,6 +2063,13 @@ impl LapceEditorBufferData {
             ScrollDown => {
                 self.scroll(ctx, true, count.unwrap_or(1), mods);
             }
+            CenterOfWindow => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureCursorCenter,
+                    Target::Widget(self.editor.view_id),
+                ));
+            }
             ShowCodeActions => {
                 if let Some(actions) = self.current_code_actions() {
                     if !actions.is_empty() {
@@ -2152,6 +2159,42 @@ impl LapceEditorBufferData {
             }
             JumpLocationForward => {
                 self.jump_location_forward(ctx);
+            }
+            NextError => {
+                self.next_error(ctx);
+            }
+            NextDiff => {
+                self.next_diff(ctx);
+            }
+            FormatDocument => {
+                if let BufferContent::File(path) = self.doc.content() {
+                    let path = path.clone();
+                    let proxy = self.proxy.clone();
+                    let buffer_id = self.doc.id();
+                    let rev = self.doc.rev();
+                    let event_sink = ctx.get_external_handle();
+                    let (sender, receiver) = bounded(1);
+                    thread::spawn(move || {
+                        proxy.get_document_formatting(
+                            buffer_id,
+                            Box::new(move |result| {
+                                let _ = sender.send(result);
+                            }),
+                        );
+
+                        let result = receiver
+                            .recv_timeout(Duration::from_secs(1))
+                            .map_or_else(
+                                |e| Err(anyhow!("{}", e)),
+                                |v| v.map_err(|e| anyhow!("{:?}", e)),
+                            );
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::DocumentFormat(path, rev, result),
+                            Target::Auto,
+                        );
+                    });
+                }
             }
             Search => {
                 Arc::make_mut(&mut self.find).visual = true;
@@ -3246,11 +3289,11 @@ impl LapceEditorBufferData {
                 }
             }
             LapceCommandOld::NextError => {
-                self.next_error(ctx, env);
+                self.next_error(ctx);
             }
             LapceCommandOld::PreviousError => {}
             LapceCommandOld::NextDiff => {
-                self.next_diff(ctx, env);
+                self.next_diff(ctx);
             }
             LapceCommandOld::PreviousDiff => {}
             LapceCommandOld::ListNext => {
