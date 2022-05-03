@@ -1477,19 +1477,32 @@ impl LapceEditor {
                             break;
                         }
 
+                        let text_layout = data.doc.get_text_layout(
+                            ctx.text(),
+                            line,
+                            data.config.editor.font_size,
+                            &data.config,
+                        );
                         let x0 = if line == start.line as usize {
-                            start.character as f64 * width
+                            text_layout
+                                .hit_test_text_position(start.character as usize)
+                                .point
+                                .x
                         } else {
                             let (_, col) = data.doc.buffer().offset_to_line_col(
                                 data.buffer.first_non_blank_character_on_line(line),
                             );
-                            col as f64 * width
+                            text_layout.hit_test_text_position(col).point.x
                         };
                         let x1 = if line == end.line as usize {
-                            end.character as f64 * width
+                            text_layout
+                                .hit_test_text_position(end.character as usize)
+                                .point
+                                .x
                         } else {
-                            (data.doc.buffer().line_end_col(line, false) + 1) as f64
-                                * width
+                            let col =
+                                data.doc.buffer().line_end_col(line, false) + 1;
+                            text_layout.hit_test_text_position(col).point.x
                         };
                         let _y1 = (line + 1) as f64 * line_height;
                         let y0 = (line + 1) as f64 * line_height - 4.0;
