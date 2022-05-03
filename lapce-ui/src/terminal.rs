@@ -14,6 +14,7 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
+use lapce_core::mode::Mode;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,

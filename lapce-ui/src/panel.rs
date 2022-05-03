@@ -5,9 +5,7 @@ use druid::{
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
-    command::{
-        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
-    },
+    command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
     panel::PanelPosition,
@@ -16,8 +14,7 @@ use lapce_data::{
 use serde_json::json;
 
 use crate::{
-    scroll::LapceScrollNew, split::LapceSplitNew, tab::LapceIcon,
-    svg::get_svg,
+    scroll::LapceScrollNew, split::LapceSplitNew, svg::get_svg, tab::LapceIcon,
 };
 
 pub struct LapcePanel {
@@ -380,12 +377,10 @@ impl PanelMainHeader {
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
             command: Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::HidePanel.to_string(),
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::HidePanel),
                     data: Some(json!(self.kind)),
-                    palette_desc: None,
-                    target: CommandTarget::Workbench,
                 },
                 Target::Widget(data.id),
             ),
@@ -415,13 +410,12 @@ impl PanelMainHeader {
                         .to_rect()
                         .with_origin(Point::new(x, gap)),
                     command: Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
-                            cmd: LapceWorkbenchCommand::ToggleMaximizedPanel
-                                .to_string(),
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::ToggleMaximizedPanel,
+                            ),
                             data: Some(json!(self.kind)),
-                            palette_desc: None,
-                            target: CommandTarget::Workbench,
                         },
                         Target::Widget(data.id),
                     ),

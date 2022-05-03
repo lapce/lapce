@@ -3,14 +3,12 @@ use druid::{
     Command, Event, EventCtx, FontFamily, MouseEvent, Point, RenderContext, Size,
     Target, Widget,
 };
+use lapce_core::mode::Mode;
 use lapce_data::{
-    command::{
-        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
-    },
+    command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
     panel::PanelPosition,
-    state::Mode,
 };
 
 use crate::{svg::get_svg, tab::LapceIcon};
@@ -77,12 +75,10 @@ impl LapceStatusNew {
                             0.0,
                         )),
                     command: Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
-                            cmd: cmd.to_string(),
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(cmd),
                             data: None,
-                            palette_desc: None,
-                            target: CommandTarget::Workbench,
                         },
                         Target::Widget(data.id),
                     ),

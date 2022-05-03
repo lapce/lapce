@@ -1,4 +1,4 @@
-use lapce_core::syntax::Syntax;
+use lapce_core::{mode::Mode, syntax::Syntax};
 use xi_rope::RopeDelta;
 
 use crate::{
@@ -9,7 +9,6 @@ use crate::{
         redo::RedoCommand, undo::UndoCommand,
     },
     movement::{Cursor, CursorMode, Selection},
-    state::Mode,
 };
 
 #[cfg(test)]

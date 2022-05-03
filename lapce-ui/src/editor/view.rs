@@ -1,15 +1,16 @@
-use std::{iter::Iterator, str::FromStr, sync::Arc};
+use std::{iter::Iterator, sync::Arc};
 
 use druid::{
     piet::PietText, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
     LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext, Size,
     Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::command::EditCommand;
 use lapce_data::{
     buffer::{BufferContent, LocalBufferKind},
     command::{
-        CommandTarget, EnsureVisiblePosition, LapceCommand, LapceCommandNew,
-        LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::{EditorTabChild, FocusArea, LapceTabData, PanelData, PanelKind},
@@ -322,12 +323,19 @@ impl LapceEditorView {
     }
 
     fn cursor_region(data: &LapceEditorBufferData, text: &mut PietText) -> Rect {
-        let offset = data.editor.cursor.offset();
-        let (line, col) = data
-            .buffer
-            .offset_to_line_col(offset, data.config.editor.tab_width);
+        let offset = data.editor.new_cursor.offset();
+        let (line, col) = data.doc.buffer().offset_to_line_col(offset);
         let width = data.config.editor_char_width(text);
-        let cursor_x = col as f64 * width;
+        let cursor_x = data
+            .doc
+            .point_of_line_col(
+                text,
+                line,
+                col,
+                data.config.editor.font_size,
+                &data.config,
+            )
+            .x;
         let line_height = data.config.editor.line_height as f64;
 
         let y = if data.editor.code_lens {
@@ -397,7 +405,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if let Some(find) = self.find.as_mut() {
             match event {
                 Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {}
-                Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {}
+                Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {}
                 _ => {
                     find.event(ctx, event, data, env);
                 }
@@ -430,6 +438,7 @@ impl Widget<LapceTabData> for LapceEditorView {
 
         let mut editor_data = data.editor_view_content(self.view_id);
         let buffer = editor_data.buffer.clone();
+        let doc = editor_data.doc.clone();
 
         match event {
             Event::KeyDown(key_event) => {
@@ -457,24 +466,16 @@ impl Widget<LapceTabData> for LapceEditorView {
                 data.keypress = keypress.clone();
                 ctx.set_handled();
             }
-            Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
-                if let Ok(command) = LapceCommand::from_str(&command.cmd) {
-                    editor_data.run_command(
-                        ctx,
-                        &command,
-                        None,
-                        Modifiers::empty(),
-                        env,
-                    );
-                    self.ensure_cursor_visible(
-                        ctx,
-                        &editor_data,
-                        &data.panels,
-                        None,
-                        env,
-                    );
-                }
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_COMMAND);
+                editor_data.run_command(ctx, command, None, Modifiers::empty(), env);
+                self.ensure_cursor_visible(
+                    ctx,
+                    &editor_data,
+                    &data.panels,
+                    None,
+                    env,
+                );
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let cmd = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -488,7 +489,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             _ => (),
         }
-        data.update_from_editor_buffer_data(editor_data, &editor, &buffer);
+        data.update_from_editor_buffer_data(editor_data, &editor, &buffer, &doc);
 
         self.header.event(ctx, event, data, env);
         self.editor.event(ctx, event, data, env);
@@ -555,23 +556,19 @@ impl Widget<LapceTabData> for LapceEditorView {
         if old_data.config.lapce.modal != data.config.lapce.modal {
             if !data.config.lapce.modal {
                 ctx.submit_command(Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
-                        cmd: LapceCommand::InsertMode.to_string(),
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::InsertMode),
                         data: None,
-                        palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(self.view_id),
                 ));
             } else {
                 ctx.submit_command(Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
-                        cmd: LapceCommand::NormalMode.to_string(),
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::NormalMode),
                         data: None,
-                        palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(self.view_id),
                 ));
@@ -632,7 +629,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if editor_data.buffer.dirty() != old_editor_data.buffer.dirty() {
             ctx.request_paint();
         }
-        if editor_data.editor.cursor != old_editor_data.editor.cursor {
+        if editor_data.editor.new_cursor != old_editor_data.editor.new_cursor {
             ctx.request_paint();
         }
 

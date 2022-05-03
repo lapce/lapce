@@ -6,6 +6,8 @@ use druid::{Data, Env, EventCtx};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
+use lapce_core::command::{EditCommand, FocusCommand};
+use lapce_core::mode::Mode;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use serde_json;
 use std::cmp::Ordering;
@@ -14,11 +16,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::command::CommandKind;
 use crate::{
     buffer::BufferContent,
     command::LAPCE_UI_COMMAND,
-    command::{CommandExecuted, LapceCommand, LAPCE_NEW_COMMAND},
-    command::{LapceCommandNew, LapceUICommand},
+    command::{CommandExecuted, LapceCommandOld, LAPCE_COMMAND},
+    command::{LapceCommand, LapceUICommand},
     config::Config,
     data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
     editor::EditorLocationNew,
@@ -28,7 +31,6 @@ use crate::{
     proxy::LapceProxy,
     state::LapceWorkspace,
     state::LapceWorkspaceType,
-    state::Mode,
     terminal::TerminalSplitData,
 };
 
@@ -99,7 +101,7 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocationNew),
     Workspace(LapceWorkspace),
     SshHost(String, String),
-    Command(LapceCommandNew),
+    Command(LapceCommand),
     Theme(String),
 }
 
@@ -175,7 +177,7 @@ impl PaletteItemContent {
             PaletteItemContent::Command(command) => {
                 if !preview {
                     ctx.submit_command(Command::new(
-                        LAPCE_NEW_COMMAND,
+                        LAPCE_COMMAND,
                         command.clone(),
                         Target::Auto,
                     ));
@@ -286,43 +288,81 @@ impl KeyPressFocus for PaletteViewData {
         matches!(condition, "list_focus" | "palette_focus" | "modal_focus")
     }
 
-    fn run_command(
-        &mut self,
-        ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
-    ) -> CommandExecuted {
-        match command {
-            LapceCommand::ModalClose => {
-                self.cancel(ctx);
-            }
-            LapceCommand::DeleteBackward => {
-                self.delete_backward(ctx);
-            }
-            LapceCommand::DeleteToBeginningOfLine => {
-                self.delete_to_beginning_of_line(ctx);
-            }
-            LapceCommand::ListNext => {
-                self.next(ctx);
-            }
-            LapceCommand::ListPrevious => {
-                self.previous(ctx);
-            }
-            LapceCommand::ListSelect => {
-                self.select(ctx);
-            }
-            _ => return CommandExecuted::No,
-        }
-        CommandExecuted::Yes
-    }
+    // fn run_command(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     match command {
+    //         LapceCommand::ModalClose => {
+    //             self.cancel(ctx);
+    //         }
+    //         LapceCommand::DeleteBackward => {
+    //             self.delete_backward(ctx);
+    //         }
+    //         LapceCommand::DeleteToBeginningOfLine => {
+    //             self.delete_to_beginning_of_line(ctx);
+    //         }
+    //         LapceCommand::ListNext => {
+    //             self.next(ctx);
+    //         }
+    //         LapceCommand::ListPrevious => {
+    //             self.previous(ctx);
+    //         }
+    //         LapceCommand::ListSelect => {
+    //             self.select(ctx);
+    //         }
+    //         _ => return CommandExecuted::No,
+    //     }
+    //     CommandExecuted::Yes
+    // }
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.input.insert_str(palette.cursor, c);
         palette.cursor += c.len();
         self.update_palette(ctx);
+    }
+
+    fn run_command(
+        &mut self,
+        ctx: &mut EventCtx,
+        command: &LapceCommand,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
+    ) -> CommandExecuted {
+        match &command.kind {
+            CommandKind::Focus(cmd) => match cmd {
+                FocusCommand::ModalClose => {
+                    self.cancel(ctx);
+                }
+                FocusCommand::ListNext => {
+                    self.next(ctx);
+                }
+                FocusCommand::ListPrevious => {
+                    self.previous(ctx);
+                }
+                FocusCommand::ListSelect => {
+                    self.select(ctx);
+                }
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Edit(cmd) => match cmd {
+                EditCommand::DeleteBackward => {
+                    self.delete_backward(ctx);
+                }
+                EditCommand::DeleteToBeginningOfLine => {
+                    self.delete_to_beginning_of_line(ctx);
+                }
+                _ => return CommandExecuted::No,
+            },
+            _ => return CommandExecuted::No,
+        }
+        CommandExecuted::Yes
     }
 }
 
@@ -754,11 +794,11 @@ impl PaletteViewData {
             .commands
             .iter()
             .filter_map(|(_, c)| {
-                if EXCLUDED_ITEMS.contains(&c.cmd.as_str()) {
+                if EXCLUDED_ITEMS.contains(&c.kind.str()) {
                     return None;
                 }
 
-                c.palette_desc.as_ref().map(|m| NewPaletteItem {
+                c.kind.desc().as_ref().map(|m| NewPaletteItem {
                     content: PaletteItemContent::Command(c.clone()),
                     filter_text: m.to_string(),
                     score: 0,

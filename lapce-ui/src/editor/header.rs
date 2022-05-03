@@ -6,9 +6,10 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
     buffer::BufferContent,
-    command::{CommandTarget, LapceCommand, LapceCommandNew, LAPCE_NEW_COMMAND},
+    command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
     editor::LapceEditorBufferData,
@@ -60,12 +61,10 @@ impl LapceEditorHeader {
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
             command: Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
-                    cmd: LapceCommand::SplitClose.to_string(),
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitClose),
                     data: None,
-                    palette_desc: None,
-                    target: CommandTarget::Focus,
                 },
                 Target::Widget(self.view_id),
             ),
@@ -80,12 +79,10 @@ impl LapceEditorHeader {
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
             command: Command::new(
-                LAPCE_NEW_COMMAND,
-                LapceCommandNew {
-                    cmd: LapceCommand::SplitVertical.to_string(),
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Focus(FocusCommand::SplitVertical),
                     data: None,
-                    palette_desc: None,
-                    target: CommandTarget::Focus,
                 },
                 Target::Widget(self.view_id),
             ),
@@ -157,7 +154,7 @@ impl LapceEditorHeader {
                     .and_then(|s| s.to_str())
                     .unwrap_or("")
                     .to_string();
-                if data.buffer.dirty() {
+                if data.doc.buffer().dirty() {
                     file_name = "*".to_string() + &file_name;
                 }
                 if let Some(_compare) = data.editor.compare.as_ref() {

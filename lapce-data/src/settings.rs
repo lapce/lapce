@@ -1,9 +1,15 @@
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
+use lapce_core::{
+    command::{EditCommand, FocusCommand, MoveCommand},
+    mode::Mode,
+};
 
 use crate::{
-    command::{CommandExecuted, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
+        LAPCE_UI_COMMAND,
+    },
     keypress::KeyPressFocus,
-    state::Mode,
 };
 
 pub enum LapceSettingsKind {
@@ -34,15 +40,17 @@ impl KeyPressFocus for LapceSettingsPanelData {
         matches!(condition, "modal_focus")
     }
 
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
+
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
-        command: &LapceCommand,
+        command: &crate::command::LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        if let LapceCommand::ModalClose = command {
+        if let CommandKind::Focus(FocusCommand::ModalClose) = command.kind {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::Hide,
@@ -53,8 +61,6 @@ impl KeyPressFocus for LapceSettingsPanelData {
             CommandExecuted::No
         }
     }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl LapceSettingsPanelData {
@@ -96,28 +102,64 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         false
     }
 
+    // fn run_command(
+    //     &mut self,
+    //     _ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     match command {
+    //         LapceCommand::Right => {
+    //             self.cursor += 1;
+    //             if self.cursor > self.input.len() {
+    //                 self.cursor = self.input.len();
+    //             }
+    //         }
+    //         LapceCommand::Left => {
+    //             if self.cursor == 0 {
+    //                 return CommandExecuted::Yes;
+    //             }
+    //             self.cursor -= 1;
+    //         }
+    //         LapceCommand::DeleteBackward => {
+    //             if self.cursor == 0 {
+    //                 return CommandExecuted::Yes;
+    //             }
+    //             self.input.remove(self.cursor - 1);
+    //             self.cursor -= 1;
+    //         }
+    //         _ => return CommandExecuted::No,
+    //     }
+    //     CommandExecuted::Yes
+    // }
+
     fn run_command(
         &mut self,
-        _ctx: &mut EventCtx,
-        command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-        _env: &Env,
+        ctx: &mut EventCtx,
+        command: &crate::command::LapceCommand,
+        count: Option<usize>,
+        mods: Modifiers,
+        env: &Env,
     ) -> CommandExecuted {
-        match command {
-            LapceCommand::Right => {
-                self.cursor += 1;
-                if self.cursor > self.input.len() {
-                    self.cursor = self.input.len();
+        match &command.kind {
+            CommandKind::Move(cmd) => match cmd {
+                MoveCommand::Right => {
+                    self.cursor += 1;
+                    if self.cursor > self.input.len() {
+                        self.cursor = self.input.len();
+                    }
                 }
-            }
-            LapceCommand::Left => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
+                MoveCommand::Left => {
+                    if self.cursor == 0 {
+                        return CommandExecuted::Yes;
+                    }
+                    self.cursor -= 1;
                 }
-                self.cursor -= 1;
-            }
-            LapceCommand::DeleteBackward => {
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Edit(EditCommand::DeleteBackward) => {
                 if self.cursor == 0 {
                     return CommandExecuted::Yes;
                 }

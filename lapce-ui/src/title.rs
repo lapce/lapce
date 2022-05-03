@@ -10,7 +10,7 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
         LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
@@ -231,11 +231,9 @@ impl Widget<LapceWindowData> for Title {
                 .get_message()
                 .unwrap()
                 .to_string(),
-            command: LapceCommandNew {
-                cmd: LapceWorkbenchCommand::ConnectSshHost.to_string(),
-                palette_desc: None,
+            command: LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
                 data: None,
-                target: CommandTarget::Workbench,
             },
         }];
 
@@ -245,11 +243,9 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::ConnectWsl.to_string(),
-                    palette_desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectWsl),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             });
         }
@@ -257,11 +253,11 @@ impl Widget<LapceWindowData> for Title {
         if tab.workspace.kind.is_remote() {
             menu_items.push(MenuItem {
                 text: "Disconnect Remote".to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::DisconnectRemote.to_string(),
-                    palette_desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::DisconnectRemote,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             });
         }
@@ -325,11 +321,9 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
-                    palette_desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
             MenuItem {
@@ -337,11 +331,11 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
-                    palette_desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteWorkspace,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
         ];
@@ -410,11 +404,11 @@ impl Widget<LapceWindowData> for Title {
                 .iter()
                 .map(|b| MenuItem {
                     text: b.to_string(),
-                    command: LapceCommandNew {
-                        cmd: LapceWorkbenchCommand::CheckoutBranch.to_string(),
-                        palette_desc: None,
+                    command: LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::CheckoutBranch,
+                        ),
                         data: Some(json!(b.to_string())),
-                        target: CommandTarget::Workbench,
                     },
                 })
                 .collect();
@@ -456,11 +450,11 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
-                    palette_desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteCommand,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
             MenuItem {
@@ -468,11 +462,11 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenSettings.to_string(),
-                    palette_desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::OpenSettings,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
             MenuItem {
@@ -480,11 +474,11 @@ impl Widget<LapceWindowData> for Title {
                     .get_message()
                     .unwrap()
                     .to_string(),
-                command: LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::OpenKeyboardShortcuts.to_string(),
-                    palette_desc: None,
+                command: LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                    ),
                     data: None,
-                    target: CommandTarget::Workbench,
                 },
             },
         ];

@@ -20,6 +20,7 @@ use crate::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
         LapceMainSplitData, LapceTabData, LapceWindowData, SplitContent, SplitData,
     },
+    document::Document,
     editor::EditorLocationNew,
     split::SplitDirection,
     state::LapceWorkspace,
@@ -280,9 +281,16 @@ impl EditorInfo {
                 let buffer = Arc::new(Buffer::new(
                     BufferContent::File(path.clone()),
                     tab_id,
-                    event_sink,
+                    event_sink.clone(),
                 ));
                 data.open_files.insert(path.clone(), buffer);
+                let doc = Arc::new(Document::new(
+                    BufferContent::File(path.clone()),
+                    tab_id,
+                    event_sink,
+                    data.proxy.clone(),
+                ));
+                data.open_docs.insert(path.clone(), doc);
             }
         }
         data.insert_editor(Arc::new(editor_data.clone()), config);
@@ -483,6 +491,18 @@ impl LapceDb {
         self.save_tx
             .send(SaveEvent::Workspace(workspace, workspace_info))?;
         Ok(())
+    }
+
+    pub fn save_doc_position(&self, workspace: &LapceWorkspace, doc: &Document) {
+        if let BufferContent::File(path) = doc.content() {
+            let info = BufferInfo {
+                workspace: workspace.clone(),
+                path: path.clone(),
+                scroll_offset: (doc.scroll_offset.x, doc.scroll_offset.y),
+                cursor_offset: doc.cursor_offset,
+            };
+            let _ = self.save_tx.send(SaveEvent::Buffer(info));
+        }
     }
 
     pub fn save_buffer_position(&self, workspace: &LapceWorkspace, buffer: &Buffer) {

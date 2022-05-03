@@ -3,16 +3,14 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
-    command::{CommandTarget, LapceCommand, LapceCommandNew, LAPCE_NEW_COMMAND},
+    command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
 };
 
-use crate::{
-    editor::view::LapceEditorView, tab::LapceIcon,
-    svg::get_svg,
-};
+use crate::{editor::view::LapceEditorView, svg::get_svg, tab::LapceIcon};
 
 pub struct FindBox {
     input_width: f64,
@@ -32,12 +30,10 @@ impl FindBox {
                 icon: "arrow-up.svg".to_string(),
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
-                        cmd: LapceCommand::SearchBackward.to_string(),
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::SearchBackward),
                         data: None,
-                        palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),
@@ -46,12 +42,10 @@ impl FindBox {
                 icon: "arrow-down.svg".to_string(),
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
-                        cmd: LapceCommand::SearchForward.to_string(),
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::SearchForward),
                         data: None,
-                        palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),
@@ -60,12 +54,10 @@ impl FindBox {
                 icon: "close.svg".to_string(),
                 rect: Rect::ZERO,
                 command: Command::new(
-                    LAPCE_NEW_COMMAND,
-                    LapceCommandNew {
-                        cmd: LapceCommand::ClearSearch.to_string(),
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::ClearSearch),
                         data: None,
-                        palette_desc: None,
-                        target: CommandTarget::Focus,
                     },
                     Target::Widget(parent_view_id),
                 ),

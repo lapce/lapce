@@ -3,6 +3,10 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
+use lapce_core::command::{
+    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
+};
+use lapce_core::mode::MotionMode;
 use lapce_core::syntax::Syntax;
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
@@ -14,12 +18,12 @@ use lsp_types::{
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
-use strum_macros::{Display, EnumIter, EnumMessage, EnumString};
+use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
     buffer::DiffLines,
-    data::{EditorTabChild, MotionMode, SplitContent},
+    data::{EditorTabChild, SplitContent},
     editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},
     menu::MenuItem,
@@ -31,29 +35,54 @@ use crate::{
     state::LapceWorkspace,
 };
 
-pub const LAPCE_NEW_COMMAND: Selector<LapceCommandNew> =
-    Selector::new("lapce.new-command");
-pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.command");
+pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.new-command");
+pub const LAPCE_COMMAND_OLD: Selector<LapceCommandOld> =
+    Selector::new("lapce.command");
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
 
 #[derive(Clone, Debug)]
-pub struct LapceCommandNew {
-    pub cmd: String,
+pub struct LapceCommand {
+    pub kind: CommandKind,
     pub data: Option<serde_json::Value>,
-    pub palette_desc: Option<String>,
-    pub target: CommandTarget,
 }
 
-impl LapceCommandNew {
+#[derive(Clone, Debug)]
+pub enum CommandKind {
+    Workbench(LapceWorkbenchCommand),
+    Edit(EditCommand),
+    Move(MoveCommand),
+    Focus(FocusCommand),
+    MotionMode(MotionModeCommand),
+    MultiSelection(MultiSelectionCommand),
+}
+
+impl CommandKind {
+    pub fn desc(&self) -> Option<&'static str> {
+        match &self {
+            CommandKind::Workbench(cmd) => cmd.get_message(),
+            CommandKind::Edit(cmd) => cmd.get_message(),
+            CommandKind::Move(cmd) => cmd.get_message(),
+            CommandKind::Focus(cmd) => cmd.get_message(),
+            CommandKind::MotionMode(cmd) => cmd.get_message(),
+            CommandKind::MultiSelection(cmd) => cmd.get_message(),
+        }
+    }
+
+    pub fn str(&self) -> &'static str {
+        match &self {
+            CommandKind::Workbench(cmd) => cmd.into(),
+            CommandKind::Edit(cmd) => cmd.into(),
+            CommandKind::Move(cmd) => cmd.into(),
+            CommandKind::Focus(cmd) => cmd.into(),
+            CommandKind::MotionMode(cmd) => cmd.into(),
+            CommandKind::MultiSelection(cmd) => cmd.into(),
+        }
+    }
+}
+
+impl LapceCommand {
     pub const PALETTE: &'static str = "palette";
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum CommandTarget {
-    Workbench,
-    Focus,
-    Plugin(String),
 }
 
 #[derive(PartialEq)]
@@ -62,33 +91,70 @@ pub enum CommandExecuted {
     No,
 }
 
-pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
+pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     let mut commands = IndexMap::new();
 
     for c in LapceWorkbenchCommand::iter() {
-        let command = LapceCommandNew {
-            cmd: c.to_string(),
+        let command = LapceCommand {
+            kind: CommandKind::Workbench(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Workbench,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
     }
 
-    for c in LapceCommand::iter() {
-        let command = LapceCommandNew {
-            cmd: c.to_string(),
+    for c in EditCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::Edit(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Focus,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
+    }
+
+    for c in MoveCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::Move(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
+    }
+
+    for c in FocusCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::Focus(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
+    }
+
+    for c in MotionModeCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::MotionMode(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
+    }
+
+    for c in MultiSelectionCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::MultiSelection(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
     }
 
     commands
 }
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
 pub enum LapceWorkbenchCommand {
     #[strum(serialize = "enable_modal_editing")]
     #[strum(message = "Enable Modal Editing")]
@@ -174,6 +240,7 @@ pub enum LapceWorkbenchCommand {
     PaletteLine,
 
     #[strum(serialize = "palette")]
+    #[strum(message = "Go to File")]
     Palette,
 
     #[strum(serialize = "palette.symbol")]
@@ -256,7 +323,7 @@ pub enum LapceWorkbenchCommand {
 }
 
 #[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
-pub enum LapceCommand {
+pub enum LapceCommandOld {
     #[strum(serialize = "move_line_up")]
     MoveLineUp,
     #[strum(serialize = "move_line_down")]
@@ -503,13 +570,13 @@ pub enum LapceCommand {
     Insert(String),
 }
 
-impl LapceCommand {
+impl LapceCommandOld {
     pub fn motion_mode_command(&self) -> Option<MotionMode> {
         let mode = match self {
-            LapceCommand::MotionModeYank => MotionMode::Yank,
-            LapceCommand::MotionModeDelete => MotionMode::Delete,
-            LapceCommand::MotionModeIndent => MotionMode::Indent,
-            LapceCommand::MotionModeOutdent => MotionMode::Outdent,
+            LapceCommandOld::MotionModeYank => MotionMode::Yank,
+            LapceCommandOld::MotionModeDelete => MotionMode::Delete,
+            LapceCommandOld::MotionModeIndent => MotionMode::Indent,
+            LapceCommandOld::MotionModeOutdent => MotionMode::Outdent,
             _ => return None,
         };
         Some(mode)
@@ -517,37 +584,37 @@ impl LapceCommand {
 
     pub fn move_command(&self, count: Option<usize>) -> Option<Movement> {
         match self {
-            LapceCommand::Left => Some(Movement::Left),
-            LapceCommand::Right => Some(Movement::Right),
-            LapceCommand::Up => Some(Movement::Up),
-            LapceCommand::Down => Some(Movement::Down),
-            LapceCommand::DocumentStart => Some(Movement::DocumentStart),
-            LapceCommand::DocumentEnd => Some(Movement::DocumentEnd),
-            LapceCommand::LineStart => Some(Movement::StartOfLine),
-            LapceCommand::LineStartNonBlank => Some(Movement::FirstNonBlank),
-            LapceCommand::LineEnd => Some(Movement::EndOfLine),
-            LapceCommand::GotoLineDefaultFirst => Some(match count {
+            LapceCommandOld::Left => Some(Movement::Left),
+            LapceCommandOld::Right => Some(Movement::Right),
+            LapceCommandOld::Up => Some(Movement::Up),
+            LapceCommandOld::Down => Some(Movement::Down),
+            LapceCommandOld::DocumentStart => Some(Movement::DocumentStart),
+            LapceCommandOld::DocumentEnd => Some(Movement::DocumentEnd),
+            LapceCommandOld::LineStart => Some(Movement::StartOfLine),
+            LapceCommandOld::LineStartNonBlank => Some(Movement::FirstNonBlank),
+            LapceCommandOld::LineEnd => Some(Movement::EndOfLine),
+            LapceCommandOld::GotoLineDefaultFirst => Some(match count {
                 Some(n) => Movement::Line(LinePosition::Line(n)),
                 None => Movement::Line(LinePosition::First),
             }),
-            LapceCommand::GotoLineDefaultLast => Some(match count {
+            LapceCommandOld::GotoLineDefaultLast => Some(match count {
                 Some(n) => Movement::Line(LinePosition::Line(n)),
                 None => Movement::Line(LinePosition::Last),
             }),
-            LapceCommand::WordBackward => Some(Movement::WordBackward),
-            LapceCommand::WordForward => Some(Movement::WordForward),
-            LapceCommand::WordEndForward => Some(Movement::WordEndForward),
-            LapceCommand::MatchPairs => Some(Movement::MatchPairs),
-            LapceCommand::NextUnmatchedRightBracket => {
+            LapceCommandOld::WordBackward => Some(Movement::WordBackward),
+            LapceCommandOld::WordForward => Some(Movement::WordForward),
+            LapceCommandOld::WordEndForward => Some(Movement::WordEndForward),
+            LapceCommandOld::MatchPairs => Some(Movement::MatchPairs),
+            LapceCommandOld::NextUnmatchedRightBracket => {
                 Some(Movement::NextUnmatched(')'))
             }
-            LapceCommand::PreviousUnmatchedLeftBracket => {
+            LapceCommandOld::PreviousUnmatchedLeftBracket => {
                 Some(Movement::PreviousUnmatched('('))
             }
-            LapceCommand::NextUnmatchedRightCurlyBracket => {
+            LapceCommandOld::NextUnmatchedRightCurlyBracket => {
                 Some(Movement::NextUnmatched('}'))
             }
-            LapceCommand::PreviousUnmatchedLeftCurlyBracket => {
+            LapceCommandOld::PreviousUnmatchedLeftCurlyBracket => {
                 Some(Movement::PreviousUnmatched('{'))
             }
             _ => None,
@@ -614,7 +681,7 @@ pub enum LapceUICommand {
     UpdateKeymapsFilter(String),
     UpdateSettingsFile(String, serde_json::Value),
     UpdateSettingsFilter(String),
-    FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommandNew>>),
+    FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommand>>),
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
     UpdateExplorerItems(usize, PathBuf, Vec<FileNodeItem>),

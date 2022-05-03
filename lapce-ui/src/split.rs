@@ -4,6 +4,7 @@ use crate::{
 };
 use std::sync::Arc;
 
+use crate::svg::logo_svg;
 use druid::{
     kurbo::{Line, Rect},
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
@@ -15,8 +16,8 @@ use druid::{
 };
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommandNew, LapceUICommand, LapceWorkbenchCommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
+        LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
     data::{
@@ -27,9 +28,7 @@ use lapce_data::{
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
-use crate::svg::logo_svg;
 use lapce_rpc::terminal::TermId;
-use strum::EnumMessage;
 
 pub struct LapceDynamicSplit {
     widget_id: WidgetId,
@@ -193,7 +192,7 @@ pub struct LapceSplitNew {
     children_ids: Vec<WidgetId>,
     direction: SplitDirection,
     show_border: bool,
-    commands: Vec<(LapceCommandNew, PietTextLayout, Rect, Option<KeyMap>)>,
+    commands: Vec<(LapceCommand, PietTextLayout, Rect, Option<KeyMap>)>,
 }
 
 pub struct ChildWidgetNew {
@@ -815,7 +814,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     for (cmd, _, rect, _) in &self.commands {
                         if rect.contains(mouse_event.pos) {
                             ctx.submit_command(Command::new(
-                                LAPCE_NEW_COMMAND,
+                                LAPCE_COMMAND,
                                 cmd.clone(),
                                 Target::Auto,
                             ));
@@ -984,7 +983,9 @@ impl Widget<LapceTabData> for LapceSplitNew {
             .map(|(i, cmd)| {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(cmd.palette_desc.as_ref().unwrap().to_string())
+                    .new_text_layout(
+                        cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
+                    )
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(
                         data.config
@@ -999,7 +1000,7 @@ impl Widget<LapceTabData> for LapceSplitNew {
                 let keymap = data
                     .keypress
                     .command_keymaps
-                    .get(&cmd.cmd)
+                    .get(cmd.kind.str())
                     .and_then(|keymaps| keymaps.get(0))
                     .cloned();
                 (cmd.clone(), text_layout, rect, keymap)
@@ -1178,79 +1179,59 @@ impl Widget<LapceTabData> for LapceSplitNew {
     }
 }
 
-fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommandNew> {
+fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> {
     if !has_workspace {
         vec![
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
-                palette_desc: Some("Show All Commands".to_string()),
-                target: CommandTarget::Workbench,
             },
             if modal {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::DisableModal,
+                    ),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::DisableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
                 }
             } else {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::EnableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
                 }
             },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::OpenFolder.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                 data: None,
-                palette_desc: Some("Open Folder".to_string()),
-                target: CommandTarget::Workbench,
             },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteWorkspace.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(
+                    LapceWorkbenchCommand::PaletteWorkspace,
+                ),
                 data: None,
-                palette_desc: Some("Open Recent".to_string()),
-                target: CommandTarget::Workbench,
             },
         ]
     } else {
         vec![
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::PaletteCommand.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
-                palette_desc: Some("Show All Commands".to_string()),
-                target: CommandTarget::Workbench,
             },
             if modal {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::DisableModal.to_string(),
+                LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::DisableModal,
+                    ),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::DisableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
                 }
             } else {
-                LapceCommandNew {
-                    cmd: LapceWorkbenchCommand::EnableModal.to_string(),
+                LapceCommand {
+                    kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
                     data: None,
-                    palette_desc: LapceWorkbenchCommand::EnableModal
-                        .get_message()
-                        .map(|m| m.to_string()),
-                    target: CommandTarget::Workbench,
                 }
             },
-            LapceCommandNew {
-                cmd: LapceWorkbenchCommand::Palette.to_string(),
+            LapceCommand {
+                kind: CommandKind::Workbench(LapceWorkbenchCommand::Palette),
                 data: None,
-                palette_desc: Some("Go To File".to_string()),
-                target: CommandTarget::Workbench,
             },
         ]
     }

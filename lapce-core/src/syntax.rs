@@ -353,6 +353,18 @@ impl Syntax {
     }
 }
 
+pub fn matching_pair_direction(c: char) -> Option<bool> {
+    Some(match c {
+        '{' => true,
+        '}' => false,
+        '(' => true,
+        ')' => false,
+        '[' => true,
+        ']' => false,
+        _ => return None,
+    })
+}
+
 pub fn matching_char(c: char) -> Option<char> {
     Some(match c {
         '{' => '}',
@@ -363,6 +375,52 @@ pub fn matching_char(c: char) -> Option<char> {
         ']' => '[',
         _ => return None,
     })
+}
+
+pub fn has_unmatched_pair(line: &str) -> bool {
+    let mut count = HashMap::new();
+    let mut pair_first = HashMap::new();
+    for c in line.chars().rev() {
+        if let Some(left) = matching_pair_direction(c) {
+            let key = if left { c } else { matching_char(c).unwrap() };
+            let pair_count = *count.get(&key).unwrap_or(&0i32);
+            pair_first.entry(key).or_insert(left);
+            if left {
+                count.insert(key, pair_count - 1);
+            } else {
+                count.insert(key, pair_count + 1);
+            }
+        }
+    }
+    for (_, pair_count) in count.iter() {
+        if *pair_count < 0 {
+            return true;
+        }
+    }
+    for (_, left) in pair_first.iter() {
+        if *left {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn str_is_pair_left(c: &str) -> bool {
+    if c.chars().count() == 1 {
+        let c = c.chars().next().unwrap();
+        if matching_pair_direction(c).unwrap_or(false) {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn str_matching_pair(c: &str) -> Option<char> {
+    if c.chars().count() == 1 {
+        let c = c.chars().next().unwrap();
+        return matching_char(c);
+    }
+    None
 }
 
 #[cfg(test)]

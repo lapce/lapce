@@ -9,11 +9,11 @@ use druid::{
     WindowConfig,
 };
 use itertools::Itertools;
+use lapce_core::command::FocusCommand;
 use lapce_data::{
     buffer::LocalBufferKind,
     command::{
-        CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
@@ -300,8 +300,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                 }
             }
-            Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_NEW_COMMAND);
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_COMMAND);
                 data.run_command(ctx, command, None, env);
                 ctx.set_handled();
             }
@@ -324,6 +324,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         Arc::make_mut(buffer).load_content(content);
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        Arc::make_mut(doc).load_content(content);
                         for (view_id, location) in locations {
                             data.main_split.go_to_location(
                                 ctx,
@@ -343,6 +345,14 @@ impl Widget<LapceTabData> for LapceTabNew {
                         if &buffer.rope().to_string() != pattern {
                             Arc::make_mut(buffer).load_content(pattern);
                         }
+                        let doc = data
+                            .main_split
+                            .local_docs
+                            .get_mut(&LocalBufferKind::Search)
+                            .unwrap();
+                        if &doc.buffer().text().to_string() != pattern {
+                            Arc::make_mut(doc).load_content(pattern);
+                        }
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
                             Arc::make_mut(&mut data.search).matches =
@@ -355,13 +365,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                             {
                                 if let Some(widget_id) = *data.main_split.active {
                                     ctx.submit_command(Command::new(
-                                        LAPCE_NEW_COMMAND,
-                                        LapceCommandNew {
-                                            cmd: LapceCommand::SearchInView
-                                                .to_string(),
+                                        LAPCE_COMMAND,
+                                        LapceCommand {
+                                            kind: CommandKind::Focus(
+                                                FocusCommand::SearchInView,
+                                            ),
                                             data: None,
-                                            palette_desc: None,
-                                            target: CommandTarget::Focus,
                                         },
                                         Target::Widget(widget_id),
                                     ));
@@ -577,10 +586,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::BufferSave(path, rev) => {
-                        let buffer =
-                            data.main_split.open_files.get_mut(path).unwrap();
-                        if buffer.rev() == *rev {
-                            Arc::make_mut(buffer).set_dirty(false);
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        if doc.rev() == *rev {
+                            Arc::make_mut(doc).buffer_mut().set_dirty(false);
                         }
                         ctx.set_handled();
                     }
@@ -726,7 +734,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     ) => {
                         if let Some(editor) = data.main_split.active_editor() {
                             if *editor_view_id == editor.view_id
-                                && *offset == editor.cursor.offset()
+                                && *offset == editor.new_cursor.offset()
                             {
                                 data.main_split.jump_to_location(
                                     ctx,
@@ -763,6 +771,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                         {
                             if buffer.rev() == *rev {
                                 Arc::make_mut(buffer)
+                                    .code_actions
+                                    .insert(*offset, resp.clone());
+                            }
+                        }
+                        if let Some(doc) = data.main_split.open_docs.get_mut(path) {
+                            if doc.rev() == *rev {
+                                Arc::make_mut(doc)
                                     .code_actions
                                     .insert(*offset, resp.clone());
                             }
@@ -846,6 +861,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                             buffer.set_semantic_styles(Some(styles.clone()));
                             buffer.line_styles().borrow_mut().clear();
                         }
+
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        if doc.rev() == *rev {
+                            let doc = Arc::make_mut(doc);
+                            doc.set_semantic_styles(Some(styles.clone()));
+                        }
+
                         ctx.set_handled();
                     }
                     LapceUICommand::ShowCodeActions
@@ -919,6 +941,11 @@ impl Widget<LapceTabData> for LapceTabNew {
                             if buffer.semantic_styles().is_none() {
                                 buffer.line_styles().borrow_mut().clear();
                             }
+                        }
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        let doc = Arc::make_mut(doc);
+                        if doc.rev() == *rev {
+                            doc.set_syntax(Some(syntax.clone()));
                         }
                     }
                     LapceUICommand::UpdateHistoryChanges {
@@ -1090,6 +1117,10 @@ impl Widget<LapceTabData> for LapceTabNew {
         }
 
         if old_data.settings.shown != data.settings.shown {
+            ctx.request_layout();
+        }
+
+        if old_data.picker.active != data.picker.active {
             ctx.request_layout();
         }
 
