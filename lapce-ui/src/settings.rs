@@ -979,17 +979,16 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         if let Some(view_id) = self.input_view_id.as_ref() {
             let editor = data.main_split.editors.get(view_id).unwrap();
             if let BufferContent::Value(name) = &editor.content {
-                let buffer = data.main_split.value_buffers.get(name).unwrap();
-                let old_buffer =
-                    old_data.main_split.value_buffers.get(name).unwrap();
-                if buffer.len() != old_buffer.len()
-                    || buffer.rope().slice_to_cow(..)
-                        != old_buffer.rope().slice_to_cow(..)
+                let doc = data.main_split.value_docs.get(name).unwrap();
+                let old_doc = old_data.main_split.value_docs.get(name).unwrap();
+                if doc.buffer().len() != old_doc.buffer().len()
+                    || doc.buffer().text().slice_to_cow(..)
+                        != old_doc.buffer().text().slice_to_cow(..)
                 {
                     let new_value = match &self.value {
                         serde_json::Value::Number(_n) => {
                             if let Ok(new_n) =
-                                buffer.rope().slice_to_cow(..).parse::<i64>()
+                                doc.buffer().text().slice_to_cow(..).parse::<i64>()
                             {
                                 serde_json::json!(new_n)
                             } else {
@@ -997,7 +996,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                             }
                         }
                         serde_json::Value::String(_s) => {
-                            serde_json::json!(&buffer.rope().slice_to_cow(..))
+                            serde_json::json!(&doc.buffer().text().slice_to_cow(..))
                         }
                         _ => return,
                     };

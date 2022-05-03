@@ -1120,6 +1120,10 @@ impl Widget<LapceTabData> for LapceTabNew {
             ctx.request_layout();
         }
 
+        if old_data.picker.active != data.picker.active {
+            ctx.request_layout();
+        }
+
         self.palette.update(ctx, data, env);
         self.activity.update(ctx, data, env);
         self.main_split.update(ctx, data, env);

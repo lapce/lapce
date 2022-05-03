@@ -114,8 +114,6 @@ pub struct LapceEditor {
     /// A timer for listening for when the user has hovered for long enough to trigger showing
     /// of hover info (if there is any)
     mouse_hover_timer: TimerToken,
-
-    text_layouts: HashMap<usize, PietTextLayout>,
 }
 
 impl LapceEditor {
@@ -127,7 +125,6 @@ impl LapceEditor {
             last_left_click: None,
             mouse_pos: Point::ZERO,
             mouse_hover_timer: TimerToken::INVALID,
-            text_layouts: HashMap::new(),
         }
     }
 
@@ -445,29 +442,6 @@ impl LapceEditor {
         }
     }
 
-    fn get_text_layout(
-        &mut self,
-        ctx: &mut PaintCtx,
-        data: &LapceEditorBufferData,
-        line: usize,
-        cursor_index: Option<usize>,
-        font_size: usize,
-        bounds: [f64; 2],
-    ) -> &PietTextLayout {
-        self.text_layouts.entry(line).or_insert_with(|| {
-            let line_content = data.buffer.line_content(line);
-            data.buffer.new_text_layout(
-                ctx,
-                line,
-                &line_content,
-                cursor_index,
-                font_size,
-                bounds,
-                &data.config,
-            )
-        })
-    }
-
     fn paint_content(
         &mut self,
         data: &LapceEditorBufferData,
@@ -783,7 +757,7 @@ impl LapceEditor {
 
         Self::paint_snippet(data, ctx);
         Self::paint_diagnostics(data, ctx);
-        if data.buffer.len() == 0 {
+        if data.doc.buffer().is_empty() {
             if let Some(placeholder) = self.placeholder.as_ref() {
                 let text_layout = ctx
                     .text()
@@ -1839,18 +1813,10 @@ impl Widget<LapceTabData> for LapceEditor {
     fn update(
         &mut self,
         _ctx: &mut UpdateCtx,
-        old_data: &LapceTabData,
-        data: &LapceTabData,
+        _old_data: &LapceTabData,
+        _data: &LapceTabData,
         _env: &Env,
     ) {
-        let old_editor_data = old_data.editor_view_content(self.view_id);
-        let editor_data = data.editor_view_content(self.view_id);
-        if !old_editor_data.buffer.same(&editor_data.buffer)
-            || old_editor_data.config.editor.font_family
-                != editor_data.config.editor.font_family
-        {
-            self.text_layouts.clear();
-        }
     }
 
     fn layout(

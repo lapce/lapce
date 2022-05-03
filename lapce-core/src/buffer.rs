@@ -63,7 +63,6 @@ pub struct InvalLines {
 
 #[derive(Clone)]
 pub struct Buffer {
-    id: BufferId,
     rev: u64,
     atomic_rev: Arc<AtomicU64>,
     dirty: bool,
@@ -88,7 +87,6 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(text: &str) -> Self {
         Self {
-            id: BufferId::next(),
             text: Rope::from(text),
 
             rev: 0,
@@ -120,6 +118,10 @@ impl Buffer {
 
     pub fn rev(&self) -> u64 {
         self.rev
+    }
+
+    pub fn dirty(&self) -> bool {
+        self.dirty
     }
 
     pub fn set_dirty(&mut self, dirty: bool) {

@@ -10,7 +10,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    ExtEventSink, Point, Target, Vec2, WidgetId,
+    ExtEventSink, FontFamily, Point, Target, Vec2, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, InvalLines},
@@ -53,6 +53,45 @@ impl Clipboard for SystemClipboard {
     }
 }
 
+struct TextLayoutCache {
+    font_size: usize,
+    font_family: FontFamily,
+    tab_wdith: usize,
+    layouts: HashMap<usize, Arc<PietTextLayout>>,
+}
+
+impl TextLayoutCache {
+    fn new() -> Self {
+        Self {
+            font_size: 0,
+            font_family: FontFamily::SYSTEM_UI,
+            tab_wdith: 0,
+            layouts: HashMap::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.layouts.clear();
+    }
+
+    fn check_attributes(
+        &mut self,
+        font_size: usize,
+        font_family: FontFamily,
+        tab_width: usize,
+    ) {
+        if self.font_size != font_size
+            || self.font_family != font_family
+            || self.tab_wdith != tab_width
+        {
+            self.clear();
+            self.font_size = font_size;
+            self.font_family = font_family;
+            self.tab_wdith = tab_width;
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Document {
     id: BufferId,
@@ -62,7 +101,7 @@ pub struct Document {
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
     semantic_styles: Option<Arc<Spans<Style>>>,
-    text_layouts: Rc<RefCell<HashMap<usize, Arc<PietTextLayout>>>>,
+    text_layouts: Rc<RefCell<TextLayoutCache>>,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
     pub cursor_offset: usize,
@@ -88,7 +127,7 @@ impl Document {
             content,
             syntax: None,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
-            text_layouts: Rc::new(RefCell::new(HashMap::new())),
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             semantic_styles: None,
             load_started: Rc::new(RefCell::new(false)),
             loaded: false,
@@ -659,13 +698,23 @@ impl Document {
         font_size: usize,
         config: &Config,
     ) -> Arc<PietTextLayout> {
-        if self.text_layouts.borrow().get(&line).is_none() {
-            self.text_layouts.borrow_mut().insert(
+        self.text_layouts.borrow_mut().check_attributes(
+            font_size,
+            config.editor.font_family(),
+            config.editor.tab_width,
+        );
+        if self.text_layouts.borrow().layouts.get(&line).is_none() {
+            self.text_layouts.borrow_mut().layouts.insert(
                 line,
                 Arc::new(self.new_text_layout(text, line, font_size, config)),
             );
         }
-        self.text_layouts.borrow().get(&line).cloned().unwrap()
+        self.text_layouts
+            .borrow()
+            .layouts
+            .get(&line)
+            .cloned()
+            .unwrap()
     }
 
     fn new_text_layout(

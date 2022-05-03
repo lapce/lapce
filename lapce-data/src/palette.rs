@@ -337,6 +337,9 @@ impl KeyPressFocus for PaletteViewData {
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Focus(cmd) => match cmd {
+                FocusCommand::ModalClose => {
+                    self.cancel(ctx);
+                }
                 FocusCommand::ListNext => {
                     self.next(ctx);
                 }

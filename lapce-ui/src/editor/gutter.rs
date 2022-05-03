@@ -480,7 +480,10 @@ impl LapceEditorGutter {
             let start_line = (scroll_offset.y / line_height).floor() as usize;
             let num_lines = (ctx.size().height / line_height).floor() as usize;
             let last_line = data.buffer.last_line();
-            let current_line = data.editor.cursor.current_line(data.buffer.data());
+            let current_line = data
+                .doc
+                .buffer()
+                .line_of_offset(data.editor.new_cursor.offset());
             let char_width = data.config.editor_char_width(ctx.text());
 
             let line_label_length =
@@ -493,7 +496,7 @@ impl LapceEditorGutter {
 
             let font_family = data.config.editor.font_family();
 
-            for line in start_line..last_displayed_line {
+            for line in start_line..last_displayed_line + 1 {
                 let line_no = if sequential_line_numbers || line == current_line {
                     line + 1
                 } else {

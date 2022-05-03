@@ -1435,27 +1435,37 @@ impl LapceTabData {
                 if diffs.is_empty() {
                     return;
                 }
-                let buffer = self
+                let doc = self
                     .main_split
-                    .local_buffers
+                    .local_docs
                     .get_mut(&LocalBufferKind::SourceControl)
                     .unwrap();
-                let message = buffer.rope().to_string();
+                let message = doc.buffer().text().to_string();
                 let message = message.trim();
                 if message.is_empty() {
                     return;
                 }
                 self.proxy.git_commit(message, diffs);
-                Arc::make_mut(buffer).load_content("");
+                Arc::make_mut(doc).load_content("");
                 let editor = self
                     .main_split
                     .editors
                     .get_mut(&self.source_control.editor_view_id)
                     .unwrap();
-                Arc::make_mut(editor).cursor = if self.config.lapce.modal {
-                    Cursor::new(CursorMode::Normal(0), None)
+                Arc::make_mut(editor).new_cursor = if self.config.lapce.modal {
+                    lapce_core::cursor::Cursor::new(
+                        lapce_core::cursor::CursorMode::Normal(0),
+                        None,
+                        None,
+                    )
                 } else {
-                    Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
+                    lapce_core::cursor::Cursor::new(
+                        lapce_core::cursor::CursorMode::Insert(
+                            lapce_core::selection::Selection::caret(0),
+                        ),
+                        None,
+                        None,
+                    )
                 };
             }
             LapceWorkbenchCommand::CheckoutBranch => {}
@@ -1689,29 +1699,35 @@ impl LapceTabData {
         let picker = Arc::make_mut(&mut self.picker);
         picker.pwd = pwd.clone();
         if let Some(s) = pwd.to_str() {
-            let buffer = self
+            let doc = self
                 .main_split
-                .local_buffers
+                .local_docs
                 .get_mut(&LocalBufferKind::FilePicker)
                 .unwrap();
-            let buffer = Arc::make_mut(buffer);
-            buffer.load_content(s);
+            let doc = Arc::make_mut(doc);
+            doc.load_content(s);
             let editor = self
                 .main_split
                 .editors
                 .get_mut(&self.picker.editor_view_id)
                 .unwrap();
             let editor = Arc::make_mut(editor);
-            editor.cursor = if self.config.lapce.modal {
-                Cursor::new(
-                    CursorMode::Normal(buffer.line_end_offset(0, false)),
+            editor.new_cursor = if self.config.lapce.modal {
+                lapce_core::cursor::Cursor::new(
+                    lapce_core::cursor::CursorMode::Normal(
+                        doc.buffer().line_end_offset(0, false),
+                    ),
+                    None,
                     None,
                 )
             } else {
-                Cursor::new(
-                    CursorMode::Insert(Selection::caret(
-                        buffer.line_end_offset(0, true),
-                    )),
+                lapce_core::cursor::Cursor::new(
+                    lapce_core::cursor::CursorMode::Insert(
+                        lapce_core::selection::Selection::caret(
+                            doc.buffer().line_end_offset(0, true),
+                        ),
+                    ),
+                    None,
                     None,
                 )
             };
@@ -2428,11 +2444,6 @@ impl LapceMainSplitData {
             );
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
-            editor.cursor = if config.lapce.modal {
-                Cursor::new(CursorMode::Normal(offset), None)
-            } else {
-                Cursor::new(CursorMode::Insert(Selection::caret(offset)), None)
-            };
             editor.new_cursor = if config.lapce.modal {
                 lapce_core::cursor::Cursor::new(
                     lapce_core::cursor::CursorMode::Normal(offset),
