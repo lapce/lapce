@@ -222,6 +222,12 @@ impl Document {
         self.histories.insert(version.to_string(), history);
     }
 
+    pub fn reload_history(&self, version: &str) {
+        if let Some(history) = self.histories.get(version) {
+            history.retrieve(self);
+        }
+    }
+
     pub fn load_history(&mut self, version: &str, content: Rope) {
         let mut history = DocumentHisotry::new(version.to_string());
         history.load_content(content, self);

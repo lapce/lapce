@@ -507,12 +507,8 @@ impl Widget<LapceTabData> for LapceTabNew {
                             })
                             .collect();
 
-                        for (_path, buffer) in data.main_split.open_files.iter() {
-                            buffer.retrieve_file_head(
-                                data.id,
-                                data.proxy.clone(),
-                                ctx.get_external_handle(),
-                            );
+                        for (_path, doc) in data.main_split.open_docs.iter() {
+                            doc.reload_history("head");
                         }
                         ctx.set_handled();
                     }
