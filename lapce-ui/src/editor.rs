@@ -482,8 +482,10 @@ impl LapceEditor {
             Self::paint_code_lens_content(data, ctx, is_focused);
         } else if let EditorView::Diff(version) = &data.editor.view {
             if let Some(history) = data.doc.get_history(version) {
-                let cursor_line =
-                    data.buffer.line_of_offset(data.editor.cursor.offset());
+                let cursor_line = data
+                    .doc
+                    .buffer()
+                    .line_of_offset(data.editor.new_cursor.offset());
                 let mut line = 0;
                 for change in history.changes().iter() {
                     match change {
@@ -772,14 +774,10 @@ impl LapceEditor {
         match &data.editor.cursor.mode {
             CursorMode::Normal(_) => {}
             CursorMode::Visual { start, end, mode } => {
-                let (start_line, start_col) = data.buffer.offset_to_line_col(
-                    *start.min(end),
-                    data.config.editor.tab_width,
-                );
-                let (end_line, end_col) = data.buffer.offset_to_line_col(
-                    *start.max(end),
-                    data.config.editor.tab_width,
-                );
+                let (start_line, start_col) =
+                    data.doc.buffer().offset_to_line_col(*start.min(end));
+                let (end_line, end_col) =
+                    data.doc.buffer().offset_to_line_col(*start.max(end));
                 if actual_line < start_line || actual_line > end_line {
                     return;
                 }
@@ -794,11 +792,8 @@ impl LapceEditor {
                     }
                     VisualMode::Linewise => 0,
                     VisualMode::Blockwise => {
-                        let max_col = data.buffer.line_end_col(
-                            actual_line,
-                            false,
-                            data.config.editor.tab_width,
-                        );
+                        let max_col =
+                            data.doc.buffer().line_end_col(actual_line, false);
                         let left = start_col.min(end_col);
                         if left > max_col {
                             return;
@@ -810,33 +805,19 @@ impl LapceEditor {
                 let right_col = match mode {
                     VisualMode::Normal => {
                         if actual_line == end_line {
-                            let max_col = data.buffer.line_end_col(
-                                actual_line,
-                                true,
-                                data.config.editor.tab_width,
-                            );
+                            let max_col =
+                                data.doc.buffer().line_end_col(actual_line, true);
                             (end_col + 1).min(max_col)
                         } else {
-                            data.buffer.line_end_col(
-                                actual_line,
-                                true,
-                                data.config.editor.tab_width,
-                            ) + 1
+                            data.doc.buffer().line_end_col(actual_line, true) + 1
                         }
                     }
                     VisualMode::Linewise => {
-                        data.buffer.line_end_col(
-                            actual_line,
-                            true,
-                            data.config.editor.tab_width,
-                        ) + 1
+                        data.doc.buffer().line_end_col(actual_line, true) + 1
                     }
                     VisualMode::Blockwise => {
-                        let max_col = data.buffer.line_end_col(
-                            actual_line,
-                            true,
-                            data.config.editor.tab_width,
-                        );
+                        let max_col =
+                            data.doc.buffer().line_end_col(actual_line, true);
                         let right = match data.editor.cursor.horiz.as_ref() {
                             Some(&ColPosition::End) => max_col,
                             _ => (end_col.max(start_col) + 1).min(max_col),
@@ -856,13 +837,13 @@ impl LapceEditor {
                 );
             }
             CursorMode::Insert(selection) => {
-                let start_offset = data.buffer.offset_of_line(actual_line);
-                let end_offset = data.buffer.offset_of_line(actual_line + 1);
+                let start_offset = data.doc.buffer().offset_of_line(actual_line);
+                let end_offset = data.doc.buffer().offset_of_line(actual_line + 1);
                 let regions = selection.regions_in_range(start_offset, end_offset);
                 for region in regions {
                     if region.is_caret() {
                         let caret_actual_line =
-                            data.buffer.line_of_offset(region.end());
+                            data.doc.buffer().line_of_offset(region.end());
                         if caret_actual_line == actual_line {
                             let size = ctx.size();
                             ctx.fill(
@@ -878,32 +859,22 @@ impl LapceEditor {
                         let start = region.start();
                         let end = region.end();
                         let (start_line, start_col) =
-                            data.buffer.offset_to_line_col(
-                                start.min(end),
-                                data.config.editor.tab_width,
-                            );
-                        let (end_line, end_col) = data.buffer.offset_to_line_col(
-                            start.max(end),
-                            data.config.editor.tab_width,
-                        );
+                            data.doc.buffer().offset_to_line_col(start.min(end));
+                        let (end_line, end_col) =
+                            data.doc.buffer().offset_to_line_col(start.max(end));
                         let left_col = match actual_line {
                             _ if actual_line == start_line => start_col,
                             _ => 0,
                         };
                         let right_col = match actual_line {
                             _ if actual_line == end_line => {
-                                let max_col = data.buffer.line_end_col(
-                                    actual_line,
-                                    true,
-                                    data.config.editor.tab_width,
-                                );
+                                let max_col = data
+                                    .doc
+                                    .buffer()
+                                    .line_end_col(actual_line, true);
                                 end_col.min(max_col)
                             }
-                            _ => data.buffer.line_end_col(
-                                actual_line,
-                                true,
-                                data.config.editor.tab_width,
-                            ),
+                            _ => data.doc.buffer().line_end_col(actual_line, true),
                         };
                         let x0 = left_col as f64 * char_width + x_shift;
                         let x1 = right_col as f64 * char_width + x_shift;
@@ -919,10 +890,7 @@ impl LapceEditor {
                 for region in regions {
                     if is_focused {
                         let (caret_actual_line, col) =
-                            data.buffer.offset_to_line_col(
-                                region.end(),
-                                data.config.editor.tab_width,
-                            );
+                            data.doc.buffer().offset_to_line_col(region.end());
                         if caret_actual_line == actual_line {
                             let x = col as f64 * char_width + x_shift;
                             ctx.stroke(
@@ -1763,9 +1731,11 @@ impl Widget<LapceTabData> for LapceEditor {
                     let mut editor_data = data.editor_view_content(self.view_id);
                     let buffer = editor_data.buffer.clone();
                     let doc = editor_data.doc.clone();
-                    let offset = editor_data.offset_of_mouse(
+                    let offset = doc.offset_of_point(
                         ctx.text(),
+                        editor.cursor.get_mode(),
                         self.mouse_pos,
+                        data.config.editor.font_size,
                         &data.config,
                     );
                     editor_data.update_hover(ctx, offset);
