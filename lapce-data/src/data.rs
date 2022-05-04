@@ -15,7 +15,9 @@ use druid::{
     Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
-use lapce_core::{mode::MotionMode, register::Register};
+use lapce_core::{
+    command::MultiSelectionCommand, mode::MotionMode, register::Register,
+};
 use lapce_rpc::{
     file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
     terminal::TermId,
@@ -1648,6 +1650,18 @@ impl LapceTabData {
                     PanelKind::Search => self.search.active,
                     PanelKind::Problem => self.problem.widget_id,
                 };
+                if let PanelKind::Search = kind {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::MultiSelection(
+                                MultiSelectionCommand::SelectAll,
+                            ),
+                            data: None,
+                        },
+                        Target::Widget(focus_id),
+                    ));
+                }
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
