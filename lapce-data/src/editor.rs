@@ -1738,12 +1738,22 @@ impl LapceEditorBufferData {
     ) -> CommandExecuted {
         let doc = Arc::make_mut(&mut self.doc);
         let register = Arc::make_mut(&mut self.main_split.register);
-        let deltas = doc.do_edit(
-            &mut Arc::make_mut(&mut self.editor).new_cursor,
-            cmd,
-            self.config.lapce.modal,
-            register,
-        );
+        let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
+        let yank_data =
+            if let lapce_core::cursor::CursorMode::Visual { .. } = &cursor.mode {
+                Some(cursor.yank(doc.buffer()))
+            } else {
+                None
+            };
+
+        let deltas = doc.do_edit(cursor, cmd, self.config.lapce.modal, register);
+
+        if !deltas.is_empty() {
+            if let Some(data) = yank_data {
+                register.add_delete(data);
+            }
+        }
+
         self.update_completion(ctx);
         self.apply_deltas(&deltas);
 
