@@ -7,7 +7,7 @@ use druid::{
 use lapce_data::{
     buffer::DiffLines,
     config::LapceTheme,
-    data::LapceTabData,
+    data::{EditorView, LapceTabData},
     editor::{LapceEditorBufferData, Syntax},
 };
 
@@ -108,25 +108,28 @@ impl LapceEditorGutter {
         &self,
         data: &LapceEditorBufferData,
         ctx: &mut PaintCtx,
-        compare: &str,
+        version: &str,
     ) {
-        if data.buffer.history_changes.get(compare).is_none() {
+        if data.doc.get_history(version).is_none() {
             return;
         }
+        let history = data.doc.get_history(version).unwrap();
         let self_size = ctx.size();
         let rect = self_size.to_rect();
-        let changes = data.buffer.history_changes.get(compare).unwrap();
         let line_height = data.config.editor.line_height as f64;
         let scroll_offset = data.editor.scroll_offset;
         let start_line = (scroll_offset.y / line_height).floor() as usize;
         let end_line =
             (scroll_offset.y + rect.height() / line_height).ceil() as usize;
-        let current_line = data.editor.cursor.current_line(data.buffer.data());
-        let last_line = data.buffer.last_line();
+        let current_line = data
+            .doc
+            .buffer()
+            .line_of_offset(data.editor.new_cursor.offset());
+        let last_line = data.doc.buffer().last_line();
         let width = data.config.editor_char_width(ctx.text());
 
         let mut line = 0;
-        for change in changes.iter() {
+        for change in history.changes().iter() {
             match change {
                 DiffLines::Left(r) => {
                     let len = r.len();
@@ -467,8 +470,8 @@ impl LapceEditorGutter {
         ctx.with_save(|ctx| {
             let clip_rect = rect;
             ctx.clip(clip_rect);
-            if let Some(compare) = data.editor.compare.as_ref() {
-                self.paint_gutter_inline_diff(data, ctx, compare);
+            if let EditorView::Diff(version) = &data.editor.view {
+                self.paint_gutter_inline_diff(data, ctx, version);
                 return;
             }
             if data.editor.code_lens {
@@ -479,7 +482,7 @@ impl LapceEditorGutter {
             let scroll_offset = data.editor.scroll_offset;
             let start_line = (scroll_offset.y / line_height).floor() as usize;
             let num_lines = (ctx.size().height / line_height).floor() as usize;
-            let last_line = data.buffer.last_line();
+            let last_line = data.doc.buffer().last_line();
             let current_line = data
                 .doc
                 .buffer()
@@ -536,13 +539,13 @@ impl LapceEditorGutter {
                 ctx.draw_text(&text_layout, Point::new(x, y));
             }
 
-            if let Some(changes) = data.buffer.history_changes.get("head") {
+            if let Some(history) = data.doc.get_history("head") {
                 let end_line =
                     (scroll_offset.y + rect.height() / line_height).ceil() as usize;
 
                 let mut line = 0;
                 let mut last_change = None;
-                for change in changes.iter() {
+                for change in history.changes().iter() {
                     let len = match change {
                         DiffLines::Left(_range) => 0,
                         DiffLines::Skip(_left, right) => right.len(),

@@ -433,11 +433,19 @@ impl Widget<LapceTabData> for LapceTabNew {
                                 matches.clone();
                         }
                     }
-                    LapceUICommand::LoadBufferHead { path, id, content } => {
+                    LapceUICommand::LoadBufferHead {
+                        path,
+                        version,
+                        content,
+                    } => {
                         let buffer =
                             data.main_split.open_files.get_mut(path).unwrap();
                         let buffer = Arc::make_mut(buffer);
-                        buffer.load_history(id, content.clone());
+                        buffer.load_history(version, content.clone());
+
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        let doc = Arc::make_mut(doc);
+                        doc.load_history(version, content.clone());
                         ctx.set_handled();
                     }
                     LapceUICommand::UpdateTerminalTitle(term_id, title) => {
@@ -974,6 +982,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                             history,
                             changes.clone(),
                         );
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        Arc::make_mut(doc).update_history_changes(
+                            *rev,
+                            history,
+                            changes.clone(),
+                        );
                     }
                     LapceUICommand::UpdateHistoryStyle {
                         path,
@@ -991,6 +1005,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .history_line_styles
                             .borrow_mut()
                             .insert(history.to_string(), HashMap::new());
+
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        Arc::make_mut(doc)
+                            .update_history_styles(history, highlights.to_owned());
                     }
                     LapceUICommand::UpdatePickerPwd(path) => {
                         Arc::make_mut(&mut data.picker).pwd = path.clone();

@@ -573,7 +573,7 @@ impl Buffer {
                                     LapceUICommand::LoadBufferHead {
                                         path,
                                         content: Rope::from(resp.content),
-                                        id: resp.id,
+                                        version: resp.version,
                                     },
                                     Target::Widget(tab_id),
                                 );
@@ -2213,7 +2213,7 @@ fn buffer_diff(
     Some(changes)
 }
 
-fn rope_diff(
+pub fn rope_diff(
     left_rope: Rope,
     right_rope: Rope,
     rev: u64,

@@ -2431,7 +2431,7 @@ impl LapceMainSplitData {
                     Vec2::new(info.scroll_offset.0, info.scroll_offset.1);
                 doc.cursor_offset = info.cursor_offset;
             }
-            doc.retrieve_file(self.proxy.clone(), vec![(editor_view_id, location)]);
+            doc.retrieve_file(vec![(editor_view_id, location)]);
             self.open_docs.insert(path.clone(), Arc::new(doc));
             self.open_files.insert(
                 path.clone(),
@@ -2459,14 +2459,9 @@ impl LapceMainSplitData {
                 None => (doc.cursor_offset, Some(&doc.scroll_offset)),
             };
 
-            if let Some(compare) = location.history.as_ref() {
-                // if !buffer.histories().contains_key(compare) {
-                //     buffer.retrieve_file_head(
-                //         *self.tab_id,
-                //         self.proxy.clone(),
-                //         ctx.get_external_handle(),
-                //     );
-                // }
+            if let Some(version) = location.history.as_ref() {
+                let doc = self.open_docs.get_mut(&path).unwrap();
+                Arc::make_mut(doc).retrieve_history(version);
             }
 
             let editor = self.get_editor_or_new(
@@ -2475,8 +2470,8 @@ impl LapceMainSplitData {
                 Some(location.path.clone()),
                 config,
             );
-            if let Some(compare) = location.history.as_ref() {
-                editor.view = EditorView::Diff(compare.to_string());
+            if let Some(version) = location.history.as_ref() {
+                editor.view = EditorView::Diff(version.to_string());
             }
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
@@ -2606,7 +2601,7 @@ impl LapceMainSplitData {
             active: Arc::new(None),
             active_tab: Arc::new(None),
             register: Arc::new(Register::default()),
-            proxy: proxy.clone(),
+            proxy,
             palette_preview_editor: Arc::new(palette_preview_editor),
             show_code_actions: false,
             current_code_actions: 0,
@@ -2629,11 +2624,8 @@ impl LapceMainSplitData {
             );
             main_split_data.split_id = Arc::new(split_data.widget_id);
             for (path, locations) in positions.into_iter() {
-                main_split_data
-                    .open_docs
-                    .get(&path)
-                    .unwrap()
-                    .retrieve_file(proxy.clone(), locations.clone());
+                Arc::make_mut(main_split_data.open_docs.get_mut(&path).unwrap())
+                    .retrieve_file(locations.clone());
             }
         } else {
             main_split_data.splits.insert(

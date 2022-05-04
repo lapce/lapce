@@ -13,6 +13,7 @@ use druid::{
 use lapce_core::command::FocusCommand;
 use lapce_core::mode::{Mode, VisualMode};
 use lapce_data::command::CommandKind;
+use lapce_data::data::EditorView;
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::{
     buffer::{matching_pair_direction, BufferContent, DiffLines, LocalBufferKind},
@@ -479,12 +480,12 @@ impl LapceEditor {
 
         if !data.editor.content.is_input() && data.editor.code_lens {
             Self::paint_code_lens_content(data, ctx, is_focused);
-        } else if let Some(compare) = data.editor.compare.as_ref() {
-            if let Some(changes) = data.buffer.history_changes.get(compare) {
+        } else if let EditorView::Diff(version) = &data.editor.view {
+            if let Some(history) = data.doc.get_history(version) {
                 let cursor_line =
                     data.buffer.line_of_offset(data.editor.cursor.offset());
                 let mut line = 0;
-                for change in changes.iter() {
+                for change in history.changes().iter() {
                     match change {
                         DiffLines::Left(range) => {
                             let len = range.len();
@@ -509,24 +510,19 @@ impl LapceEditor {
                                     continue;
                                 }
                                 let actual_line = l - (line - len) + range.start;
-                                if let Some(text_layout) =
-                                    data.buffer.history_text_layout(
-                                        ctx,
-                                        compare,
-                                        actual_line,
-                                        None,
-                                        [rect.x0, rect.x1],
-                                        &data.config,
-                                    )
-                                {
-                                    ctx.draw_text(
-                                        &text_layout,
-                                        Point::new(
-                                            0.0,
-                                            line_height * l as f64 + y_shift,
-                                        ),
-                                    );
-                                }
+                                let text_layout = history.get_text_layout(
+                                    ctx.text(),
+                                    actual_line,
+                                    &data.config,
+                                );
+                                ctx.draw_text(
+                                    &text_layout,
+                                    Point::new(
+                                        0.0,
+                                        line_height * l as f64 + y_shift,
+                                    ),
+                                );
+
                                 if l > end_line {
                                     break;
                                 }
@@ -600,13 +596,10 @@ impl LapceEditor {
                                     char_width,
                                     line_height,
                                 );
-                                let text_layout = data.buffer.new_text_layout(
-                                    ctx,
+                                let text_layout = data.doc.get_text_layout(
+                                    ctx.text(),
                                     rope_line,
-                                    &data.buffer.line_content(rope_line),
-                                    None,
                                     font_size,
-                                    [rect.x0, rect.x1],
                                     &data.config,
                                 );
                                 ctx.draw_text(
@@ -662,13 +655,10 @@ impl LapceEditor {
                                     char_width,
                                     line_height,
                                 );
-                                let text_layout = data.buffer.new_text_layout(
-                                    ctx,
+                                let text_layout = data.doc.get_text_layout(
+                                    ctx.text(),
                                     rope_line,
-                                    &data.buffer.line_content(rope_line),
-                                    None,
                                     font_size,
-                                    [rect.x0, rect.x1],
                                     &data.config,
                                 );
                                 ctx.draw_text(

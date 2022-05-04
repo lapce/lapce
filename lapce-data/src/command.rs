@@ -639,7 +639,7 @@ pub enum LapceUICommand {
     },
     LoadBufferHead {
         path: PathBuf,
-        id: String,
+        version: String,
         content: Rope,
     },
     LoadBufferAndGoToPosition {

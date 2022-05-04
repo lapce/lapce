@@ -3,7 +3,10 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
     rc::Rc,
-    sync::{atomic, Arc},
+    sync::{
+        atomic::{self},
+        Arc,
+    },
 };
 
 use druid::{
@@ -26,18 +29,19 @@ use lapce_core::{
     word::WordCursor,
 };
 use lapce_rpc::{
-    buffer::{BufferId, NewBufferResponse},
+    buffer::{BufferHeadResponse, BufferId, NewBufferResponse},
     style::{LineStyle, LineStyles, Style},
 };
 use lsp_types::CodeActionResponse;
-use xi_rope::{spans::Spans, RopeDelta};
+use xi_rope::{spans::Spans, Rope, RopeDelta};
 
 use crate::{
-    buffer::{BufferContent, LocalBufferKind},
+    buffer::{rope_diff, BufferContent, DiffLines, DiffResult, LocalBufferKind},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     editor::EditorLocationNew,
     find::{Find, FindProgress},
+    history::DocumentHisotry,
     proxy::LapceProxy,
 };
 
@@ -53,15 +57,16 @@ impl Clipboard for SystemClipboard {
     }
 }
 
-struct TextLayoutCache {
+#[derive(Clone, Default)]
+pub struct TextLayoutCache {
     font_size: usize,
     font_family: FontFamily,
     tab_wdith: usize,
-    layouts: HashMap<usize, Arc<PietTextLayout>>,
+    pub layouts: HashMap<usize, Arc<PietTextLayout>>,
 }
 
 impl TextLayoutCache {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             font_size: 0,
             font_family: FontFamily::SYSTEM_UI,
@@ -74,7 +79,7 @@ impl TextLayoutCache {
         self.layouts.clear();
     }
 
-    fn check_attributes(
+    pub fn check_attributes(
         &mut self,
         font_size: usize,
         font_family: FontFamily,
@@ -95,7 +100,7 @@ impl TextLayoutCache {
 #[derive(Clone)]
 pub struct Document {
     id: BufferId,
-    tab_id: WidgetId,
+    pub tab_id: WidgetId,
     buffer: Buffer,
     content: BufferContent,
     syntax: Option<Syntax>,
@@ -104,13 +109,14 @@ pub struct Document {
     text_layouts: Rc<RefCell<TextLayoutCache>>,
     load_started: Rc<RefCell<bool>>,
     loaded: bool,
+    histories: im::HashMap<String, DocumentHisotry>,
     pub cursor_offset: usize,
     pub scroll_offset: Vec2,
     pub code_actions: im::HashMap<usize, CodeActionResponse>,
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
-    event_sink: ExtEventSink,
-    proxy: Arc<LapceProxy>,
+    pub event_sink: ExtEventSink,
+    pub proxy: Arc<LapceProxy>,
 }
 
 impl Document {
@@ -130,6 +136,7 @@ impl Document {
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             semantic_styles: None,
             load_started: Rc::new(RefCell::new(false)),
+            histories: im::HashMap::new(),
             loaded: false,
             cursor_offset: 0,
             scroll_offset: Vec2::ZERO,
@@ -165,11 +172,7 @@ impl Document {
         self.on_update(None);
     }
 
-    pub fn retrieve_file(
-        &self,
-        proxy: Arc<LapceProxy>,
-        locations: Vec<(WidgetId, EditorLocationNew)>,
-    ) {
+    pub fn retrieve_file(&mut self, locations: Vec<(WidgetId, EditorLocationNew)>) {
         if self.loaded || *self.load_started.borrow() {
             return;
         }
@@ -180,6 +183,7 @@ impl Document {
             let tab_id = self.tab_id;
             let path = path.clone();
             let event_sink = self.event_sink.clone();
+            let proxy = self.proxy.clone();
             std::thread::spawn(move || {
                 proxy.new_buffer(
                     id,
@@ -204,6 +208,58 @@ impl Document {
                 )
             });
         }
+
+        self.retrieve_history("head");
+    }
+
+    pub fn retrieve_history(&mut self, version: &str) {
+        if self.histories.contains_key(version) {
+            return;
+        }
+
+        let history = DocumentHisotry::new(version.to_string());
+        history.retrieve(self);
+        self.histories.insert(version.to_string(), history);
+    }
+
+    pub fn load_history(&mut self, version: &str, content: Rope) {
+        let mut history = DocumentHisotry::new(version.to_string());
+        history.load_content(content, self);
+        self.histories.insert(version.to_string(), history);
+    }
+
+    pub fn get_history(&self, version: &str) -> Option<&DocumentHisotry> {
+        self.histories.get(version)
+    }
+
+    fn trigger_head_change(&self) {
+        if let Some(head) = self.histories.get("head") {
+            head.trigger_update_change(self);
+        }
+    }
+
+    pub fn update_history_changes(
+        &mut self,
+        rev: u64,
+        version: &str,
+        changes: Arc<Vec<DiffLines>>,
+    ) {
+        if rev != self.rev() {
+            return;
+        }
+        if let Some(history) = self.histories.get_mut(version) {
+            history.update_changes(changes);
+        }
+    }
+
+    pub fn update_history_styles(
+        &mut self,
+        version: &str,
+        styles: Arc<Spans<Style>>,
+    ) {
+        if let Some(history) = self.histories.get_mut(version) {
+            history.update_styles(styles);
+        }
     }
 
     fn on_update(&mut self, delta: Option<&RopeDelta>) {
@@ -211,6 +267,7 @@ impl Document {
         *self.find_progress.borrow_mut() = FindProgress::Started;
         self.clear_style_cache();
         self.trigger_syntax_change(delta);
+        self.trigger_head_change();
         self.notify_special();
     }
 

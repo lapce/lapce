@@ -404,7 +404,7 @@ impl Dispatcher {
                     let result = file_get_head(&workspace, &path);
                     if let Ok((_blob_id, content)) = result {
                         let resp = BufferHeadResponse {
-                            id: "head".to_string(),
+                            version: "head".to_string(),
                             content,
                         };
                         let _ = self.sender.send(json!({
