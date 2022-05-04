@@ -40,7 +40,7 @@ use druid::{
 use druid::{Application, ExtEventSink, MouseEvent};
 use lapce_core::buffer::InvalLines;
 use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
+    EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
 };
 use lapce_core::mode::{Mode, MotionMode, VisualMode};
 use lapce_core::register::{RegisterData, RegisterKind};
@@ -2331,7 +2331,7 @@ impl LapceEditorBufferData {
         cmd: &LapceCommandOld,
         count: Option<usize>,
         mods: Modifiers,
-        env: &Env,
+        _env: &Env,
     ) -> CommandExecuted {
         if let Some(movement) = cmd.move_command(count) {
             self.do_move(&movement, count.unwrap_or(1), mods);
@@ -4009,7 +4009,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         command: &LapceCommand,
         count: Option<usize>,
         mods: Modifiers,
-        env: &Env,
+        _env: &Env,
     ) -> CommandExecuted {
         self.initiate_diagnositcs_offset();
         let old_doc = self.doc.clone();

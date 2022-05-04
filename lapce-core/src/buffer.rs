@@ -9,7 +9,6 @@ use std::{
     },
 };
 
-use lapce_rpc::buffer::BufferId;
 use lsp_types::Position;
 use xi_rope::{
     multiset::Subset, Cursor, Delta, DeltaBuilder, Interval, Rope, RopeDelta,

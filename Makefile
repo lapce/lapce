@@ -1,7 +1,7 @@
 TARGET = lapce
 
 ASSETS_DIR = extra
-RELEASE_DIR = target/release
+RELEASE_DIR = target/release-lto
 
 APP_NAME = Lapce.app
 APP_TEMPLATE = $(ASSETS_DIR)/macos/$(APP_NAME)

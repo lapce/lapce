@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use std::time::Duration;
 use std::{iter::Iterator, sync::Arc, time::Instant};
 
+use druid::TimerToken;
 use druid::{
     kurbo::{BezPath, Line},
     piet::{PietText, PietTextLayout, Text, TextLayout as _, TextLayoutBuilder},
@@ -10,7 +10,6 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout, UpdateCtx, Vec2,
     Widget, WidgetId,
 };
-use druid::{Data, TimerToken};
 use lapce_core::command::FocusCommand;
 use lapce_core::mode::{Mode, VisualMode};
 use lapce_data::command::CommandKind;

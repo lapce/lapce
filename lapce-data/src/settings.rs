@@ -137,11 +137,11 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
 
     fn run_command(
         &mut self,
-        ctx: &mut EventCtx,
+        _ctx: &mut EventCtx,
         command: &crate::command::LapceCommand,
-        count: Option<usize>,
-        mods: Modifiers,
-        env: &Env,
+        _count: Option<usize>,
+        _mods: Modifiers,
+        _env: &Env,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Move(cmd) => match cmd {

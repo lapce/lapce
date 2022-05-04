@@ -20,7 +20,7 @@ use crate::command::CommandKind;
 use crate::{
     buffer::BufferContent,
     command::LAPCE_UI_COMMAND,
-    command::{CommandExecuted, LapceCommandOld, LAPCE_COMMAND},
+    command::{CommandExecuted, LAPCE_COMMAND},
     command::{LapceCommand, LapceUICommand},
     config::Config,
     data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
@@ -331,9 +331,9 @@ impl KeyPressFocus for PaletteViewData {
         &mut self,
         ctx: &mut EventCtx,
         command: &LapceCommand,
-        count: Option<usize>,
-        mods: Modifiers,
-        env: &Env,
+        _count: Option<usize>,
+        _mods: Modifiers,
+        _env: &Env,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Focus(cmd) => match cmd {
@@ -900,7 +900,7 @@ impl PaletteViewData {
 
         if let BufferContent::File(path) = &editor.content {
             let path = path.clone();
-            let buffer_id = self.main_split.open_files.get(&path).unwrap().id();
+            let buffer_id = self.main_split.open_docs.get(&path).unwrap().id();
             let run_id = self.palette.run_id.clone();
             let event_sink = ctx.get_external_handle();
 

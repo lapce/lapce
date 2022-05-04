@@ -7,15 +7,12 @@ use druid::{
 };
 use lapce_core::{command::FocusCommand, mode::Mode};
 use lapce_data::{
-    buffer::{BufferContent, EditType},
-    command::{
-        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
-        LAPCE_UI_COMMAND,
-    },
+    buffer::BufferContent,
+    command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     data::{LapceMainSplitData, LapceTabData},
     keypress::KeyPressFocus,
-    movement::{Movement, Selection},
+    movement::Movement,
 };
 use lsp_types::{
     CodeActionOrCommand, DocumentChangeOperation, DocumentChanges, OneOf, TextEdit,

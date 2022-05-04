@@ -66,6 +66,7 @@ impl Handler for LapceProxy {
     type Request = CoreRequest;
 
     fn handle_notification(&mut self, rpc: Self::Notification) -> ControlFlow {
+        println!("handle noitification {rpc:?}");
         use lapce_rpc::core::CoreNotification::*;
         match rpc {
             SemanticStyles {

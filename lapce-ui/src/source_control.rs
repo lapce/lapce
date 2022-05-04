@@ -4,23 +4,13 @@ use druid::{
     kurbo::BezPath,
     piet::{Text, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily, LayoutCtx,
-    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, RenderContext, Size,
-    Target, UpdateCtx, Widget, WidgetExt, WidgetId,
-};
-use lapce_core::{
-    command::{FocusCommand, MoveCommand},
-    mode::Mode,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
-    command::{
-        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
-        LAPCE_UI_COMMAND,
-    },
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    keypress::KeyPressFocus,
-    movement::Movement,
-    split::{SplitDirection, SplitMoveDirection},
 };
 use lapce_rpc::source_control::FileDiff;
 

@@ -18,8 +18,8 @@ use lapce_core::{
 use lapce_data::{
     buffer::{Buffer, BufferContent},
     command::{
-        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
-        LAPCE_COMMAND, LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceUICommand, LAPCE_COMMAND,
+        LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
