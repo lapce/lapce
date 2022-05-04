@@ -2475,6 +2475,9 @@ impl LapceMainSplitData {
                 Some(location.path.clone()),
                 config,
             );
+            if let Some(compare) = location.history.as_ref() {
+                editor.view = EditorView::Diff(compare.to_string());
+            }
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
             editor.new_cursor = if config.lapce.modal {
@@ -3064,12 +3067,20 @@ pub struct SelectionHistory {
 }
 
 #[derive(Clone, Debug)]
+pub enum EditorView {
+    Normal,
+    Diff(String),
+    Lens,
+}
+
+#[derive(Clone, Debug)]
 pub struct LapceEditorData {
     pub tab_id: Option<WidgetId>,
     pub view_id: WidgetId,
     pub parent_view_id: Option<WidgetId>,
     pub find_view_id: Option<WidgetId>,
     pub content: BufferContent,
+    pub view: EditorView,
     pub compare: Option<String>,
     pub code_lens: bool,
     pub scroll_offset: Vec2,
@@ -3098,6 +3109,7 @@ impl LapceEditorData {
         Self {
             tab_id,
             view_id: view_id.unwrap_or_else(WidgetId::next),
+            view: EditorView::Normal,
             parent_view_id: None,
             find_view_id: if content.is_special() {
                 None

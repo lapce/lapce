@@ -9,6 +9,7 @@ pub mod document;
 pub mod editor;
 pub mod explorer;
 pub mod find;
+pub mod history;
 pub mod hover;
 pub mod keypress;
 pub mod lsp;

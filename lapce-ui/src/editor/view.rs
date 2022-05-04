@@ -166,20 +166,20 @@ impl LapceEditorView {
                 self.ensure_rect_visible(ctx, data, *rect, env);
             }
             LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
-                if data.buffer.id() != *buffer_id {
+                if data.doc.id() != *buffer_id {
                     return;
                 }
-                if data.buffer.rev() != *rev {
+                if data.doc.rev() != *rev {
                     return;
                 }
-                if data.editor.cursor.offset() != *offset {
+                if data.editor.new_cursor.offset() != *offset {
                     return;
                 }
-                let offset = data.editor.cursor.offset();
-                let line = data.buffer.line_of_offset(offset);
+                let offset = data.editor.new_cursor.offset();
+                let line = data.doc.buffer().line_of_offset(offset);
                 let _ = data.apply_completion_item(item);
-                let new_offset = data.editor.cursor.offset();
-                let new_line = data.buffer.line_of_offset(new_offset);
+                let new_offset = data.editor.new_cursor.offset();
+                let new_line = data.doc.buffer().line_of_offset(new_offset);
                 if line != new_line {
                     self.editor
                         .widget_mut()
