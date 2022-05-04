@@ -4043,7 +4043,9 @@ impl KeyPressFocus for LapceEditorBufferData {
             "hover_focus" => self.has_hover(),
             "list_focus" => self.has_completions() || self.is_palette(),
             "modal_focus" => {
-                self.has_completions() || self.has_hover() || self.is_palette()
+                (self.has_completions() && !self.config.lapce.modal)
+                    || self.has_hover()
+                    || self.is_palette()
             }
             _ => false,
         }

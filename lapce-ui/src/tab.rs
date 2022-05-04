@@ -423,12 +423,12 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                     }
                     LapceUICommand::GlobalSearchResult(pattern, matches) => {
-                        let buffer = data
+                        let doc = data
                             .main_split
-                            .local_buffers
+                            .local_docs
                             .get(&LocalBufferKind::Search)
                             .unwrap();
-                        if &buffer.rope().to_string() == pattern {
+                        if &doc.buffer().text().slice_to_cow(..) == pattern {
                             Arc::make_mut(&mut data.search).matches =
                                 matches.clone();
                         }
