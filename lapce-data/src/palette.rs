@@ -277,6 +277,7 @@ pub struct PaletteData {
     pub items: Vec<NewPaletteItem>,
     pub filtered_items: Vec<NewPaletteItem>,
     pub preview_editor: WidgetId,
+    pub input_editor: WidgetId,
 }
 
 impl KeyPressFocus for PaletteViewData {
@@ -387,6 +388,7 @@ impl PaletteData {
             items: Vec::new(),
             filtered_items: Vec::new(),
             preview_editor,
+            input_editor: WidgetId::next(),
         }
     }
 
@@ -445,8 +447,12 @@ impl PaletteViewData {
         palette.palette_type = PaletteType::File;
         palette.items.clear();
         palette.filtered_items.clear();
-        if ctx.is_focused() {
-            ctx.resign_focus();
+        if let Some(active) = *self.main_split.active {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(active),
+            ));
         }
     }
 
@@ -486,6 +492,11 @@ impl PaletteViewData {
         palette.status = PaletteStatus::Started;
         palette.palette_type = palette_type.unwrap_or(PaletteType::File);
         palette.input = palette.palette_type.string();
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::InitPaletteInput(palette.input.clone()),
+            Target::Widget(*self.main_split.tab_id),
+        ));
         palette.items = Vec::new();
         palette.filtered_items = Vec::new();
         palette.run_id = Uuid::new_v4().to_string();
@@ -634,7 +645,13 @@ impl PaletteViewData {
         }
     }
 
-    fn update_palette(&mut self, ctx: &mut EventCtx) {
+    pub fn update_input(&mut self, ctx: &mut EventCtx, input: String) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.input = input;
+        self.update_palette(ctx)
+    }
+
+    pub fn update_palette(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.index = 0;
         let palette_type = self.get_palette_type();

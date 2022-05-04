@@ -563,6 +563,13 @@ impl LapceTabData {
             event_sink.clone(),
         );
         main_split.add_editor(
+            palette.input_editor,
+            None,
+            LocalBufferKind::Palette,
+            &config,
+            event_sink.clone(),
+        );
+        main_split.add_editor(
             file_picker.editor_view_id,
             None,
             LocalBufferKind::FilePicker,
@@ -722,6 +729,7 @@ impl LapceTabData {
             find: self.find.clone(),
             buffer,
             doc,
+            palette: self.palette.clone(),
             editor: editor.clone(),
             config: self.config.clone(),
         }
@@ -895,11 +903,11 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => {
-                editor.window_origin.borrow().clone()
+                *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
             BufferContent::Value(_) => {
-                editor.window_origin.borrow().clone()
+                *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
             BufferContent::File(path) => {
@@ -909,7 +917,7 @@ impl LapceTabData {
                 let width = config.editor_char_width(text);
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
-                let mut origin = editor.window_origin.borrow().clone()
+                let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
                     + Vec2::new(x, y);
                 if origin.y + self.completion.size.height + 1.0 > tab_size.height {
@@ -2722,8 +2730,8 @@ impl LapceMainSplitData {
     pub fn editor_close(&mut self, ctx: &mut EventCtx, view_id: WidgetId) {
         let editor = self.editors.get(&view_id).unwrap();
         if let BufferContent::File(path) = &editor.content {
-            let buffer = self.open_files.get(path).unwrap();
-            self.db.save_buffer_position(&self.workspace, buffer);
+            let doc = self.open_docs.get(path).unwrap();
+            self.db.save_doc_position(&self.workspace, doc);
         }
         if let Some(tab_id) = editor.tab_id {
             let editor_tab = self.editor_tabs.get(&tab_id).unwrap();
@@ -3087,14 +3095,21 @@ impl LapceEditorData {
                 content: content.clone(),
                 selections: im::Vector::new(),
             },
-            content,
             scroll_offset: Vec2::ZERO,
             cursor: if config.lapce.modal {
                 Cursor::new(CursorMode::Normal(0), None)
             } else {
                 Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
             },
-            new_cursor: if config.lapce.modal {
+            new_cursor: if content.is_input() {
+                lapce_core::cursor::Cursor::new(
+                    lapce_core::cursor::CursorMode::Insert(
+                        lapce_core::selection::Selection::caret(0),
+                    ),
+                    None,
+                    None,
+                )
+            } else if config.lapce.modal {
                 lapce_core::cursor::Cursor::new(
                     lapce_core::cursor::CursorMode::Normal(0),
                     None,
@@ -3109,6 +3124,7 @@ impl LapceEditorData {
                     None,
                 )
             },
+            content,
             size: Rc::new(RefCell::new(Size::ZERO)),
             compare: None,
             code_lens: false,
@@ -3129,6 +3145,7 @@ impl LapceEditorData {
         new_editor.view_id = new_view_id;
         new_editor.find_view_id = new_editor.find_view_id.map(|_| WidgetId::next());
         new_editor.size = Rc::new(RefCell::new(Size::ZERO));
+        new_editor.window_origin = Rc::new(RefCell::new(Point::ZERO));
         new_editor
     }
 

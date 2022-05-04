@@ -676,6 +676,8 @@ pub enum LapceUICommand {
     FocusEditor,
     RunPalette(Option<PaletteType>),
     RunPaletteReferences(Vec<EditorLocationNew>),
+    InitPaletteInput(String),
+    UpdatePaletteInput(String),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateKeymapsFilter(String),

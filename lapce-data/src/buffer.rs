@@ -154,9 +154,10 @@ struct Revision {
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
 pub enum LocalBufferKind {
+    Empty,
+    Palette,
     Search,
     SourceControl,
-    Empty,
     FilePicker,
     Keymap,
     Settings,
@@ -179,6 +180,7 @@ impl BufferContent {
             BufferContent::File(_) => false,
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Search
+                | LocalBufferKind::Palette
                 | LocalBufferKind::SourceControl
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
@@ -194,6 +196,7 @@ impl BufferContent {
             BufferContent::File(_) => false,
             BufferContent::Local(local) => match local {
                 LocalBufferKind::Search
+                | LocalBufferKind::Palette
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
                 | LocalBufferKind::Keymap => true,

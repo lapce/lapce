@@ -158,6 +158,7 @@ impl Document {
     }
 
     pub fn load_content(&mut self, content: &str) {
+        self.code_actions.clear();
         self.buffer.load_content(content);
         self.buffer.detect_indent(self.syntax.as_ref());
         self.loaded = true;
@@ -206,6 +207,8 @@ impl Document {
     }
 
     fn on_update(&mut self, delta: Option<&RopeDelta>) {
+        self.find.borrow_mut().unset();
+        *self.find_progress.borrow_mut() = FindProgress::Started;
         self.clear_style_cache();
         self.trigger_syntax_change(delta);
         self.notify_special();
@@ -226,6 +229,13 @@ impl Document {
                     }
                     LocalBufferKind::SourceControl => {}
                     LocalBufferKind::Empty => {}
+                    LocalBufferKind::Palette => {
+                        let _ = self.event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdatePaletteInput(s),
+                            Target::Widget(self.tab_id),
+                        );
+                    }
                     LocalBufferKind::FilePicker => {
                         let pwd = PathBuf::from(s);
                         let _ = self.event_sink.submit_command(
@@ -727,9 +737,20 @@ impl Document {
         let line_content = self.buffer.line_content(line);
         let tab_width =
             config.tab_width(text, config.editor.font_family(), font_size);
+
+        let font_family = if self.content.is_input() {
+            FontFamily::SYSTEM_UI
+        } else {
+            config.editor.font_family()
+        };
+        let font_size = if self.content.is_input() {
+            13
+        } else {
+            font_size
+        };
         let mut layout_builder = text
             .new_text_layout(line_content.to_string())
-            .font(config.editor.font_family(), font_size as f64)
+            .font(font_family, font_size as f64)
             .text_color(
                 config
                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
@@ -1202,7 +1223,7 @@ impl Document {
         if let Some((search_range_start, search_range_end)) = search_range {
             if !find.is_multiline_regex() {
                 find.update_find(
-                    &self.buffer.text(),
+                    self.buffer.text(),
                     search_range_start,
                     search_range_end,
                     true,
@@ -1211,7 +1232,7 @@ impl Document {
                 // only execute multi-line regex queries if we are searching the entire text (last step)
                 if search_range_start == 0 && search_range_end == self.buffer.len() {
                     find.update_find(
-                        &self.buffer.text(),
+                        self.buffer.text(),
                         search_range_start,
                         search_range_end,
                         true,

@@ -19,6 +19,7 @@ use crate::hover::HoverData;
 use crate::hover::HoverStatus;
 use crate::movement::InsertDrift;
 use crate::movement::{CursorMode, SelRegion};
+use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -135,6 +136,7 @@ pub struct LapceEditorBufferData {
     pub hover: Arc<HoverData>,
     pub main_split: LapceMainSplitData,
     pub source_control: Arc<SourceControlData>,
+    pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
     pub proxy: Arc<LapceProxy>,
     pub config: Arc<Config>,
@@ -415,6 +417,10 @@ impl LapceEditorBufferData {
                 Arc::make_mut(editor).cursor.apply_delta(delta);
             }
         }
+    }
+
+    fn is_palette(&self) -> bool {
+        self.editor.content == BufferContent::Local(LocalBufferKind::Palette)
     }
 
     /// Check if there are completions that are being rendered
@@ -813,6 +819,7 @@ impl LapceEditorBufferData {
                     ));
                     return;
                 }
+                LocalBufferKind::Palette => {}
                 LocalBufferKind::SourceControl | LocalBufferKind::Empty => {}
             },
         }
@@ -1736,6 +1743,7 @@ impl LapceEditorBufferData {
         ctx: &mut EventCtx,
         cmd: &EditCommand,
     ) -> CommandExecuted {
+        let modal = self.config.lapce.modal && !self.editor.content.is_input();
         let doc = Arc::make_mut(&mut self.doc);
         let register = Arc::make_mut(&mut self.main_split.register);
         let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
@@ -1746,7 +1754,7 @@ impl LapceEditorBufferData {
                 None
             };
 
-        let deltas = doc.do_edit(cursor, cmd, self.config.lapce.modal, register);
+        let deltas = doc.do_edit(cursor, cmd, modal, register);
 
         if !deltas.is_empty() {
             if let Some(data) = yank_data {
@@ -1769,6 +1777,18 @@ impl LapceEditorBufferData {
     ) -> CommandExecuted {
         use FocusCommand::*;
         match cmd {
+            ModalClose => {
+                if self.is_palette() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::ModalClose),
+                            data: None,
+                        },
+                        Target::Widget(self.palette.widget_id),
+                    ));
+                }
+            }
             SplitVertical => {
                 self.main_split.split_editor(
                     ctx,
@@ -1960,49 +1980,82 @@ impl LapceEditorBufferData {
                 }
             }
             ListSelect => {
-                let item = self.completion.current_item().to_owned();
-                self.cancel_completion();
-                if item.data.is_some() {
-                    let view_id = self.editor.view_id;
-                    let buffer_id = self.buffer.id();
-                    let rev = self.buffer.rev();
-                    let offset = self.editor.cursor.offset();
-                    let event_sink = ctx.get_external_handle();
-                    self.proxy.completion_resolve(
-                        buffer_id,
-                        item.clone(),
-                        Box::new(move |result| {
-                            let mut item = item.clone();
-                            if let Ok(res) = result {
-                                if let Ok(i) =
-                                    serde_json::from_value::<CompletionItem>(res)
-                                {
-                                    item = i;
-                                }
-                            };
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ResolveCompletion(
-                                    buffer_id,
-                                    rev,
-                                    offset,
-                                    Box::new(item),
-                                ),
-                                Target::Widget(view_id),
-                            );
-                        }),
-                    );
+                if self.is_palette() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::ListSelect),
+                            data: None,
+                        },
+                        Target::Widget(self.palette.widget_id),
+                    ));
                 } else {
-                    let _ = self.apply_completion_item(&item);
+                    let item = self.completion.current_item().to_owned();
+                    self.cancel_completion();
+                    if item.data.is_some() {
+                        let view_id = self.editor.view_id;
+                        let buffer_id = self.doc.id();
+                        let rev = self.doc.rev();
+                        let offset = self.editor.new_cursor.offset();
+                        let event_sink = ctx.get_external_handle();
+                        self.proxy.completion_resolve(
+                            buffer_id,
+                            item.clone(),
+                            Box::new(move |result| {
+                                let mut item = item.clone();
+                                if let Ok(res) = result {
+                                    if let Ok(i) =
+                                        serde_json::from_value::<CompletionItem>(res)
+                                    {
+                                        item = i;
+                                    }
+                                };
+                                let _ = event_sink.submit_command(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ResolveCompletion(
+                                        buffer_id,
+                                        rev,
+                                        offset,
+                                        Box::new(item),
+                                    ),
+                                    Target::Widget(view_id),
+                                );
+                            }),
+                        );
+                    } else {
+                        let _ = self.apply_completion_item(&item);
+                    }
                 }
             }
             ListNext => {
-                let completion = Arc::make_mut(&mut self.completion);
-                completion.next();
+                if self.is_palette() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::ListNext),
+                            data: None,
+                        },
+                        Target::Widget(self.palette.widget_id),
+                    ));
+                } else {
+                    let completion = Arc::make_mut(&mut self.completion);
+                    completion.next();
+                }
             }
             ListPrevious => {
-                let completion = Arc::make_mut(&mut self.completion);
-                completion.previous();
+                if self.is_palette() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::ListPrevious),
+                            data: None,
+                        },
+                        Target::Widget(self.palette.widget_id),
+                    ));
+                } else {
+                    let completion = Arc::make_mut(&mut self.completion);
+                    completion.previous();
+                }
             }
             JumpToNextSnippetPlaceholder => {
                 if let Some(snippet) = self.editor.snippet.as_ref() {
@@ -3988,8 +4041,10 @@ impl KeyPressFocus for LapceEditorBufferData {
             "in_snippet" => self.editor.snippet.is_some(),
             "completion_focus" => self.has_completions(),
             "hover_focus" => self.has_hover(),
-            "list_focus" => self.has_completions(),
-            "modal_focus" => self.has_completions() || self.has_hover(),
+            "list_focus" => self.has_completions() || self.is_palette(),
+            "modal_focus" => {
+                self.has_completions() || self.has_hover() || self.is_palette()
+            }
             _ => false,
         }
     }

@@ -5,7 +5,7 @@ use druid::{
     LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext, Size,
     Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use lapce_core::command::EditCommand;
+use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_data::{
     buffer::{BufferContent, LocalBufferKind},
     command::{
@@ -118,6 +118,9 @@ impl LapceEditorView {
             BufferContent::Local(kind) => match kind {
                 LocalBufferKind::Keymap => {}
                 LocalBufferKind::Settings => {}
+                LocalBufferKind::Palette => {
+                    data.focus_area = FocusArea::Palette;
+                }
                 LocalBufferKind::FilePicker => {
                     data.focus_area = FocusArea::FilePicker;
                 }
@@ -523,6 +526,22 @@ impl Widget<LapceTabData> for LapceEditorView {
                             editor.scroll_offset.y,
                         ),
                         Target::Widget(editor.view_id),
+                    ));
+                }
+            }
+            LifeCycle::FocusChanged(is_focus) => {
+                let editor = data.main_split.editors.get(&self.view_id).unwrap();
+                if !*is_focus
+                    && editor.content
+                        == BufferContent::Local(LocalBufferKind::Palette)
+                {
+                    ctx.submit_command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::ModalClose),
+                            data: None,
+                        },
+                        Target::Widget(data.palette.widget_id),
                     ));
                 }
             }

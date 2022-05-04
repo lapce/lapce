@@ -70,6 +70,7 @@ impl BufferDecoration {
                             Target::Widget(self.tab_id),
                         );
                     }
+                    LocalBufferKind::Palette => {}
                     LocalBufferKind::SourceControl => {}
                     LocalBufferKind::Empty => {}
                     LocalBufferKind::FilePicker => {

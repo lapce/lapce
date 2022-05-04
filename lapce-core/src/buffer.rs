@@ -222,6 +222,10 @@ impl Buffer {
             self.tombstones = new_tombstones;
             self.deletes_from_union = new_deletes_from_union;
         }
+
+        let (max_len, max_len_line) = self.get_max_line_len();
+        self.max_len = max_len;
+        self.max_len_line = max_len_line;
     }
 
     pub fn detect_indent(&mut self, syntax: Option<&Syntax>) {

@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use druid::kurbo::Line;
 use druid::piet::{Svg, TextAttribute, TextLayout};
-use druid::FontWeight;
 use druid::{
     kurbo::Rect,
     piet::{Text, TextLayoutBuilder},
@@ -11,16 +10,18 @@ use druid::{
     LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
+use druid::{FontWeight, Modifiers};
+use lapce_core::command::FocusCommand;
+use lapce_data::command::{CommandKind, LAPCE_COMMAND};
 use lapce_data::config::Config;
 use lapce_data::palette::PaletteItemContent;
 use lapce_data::state::LapceWorkspaceType;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
-    data::{LapceEditorData, LapceTabData},
-    palette::{
-        PaletteData, PaletteStatus, PaletteType, PaletteViewData, PaletteViewLens,
-    },
+    data::LapceTabData,
+    keypress::KeyPressFocus,
+    palette::{PaletteStatus, PaletteType, PaletteViewData, PaletteViewLens},
 };
 use lsp_types::SymbolKind;
 
@@ -43,10 +44,10 @@ pub struct NewPalette {
 }
 
 impl NewPalette {
-    pub fn new(data: &PaletteData, preview_editor: &LapceEditorData) -> Self {
-        let container = PaletteContainer::new(data, preview_editor);
+    pub fn new(data: &LapceTabData) -> Self {
+        let container = PaletteContainer::new(data);
         Self {
-            widget_id: data.widget_id,
+            widget_id: data.palette.widget_id,
             container: WidgetPod::new(container).boxed(),
         }
     }
@@ -75,24 +76,40 @@ impl Widget<LapceTabData> for NewPalette {
             }
             _ => (),
         }
+
         match event {
-            Event::KeyDown(key_event) => {
-                let mut keypress = data.keypress.clone();
-                let mut_keypress = Arc::make_mut(&mut keypress);
+            // Event::KeyDown(key_event) => {
+            //     let mut keypress = data.keypress.clone();
+            //     let mut_keypress = Arc::make_mut(&mut keypress);
+            //     let mut palette_data = data.palette_view_data();
+            //     mut_keypress.key_down(ctx, key_event, &mut palette_data, env);
+            //     data.palette = palette_data.palette.clone();
+            //     data.keypress = keypress;
+            //     data.workspace = palette_data.workspace.clone();
+            //     data.main_split = palette_data.main_split.clone();
+            //     data.find = palette_data.find.clone();
+            //     ctx.set_handled();
+            // }
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_COMMAND);
                 let mut palette_data = data.palette_view_data();
-                mut_keypress.key_down(ctx, key_event, &mut palette_data, env);
+                palette_data.run_command(
+                    ctx,
+                    command,
+                    None,
+                    Modifiers::default(),
+                    env,
+                );
                 data.palette = palette_data.palette.clone();
-                data.keypress = keypress;
                 data.workspace = palette_data.workspace.clone();
                 data.main_split = palette_data.main_split.clone();
                 data.find = palette_data.find.clone();
-                ctx.set_handled();
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::RunPalette(palette_type) => {
-                        ctx.request_focus();
+                        // ctx.request_focus();
                         ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run(ctx, palette_type.to_owned());
@@ -100,15 +117,25 @@ impl Widget<LapceTabData> for NewPalette {
                         data.keypress = palette_data.keypress.clone();
                         data.workspace = palette_data.workspace.clone();
                         data.main_split = palette_data.main_split.clone();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(data.palette.input_editor),
+                        ));
                     }
                     LapceUICommand::RunPaletteReferences(locations) => {
-                        ctx.request_focus();
+                        // ctx.request_focus();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run_references(ctx, locations);
                         data.palette = palette_data.palette.clone();
                         data.keypress = palette_data.keypress.clone();
                         data.workspace = palette_data.workspace.clone();
                         data.main_split = palette_data.main_split.clone();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(data.palette.input_editor),
+                        ));
                     }
                     LapceUICommand::CancelPalette => {
                         let mut palette_data = data.palette_view_data();
@@ -144,9 +171,10 @@ impl Widget<LapceTabData> for NewPalette {
                     _ => {}
                 }
             }
-            _ => {}
+            _ => {
+                self.container.event(ctx, event, data, env);
+            }
         }
-        self.container.event(ctx, event, data, env);
     }
 
     fn lifecycle(
@@ -158,13 +186,13 @@ impl Widget<LapceTabData> for NewPalette {
     ) {
         if let LifeCycle::FocusChanged(is_focused) = event {
             ctx.request_paint();
-            if !is_focused {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::CancelPalette,
-                    Target::Widget(data.palette.widget_id),
-                ));
-            }
+            // if !is_focused {
+            //     ctx.submit_command(Command::new(
+            //         LAPCE_UI_COMMAND,
+            //         LapceUICommand::CancelPalette,
+            //         Target::Widget(data.palette.widget_id),
+            //     ));
+            // }
         }
         self.container.lifecycle(ctx, event, data, env);
     }
@@ -212,7 +240,6 @@ impl Widget<LapceTabData> for NewPalette {
 }
 
 pub struct PaletteContainer {
-    input_size: Size,
     content_size: Size,
     line_height: f64,
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
@@ -227,22 +254,25 @@ pub struct PaletteContainer {
 }
 
 impl PaletteContainer {
-    pub fn new(data: &PaletteData, preview_editor: &LapceEditorData) -> Self {
-        let padding = 6.0;
-        let input = NewPaletteInput::new()
-            .padding((padding, padding, padding, padding))
-            .padding((padding, padding, padding, padding))
-            .lens(PaletteViewLens);
+    pub fn new(data: &LapceTabData) -> Self {
+        let preview_editor = data
+            .main_split
+            .editors
+            .get(&data.palette.preview_editor)
+            .unwrap();
+        let input = LapceEditorView::new(data.palette.input_editor, None)
+            .hide_header()
+            .hide_gutter()
+            .padding(10.0);
         let content = LapceIdentityWrapper::wrap(
             LapceScrollNew::new(
                 NewPaletteContent::new().lens(PaletteViewLens).boxed(),
             )
             .vertical(),
-            data.scroll_id,
+            data.palette.scroll_id,
         );
         let preview = LapceEditorView::new(preview_editor.view_id, None);
         Self {
-            input_size: Size::ZERO,
             content_size: Size::ZERO,
             input: WidgetPod::new(input.boxed()),
             content: WidgetPod::new(content),
@@ -335,7 +365,6 @@ impl Widget<LapceTabData> for PaletteContainer {
         let bc = BoxConstraints::tight(Size::new(width, bc.max().height));
         let input_size = self.input.layout(ctx, &bc, data, env);
         self.input.set_origin(ctx, data, env, Point::ZERO);
-        self.input_size = input_size;
 
         let max_items = 15;
         let height = max_items.min(data.palette.len());
@@ -391,11 +420,6 @@ impl Widget<LapceTabData> for PaletteContainer {
             rect,
             data.config
                 .get_color_unchecked(LapceTheme::PALETTE_BACKGROUND),
-        );
-        ctx.fill(
-            self.input_size.to_rect().inflate(-6.0, -6.0),
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
         );
 
         self.input.paint(ctx, data, env);

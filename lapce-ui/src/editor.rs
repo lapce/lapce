@@ -284,54 +284,46 @@ impl LapceEditor {
                     )
                 }
             }
-            BufferContent::Local(kind) => match kind {
-                LocalBufferKind::FilePicker
-                | LocalBufferKind::Search
-                | LocalBufferKind::Settings
-                | LocalBufferKind::Keymap => Size::new(
-                    editor_size
-                        .width
-                        .max(width * data.doc.buffer().len() as f64),
-                    env.get(LapceTheme::INPUT_LINE_HEIGHT)
-                        + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
-                ),
-                LocalBufferKind::SourceControl => {
-                    for (pos, panels) in panels.iter() {
-                        for panel_kind in panels.widgets.iter() {
-                            if panel_kind == &PanelKind::SourceControl {
-                                return match pos {
-                                    PanelPosition::BottomLeft
-                                    | PanelPosition::BottomRight => {
-                                        let width = 200.0;
-                                        Size::new(width, editor_size.height)
-                                    }
-                                    _ => {
-                                        let height = 100.0f64;
-                                        let height = height.max(
-                                            line_height
-                                                * data.doc.buffer().num_lines()
-                                                    as f64,
-                                        );
-                                        Size::new(
-                                            (width
-                                                * data.doc.buffer().max_len()
-                                                    as f64)
-                                                .max(editor_size.width),
-                                            height,
-                                        )
-                                    }
-                                };
-                            }
+            BufferContent::Local(LocalBufferKind::SourceControl) => {
+                for (pos, panels) in panels.iter() {
+                    for panel_kind in panels.widgets.iter() {
+                        if panel_kind == &PanelKind::SourceControl {
+                            return match pos {
+                                PanelPosition::BottomLeft
+                                | PanelPosition::BottomRight => {
+                                    let width = 200.0;
+                                    Size::new(width, editor_size.height)
+                                }
+                                _ => {
+                                    let height = 100.0f64;
+                                    let height = height.max(
+                                        line_height
+                                            * data.doc.buffer().num_lines() as f64,
+                                    );
+                                    Size::new(
+                                        (width * data.doc.buffer().max_len() as f64)
+                                            .max(editor_size.width),
+                                        height,
+                                    )
+                                }
+                            };
                         }
                     }
-                    Size::ZERO
                 }
-                LocalBufferKind::Empty => editor_size,
-            },
-            BufferContent::Value(_) => Size::new(
-                editor_size
-                    .width
-                    .max(width * data.doc.buffer().len() as f64),
+                Size::ZERO
+            }
+            _ => Size::new(
+                editor_size.width.max(
+                    data.doc
+                        .get_text_layout(
+                            text,
+                            0,
+                            data.config.editor.font_size,
+                            &data.config,
+                        )
+                        .size()
+                        .width,
+                ),
                 env.get(LapceTheme::INPUT_LINE_HEIGHT)
                     + env.get(LapceTheme::INPUT_LINE_PADDING) * 2.0,
             ),
@@ -1365,8 +1357,14 @@ impl LapceEditor {
                     } else {
                         data.doc.buffer().line_end_col(line, true) + 1
                     };
-                    let x0 = left_col as f64 * char_width;
-                    let x1 = right_col as f64 * char_width;
+                    let text_layout = data.doc.get_text_layout(
+                        ctx.text(),
+                        line,
+                        data.config.editor.font_size,
+                        &data.config,
+                    );
+                    let x0 = text_layout.hit_test_text_position(left_col).point.x;
+                    let x1 = text_layout.hit_test_text_position(right_col).point.x;
                     let y0 = line as f64 * line_height;
                     let y1 = y0 + line_height;
                     let rect = Rect::new(x0, y0, x1, y1);

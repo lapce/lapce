@@ -86,13 +86,7 @@ impl LapceTabNew {
         let activity = ActivityBar::new();
         let completion = CompletionContainer::new(&data.completion);
         let hover = HoverContainer::new(&data.hover);
-        let palette = NewPalette::new(
-            &data.palette,
-            data.main_split
-                .editors
-                .get(&data.palette.preview_editor)
-                .unwrap(),
-        );
+        let palette = NewPalette::new(data);
         let status = LapceStatusNew::new();
         let code_action = CodeAction::new();
 
@@ -338,15 +332,30 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateSearch(pattern) => {
-                        let buffer = data
+                    LapceUICommand::InitPaletteInput(pattern) => {
+                        let doc = data
                             .main_split
-                            .local_buffers
-                            .get_mut(&LocalBufferKind::Search)
+                            .local_docs
+                            .get_mut(&LocalBufferKind::Palette)
                             .unwrap();
-                        if &buffer.rope().to_string() != pattern {
-                            Arc::make_mut(buffer).load_content(pattern);
-                        }
+                        Arc::make_mut(doc).load_content(pattern);
+                        let editor = data
+                            .main_split
+                            .editors
+                            .get_mut(&data.palette.input_editor)
+                            .unwrap();
+                        let offset = doc.buffer().line_end_offset(0, true);
+                        Arc::make_mut(editor).new_cursor.mode =
+                            lapce_core::cursor::CursorMode::Insert(
+                                lapce_core::selection::Selection::caret(offset),
+                            );
+                    }
+                    LapceUICommand::UpdatePaletteInput(pattern) => {
+                        let mut palette_data = data.palette_view_data();
+                        palette_data.update_input(ctx, pattern.to_owned());
+                        data.palette = palette_data.palette.clone();
+                    }
+                    LapceUICommand::UpdateSearch(pattern) => {
                         let doc = data
                             .main_split
                             .local_docs

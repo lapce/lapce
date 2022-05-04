@@ -505,18 +505,6 @@ impl LapceDb {
         }
     }
 
-    pub fn save_buffer_position(&self, workspace: &LapceWorkspace, buffer: &Buffer) {
-        if let BufferContent::File(path) = buffer.content() {
-            let info = BufferInfo {
-                workspace: workspace.clone(),
-                path: path.clone(),
-                scroll_offset: (buffer.scroll_offset.x, buffer.scroll_offset.y),
-                cursor_offset: buffer.cursor_offset,
-            };
-            let _ = self.save_tx.send(SaveEvent::Buffer(info));
-        }
-    }
-
     pub fn get_tabs_info(&self) -> Result<TabsInfo> {
         let sled_db = self.get_db()?;
         let tabs = sled_db

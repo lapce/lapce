@@ -223,7 +223,7 @@ mode = "i"
 key = "esc"
 command = "normal_mode"
 mode = "niv"
-when = "!search_focus"
+when = "!search_focus && !modal_focus"
 
 [[keymaps]]
 key = "ctrl+["
