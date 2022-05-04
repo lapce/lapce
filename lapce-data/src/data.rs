@@ -437,7 +437,7 @@ pub struct LapceTabData {
     pub settings: Arc<LapceSettingsPanelData>,
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
-    pub window_origin: Point,
+    pub window_origin: Rc<RefCell<Point>>,
     pub panels: im::HashMap<PanelPosition, Arc<PanelData>>,
     pub panel_active: PanelPosition,
     pub panel_size: PanelSize,
@@ -459,7 +459,6 @@ impl Data for LapceTabData {
             && self.source_control.same(&other.source_control)
             && self.panels.same(&other.panels)
             && self.panel_size.same(&other.panel_size)
-            && self.window_origin.same(&other.window_origin)
             && self.config.same(&other.config)
             && self.terminal.same(&other.terminal)
             && self.focus == other.focus
@@ -627,7 +626,7 @@ impl LapceTabData {
             settings,
             proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
-            window_origin: Point::ZERO,
+            window_origin: Rc::new(RefCell::new(Point::ZERO)),
             panels,
             panel_size: PanelSize {
                 left: 250.0,
@@ -858,10 +857,12 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => {
-                editor.window_origin - self.window_origin.to_vec2()
+                editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
             }
             BufferContent::Value(_) => {
-                editor.window_origin - self.window_origin.to_vec2()
+                editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
             }
             BufferContent::File(path) => {
                 let doc = self.main_split.open_docs.get(path).unwrap();
@@ -871,7 +872,9 @@ impl LapceTabData {
                 let x = col as f64 * width;
                 let y = (line + 1) as f64 * line_height;
 
-                editor.window_origin - self.window_origin.to_vec2() + Vec2::new(x, y)
+                editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
+                    + Vec2::new(x, y)
             }
         }
     }
@@ -892,10 +895,12 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => {
-                editor.window_origin - self.window_origin.to_vec2()
+                editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
             }
             BufferContent::Value(_) => {
-                editor.window_origin - self.window_origin.to_vec2()
+                editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
             }
             BufferContent::File(path) => {
                 let doc = self.main_split.open_docs.get(path).unwrap();
@@ -904,7 +909,8 @@ impl LapceTabData {
                 let width = config.editor_char_width(text);
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
-                let mut origin = editor.window_origin - self.window_origin.to_vec2()
+                let mut origin = editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
                     + Vec2::new(x, y);
                 if origin.y + self.completion.size.height + 1.0 > tab_size.height {
                     let height = self
@@ -912,7 +918,8 @@ impl LapceTabData {
                         .size
                         .height
                         .min(self.completion.len() as f64 * line_height);
-                    origin.y = editor.window_origin.y - self.window_origin.y
+                    origin.y = editor.window_origin.borrow().y
+                        - self.window_origin.borrow().y
                         + line as f64 * line_height
                         - height;
                 }
@@ -944,10 +951,12 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => {
-                editor.window_origin - self.window_origin.to_vec2()
+                editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
             }
             BufferContent::Value(_) => {
-                editor.window_origin - self.window_origin.to_vec2()
+                editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
             }
             BufferContent::File(path) => {
                 let buffer = self.main_split.open_files.get(path).unwrap();
@@ -957,11 +966,13 @@ impl LapceTabData {
                 let width = config.editor_char_width(text);
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
-                let mut origin = editor.window_origin - self.window_origin.to_vec2()
+                let mut origin = editor.window_origin.borrow().clone()
+                    - self.window_origin.borrow().to_vec2()
                     + Vec2::new(x, y);
                 if origin.y + self.hover.size.height + 1.0 > tab_size.height {
                     let height = self.hover.size.height;
-                    origin.y = editor.window_origin.y - self.window_origin.y
+                    origin.y = editor.window_origin.borrow().y
+                        - self.window_origin.borrow().y
                         + line as f64 * line_height
                         - height;
                 }
@@ -3044,7 +3055,7 @@ pub struct LapceEditorData {
     pub new_cursor: lapce_core::cursor::Cursor,
     pub selection_history: SelectionHistory,
     pub size: Rc<RefCell<Size>>,
-    pub window_origin: Point,
+    pub window_origin: Rc<RefCell<Point>>,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
     pub locations: Vec<EditorLocationNew>,
     pub current_location: usize,
@@ -3101,7 +3112,7 @@ impl LapceEditorData {
             size: Rc::new(RefCell::new(Size::ZERO)),
             compare: None,
             code_lens: false,
-            window_origin: Point::ZERO,
+            window_origin: Rc::new(RefCell::new(Point::ZERO)),
             snippet: None,
             locations: vec![],
             current_location: 0,

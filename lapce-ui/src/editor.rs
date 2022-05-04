@@ -215,7 +215,8 @@ impl LapceEditor {
                 },
             },
         ];
-        let point = mouse_event.pos + editor_data.editor.window_origin.to_vec2();
+        let point =
+            mouse_event.pos + editor_data.editor.window_origin.borrow().to_vec2();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
             LapceUICommand::ShowMenu(point.round(), Arc::new(menu_items)),
@@ -1788,17 +1789,6 @@ impl Widget<LapceTabData> for LapceEditor {
                     );
                 }
             }
-            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
-                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::UpdateWindowOrigin = command {
-                    let window_origin = ctx.window_origin();
-                    let editor =
-                        data.main_split.editors.get_mut(&self.view_id).unwrap();
-                    if editor.window_origin != window_origin {
-                        Arc::make_mut(editor).window_origin = window_origin;
-                    }
-                }
-            }
             _ => (),
         }
     }
@@ -1812,12 +1802,10 @@ impl Widget<LapceTabData> for LapceEditor {
     ) {
         if let LifeCycle::Internal(InternalLifeCycle::ParentWindowOrigin) = event {
             let editor = data.main_split.editors.get(&self.view_id).unwrap();
-            if ctx.window_origin() != editor.window_origin {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateWindowOrigin,
-                    Target::Widget(editor.view_id),
-                ))
+            let current_window_origin = ctx.window_origin();
+            if current_window_origin != *editor.window_origin.borrow() {
+                *editor.window_origin.borrow_mut() = current_window_origin;
+                ctx.request_layout();
             }
         }
     }

@@ -687,7 +687,6 @@ pub enum LapceUICommand {
     UpdateExplorerItems(usize, PathBuf, Vec<FileNodeItem>),
     UpdateInstalledPlugins(HashMap<String, PluginDescription>),
     UpdatePluginDescriptions(Vec<PluginDescription>),
-    UpdateWindowOrigin,
     RequestLayout,
     RequestPaint,
     ResetFade,

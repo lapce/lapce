@@ -4,9 +4,9 @@ use druid::{
     kurbo::Line,
     piet::{PietTextLayout, Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
-    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
-    RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
-    WindowConfig,
+    InternalEvent, InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
+    Point, Rect, RenderContext, Size, Target, Widget, WidgetExt, WidgetId,
+    WidgetPod, WindowConfig,
 };
 use itertools::Itertools;
 use lapce_core::command::FocusCommand;
@@ -265,6 +265,12 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         match event {
+            Event::Internal(InternalEvent::TargetedCommand(cmd)) => {
+                if cmd.is(LAPCE_UI_COMMAND) {
+                    let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                    // println!("{command:?}");
+                }
+            }
             Event::MouseDown(mouse) => {
                 if mouse.button.is_left() {
                     if let Some(position) = self.bar_hit_test(data, mouse.pos) {
@@ -310,10 +316,6 @@ impl Widget<LapceTabData> for LapceTabNew {
                 match command {
                     LapceUICommand::RequestPaint => {
                         ctx.request_paint();
-                        ctx.set_handled();
-                    }
-                    LapceUICommand::UpdateWindowOrigin => {
-                        data.window_origin = ctx.window_origin();
                         ctx.set_handled();
                     }
                     LapceUICommand::LoadBuffer {
@@ -753,7 +755,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     ) => {
                         if let Some(editor) = data.main_split.active_editor() {
                             if *editor_view_id == editor.view_id
-                                && *offset == editor.cursor.offset()
+                                && *offset == editor.new_cursor.offset()
                             {
                                 data.main_split.jump_to_location(
                                     ctx,
@@ -785,7 +787,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::PaletteReferences(offset, locations) => {
                         if let Some(editor) = data.main_split.active_editor() {
-                            if *offset == editor.cursor.offset() {
+                            if *offset == editor.new_cursor.offset() {
                                 let locations = locations
                                     .iter()
                                     .map(|l| EditorLocationNew {
@@ -1062,12 +1064,10 @@ impl Widget<LapceTabData> for LapceTabNew {
         env: &Env,
     ) {
         if let LifeCycle::Internal(InternalLifeCycle::ParentWindowOrigin) = event {
-            if ctx.window_origin() != data.window_origin {
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateWindowOrigin,
-                    Target::Widget(data.id),
-                ))
+            let current_window_origin = ctx.window_origin();
+            if current_window_origin != *data.window_origin.borrow() {
+                *data.window_origin.borrow_mut() = current_window_origin;
+                ctx.request_layout();
             }
         }
         self.palette.lifecycle(ctx, event, data, env);
