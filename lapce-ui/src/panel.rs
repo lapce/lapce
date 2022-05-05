@@ -82,8 +82,8 @@ impl Widget<LapceTabData> for LapcePanel {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        self.header.paint(ctx, data, env);
         self.split.paint(ctx, data, env);
+        self.header.paint(ctx, data, env);
     }
 }
 
@@ -311,7 +311,6 @@ impl Widget<LapceTabData> for PanelSectionHeader {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
-            ctx.clip(rect.inflate(0.0, 100.0));
             ctx.blurred_rect(
                 rect,
                 shadow_width,
@@ -506,7 +505,6 @@ impl Widget<LapceTabData> for PanelMainHeader {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
-            ctx.clip(rect.inflate(0.0, 100.0));
             ctx.blurred_rect(
                 rect,
                 shadow_width,

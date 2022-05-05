@@ -534,7 +534,10 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             }
         }
 
-        self.tabs[data.active].paint(ctx, data, env);
+        ctx.with_save(|ctx| {
+            ctx.clip(self.tabs[data.active].layout_rect());
+            self.tabs[data.active].paint(ctx, data, env);
+        });
 
         let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
         if self.tabs.len() > 1 {
