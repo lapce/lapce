@@ -267,7 +267,7 @@ impl Widget<LapceWindowData> for Title {
             Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ShowMenu(
-                    Point::new(command_rect.x0, command_rect.y1),
+                    ctx.to_window(Point::new(command_rect.x0, command_rect.y1)),
                     Arc::new(menu_items),
                 ),
                 Target::Auto,
@@ -346,7 +346,7 @@ impl Widget<LapceWindowData> for Title {
             Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ShowMenu(
-                    Point::new(command_rect.x0, command_rect.y1),
+                    ctx.to_window(Point::new(command_rect.x0, command_rect.y1)),
                     Arc::new(menu_items),
                 ),
                 Target::Auto,
@@ -417,7 +417,7 @@ impl Widget<LapceWindowData> for Title {
                 Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ShowMenu(
-                        Point::new(command_rect.x0, command_rect.y1),
+                        ctx.to_window(Point::new(command_rect.x0, command_rect.y1)),
                         Arc::new(menu_items),
                     ),
                     Target::Auto,
@@ -487,7 +487,7 @@ impl Widget<LapceWindowData> for Title {
             Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ShowMenu(
-                    Point::new(size.width - 300.0, settings_rect.y1),
+                    ctx.to_window(Point::new(size.width - 300.0, settings_rect.y1)),
                     Arc::new(menu_items),
                 ),
                 Target::Auto,
