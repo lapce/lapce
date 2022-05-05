@@ -25,7 +25,7 @@ use crate::{
 #[derive(Clone)]
 pub struct DocumentHisotry {
     version: String,
-    buffer: Buffer,
+    buffer: Option<Buffer>,
     styles: Arc<Spans<Style>>,
     line_styles: Rc<RefCell<LineStyles>>,
     changes: Arc<Vec<DiffLines>>,
@@ -36,7 +36,7 @@ impl DocumentHisotry {
     pub fn new(version: String) -> Self {
         Self {
             version,
-            buffer: Buffer::new(""),
+            buffer: None,
             styles: Arc::new(Spans::default()),
             line_styles: Rc::new(RefCell::new(LineStyles::new())),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
@@ -45,7 +45,9 @@ impl DocumentHisotry {
     }
 
     pub fn load_content(&mut self, content: Rope, doc: &Document) {
-        self.buffer.load_content(&content.slice_to_cow(..));
+        let mut buffer = Buffer::new("");
+        buffer.load_content(&content.slice_to_cow(..));
+        self.buffer = Some(buffer);
         self.trigger_update_change(doc);
         self.retrieve_history_styles(doc);
     }
@@ -81,7 +83,7 @@ impl DocumentHisotry {
         line: usize,
         config: &Config,
     ) -> PietTextLayout {
-        let line_content = self.buffer.line_content(line);
+        let line_content = self.buffer.as_ref().unwrap().line_content(line);
         let font_family = config.editor.font_family();
         let font_size = config.editor.font_size;
         let tab_width =
@@ -113,7 +115,11 @@ impl DocumentHisotry {
 
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
         if self.line_styles.borrow().get(&line).is_none() {
-            let line_styles = line_styles(self.buffer.text(), line, &self.styles);
+            let line_styles = line_styles(
+                self.buffer.as_ref().unwrap().text(),
+                line,
+                &self.styles,
+            );
             self.line_styles
                 .borrow_mut()
                 .insert(line, Arc::new(line_styles));
@@ -155,12 +161,15 @@ impl DocumentHisotry {
     }
 
     pub fn trigger_update_change(&self, doc: &Document) {
+        if self.buffer.is_none() {
+            return;
+        }
         if let BufferContent::File(path) = &doc.content() {
             let id = doc.id();
             let rev = doc.rev();
             let atomic_rev = doc.buffer().atomic_rev();
             let path = path.clone();
-            let left_rope = self.buffer.text().clone();
+            let left_rope = self.buffer.as_ref().unwrap().text().clone();
             let right_rope = doc.buffer().text().clone();
             let event_sink = doc.event_sink.clone();
             let tab_id = doc.tab_id;
@@ -207,6 +216,9 @@ impl DocumentHisotry {
     }
 
     fn retrieve_history_styles(&self, doc: &Document) {
+        if self.buffer.is_none() {
+            return;
+        }
         if let BufferContent::File(path) = &doc.content() {
             let id = doc.id();
             let path = path.clone();
@@ -214,7 +226,7 @@ impl DocumentHisotry {
             let version = self.version.to_string();
             let event_sink = doc.event_sink.clone();
 
-            let content = self.buffer.text().clone();
+            let content = self.buffer.as_ref().unwrap().text().clone();
             rayon::spawn(move || {
                 if let Some(syntax) =
                     Syntax::init(&path).map(|s| s.parse(0, content, None))

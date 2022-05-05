@@ -679,17 +679,17 @@ impl LapceEditorBufferData {
     }
 
     pub fn update_hover(&mut self, ctx: &mut EventCtx, offset: usize) {
-        if !self.buffer.loaded() {
+        if !self.doc.loaded() {
             return;
         }
 
-        if self.buffer.local() {
+        if !self.doc.content().is_file() {
             return;
         }
 
-        let start_offset = self.buffer.prev_code_boundary(offset);
-        let end_offset = self.buffer.next_code_boundary(offset);
-        let input = self.buffer.slice_to_cow(start_offset..end_offset);
+        let start_offset = self.doc.buffer().prev_code_boundary(offset);
+        let end_offset = self.doc.buffer().next_code_boundary(offset);
+        let input = self.doc.buffer().slice_to_cow(start_offset..end_offset);
         if input.trim().is_empty() {
             return;
         }
@@ -698,7 +698,7 @@ impl LapceEditorBufferData {
 
         if hover.status != HoverStatus::Inactive
             && hover.offset == start_offset
-            && hover.buffer_id == self.buffer.id()
+            && hover.buffer_id == self.doc.id()
         {
             // We're hovering over the same location, but are trying to update
             return;
@@ -715,8 +715,7 @@ impl LapceEditorBufferData {
             self.proxy.clone(),
             hover.request_id,
             self.doc.id(),
-            self.buffer
-                .offset_to_position(start_offset, self.config.editor.tab_width),
+            self.doc.buffer().offset_to_position(start_offset),
             hover.id,
             event_sink,
         );
