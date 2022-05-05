@@ -311,7 +311,6 @@ impl Widget<LapceTabData> for PanelSectionHeader {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
-            ctx.clip(rect.inflate(0.0, 100.0));
             ctx.blurred_rect(
                 rect,
                 shadow_width,
@@ -506,7 +505,6 @@ impl Widget<LapceTabData> for PanelMainHeader {
         let shadow_width = 5.0;
         let rect = ctx.size().to_rect();
         ctx.with_save(|ctx| {
-            ctx.clip(rect.inflate(0.0, 100.0));
             ctx.blurred_rect(
                 rect,
                 shadow_width,
