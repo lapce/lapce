@@ -208,28 +208,39 @@ impl BufferData {
         col: usize,
         tab_width: usize,
     ) -> usize {
+        // col is the number of character, and does not take into acount char_width
+        // We update updated_col all along to reflect the actual size to compare with
+        let mut updated_col = 0;
         let mut pos = 0;
         let mut offset = self.offset_of_line(line);
+        let mut idx = 0;
         for c in self
             .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
             .chars()
         {
+            idx += 1;
+
             if c == '\n' {
                 return offset;
             }
+
             let width = if c == '\t' {
                 tab_width - pos % tab_width
             } else {
                 char_width(c)
             };
 
+            if idx <= col {
+                updated_col += width
+            }
+
             pos += width;
-            if pos > col {
+            if pos > updated_col {
                 return offset;
             }
 
             offset += c.len_utf8();
-            if pos == col {
+            if pos > updated_col {
                 return offset;
             }
         }
@@ -804,5 +815,33 @@ impl<L: BufferDataListener> EditableBufferData<'_, L> {
         }
 
         delta
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_offset_to_line_col() {
+        // Characters such as \t are bigger than one: computing the offset
+        // without taking into account lead to incorrect values.
+        let input = "package packagename\n\nimport (\n\t\"fmt\"\n\"log\"\n)\n";
+        let bf = BufferData::new(input, BufferContent::Value(String::from("")));
+
+        let res = bf.offset_of_line_col(3, 1, 4);
+        assert_eq!(res, 31);
+        let res = bf.offset_of_line_col(3, 6, 4);
+        assert_eq!(res, 36);
+
+        // simple line without any special characters
+        let input = "let a: f64 = \"this is a string\";"; // 18 long error wave
+        let bf = BufferData::new(input, BufferContent::Value(String::from("")));
+
+        let res = bf.offset_of_line_col(0, 13, 4);
+        assert_eq!(res, 13);
+        let res = bf.offset_of_line_col(0, 31, 4);
+        assert_eq!(res, 31);
     }
 }
