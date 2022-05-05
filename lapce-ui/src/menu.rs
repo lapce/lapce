@@ -135,6 +135,10 @@ impl Widget<LapceWindowData> for Menu {
         data: &LapceWindowData,
         _env: &Env,
     ) {
+        if !old_data.menu.origin.same(&data.menu.origin) {
+            ctx.request_layout();
+        }
+
         if !old_data.menu.items.same(&data.menu.items) {
             ctx.request_layout();
         }
