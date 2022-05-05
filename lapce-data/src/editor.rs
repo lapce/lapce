@@ -4059,6 +4059,7 @@ impl KeyPressFocus for LapceEditorBufferData {
                 self.editor.content == BufferContent::Local(LocalBufferKind::Search)
                     && self.editor.parent_view_id.is_none()
             }
+            "input_focus" => self.editor.content.is_input(),
             "editor_focus" => match self.editor.content {
                 BufferContent::File(_) => true,
                 BufferContent::Local(_) => false,

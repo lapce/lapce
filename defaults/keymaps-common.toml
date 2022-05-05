@@ -196,7 +196,7 @@ mode = "i"
 [[keymaps]]
 key = "enter"
 command = "insert_new_line"
-when = "!list_focus"
+when = "!list_focus && !input_focus"
 mode = "i"
 
 [[keymaps]]
