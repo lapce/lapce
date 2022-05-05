@@ -82,8 +82,8 @@ impl Widget<LapceTabData> for LapcePanel {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        self.header.paint(ctx, data, env);
         self.split.paint(ctx, data, env);
+        self.header.paint(ctx, data, env);
     }
 }
 
