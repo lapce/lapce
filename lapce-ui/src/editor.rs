@@ -216,11 +216,13 @@ impl LapceEditor {
                 },
             },
         ];
-        let point =
-            mouse_event.pos + editor_data.editor.window_origin.borrow().to_vec2();
+
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::ShowMenu(point.round(), Arc::new(menu_items)),
+            LapceUICommand::ShowMenu(
+                ctx.to_window(mouse_event.pos),
+                Arc::new(menu_items),
+            ),
             Target::Auto,
         ));
     }
