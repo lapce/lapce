@@ -336,7 +336,7 @@ impl LapceWindowData {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct EditorDiagnostic {
     pub range: Option<(usize, usize)>,
     pub diagnostic: Diagnostic,

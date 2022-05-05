@@ -9,8 +9,8 @@ use lapce_data::{
     db::{TabsInfo, WindowInfo},
 };
 
-use crate::window::LapceWindowNew;
 use crate::logging::override_log_levels;
+use crate::window::LapceWindowNew;
 
 pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
     LapceWindowNew::new(data).lens(LapceWindowLens(data.window_id))

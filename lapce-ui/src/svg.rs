@@ -49,11 +49,17 @@ pub fn get_svg(name: &str) -> Option<Svg> {
 }
 
 pub fn file_svg_new(path: &Path) -> Svg {
+    let file_type = file_svg_path(path);
+    get_svg(&file_type).unwrap_or_else(|| get_svg("default_file.svg").unwrap())
+}
+
+pub fn file_svg_path(path: &Path) -> String {
     let extension = path
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_lowercase();
+
     let file_type = match path.file_name().and_then(|f| f.to_str()).unwrap_or("") {
         "LICENSE" => "license",
         _ => match extension.as_str() {
@@ -63,8 +69,8 @@ pub fn file_svg_new(path: &Path) -> Svg {
             s => s,
         },
     };
-    get_svg(&format!("file_type_{}.svg", file_type))
-        .unwrap_or_else(|| get_svg("default_file.svg").unwrap())
+
+    format!("file_type_{}.svg", file_type)
 }
 
 pub fn symbol_svg_new(kind: &SymbolKind) -> Option<Svg> {

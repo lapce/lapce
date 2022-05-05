@@ -418,6 +418,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBoxNew<T, W> {
     ) -> Size {
         bc.debug_check("ClipBox");
 
+        // TODO: this should give an Infinite amount of space for the child
         let content_size = self.child.layout(ctx, bc, data, env);
         self.port.content_size = content_size;
         self.child.set_origin(ctx, data, env, Point::ORIGIN);
