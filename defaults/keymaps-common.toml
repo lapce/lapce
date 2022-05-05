@@ -206,6 +206,18 @@ when = "search_focus"
 mode = "i"
 
 [[keymaps]]
+key = "enter"
+command = "search_forward"
+when = "search_focus"
+mode = "i"
+
+[[keymaps]]
+key = "enter"
+command = "global_search_refresh"
+when = "global_search_focus"
+mode = "i"
+
+[[keymaps]]
 key = "tab"
 command = "insert_tab"
 when = "!in_snippet"

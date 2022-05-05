@@ -1873,18 +1873,36 @@ impl LapceEditorBufferData {
                 }
             }
             SearchForward => {
-                Arc::make_mut(&mut self.find).visual = true;
-                let offset = self.editor.new_cursor.offset();
-                let next =
-                    self.find
-                        .next(self.doc.buffer().text(), offset, false, true);
-                if let Some((start, _end)) = next {
-                    self.run_move_command(
-                        ctx,
-                        &lapce_core::movement::Movement::Offset(start),
-                        None,
-                        mods,
+                if self.editor.content.is_search() {
+                    if let Some(parent_view_id) = self.editor.parent_view_id {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Focus(
+                                    FocusCommand::SearchForward,
+                                ),
+                                data: None,
+                            },
+                            Target::Widget(parent_view_id),
+                        ));
+                    }
+                } else {
+                    Arc::make_mut(&mut self.find).visual = true;
+                    let offset = self.editor.new_cursor.offset();
+                    let next = self.find.next(
+                        self.doc.buffer().text(),
+                        offset,
+                        false,
+                        true,
                     );
+                    if let Some((start, _end)) = next {
+                        self.run_move_command(
+                            ctx,
+                            &lapce_core::movement::Movement::Offset(start),
+                            None,
+                            mods,
+                        );
+                    }
                 }
             }
             SearchBackward => {
@@ -1915,6 +1933,15 @@ impl LapceEditorBufferData {
                         );
                     }
                 }
+            }
+            GlobalSearchRefresh => {
+                let tab_id = *self.main_split.tab_id;
+                let pattern = self.doc.buffer().text().to_string();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSearch(pattern),
+                    Target::Widget(tab_id),
+                ));
             }
             ClearSearch => {
                 Arc::make_mut(&mut self.find).visual = false;
@@ -4026,6 +4053,11 @@ impl KeyPressFocus for LapceEditorBufferData {
         match condition {
             "search_focus" => {
                 self.editor.content == BufferContent::Local(LocalBufferKind::Search)
+                    && self.editor.parent_view_id.is_some()
+            }
+            "global_search_focus" => {
+                self.editor.content == BufferContent::Local(LocalBufferKind::Search)
+                    && self.editor.parent_view_id.is_none()
             }
             "editor_focus" => match self.editor.content {
                 BufferContent::File(_) => true,

@@ -201,6 +201,8 @@ pub enum FocusCommand {
     SearchForward,
     #[strum(serialize = "search_backward")]
     SearchBackward,
+    #[strum(serialize = "global_search_refresh")]
+    GlobalSearchRefresh,
     #[strum(serialize = "clear_search")]
     ClearSearch,
     #[strum(serialize = "search_in_view")]
