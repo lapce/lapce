@@ -33,8 +33,7 @@ use xi_rope::{Interval, RopeDelta};
 use crate::command::LapceUICommand;
 use crate::command::LAPCE_UI_COMMAND;
 use crate::config::Config;
-use crate::state::LapceWorkspace;
-use crate::state::LapceWorkspaceType;
+use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::terminal::RawTerminal;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

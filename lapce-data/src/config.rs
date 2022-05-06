@@ -13,7 +13,7 @@ use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    state::{LapceWorkspace, LapceWorkspaceType},
+    data::{LapceWorkspace, LapceWorkspaceType},
 };
 
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");

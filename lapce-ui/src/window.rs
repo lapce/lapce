@@ -8,8 +8,7 @@ use druid::{
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::{LapceTabData, LapceTabLens, LapceWindowData},
-    state::LapceWorkspace,
+    data::{LapceTabData, LapceTabLens, LapceWindowData, LapceWorkspace},
 };
 use std::cmp::Ordering;
 use std::sync::Arc;

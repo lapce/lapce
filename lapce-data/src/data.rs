@@ -59,7 +59,6 @@ use crate::{
     settings::LapceSettingsPanelData,
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
-    state::{LapceWorkspace, LapceWorkspaceType},
     terminal::TerminalSplitData,
 };
 
@@ -3101,5 +3100,65 @@ impl LapceEditorData {
             },
         };
         info
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum LapceWorkspaceType {
+    Local,
+    RemoteSSH(String, String),
+    RemoteWSL,
+}
+
+impl LapceWorkspaceType {
+    pub fn is_remote(&self) -> bool {
+        matches!(
+            self,
+            LapceWorkspaceType::RemoteSSH(_, _) | LapceWorkspaceType::RemoteWSL
+        )
+    }
+}
+
+impl std::fmt::Display for LapceWorkspaceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LapceWorkspaceType::Local => f.write_str("Local"),
+            LapceWorkspaceType::RemoteSSH(user, host) => {
+                write!(f, "ssh://{}@{}", user, host)
+            }
+            LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LapceWorkspace {
+    pub kind: LapceWorkspaceType,
+    pub path: Option<PathBuf>,
+    pub last_open: u64,
+}
+
+impl Default for LapceWorkspace {
+    fn default() -> Self {
+        Self {
+            kind: LapceWorkspaceType::Local,
+            path: None,
+            last_open: 0,
+        }
+    }
+}
+
+impl std::fmt::Display for LapceWorkspace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}",
+            self.kind,
+            self.path
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "".to_string())
+        )
     }
 }

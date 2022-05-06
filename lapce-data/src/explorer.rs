@@ -9,8 +9,8 @@ use druid::{Target, WidgetId};
 use include_dir::{include_dir, Dir};
 use lapce_rpc::file::FileNodeItem;
 
+use crate::data::LapceWorkspace;
 use crate::proxy::LapceProxy;
-use crate::state::LapceWorkspace;
 
 use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND};
 

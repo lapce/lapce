@@ -189,12 +189,18 @@ impl Document {
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
     ) -> Self {
+        let syntax = match &content {
+            BufferContent::File(path) => Syntax::init(path),
+            BufferContent::Local(_) => None,
+            BufferContent::Value(_) => None,
+        };
+
         Self {
             id: BufferId::next(),
             tab_id,
             buffer: Buffer::new(""),
             content,
-            syntax: None,
+            syntax,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             semantic_styles: None,

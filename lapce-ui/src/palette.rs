@@ -13,8 +13,8 @@ use druid::{
 use druid::{FontWeight, Modifiers};
 use lapce_data::command::LAPCE_COMMAND;
 use lapce_data::config::Config;
+use lapce_data::data::LapceWorkspaceType;
 use lapce_data::palette::PaletteItemContent;
-use lapce_data::state::LapceWorkspaceType;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,

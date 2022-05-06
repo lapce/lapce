@@ -25,5 +25,4 @@ pub mod settings;
 pub mod signature;
 pub mod source_control;
 pub mod split;
-pub mod state;
 pub mod terminal;

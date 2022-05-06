@@ -10,10 +10,9 @@ use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::LapceTheme,
-    data::LapceTabData,
+    data::{LapceTabData, LapceWorkspace},
     document::BufferContent,
     editor::LapceEditorBufferData,
-    state::LapceWorkspace,
 };
 
 use crate::{

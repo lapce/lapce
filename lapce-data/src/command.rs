@@ -21,6 +21,7 @@ use strum::{self, EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
+use crate::data::LapceWorkspace;
 use crate::{
     data::{EditorTabChild, SplitContent},
     editor::EditorLocationNew,
@@ -30,7 +31,6 @@ use crate::{
     proxy::ProxyStatus,
     search::Match,
     split::{SplitDirection, SplitMoveDirection},
-    state::LapceWorkspace,
 };
 
 pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.new-command");

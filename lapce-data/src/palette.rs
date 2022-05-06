@@ -18,6 +18,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::command::CommandKind;
+use crate::data::{LapceWorkspace, LapceWorkspaceType};
 use crate::document::BufferContent;
 use crate::{
     command::LAPCE_UI_COMMAND,
@@ -29,8 +30,6 @@ use crate::{
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
     proxy::LapceProxy,
-    state::LapceWorkspace,
-    state::LapceWorkspaceType,
     terminal::TerminalSplitData,
 };
 

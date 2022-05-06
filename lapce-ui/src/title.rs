@@ -14,10 +14,9 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::LapceWindowData,
+    data::{LapceWindowData, LapceWorkspaceType},
     menu::MenuItem,
     proxy::ProxyStatus,
-    state::LapceWorkspaceType,
 };
 use serde_json::json;
 

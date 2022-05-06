@@ -28,11 +28,11 @@ use crate::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
     config::{Config, LapceTheme},
+    data::LapceWorkspace,
     find::Find,
     keypress::KeyPressFocus,
     proxy::LapceProxy,
     split::SplitMoveDirection,
-    state::LapceWorkspace,
 };
 
 pub type TermConfig = alacritty_terminal::config::Config;

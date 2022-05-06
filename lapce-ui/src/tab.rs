@@ -21,8 +21,8 @@ use lapce_data::{
     completion::CompletionStatus,
     config::{Config, LapceTheme},
     data::{
-        DragContent, EditorDiagnostic, FocusArea, LapceTabData, PanelKind,
-        WorkProgress,
+        DragContent, EditorDiagnostic, FocusArea, LapceTabData, LapceWorkspaceType,
+        PanelKind, WorkProgress,
     },
     document::LocalBufferKind,
     editor::EditorLocationNew,
@@ -31,7 +31,6 @@ use lapce_data::{
     palette::PaletteStatus,
     panel::{PanelPosition, PanelResizePosition},
     proxy::path_from_url,
-    state::LapceWorkspaceType,
 };
 use lsp_types::DiagnosticSeverity;
 use serde::Deserialize;

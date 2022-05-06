@@ -17,12 +17,12 @@ use crate::{
     config::Config,
     data::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
-        LapceMainSplitData, LapceTabData, LapceWindowData, SplitContent, SplitData,
+        LapceMainSplitData, LapceTabData, LapceWindowData, LapceWorkspace,
+        SplitContent, SplitData,
     },
     document::{BufferContent, Document},
     editor::EditorLocationNew,
     split::SplitDirection,
-    state::LapceWorkspace,
 };
 
 pub enum SaveEvent {
