@@ -21,7 +21,7 @@ use lapce_data::{
         CommandExecuted, CommandKind, LapceUICommand, LAPCE_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    config::{EditorConfig, LapceConfig, LapceTheme},
+    config::{EditorConfig, PluginsConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
     document::Document,
     keypress::KeyPressFocus,
@@ -39,6 +39,7 @@ use crate::{
 pub enum LapceSettingsKind {
     Core,
     Editor,
+    Plugins,
 }
 
 #[derive(Clone)]
@@ -96,6 +97,10 @@ impl LapceSettingsPanel {
             )) as Box<dyn Widget<_>>),
             WidgetPod::new(Box::new(LapceSettings::new_split(
                 LapceSettingsKind::Editor,
+                data,
+            ))),
+            WidgetPod::new(Box::new(LapceSettings::new_split(
+                LapceSettingsKind::Plugins,
                 data,
             ))),
             WidgetPod::new(Box::new(LapceKeymap::new_split(data))),
@@ -364,8 +369,8 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                     .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
             );
 
-            const SETTINGS_SECTIONS: [&str; 3] =
-                ["Core Settings", "Editor Settings", "Keybindings"];
+            const SETTINGS_SECTIONS: [&str; 4] =
+                ["Core Settings", "Editor Settings", "Plugins Settings", "Keybindings"];
 
             for (i, text) in SETTINGS_SECTIONS.into_iter().enumerate() {
                 let text_layout = ctx
@@ -486,7 +491,7 @@ impl LapceSettings {
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         self.children.clear();
 
-        let (kind, fileds, descs, settings) = match self.kind {
+        let (kind, fields, descs, settings) = match self.kind {
             LapceSettingsKind::Core => {
                 let settings: HashMap<String, serde_json::Value> =
                     serde_json::from_value(
@@ -513,9 +518,22 @@ impl LapceSettings {
                     settings,
                 )
             }
+            LapceSettingsKind::Plugins => {
+                let settings: HashMap<String, serde_json::Value> =
+                    serde_json::from_value(
+                        serde_json::to_value(&data.config.plugins).unwrap(),
+                    )
+                    .unwrap();
+                (
+                    "plugins".to_string(),
+                    PluginsConfig::FIELDS.to_vec(),
+                    PluginsConfig::DESCS.to_vec(),
+                    settings,
+                )
+            }
         };
 
-        for (i, field) in fileds.into_iter().enumerate() {
+        for (i, field) in fields.into_iter().enumerate() {
             self.children.push(WidgetPod::new(
                 LapcePadding::new(
                     (10.0, 10.0),

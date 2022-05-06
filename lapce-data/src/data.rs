@@ -122,15 +122,19 @@ impl LapceData {
             windows.insert(window.window_id, window);
         }
 
-        thread::spawn(move || {
-            if let Ok(plugins) = LapceData::load_plugin_descriptions() {
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdatePluginDescriptions(plugins),
-                    Target::Auto,
-                );
-            }
-        });
+        if config.plugins.auto_check {
+            log::info!("start to check for plugins");
+            thread::spawn(move || {
+                if let Ok(plugins) = LapceData::load_plugin_descriptions() {
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdatePluginDescriptions(plugins),
+                        Target::Auto,
+                    );
+                }
+            }).join().expect("the plugin desc thread panicked");
+            log::info!("check for plugins completed");
+        }
         Self {
             windows,
             keypress,
@@ -154,12 +158,12 @@ impl LapceData {
             .into_json()?;
         let plugins: Vec<PluginDescription> = plugins
             .iter()
-            .filter_map(|plugin| LapceData::load_plgin_description(plugin).ok())
+            .filter_map(|plugin| LapceData::load_plugin_description(plugin).ok())
             .collect();
         Ok(plugins)
     }
 
-    fn load_plgin_description(plugin: &str) -> Result<PluginDescription> {
+    fn load_plugin_description(plugin: &str) -> Result<PluginDescription> {
         let url = format!(
             "https://raw.githubusercontent.com/{}/master/plugin.toml",
             plugin

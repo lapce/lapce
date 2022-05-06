@@ -329,10 +329,18 @@ impl Themes {
     }
 }
 
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct PluginsConfig {
+    #[field_names(desc = "Check for plugins automatically")]
+    pub auto_check: bool,
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
+    pub plugins: PluginsConfig,
     #[serde(skip)]
     pub themes: Themes,
     #[serde(skip)]

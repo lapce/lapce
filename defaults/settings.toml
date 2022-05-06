@@ -4,6 +4,9 @@ color-theme = "Lapce Dark"
 icon-theme = ""
 terminal-shell = ""
 
+[plugins]
+auto-check = true
+
 [editor]
 font-family = "Cascadia Code"
 font-size = 13
