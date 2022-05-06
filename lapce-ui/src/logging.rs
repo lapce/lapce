@@ -51,7 +51,7 @@ fn parse_log_levels(value: &str, mut dispatch: fern::Dispatch) -> fern::Dispatch
     // 'module2' which are at Info and Debug, respectively:
     // RUST_LOG="error,path::to::module1=info,path::to::module2=debug"
     for section in value.split(',').filter(|s| !s.is_empty()) {
-        if let Some((module, level)) = section.split_once("=") {
+        if let Some((module, level)) = section.split_once('=') {
             println!("module='{module}', level='{level}'");
             // "module=level"
             //

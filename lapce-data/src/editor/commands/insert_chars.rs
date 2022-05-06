@@ -45,7 +45,7 @@ impl<'a> InsertCharsCommand<'a> {
             let selection =
                 selection.apply_delta(&delta, true, InsertDrift::Default);
 
-            *cursor = Cursor::new(CursorMode::Insert(selection.clone()), None);
+            *cursor = Cursor::new(CursorMode::Insert(selection), None);
             return None;
         }
 
