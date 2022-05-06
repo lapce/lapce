@@ -8,6 +8,7 @@ use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
 use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_core::mode::Mode;
+use lapce_core::movement::Movement;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use serde_json;
 use std::cmp::Ordering;
@@ -17,8 +18,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::command::CommandKind;
+use crate::document::BufferContent;
 use crate::{
-    buffer::BufferContent,
     command::LAPCE_UI_COMMAND,
     command::{CommandExecuted, LAPCE_COMMAND},
     command::{LapceCommand, LapceUICommand},
@@ -27,7 +28,6 @@ use crate::{
     editor::EditorLocationNew,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
-    movement::Movement,
     proxy::LapceProxy,
     state::LapceWorkspace,
     state::LapceWorkspaceType,

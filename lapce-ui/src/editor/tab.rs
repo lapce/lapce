@@ -6,13 +6,13 @@ use druid::{
     Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
-    buffer::{BufferContent, LocalBufferKind},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{
         DragContent, EditorTabChild, LapceEditorTabData, LapceTabData, SplitContent,
     },
     db::EditorTabChildInfo,
+    document::{BufferContent, LocalBufferKind},
     editor::TabRect,
     split::{SplitDirection, SplitMoveDirection},
 };

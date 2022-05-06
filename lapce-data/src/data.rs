@@ -17,7 +17,7 @@ use druid::{
 
 use lapce_core::{
     command::MultiSelectionCommand, editor::EditType, mode::MotionMode,
-    register::Register, selection::Selection,
+    movement::Movement, register::Register, selection::Selection,
 };
 use lapce_rpc::{
     file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
@@ -32,9 +32,6 @@ use serde_json::Value;
 use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
-    buffer::{
-        matching_char, matching_pair_direction, BufferContent, LocalBufferKind,
-    },
     command::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
         LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
@@ -45,14 +42,13 @@ use crate::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
-    document::Document,
+    document::{BufferContent, Document, LocalBufferKind},
     editor::{EditorLocationNew, LapceEditorBufferData, TabRect},
     explorer::FileExplorerData,
     find::Find,
     hover::HoverData,
     keypress::KeyPressData,
     menu::MenuData,
-    movement::Movement,
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
     picker::FilePickerData,
@@ -2980,8 +2976,7 @@ pub struct LapceEditorData {
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
     pub locations: Vec<EditorLocationNew>,
     pub current_location: usize,
-    pub last_movement: Movement,
-    pub last_movement_new: lapce_core::movement::Movement,
+    pub last_movement_new: Movement,
     pub last_inline_find: Option<(InlineFindDirection, String)>,
     pub inline_find: Option<InlineFindDirection>,
     pub motion_mode: Option<MotionMode>,
@@ -3036,8 +3031,7 @@ impl LapceEditorData {
             snippet: None,
             locations: vec![],
             current_location: 0,
-            last_movement: Movement::Left,
-            last_movement_new: lapce_core::movement::Movement::Left,
+            last_movement_new: Movement::Left,
             inline_find: None,
             last_inline_find: None,
             motion_mode: None,
@@ -3109,35 +3103,3 @@ impl LapceEditorData {
         info
     }
 }
-
-#[allow(dead_code)]
-fn str_is_pair_left(c: &str) -> bool {
-    if c.chars().count() == 1 {
-        let c = c.chars().next().unwrap();
-        if matching_pair_direction(c).unwrap_or(false) {
-            return true;
-        }
-    }
-    false
-}
-
-#[allow(dead_code)]
-fn str_is_pair_right(c: &str) -> bool {
-    if c.chars().count() == 1 {
-        let c = c.chars().next().unwrap();
-        return !matching_pair_direction(c).unwrap_or(true);
-    }
-    false
-}
-
-#[allow(dead_code)]
-fn str_matching_pair(c: &str) -> Option<char> {
-    if c.chars().count() == 1 {
-        let c = c.chars().next().unwrap();
-        return matching_char(c);
-    }
-    None
-}
-
-#[allow(dead_code)]
-fn progress_term_event() {}

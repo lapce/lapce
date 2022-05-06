@@ -1,4 +1,7 @@
-use lapce_core::selection::{InsertDrift, SelRegion, Selection};
+use lapce_core::{
+    selection::{InsertDrift, SelRegion, Selection},
+    word::WordCursor,
+};
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
@@ -7,8 +10,6 @@ use xi_rope::{
     find::{find, is_multiline_regex, CaseMatching},
     Cursor, Interval, LinesMetric, Metric, Rope, RopeDelta,
 };
-
-use crate::buffer::WordCursor;
 
 const REGEX_SIZE_LIMIT: usize = 1000000;
 

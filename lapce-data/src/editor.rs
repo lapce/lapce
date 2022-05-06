@@ -1,4 +1,3 @@
-use crate::buffer::{BufferContent, DiffLines, LocalBufferKind};
 use crate::command::LapceCommand;
 use crate::command::LAPCE_COMMAND;
 use crate::command::{CommandExecuted, CommandKind};
@@ -8,7 +7,9 @@ use crate::data::{
     EditorDiagnostic, InlineFindDirection, LapceEditorData, LapceMainSplitData,
     SplitContent,
 };
+use crate::document::BufferContent;
 use crate::document::Document;
+use crate::document::LocalBufferKind;
 use crate::hover::HoverData;
 use crate::hover::HoverStatus;
 use crate::keypress::KeyPressFocus;
@@ -29,7 +30,7 @@ use druid::{
     piet::PietText, Command, Env, EventCtx, Point, Rect, Target, Vec2, WidgetId,
 };
 use druid::{ExtEventSink, MouseEvent};
-use lapce_core::buffer::InvalLines;
+use lapce_core::buffer::{DiffLines, InvalLines};
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
 };

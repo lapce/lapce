@@ -2,13 +2,13 @@ use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
 use lapce_core::{
     command::{FocusCommand, MoveCommand},
     mode::Mode,
+    movement::Movement,
 };
 use lapce_rpc::source_control::FileDiff;
 
 use crate::{
     command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
     keypress::KeyPressFocus,
-    movement::Movement,
     split::{SplitDirection, SplitMoveDirection},
 };
 

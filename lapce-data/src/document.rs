@@ -16,7 +16,7 @@ use druid::{
     ExtEventSink, FontFamily, Point, Target, Vec2, WidgetId,
 };
 use lapce_core::{
-    buffer::{Buffer, InvalLines},
+    buffer::{Buffer, DiffLines, InvalLines},
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
     editor::{EditType, Editor},
@@ -33,10 +33,10 @@ use lapce_rpc::{
     style::{LineStyle, LineStyles, Style},
 };
 use lsp_types::CodeActionResponse;
+use serde::{Deserialize, Serialize};
 use xi_rope::{spans::Spans, Rope, RopeDelta};
 
 use crate::{
-    buffer::{BufferContent, DiffLines, LocalBufferKind},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     editor::EditorLocationNew,
@@ -93,6 +93,69 @@ impl TextLayoutCache {
             self.font_size = font_size;
             self.font_family = font_family;
             self.tab_wdith = tab_width;
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+pub enum LocalBufferKind {
+    Empty,
+    Palette,
+    Search,
+    SourceControl,
+    FilePicker,
+    Keymap,
+    Settings,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum BufferContent {
+    File(PathBuf),
+    Local(LocalBufferKind),
+    Value(String),
+}
+
+impl BufferContent {
+    pub fn is_file(&self) -> bool {
+        matches!(self, BufferContent::File(_))
+    }
+
+    pub fn is_special(&self) -> bool {
+        match &self {
+            BufferContent::File(_) => false,
+            BufferContent::Local(local) => match local {
+                LocalBufferKind::Search
+                | LocalBufferKind::Palette
+                | LocalBufferKind::SourceControl
+                | LocalBufferKind::FilePicker
+                | LocalBufferKind::Settings
+                | LocalBufferKind::Keymap => true,
+                LocalBufferKind::Empty => false,
+            },
+            BufferContent::Value(_) => true,
+        }
+    }
+
+    pub fn is_input(&self) -> bool {
+        match &self {
+            BufferContent::File(_) => false,
+            BufferContent::Local(local) => match local {
+                LocalBufferKind::Search
+                | LocalBufferKind::Palette
+                | LocalBufferKind::FilePicker
+                | LocalBufferKind::Settings
+                | LocalBufferKind::Keymap => true,
+                LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
+            },
+            BufferContent::Value(_) => true,
+        }
+    }
+
+    pub fn is_search(&self) -> bool {
+        match &self {
+            BufferContent::File(_) => false,
+            BufferContent::Value(_) => false,
+            BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
         }
     }
 }

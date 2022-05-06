@@ -4,8 +4,8 @@ use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetId,
 };
+use lapce_core::buffer::DiffLines;
 use lapce_data::{
-    buffer::DiffLines,
     config::LapceTheme,
     data::{EditorView, LapceTabData},
     editor::{LapceEditorBufferData, Syntax},

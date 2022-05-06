@@ -9,6 +9,7 @@ use druid::{
     InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, MouseEvent,
     PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
+use lapce_core::buffer::DiffLines;
 use lapce_core::{
     command::FocusCommand,
     cursor::{ColPosition, CursorMode},
@@ -17,9 +18,9 @@ use lapce_core::{
 };
 use lapce_data::command::CommandKind;
 use lapce_data::data::EditorView;
+use lapce_data::document::{BufferContent, LocalBufferKind};
 use lapce_data::keypress::KeyPressFocus;
 use lapce_data::{
-    buffer::{BufferContent, DiffLines, LocalBufferKind},
     command::{
         LapceCommand, LapceUICommand, LapceWorkbenchCommand, LAPCE_UI_COMMAND,
     },

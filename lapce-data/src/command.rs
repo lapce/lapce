@@ -3,6 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
+use lapce_core::buffer::DiffLines;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
@@ -21,7 +22,6 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
-    buffer::DiffLines,
     data::{EditorTabChild, SplitContent},
     editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},

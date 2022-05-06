@@ -7,7 +7,6 @@ use druid::{
 };
 use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_data::{
-    buffer::{BufferContent, LocalBufferKind},
     command::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
@@ -16,6 +15,7 @@ use lapce_data::{
     data::{
         EditorTabChild, EditorView, FocusArea, LapceTabData, PanelData, PanelKind,
     },
+    document::{BufferContent, LocalBufferKind},
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
     panel::PanelPosition,

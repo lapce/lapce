@@ -15,7 +15,6 @@ use lapce_core::{
     selection::Selection,
 };
 use lapce_data::{
-    buffer::LocalBufferKind,
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
@@ -25,6 +24,7 @@ use lapce_data::{
         DragContent, EditorDiagnostic, FocusArea, LapceTabData, PanelKind,
         WorkProgress,
     },
+    document::LocalBufferKind,
     editor::EditorLocationNew,
     hover::HoverStatus,
     keypress::{DefaultKeyPressHandler, KeyPressData},

@@ -8,10 +8,10 @@ use druid::{
 };
 use lapce_core::command::FocusCommand;
 use lapce_data::{
-    buffer::BufferContent,
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
+    document::BufferContent,
     editor::LapceEditorBufferData,
     state::LapceWorkspace,
 };

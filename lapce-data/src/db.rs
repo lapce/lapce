@@ -14,13 +14,12 @@ use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    buffer::BufferContent,
     config::Config,
     data::{
         EditorTabChild, LapceData, LapceEditorData, LapceEditorTabData,
         LapceMainSplitData, LapceTabData, LapceWindowData, SplitContent, SplitData,
     },
-    document::Document,
+    document::{BufferContent, Document},
     editor::EditorLocationNew,
     split::SplitDirection,
     state::LapceWorkspace,

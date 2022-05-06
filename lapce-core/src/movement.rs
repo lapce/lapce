@@ -88,3 +88,50 @@ impl Movement {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::movement::Movement;
+
+    #[test]
+    fn test_wrapping() {
+        // Move by 1 position
+        // List length of 1
+        assert_eq!(0, Movement::Up.update_index(0, 1, 1, true));
+        assert_eq!(0, Movement::Down.update_index(0, 1, 1, true));
+
+        // List length of 5
+        assert_eq!(4, Movement::Up.update_index(0, 5, 1, true));
+        assert_eq!(1, Movement::Down.update_index(0, 5, 1, true));
+
+        // Move by 2 positions
+        // List length of 1
+        assert_eq!(0, Movement::Up.update_index(0, 1, 2, true));
+        assert_eq!(0, Movement::Down.update_index(0, 1, 2, true));
+
+        // List length of 5
+        assert_eq!(3, Movement::Up.update_index(0, 5, 2, true));
+        assert_eq!(2, Movement::Down.update_index(0, 5, 2, true));
+    }
+
+    #[test]
+    fn test_non_wrapping() {
+        // Move by 1 position
+        // List length of 1
+        assert_eq!(0, Movement::Up.update_index(0, 1, 1, false));
+        assert_eq!(0, Movement::Down.update_index(0, 1, 1, false));
+
+        // List length of 5
+        assert_eq!(0, Movement::Up.update_index(0, 5, 1, false));
+        assert_eq!(1, Movement::Down.update_index(0, 5, 1, false));
+
+        // Move by 2 positions
+        // List length of 1
+        assert_eq!(0, Movement::Up.update_index(0, 1, 2, false));
+        assert_eq!(0, Movement::Down.update_index(0, 1, 2, false));
+
+        // List length of 5
+        assert_eq!(0, Movement::Up.update_index(0, 5, 2, false));
+        assert_eq!(2, Movement::Down.update_index(0, 5, 2, false));
+    }
+}

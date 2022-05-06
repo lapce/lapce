@@ -16,14 +16,13 @@ use lapce_core::{
     mode::Mode,
 };
 use lapce_data::{
-    buffer::BufferContent,
     command::{
         CommandExecuted, CommandKind, LapceUICommand, LAPCE_COMMAND,
         LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
-    document::Document,
+    document::{BufferContent, Document},
     keypress::KeyPressFocus,
     proxy::VERSION,
 };

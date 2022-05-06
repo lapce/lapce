@@ -1,4 +1,3 @@
-pub mod buffer;
 pub mod command;
 pub mod completion;
 pub mod config;
@@ -14,7 +13,6 @@ pub mod hover;
 pub mod keypress;
 pub mod lsp;
 pub mod menu;
-pub mod movement;
 pub mod outline;
 pub mod palette;
 pub mod panel;

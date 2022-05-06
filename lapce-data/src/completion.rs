@@ -4,6 +4,7 @@ use anyhow::Error;
 use druid::{ExtEventSink, Size, Target, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
+use lapce_core::movement::Movement;
 use lapce_rpc::buffer::BufferId;
 use lsp_types::{CompletionItem, CompletionResponse, Position};
 use regex::Regex;
@@ -11,7 +12,6 @@ use std::str::FromStr;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    movement::Movement,
     proxy::LapceProxy,
 };
 

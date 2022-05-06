@@ -8,7 +8,11 @@ use druid::{
     piet::{PietText, PietTextLayout, Text, TextAttribute, TextLayoutBuilder},
     Target,
 };
-use lapce_core::{buffer::Buffer, style::line_styles, syntax::Syntax};
+use lapce_core::{
+    buffer::{rope_diff, Buffer, DiffLines},
+    style::line_styles,
+    syntax::Syntax,
+};
 use lapce_rpc::{
     buffer::BufferHeadResponse,
     style::{LineStyle, LineStyles, Style},
@@ -16,10 +20,9 @@ use lapce_rpc::{
 use xi_rope::{spans::Spans, Rope};
 
 use crate::{
-    buffer::{rope_diff, BufferContent, DiffLines},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    document::{Document, TextLayoutCache},
+    document::{BufferContent, Document, TextLayoutCache},
 };
 
 #[derive(Clone)]

@@ -8,10 +8,10 @@ use druid::{
     Target, UpdateCtx, Widget, WidgetId,
 };
 use lapce_data::{
-    buffer::BufferContent,
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{DragContent, EditorTabChild, LapceTabData},
+    document::BufferContent,
     editor::TabRect,
 };
 
