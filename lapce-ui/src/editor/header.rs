@@ -136,7 +136,7 @@ impl LapceEditorHeader {
                 clip_rect.x1 = icon.rect.x0;
             }
         }
-        if let BufferContent::File(path) = data.buffer.content() {
+        if let BufferContent::File(path) = data.doc.content() {
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
                 let mut path = path.clone();

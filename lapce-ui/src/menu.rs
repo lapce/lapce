@@ -203,7 +203,7 @@ impl Widget<LapceWindowData> for Menu {
         for (i, item) in data.menu.items.iter().enumerate() {
             let text_layout = ctx
                 .text()
-                .new_text_layout(item.text.clone())
+                .new_text_layout(item.desc().to_string())
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(
                     data.config

@@ -29,14 +29,14 @@ use lapce_core::{
     word::WordCursor,
 };
 use lapce_rpc::{
-    buffer::{BufferHeadResponse, BufferId, NewBufferResponse},
+    buffer::{BufferId, NewBufferResponse},
     style::{LineStyle, LineStyles, Style},
 };
 use lsp_types::CodeActionResponse;
 use xi_rope::{spans::Spans, Rope, RopeDelta};
 
 use crate::{
-    buffer::{rope_diff, BufferContent, DiffLines, DiffResult, LocalBufferKind},
+    buffer::{BufferContent, DiffLines, LocalBufferKind},
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
     editor::EditorLocationNew,
@@ -164,6 +164,10 @@ impl Document {
         self.buffer.rev()
     }
 
+    pub fn set_rev(&mut self, rev: u64) {
+        self.buffer.set_rev(rev)
+    }
+
     pub fn load_content(&mut self, content: &str) {
         self.code_actions.clear();
         self.buffer.load_content(content);
@@ -236,6 +240,94 @@ impl Document {
 
     pub fn get_history(&self, version: &str) -> Option<&DocumentHisotry> {
         self.histories.get(version)
+    }
+
+    pub fn history_visual_line(&self, version: &str, line: usize) -> usize {
+        let mut visual_line = 0;
+        if let Some(history) = self.histories.get(version) {
+            for (_i, change) in history.changes().iter().enumerate() {
+                match change {
+                    DiffLines::Left(range) => {
+                        visual_line += range.len();
+                    }
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        if r.contains(&line) {
+                            visual_line += line - r.start;
+                            break;
+                        }
+                        visual_line += r.len();
+                    }
+                    DiffLines::Skip(_, r) => {
+                        if r.contains(&line) {
+                            break;
+                        }
+                        visual_line += 1;
+                    }
+                }
+            }
+        }
+        visual_line
+    }
+
+    pub fn history_actual_line_from_visual(
+        &self,
+        version: &str,
+        visual_line: usize,
+    ) -> usize {
+        let mut current_visual_line = 0;
+        let mut line = 0;
+        if let Some(history) = self.histories.get(version) {
+            for (i, change) in history.changes().iter().enumerate() {
+                match change {
+                    DiffLines::Left(range) => {
+                        current_visual_line += range.len();
+                        if current_visual_line > visual_line {
+                            if let Some(change) = history.changes().get(i + 1) {
+                                match change {
+                                    DiffLines::Left(_) => {}
+                                    DiffLines::Both(_, r)
+                                    | DiffLines::Skip(_, r)
+                                    | DiffLines::Right(r) => {
+                                        line = r.start;
+                                    }
+                                }
+                            } else if i > 0 {
+                                if let Some(change) = history.changes().get(i - 1) {
+                                    match change {
+                                        DiffLines::Left(_) => {}
+                                        DiffLines::Both(_, r)
+                                        | DiffLines::Skip(_, r)
+                                        | DiffLines::Right(r) => {
+                                            line = r.end - 1;
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    DiffLines::Skip(_, r) => {
+                        current_visual_line += 1;
+                        if current_visual_line > visual_line {
+                            line = r.end;
+                            break;
+                        }
+                    }
+                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        current_visual_line += r.len();
+                        if current_visual_line > visual_line {
+                            line = r.end - (current_visual_line - visual_line);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if current_visual_line <= visual_line {
+            self.buffer.last_line()
+        } else {
+            line
+        }
     }
 
     fn trigger_head_change(&self) {
@@ -708,12 +800,17 @@ impl Document {
         self.apply_deltas(&deltas)
     }
 
+    pub fn styles(&self) -> Option<&Arc<Spans<Style>>> {
+        let styles = self
+            .semantic_styles
+            .as_ref()
+            .or_else(|| self.syntax().and_then(|s| s.styles.as_ref()));
+        styles
+    }
+
     fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
         if self.line_styles.borrow().get(&line).is_none() {
-            let styles = self
-                .semantic_styles
-                .as_ref()
-                .or_else(|| self.syntax().and_then(|s| s.styles.as_ref()));
+            let styles = self.styles();
 
             let line_styles = styles
                 .map(|styles| line_styles(self.buffer.text(), line, styles))
@@ -862,6 +959,7 @@ impl Document {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn move_region(
         &self,
         text: &mut PietText,
@@ -890,6 +988,7 @@ impl Document {
         SelRegion::new(start, end, horiz)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn move_cursor(
         &mut self,
         text: &mut PietText,
@@ -988,11 +1087,12 @@ impl Document {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn move_selection(
         &self,
         text: &mut PietText,
         selection: &Selection,
-        horiz: Option<&ColPosition>,
+        _horiz: Option<&ColPosition>,
         count: usize,
         modify: bool,
         movement: &Movement,
@@ -1009,6 +1109,7 @@ impl Document {
         new_selection
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn move_offset(
         &self,
         text: &mut PietText,

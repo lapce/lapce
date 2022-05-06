@@ -119,6 +119,10 @@ impl Buffer {
         self.rev
     }
 
+    pub fn set_rev(&mut self, rev: u64) {
+        self.rev = rev;
+    }
+
     pub fn dirty(&self) -> bool {
         self.dirty
     }

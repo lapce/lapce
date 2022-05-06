@@ -20,7 +20,6 @@ use lapce_data::{
     state::LapceWorkspaceType,
 };
 use serde_json::json;
-use strum::EnumMessage;
 
 pub struct Title {
     mouse_pos: Point,
@@ -227,10 +226,7 @@ impl Widget<LapceWindowData> for Title {
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
 
         let mut menu_items = vec![MenuItem {
-            text: LapceWorkbenchCommand::ConnectSshHost
-                .get_message()
-                .unwrap()
-                .to_string(),
+            desc: None,
             command: LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectSshHost),
                 data: None,
@@ -239,10 +235,7 @@ impl Widget<LapceWindowData> for Title {
 
         if cfg!(target_os = "windows") {
             menu_items.push(MenuItem {
-                text: LapceWorkbenchCommand::ConnectWsl
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
+                desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::ConnectWsl),
                     data: None,
@@ -252,7 +245,7 @@ impl Widget<LapceWindowData> for Title {
 
         if tab.workspace.kind.is_remote() {
             menu_items.push(MenuItem {
-                text: "Disconnect Remote".to_string(),
+                desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::DisconnectRemote,
@@ -317,20 +310,14 @@ impl Widget<LapceWindowData> for Title {
         x += text_layout.size().width.round() + padding;
         let menu_items = vec![
             MenuItem {
-                text: LapceWorkbenchCommand::OpenFolder
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
+                desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
                     data: None,
                 },
             },
             MenuItem {
-                text: LapceWorkbenchCommand::PaletteWorkspace
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
+                desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteWorkspace,
@@ -403,7 +390,7 @@ impl Widget<LapceWindowData> for Title {
                 .branches
                 .iter()
                 .map(|b| MenuItem {
-                    text: b.to_string(),
+                    desc: Some(b.to_string()),
                     command: LapceCommand {
                         kind: CommandKind::Workbench(
                             LapceWorkbenchCommand::CheckoutBranch,
@@ -446,10 +433,7 @@ impl Widget<LapceWindowData> for Title {
         );
         let menu_items = vec![
             MenuItem {
-                text: LapceWorkbenchCommand::PaletteCommand
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
+                desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::PaletteCommand,
@@ -458,10 +442,7 @@ impl Widget<LapceWindowData> for Title {
                 },
             },
             MenuItem {
-                text: LapceWorkbenchCommand::OpenSettings
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
+                desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::OpenSettings,
@@ -470,10 +451,7 @@ impl Widget<LapceWindowData> for Title {
                 },
             },
             MenuItem {
-                text: LapceWorkbenchCommand::OpenKeyboardShortcuts
-                    .get_message()
-                    .unwrap()
-                    .to_string(),
+                desc: None,
                 command: LapceCommand {
                     kind: CommandKind::Workbench(
                         LapceWorkbenchCommand::OpenKeyboardShortcuts,

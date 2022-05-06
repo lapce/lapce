@@ -320,6 +320,12 @@ impl Selection {
     }
 }
 
+impl Default for Selection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn remove_n_at<T>(v: &mut Vec<T>, index: usize, n: usize) {
     match n.cmp(&1) {
         Ordering::Equal => {

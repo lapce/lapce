@@ -1,7 +1,6 @@
 #![allow(clippy::module_inception)]
 
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Result;

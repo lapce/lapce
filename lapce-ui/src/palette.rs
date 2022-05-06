@@ -11,8 +11,7 @@ use druid::{
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
 };
 use druid::{FontWeight, Modifiers};
-use lapce_core::command::FocusCommand;
-use lapce_data::command::{CommandKind, LAPCE_COMMAND};
+use lapce_data::command::LAPCE_COMMAND;
 use lapce_data::config::Config;
 use lapce_data::palette::PaletteItemContent;
 use lapce_data::state::LapceWorkspaceType;
@@ -184,16 +183,6 @@ impl Widget<LapceTabData> for NewPalette {
         data: &LapceTabData,
         env: &Env,
     ) {
-        if let LifeCycle::FocusChanged(is_focused) = event {
-            ctx.request_paint();
-            // if !is_focused {
-            //     ctx.submit_command(Command::new(
-            //         LAPCE_UI_COMMAND,
-            //         LapceUICommand::CancelPalette,
-            //         Target::Widget(data.palette.widget_id),
-            //     ));
-            // }
-        }
         self.container.lifecycle(ctx, event, data, env);
     }
 

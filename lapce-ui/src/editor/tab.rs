@@ -355,7 +355,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         {
                             let active = &tab.children[tab.active];
                             let EditorTabChildInfo::Editor(info) =
-                                active.child_info(data, 4);
+                                active.child_info(data);
 
                             if info.content
                                 == BufferContent::Local(LocalBufferKind::Empty)
@@ -370,7 +370,7 @@ impl Widget<LapceTabData> for LapceEditorTab {
                                     path: if let BufferContent::File(path) =
                                         info.content
                                     {
-                                        Some(path.clone())
+                                        Some(path)
                                     } else {
                                         None
                                     },
@@ -596,8 +596,8 @@ impl TabRectRenderer for TabRect {
             // See if any of the children are dirty
             let is_dirty = match &editor_tab.children[i] {
                 EditorTabChild::Editor(editor_id, _) => {
-                    let buffer = data.main_split.editor_buffer(*editor_id);
-                    buffer.dirty()
+                    let doc = data.main_split.editor_doc(*editor_id);
+                    doc.buffer().dirty()
                 }
             };
 

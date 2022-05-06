@@ -195,7 +195,6 @@ impl CodeActionData {
                                     &path,
                                     &edits,
                                     lapce_core::editor::EditType::Other,
-                                    &self.config,
                                 );
                             }
                         }
@@ -213,7 +212,7 @@ impl CodeActionData {
         };
         if let BufferContent::File(path) = &editor.content {
             let doc = self.main_split.open_docs.get(path).unwrap();
-            let offset = editor.cursor.offset();
+            let offset = editor.new_cursor.offset();
             let prev_offset = doc.buffer().prev_code_boundary(offset);
             let empty_vec = Vec::new();
             let code_actions =

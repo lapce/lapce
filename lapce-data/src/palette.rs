@@ -877,13 +877,14 @@ impl PaletteViewData {
             None => return,
         };
 
-        let buffer = self.main_split.editor_buffer(editor.view_id);
-        let last_line_number = buffer.last_line() + 1;
+        let doc = self.main_split.editor_doc(editor.view_id);
+        let last_line_number = doc.buffer().last_line() + 1;
         let last_line_number_len = last_line_number.to_string().len();
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = buffer
-            .rope()
-            .lines(0..buffer.len())
+        palette.items = doc
+            .buffer()
+            .text()
+            .lines(0..doc.buffer().len())
             .enumerate()
             .map(|(i, l)| {
                 let line_number = i + 1;

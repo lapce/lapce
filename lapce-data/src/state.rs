@@ -1,9 +1,8 @@
-use bitflags::bitflags;
 use druid::Modifiers;
 
 use lapce_core::mode::Modes;
 use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Write};
+use std::fmt::Display;
 use std::path::PathBuf;
 
 #[derive(PartialEq)]

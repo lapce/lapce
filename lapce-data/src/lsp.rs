@@ -18,20 +18,12 @@ pub enum LspHeader {
 }
 
 pub struct LspCatalog {
-    #[allow(dead_code)]
-    window_id: WindowId,
-
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-
     clients: HashMap<String, Arc<LspClient>>,
 }
 
 impl LspCatalog {
-    pub fn new(window_id: WindowId, tab_id: WidgetId) -> LspCatalog {
+    pub fn new(_window_id: WindowId, _tab_id: WidgetId) -> LspCatalog {
         LspCatalog {
-            window_id,
-            tab_id,
             clients: HashMap::new(),
         }
     }

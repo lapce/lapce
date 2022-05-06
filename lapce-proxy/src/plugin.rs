@@ -331,10 +331,7 @@ pub fn wasi_write_object(wasi_env: &WasiEnv, object: &(impl Serialize + ?Sized))
 #[derive(Serialize, Deserialize, Debug)]
 pub enum PluginRequest {}
 
-pub struct PluginHandler {
-    #[allow(dead_code)]
-    dispatcher: Dispatcher,
-}
+pub struct PluginHandler {}
 
 fn find_all_plugins() -> Vec<PathBuf> {
     let mut plugin_paths = Vec::new();

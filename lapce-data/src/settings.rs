@@ -5,10 +5,7 @@ use lapce_core::{
 };
 
 use crate::{
-    command::{
-        CommandExecuted, CommandKind, LapceCommandOld, LapceUICommand,
-        LAPCE_UI_COMMAND,
-    },
+    command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
     keypress::KeyPressFocus,
 };
 

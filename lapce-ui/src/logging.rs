@@ -1,9 +1,7 @@
 use fern::Dispatch;
 use log::LevelFilter;
 
-fn apply(
-    dispatch: Dispatch, module: Option<&str>, level: LevelFilter
-) -> Dispatch {
+fn apply(dispatch: Dispatch, module: Option<&str>, level: LevelFilter) -> Dispatch {
     if let Some(module) = module {
         dispatch.level_for(module.to_string(), level)
     } else {
@@ -11,9 +9,7 @@ fn apply(
     }
 }
 
-fn set_level(
-    dispatch: Dispatch, module: Option<&str>, level: &str
-) -> Dispatch {
+fn set_level(dispatch: Dispatch, module: Option<&str>, level: &str) -> Dispatch {
     use LevelFilter::*;
     match level {
         "off" => apply(dispatch, module, Off),
@@ -29,12 +25,11 @@ fn set_level(
             }
             eprintln!("ignored unknown log level: '{val}'");
             dispatch
-        },
+        }
     }
 }
 
 fn parse_log_levels(value: &str, mut dispatch: fern::Dispatch) -> fern::Dispatch {
-
     println!("Parsing RUST_LOG");
 
     // To set the threshold at Error for all modules: RUST_LOG=error
@@ -51,7 +46,7 @@ fn parse_log_levels(value: &str, mut dispatch: fern::Dispatch) -> fern::Dispatch
     // 'module2' which are at Info and Debug, respectively:
     // RUST_LOG="error,path::to::module1=info,path::to::module2=debug"
     for section in value.split(',').filter(|s| !s.is_empty()) {
-        if let Some((module, level)) = section.split_once("=") {
+        if let Some((module, level)) = section.split_once('=') {
             println!("module='{module}', level='{level}'");
             // "module=level"
             //
@@ -76,7 +71,7 @@ pub(super) fn override_log_levels(dispatch: Dispatch) -> Dispatch {
             let val = val.to_string_lossy();
             eprintln!("RUST_LOG: ignored invalid unicode value: '{val}'");
             dispatch
-        },
+        }
         Ok(val) => parse_log_levels(&val, dispatch),
     }
 }

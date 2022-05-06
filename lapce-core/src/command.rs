@@ -252,11 +252,20 @@ pub enum FocusCommand {
     #[strum(message = "Go to Previous Difference")]
     #[strum(serialize = "previous_diff")]
     PreviousDiff,
+    #[strum(message = "Toggle Code Lens")]
+    #[strum(serialize = "toggle_code_lens")]
+    ToggleCodeLens,
     #[strum(serialize = "format_document")]
     #[strum(message = "Format Document")]
     FormatDocument,
     #[strum(serialize = "search")]
     Search,
+    #[strum(serialize = "inline_find_right")]
+    InlineFindRight,
+    #[strum(serialize = "inline_find_left")]
+    InlineFindLeft,
+    #[strum(serialize = "repeat_last_inline_find")]
+    RepeatLastInlineFind,
     #[strum(message = "Save")]
     #[strum(serialize = "save")]
     Save,

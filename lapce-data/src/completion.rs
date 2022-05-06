@@ -1,7 +1,7 @@
-use std::{cmp::Ordering, fmt::Display, sync::Arc};
+use std::{fmt::Display, sync::Arc};
 
 use anyhow::Error;
-use druid::{Command, EventCtx, ExtEventSink, Size, Target, WidgetId};
+use druid::{ExtEventSink, Size, Target, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_rpc::buffer::BufferId;

@@ -32,6 +32,26 @@ pub struct DocumentHisotry {
     text_layouts: Rc<RefCell<TextLayoutCache>>,
 }
 
+impl druid::Data for DocumentHisotry {
+    fn same(&self, other: &Self) -> bool {
+        if !self.changes.same(&other.changes) {
+            return false;
+        }
+
+        if !self.styles.same(&other.styles) {
+            return false;
+        }
+
+        match (self.buffer.as_ref(), other.buffer.as_ref()) {
+            (None, None) => true,
+            (None, Some(_)) | (Some(_), None) => false,
+            (Some(buffer), Some(other_buffer)) => {
+                buffer.text().ptr_eq(other_buffer.text())
+            }
+        }
+    }
+}
+
 impl DocumentHisotry {
     pub fn new(version: String) -> Self {
         Self {

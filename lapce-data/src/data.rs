@@ -16,7 +16,8 @@ use druid::{
 };
 
 use lapce_core::{
-    command::MultiSelectionCommand, mode::MotionMode, register::Register,
+    command::MultiSelectionCommand, editor::EditType, mode::MotionMode,
+    register::Register, selection::Selection,
 };
 use lapce_rpc::{
     file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
@@ -32,8 +33,7 @@ use xi_rope::{RopeDelta, Transformer};
 
 use crate::{
     buffer::{
-        matching_char, matching_pair_direction, Buffer, BufferContent,
-        LocalBufferKind,
+        matching_char, matching_pair_direction, BufferContent, LocalBufferKind,
     },
     command::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
@@ -52,7 +52,7 @@ use crate::{
     hover::HoverData,
     keypress::KeyPressData,
     menu::MenuData,
-    movement::{Cursor, CursorMode, Movement, Selection},
+    movement::Movement,
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
     picker::FilePickerData,
@@ -663,7 +663,7 @@ impl LapceTabData {
             .get(&self.main_split.split_id)
             .unwrap();
         WorkspaceInfo {
-            split: main_split_data.split_info(self, self.config.editor.tab_width),
+            split: main_split_data.split_info(self),
         }
     }
 
@@ -699,17 +699,6 @@ impl LapceTabData {
         editor_view_id: WidgetId,
     ) -> LapceEditorBufferData {
         let editor = self.main_split.editors.get(&editor_view_id).unwrap();
-        let buffer = match &editor.content {
-            BufferContent::File(path) => {
-                self.main_split.open_files.get(path).unwrap().clone()
-            }
-            BufferContent::Local(kind) => {
-                self.main_split.local_buffers.get(kind).unwrap().clone()
-            }
-            BufferContent::Value(name) => {
-                self.main_split.value_buffers.get(name).unwrap().clone()
-            }
-        };
         let doc = match &editor.content {
             BufferContent::File(path) => {
                 self.main_split.open_docs.get(path).unwrap().clone()
@@ -729,7 +718,6 @@ impl LapceTabData {
             source_control: self.source_control.clone(),
             proxy: self.proxy.clone(),
             find: self.find.clone(),
-            buffer,
             doc,
             palette: self.palette.clone(),
             editor: editor.clone(),
@@ -800,7 +788,6 @@ impl LapceTabData {
         &mut self,
         editor_buffer_data: LapceEditorBufferData,
         editor: &Arc<LapceEditorData>,
-        buffer: &Arc<Buffer>,
         doc: &Arc<Document>,
     ) {
         self.completion = editor_buffer_data.completion.clone();
@@ -812,27 +799,8 @@ impl LapceTabData {
                 .editors
                 .insert(editor.view_id, editor_buffer_data.editor);
         }
-        if !editor_buffer_data.buffer.same(buffer) {
-            match buffer.content() {
-                BufferContent::File(path) => {
-                    self.main_split
-                        .open_files
-                        .insert(path.clone(), editor_buffer_data.buffer);
-                }
-                BufferContent::Local(kind) => {
-                    self.main_split
-                        .local_buffers
-                        .insert(kind.clone(), editor_buffer_data.buffer);
-                }
-                BufferContent::Value(name) => {
-                    self.main_split
-                        .value_buffers
-                        .insert(name.clone(), editor_buffer_data.buffer);
-                }
-            }
-        }
         if !editor_buffer_data.doc.same(doc) {
-            match buffer.content() {
+            match doc.content() {
                 BufferContent::File(path) => {
                     self.main_split
                         .open_docs
@@ -867,11 +835,11 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => {
-                editor.window_origin.borrow().clone()
+                *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
             BufferContent::Value(_) => {
-                editor.window_origin.borrow().clone()
+                *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
             BufferContent::File(path) => {
@@ -882,7 +850,7 @@ impl LapceTabData {
                 let x = col as f64 * width;
                 let y = (line + 1) as f64 * line_height;
 
-                editor.window_origin.borrow().clone()
+                *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
                     + Vec2::new(x, y)
             }
@@ -961,22 +929,21 @@ impl LapceTabData {
 
         match &editor.content {
             BufferContent::Local(_) => {
-                editor.window_origin.borrow().clone()
+                *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
             BufferContent::Value(_) => {
-                editor.window_origin.borrow().clone()
+                *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
             }
             BufferContent::File(path) => {
-                let buffer = self.main_split.open_files.get(path).unwrap();
+                let doc = self.main_split.open_docs.get(path).unwrap();
                 let offset = self.hover.offset;
-                let (line, col) =
-                    buffer.offset_to_line_col(offset, self.config.editor.tab_width);
+                let (line, col) = doc.buffer().offset_to_line_col(offset);
                 let width = config.editor_char_width(text);
                 let x = col as f64 * width - line_height - 5.0;
                 let y = (line + 1) as f64 * line_height;
-                let mut origin = editor.window_origin.borrow().clone()
+                let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
                     + Vec2::new(x, y);
                 if origin.y + self.hover.size.height + 1.0 > tab_size.height {
@@ -1839,22 +1806,16 @@ impl SplitContent {
         }
     }
 
-    pub fn content_info(
-        &self,
-        data: &LapceTabData,
-        tab_width: usize,
-    ) -> SplitContentInfo {
+    pub fn content_info(&self, data: &LapceTabData) -> SplitContentInfo {
         match &self {
             SplitContent::EditorTab(widget_id) => {
                 let editor_tab_data =
                     data.main_split.editor_tabs.get(widget_id).unwrap();
-                SplitContentInfo::EditorTab(
-                    editor_tab_data.tab_info(data, tab_width),
-                )
+                SplitContentInfo::EditorTab(editor_tab_data.tab_info(data))
             }
             SplitContent::Split(split_id) => {
                 let split_data = data.main_split.splits.get(split_id).unwrap();
-                SplitContentInfo::Split(split_data.split_info(data, tab_width))
+                SplitContentInfo::Split(split_data.split_info(data))
             }
         }
     }
@@ -1907,13 +1868,13 @@ pub struct SplitData {
 }
 
 impl SplitData {
-    pub fn split_info(&self, data: &LapceTabData, tab_width: usize) -> SplitInfo {
+    pub fn split_info(&self, data: &LapceTabData) -> SplitInfo {
         let info = SplitInfo {
             direction: self.direction,
             children: self
                 .children
                 .iter()
-                .map(|child| child.content_info(data, tab_width))
+                .map(|child| child.content_info(data))
                 .collect(),
         };
         info
@@ -1935,9 +1896,6 @@ pub struct LapceMainSplitData {
     pub editors: im::HashMap<WidgetId, Arc<LapceEditorData>>,
     pub editor_tabs: im::HashMap<WidgetId, Arc<LapceEditorTabData>>,
     pub splits: im::HashMap<WidgetId, Arc<SplitData>>,
-    pub open_files: im::HashMap<PathBuf, Arc<Buffer>>,
-    pub local_buffers: im::HashMap<LocalBufferKind, Arc<Buffer>>,
-    pub value_buffers: im::HashMap<String, Arc<Buffer>>,
     pub open_docs: im::HashMap<PathBuf, Arc<Document>>,
     pub local_docs: im::HashMap<LocalBufferKind, Arc<Document>>,
     pub value_docs: im::HashMap<String, Arc<Document>>,
@@ -1959,20 +1917,6 @@ impl LapceMainSplitData {
         Some(self.editors.get(&id)?.as_ref())
     }
 
-    pub fn editor_buffer(&self, editor_view_id: WidgetId) -> Arc<Buffer> {
-        let editor = self.editors.get(&editor_view_id).unwrap();
-        let buffer = match &editor.content {
-            BufferContent::File(path) => self.open_files.get(path).unwrap().clone(),
-            BufferContent::Local(kind) => {
-                self.local_buffers.get(kind).unwrap().clone()
-            }
-            BufferContent::Value(name) => {
-                self.value_buffers.get(name).unwrap().clone()
-            }
-        };
-        buffer
-    }
-
     pub fn editor_doc(&self, editor_view_id: WidgetId) -> Arc<Document> {
         let editor = self.editors.get(&editor_view_id).unwrap();
         let doc = match &editor.content {
@@ -1988,7 +1932,6 @@ impl LapceMainSplitData {
         path: &Path,
         rev: u64,
         result: &Result<Value>,
-        config: &Config,
     ) {
         let doc = self.open_docs.get(path).unwrap();
         if doc.rev() != rev {
@@ -2013,12 +1956,7 @@ impl LapceMainSplitData {
                         })
                         .collect();
 
-                    self.edit(
-                        path,
-                        &edits,
-                        lapce_core::editor::EditType::Other,
-                        config,
-                    );
+                    self.edit(path, &edits, lapce_core::editor::EditType::Other);
                 }
             }
         }
@@ -2030,9 +1968,8 @@ impl LapceMainSplitData {
         path: &Path,
         rev: u64,
         result: &Result<Value>,
-        config: &Config,
     ) {
-        self.document_format(path, rev, result, config);
+        self.document_format(path, rev, result);
 
         let doc = self.open_docs.get(path).unwrap();
         let rev = doc.rev();
@@ -2054,19 +1991,17 @@ impl LapceMainSplitData {
         );
     }
 
-    fn initiate_diagnositcs_offset(&mut self, path: &Path, config: &Config) {
+    fn initiate_diagnositcs_offset(&mut self, path: &Path) {
         if let Some(diagnostics) = self.diagnostics.get_mut(path) {
-            if let Some(buffer) = self.open_files.get(path) {
+            if let Some(doc) = self.open_docs.get(path) {
                 for diagnostic in Arc::make_mut(diagnostics).iter_mut() {
                     if diagnostic.range.is_none() {
                         diagnostic.range = Some((
-                            buffer.offset_of_position(
+                            doc.buffer().offset_of_position(
                                 &diagnostic.diagnositc.range.start,
-                                config.editor.tab_width,
                             ),
-                            buffer.offset_of_position(
+                            doc.buffer().offset_of_position(
                                 &diagnostic.diagnositc.range.end,
-                                config.editor.tab_width,
                             ),
                         ));
                     }
@@ -2113,11 +2048,10 @@ impl LapceMainSplitData {
     pub fn edit(
         &mut self,
         path: &Path,
-        edits: &[(impl AsRef<lapce_core::selection::Selection>, &str)],
-        edit_type: lapce_core::editor::EditType,
-        config: &Config,
+        edits: &[(impl AsRef<Selection>, &str)],
+        edit_type: EditType,
     ) -> Option<RopeDelta> {
-        self.initiate_diagnositcs_offset(path, config);
+        self.initiate_diagnositcs_offset(path);
         let doc = self.open_docs.get_mut(path)?;
 
         let buffer_len = doc.buffer().len();
@@ -2433,25 +2367,17 @@ impl LapceMainSplitData {
             }
             doc.retrieve_file(vec![(editor_view_id, location)]);
             self.open_docs.insert(path.clone(), Arc::new(doc));
-            self.open_files.insert(
-                path.clone(),
-                Arc::new(Buffer::new(
-                    BufferContent::File(path.clone()),
-                    *self.tab_id,
-                    ctx.get_external_handle(),
-                )),
-            );
         } else {
             let doc = self.open_docs.get_mut(&path).unwrap().clone();
 
             let (offset, scroll_offset) = match &location.position {
                 Some(position) => {
                     let offset = doc.buffer().offset_of_position(position);
-                    let buffer = self.open_files.get_mut(&path).unwrap();
-                    let buffer = Arc::make_mut(buffer);
-                    buffer.cursor_offset = offset;
+                    let doc = self.open_docs.get_mut(&path).unwrap();
+                    let doc = Arc::make_mut(doc);
+                    doc.cursor_offset = offset;
                     if let Some(scroll_offset) = location.scroll_offset.as_ref() {
-                        buffer.scroll_offset = *scroll_offset;
+                        doc.scroll_offset = *scroll_offset;
                     }
 
                     (offset, location.scroll_offset.as_ref())
@@ -2525,13 +2451,13 @@ impl LapceMainSplitData {
         let editor_view_id = self
             .get_editor_or_new(ctx, editor_view_id, None, config)
             .view_id;
-        let buffer = self.editor_buffer(editor_view_id);
-        let offset = buffer.first_non_blank_character_on_line(if line > 0 {
+        let doc = self.editor_doc(editor_view_id);
+        let offset = doc.buffer().first_non_blank_character_on_line(if line > 0 {
             line - 1
         } else {
             0
         });
-        let position = buffer.offset_to_position(offset, config.editor.tab_width);
+        let position = doc.buffer().offset_to_position(offset);
         self.jump_to_position(ctx, Some(editor_view_id), position, config);
     }
 }
@@ -2550,7 +2476,6 @@ impl LapceMainSplitData {
     ) -> Self {
         let split_id = Arc::new(WidgetId::next());
 
-        let open_files = im::HashMap::new();
         let mut editors = im::HashMap::new();
         let editor_tabs = im::HashMap::new();
         let splits = im::HashMap::new();
@@ -2576,25 +2501,12 @@ impl LapceMainSplitData {
         );
         editors.insert(editor.view_id, Arc::new(editor));
 
-        let mut local_buffers = im::HashMap::new();
-        local_buffers.insert(
-            LocalBufferKind::Empty,
-            Arc::new(Buffer::new(
-                BufferContent::Local(LocalBufferKind::Empty),
-                tab_id,
-                event_sink.clone(),
-            )),
-        );
-
         let mut main_split_data = Self {
             tab_id: Arc::new(tab_id),
             split_id,
             editors,
             editor_tabs,
             splits,
-            open_files,
-            local_buffers,
-            value_buffers: im::HashMap::new(),
             open_docs,
             local_docs,
             value_docs,
@@ -2665,16 +2577,6 @@ impl LapceMainSplitData {
         config: &Config,
         event_sink: ExtEventSink,
     ) {
-        let mut buffer = Buffer::new(
-            BufferContent::Local(buffer_kind.clone()),
-            *self.tab_id,
-            event_sink.clone(),
-        )
-        .set_local();
-        buffer.load_content("");
-        self.local_buffers
-            .insert(buffer_kind.clone(), Arc::new(buffer));
-
         let doc = Document::new(
             BufferContent::Local(buffer_kind.clone()),
             *self.tab_id,
@@ -3002,15 +2904,11 @@ impl EditorTabChild {
         }
     }
 
-    pub fn child_info(
-        &self,
-        data: &LapceTabData,
-        tab_width: usize,
-    ) -> EditorTabChildInfo {
+    pub fn child_info(&self, data: &LapceTabData) -> EditorTabChildInfo {
         match &self {
             EditorTabChild::Editor(view_id, _) => {
                 let editor_data = data.main_split.editors.get(view_id).unwrap();
-                EditorTabChildInfo::Editor(editor_data.editor_info(data, tab_width))
+                EditorTabChildInfo::Editor(editor_data.editor_info(data))
             }
         }
     }
@@ -3037,14 +2935,14 @@ pub struct LapceEditorTabData {
 }
 
 impl LapceEditorTabData {
-    pub fn tab_info(&self, data: &LapceTabData, tab_width: usize) -> EditorTabInfo {
+    pub fn tab_info(&self, data: &LapceTabData) -> EditorTabInfo {
         let info = EditorTabInfo {
             active: self.active,
             is_focus: *data.main_split.active_tab == Some(self.widget_id),
             children: self
                 .children
                 .iter()
-                .map(|child| child.child_info(data, tab_width))
+                .map(|child| child.child_info(data))
                 .collect(),
         };
         info
@@ -3076,9 +2974,7 @@ pub struct LapceEditorData {
     pub compare: Option<String>,
     pub code_lens: bool,
     pub scroll_offset: Vec2,
-    pub cursor: Cursor,
     pub new_cursor: lapce_core::cursor::Cursor,
-    pub selection_history: SelectionHistory,
     pub size: Rc<RefCell<Size>>,
     pub window_origin: Rc<RefCell<Point>>,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
@@ -3108,17 +3004,7 @@ impl LapceEditorData {
             } else {
                 Some(WidgetId::next())
             },
-            selection_history: SelectionHistory {
-                rev: 0,
-                content: content.clone(),
-                selections: im::Vector::new(),
-            },
             scroll_offset: Vec2::ZERO,
-            cursor: if config.lapce.modal {
-                Cursor::new(CursorMode::Normal(0), None)
-            } else {
-                Cursor::new(CursorMode::Insert(Selection::caret(0)), None)
-            },
             new_cursor: if content.is_input() {
                 lapce_core::cursor::Cursor::new(
                     lapce_core::cursor::CursorMode::Insert(
@@ -3181,7 +3067,7 @@ impl LapceEditorData {
         let placeholders = self.snippet.as_mut().unwrap();
 
         let mut current = 0;
-        let offset = self.cursor.offset();
+        let offset = self.new_cursor.offset();
         for (i, (_, (start, end))) in placeholders.iter().enumerate() {
             if *start <= offset && offset <= *end {
                 current = i;
@@ -3209,13 +3095,13 @@ impl LapceEditorData {
         }
     }
 
-    pub fn editor_info(&self, data: &LapceTabData, tab_width: usize) -> EditorInfo {
+    pub fn editor_info(&self, data: &LapceTabData) -> EditorInfo {
         let info = EditorInfo {
             content: self.content.clone(),
             scroll_offset: (self.scroll_offset.x, self.scroll_offset.y),
             position: if let BufferContent::File(path) = &self.content {
-                let buffer = data.main_split.open_files.get(path).unwrap().clone();
-                Some(buffer.offset_to_position(self.cursor.offset(), tab_width))
+                let doc = data.main_split.open_docs.get(path).unwrap().clone();
+                Some(doc.buffer().offset_to_position(self.new_cursor.offset()))
             } else {
                 None
             },

@@ -159,7 +159,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
             data.main_split.active_editor(),
         ) {
             (Some(old_data), Some(data)) => {
-                if old_data.cursor.get_mode() != data.cursor.get_mode() {
+                if old_data.new_cursor.get_mode() != data.new_cursor.get_mode() {
                     ctx.request_paint();
                 }
             }
@@ -226,7 +226,7 @@ impl Widget<LapceTabData> for LapceStatusNew {
                 } else {
                     data.main_split
                         .active_editor()
-                        .map(|e| e.cursor.get_mode())
+                        .map(|e| e.new_cursor.get_mode())
                         .unwrap_or(Mode::Normal)
                 };
                 match mode {

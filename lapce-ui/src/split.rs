@@ -754,7 +754,7 @@ impl LapceSplitNew {
             from_editor.content.clone(),
             &data.config,
         );
-        editor_data.cursor = from_editor.cursor.clone();
+        editor_data.new_cursor = from_editor.new_cursor.clone();
         editor_data.locations = from_editor.locations.clone();
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,

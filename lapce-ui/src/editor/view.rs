@@ -13,7 +13,9 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
-    data::{EditorTabChild, FocusArea, LapceTabData, PanelData, PanelKind},
+    data::{
+        EditorTabChild, EditorView, FocusArea, LapceTabData, PanelData, PanelKind,
+    },
     editor::LapceEditorBufferData,
     keypress::KeyPressFocus,
     panel::PanelPosition,
@@ -344,7 +346,7 @@ impl LapceEditorView {
         let y = if data.editor.code_lens {
             let empty_vec = Vec::new();
             let normal_lines = data
-                .buffer
+                .doc
                 .syntax()
                 .map(|s| &s.normal_lines)
                 .unwrap_or(&empty_vec);
@@ -378,8 +380,8 @@ impl LapceEditorView {
             }
             y
         } else {
-            let line = if let Some(compare) = data.editor.compare.as_ref() {
-                data.buffer.diff_visual_line(compare, line)
+            let line = if let EditorView::Diff(version) = &data.editor.view {
+                data.doc.history_visual_line(version, line)
             } else {
                 line
             };
@@ -440,7 +442,6 @@ impl Widget<LapceTabData> for LapceEditorView {
         }
 
         let mut editor_data = data.editor_view_content(self.view_id);
-        let buffer = editor_data.buffer.clone();
         let doc = editor_data.doc.clone();
 
         match event {
@@ -492,7 +493,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             _ => (),
         }
-        data.update_from_editor_buffer_data(editor_data, &editor, &buffer, &doc);
+        data.update_from_editor_buffer_data(editor_data, &editor, &doc);
 
         self.header.event(ctx, event, data, env);
         self.editor.event(ctx, event, data, env);
@@ -596,17 +597,17 @@ impl Widget<LapceTabData> for LapceEditorView {
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
 
-        if let Some(syntax) = editor_data.buffer.syntax() {
+        if let Some(syntax) = editor_data.doc.syntax() {
             if syntax.line_height != data.config.editor.line_height
                 || syntax.lens_height != data.config.editor.code_lens_font_size
             {
-                if let BufferContent::File(path) = editor_data.buffer.content() {
+                if let BufferContent::File(path) = editor_data.doc.content() {
                     let tab_id = data.id;
                     let event_sink = ctx.get_external_handle();
                     let mut syntax = syntax.clone();
                     let line_height = data.config.editor.line_height;
                     let lens_height = data.config.editor.code_lens_font_size;
-                    let rev = editor_data.buffer.rev();
+                    let rev = editor_data.doc.rev();
                     let path = path.clone();
                     rayon::spawn(move || {
                         syntax.update_lens_height(line_height, lens_height);
@@ -629,38 +630,37 @@ impl Widget<LapceTabData> for LapceEditorView {
         if editor_data.editor.code_lens != old_editor_data.editor.code_lens {
             ctx.request_layout();
         }
-        if editor_data.editor.compare.is_some() {
-            if !editor_data
-                .buffer
-                .histories()
-                .ptr_eq(old_editor_data.buffer.histories())
-            {
-                ctx.request_layout();
-            }
-            if !editor_data
-                .buffer
-                .history_changes
-                .ptr_eq(&old_editor_data.buffer.history_changes)
-            {
-                ctx.request_layout();
+        if let EditorView::Diff(version) = &editor_data.editor.view {
+            let old_history = old_editor_data.doc.get_history(version);
+            let history = editor_data.doc.get_history(version);
+            match (history, old_history) {
+                (None, None) => {}
+                (None, Some(_)) | (Some(_), None) => {
+                    ctx.request_layout();
+                }
+                (Some(history), Some(old_hisotry)) => {
+                    if !history.same(old_hisotry) {
+                        ctx.request_layout();
+                    }
+                }
             }
         }
-        if editor_data.buffer.dirty() != old_editor_data.buffer.dirty() {
+        if editor_data.doc.buffer().dirty() != old_editor_data.doc.buffer().dirty() {
             ctx.request_paint();
         }
         if editor_data.editor.new_cursor != old_editor_data.editor.new_cursor {
             ctx.request_paint();
         }
 
-        let buffer = &editor_data.buffer;
-        let old_buffer = &old_editor_data.buffer;
-        if buffer.max_len() != old_buffer.max_len()
-            || buffer.num_lines() != old_buffer.num_lines()
+        let doc = &editor_data.doc;
+        let old_doc = &old_editor_data.doc;
+        if doc.buffer().max_len() != old_doc.buffer().max_len()
+            || doc.buffer().num_lines() != old_doc.buffer().num_lines()
         {
             ctx.request_layout();
         }
 
-        match (buffer.styles(), old_buffer.styles()) {
+        match (doc.styles(), old_doc.styles()) {
             (None, None) => {}
             (None, Some(_)) | (Some(_), None) => {
                 ctx.request_paint();
@@ -672,7 +672,7 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
         }
 
-        if buffer.rev() != old_buffer.rev() {
+        if doc.buffer().rev() != old_doc.buffer().rev() {
             ctx.request_paint();
         }
 

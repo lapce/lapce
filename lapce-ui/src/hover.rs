@@ -218,14 +218,11 @@ impl Widget<LapceTabData> for Hover {
         data: &LapceTabData,
         _env: &Env,
     ) {
-        match event {
-            LifeCycle::WidgetAdded => {
-                if let Some(item) = data.hover.get_current_item() {
-                    let text = item.as_markdown_text();
-                    self.active_layout.set_text(text);
-                }
+        if let LifeCycle::WidgetAdded = event {
+            if let Some(item) = data.hover.get_current_item() {
+                let text = item.as_markdown_text();
+                self.active_layout.set_text(text);
             }
-            _ => {}
         }
     }
 
