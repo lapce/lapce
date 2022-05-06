@@ -910,14 +910,18 @@ impl Document {
         point: Point,
         font_size: usize,
         config: &Config,
-    ) -> usize {
+    ) -> (usize, bool) {
         let last_line = self.buffer.last_line();
         let line = ((point.y / config.editor.line_height as f64).floor() as usize)
             .min(last_line);
         let text_layout = self.get_text_layout(text, line, font_size, config);
-        let col = text_layout.hit_test_point(Point::new(point.x, 0.0)).idx;
+        let hit_point = text_layout.hit_test_point(Point::new(point.x, 0.0));
+        let col = hit_point.idx;
         let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
-        self.buffer.offset_of_line_col(line, col.min(max_col))
+        (
+            self.buffer.offset_of_line_col(line, col.min(max_col)),
+            hit_point.is_inside,
+        )
     }
 
     pub fn point_of_offset(

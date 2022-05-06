@@ -456,6 +456,33 @@ impl LapceEditorBufferData {
         }
     }
 
+    /// return true if there's existing hover and it's not changed
+    pub fn update_hover_new(
+        &mut self,
+        _ctx: &mut EventCtx,
+        offset: usize,
+        is_inside: bool,
+    ) -> bool {
+        let hover = Arc::make_mut(&mut self.hover);
+
+        if hover.status != HoverStatus::Inactive {
+            if !is_inside {
+                hover.cancel();
+                return false;
+            }
+
+            let start_offset = self.doc.buffer().prev_code_boundary(offset);
+            if self.doc.id() == hover.buffer_id && start_offset == hover.offset {
+                return true;
+            }
+
+            hover.cancel();
+            return false;
+        }
+
+        false
+    }
+
     pub fn update_hover(&mut self, ctx: &mut EventCtx, offset: usize) {
         if !self.doc.loaded() {
             return;
@@ -938,7 +965,7 @@ impl LapceEditorBufferData {
         mouse_event: &MouseEvent,
         config: &Config,
     ) {
-        let new_offset = self.doc.offset_of_point(
+        let (new_offset, _) = self.doc.offset_of_point(
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,
@@ -983,7 +1010,7 @@ impl LapceEditorBufferData {
         config: &Config,
     ) {
         ctx.set_active(true);
-        let mouse_offset = self.doc.offset_of_point(
+        let (mouse_offset, _) = self.doc.offset_of_point(
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,
@@ -1007,7 +1034,7 @@ impl LapceEditorBufferData {
         config: &Config,
     ) {
         ctx.set_active(true);
-        let mouse_offset = self.doc.offset_of_point(
+        let (mouse_offset, _) = self.doc.offset_of_point(
             ctx.text(),
             self.get_mode(),
             mouse_event.pos,

@@ -82,6 +82,44 @@ impl LapceEditor {
         }
     }
 
+    fn mouse_move(
+        &mut self,
+        ctx: &mut EventCtx,
+        mouse_event: &MouseEvent,
+        editor_data: &mut LapceEditorBufferData,
+        config: &Config,
+    ) {
+        self.mouse_pos = mouse_event.pos;
+        self.mouse_hover_timer = TimerToken::INVALID;
+
+        if ctx.is_active() {
+            let (new_offset, _) = editor_data.doc.offset_of_point(
+                ctx.text(),
+                editor_data.get_mode(),
+                mouse_event.pos,
+                config.editor.font_size,
+                config,
+            );
+            let editor = Arc::make_mut(&mut editor_data.editor);
+            editor
+                .new_cursor
+                .set_offset(new_offset, true, mouse_event.mods.alt());
+            return;
+        }
+
+        let (offset, is_inside) = editor_data.doc.offset_of_point(
+            ctx.text(),
+            Mode::Insert,
+            mouse_event.pos,
+            config.editor.font_size,
+            config,
+        );
+        if !editor_data.update_hover_new(ctx, offset, is_inside) && is_inside {
+            self.mouse_hover_timer =
+                ctx.request_timer(Duration::from_millis(config.editor.hover_delay));
+        }
+    }
+
     fn mouse_down(
         &mut self,
         ctx: &mut EventCtx,
@@ -1595,32 +1633,12 @@ impl Widget<LapceTabData> for LapceEditor {
         match event {
             Event::MouseMove(mouse_event) => {
                 ctx.set_cursor(&druid::Cursor::IBeam);
-                if mouse_event.pos != self.mouse_pos {
-                    self.mouse_pos = mouse_event.pos;
-                    // Get a new hover timer, overwriting the old one that will just be ignored
-                    // when it is received
-                    self.mouse_hover_timer = ctx.request_timer(
-                        Duration::from_millis(data.config.editor.hover_delay),
-                    );
-                    if ctx.is_active() {
-                        let editor_data = data.editor_view_content(self.view_id);
-                        let new_offset = editor_data.doc.offset_of_point(
-                            ctx.text(),
-                            editor_data.get_mode(),
-                            mouse_event.pos,
-                            data.config.editor.font_size,
-                            &data.config,
-                        );
-                        let editor =
-                            data.main_split.editors.get_mut(&self.view_id).unwrap();
-                        let editor = Arc::make_mut(editor);
-                        editor.new_cursor.set_offset(
-                            new_offset,
-                            true,
-                            mouse_event.mods.alt(),
-                        );
-                    }
-                }
+                let doc = data.main_split.editor_doc(self.view_id);
+                let editor =
+                    data.main_split.editors.get(&self.view_id).unwrap().clone();
+                let mut editor_data = data.editor_view_content(self.view_id);
+                self.mouse_move(ctx, mouse_event, &mut editor_data, &data.config);
+                data.update_from_editor_buffer_data(editor_data, &editor, &doc);
             }
             Event::MouseUp(_mouse_event) => {
                 ctx.set_active(false);
@@ -1639,7 +1657,7 @@ impl Widget<LapceTabData> for LapceEditor {
                         data.main_split.editors.get(&self.view_id).unwrap().clone();
                     let mut editor_data = data.editor_view_content(self.view_id);
                     let doc = editor_data.doc.clone();
-                    let offset = doc.offset_of_point(
+                    let (offset, _) = doc.offset_of_point(
                         ctx.text(),
                         editor.new_cursor.get_mode(),
                         self.mouse_pos,

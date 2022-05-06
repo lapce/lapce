@@ -204,11 +204,14 @@ impl Hover {
 impl Widget<LapceTabData> for Hover {
     fn event(
         &mut self,
-        _ctx: &mut EventCtx,
-        _event: &Event,
+        ctx: &mut EventCtx,
+        event: &Event,
         _data: &mut LapceTabData,
         _env: &Env,
     ) {
+        if let Event::MouseMove(_) = event {
+            ctx.set_handled();
+        }
     }
 
     fn lifecycle(
