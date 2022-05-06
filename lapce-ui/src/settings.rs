@@ -370,7 +370,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
             );
 
             const SETTINGS_SECTIONS: [&str; 4] =
-                ["Core Settings", "Editor Settings", "Plugins Settings", "Keybindings"];
+                ["Core Settings", "Editor Settings", "Plugin Settings", "Key Bindings"];
 
             for (i, text) in SETTINGS_SECTIONS.into_iter().enumerate() {
                 let text_layout = ctx
