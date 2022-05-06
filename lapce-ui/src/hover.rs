@@ -212,7 +212,7 @@ impl Widget<LapceTabData> for Hover {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut LapceTabData,
+        _data: &mut LapceTabData,
         _env: &Env,
     ) {
         if let Event::MouseMove(_) = event {
@@ -289,7 +289,7 @@ impl Widget<LapceTabData> for Hover {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        if data.hover.status == HoverStatus::Inactive {
+        if data.hover.status != HoverStatus::Done {
             return;
         }
 

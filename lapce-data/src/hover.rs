@@ -26,6 +26,8 @@ pub enum HoverStatus {
 pub struct HoverData {
     pub id: WidgetId,
     pub scroll_id: WidgetId,
+    /// The editor view id that the hover is displayed for
+    pub editor_view_id: WidgetId,
     /// The current request status
     pub status: HoverStatus,
     /// The offset that is currently being handled, if there is one
@@ -52,6 +54,7 @@ impl HoverData {
         Self {
             id: WidgetId::next(),
             scroll_id: WidgetId::next(),
+            editor_view_id: WidgetId::next(),
             status: HoverStatus::Inactive,
             offset: 0,
             buffer_id: BufferId(0),
@@ -175,6 +178,7 @@ fn parse_hover_markdown(
     use pulldown_cmark::{CowStr, Event, Options, Parser};
 
     let mut builder = RichTextBuilder::new();
+    builder.set_line_height(1.5);
 
     // Our position within the text
     let mut pos = 0;
@@ -340,6 +344,7 @@ fn parse_hover_resp(
         HoverContents::Markup(content) => match content.kind {
             MarkupKind::PlainText => {
                 let mut builder = RichTextBuilder::new();
+                builder.set_line_height(1.5);
                 builder.push(&content.value);
                 vec![builder.build()]
             }

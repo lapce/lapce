@@ -916,7 +916,7 @@ impl LapceTabData {
     ) -> Point {
         let line_height = self.config.editor.line_height as f64;
 
-        let editor = self.main_split.active_editor();
+        let editor = self.main_split.editors.get(&self.hover.editor_view_id);
         let editor = match editor {
             Some(editor) => editor,
             None => return Point::ZERO,

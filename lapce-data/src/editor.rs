@@ -457,7 +457,7 @@ impl LapceEditorBufferData {
     }
 
     /// return true if there's existing hover and it's not changed
-    pub fn update_hover_new(
+    pub fn check_hover(
         &mut self,
         _ctx: &mut EventCtx,
         offset: usize,
@@ -510,6 +510,7 @@ impl LapceEditorBufferData {
         }
 
         hover.buffer_id = self.doc.id();
+        hover.editor_view_id = self.editor.view_id;
         hover.offset = start_offset;
         hover.status = HoverStatus::Started;
         Arc::make_mut(&mut hover.items).clear();

@@ -16,6 +16,7 @@ use druid::{
 pub struct RichText {
     buffer: ArcStr,
     attrs: Arc<AttributeSpans>,
+    line_height: f64,
 }
 
 impl RichText {
@@ -29,6 +30,7 @@ impl RichText {
         RichText {
             buffer,
             attrs: Arc::new(attributes),
+            line_height: 0.0,
         }
     }
 
@@ -82,6 +84,9 @@ impl TextStorage for RichText {
         for (range, attr) in self.attrs.to_piet_attrs(env) {
             builder = builder.range_attribute(range, attr);
         }
+        if self.line_height > 0.0 {
+            builder = builder.set_line_height(self.line_height);
+        }
         builder
     }
 
@@ -99,6 +104,7 @@ pub struct RichTextBuilder {
     buffer: String,
     attrs: AttributeSpans,
     links: Vec<Link>,
+    line_height: f64,
 }
 
 impl RichTextBuilder {
@@ -115,6 +121,10 @@ impl RichTextBuilder {
         let range = self.buffer.len()..(self.buffer.len() + string.len());
         self.buffer.push_str(string);
         self.add_attributes_for_range(range)
+    }
+
+    pub fn set_line_height(&mut self, line_height: f64) {
+        self.line_height = line_height;
     }
 
     /// Glue for usage of the write! macro.
@@ -149,6 +159,7 @@ impl RichTextBuilder {
         RichText {
             buffer: self.buffer.into(),
             attrs: self.attrs.into(),
+            line_height: self.line_height,
         }
     }
 }

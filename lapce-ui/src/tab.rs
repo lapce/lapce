@@ -1354,7 +1354,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                 .set_origin(ctx, data, env, completion_origin);
         }
 
-        if data.hover.status != HoverStatus::Inactive {
+        if data.hover.status == HoverStatus::Done {
             self.hover.layout(ctx, bc, data, env);
             let hover_origin =
                 data.hover_origin(ctx.text(), self_size, &data.config);

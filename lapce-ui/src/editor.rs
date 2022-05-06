@@ -114,7 +114,7 @@ impl LapceEditor {
             config.editor.font_size,
             config,
         );
-        if !editor_data.update_hover_new(ctx, offset, is_inside) && is_inside {
+        if !editor_data.check_hover(ctx, offset, is_inside) && is_inside {
             self.mouse_hover_timer =
                 ctx.request_timer(Duration::from_millis(config.editor.hover_delay));
         }
