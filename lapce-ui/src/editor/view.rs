@@ -202,6 +202,16 @@ impl LapceEditorView {
                     .widget_mut()
                     .inner_mut()
                     .scroll_by(Vec2::new(*x, *y));
+                let offset = self.editor.widget().editor.widget().inner().offset();
+                if data.editor.scroll_offset != offset {
+                    self.editor
+                        .widget_mut()
+                        .editor
+                        .widget_mut()
+                        .inner_mut()
+                        .child_mut()
+                        .mouse_pos += offset - data.editor.scroll_offset;
+                }
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::ResetFade,

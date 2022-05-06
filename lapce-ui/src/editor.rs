@@ -69,6 +69,7 @@ pub struct LapceEditor {
     /// A timer for listening for when the user has hovered for long enough to trigger showing
     /// of hover info (if there is any)
     mouse_hover_timer: TimerToken,
+    drag_timer: TimerToken,
 }
 
 impl LapceEditor {
@@ -79,38 +80,96 @@ impl LapceEditor {
             last_left_click: None,
             mouse_pos: Point::ZERO,
             mouse_hover_timer: TimerToken::INVALID,
+            drag_timer: TimerToken::INVALID,
+        }
+    }
+
+    fn mouse_drag(
+        &mut self,
+        ctx: &mut EventCtx,
+        editor_data: &LapceEditorBufferData,
+        config: &Config,
+    ) {
+        if !ctx.is_active() {
+            return;
+        }
+
+        let line_height = config.editor.line_height as f64;
+        let scroll_offset = editor_data.editor.scroll_offset;
+        let size = *editor_data.editor.size.borrow();
+
+        let y_distance_1 = self.mouse_pos.y - scroll_offset.y;
+        let y_distance_2 = scroll_offset.y + size.height - self.mouse_pos.y;
+
+        let y_diff = if y_distance_1 < line_height {
+            let shift = if y_distance_1 > 0.0 {
+                y_distance_1
+            } else {
+                0.0
+            };
+            -line_height + shift
+        } else if y_distance_2 < line_height {
+            let shift = if y_distance_2 > 0.0 {
+                y_distance_2
+            } else {
+                0.0
+            };
+            line_height - shift
+        } else {
+            0.0
+        };
+
+        let x_diff = if self.mouse_pos.x < editor_data.editor.scroll_offset.x {
+            -5.0
+        } else if self.mouse_pos.x
+            > editor_data.editor.scroll_offset.x
+                + editor_data.editor.size.borrow().width
+        {
+            5.0
+        } else {
+            0.0
+        };
+
+        if x_diff != 0.0 || y_diff != 0.0 {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Scroll((x_diff, y_diff)),
+                Target::Widget(editor_data.view_id),
+            ));
+
+            self.drag_timer = ctx.request_timer(Duration::from_millis(16));
         }
     }
 
     fn mouse_move(
         &mut self,
         ctx: &mut EventCtx,
-        mouse_event: &MouseEvent,
+        mouse_pos: Point,
         editor_data: &mut LapceEditorBufferData,
         config: &Config,
     ) {
-        self.mouse_pos = mouse_event.pos;
+        self.mouse_pos = mouse_pos;
         self.mouse_hover_timer = TimerToken::INVALID;
+
+        self.mouse_drag(ctx, editor_data, config);
 
         if ctx.is_active() {
             let (new_offset, _) = editor_data.doc.offset_of_point(
                 ctx.text(),
                 editor_data.get_mode(),
-                mouse_event.pos,
+                mouse_pos,
                 config.editor.font_size,
                 config,
             );
             let editor = Arc::make_mut(&mut editor_data.editor);
-            editor
-                .new_cursor
-                .set_offset(new_offset, true, mouse_event.mods.alt());
+            editor.new_cursor.set_offset(new_offset, true, false);
             return;
         }
 
         let (offset, is_inside) = editor_data.doc.offset_of_point(
             ctx.text(),
             Mode::Insert,
-            mouse_event.pos,
+            mouse_pos,
             config.editor.font_size,
             config,
         );
@@ -1637,7 +1696,12 @@ impl Widget<LapceTabData> for LapceEditor {
                 let editor =
                     data.main_split.editors.get(&self.view_id).unwrap().clone();
                 let mut editor_data = data.editor_view_content(self.view_id);
-                self.mouse_move(ctx, mouse_event, &mut editor_data, &data.config);
+                self.mouse_move(
+                    ctx,
+                    mouse_event.pos,
+                    &mut editor_data,
+                    &data.config,
+                );
                 data.update_from_editor_buffer_data(editor_data, &editor, &doc);
             }
             Event::MouseUp(_mouse_event) => {
@@ -1665,6 +1729,18 @@ impl Widget<LapceTabData> for LapceEditor {
                         &data.config,
                     );
                     editor_data.update_hover(ctx, offset);
+                    data.update_from_editor_buffer_data(editor_data, &editor, &doc);
+                } else if self.drag_timer == *id {
+                    let doc = data.main_split.editor_doc(self.view_id);
+                    let editor =
+                        data.main_split.editors.get(&self.view_id).unwrap().clone();
+                    let mut editor_data = data.editor_view_content(self.view_id);
+                    self.mouse_move(
+                        ctx,
+                        self.mouse_pos,
+                        &mut editor_data,
+                        &data.config,
+                    );
                     data.update_from_editor_buffer_data(editor_data, &editor, &doc);
                 }
             }

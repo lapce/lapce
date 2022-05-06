@@ -16,8 +16,13 @@ use druid::{
 };
 
 use lapce_core::{
-    command::MultiSelectionCommand, editor::EditType, mode::MotionMode,
-    movement::Movement, register::Register, selection::Selection,
+    command::MultiSelectionCommand,
+    cursor::{Cursor, CursorMode},
+    editor::EditType,
+    mode::MotionMode,
+    movement::Movement,
+    register::Register,
+    selection::Selection,
 };
 use lapce_rpc::{
     file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
@@ -1439,16 +1444,12 @@ impl LapceTabData {
                     .get_mut(&self.source_control.editor_view_id)
                     .unwrap();
                 Arc::make_mut(editor).new_cursor = if self.config.lapce.modal {
-                    lapce_core::cursor::Cursor::new(
-                        lapce_core::cursor::CursorMode::Normal(0),
-                        None,
-                        None,
-                    )
+                    Cursor::new(CursorMode::Normal(0), None, None)
                 } else {
-                    lapce_core::cursor::Cursor::new(
-                        lapce_core::cursor::CursorMode::Insert(
-                            lapce_core::selection::Selection::caret(0),
-                        ),
+                    Cursor::new(
+                        CursorMode::Insert(lapce_core::selection::Selection::caret(
+                            0,
+                        )),
                         None,
                         None,
                     )
@@ -1711,20 +1712,16 @@ impl LapceTabData {
                 .unwrap();
             let editor = Arc::make_mut(editor);
             editor.new_cursor = if self.config.lapce.modal {
-                lapce_core::cursor::Cursor::new(
-                    lapce_core::cursor::CursorMode::Normal(
-                        doc.buffer().line_end_offset(0, false),
-                    ),
+                Cursor::new(
+                    CursorMode::Normal(doc.buffer().line_end_offset(0, false)),
                     None,
                     None,
                 )
             } else {
-                lapce_core::cursor::Cursor::new(
-                    lapce_core::cursor::CursorMode::Insert(
-                        lapce_core::selection::Selection::caret(
-                            doc.buffer().line_end_offset(0, true),
-                        ),
-                    ),
+                Cursor::new(
+                    CursorMode::Insert(Selection::caret(
+                        doc.buffer().line_end_offset(0, true),
+                    )),
                     None,
                     None,
                 )
@@ -2400,19 +2397,9 @@ impl LapceMainSplitData {
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
             editor.new_cursor = if config.lapce.modal {
-                lapce_core::cursor::Cursor::new(
-                    lapce_core::cursor::CursorMode::Normal(offset),
-                    None,
-                    None,
-                )
+                Cursor::new(CursorMode::Normal(offset), None, None)
             } else {
-                lapce_core::cursor::Cursor::new(
-                    lapce_core::cursor::CursorMode::Insert(
-                        lapce_core::selection::Selection::caret(offset),
-                    ),
-                    None,
-                    None,
-                )
+                Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
             };
 
             if let Some(scroll_offset) = scroll_offset {
@@ -2972,7 +2959,7 @@ pub struct LapceEditorData {
     pub compare: Option<String>,
     pub code_lens: bool,
     pub scroll_offset: Vec2,
-    pub new_cursor: lapce_core::cursor::Cursor,
+    pub new_cursor: Cursor,
     pub size: Rc<RefCell<Size>>,
     pub window_origin: Rc<RefCell<Point>>,
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
@@ -3003,27 +2990,11 @@ impl LapceEditorData {
             },
             scroll_offset: Vec2::ZERO,
             new_cursor: if content.is_input() {
-                lapce_core::cursor::Cursor::new(
-                    lapce_core::cursor::CursorMode::Insert(
-                        lapce_core::selection::Selection::caret(0),
-                    ),
-                    None,
-                    None,
-                )
+                Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
             } else if config.lapce.modal {
-                lapce_core::cursor::Cursor::new(
-                    lapce_core::cursor::CursorMode::Normal(0),
-                    None,
-                    None,
-                )
+                Cursor::new(CursorMode::Normal(0), None, None)
             } else {
-                lapce_core::cursor::Cursor::new(
-                    lapce_core::cursor::CursorMode::Insert(
-                        lapce_core::selection::Selection::caret(0),
-                    ),
-                    None,
-                    None,
-                )
+                Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None)
             },
             content,
             size: Rc::new(RefCell::new(Size::ZERO)),
