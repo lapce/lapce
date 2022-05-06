@@ -519,10 +519,11 @@ impl LapceEditorBufferData {
         hover.request(
             self.proxy.clone(),
             hover.request_id,
-            self.doc.id(),
+            self.doc.clone(),
             self.doc.buffer().offset_to_position(start_offset),
             hover.id,
             event_sink,
+            self.config.clone(),
         );
     }
 

@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
 use druid::{
-    theme, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
-    TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod,
+    theme, ArcStr, BoxConstraints, Command, Data, Env, Event, EventCtx,
+    FontDescriptor, FontFamily, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point,
+    RenderContext, Size, Target, TextLayout, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
-    hover::{HoverData, HoverStatus, HoverTextStyle, MarkdownText},
+    hover::{HoverData, HoverStatus},
+    rich_text::RichText,
 };
 
 use crate::scroll::{LapceIdentityWrapper, LapceScrollNew};
@@ -74,11 +75,18 @@ impl Widget<LapceTabData> for HoverContainer {
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::UpdateHover(request_id, resp) = command {
-                    let style = HoverTextStyle::from_data(data);
+                if let LapceUICommand::UpdateHover(request_id, items) = command {
                     let hover = Arc::make_mut(&mut data.hover);
-                    hover.receive(&style, *request_id, resp.to_owned());
+                    hover.receive(*request_id, items.clone());
                     ctx.request_paint();
+                }
+            }
+            Event::MouseMove(_)
+            | Event::MouseDown(_)
+            | Event::MouseUp(_)
+            | Event::Wheel(_) => {
+                if data.hover.status != HoverStatus::Done {
+                    return;
                 }
             }
             _ => {}
@@ -159,6 +167,7 @@ impl Widget<LapceTabData> for HoverContainer {
         let size = data.hover.size;
         let bc = BoxConstraints::new(Size::ZERO, size);
         self.content_size = self.hover.layout(ctx, &bc, data, env);
+        *data.hover.content_size.borrow_mut() = self.content_size;
         self.hover.set_origin(ctx, data, env, Point::ZERO);
         ctx.set_paint_insets((10.0, 10.0, 10.0, 10.0));
         size
@@ -181,12 +190,9 @@ impl Widget<LapceTabData> for HoverContainer {
 
 #[derive(Default)]
 pub struct Hover {
-    /// The active text layout to be rendered
-    /// Uses [`MarkdownText`] to unify non-markdown and markdown text together, instead of two
-    /// separate layout types. Plaintext is just [`MarkdownText`] without special styling or newline
-    /// collapsing.
-    active_layout: TextLayout<MarkdownText>,
+    active_layout: TextLayout<RichText>,
 }
+
 impl Hover {
     const STARTING_Y: f64 = 5.0;
     const STARTING_X: f64 = 10.0;
@@ -195,7 +201,7 @@ impl Hover {
         Hover {
             active_layout: {
                 let mut layout = TextLayout::new();
-                layout.set_text(MarkdownText::empty());
+                layout.set_text(RichText::new(ArcStr::from("")));
                 layout
             },
         }
@@ -206,7 +212,7 @@ impl Widget<LapceTabData> for Hover {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        _data: &mut LapceTabData,
+        data: &mut LapceTabData,
         _env: &Env,
     ) {
         if let Event::MouseMove(_) = event {
@@ -217,16 +223,10 @@ impl Widget<LapceTabData> for Hover {
     fn lifecycle(
         &mut self,
         _ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &LapceTabData,
+        _event: &LifeCycle,
+        _data: &LapceTabData,
         _env: &Env,
     ) {
-        if let LifeCycle::WidgetAdded = event {
-            if let Some(item) = data.hover.get_current_item() {
-                let text = item.as_markdown_text();
-                self.active_layout.set_text(text);
-            }
-        }
     }
 
     fn update(
@@ -238,26 +238,29 @@ impl Widget<LapceTabData> for Hover {
     ) {
         // If the active item has changed or we've switched our current item existence status then
         // update the layout
-        if old_data.hover.active_item_index != data.hover.active_item_index
+        if old_data.hover.request_id != data.hover.request_id
+            || old_data.hover.active_item_index != data.hover.active_item_index
             || old_data.hover.get_current_item().is_some()
                 != data.hover.get_current_item().is_some()
         {
             if let Some(item) = data.hover.get_current_item() {
-                let text = item.as_markdown_text();
-                self.active_layout.set_text(text);
+                self.active_layout.set_text(item.clone());
             } else {
-                self.active_layout.set_text(MarkdownText::empty());
+                self.active_layout.set_text(RichText::new(ArcStr::from("")));
             }
-        }
 
-        self.active_layout.set_text_color(
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                .clone(),
-        );
+            self.active_layout.set_font(
+                FontDescriptor::new(FontFamily::SYSTEM_UI).with_size(13.0),
+            );
+            self.active_layout.set_text_color(
+                data.config
+                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                    .clone(),
+            );
 
-        if self.active_layout.needs_rebuild_after_update(ctx) {
-            ctx.request_layout();
+            if self.active_layout.needs_rebuild_after_update(ctx) {
+                ctx.request_layout();
+            }
         }
     }
 
@@ -282,10 +285,10 @@ impl Widget<LapceTabData> for Hover {
             text_metrics.size.height - text_metrics.first_baseline,
         );
 
-        Size::new(width, text_metrics.size.height)
+        Size::new(width, text_metrics.size.height + Hover::STARTING_Y * 2.0)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
         if data.hover.status == HoverStatus::Inactive {
             return;
         }
@@ -299,8 +302,6 @@ impl Widget<LapceTabData> for Hover {
                 .get_color_unchecked(LapceTheme::HOVER_BACKGROUND),
         );
 
-        if let Some(text) = self.active_layout.text() {
-            text.draw(ctx, env, origin, &self.active_layout, &data.config);
-        }
+        self.active_layout.draw(ctx, origin);
     }
 }

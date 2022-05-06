@@ -1,29 +1,25 @@
-use std::{ops::Range, sync::Arc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use druid::{
-    piet::TextStorage as PietTextStorage,
-    text::{AttributesAdder, RichText, RichTextBuilder, TextStorage},
-    theme, ArcStr, Color, Data, Env, ExtEventSink, FontFamily, FontStyle,
-    FontWeight, PaintCtx, Point, Rect, RenderContext, Size, Target, TextLayout,
-    WidgetId,
-};
+use druid::{ExtEventSink, FontStyle, FontWeight, Size, Target, WidgetId};
+use lapce_core::syntax::Syntax;
 use lapce_rpc::buffer::BufferId;
-use lsp_types::{
-    Hover, HoverContents, MarkedString, MarkupContent, MarkupKind, Position,
-};
+use lsp_types::{Hover, HoverContents, MarkedString, MarkupKind, Position};
 use pulldown_cmark::Tag;
+use xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
-    data::LapceTabData,
+    config::{Config, EditorConfig, LapceTheme, Themes},
+    document::Document,
     proxy::LapceProxy,
+    rich_text::{AttributesAdder, RichText, RichTextBuilder},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HoverStatus {
     Inactive,
     Started,
+    Done,
 }
 
 #[derive(Clone)]
@@ -40,13 +36,15 @@ pub struct HoverData {
     pub request_id: usize,
     /// Stores the size of the hover box
     pub size: Size,
+    /// Stores the actual size of the hover content
+    pub content_size: Rc<RefCell<Size>>,
 
     /// The current hover string that is active, because there can be multiple for a single entry
     /// (such as if there is uncertainty over the exact version, such as in overloading or
     /// scripting languages where the declaration is uncertain)
     pub active_item_index: usize,
     /// The hover items that are currently loaded
-    pub items: Arc<Vec<HoverItem>>,
+    pub items: Arc<Vec<RichText>>,
 }
 
 impl HoverData {
@@ -59,14 +57,15 @@ impl HoverData {
             buffer_id: BufferId(0),
             request_id: 0,
             // TODO: make this configurable by themes
-            size: Size::new(500.0, 300.0),
+            size: Size::new(600.0, 300.0),
+            content_size: Rc::new(RefCell::new(Size::ZERO)),
 
             active_item_index: 0,
             items: Arc::new(Vec::new()),
         }
     }
 
-    pub fn get_current_item(&self) -> Option<&HoverItem> {
+    pub fn get_current_item(&self) -> Option<&RichText> {
         self.items.get(self.active_item_index)
     }
 
@@ -106,15 +105,22 @@ impl HoverData {
     }
 
     /// Send a request to update the hover at the given position anad file
+    #[allow(clippy::too_many_arguments)]
     pub fn request(
         &self,
         proxy: Arc<LapceProxy>,
         request_id: usize,
-        buffer_id: BufferId,
+        doc: Arc<Document>,
         position: Position,
         hover_widget_id: WidgetId,
         event_sink: ExtEventSink,
+        config: Arc<Config>,
     ) {
+        let buffer_id = doc.id();
+        let syntax = doc.syntax().cloned();
+        let editor_config = config.editor.clone();
+        let themes = config.themes.clone();
+
         proxy.get_hover(
             request_id,
             buffer_id,
@@ -122,9 +128,16 @@ impl HoverData {
             Box::new(move |result| {
                 if let Ok(resp) = result {
                     if let Ok(resp) = serde_json::from_value::<Hover>(resp) {
+                        let items = parse_hover_resp(
+                            syntax.as_ref(),
+                            resp,
+                            &editor_config,
+                            &themes,
+                        );
+
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateHover(request_id, resp),
+                            LapceUICommand::UpdateHover(request_id, Arc::new(items)),
                             Target::Widget(hover_widget_id),
                         );
                     }
@@ -134,12 +147,7 @@ impl HoverData {
     }
 
     /// Receive the result of a hover request
-    pub fn receive(
-        &mut self,
-        style: &HoverTextStyle,
-        request_id: usize,
-        resp: lsp_types::Hover,
-    ) {
+    pub fn receive(&mut self, request_id: usize, items: Arc<Vec<RichText>>) {
         // If we've moved to inactive between the time the request started and now
         // or we've moved to a different request
         // then don't bother processing the received data
@@ -147,20 +155,8 @@ impl HoverData {
             return;
         }
 
-        let items = Arc::make_mut(&mut self.items);
-        // Extract the items in the format that we want them to be in
-        *items = match resp.contents {
-            HoverContents::Scalar(text) => {
-                vec![HoverItem::from_marked_string(text, style)]
-            }
-            HoverContents::Array(entries) => entries
-                .into_iter()
-                .map(|text| HoverItem::from_marked_string(text, style))
-                .collect(),
-            HoverContents::Markup(content) => {
-                vec![HoverItem::from_markup_content(content, style)]
-            }
-        };
+        self.status = HoverStatus::Done;
+        self.items = items;
     }
 }
 
@@ -170,183 +166,13 @@ impl Default for HoverData {
     }
 }
 
-/// Styling information for generated hover content
-pub struct HoverTextStyle {
-    /// Font size of normal text
-    base_font_size: f64,
-    link_color: Color,
-    blockquote_color: Color,
-}
-impl HoverTextStyle {
-    /// Extract the needed data from [`LapceTabData`]
-    pub fn from_data(data: &LapceTabData) -> Self {
-        Self {
-            base_font_size: data.config.editor.font_size as f64,
-            link_color: data
-                .config
-                .get_color_unchecked(LapceTheme::EDITOR_LINK)
-                .clone(),
-            blockquote_color: data
-                .config
-                .get_color_unchecked(LapceTheme::MARKDOWN_BLOCKQUOTE)
-                .clone(),
-        }
-    }
-}
-
-/// A hover entry
-/// This is separate from the lsp-types version to make using it more direct
-#[derive(Clone)]
-pub enum HoverItem {
-    /// Rendered (druid) markdown text
-    Markdown(MarkdownText),
-    PlainText(String),
-}
-impl HoverItem {
-    pub fn as_markdown_text(&self) -> MarkdownText {
-        match self {
-            HoverItem::Markdown(text) => text.clone(),
-            // TODO: We could store PlainText as an ArcStr/related type to make these clones
-            // significantly cheaper
-            HoverItem::PlainText(text) => MarkdownText::new(
-                RichText::new(ArcStr::from(text.as_str())),
-                Vec::new(),
-            ),
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        match self {
-            HoverItem::Markdown(x) => x.as_str(),
-            HoverItem::PlainText(x) => x.as_str(),
-        }
-    }
-
-    fn from_marked_string(text: MarkedString, style: &HoverTextStyle) -> Self {
-        match text {
-            MarkedString::String(text) => {
-                HoverItem::Markdown(parse_markdown(&text, style))
-            }
-            // This is a short version of a code block
-            MarkedString::LanguageString(code) => {
-                // TODO: We could simply construct the MarkdownText directly
-                // Simply construct the string as if it was written directly
-                HoverItem::Markdown(parse_markdown(
-                    &format!("```{}\n{}\n```", code.language, code.value),
-                    style,
-                ))
-            }
-        }
-    }
-
-    fn from_markup_content(content: MarkupContent, style: &HoverTextStyle) -> Self {
-        match content.kind {
-            MarkupKind::Markdown => {
-                HoverItem::Markdown(parse_markdown(&content.value, style))
-            }
-            MarkupKind::PlainText => HoverItem::PlainText(content.value),
-        }
-    }
-}
-
-// TODO: Markdown parsing/rendering could be moved to its own file/module/crate so that it can be
-// used for more than just hovering (ex: markdown preview)
-
-#[derive(Data, Clone)]
-pub struct MarkdownText {
-    /// Rendered rich text
-    text: RichText,
-    /// Indices into the underlying text that code blocks start and begin at
-    /// This lets us calculate a rectangle surrounding the text to apply a background too, in order
-    /// to differentiate it from normal text more.
-    /// Note that this covers multiline and inline codeblocks
-    #[data(eq)]
-    code_block_indices: Vec<Range<usize>>,
-}
-impl MarkdownText {
-    fn new(text: RichText, code_block_indices: Vec<Range<usize>>) -> Self {
-        Self {
-            text,
-            code_block_indices,
-        }
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            text: RichText::new(ArcStr::from("")),
-            code_block_indices: Vec::new(),
-        }
-    }
-
-    /// Draw the markdown to the paint ctx, using the layout
-    pub fn draw(
-        &self,
-        ctx: &mut PaintCtx,
-        env: &Env,
-        origin: Point,
-        layout: &TextLayout<MarkdownText>,
-        config: &Config,
-    ) {
-        let rect = ctx.region().bounding_box();
-
-        let code_background_color = config
-            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-            .clone();
-        for range in &self.code_block_indices {
-            // TODO: We could make a function to get just p0, since we don't need the other
-            // calculated point
-            let start_point = layout.cursor_line_for_text_position(range.start).p0;
-            let end_point = layout.cursor_line_for_text_position(range.end).p0;
-
-            // If the end_point and start_point x positions are the same (typically 0), then
-            // they're probably a multiline code block.
-            let end_x = if end_point.x == start_point.x {
-                // Use the entire width, avoiding the scrollbar to make it appear nicer
-                rect.x1
-                    - env.get(theme::SCROLLBAR_WIDTH)
-                    - env.get(theme::SCROLLBAR_PAD)
-            } else {
-                origin.x + end_point.x
-            };
-
-            let bg_rect = Rect::new(
-                origin.x + start_point.x,
-                origin.y + start_point.y,
-                end_x,
-                origin.y + end_point.y,
-            );
-            ctx.fill(bg_rect, &code_background_color);
-        }
-        layout.draw(ctx, origin);
-    }
-}
-// Let this be treated as Text
-impl PietTextStorage for MarkdownText {
-    fn as_str(&self) -> &str {
-        self.text.as_str()
-    }
-}
-impl TextStorage for MarkdownText {
-    fn add_attributes(
-        &self,
-        builder: druid::piet::PietTextLayoutBuilder,
-        env: &druid::Env,
-    ) -> druid::piet::PietTextLayoutBuilder {
-        self.text.add_attributes(builder, env)
-    }
-
-    fn env_update(&self, ctx: &druid::text::EnvUpdateCtx) -> bool {
-        self.text.env_update(ctx)
-    }
-
-    fn links(&self) -> &[druid::text::Link] {
-        self.text.links()
-    }
-}
-
-/// Parse the given markdown into renderable druid rich text with the given style information
-fn parse_markdown(text: &str, style: &HoverTextStyle) -> MarkdownText {
-    use pulldown_cmark::{Event, Options, Parser};
+fn parse_hover_markdown(
+    syntax: Option<&Syntax>,
+    text: &str,
+    config: &EditorConfig,
+    themes: &Themes,
+) -> RichText {
+    use pulldown_cmark::{CowStr, Event, Options, Parser};
 
     let mut builder = RichTextBuilder::new();
 
@@ -369,6 +195,7 @@ fn parse_markdown(text: &str, style: &HoverTextStyle) -> MarkdownText {
             | Options::ENABLE_TASKLISTS
             | Options::ENABLE_HEADING_ATTRIBUTES,
     );
+    let mut last_text = CowStr::from("");
     for event in parser {
         match event {
             Event::Start(tag) => {
@@ -388,8 +215,32 @@ fn parse_markdown(text: &str, style: &HoverTextStyle) -> MarkdownText {
                     add_attribute_for_tag(
                         &tag,
                         builder.add_attributes_for_range(start_offset..pos),
-                        style,
+                        config,
+                        themes,
                     );
+
+                    if let Tag::CodeBlock(_) = &tag {
+                        if let Some(syntax) = syntax {
+                            if let Some(styles) =
+                                syntax.parse(0, Rope::from(&last_text), None).styles
+                            {
+                                for (range, style) in styles.iter() {
+                                    if let Some(color) = style
+                                        .fg_color
+                                        .as_ref()
+                                        .and_then(|fg| themes.style_color(fg))
+                                    {
+                                        builder
+                                            .add_attributes_for_range(
+                                                start_offset + range.start
+                                                    ..start_offset + range.end,
+                                            )
+                                            .text_color(color.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     if should_add_newline_after_tag(&tag) {
                         builder.push("\n");
@@ -402,9 +253,10 @@ fn parse_markdown(text: &str, style: &HoverTextStyle) -> MarkdownText {
             Event::Text(text) => {
                 builder.push(&text);
                 pos += text.len();
+                last_text = text;
             }
             Event::Code(text) => {
-                builder.push(&text).font_family(FontFamily::MONOSPACE);
+                builder.push(&text).font_family(config.font_family());
                 code_block_indices.push(pos..(pos + text.len()));
                 pos += text.len();
             }
@@ -413,8 +265,13 @@ fn parse_markdown(text: &str, style: &HoverTextStyle) -> MarkdownText {
             Event::Html(text) => {
                 builder
                     .push(&text)
-                    .font_family(FontFamily::MONOSPACE)
-                    .text_color(style.blockquote_color.clone());
+                    .font_family(config.font_family())
+                    .text_color(
+                        themes
+                            .color(LapceTheme::MARKDOWN_BLOCKQUOTE)
+                            .cloned()
+                            .unwrap(),
+                    );
                 pos += text.len();
             }
             Event::HardBreak => {
@@ -431,17 +288,73 @@ fn parse_markdown(text: &str, style: &HoverTextStyle) -> MarkdownText {
         }
     }
 
-    MarkdownText::new(builder.build(), code_block_indices)
+    builder.build()
+}
+
+fn from_marked_string(
+    syntax: Option<&Syntax>,
+    text: MarkedString,
+    config: &EditorConfig,
+    themes: &Themes,
+) -> RichText {
+    match text {
+        MarkedString::String(text) => {
+            parse_hover_markdown(syntax, &text, config, themes)
+        }
+        // This is a short version of a code block
+        MarkedString::LanguageString(code) => {
+            // TODO: We could simply construct the MarkdownText directly
+            // Simply construct the string as if it was written directly
+            parse_hover_markdown(
+                syntax,
+                &format!("```{}\n{}\n```", code.language, code.value),
+                config,
+                themes,
+            )
+        }
+    }
+}
+
+fn parse_hover_resp(
+    syntax: Option<&Syntax>,
+    hover: lsp_types::Hover,
+    config: &EditorConfig,
+    themes: &Themes,
+) -> Vec<RichText> {
+    match hover.contents {
+        HoverContents::Scalar(text) => match text {
+            MarkedString::String(text) => {
+                vec![parse_hover_markdown(syntax, &text, config, themes)]
+            }
+            MarkedString::LanguageString(code) => vec![parse_hover_markdown(
+                syntax,
+                &format!("```{}\n{}\n```", code.language, code.value),
+                config,
+                themes,
+            )],
+        },
+        HoverContents::Array(array) => array
+            .into_iter()
+            .map(|t| from_marked_string(syntax, t, config, themes))
+            .collect(),
+        HoverContents::Markup(content) => match content.kind {
+            MarkupKind::PlainText => {
+                let mut builder = RichTextBuilder::new();
+                builder.push(&content.value);
+                vec![builder.build()]
+            }
+            MarkupKind::Markdown => {
+                vec![parse_hover_markdown(syntax, &content.value, config, themes)]
+            }
+        },
+    }
 }
 
 fn add_attribute_for_tag(
     tag: &Tag,
     mut attrs: AttributesAdder,
-    HoverTextStyle {
-        base_font_size,
-        link_color,
-        blockquote_color,
-    }: &HoverTextStyle,
+    config: &EditorConfig,
+    themes: &Themes,
 ) {
     use pulldown_cmark::HeadingLevel;
     match tag {
@@ -456,18 +369,21 @@ fn add_attribute_for_tag(
                 HeadingLevel::H5 => 0.83,
                 HeadingLevel::H6 => 0.75,
             };
-            let font_size = font_scale * base_font_size;
+            let font_size = font_scale * config.font_size as f64;
             attrs.size(font_size).weight(FontWeight::BOLD);
         }
         Tag::BlockQuote => {
-            attrs
-                .style(FontStyle::Italic)
-                .text_color(blockquote_color.clone());
+            attrs.style(FontStyle::Italic).text_color(
+                themes
+                    .color(LapceTheme::MARKDOWN_BLOCKQUOTE)
+                    .cloned()
+                    .unwrap(),
+            );
         }
         // TODO: We could use the language paired with treesitter to highlight the code
         // within code blocks.
         Tag::CodeBlock(_) => {
-            attrs.font_family(FontFamily::MONOSPACE);
+            attrs.font_family(config.font_family());
         }
         Tag::Emphasis => {
             attrs.style(FontStyle::Italic);
@@ -478,7 +394,9 @@ fn add_attribute_for_tag(
         // TODO: Strikethrough support
         Tag::Link(_link_type, _target, _title) => {
             // TODO: Link support
-            attrs.underline(true).text_color(link_color.clone());
+            attrs
+                .underline(true)
+                .text_color(themes.color(LapceTheme::EDITOR_LINK).cloned().unwrap());
         }
         // All other tags are currently ignored
         _ => {}

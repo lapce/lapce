@@ -812,7 +812,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#c6528c3bf883da1d9080880be49fc6a271bb65f7"
+source = "git+https://github.com/lapce/druid?branch=opengl#33ee4af7f38d646d9138d1a66f7db15ce77970ed"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -836,7 +836,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#c6528c3bf883da1d9080880be49fc6a271bb65f7"
+source = "git+https://github.com/lapce/druid?branch=opengl#33ee4af7f38d646d9138d1a66f7db15ce77970ed"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -846,7 +846,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#c6528c3bf883da1d9080880be49fc6a271bb65f7"
+source = "git+https://github.com/lapce/druid?branch=opengl#33ee4af7f38d646d9138d1a66f7db15ce77970ed"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
@@ -2849,7 +2849,7 @@ dependencies = [
 [[package]]
 name = "piet-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/lapce/piet-wgpu?branch=opengl#ae537b1c159d7caa9e569c47683f0451dd924f81"
+source = "git+https://github.com/lapce/piet-wgpu?branch=opengl#c73431ede3959443ad1d7e4c8abaee66ce30cb50"
 dependencies = [
  "bytemuck",
  "glam",

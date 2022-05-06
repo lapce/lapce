@@ -935,18 +935,21 @@ impl LapceTabData {
                 let doc = self.main_split.open_docs.get(path).unwrap();
                 let offset = self.hover.offset;
                 let (line, col) = doc.buffer().offset_to_line_col(offset);
-                let width = config.editor_char_width(text);
-                let x = col as f64 * width - line_height - 5.0;
-                let y = (line + 1) as f64 * line_height;
+                let point = doc.point_of_line_col(
+                    text,
+                    line,
+                    col,
+                    config.editor.font_size,
+                    config,
+                );
+                let x = point.x;
+                let y = line as f64 * line_height;
                 let mut origin = *editor.window_origin.borrow()
                     - self.window_origin.borrow().to_vec2()
-                    + Vec2::new(x, y);
-                if origin.y + self.hover.size.height + 1.0 > tab_size.height {
-                    let height = self.hover.size.height;
-                    origin.y = editor.window_origin.borrow().y
-                        - self.window_origin.borrow().y
-                        + line as f64 * line_height
-                        - height;
+                    + Vec2::new(x, y - self.hover.content_size.borrow().height);
+                if origin.y < 0.0 {
+                    origin.y +=
+                        self.hover.content_size.borrow().height + line_height;
                 }
                 if origin.x + self.hover.size.width + 1.0 > tab_size.width {
                     origin.x = tab_size.width - self.hover.size.width - 1.0;

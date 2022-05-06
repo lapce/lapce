@@ -19,6 +19,7 @@ pub mod picker;
 pub mod plugin;
 pub mod problem;
 pub mod proxy;
+pub mod rich_text;
 pub mod search;
 pub mod settings;
 pub mod signature;
