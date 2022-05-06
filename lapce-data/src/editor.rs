@@ -34,7 +34,7 @@ use lapce_core::buffer::{DiffLines, InvalLines};
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
 };
-use lapce_core::mode::{Mode, MotionMode, VisualMode};
+use lapce_core::mode::{Mode, MotionMode};
 pub use lapce_core::syntax::Syntax;
 use lsp_types::CompletionTextEdit;
 use lsp_types::{
@@ -1873,15 +1873,6 @@ pub struct TabRect {
     pub rect: Rect,
     pub close_rect: Rect,
     pub text_layout: PietTextLayout,
-}
-
-#[derive(Clone)]
-pub struct RegisterContent {
-    #[allow(dead_code)]
-    kind: VisualMode,
-
-    #[allow(dead_code)]
-    content: Vec<String>,
 }
 
 #[derive(Clone)]

@@ -7,7 +7,6 @@ use druid::{
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
-use include_dir::{include_dir, Dir};
 use lapce_data::{
     command::LapceUICommand,
     command::LAPCE_UI_COMMAND,
@@ -23,9 +22,6 @@ use crate::{
     scroll::LapceScrollNew,
     svg::{file_svg_new, get_svg},
 };
-
-#[allow(dead_code)]
-const ICONS_DIR: Dir = include_dir!("../icons");
 
 #[allow(clippy::too_many_arguments)]
 pub fn paint_file_node_item(
