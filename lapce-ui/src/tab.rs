@@ -39,7 +39,7 @@ use crate::{
     picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
     search::new_search_panel, settings::LapceSettingsPanel,
     source_control::new_source_control_panel, split::split_data_widget,
-    status::LapceStatusNew, terminal::TerminalPanel,
+    status::LapceStatusNew, svg::get_svg, terminal::TerminalPanel,
 };
 
 pub struct LapceIcon {
@@ -1539,13 +1539,13 @@ impl Widget<LapceTabData> for LapceTabNew {
 pub struct LapceTabHeader {
     pub drag_start: Option<(Point, Point)>,
     pub mouse_pos: Point,
-    cross_rect: Rect,
+    close_icon_rect: Rect,
 }
 
 impl LapceTabHeader {
     pub fn new() -> Self {
         Self {
-            cross_rect: Rect::ZERO,
+            close_icon_rect: Rect::ZERO,
             drag_start: None,
             mouse_pos: Point::ZERO,
         }
@@ -1574,14 +1574,14 @@ impl Widget<LapceTabData> for LapceTabHeader {
                     }
                     return;
                 }
-                if self.cross_rect.contains(mouse_event.pos) {
+                if self.close_icon_rect.contains(mouse_event.pos) {
                     ctx.set_cursor(&druid::Cursor::Pointer);
                 } else {
                     ctx.set_cursor(&druid::Cursor::Arrow);
                 }
             }
             Event::MouseDown(mouse_event) => {
-                if self.cross_rect.contains(mouse_event.pos) {
+                if self.close_icon_rect.contains(mouse_event.pos) {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::CloseTabId(data.id),
@@ -1637,11 +1637,12 @@ impl Widget<LapceTabData> for LapceTabHeader {
     ) -> Size {
         let size = bc.max();
 
-        let cross_size = 8.0;
-        let padding = (size.height - cross_size) / 2.0;
-        let origin = Point::new(size.width - padding - cross_size, padding);
-        self.cross_rect = Size::new(cross_size, cross_size)
+        let close_icon_width = size.height;
+        let padding = 4.0;
+        let origin = Point::new(size.width - close_icon_width, padding);
+        self.close_icon_rect = Size::new(close_icon_width, close_icon_width)
             .to_rect()
+            .inflate(-padding, -padding)
             .with_origin(origin);
 
         size
@@ -1685,29 +1686,14 @@ impl Widget<LapceTabData> for LapceTabHeader {
         ctx.draw_text(&text_layout, Point::new(x, y));
 
         if ctx.is_hot() {
-            let line = Line::new(
-                Point::new(self.cross_rect.x0, self.cross_rect.y0),
-                Point::new(self.cross_rect.x1, self.cross_rect.y1),
-            );
-            ctx.stroke(
-                line,
-                &data
-                    .config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-                1.0,
-            );
-            let line = Line::new(
-                Point::new(self.cross_rect.x1, self.cross_rect.y0),
-                Point::new(self.cross_rect.x0, self.cross_rect.y1),
-            );
-            ctx.stroke(
-                line,
-                &data
-                    .config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-                1.0,
+            let svg = get_svg("close.svg").unwrap();
+            ctx.draw_svg(
+                &svg,
+                self.close_icon_rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                ),
             );
         }
     }
