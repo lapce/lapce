@@ -248,7 +248,10 @@ impl Widget<LapceTabData> for PanelSection {
         self.content
             .set_origin(ctx, data, env, Point::new(0.0, header_height));
 
-        Size::new(content_size.width, header_height + content_size.height)
+        Size::new(
+            self_size.width,
+            (header_height + content_size.height).max(self_size.height),
+        )
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
