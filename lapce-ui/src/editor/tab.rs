@@ -541,6 +541,7 @@ impl TabRectRenderer for TabRect {
     ) {
         let width = 13.0;
         let height = 13.0;
+        let padding = 4.0;
         let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
 
         let rect = Size::new(width, height).to_rect().with_origin(Point::new(
@@ -582,7 +583,7 @@ impl TabRectRenderer for TabRect {
                 let svg = get_svg("close.svg").unwrap();
                 ctx.draw_svg(
                     &svg,
-                    self.close_rect.inflate(-4.0, -4.0),
+                    self.close_rect.inflate(-padding, -padding),
                     Some(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
@@ -605,7 +606,7 @@ impl TabRectRenderer for TabRect {
                 let svg = get_svg("unsaved.svg").unwrap();
                 ctx.draw_svg(
                     &svg,
-                    self.close_rect.inflate(-4.0, -4.0),
+                    self.close_rect.inflate(-padding, -padding),
                     Some(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
