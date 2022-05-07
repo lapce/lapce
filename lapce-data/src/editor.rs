@@ -569,16 +569,16 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn initiate_diagnositcs_offset(&mut self) {
+    fn initiate_diagnostics_offset(&mut self) {
         let doc = self.doc.clone();
         if let Some(diagnostics) = self.diagnostics_mut() {
             for diagnostic in diagnostics.iter_mut() {
                 if diagnostic.range.is_none() {
                     diagnostic.range = Some((
                         doc.buffer()
-                            .offset_of_position(&diagnostic.diagnositc.range.start),
+                            .offset_of_position(&diagnostic.diagnostic.range.start),
                         doc.buffer()
-                            .offset_of_position(&diagnostic.diagnositc.range.end),
+                            .offset_of_position(&diagnostic.diagnostic.range.end),
                     ));
                 }
             }
@@ -605,7 +605,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    fn update_diagnositcs_offset(&mut self, delta: &RopeDelta) {
+    fn update_diagnostics_offset(&mut self, delta: &RopeDelta) {
         let doc = self.doc.clone();
         if let Some(diagnostics) = self.diagnostics_mut() {
             for diagnostic in diagnostics.iter_mut() {
@@ -617,11 +617,11 @@ impl LapceEditorBufferData {
                 );
                 diagnostic.range = Some((new_start, new_end));
                 if start != new_start {
-                    diagnostic.diagnositc.range.start =
+                    diagnostic.diagnostic.range.start =
                         doc.buffer().offset_to_position(new_start);
                 }
                 if end != new_end {
-                    diagnostic.diagnositc.range.end =
+                    diagnostic.diagnostic.range.end =
                         doc.buffer().offset_to_position(new_end);
                 }
             }
@@ -719,13 +719,13 @@ impl LapceEditorBufferData {
                         .iter()
                         .filter_map(|d| {
                             let severity = d
-                                .diagnositc
+                                .diagnostic
                                 .severity
                                 .unwrap_or(DiagnosticSeverity::Hint);
                             if severity != DiagnosticSeverity::Error {
                                 return None;
                             }
-                            Some(d.diagnositc.range.start)
+                            Some(d.diagnostic.range.start)
                         })
                         .collect();
                     if errors.is_empty() {
@@ -1059,7 +1059,7 @@ impl LapceEditorBufferData {
         for (delta, _) in deltas {
             self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
-            self.update_diagnositcs_offset(delta);
+            self.update_diagnostics_offset(delta);
         }
     }
 
@@ -1845,7 +1845,7 @@ impl KeyPressFocus for LapceEditorBufferData {
 
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
         if self.get_mode() == Mode::Insert {
-            self.initiate_diagnositcs_offset();
+            self.initiate_diagnostics_offset();
             let doc = Arc::make_mut(&mut self.doc);
             let cursor = &mut Arc::make_mut(&mut self.editor).new_cursor;
             let deltas = doc.do_insert(cursor, c);
@@ -1869,7 +1869,7 @@ impl KeyPressFocus for LapceEditorBufferData {
         mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        self.initiate_diagnositcs_offset();
+        self.initiate_diagnostics_offset();
         let old_doc = self.doc.clone();
         let executed = match &command.kind {
             CommandKind::Edit(cmd) => self.run_edit_command(ctx, cmd),
