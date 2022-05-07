@@ -249,29 +249,22 @@ impl Widget<LapceTabData> for LapceStatusNew {
         let mut left = 0.0;
 
         if data.config.lapce.modal {
-            let (mode, color) = {
-                let mode = if data.focus_area
-                    == FocusArea::Panel(PanelKind::Terminal)
-                {
-                    match data.terminal.terminals.get(&data.terminal.active_term_id)
-                    {
-                        Some(terminal) => terminal.mode,
-                        None => Mode::Normal,
-                    }
-                } else {
-                    data.main_split
-                        .active_editor()
-                        .map(|e| e.new_cursor.get_mode())
-                        .unwrap_or(Mode::Normal)
-                };
-                match mode {
-                    Mode::Normal => ("Normal", LapceTheme::STATUS_MODAL_NORMAL),
-                    Mode::Insert => ("Insert", LapceTheme::STATUS_MODAL_INSERT),
-                    Mode::Visual => ("Visual", LapceTheme::STATUS_MODAL_VISUAL),
-                    Mode::Terminal => {
-                        ("Terminal", LapceTheme::STATUS_MODAL_TERMINAL)
-                    }
-                }
+            let mode = if data.focus_area == FocusArea::Panel(PanelKind::Terminal) {
+                data.terminal
+                    .terminals
+                    .get(&data.terminal.active_term_id)
+                    .map(|terminal| terminal.mode)
+            } else {
+                data.main_split
+                    .active_editor()
+                    .map(|e| e.new_cursor.get_mode())
+            };
+
+            let (mode, color) = match mode.unwrap_or(Mode::Normal) {
+                Mode::Normal => ("Normal", LapceTheme::STATUS_MODAL_NORMAL),
+                Mode::Insert => ("Insert", LapceTheme::STATUS_MODAL_INSERT),
+                Mode::Visual => ("Visual", LapceTheme::STATUS_MODAL_VISUAL),
+                Mode::Terminal => ("Terminal", LapceTheme::STATUS_MODAL_TERMINAL),
             };
 
             let text_layout = ctx
