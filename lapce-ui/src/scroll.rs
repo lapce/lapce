@@ -811,7 +811,7 @@ impl ScrollComponentNew {
         }
     }
 
-    /// Applies mousewheel scrolling if the event has not already been handled
+    /// Applies mouse wheel scrolling if the event has not already been handled
     pub fn handle_scroll(
         &mut self,
         port: &mut ViewportNew,
