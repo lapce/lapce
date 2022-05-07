@@ -291,16 +291,16 @@ impl Widget<LapceTabData> for LapceStatusNew {
         left = self.paint_icon_with_label(
             left,
             size.height,
-            "warning.svg",
-            data.main_split.warning_count.to_string(),
+            "error.svg",
+            data.main_split.error_count.to_string(),
             ctx,
             &data.config,
         );
         left = self.paint_icon_with_label(
-            left,
+            left - 5.0,
             size.height,
-            "error.svg",
-            data.main_split.error_count.to_string(),
+            "warning.svg",
+            data.main_split.warning_count.to_string(),
             ctx,
             &data.config,
         );
