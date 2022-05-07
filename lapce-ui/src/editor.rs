@@ -1457,8 +1457,8 @@ impl LapceEditor {
         let cursor_offset = data.editor.new_cursor.offset();
         if let Some(diagnostics) = data.diagnostics() {
             for diagnostic in diagnostics.iter() {
-                let start = diagnostic.diagnositc.range.start;
-                let end = diagnostic.diagnositc.range.end;
+                let start = diagnostic.diagnostic.range.start;
+                let end = diagnostic.diagnostic.range.end;
                 if (start.line as usize) <= end_line
                     && (end.line as usize) >= start_line
                 {
@@ -1511,7 +1511,7 @@ impl LapceEditor {
                         let y0 = (line + 1) as f64 * line_height - 4.0;
 
                         let severity = diagnostic
-                            .diagnositc
+                            .diagnostic
                             .severity
                             .as_ref()
                             .unwrap_or(&DiagnosticSeverity::Information);
@@ -1541,7 +1541,7 @@ impl LapceEditor {
             if data.editor.new_cursor.is_normal() {
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(diagnostic.diagnositc.message.clone())
+                    .new_text_layout(diagnostic.diagnostic.message.clone())
                     .font(FontFamily::SYSTEM_UI, 14.0)
                     .text_color(
                         data.config
@@ -1555,7 +1555,7 @@ impl LapceEditor {
                 let mut text_height = text_size.height;
 
                 let related = diagnostic
-                    .diagnositc
+                    .diagnostic
                     .related_information
                     .map(|related| {
                         related
@@ -1584,7 +1584,7 @@ impl LapceEditor {
                     })
                     .unwrap_or_else(Vec::new);
 
-                let start = diagnostic.diagnositc.range.start;
+                let start = diagnostic.diagnostic.range.start;
                 let rect = Rect::ZERO
                     .with_origin(Point::new(
                         0.0,
@@ -1601,7 +1601,7 @@ impl LapceEditor {
                 );
 
                 let severity = diagnostic
-                    .diagnositc
+                    .diagnostic
                     .severity
                     .as_ref()
                     .unwrap_or(&DiagnosticSeverity::Information);
