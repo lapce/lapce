@@ -1009,10 +1009,8 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScrollNew<T, W> {
 }
 
 pub struct LapcePadding<T, W> {
-    left: f64,
-    right: f64,
-    top: f64,
-    bottom: f64,
+    top_left: Point,
+    padding_size: Size,
 
     child: WidgetPod<T, W>,
 }
@@ -1021,10 +1019,8 @@ impl<T, W: Widget<T>> LapcePadding<T, W> {
     pub fn new(insets: impl Into<Insets>, child: W) -> Self {
         let insets = insets.into();
         Self {
-            left: insets.x0,
-            right: insets.x1,
-            top: insets.y0,
-            bottom: insets.y1,
+            top_left: Point::new(insets.x0, insets.y0),
+            padding_size: insets.size(),
             child: WidgetPod::new(child),
         }
     }
@@ -1071,15 +1067,11 @@ impl<T: Data, W: Widget<T>> Widget<T> for LapcePadding<T, W> {
     ) -> Size {
         bc.debug_check("Padding");
 
-        let hpad = self.left + self.right;
-        let vpad = self.top + self.bottom;
-
-        let child_bc = bc.shrink((hpad, vpad));
+        let child_bc = bc.shrink(self.padding_size);
         let size = self.child.layout(ctx, &child_bc, data, env);
-        let origin = Point::new(self.left, self.top);
-        self.child.set_origin(ctx, data, env, origin);
+        self.child.set_origin(ctx, data, env, self.top_left);
 
-        let my_size = Size::new(size.width + hpad, size.height + vpad);
+        let my_size = size + self.padding_size;
         let my_insets = self.child.compute_parent_paint_insets(my_size);
         ctx.set_paint_insets(my_insets);
         my_size
