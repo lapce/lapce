@@ -1,19 +1,16 @@
 use std::{
     ffi::OsStr,
-    marker::PhantomData,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use druid::{
-    widget::{Click, Controller, CrossAxisAlignment, Flex, Label, List, ListIter},
-    BoxConstraints, Color, Command, Data, Env, Event, EventCtx, Insets, LayoutCtx,
-    Lens, LifeCycle, LifeCycleCtx, PaintCtx, RenderContext, Size, Target, UpdateCtx,
-    Widget, WidgetExt, WidgetId,
+    widget::{Click, CrossAxisAlignment, Flex, Label, List, ListIter},
+    Command, Data, EventCtx, Insets, Lens, Target, Widget, WidgetExt, WidgetId,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    config::{Config, LapceTheme},
+    config::{Config, GetConfig, LapceTheme},
     data::{EditorDiagnostic, LapceTabData, LapceWorkspace, PanelKind},
     editor::EditorLocationNew,
     problem::ProblemData,
@@ -25,7 +22,11 @@ use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 use crate::{
     panel::{LapcePanel, PanelHeaderKind},
     scroll::LapcePadding,
-    svg::{file_svg_path, get_svg},
+    svg::file_svg_path,
+    widgets::{
+        background::Background, label_utils::TextColorWatcher,
+        stretch::StretchVertical, svg::Svg, utils::hover::Hover,
+    },
 };
 
 pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
@@ -95,9 +96,9 @@ impl Data for ListData {
         self.config.same(&other.config) && self.items.same(&other.items)
     }
 }
-impl DataWithTheme for ListData {
-    fn color<'a>(&'a self, key: &str) -> &'a Color {
-        self.config.get_color_unchecked(key)
+impl GetConfig for ListData {
+    fn get_config(&self) -> &Config {
+        &self.config
     }
 }
 impl ListIter<FileData> for ListData {
@@ -201,9 +202,9 @@ impl Data for FileData {
             && self.items == other.items
     }
 }
-impl DataWithTheme for FileData {
-    fn color<'a>(&'a self, key: &str) -> &'a Color {
-        self.config.get_color_unchecked(key)
+impl GetConfig for FileData {
+    fn get_config(&self) -> &Config {
+        &self.config
     }
 }
 impl ListIter<ItemData> for FileData {
@@ -290,9 +291,9 @@ impl Data for ItemData {
             && self.item == other.item
     }
 }
-impl DataWithTheme for ItemData {
-    fn color<'a>(&'a self, key: &str) -> &'a Color {
-        self.config.get_color_unchecked(key)
+impl GetConfig for ItemData {
+    fn get_config(&self) -> &Config {
+        &self.config
     }
 }
 impl ListIter<RelatedItemData> for ItemData {
@@ -385,286 +386,28 @@ impl Data for RelatedItemData {
         self.config.same(&other.config) && self.data == other.data
     }
 }
-impl DataWithTheme for RelatedItemData {
-    fn color<'a>(&'a self, key: &str) -> &'a Color {
-        self.config.get_color_unchecked(key)
+impl GetConfig for RelatedItemData {
+    fn get_config(&self) -> &Config {
+        &self.config
     }
 }
 
-struct Hover<W, T, F> {
-    is_hovered: bool,
-
-    /// A closure that will be invoked when the child widget hover state changes.
-    hover_changed: F,
-
-    _marker: PhantomData<(W, T)>,
-}
-
-impl<W, T, F> Hover<W, T, F>
-where
-    F: Fn(&mut W, &mut LifeCycleCtx, &T, &Env),
-{
-    fn new(hover_changed: F) -> Self {
-        Self {
-            is_hovered: false,
-            hover_changed,
-            _marker: PhantomData,
-        }
-    }
-}
-impl<T, W, F> Controller<T, W> for Hover<W, T, F>
-where
-    F: Fn(&mut W, &mut LifeCycleCtx, &T, &Env),
-    T: Data,
-    W: Widget<T>,
-{
-    fn lifecycle(
-        &mut self,
-        child: &mut W,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &T,
-        env: &Env,
-    ) {
-        match event {
-            LifeCycle::HotChanged(_) => {
-                (self.hover_changed)(child, ctx, data, env);
-                self.is_hovered = ctx.is_hot();
-                ctx.request_paint();
-            }
-            _ => (),
-        }
-        child.lifecycle(ctx, event, data, env)
-    }
-}
-
-struct Background<W> {
-    background: Option<Color>,
-    inner: W,
-}
-
-impl<W> Background<W> {
-    fn new(inner: W) -> Self {
-        Self {
-            background: None,
-            inner,
-        }
-    }
-
-    fn set_background(&mut self, background: Color) {
-        self.background = Some(background);
-    }
-
-    fn clear_background(&mut self) {
-        self.background = None;
-    }
-}
-
-impl<W: Widget<T>, T: Data> Widget<T> for Background<W> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        self.inner.event(ctx, event, data, env)
-    }
-
-    fn lifecycle(
-        &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &T,
-        env: &Env,
-    ) {
-        self.inner.lifecycle(ctx, event, data, env)
-    }
-
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-        self.inner.update(ctx, old_data, data, env)
-    }
-
-    fn layout(
-        &mut self,
-        ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        data: &T,
-        env: &Env,
-    ) -> Size {
-        self.inner.layout(ctx, bc, data, env)
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        if let Some(background) = self.background.as_ref() {
-            let rect = ctx.size().to_rect();
-            ctx.fill(rect, background);
-        }
-        self.inner.paint(ctx, data, env)
-    }
-}
-
-trait DataWithTheme: Data {
-    fn color<'a>(&'a self, key: &str) -> &'a Color;
-}
-
-fn hoverable<T: DataWithTheme, W: Widget<T> + 'static>(widget: W) -> impl Widget<T> {
+fn hoverable<T: Data + GetConfig, W: Widget<T> + 'static>(
+    widget: W,
+) -> impl Widget<T> {
     Background::new(widget).controller(Hover::new(
         |widget: &mut Background<W>, ctx, data: &T, _env| {
             if ctx.is_hot() {
                 widget.set_background(
-                    data.color(LapceTheme::HOVER_BACKGROUND).clone(),
+                    data.get_config()
+                        .get_color_unchecked(LapceTheme::HOVER_BACKGROUND)
+                        .clone(),
                 );
             } else {
                 widget.clear_background()
             }
         },
     ))
-}
-
-struct TextColorWatcher(&'static str);
-
-impl<T: DataWithTheme> Controller<T, Label<T>> for TextColorWatcher {
-    fn lifecycle(
-        &mut self,
-        child: &mut Label<T>,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &T,
-        env: &Env,
-    ) {
-        if let LifeCycle::WidgetAdded = event {
-            child.set_text_color(data.color(self.0).clone());
-        }
-        child.lifecycle(ctx, event, data, env)
-    }
-
-    fn update(
-        &mut self,
-        child: &mut Label<T>,
-        ctx: &mut UpdateCtx,
-        old_data: &T,
-        data: &T,
-        env: &Env,
-    ) {
-        if !data.same(old_data) {
-            child.set_text_color(data.color(self.0).clone());
-        }
-        child.update(ctx, old_data, data, env);
-    }
-}
-
-struct Svg(String);
-impl Svg {
-    pub fn set_svg_path(&mut self, path: String) {
-        self.0 = path;
-    }
-}
-
-impl<T: DataWithTheme> Widget<T> for Svg {
-    fn event(
-        &mut self,
-        _ctx: &mut EventCtx,
-        _event: &Event,
-        _data: &mut T,
-        _env: &Env,
-    ) {
-    }
-
-    fn lifecycle(
-        &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        _data: &T,
-        _env: &Env,
-    ) {
-        if let LifeCycle::WidgetAdded = event {
-            ctx.request_layout();
-            ctx.request_paint();
-        }
-    }
-
-    fn update(
-        &mut self,
-        _ctx: &mut UpdateCtx,
-        _old_data: &T,
-        _data: &T,
-        _env: &Env,
-    ) {
-    }
-
-    fn layout(
-        &mut self,
-        _ctx: &mut LayoutCtx,
-        _bc: &BoxConstraints,
-        _data: &T,
-        _env: &Env,
-    ) -> Size {
-        if get_svg(&self.0).is_some() {
-            Size::new(14.0, 14.0)
-        } else {
-            Size::new(0.0, 0.0)
-        }
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, _env: &Env) {
-        if let Some(svg) = get_svg(&self.0) {
-            let rect = ctx.size().to_rect();
-
-            ctx.draw_svg(
-                &svg,
-                rect,
-                Some(data.color(LapceTheme::EDITOR_FOREGROUND)),
-            );
-        }
-    }
-}
-
-/// Gives infinite space to child widget
-///
-// FIXME: this is only necessary because the scroll component does not give infinite space to its
-// children.
-struct Stretch<W> {
-    inner: W,
-}
-
-impl<W> Stretch<W> {
-    fn new(inner: W) -> Self {
-        Self { inner }
-    }
-}
-
-impl<W, T: Data> Widget<T> for Stretch<W>
-where
-    W: Widget<T>,
-{
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        self.inner.event(ctx, event, data, env)
-    }
-
-    fn lifecycle(
-        &mut self,
-        ctx: &mut LifeCycleCtx,
-        event: &LifeCycle,
-        data: &T,
-        env: &Env,
-    ) {
-        self.inner.lifecycle(ctx, event, data, env)
-    }
-
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
-        self.inner.update(ctx, old_data, data, env)
-    }
-
-    fn layout(
-        &mut self,
-        ctx: &mut LayoutCtx,
-        bc: &BoxConstraints,
-        data: &T,
-        env: &Env,
-    ) -> Size {
-        let bc =
-            BoxConstraints::new(bc.min(), Size::new(bc.max().width, f64::INFINITY));
-        self.inner.layout(ctx, &bc, data, env)
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        self.inner.paint(ctx, data, env)
-    }
 }
 
 fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
@@ -675,7 +418,7 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
             "error.svg"
         });
 
-    Stretch::new(
+    StretchVertical::new(
         LapcePadding::new(
             Insets::new(0.0, 10.0, 0.0, 10.0),
             List::new(move || {
@@ -685,7 +428,7 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                         Flex::row()
                             .cross_axis_alignment(CrossAxisAlignment::Start)
                             .with_child(
-                                Svg(String::from("default_file.svg"))
+                                Svg::new(String::from("default_file.svg"))
                                     .on_added(|widget, ctx, data: &FileData, _evt| {
                                         widget.set_svg_path(data.icon());
                                         ctx.request_paint();
@@ -695,14 +438,14 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                             .with_child(
                                 Label::dynamic(|data: &FileData, _env| data.file())
                                     .with_text_size(13.0)
-                                    .controller(TextColorWatcher(
+                                    .controller(TextColorWatcher::new(
                                         LapceTheme::EDITOR_FOREGROUND,
                                     )),
                             )
                             .with_child(
                                 Label::dynamic(|data: &FileData, _env| data.path())
                                     .with_text_size(13.0)
-                                    .controller(TextColorWatcher(
+                                    .controller(TextColorWatcher::new(
                                         LapceTheme::EDITOR_DIM,
                                     )),
                             )
@@ -714,14 +457,14 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                                 Flex::row()
                                     .cross_axis_alignment(CrossAxisAlignment::Start)
                                     .with_child(
-                                        LapcePadding::new(Insets::new(27.0, 2.0, 4.0, 2.0), Svg(severity_icon.clone()))
+                                        LapcePadding::new(Insets::new(27.0, 2.0, 4.0, 2.0), Svg::new(severity_icon.clone()))
                                     )
                                     .with_child(
                                         Label::dynamic(|data: &ItemData, _env| {
                                             data.message()
                                         })
                                         .with_text_size(13.0)
-                                        .controller(TextColorWatcher(
+                                        .controller(TextColorWatcher::new(
                                             LapceTheme::EDITOR_FOREGROUND,
                                         )),
                                     )
@@ -739,7 +482,7 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                                 Flex::row()
                                     .cross_axis_alignment(CrossAxisAlignment::Start)
                                     .with_child(
-                                        LapcePadding::new(Insets::new(2.0 * 27.0, 2.0, 4.0, 2.0), Svg(String::from("link.svg")))
+                                        LapcePadding::new(Insets::new(2.0 * 27.0, 2.0, 4.0, 2.0), Svg::new(String::from("link.svg")))
                                     )
                                     .with_child(
                                         Label::dynamic(
@@ -748,7 +491,7 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                                             },
                                         )
                                         .with_text_size(13.0)
-                                        .controller(TextColorWatcher(
+                                        .controller(TextColorWatcher::new(
                                             LapceTheme::EDITOR_FOREGROUND,
                                         )),
                                     )
