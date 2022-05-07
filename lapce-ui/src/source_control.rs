@@ -40,7 +40,7 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
         data.source_control.widget_id,
         data.source_control.split_id,
         data.source_control.split_direction,
-        PanelHeaderKind::Simple("Source Control".to_string()),
+        PanelHeaderKind::Simple("Source Control".into()),
         vec![
             (
                 editor_data.view_id,
@@ -50,7 +50,7 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
             ),
             (
                 data.source_control.file_list_id,
-                PanelHeaderKind::Simple("Changes".to_string()),
+                PanelHeaderKind::Simple("Changes".into()),
                 content.boxed(),
                 None,
             ),
