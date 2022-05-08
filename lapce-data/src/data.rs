@@ -1735,7 +1735,7 @@ impl Lens<LapceData, LapceWindowData> for LapceWindowLens {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SplitContent {
     EditorTab(WidgetId),
     Split(WidgetId),

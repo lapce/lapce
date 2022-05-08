@@ -1,5 +1,6 @@
 use crate::keypress::KeyPress;
 
+use druid::Size;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -14,6 +15,22 @@ pub enum SplitMoveDirection {
 pub enum SplitDirection {
     Vertical,
     Horizontal,
+}
+
+impl SplitDirection {
+    pub fn main_size(self, size: Size) -> f64 {
+        match self {
+            SplitDirection::Vertical => size.width,
+            SplitDirection::Horizontal => size.height,
+        }
+    }
+
+    pub fn cross_size(self, size: Size) -> f64 {
+        match self {
+            SplitDirection::Vertical => size.height,
+            SplitDirection::Horizontal => size.width,
+        }
+    }
 }
 
 pub fn keybinding_to_string(keypress: &KeyPress) -> String {
