@@ -40,22 +40,6 @@ impl FilePickerData {
         }
     }
 
-    pub fn set_item_children(
-        &mut self,
-        path: &Path,
-        children: HashMap<PathBuf, FileNodeItem>,
-    ) {
-        if let Some(node) = self.get_file_node_mut(path) {
-            node.open = true;
-            node.read = true;
-            node.children = children;
-        }
-
-        for p in path.ancestors() {
-            self.update_node_count(&PathBuf::from(p));
-        }
-    }
-
     pub fn init_home(&mut self, home: &Path) {
         self.home = home.to_path_buf();
         let mut current_file_node = FileNodeItem {
@@ -88,42 +72,6 @@ impl FilePickerData {
         }
         self.root = current_file_node;
         self.pwd = home.to_path_buf();
-    }
-
-    pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
-        let mut node = Some(&mut self.root);
-
-        let ancestors = path.ancestors().collect::<Vec<&Path>>();
-        for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = Some(node?.children.get_mut(&PathBuf::from(p))?);
-        }
-        node
-    }
-
-    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
-        let mut node = Some(&self.root);
-
-        let ancestors = path.ancestors().collect::<Vec<&Path>>();
-        for p in ancestors[..ancestors.len() - 1].iter().rev() {
-            node = Some(node?.children.get(&PathBuf::from(p))?);
-        }
-        node
-    }
-
-    pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
-        let node = self.get_file_node_mut(path)?;
-        if node.is_dir {
-            if node.open {
-                node.children_open_count = node
-                    .children
-                    .iter()
-                    .map(|(_, item)| item.children_open_count + 1)
-                    .sum::<usize>();
-            } else {
-                node.children_open_count = 0;
-            }
-        }
-        None
     }
 }
 

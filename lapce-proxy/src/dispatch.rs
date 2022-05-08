@@ -13,6 +13,7 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
+use lapce_rpc::core::CoreNotification;
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::proxy::{ProxyNotification, ProxyRequest};
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
@@ -94,6 +95,13 @@ impl notify::EventHandler for Dispatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
+                    let notification =
+                        serde_json::to_value(&CoreNotification::FileChange {
+                            event,
+                        })
+                        .unwrap();
+                    self.send_rpc_notification(notification);
+
                     if let Some(workspace) = self.workspace.lock().clone() {
                         if let Some(diff) = git_diff_new(&workspace) {
                             if diff != *self.last_diff.lock() {
@@ -261,6 +269,10 @@ impl Dispatcher {
             }
         }
         let _ = self.sender.send(resp);
+    }
+
+    pub fn send_rpc_notification(&self, notification: Value) {
+        let _ = self.sender.send(notification);
     }
 
     pub fn send_notification(&self, method: &str, params: Value) {

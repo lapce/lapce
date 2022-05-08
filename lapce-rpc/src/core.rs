@@ -24,6 +24,9 @@ pub enum CoreNotification {
         new_content: String,
         rev: u64,
     },
+    FileChange {
+        event: notify::Event,
+    },
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
     },

@@ -1036,7 +1036,7 @@ impl LapceTabData {
                 } else {
                     let picker = Arc::make_mut(&mut self.picker);
                     picker.active = true;
-                    if let Some(node) = picker.get_file_node(&picker.pwd) {
+                    if let Some(node) = picker.root.get_file_node(&picker.pwd) {
                         if !node.read {
                             let tab_id = self.id;
                             let path = node.path_buf.clone();
@@ -1107,7 +1107,7 @@ impl LapceTabData {
                 } else {
                     let picker = Arc::make_mut(&mut self.picker);
                     picker.active = true;
-                    if let Some(node) = picker.get_file_node(&picker.pwd) {
+                    if let Some(node) = picker.root.get_file_node(&picker.pwd) {
                         if !node.read {
                             let tab_id = self.id;
                             let path = node.path_buf.clone();
@@ -1726,6 +1726,29 @@ impl LapceTabData {
                     None,
                 )
             };
+        }
+    }
+
+    pub fn handle_file_change(&mut self, event: &notify::Event) {
+        if let Some(workspace) =
+            Arc::make_mut(&mut self.file_explorer).workspace.as_mut()
+        {
+            match &event.kind {
+                notify::EventKind::Create(creat_kind) => {
+                    for path in event.paths.iter() {
+                        workspace.add_child(
+                            path,
+                            creat_kind == &notify::event::CreateKind::Folder,
+                        );
+                    }
+                }
+                notify::EventKind::Remove(_) => {
+                    for path in event.paths.iter() {
+                        workspace.remove_child(path);
+                    }
+                }
+                _ => {}
+            }
         }
     }
 }

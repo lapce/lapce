@@ -456,6 +456,10 @@ impl Widget<LapceTabData> for LapceTabNew {
                         data.set_picker_pwd(path.clone());
                         ctx.set_handled();
                     }
+                    LapceUICommand::FileChange(event) => {
+                        data.handle_file_change(event);
+                        ctx.set_handled();
+                    }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);
                         if let Some(terminal) = terminal_panel.terminals.get_mut(id)
@@ -949,6 +953,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::UpdatePickerItems(path, items) => {
                         Arc::make_mut(&mut data.picker)
+                            .root
                             .set_item_children(path, items.clone());
                         ctx.set_handled();
                     }

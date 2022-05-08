@@ -464,7 +464,7 @@ impl FilePickerExplorer {
         let pwd = picker.pwd.clone();
         let index =
             ((mouse_event.pos.y + self.line_height) / self.line_height) as usize;
-        if let Some(item) = picker.get_file_node_mut(&pwd) {
+        if let Some(item) = picker.root.get_file_node_mut(&pwd) {
             let (_, node) = get_item_children_mut(0, index, item);
             if let Some(node) = node {
                 if node.is_dir {
@@ -578,7 +578,7 @@ impl FilePickerExplorer {
                 }
                 let path = node.path_buf.clone();
                 for p in path.ancestors() {
-                    picker.update_node_count(&PathBuf::from(p));
+                    picker.root.update_node_count(p);
                 }
                 picker.index = index;
             }
@@ -611,7 +611,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
                 let index = ((mouse_event.pos.y + self.line_height)
                     / self.line_height) as usize;
                 ctx.request_paint();
-                if let Some(item) = picker.get_file_node_mut(&pwd) {
+                if let Some(item) = picker.root.get_file_node_mut(&pwd) {
                     let (_, node) = get_item_children(0, index, item);
                     if let Some(_node) = node {
                         ctx.set_cursor(&druid::Cursor::Pointer);
@@ -660,12 +660,12 @@ impl Widget<LapceTabData> for FilePickerExplorer {
         data: &LapceTabData,
         _env: &Env,
     ) -> Size {
-        let height = if let Some(item) = data.picker.get_file_node(&data.picker.pwd)
-        {
-            item.children_open_count as f64 * self.line_height
-        } else {
-            bc.max().height
-        };
+        let height =
+            if let Some(item) = data.picker.root.get_file_node(&data.picker.pwd) {
+                item.children_open_count as f64 * self.line_height
+            } else {
+                bc.max().height
+            };
         Size::new(bc.max().width, height)
     }
 
@@ -680,7 +680,7 @@ impl Widget<LapceTabData> for FilePickerExplorer {
 
         self.toggle_rects.clear();
 
-        if let Some(item) = data.picker.get_file_node(&data.picker.pwd) {
+        if let Some(item) = data.picker.root.get_file_node(&data.picker.pwd) {
             let mut i = 0;
             for item in item.sorted_children() {
                 i = paint_file_node_item_by_index(
@@ -869,7 +869,7 @@ impl FilePickerControl {
                 match command {
                     LapceUICommand::SetWorkspace(workspace) => {
                         if let Some(item) =
-                            data.picker.get_file_node(&data.picker.pwd)
+                            data.picker.root.get_file_node(&data.picker.pwd)
                         {
                             let (_, node) =
                                 get_item_children(0, data.picker.index, item);

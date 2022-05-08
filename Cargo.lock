@@ -1924,6 +1924,7 @@ dependencies = [
  "crossbeam-channel",
  "jsonrpc-lite",
  "lsp-types",
+ "notify 5.0.0-pre.13",
  "parking_lot",
  "serde 1.0.130",
  "serde_json",
@@ -2554,6 +2555,7 @@ dependencies = [
  "kqueue",
  "libc",
  "mio 0.7.13",
+ "serde 1.0.130",
  "walkdir",
  "winapi 0.3.9",
 ]

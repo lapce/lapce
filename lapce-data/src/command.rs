@@ -442,6 +442,7 @@ pub enum LapceUICommand {
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
     HomeDir(PathBuf),
+    FileChange(notify::Event),
     ProxyUpdateStatus(ProxyStatus),
     CloseTerminal(TermId),
     SplitTerminal(bool, WidgetId),

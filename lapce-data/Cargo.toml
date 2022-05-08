@@ -41,7 +41,7 @@ strum_macros = "0.24"
 lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
-notify = "5.0.0-pre.13"
+notify = { version = "5.0.0-pre.13", features = ["serde"] }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 xi-unicode = "0.3.0"
 fuzzy-matcher = "0.3.7"
