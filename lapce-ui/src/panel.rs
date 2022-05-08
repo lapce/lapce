@@ -147,7 +147,10 @@ pub struct PanelSection {
     #[allow(dead_code)]
     widget_id: WidgetId,
     header: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
-    content: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    content: WidgetPod<
+        LapceTabData,
+        LapceScrollNew<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    >,
 }
 
 impl PanelSection {
@@ -156,7 +159,7 @@ impl PanelSection {
         header: Option<Box<dyn Widget<LapceTabData>>>,
         content: Box<dyn Widget<LapceTabData>>,
     ) -> Self {
-        let content = LapceScrollNew::new(content).vertical().boxed();
+        let content = LapceScrollNew::new(content).vertical();
         Self {
             widget_id,
             header: header.map(WidgetPod::new),
