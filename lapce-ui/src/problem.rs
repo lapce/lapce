@@ -423,14 +423,15 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                     .with_child(hoverable(
                         Flex::row()
                             .cross_axis_alignment(CrossAxisAlignment::Start)
-                            .with_child(
-                                Svg::new(String::from("default_file.svg"))
-                                    .on_added(|widget, ctx, data: &FileData, _evt| {
+                            .with_child(LapcePadding::new(
+                                Insets::new(12.0, 2.0, 4.0, 2.0),
+                                Svg::new(String::from("default_file.svg")).on_added(
+                                    |widget, ctx, data: &FileData, _evt| {
                                         widget.set_svg_path(data.icon());
                                         ctx.request_paint();
-                                    })
-                                    .padding(Insets::new(12.0, 2.0, 4.0, 2.0)),
-                            )
+                                    },
+                                ),
+                            ))
                             .with_child(
                                 Label::dynamic(|data: &FileData, _env| data.file())
                                     .with_text_size(13.0)
@@ -449,60 +450,64 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                     ))
                     .with_child(List::new(move || {
                         Flex::column()
-                            .with_child(hoverable(
-                                Flex::row()
-                                    .cross_axis_alignment(CrossAxisAlignment::Start)
-                                    .with_child(
-                                        LapcePadding::new(Insets::new(27.0, 2.0, 4.0, 2.0), Svg::new(severity_icon.clone()))
-                                    )
-                                    .with_child(
-                                        Label::dynamic(|data: &ItemData, _env| {
-                                            data.message()
-                                        })
-                                        .with_text_size(13.0)
-                                        .controller(TextColorWatcher::new(
-                                            LapceTheme::EDITOR_FOREGROUND,
-                                        )),
-                                    )
-                                    .with_flex_spacer(1.0)
-                                    .controller(Click::new(
-                                        |ctx: &mut EventCtx,
-                                        data: &mut ItemData,
-                                        _env| {
-                                            data.on_click(ctx)
-                                        },
+                        .with_child(hoverable(
+                            Flex::row()
+                                .cross_axis_alignment(CrossAxisAlignment::Start)
+                                .with_child(LapcePadding::new(
+                                    Insets::new(27.0, 2.0, 4.0, 2.0),
+                                    Svg::new(severity_icon.clone()),
+                                ))
+                                .with_child(
+                                    Label::dynamic(|data: &ItemData, _env| {
+                                        data.message()
+                                    })
+                                    .with_text_size(13.0)
+                                    .controller(TextColorWatcher::new(
+                                        LapceTheme::EDITOR_FOREGROUND,
                                     )),
-                            ))
-                            .with_child(List::new(|| {
-                                hoverable(
-                                Flex::row()
-                                    .cross_axis_alignment(CrossAxisAlignment::Start)
-                                    .with_child(
-                                        LapcePadding::new(Insets::new(2.0 * 27.0, 2.0, 4.0, 2.0), Svg::new(String::from("link.svg")))
-                                    )
-                                    .with_child(
-                                        Label::dynamic(
-                                            |data: &RelatedItemData, _env| {
-                                                data.message()
-                                            },
+                                )
+                                .with_flex_spacer(1.0)
+                                .controller(Click::new(
+                                    |ctx: &mut EventCtx,
+                                     data: &mut ItemData,
+                                     _env| {
+                                        data.on_click(ctx)
+                                    },
+                                )),
+                        ))
+                        .with_child(List::new(|| {
+                            hoverable(
+                                    Flex::row()
+                                        .cross_axis_alignment(
+                                            CrossAxisAlignment::Start,
                                         )
-                                        .with_text_size(13.0)
-                                        .controller(TextColorWatcher::new(
-                                            LapceTheme::EDITOR_FOREGROUND,
+                                        .with_child(LapcePadding::new(
+                                            Insets::new(2.0 * 27.0, 2.0, 4.0, 2.0),
+                                            Svg::new(String::from("link.svg")),
+                                        ))
+                                        .with_child(
+                                            Label::dynamic(
+                                                |data: &RelatedItemData, _env| {
+                                                    data.message()
+                                                },
+                                            )
+                                            .with_text_size(13.0)
+                                            .controller(TextColorWatcher::new(
+                                                LapceTheme::EDITOR_FOREGROUND,
+                                            )),
+                                        )
+                                        .with_flex_spacer(1.0)
+                                        .controller(Click::new(
+                                            |ctx: &mut EventCtx,
+                                            data: &mut RelatedItemData,
+                                            _env| {
+                                                data.on_click(ctx)
+                                            },
                                         )),
-                                    )
-                                    .with_flex_spacer(1.0)
-                                    .controller(Click::new(
-                                        |ctx: &mut EventCtx,
-                                        data: &mut RelatedItemData,
-                                        _env| {
-                                            data.on_click(ctx)
-                                        },
-                                    )),
-                            )
-                            }))
+                                )
+                        }))
                     }))
-            })
+            }),
         )
         .lens(ListLens(severity)),
     )
