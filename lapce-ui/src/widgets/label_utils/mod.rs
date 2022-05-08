@@ -18,12 +18,12 @@ impl<T: Data + GetConfig> Controller<T, Label<T>> for TextColorWatcher {
         data: &T,
         env: &Env,
     ) {
+        child.lifecycle(ctx, event, data, env);
         if let LifeCycle::WidgetAdded = event {
             child.set_text_color(
                 data.get_config().get_color_unchecked(self.0).clone(),
             );
         }
-        child.lifecycle(ctx, event, data, env)
     }
 
     fn update(
@@ -34,11 +34,11 @@ impl<T: Data + GetConfig> Controller<T, Label<T>> for TextColorWatcher {
         data: &T,
         env: &Env,
     ) {
+        child.update(ctx, old_data, data, env);
         if !data.same(old_data) {
             child.set_text_color(
                 data.get_config().get_color_unchecked(self.0).clone(),
             );
         }
-        child.update(ctx, old_data, data, env);
     }
 }

@@ -38,6 +38,7 @@ where
         data: &T,
         env: &Env,
     ) {
+        child.lifecycle(ctx, event, data, env);
         match event {
             LifeCycle::HotChanged(_) => {
                 (self.hover_changed)(child, ctx, data, env);
@@ -46,6 +47,5 @@ where
             }
             _ => (),
         }
-        child.lifecycle(ctx, event, data, env)
     }
 }
