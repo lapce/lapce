@@ -445,7 +445,7 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                                         LapceTheme::EDITOR_DIM,
                                     )),
                             )
-                            .expand_width(),
+                            .with_flex_spacer(1.0),
                     ))
                     .with_child(List::new(move || {
                         Flex::column()
