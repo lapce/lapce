@@ -56,7 +56,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         data.search.widget_id,
         data.search.split_id,
         SplitDirection::Vertical,
-        PanelHeaderKind::Simple("Search".to_string()),
+        PanelHeaderKind::Simple("Search".into()),
         vec![(
             data.search.split_id,
             PanelHeaderKind::None,
@@ -103,7 +103,7 @@ impl SearchData {
             self.widget_id,
             self.split_id,
             SplitDirection::Vertical,
-            PanelHeaderKind::Simple("Search".to_string()),
+            PanelHeaderKind::Simple("Search".into()),
             vec![(self.split_id, PanelHeaderKind::None, split.boxed(), None)],
         )
     }

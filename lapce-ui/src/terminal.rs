@@ -100,7 +100,7 @@ impl TerminalPanel {
             data.terminal.widget_id,
             split_id,
             SplitDirection::Vertical,
-            PanelHeaderKind::Simple("Terminal".to_string()),
+            PanelHeaderKind::Simple("Terminal".into()),
             vec![(
                 split_id,
                 PanelHeaderKind::None,

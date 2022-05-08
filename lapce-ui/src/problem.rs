@@ -29,17 +29,17 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
         data.widget_id,
         data.split_id,
         SplitDirection::Vertical,
-        PanelHeaderKind::Simple("Problem".to_string()),
+        PanelHeaderKind::Simple("Problem".into()),
         vec![
             (
                 data.error_widget_id,
-                PanelHeaderKind::Simple("Errors".to_string()),
+                PanelHeaderKind::Simple("Errors".into()),
                 ProblemContent::new(DiagnosticSeverity::Error).boxed(),
                 None,
             ),
             (
                 data.warning_widget_id,
-                PanelHeaderKind::Simple("Warnings".to_string()),
+                PanelHeaderKind::Simple("Warnings".into()),
                 ProblemContent::new(DiagnosticSeverity::Warning).boxed(),
                 None,
             ),

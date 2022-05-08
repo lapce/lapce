@@ -223,7 +223,7 @@ impl FileExplorer {
             data.file_explorer.widget_id,
             split_id,
             SplitDirection::Vertical,
-            PanelHeaderKind::Simple("File Explorer".to_string()),
+            PanelHeaderKind::Simple("File Explorer".into()),
             vec![(
                 split_id,
                 PanelHeaderKind::None,
