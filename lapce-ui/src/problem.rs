@@ -72,49 +72,81 @@ impl Lens<LapceTabData, ListData> for ListLens {
 }
 
 #[derive(Clone)]
+struct SeverityFilter {
+    severity: DiagnosticSeverity,
+    items: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
+}
+
+impl Data for SeverityFilter {
+    fn same(&self, other: &Self) -> bool {
+        self.severity == other.severity && self.items.same(&other.items)
+    }
+}
+
+impl<'a> IntoIterator for &'a SeverityFilter {
+    type Item = (&'a Path, Arc<Vec<EditorDiagnostic>>);
+    type IntoIter = SeverityFilterIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SeverityFilterIterator {
+            severity: self.severity,
+            iter: self.items.iter(),
+        }
+    }
+}
+
+struct SeverityFilterIterator<'a> {
+    severity: DiagnosticSeverity,
+    iter: im::hashmap::Iter<'a, PathBuf, Arc<Vec<EditorDiagnostic>>>,
+}
+
+impl<'a> Iterator for SeverityFilterIterator<'a> {
+    type Item = (&'a Path, Arc<Vec<EditorDiagnostic>>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((path, items)) = self.iter.next() {
+            let items = if items
+                .iter()
+                .any(|item| item.diagnostic.severity != Some(self.severity))
+            {
+                Arc::new(
+                    items
+                        .iter()
+                        .cloned()
+                        .filter(|item| {
+                            item.diagnostic.severity == Some(self.severity)
+                        })
+                        .collect(),
+                )
+            } else {
+                items.clone()
+            };
+
+            if !items.is_empty() {
+                return Some((path, items));
+            }
+        }
+
+        None
+    }
+}
+
+#[derive(Clone)]
 struct ListData {
     config: Arc<Config>,
     workspace: Arc<LapceWorkspace>,
-    /// The original diagnostic list, used to detect changes.
-    items: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
     /// A cache of filtered diagnostic items.
-    relevant_items: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
+    relevant_items: SeverityFilter,
     widget_id: WidgetId,
 }
 impl ListData {
     pub fn from_tab_data(severity: DiagnosticSeverity, data: &LapceTabData) -> Self {
         ListData {
             config: data.config.clone(),
-            items: data.main_split.diagnostics.clone(),
-            relevant_items: data
-                .main_split
-                .diagnostics
-                .iter()
-                .filter_map(|(path, problems)| {
-                    let problems = if problems
-                        .iter()
-                        .any(|problem| problem.diagnostic.severity != Some(severity))
-                    {
-                        Arc::new(
-                            problems
-                                .iter()
-                                .cloned()
-                                .filter(|problem| {
-                                    problem.diagnostic.severity == Some(severity)
-                                })
-                                .collect::<Vec<_>>(),
-                        )
-                    } else {
-                        problems.clone()
-                    };
-
-                    if problems.is_empty() {
-                        None
-                    } else {
-                        Some((path.clone(), problems))
-                    }
-                })
-                .collect(),
+            relevant_items: SeverityFilter {
+                severity,
+                items: data.main_split.diagnostics.clone(),
+            },
             workspace: data.workspace.clone(),
             widget_id: data.id,
         }
@@ -122,7 +154,8 @@ impl ListData {
 }
 impl Data for ListData {
     fn same(&self, other: &Self) -> bool {
-        self.config.same(&other.config) && self.items.same(&other.items)
+        self.config.same(&other.config)
+            && self.relevant_items.same(&other.relevant_items)
     }
 }
 impl GetConfig for ListData {
@@ -132,21 +165,21 @@ impl GetConfig for ListData {
 }
 impl ListIter<FileData> for ListData {
     fn for_each(&self, mut cb: impl FnMut(&FileData, usize)) {
-        for (idx, (path, problems)) in self.relevant_items.iter().enumerate() {
+        for (idx, (path, problems)) in self.relevant_items.into_iter().enumerate() {
             let data = FileData::from_list_data(path, problems, self);
             cb(&data, idx);
         }
     }
 
     fn for_each_mut(&mut self, mut cb: impl FnMut(&mut FileData, usize)) {
-        for (idx, (path, problems)) in self.relevant_items.iter().enumerate() {
+        for (idx, (path, problems)) in self.relevant_items.into_iter().enumerate() {
             let mut data = FileData::from_list_data(path, problems, self);
             cb(&mut data, idx);
         }
     }
 
     fn data_len(&self) -> usize {
-        self.relevant_items.len()
+        self.relevant_items.into_iter().count()
     }
 }
 
@@ -160,15 +193,15 @@ struct FileData {
 }
 impl FileData {
     fn from_list_data(
-        path: &PathBuf,
-        problems: &Arc<Vec<EditorDiagnostic>>,
+        path: &Path,
+        problems: Arc<Vec<EditorDiagnostic>>,
         data: &ListData,
     ) -> Self {
         Self {
-            path: path.clone(),
+            path: path.to_owned(),
             workspace: data.workspace.clone(),
             config: data.config.clone(),
-            items: problems.clone(),
+            items: problems,
             widget_id: data.widget_id,
         }
     }
