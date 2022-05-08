@@ -57,13 +57,7 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
 struct ListLens(DiagnosticSeverity);
 impl Lens<LapceTabData, ListData> for ListLens {
     fn with<V, F: FnOnce(&ListData) -> V>(&self, data: &LapceTabData, f: F) -> V {
-        let data = ListData {
-            severity: self.0,
-            config: data.config.clone(),
-            items: data.main_split.diagnostics.clone(),
-            workspace: data.workspace.clone(),
-            widget_id: data.id,
-        };
+        let data = ListData::from_data(self.0, data);
         f(&data)
     }
 
@@ -72,13 +66,7 @@ impl Lens<LapceTabData, ListData> for ListLens {
         data: &mut LapceTabData,
         f: F,
     ) -> V {
-        let mut data = ListData {
-            severity: self.0,
-            config: data.config.clone(),
-            items: data.main_split.diagnostics.clone(),
-            workspace: data.workspace.clone(),
-            widget_id: data.id,
-        };
+        let mut data = ListData::from_data(self.0, data);
         f(&mut data)
     }
 }
@@ -88,8 +76,51 @@ struct ListData {
     severity: DiagnosticSeverity,
     config: Arc<Config>,
     workspace: Arc<LapceWorkspace>,
+    /// The original diagnostic list, used to detect changes.
     items: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
+    /// A cache of filtered diagnostic items.
+    relevant_items: im::HashMap<PathBuf, Arc<Vec<EditorDiagnostic>>>,
     widget_id: WidgetId,
+}
+impl ListData {
+    pub fn from_data(severity: DiagnosticSeverity, data: &LapceTabData) -> Self {
+        ListData {
+            severity,
+            config: data.config.clone(),
+            items: data.main_split.diagnostics.clone(),
+            relevant_items: data
+                .main_split
+                .diagnostics
+                .iter()
+                .filter_map(|(path, problems)| {
+                    let problems = if problems
+                        .iter()
+                        .any(|problem| problem.diagnostic.severity != Some(severity))
+                    {
+                        Arc::new(
+                            problems
+                                .iter()
+                                .cloned()
+                                .filter(|problem| {
+                                    problem.diagnostic.severity == Some(severity)
+                                })
+                                .collect::<Vec<_>>(),
+                        )
+                    } else {
+                        problems.clone()
+                    };
+
+                    if problems.is_empty() {
+                        None
+                    } else {
+                        Some((path.clone(), problems))
+                    }
+                })
+                .collect(),
+            workspace: data.workspace.clone(),
+            widget_id: data.id,
+        }
+    }
 }
 impl Data for ListData {
     fn same(&self, other: &Self) -> bool {
@@ -103,16 +134,7 @@ impl GetConfig for ListData {
 }
 impl ListIter<FileData> for ListData {
     fn for_each(&self, mut cb: impl FnMut(&FileData, usize)) {
-        for (idx, (path, problems)) in self
-            .items
-            .iter()
-            .filter(|(_, problems)| {
-                problems.iter().any(|problem| {
-                    problem.diagnostic.severity == Some(self.severity)
-                })
-            })
-            .enumerate()
-        {
+        for (idx, (path, problems)) in self.relevant_items.iter().enumerate() {
             let data = FileData {
                 severity: self.severity,
                 path: path.clone(),
@@ -126,16 +148,7 @@ impl ListIter<FileData> for ListData {
     }
 
     fn for_each_mut(&mut self, mut cb: impl FnMut(&mut FileData, usize)) {
-        for (idx, (path, problems)) in self
-            .items
-            .iter()
-            .filter(|(_, problems)| {
-                problems.iter().any(|problem| {
-                    problem.diagnostic.severity == Some(self.severity)
-                })
-            })
-            .enumerate()
-        {
+        for (idx, (path, problems)) in self.relevant_items.iter().enumerate() {
             let mut data = FileData {
                 severity: self.severity,
                 path: path.clone(),
@@ -149,14 +162,7 @@ impl ListIter<FileData> for ListData {
     }
 
     fn data_len(&self) -> usize {
-        self.items
-            .iter()
-            .filter(|(_, problems)| {
-                problems.iter().any(|problem| {
-                    problem.diagnostic.severity == Some(self.severity)
-                })
-            })
-            .count()
+        self.relevant_items.len()
     }
 }
 
