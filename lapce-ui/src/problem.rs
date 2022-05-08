@@ -24,8 +24,11 @@ use crate::{
     scroll::LapcePadding,
     svg::file_svg_path,
     widgets::{
-        background::Background, label_utils::TextColorWatcher,
-        stretch::StretchVertical, svg::Svg, utils::hover::Hover,
+        background::Background,
+        label_utils::TextColorWatcher,
+        stretch::StretchVertical,
+        svg::Svg,
+        utils::{hover::Hover, input_gate::InputGate},
     },
 };
 
@@ -424,19 +427,21 @@ impl GetConfig for RelatedItemData {
 fn hoverable<T: Data + GetConfig, W: Widget<T> + 'static>(
     widget: W,
 ) -> impl Widget<T> {
-    Background::new(widget).controller(Hover::new(
-        |widget: &mut Background<W>, ctx, data: &T, _env| {
-            if ctx.is_hot() {
-                widget.set_background(
-                    data.get_config()
-                        .get_color_unchecked(LapceTheme::HOVER_BACKGROUND)
-                        .clone(),
-                );
-            } else {
-                widget.clear_background()
-            }
-        },
-    ))
+    Background::new(widget)
+        .controller(Hover::new(
+            |widget: &mut Background<W>, ctx, data: &T, _env| {
+                if ctx.is_hot() {
+                    widget.set_background(
+                        data.get_config()
+                            .get_color_unchecked(LapceTheme::HOVER_BACKGROUND)
+                            .clone(),
+                    );
+                } else {
+                    widget.clear_background()
+                }
+            },
+        ))
+        .controller(InputGate)
 }
 
 fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
@@ -483,23 +488,29 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                     ))
                     .with_child(List::new(move || {
                         Flex::column()
-                        .with_child(hoverable(
-                            Flex::row()
-                                .cross_axis_alignment(CrossAxisAlignment::Start)
-                                .with_child(LapcePadding::new(
-                                    Insets::new(27.0, 2.0, 4.0, 2.0),
-                                    Svg::new(severity_icon.clone()),
-                                ))
-                                .with_child(
-                                    Label::dynamic(|data: &ItemData, _env| {
-                                        data.message()
-                                    })
-                                    .with_text_size(13.0)
-                                    .controller(TextColorWatcher::new(
-                                        LapceTheme::EDITOR_FOREGROUND,
-                                    )),
+                            .with_child(
+                                hoverable(
+                                    Flex::row()
+                                        .cross_axis_alignment(
+                                            CrossAxisAlignment::Start,
+                                        )
+                                        .with_child(LapcePadding::new(
+                                            Insets::new(27.0, 2.0, 4.0, 2.0),
+                                            Svg::new(severity_icon.clone()),
+                                        ))
+                                        .with_child(
+                                            Label::dynamic(
+                                                |data: &ItemData, _env| {
+                                                    data.message()
+                                                },
+                                            )
+                                            .with_text_size(13.0)
+                                            .controller(TextColorWatcher::new(
+                                                LapceTheme::EDITOR_FOREGROUND,
+                                            )),
+                                        )
+                                        .with_flex_spacer(1.0),
                                 )
-                                .with_flex_spacer(1.0)
                                 .controller(Click::new(
                                     |ctx: &mut EventCtx,
                                      data: &mut ItemData,
@@ -507,9 +518,9 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                                         data.on_click(ctx)
                                     },
                                 )),
-                        ))
-                        .with_child(List::new(|| {
-                            hoverable(
+                            )
+                            .with_child(List::new(|| {
+                                hoverable(
                                     Flex::row()
                                         .cross_axis_alignment(
                                             CrossAxisAlignment::Start,
@@ -529,16 +540,16 @@ fn problem_content(severity: DiagnosticSeverity) -> impl Widget<LapceTabData> {
                                                 LapceTheme::EDITOR_FOREGROUND,
                                             )),
                                         )
-                                        .with_flex_spacer(1.0)
-                                        .controller(Click::new(
-                                            |ctx: &mut EventCtx,
-                                            data: &mut RelatedItemData,
-                                            _env| {
-                                                data.on_click(ctx)
-                                            },
-                                        )),
+                                        .with_flex_spacer(1.0),
                                 )
-                        }))
+                                .controller(Click::new(
+                                    |ctx: &mut EventCtx,
+                                     data: &mut RelatedItemData,
+                                     _env| {
+                                        data.on_click(ctx)
+                                    },
+                                ))
+                            }))
                     }))
             }),
         )
