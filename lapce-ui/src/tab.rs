@@ -984,7 +984,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.main_split.event(ctx, event, data, env);
         self.status.event(ctx, event, data, env);
         for (_, panel) in data.panels.clone().iter() {
-            if panel.is_shown() {
+            if panel.is_shown() || event.should_propagate_to_hidden() {
                 self.panels
                     .get_mut(&panel.active)
                     .unwrap()

@@ -83,21 +83,18 @@ pub struct LapceSettingsPanel {
     switcher_rect: Rect,
     switcher_line_height: f64,
     close_rect: Rect,
-    children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    children: Vec<WidgetPod<LapceTabData, LapceSplitNew>>,
 }
 
 impl LapceSettingsPanel {
     pub fn new(data: &LapceTabData) -> Self {
         let children = vec![
-            WidgetPod::new(Box::new(LapceSettings::new_split(
-                LapceSettingsKind::Core,
-                data,
-            )) as Box<dyn Widget<_>>),
-            WidgetPod::new(Box::new(LapceSettings::new_split(
+            WidgetPod::new(LapceSettings::new_split(LapceSettingsKind::Core, data)),
+            WidgetPod::new(LapceSettings::new_split(
                 LapceSettingsKind::Editor,
                 data,
-            ))),
-            WidgetPod::new(Box::new(LapceKeymap::new_split(data))),
+            )),
+            WidgetPod::new(LapceKeymap::new_split(data)),
         ];
         Self {
             widget_id: data.settings.panel_widget_id,
@@ -158,7 +155,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        if !data.settings.shown {
+        if !data.settings.shown && !event.should_propagate_to_hidden() {
             return;
         }
         match event {
@@ -237,6 +234,9 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if !data.settings.shown && !event.should_propagate_to_hidden() {
+            return;
+        }
         for child in self.children.iter_mut() {
             child.lifecycle(ctx, event, data, env);
         }
