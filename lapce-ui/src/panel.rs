@@ -132,7 +132,7 @@ impl LapcePanel {
         Self {
             widget_id,
             split: WidgetPod::new(split),
-            header: WidgetPod::new(header.boxed()),
+            header: WidgetPod::new(header),
         }
     }
 }
