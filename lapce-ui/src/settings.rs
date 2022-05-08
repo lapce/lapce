@@ -158,7 +158,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        if !data.settings.shown {
+        if !data.settings.shown && !event.should_propagate_to_hidden() {
             return;
         }
         match event {
@@ -237,6 +237,9 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if !data.settings.shown && !event.should_propagate_to_hidden() {
+            return;
+        }
         for child in self.children.iter_mut() {
             child.lifecycle(ctx, event, data, env);
         }
