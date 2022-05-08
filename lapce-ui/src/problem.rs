@@ -57,7 +57,7 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
 struct ListLens(DiagnosticSeverity);
 impl Lens<LapceTabData, ListData> for ListLens {
     fn with<V, F: FnOnce(&ListData) -> V>(&self, data: &LapceTabData, f: F) -> V {
-        let data = ListData::from_data(self.0, data);
+        let data = ListData::from_tab_data(self.0, data);
         f(&data)
     }
 
@@ -66,14 +66,13 @@ impl Lens<LapceTabData, ListData> for ListLens {
         data: &mut LapceTabData,
         f: F,
     ) -> V {
-        let mut data = ListData::from_data(self.0, data);
+        let mut data = ListData::from_tab_data(self.0, data);
         f(&mut data)
     }
 }
 
 #[derive(Clone)]
 struct ListData {
-    severity: DiagnosticSeverity,
     config: Arc<Config>,
     workspace: Arc<LapceWorkspace>,
     /// The original diagnostic list, used to detect changes.
@@ -83,9 +82,8 @@ struct ListData {
     widget_id: WidgetId,
 }
 impl ListData {
-    pub fn from_data(severity: DiagnosticSeverity, data: &LapceTabData) -> Self {
+    pub fn from_tab_data(severity: DiagnosticSeverity, data: &LapceTabData) -> Self {
         ListData {
-            severity,
             config: data.config.clone(),
             items: data.main_split.diagnostics.clone(),
             relevant_items: data
@@ -135,28 +133,14 @@ impl GetConfig for ListData {
 impl ListIter<FileData> for ListData {
     fn for_each(&self, mut cb: impl FnMut(&FileData, usize)) {
         for (idx, (path, problems)) in self.relevant_items.iter().enumerate() {
-            let data = FileData {
-                severity: self.severity,
-                path: path.clone(),
-                workspace: self.workspace.clone(),
-                config: self.config.clone(),
-                items: problems.clone(),
-                widget_id: self.widget_id,
-            };
+            let data = FileData::from_list_data(path, problems, self);
             cb(&data, idx);
         }
     }
 
     fn for_each_mut(&mut self, mut cb: impl FnMut(&mut FileData, usize)) {
         for (idx, (path, problems)) in self.relevant_items.iter().enumerate() {
-            let mut data = FileData {
-                severity: self.severity,
-                path: path.clone(),
-                workspace: self.workspace.clone(),
-                config: self.config.clone(),
-                items: problems.clone(),
-                widget_id: self.widget_id,
-            };
+            let mut data = FileData::from_list_data(path, problems, self);
             cb(&mut data, idx);
         }
     }
@@ -168,7 +152,6 @@ impl ListIter<FileData> for ListData {
 
 #[derive(Clone)]
 struct FileData {
-    severity: DiagnosticSeverity,
     path: PathBuf,
     workspace: Arc<LapceWorkspace>,
     config: Arc<Config>,
@@ -176,6 +159,20 @@ struct FileData {
     widget_id: WidgetId,
 }
 impl FileData {
+    fn from_list_data(
+        path: &PathBuf,
+        problems: &Arc<Vec<EditorDiagnostic>>,
+        data: &ListData,
+    ) -> Self {
+        Self {
+            path: path.clone(),
+            workspace: data.workspace.clone(),
+            config: data.config.clone(),
+            items: problems.clone(),
+            widget_id: data.widget_id,
+        }
+    }
+
     fn file(&self) -> String {
         self.path
             .file_name()
@@ -217,18 +214,8 @@ impl ListIter<ItemData> for FileData {
     fn for_each(&self, mut cb: impl FnMut(&ItemData, usize)) {
         // Clone path once, and we'll move in and out of this variable in the loop
         let mut path = self.path.clone();
-        for (idx, problem_item) in self
-            .items
-            .iter()
-            .filter(|item| item.diagnostic.severity == Some(self.severity))
-            .enumerate()
-        {
-            let data = ItemData {
-                path,
-                config: self.config.clone(),
-                item: problem_item.clone(),
-                widget_id: self.widget_id,
-            };
+        for (idx, problem_item) in self.items.iter().enumerate() {
+            let data = ItemData::from_file_data(path, problem_item, self);
             cb(&data, idx);
             path = data.path;
         }
@@ -237,28 +224,15 @@ impl ListIter<ItemData> for FileData {
     fn for_each_mut(&mut self, mut cb: impl FnMut(&mut ItemData, usize)) {
         // Clone path once, and we'll move in and out of this variable in the loop
         let mut path = self.path.clone();
-        for (idx, problem_item) in self
-            .items
-            .iter()
-            .filter(|item| item.diagnostic.severity == Some(self.severity))
-            .enumerate()
-        {
-            let mut data = ItemData {
-                path,
-                config: self.config.clone(),
-                item: problem_item.clone(),
-                widget_id: self.widget_id,
-            };
+        for (idx, problem_item) in self.items.iter().enumerate() {
+            let mut data = ItemData::from_file_data(path, problem_item, self);
             cb(&mut data, idx);
             path = data.path;
         }
     }
 
     fn data_len(&self) -> usize {
-        self.items
-            .iter()
-            .filter(|item| item.diagnostic.severity == Some(self.severity))
-            .count()
+        self.items.len()
     }
 }
 
@@ -270,6 +244,19 @@ struct ItemData {
     widget_id: WidgetId,
 }
 impl ItemData {
+    fn from_file_data(
+        path: PathBuf,
+        problem_item: &EditorDiagnostic,
+        data: &FileData,
+    ) -> Self {
+        Self {
+            path,
+            config: data.config.clone(),
+            item: problem_item.clone(),
+            widget_id: data.widget_id,
+        }
+    }
+
     fn on_click(&self, ctx: &mut EventCtx) {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
@@ -313,11 +300,7 @@ impl ListIter<RelatedItemData> for ItemData {
             .iter()
             .enumerate()
         {
-            let data = RelatedItemData {
-                config: self.config.clone(),
-                data: problem_item.clone(),
-                widget_id: self.widget_id,
-            };
+            let data = RelatedItemData::from_item_data(problem_item, self);
             cb(&data, idx);
         }
     }
@@ -332,11 +315,7 @@ impl ListIter<RelatedItemData> for ItemData {
             .iter()
             .enumerate()
         {
-            let mut data = RelatedItemData {
-                config: self.config.clone(),
-                data: problem_item.clone(),
-                widget_id: self.widget_id,
-            };
+            let mut data = RelatedItemData::from_item_data(problem_item, self);
             cb(&mut data, idx);
         }
     }
@@ -357,6 +336,17 @@ struct RelatedItemData {
     widget_id: WidgetId,
 }
 impl RelatedItemData {
+    fn from_item_data(
+        problem_item: &DiagnosticRelatedInformation,
+        data: &ItemData,
+    ) -> Self {
+        Self {
+            config: data.config.clone(),
+            data: problem_item.clone(),
+            widget_id: data.widget_id,
+        }
+    }
+
     fn message(&self) -> String {
         format!(
             "{}[{}, {}]: {}",
