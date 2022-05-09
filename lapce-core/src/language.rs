@@ -411,76 +411,131 @@ fn walk_tree(
     }
 }
 
-// NOTE: These tests exist only when `cargo test` is given certain `--features`
-// values, together with `-p lapce-core`. For example:
-//
-//   cargo test -p lapce-core --features lang-rust,lang-python
-//
-// will not run only `test_cpp_lang`. Or use `--all-features`:
-//
-//   cargo test -p lapce-core --all-features
-//
-// In VS Code, clicking the "Run Test" button added to `mod test` will run the
-// test functions only if RA has been given the required features (i.e. in the
-// workspace settings in .vscode/settings.json).
-//
-// If clicking the "Run Test" buttons attached to the functions, RA will add
-// `--feature lang-rust`, for example, for you to the cargo test command line,
-// in addition to any features in its workspace settings.
 #[cfg(test)]
 mod test {
+    // If none of the lang features is selected, the imports and the auxiliary
+    // function(s) in the module become unused.  Hence turning off the lints.
+    #![allow(unused, unreachable_code)]
+
+    use std::path::PathBuf;
+    use super::LapceLanguage;
+
+    fn assert_language(expected: LapceLanguage, exts: &[&str]) {
+        for ext in exts {
+            let path = PathBuf::from(&format!("a.{ext}"));
+            let lang = LapceLanguage::from_path(&path).unwrap();
+
+            assert_eq!(lang, expected);
+            // In debug build, this assertion will never set off.  It
+            // nonetheless exercises the boundary check, and the debug
+            // assertion, in the `properties()` function.
+            assert_eq!(lang.properties().id, expected);
+        }
+
+        // Hopefully there will not be such a file extension to support.
+        let path = PathBuf::from("a.___");
+        assert!(LapceLanguage::from_path(&path).is_none());
+    }
+
     #[test]
     #[cfg(feature = "lang-rust")]
     fn test_rust_lang() {
-        use super::LapceLanguage;
-        use std::path::PathBuf;
-        let path = PathBuf::from("test.rs");
-        let lang = LapceLanguage::from_path(&path);
+        assert_language(LapceLanguage::Rust, &["rs"]);
+    }
 
-        assert!(lang.is_some());
-        let lang = lang.unwrap();
-        assert_eq!(lang, LapceLanguage::Rust);
-        let props = lang.properties();
-        assert_eq!(lang.comment_token(), props.comment);
-        assert_eq!(lang.indent_unit(), props.indent);
+    #[test]
+    #[cfg(feature = "lang-go")]
+    fn test_go_lang() {
+        assert_language(LapceLanguage::Go, &["go"]);
+    }
 
-        // If a programming language in the future uses this file extension, it
-        // will not be Rust.
-        let path = PathBuf::from("test.not_rust");
+    #[test]
+    #[cfg(feature = "lang-javascript")]
+    fn test_javascript_lang() {
+        assert_language(LapceLanguage::Javascript, &["js"]);
+    }
 
-        let lang = LapceLanguage::from_path(&path);
-        if lang.is_none() {
-            assert!(true)
-        } else {
-            assert_ne!(lang.unwrap(), LapceLanguage::Rust);
-        }
+    #[test]
+    #[cfg(feature = "lang-javascript")]
+    fn test_jsx_lang() {
+        assert_language(LapceLanguage::Jsx, &["jsx"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-typescript")]
+    fn test_typescript_lang() {
+        assert_language(LapceLanguage::Typescript, &["ts"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-typescript")]
+    fn test_tsx_lang() {
+        assert_language(LapceLanguage::Tsx, &["tsx"]);
     }
 
     #[test]
     #[cfg(feature = "lang-python")]
     fn test_python_lang() {
-        let path = std::path::PathBuf::from("test.py");
-        let lang = super::LapceLanguage::from_path(&path);
+        assert_language(LapceLanguage::Python, &["py"]);
+    }
 
-        assert!(lang.is_some());
-        let lang = lang.unwrap();
-        assert_eq!(lang, super::LapceLanguage::Python);
-        let props = lang.properties();
-        assert_eq!(lang.comment_token(), props.comment);
-        assert_eq!(lang.indent_unit(), props.indent);
+    #[test]
+    #[cfg(feature = "lang-toml")]
+    fn test_toml_lang() {
+        assert_language(LapceLanguage::Toml, &["toml"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-elixir")]
+    fn test_exlixir_lang() {
+        assert_language(LapceLanguage::Elixir, &["ex"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-php")]
+    fn test_php_lang() {
+        assert_language(LapceLanguage::Php, &["php"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-ruby")]
+    fn test_ruby_lang() {
+        assert_language(LapceLanguage::Ruby, &["rb"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-c")]
+    fn test_c_lang() {
+        assert_language(LapceLanguage::C, &["c"]);
     }
 
     #[test]
     #[cfg(feature = "lang-cpp")]
     fn test_cpp_lang() {
-        let path = std::path::PathBuf::from("test.cc");
-        let lang = super::LapceLanguage::from_path(&path);
+        assert_language(LapceLanguage::Cpp, &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"]);
+    }
 
-        assert!(lang.is_some());
-        let lang = lang.unwrap();
-        assert_eq!(lang, super::LapceLanguage::Cpp);
-        let props = lang.properties();
-        assert_eq!(lang.comment_token(), props.comment);
-        assert_eq!(lang.indent_unit(), props.indent);
+    #[test]
+    #[cfg(feature = "lang-json")]
+    fn test_json_lang() {
+        assert_language(LapceLanguage::Json, &["json"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-md")]
+    fn test_md_lang() {
+        assert_language(LapceLanguage::Markdown, &["md"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-html")]
+    fn test_html_lang() {
+        assert_language(LapceLanguage::Html, &["html", "htm"]);
+    }
+
+    #[test]
+    #[cfg(feature = "lang-java")]
+    fn test_java_lang() {
+        assert_language(LapceLanguage::Java, &["java"]);
     }
 }
