@@ -15,7 +15,7 @@ use grep_searcher::SearcherBuilder;
 use lapce_rpc::buffer::{BufferHeadResponse, BufferId, NewBufferResponse};
 use lapce_rpc::core::CoreNotification;
 use lapce_rpc::file::FileNodeItem;
-use lapce_rpc::proxy::{ProxyNotification, ProxyRequest};
+use lapce_rpc::proxy::{ProxyNotification, ProxyRequest, ReadDirResponse};
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcObject};
@@ -95,12 +95,9 @@ impl notify::EventHandler for Dispatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    let notification =
-                        serde_json::to_value(&CoreNotification::FileChange {
-                            event,
-                        })
-                        .unwrap();
-                    self.send_rpc_notification(notification);
+                    self.send_rpc_notification(CoreNotification::FileChange {
+                        event,
+                    });
 
                     if let Some(workspace) = self.workspace.lock().clone() {
                         if let Some(diff) = git_diff_new(&workspace) {
@@ -271,8 +268,28 @@ impl Dispatcher {
         let _ = self.sender.send(resp);
     }
 
-    pub fn send_rpc_notification(&self, notification: Value) {
-        let _ = self.sender.send(notification);
+    pub fn respond_rpc<T: serde::Serialize>(
+        &self,
+        id: RequestId,
+        result: Result<T>,
+    ) {
+        let mut resp = json!({ "id": id });
+        match result {
+            Ok(v) => resp["result"] = serde_json::to_value(v).unwrap(),
+            Err(e) => {
+                resp["error"] = json!({
+                    "code": 0,
+                    "message": format!("{}",e),
+                })
+            }
+        }
+        let _ = self.sender.send(resp);
+    }
+
+    pub fn send_rpc_notification<T: serde::Serialize>(&self, notification: T) {
+        let _ = self
+            .sender
+            .send(serde_json::to_value(notification).unwrap());
     }
 
     pub fn send_notification(&self, method: &str, params: Value) {
@@ -510,21 +527,27 @@ impl Dispatcher {
                                 .into_iter()
                                 .filter_map(|entry| {
                                     entry
-                                        .map(|e| FileNodeItem {
-                                            path_buf: e.path(),
-                                            is_dir: e.path().is_dir(),
-                                            open: false,
-                                            read: false,
-                                            children: HashMap::new(),
-                                            children_open_count: 0,
+                                        .map(|e| {
+                                            (
+                                                e.path(),
+                                                FileNodeItem {
+                                                    path_buf: e.path(),
+                                                    is_dir: e.path().is_dir(),
+                                                    open: false,
+                                                    read: false,
+                                                    children: HashMap::new(),
+                                                    children_open_count: 0,
+                                                },
+                                            )
                                         })
                                         .ok()
                                 })
-                                .collect::<Vec<FileNodeItem>>();
-                            serde_json::to_value(items).unwrap()
+                                .collect::<HashMap<PathBuf, FileNodeItem>>();
+
+                            ReadDirResponse { items }
                         })
                         .map_err(|e| anyhow!(e));
-                    local_dispatcher.respond(id, result);
+                    local_dispatcher.respond_rpc(id, result);
                 });
             }
             GetFiles { .. } => {

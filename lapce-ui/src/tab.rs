@@ -457,7 +457,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.set_handled();
                     }
                     LapceUICommand::FileChange(event) => {
-                        data.handle_file_change(event);
+                        data.handle_file_change(ctx, event);
                         ctx.set_handled();
                     }
                     LapceUICommand::CloseTerminal(id) => {
@@ -957,22 +957,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .set_item_children(path, items.clone());
                         ctx.set_handled();
                     }
-                    LapceUICommand::UpdateExplorerItems(_index, path, items) => {
+                    LapceUICommand::UpdateExplorerItems(path, items, expand) => {
                         let file_explorer = Arc::make_mut(&mut data.file_explorer);
-                        if let Some(node) = file_explorer.get_node_mut(path) {
-                            node.children = items
-                                .iter()
-                                .map(|item| (item.path_buf.clone(), item.clone()))
-                                .collect();
-                            node.read = true;
-                            node.open = true;
-                            node.children_open_count = node.children.len();
-                        }
-                        if let Some(paths) = file_explorer.node_tree(path) {
-                            for path in paths.iter() {
-                                file_explorer.update_node_count(path);
-                            }
-                        }
+                        file_explorer.update_children(
+                            path,
+                            items.to_owned(),
+                            *expand,
+                        );
                         ctx.set_handled();
                     }
                     _ => (),

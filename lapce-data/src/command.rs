@@ -383,7 +383,7 @@ pub enum LapceUICommand {
     FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommand>>),
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
-    UpdateExplorerItems(usize, PathBuf, Vec<FileNodeItem>),
+    UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
     UpdateInstalledPlugins(HashMap<String, PluginDescription>),
     UpdatePluginDescriptions(Vec<PluginDescription>),
     RequestLayout,

@@ -3,8 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use druid::WidgetId;
-use lapce_rpc::file::FileNodeItem;
+use druid::{ExtEventSink, Target, WidgetId};
+use lapce_rpc::{file::FileNodeItem, proxy::ReadDirResponse};
+
+use crate::{
+    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    proxy::LapceProxy,
+};
 
 #[derive(Clone)]
 pub struct FilePickerData {
@@ -72,6 +77,33 @@ impl FilePickerData {
         }
         self.root = current_file_node;
         self.pwd = home.to_path_buf();
+    }
+
+    pub fn read_dir(
+        path: &Path,
+        tab_id: WidgetId,
+        proxy: &LapceProxy,
+        event_sink: ExtEventSink,
+    ) {
+        let path = PathBuf::from(path);
+        let local_path = path.clone();
+        proxy.read_dir(
+            &local_path,
+            Box::new(move |result| {
+                if let Ok(res) = result {
+                    let path = path.clone();
+                    let resp: Result<ReadDirResponse, serde_json::Error> =
+                        serde_json::from_value(res);
+                    if let Ok(resp) = resp {
+                        let _ = event_sink.submit_command(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::UpdatePickerItems(path, resp.items),
+                            Target::Widget(tab_id),
+                        );
+                    }
+                }
+            }),
+        );
     }
 }
 

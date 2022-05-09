@@ -411,27 +411,13 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             node.open = !node.open;
                         } else {
                             let tab_id = data.id;
-                            let path = node.path_buf.clone();
                             let event_sink = ctx.get_external_handle();
-                            data.proxy.read_dir(
+                            FileExplorerData::read_dir(
                                 &node.path_buf,
-                                Box::new(move |result| {
-                                    if let Ok(res) = result {
-                                        let resp: Result<
-                                            Vec<FileNodeItem>,
-                                            serde_json::Error,
-                                        > = serde_json::from_value(res);
-                                        if let Ok(items) = resp {
-                                            let _ = event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::UpdateExplorerItems(
-                                                    index, path, items,
-                                                ),
-                                                Target::Widget(tab_id),
-                                            );
-                                        }
-                                    }
-                                }),
+                                true,
+                                tab_id,
+                                &data.proxy,
+                                event_sink,
                             );
                         }
                         let path = node.path_buf.clone();

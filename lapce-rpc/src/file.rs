@@ -110,15 +110,15 @@ impl FileNodeItem {
         node
     }
 
-    pub fn remove_child(&mut self, path: &Path) -> Option<()> {
+    pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
         let parent = path.parent()?;
         let node = self.get_file_node_mut(parent)?;
-        node.children.remove(path)?;
+        let node = node.children.remove(path)?;
         for p in path.ancestors() {
             self.update_node_count(p);
         }
 
-        Some(())
+        Some(node)
     }
 
     pub fn add_child(&mut self, path: &Path, is_dir: bool) -> Option<()> {

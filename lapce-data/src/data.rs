@@ -25,8 +25,7 @@ use lapce_core::{
     selection::Selection,
 };
 use lapce_rpc::{
-    file::FileNodeItem, plugin::PluginDescription, source_control::FileDiff,
-    terminal::TermId,
+    plugin::PluginDescription, source_control::FileDiff, terminal::TermId,
 };
 use lsp_types::{
     CodeActionOrCommand, Diagnostic, Position, ProgressToken, TextEdit,
@@ -1039,37 +1038,12 @@ impl LapceTabData {
                     if let Some(node) = picker.root.get_file_node(&picker.pwd) {
                         if !node.read {
                             let tab_id = self.id;
-                            let path = node.path_buf.clone();
                             let event_sink = ctx.get_external_handle();
-                            self.proxy.read_dir(
+                            FilePickerData::read_dir(
                                 &node.path_buf,
-                                Box::new(move |result| {
-                                    if let Ok(res) = result {
-                                        let resp: Result<
-                                            Vec<FileNodeItem>,
-                                            serde_json::Error,
-                                        > = serde_json::from_value(res);
-                                        if let Ok(items) = resp {
-                                            let _ = event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::UpdatePickerItems(
-                                                    path,
-                                                    items
-                                                        .iter()
-                                                        .map(|item| {
-                                                            (
-                                                                item.path_buf
-                                                                    .clone(),
-                                                                item.clone(),
-                                                            )
-                                                        })
-                                                        .collect(),
-                                                ),
-                                                Target::Widget(tab_id),
-                                            );
-                                        }
-                                    }
-                                }),
+                                tab_id,
+                                &self.proxy,
+                                event_sink,
                             );
                         }
                     }
@@ -1110,37 +1084,12 @@ impl LapceTabData {
                     if let Some(node) = picker.root.get_file_node(&picker.pwd) {
                         if !node.read {
                             let tab_id = self.id;
-                            let path = node.path_buf.clone();
                             let event_sink = ctx.get_external_handle();
-                            self.proxy.read_dir(
+                            FilePickerData::read_dir(
                                 &node.path_buf,
-                                Box::new(move |result| {
-                                    if let Ok(res) = result {
-                                        let resp: Result<
-                                            Vec<FileNodeItem>,
-                                            serde_json::Error,
-                                        > = serde_json::from_value(res);
-                                        if let Ok(items) = resp {
-                                            let _ = event_sink.submit_command(
-                                                LAPCE_UI_COMMAND,
-                                                LapceUICommand::UpdatePickerItems(
-                                                    path,
-                                                    items
-                                                        .iter()
-                                                        .map(|item| {
-                                                            (
-                                                                item.path_buf
-                                                                    .clone(),
-                                                                item.clone(),
-                                                            )
-                                                        })
-                                                        .collect(),
-                                                ),
-                                                Target::Widget(tab_id),
-                                            );
-                                        }
-                                    }
-                                }),
+                                tab_id,
+                                &self.proxy,
+                                event_sink,
                             );
                         }
                     }
@@ -1668,30 +1617,7 @@ impl LapceTabData {
         let path = self.picker.pwd.clone();
         let event_sink = ctx.get_external_handle();
         let tab_id = self.id;
-        self.proxy.read_dir(
-            &path.clone(),
-            Box::new(move |result| {
-                if let Ok(res) = result {
-                    let resp: Result<Vec<FileNodeItem>, serde_json::Error> =
-                        serde_json::from_value(res);
-                    if let Ok(items) = resp {
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdatePickerItems(
-                                path,
-                                items
-                                    .iter()
-                                    .map(|item| {
-                                        (item.path_buf.clone(), item.clone())
-                                    })
-                                    .collect(),
-                            ),
-                            Target::Widget(tab_id),
-                        );
-                    }
-                }
-            }),
-        );
+        FilePickerData::read_dir(&path, tab_id, &self.proxy, event_sink);
     }
 
     pub fn set_picker_pwd(&mut self, pwd: PathBuf) {
@@ -1729,27 +1655,39 @@ impl LapceTabData {
         }
     }
 
-    pub fn handle_file_change(&mut self, event: &notify::Event) {
-        if let Some(workspace) =
-            Arc::make_mut(&mut self.file_explorer).workspace.as_mut()
-        {
+    pub fn handle_file_change(&mut self, ctx: &mut EventCtx, event: &notify::Event) {
+        if self.file_explorer.workspace.is_some() {
             match &event.kind {
-                notify::EventKind::Create(creat_kind) => {
+                notify::EventKind::Create(_)
+                | notify::EventKind::Modify(notify::event::ModifyKind::Name(_))
+                | notify::EventKind::Remove(_) => {
                     for path in event.paths.iter() {
-                        workspace.add_child(
-                            path,
-                            creat_kind == &notify::event::CreateKind::Folder,
-                        );
-                    }
-                }
-                notify::EventKind::Remove(_) => {
-                    for path in event.paths.iter() {
-                        workspace.remove_child(path);
+                        if let Some(path) = path.parent() {
+                            FileExplorerData::read_dir(
+                                path,
+                                false,
+                                self.id,
+                                &self.proxy,
+                                ctx.get_external_handle(),
+                            );
+                        }
                     }
                 }
                 _ => {}
             }
         }
+
+        // let doc = self
+        //     .main_split
+        //     .local_docs
+        //     .get_mut(&LocalBufferKind::Search)
+        //     .unwrap();
+        // let pattern = doc.buffer().text().to_string();
+        // ctx.submit_command(Command::new(
+        //     LAPCE_UI_COMMAND,
+        //     LapceUICommand::UpdateSearch(pattern),
+        //     Target::Widget(self.id),
+        // ));
     }
 }
 
