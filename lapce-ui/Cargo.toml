@@ -50,3 +50,43 @@ structdesc = { git = "https://github.com/lapce/structdesc" }
 lapce-core = { path = "../lapce-core" }
 lapce-data = { path = "../lapce-data" }
 lapce-rpc = { path = "../lapce-rpc" }
+
+[features]
+default = ["all-languages"]
+# To build lapce with only some of the supported languages, for example:
+#
+#   cargo build --no-default-features -p lapce-ui \
+#     --features lang-rust,lang-toml,lang-md,lang-json
+#
+all-languages = [
+    "lang-rust",
+    "lang-go",
+    "lang-javascript",
+    "lang-typescript",
+    "lang-python",
+    "lang-toml",
+    "lang-elixir",
+    "lang-php",
+    "lang-ruby",
+    "lang-c",
+    "lang-cpp",
+    "lang-json",
+    "lang-md",
+    "lang-html",
+    "lang-java"
+]
+lang-rust = ["lapce-core/lang-rust"]
+lang-go = ["lapce-core/lang-go"]
+lang-javascript= ["lapce-core/lang-javascript"]
+lang-typescript = ["lapce-core/lang-typescript"]
+lang-python = ["lapce-core/lang-python"]
+lang-toml = ["lapce-core/lang-toml"]
+lang-elixir = ["lapce-core/lang-elixir"]
+lang-php = ["lapce-core/lang-php"]
+lang-ruby= ["lapce-core/lang-ruby"]
+lang-c = ["lapce-core/lang-c"]
+lang-cpp = ["lapce-core/lang-cpp"]
+lang-json= ["lapce-core/lang-json"]
+lang-md = ["lapce-core/lang-md"]
+lang-html = ["lapce-core/lang-html"]
+lang-java = ["lapce-core/lang-java"]

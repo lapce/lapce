@@ -15,21 +15,42 @@ serde = "1.0"
 serde_json = "1.0"
 tree-sitter = "0.20.6"
 tree-sitter-highlight = "0.20.1"
-tree-sitter-rust = "0.20.0"
-tree-sitter-go = "0.19.1"
-tree-sitter-javascript = "0.20.0"
-tree-sitter-typescript = "0.20.0"
-tree-sitter-python = "0.19.1"
-tree-sitter-toml = "0.20.0"
-tree-sitter-elixir = { git = "https://github.com/elixir-lang/tree-sitter-elixir.git", version = "0.19.0" }
-tree-sitter-php = { git = "https://github.com/tree-sitter/tree-sitter-php.git", version = "0.19.1" }
-tree-sitter-ruby = { git = "https://github.com/Liberatys/tree-sitter-ruby.git", branch = "chore/allow-range-of-tree-sitter" }
-tree-sitter-c = "0.20.1"
-tree-sitter-cpp = "0.20.0"
-tree-sitter-json = "0.19.0"
-tree-sitter-md = { git = "https://github.com/MDeiml/tree-sitter-markdown.git", version = "0.0.1" }
-tree-sitter-html = "0.19.0"
-tree-sitter-java = { git = "https://github.com/tree-sitter/tree-sitter-java.git", version = "0.20.0" }
+tree-sitter-rust = { version = "0.20.0", optional = true }
+tree-sitter-go = { version = "0.19.1", optional = true }
+tree-sitter-javascript = { version = "0.20.0", optional = true }
+tree-sitter-typescript = { version = "0.20.0", optional = true }
+tree-sitter-python = { version = "0.19.1", optional = true }
+tree-sitter-toml = { version = "0.20.0", optional = true }
+tree-sitter-elixir = { git = "https://github.com/elixir-lang/tree-sitter-elixir.git", version = "0.19.0", optional = true  }
+tree-sitter-php = { git = "https://github.com/tree-sitter/tree-sitter-php.git", version = "0.19.1", optional = true  }
+tree-sitter-ruby = { git = "https://github.com/Liberatys/tree-sitter-ruby.git", branch = "chore/allow-range-of-tree-sitter", optional = true  }
+tree-sitter-c = { version = "0.20.1", optional = true }
+tree-sitter-cpp = { version = "0.20.0", optional = true }
+tree-sitter-json = { version = "0.19.0", optional = true }
+tree-sitter-md = { git = "https://github.com/MDeiml/tree-sitter-markdown.git", version = "0.0.1", optional = true  }
+tree-sitter-html = { version = "0.19.0", optional = true }
+tree-sitter-java = { git = "https://github.com/tree-sitter/tree-sitter-java.git", version = "0.20.0", optional = true  }
 lsp-types = { version = "0.89.2", features = ["proposed"] }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 lapce-rpc = { path = "../lapce-rpc" }
+
+[features]
+default = []
+# See lapce-ui/Cargo.toml for how to choose the languages.  See also
+# src/language.rs for how to add new languages.  The feature names should follow
+# the tree-sitter crate names.
+lang-rust = ["dep:tree-sitter-rust"]
+lang-go = ["dep:tree-sitter-go"]
+lang-javascript= ["dep:tree-sitter-javascript"]
+lang-typescript = ["dep:tree-sitter-typescript"]
+lang-python = ["dep:tree-sitter-python"]
+lang-toml = ["dep:tree-sitter-toml"]
+lang-elixir = ["dep:tree-sitter-elixir"]
+lang-php = ["dep:tree-sitter-php"]
+lang-ruby= ["dep:tree-sitter-ruby"]
+lang-c = ["dep:tree-sitter-c"]
+lang-cpp = ["dep:tree-sitter-cpp"]
+lang-json= ["dep:tree-sitter-json"]
+lang-md = ["dep:tree-sitter-md"]
+lang-html = ["dep:tree-sitter-html"]
+lang-java = ["dep:tree-sitter-java"]
