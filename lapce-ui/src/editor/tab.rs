@@ -598,7 +598,7 @@ impl TabRectRenderer for TabRect {
             let is_dirty = match &editor_tab.children[i] {
                 EditorTabChild::Editor(editor_id, _) => {
                     let doc = data.main_split.editor_doc(*editor_id);
-                    doc.buffer().dirty()
+                    doc.buffer().is_pristine()
                 }
             };
 

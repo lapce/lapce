@@ -233,15 +233,16 @@ impl Document {
         self.buffer.rev()
     }
 
-    pub fn set_rev(&mut self, rev: u64) {
-        self.buffer.set_rev(rev)
-    }
-
-    pub fn load_content(&mut self, content: &str) {
-        self.code_actions.clear();
-        self.buffer.load_content(content);
+    pub fn init_content(&mut self, content: Rope) {
+        self.buffer.init_content(content);
         self.buffer.detect_indent(self.syntax.as_ref());
         self.loaded = true;
+        self.on_update(None);
+    }
+
+    pub fn reload(&mut self, content: Rope) {
+        self.code_actions.clear();
+        self.buffer.reload(content);
         self.on_update(None);
     }
 
@@ -268,9 +269,9 @@ impl Document {
                             {
                                 let _ = event_sink.submit_command(
                                     LAPCE_UI_COMMAND,
-                                    LapceUICommand::LoadBuffer {
+                                    LapceUICommand::InitBufferContent {
                                         path,
-                                        content: resp.content,
+                                        content: Rope::from(resp.content),
                                         locations,
                                     },
                                     Target::Widget(tab_id),

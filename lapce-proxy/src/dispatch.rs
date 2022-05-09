@@ -75,14 +75,13 @@ impl notify::EventHandler for Dispatcher {
                                             },
                                             buffer.rev,
                                         );
-                                        let _ = self.sender.send(json!({
-                                            "method": "reload_buffer",
-                                            "params": {
-                                                "buffer_id": buffer_id,
-                                                "rev": buffer.rev,
-                                                "new_content": buffer.get_document(),
+                                        self.send_rpc_notification(
+                                            CoreNotification::ReloadBuffer {
+                                                path: buffer.path.clone(),
+                                                rev: buffer.rev,
+                                                content: buffer.get_document(),
                                             },
-                                        }));
+                                        );
                                     }
                                 }
                             }

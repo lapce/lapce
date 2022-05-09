@@ -329,10 +329,15 @@ pub enum LapceUICommand {
     InitChildren,
     InitTerminalPanel(bool),
     ReloadConfig,
-    LoadBuffer {
+    InitBufferContent {
         path: PathBuf,
-        content: String,
+        content: Rope,
         locations: Vec<(WidgetId, EditorLocationNew)>,
+    },
+    ReloadBuffer {
+        path: PathBuf,
+        rev: u64,
+        content: Rope,
     },
     LoadBufferHead {
         path: PathBuf,
@@ -432,7 +437,6 @@ pub enum LapceUICommand {
     PublishDiagnostics(PublishDiagnosticsParams),
     WorkDoneProgress(ProgressParams),
     UpdateDiffInfo(DiffInfo),
-    ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),
     EnsureCursorVisible(Option<EnsureVisiblePosition>),

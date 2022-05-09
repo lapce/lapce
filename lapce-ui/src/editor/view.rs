@@ -655,7 +655,9 @@ impl Widget<LapceTabData> for LapceEditorView {
                 }
             }
         }
-        if editor_data.doc.buffer().dirty() != old_editor_data.doc.buffer().dirty() {
+        if editor_data.doc.buffer().is_pristine()
+            != old_editor_data.doc.buffer().is_pristine()
+        {
             ctx.request_paint();
         }
         if editor_data.editor.new_cursor != old_editor_data.editor.new_cursor {

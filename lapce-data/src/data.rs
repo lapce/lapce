@@ -33,7 +33,7 @@ use lsp_types::{
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use xi_rope::{RopeDelta, Transformer};
+use xi_rope::{Rope, RopeDelta, Transformer};
 
 use crate::{
     command::{
@@ -1386,7 +1386,7 @@ impl LapceTabData {
                     return;
                 }
                 self.proxy.git_commit(message, diffs);
-                Arc::make_mut(doc).load_content("");
+                Arc::make_mut(doc).reload(Rope::from(""));
                 let editor = self
                     .main_split
                     .editors
@@ -1630,7 +1630,7 @@ impl LapceTabData {
                 .get_mut(&LocalBufferKind::FilePicker)
                 .unwrap();
             let doc = Arc::make_mut(doc);
-            doc.load_content(s);
+            doc.reload(Rope::from(s));
             let editor = self
                 .main_split
                 .editors
@@ -1932,6 +1932,7 @@ impl LapceMainSplitData {
         let buffer_id = doc.id();
         let event_sink = ctx.get_external_handle();
         let path = PathBuf::from(path);
+        println!("save rev {rev}");
         self.proxy.save(
             rev,
             buffer_id,

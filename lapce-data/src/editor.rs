@@ -1730,7 +1730,7 @@ impl LapceEditorBufferData {
                 }
             }
             Save => {
-                if !self.doc.buffer().dirty() {
+                if self.doc.buffer().is_pristine() {
                     return CommandExecuted::Yes;
                 }
 

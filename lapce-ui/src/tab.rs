@@ -33,6 +33,7 @@ use lapce_data::{
 };
 use lsp_types::DiagnosticSeverity;
 use serde::Deserialize;
+use xi_rope::Rope;
 
 use crate::{
     activity::ActivityBar, code_action::CodeAction, completion::CompletionContainer,
@@ -307,13 +308,13 @@ impl Widget<LapceTabData> for LapceTabNew {
                         ctx.request_paint();
                         ctx.set_handled();
                     }
-                    LapceUICommand::LoadBuffer {
+                    LapceUICommand::InitBufferContent {
                         path,
                         content,
                         locations,
                     } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
-                        Arc::make_mut(doc).load_content(content);
+                        Arc::make_mut(doc).init_content(content.to_owned());
                         for (view_id, location) in locations {
                             data.main_split.go_to_location(
                                 ctx,
@@ -330,7 +331,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .local_docs
                             .get_mut(&LocalBufferKind::Palette)
                             .unwrap();
-                        Arc::make_mut(doc).load_content(pattern);
+                        Arc::make_mut(doc).reload(Rope::from(pattern));
                         let editor = data
                             .main_split
                             .editors
@@ -354,7 +355,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                             .get_mut(&LocalBufferKind::Search)
                             .unwrap();
                         if &doc.buffer().text().to_string() != pattern {
-                            Arc::make_mut(doc).load_content(pattern);
+                            Arc::make_mut(doc).reload(Rope::from(pattern));
                         }
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
@@ -583,8 +584,9 @@ impl Widget<LapceTabData> for LapceTabNew {
                     }
                     LapceUICommand::BufferSave(path, rev) => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        println!("buffer save {rev} {}", doc.rev());
                         if doc.rev() == *rev {
-                            Arc::make_mut(doc).buffer_mut().set_dirty(false);
+                            Arc::make_mut(doc).buffer_mut().set_pristine();
                         }
                         ctx.set_handled();
                     }
@@ -595,7 +597,7 @@ impl Widget<LapceTabData> for LapceTabNew {
                         location,
                     } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
-                        Arc::make_mut(doc).load_content(content);
+                        Arc::make_mut(doc).reload(Rope::from(content));
                         data.main_split.go_to_location(
                             ctx,
                             Some(*editor_view_id),
@@ -790,54 +792,43 @@ impl Widget<LapceTabData> for LapceTabNew {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::ReloadBuffer(id, rev, new_content) => {
-                        for (_, doc) in data.main_split.open_docs.iter_mut() {
-                            if doc.id() == *id {
-                                if doc.rev() + 1 == *rev {
-                                    let doc = Arc::make_mut(doc);
-                                    doc.load_content(new_content);
-                                    doc.set_rev(*rev);
+                    LapceUICommand::ReloadBuffer { path, rev, content } => {
+                        let doc = data.main_split.open_docs.get_mut(path).unwrap();
+                        println!("rev {rev} {}", doc.rev());
+                        if doc.rev() + 1 == *rev {
+                            let doc = Arc::make_mut(doc);
+                            doc.reload(content.to_owned());
 
-                                    for (_, editor) in
-                                        data.main_split.editors.iter_mut()
-                                    {
-                                        if &editor.content == doc.content()
-                                            && editor.new_cursor.offset()
-                                                >= doc.buffer().len()
-                                        {
-                                            let editor = Arc::make_mut(editor);
-                                            if data.config.lapce.modal {
-                                                editor.new_cursor = Cursor::new(
-                                                    CursorMode::Normal(
-                                                        doc.buffer()
-                                                            .offset_line_end(
-                                                                doc.buffer().len(),
-                                                                false,
-                                                            ),
-                                                    ),
-                                                    None,
-                                                    None,
-                                                );
-                                            } else {
-                                                editor.new_cursor = Cursor::new(
-                                                    CursorMode::Insert(
-                                                        Selection::caret(
-                                                            doc.buffer()
-                                                                .offset_line_end(
-                                                                    doc.buffer()
-                                                                        .len(),
-                                                                    true,
-                                                                ),
-                                                        ),
-                                                    ),
-                                                    None,
-                                                    None,
-                                                );
-                                            }
-                                        }
+                            for (_, editor) in data.main_split.editors.iter_mut() {
+                                if &editor.content == doc.content()
+                                    && editor.new_cursor.offset()
+                                        >= doc.buffer().len()
+                                {
+                                    let editor = Arc::make_mut(editor);
+                                    if data.config.lapce.modal {
+                                        editor.new_cursor = Cursor::new(
+                                            CursorMode::Normal(
+                                                doc.buffer().offset_line_end(
+                                                    doc.buffer().len(),
+                                                    false,
+                                                ),
+                                            ),
+                                            None,
+                                            None,
+                                        );
+                                    } else {
+                                        editor.new_cursor = Cursor::new(
+                                            CursorMode::Insert(Selection::caret(
+                                                doc.buffer().offset_line_end(
+                                                    doc.buffer().len(),
+                                                    true,
+                                                ),
+                                            )),
+                                            None,
+                                            None,
+                                        );
                                     }
                                 }
-                                break;
                             }
                         }
                         ctx.set_handled();

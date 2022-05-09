@@ -26,6 +26,7 @@ use lapce_data::{
     keypress::KeyPressFocus,
     proxy::VERSION,
 };
+use xi_rope::Rope;
 
 use crate::{
     editor::view::LapceEditorView,
@@ -667,7 +668,7 @@ impl LapceSettingsItem {
                 event_sink,
                 data.proxy.clone(),
             );
-            doc.load_content(&input);
+            doc.reload(Rope::from(&input));
             data.main_split.value_docs.insert(name, Arc::new(doc));
             let editor = LapceEditorData::new(None, None, content, &data.config);
             let view_id = editor.view_id;

@@ -20,8 +20,8 @@ pub enum CoreNotification {
         styles: Vec<LineStyle>,
     },
     ReloadBuffer {
-        buffer_id: BufferId,
-        new_content: String,
+        path: PathBuf,
+        content: String,
         rev: u64,
     },
     FileChange {

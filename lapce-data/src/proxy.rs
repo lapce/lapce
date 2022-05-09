@@ -28,7 +28,7 @@ use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
 use xi_rope::spans::SpansBuilder;
-use xi_rope::{Interval, RopeDelta};
+use xi_rope::{Interval, Rope, RopeDelta};
 
 use crate::command::LapceUICommand;
 use crate::command::LAPCE_UI_COMMAND;
@@ -98,14 +98,14 @@ impl Handler for LapceProxy {
                     );
                 });
             }
-            ReloadBuffer {
-                buffer_id,
-                new_content,
-                rev,
-            } => {
+            ReloadBuffer { path, content, rev } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::ReloadBuffer(buffer_id, rev, new_content),
+                    LapceUICommand::ReloadBuffer {
+                        path,
+                        rev,
+                        content: Rope::from(content),
+                    },
                     Target::Widget(self.tab_id),
                 );
             }

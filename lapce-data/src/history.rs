@@ -69,7 +69,7 @@ impl DocumentHisotry {
 
     pub fn load_content(&mut self, content: Rope, doc: &Document) {
         let mut buffer = Buffer::new("");
-        buffer.load_content(&content.slice_to_cow(..));
+        buffer.init_content(content);
         self.buffer = Some(buffer);
         self.trigger_update_change(doc);
         self.retrieve_history_styles(doc);

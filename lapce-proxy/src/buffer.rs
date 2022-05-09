@@ -34,6 +34,7 @@ impl Buffer {
         } else {
             Rope::from("")
         };
+        let rev = if rope.is_empty() { 0 } else { 1 };
         let language_id = language_id_from_path(&path).unwrap_or("").to_string();
         let mod_time = get_mod_time(&path);
         Buffer {
@@ -41,7 +42,7 @@ impl Buffer {
             rope,
             path,
             language_id,
-            rev: 0,
+            rev,
             sender,
             dirty: false,
             mod_time,
