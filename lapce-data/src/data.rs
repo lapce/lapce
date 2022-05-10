@@ -1932,7 +1932,6 @@ impl LapceMainSplitData {
         let buffer_id = doc.id();
         let event_sink = ctx.get_external_handle();
         let path = PathBuf::from(path);
-        println!("save rev {rev}");
         self.proxy.save(
             rev,
             buffer_id,

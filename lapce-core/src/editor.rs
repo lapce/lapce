@@ -1147,6 +1147,7 @@ impl Editor {
                     CursorMode::Normal(offset) => *offset,
                 };
 
+                buffer.reset_edit_type();
                 cursor.mode = CursorMode::Normal(offset);
                 cursor.horiz = None;
                 vec![]

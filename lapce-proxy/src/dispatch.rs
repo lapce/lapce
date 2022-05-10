@@ -398,7 +398,7 @@ impl Dispatcher {
             }
             GitCommit { message, diffs } => {
                 if let Some(workspace) = self.workspace.lock().clone() {
-                    if let Err(_e) = git_commit(&workspace, &message, diffs) {}
+                    let _ = git_commit(&workspace, &message, diffs);
                 }
             }
         }

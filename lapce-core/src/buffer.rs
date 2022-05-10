@@ -253,6 +253,10 @@ impl Buffer {
         self.indent_style.as_str()
     }
 
+    pub fn reset_edit_type(&mut self) {
+        self.last_edit_type = EditType::Other
+    }
+
     pub fn edit(
         &mut self,
         edits: &[(impl AsRef<Selection>, &str)],
