@@ -595,14 +595,14 @@ impl TabRectRenderer for TabRect {
         // Only display dirty icon if focus is not on tab bar, so that the close svg can be shown
         if !(ctx.is_hot() && self.rect.contains(mouse_pos)) {
             // See if any of the children are dirty
-            let is_dirty = match &editor_tab.children[i] {
+            let is_pristine = match &editor_tab.children[i] {
                 EditorTabChild::Editor(editor_id, _) => {
                     let doc = data.main_split.editor_doc(*editor_id);
                     doc.buffer().is_pristine()
                 }
             };
 
-            if is_dirty {
+            if !is_pristine {
                 let svg = get_svg("unsaved.svg").unwrap();
                 ctx.draw_svg(
                     &svg,
