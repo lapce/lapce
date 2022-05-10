@@ -6,7 +6,7 @@ use std::{
 
 use crossbeam_channel::unbounded;
 use notify::{
-    event::{MetadataKind, ModifyKind, RenameMode},
+    event::{ModifyKind, RenameMode},
     recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode,
     Watcher,
 };
