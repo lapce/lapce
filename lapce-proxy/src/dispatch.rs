@@ -1,7 +1,8 @@
-use crate::buffer::{get_mod_time, Buffer};
+use crate::buffer::{get_mod_time, load_file, Buffer};
 use crate::lsp::LspCatalog;
 use crate::plugin::PluginCatalog;
 use crate::terminal::Terminal;
+use crate::watcher::{FileWatcher, Notify, WatchToken};
 use alacritty_terminal::event_loop::Msg;
 use alacritty_terminal::term::SizeInfo;
 use anyhow::{anyhow, Context, Result};
@@ -19,8 +20,6 @@ use lapce_rpc::proxy::{ProxyNotification, ProxyRequest, ReadDirResponse};
 use lapce_rpc::source_control::{DiffInfo, FileDiff};
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::{self, Call, RequestId, RpcObject};
-use lsp_types::TextDocumentContentChangeEvent;
-use notify::Watcher;
 use parking_lot::Mutex;
 use serde_json::json;
 use serde_json::Value;
@@ -30,6 +29,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::{collections::HashSet, io::BufRead};
+
+const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
+const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
 
 #[derive(Clone)]
 pub struct Dispatcher {
@@ -44,77 +46,13 @@ pub struct Dispatcher {
     open_files: Arc<Mutex<HashMap<String, BufferId>>>,
     plugins: Arc<Mutex<PluginCatalog>>,
     pub lsp: Arc<Mutex<LspCatalog>>,
-    pub watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
+    pub file_watcher: Arc<Mutex<Option<FileWatcher>>>,
     last_diff: Arc<Mutex<DiffInfo>>,
 }
 
-impl notify::EventHandler for Dispatcher {
-    fn handle_event(&mut self, event: notify::Result<notify::Event>) {
-        if let Ok(event) = event {
-            for path in event.paths.iter() {
-                if let Some(path) = path.to_str() {
-                    if let Some(buffer_id) = self.open_files.lock().get(path) {
-                        match event.kind {
-                            notify::EventKind::Create(_)
-                            | notify::EventKind::Modify(_) => {
-                                if let Some(buffer) =
-                                    self.buffers.lock().get_mut(buffer_id)
-                                {
-                                    if get_mod_time(&buffer.path) == buffer.mod_time
-                                    {
-                                        return;
-                                    }
-                                    if !buffer.dirty {
-                                        buffer.reload();
-                                        self.lsp.lock().update(
-                                            buffer,
-                                            &TextDocumentContentChangeEvent {
-                                                range: None,
-                                                range_length: None,
-                                                text: buffer.get_document(),
-                                            },
-                                            buffer.rev,
-                                        );
-                                        self.send_rpc_notification(
-                                            CoreNotification::ReloadBuffer {
-                                                path: buffer.path.clone(),
-                                                rev: buffer.rev,
-                                                content: buffer.get_document(),
-                                            },
-                                        );
-                                    }
-                                }
-                            }
-                            _ => (),
-                        }
-                    }
-                }
-            }
-            match event.kind {
-                notify::EventKind::Create(_)
-                | notify::EventKind::Modify(_)
-                | notify::EventKind::Remove(_) => {
-                    self.send_rpc_notification(CoreNotification::FileChange {
-                        event,
-                    });
-
-                    if let Some(workspace) = self.workspace.lock().clone() {
-                        if let Some(diff) = git_diff_new(&workspace) {
-                            if diff != *self.last_diff.lock() {
-                                self.send_notification(
-                                    "diff_info",
-                                    json!({
-                                        "diff": diff,
-                                    }),
-                                );
-                                *self.last_diff.lock() = diff;
-                            }
-                        }
-                    }
-                }
-                _ => (),
-            }
-        }
+impl Notify for Dispatcher {
+    fn notify(&self) {
+        self.handle_fs_events();
     }
 }
 
@@ -131,11 +69,10 @@ impl Dispatcher {
             terminals: Arc::new(Mutex::new(HashMap::new())),
             plugins: Arc::new(Mutex::new(plugins)),
             lsp: Arc::new(Mutex::new(LspCatalog::new())),
-            watcher: Arc::new(Mutex::new(None)),
+            file_watcher: Arc::new(Mutex::new(None)),
             last_diff: Arc::new(Mutex::new(DiffInfo::default())),
         };
-        *dispatcher.watcher.lock() =
-            Some(notify::recommended_watcher(dispatcher.clone()).unwrap());
+        *dispatcher.file_watcher.lock() = Some(FileWatcher::new(dispatcher.clone()));
         dispatcher.lsp.lock().dispatcher = Some(dispatcher.clone());
 
         let local_dispatcher = dispatcher.clone();
@@ -192,7 +129,7 @@ impl Dispatcher {
                             self.buffers.lock().clear();
                             self.plugins.lock().stop();
                             self.lsp.lock().stop();
-                            self.watcher.lock().take();
+                            self.file_watcher.lock().take();
                             return Ok(());
                         }
                         self.handle_notification(notification);
@@ -298,17 +235,74 @@ impl Dispatcher {
         }));
     }
 
+    fn handle_fs_events(&self) {
+        let mut events =
+            { self.file_watcher.lock().as_mut().unwrap().take_events() };
+
+        for (token, event) in events.drain(..) {
+            match token {
+                OPEN_FILE_EVENT_TOKEN => self.handle_open_file_fs_event(event),
+                WORKSPACE_EVENT_TOKEN => self.handle_workspace_fs_event(event),
+                _ => {}
+            }
+        }
+    }
+
+    fn handle_open_file_fs_event(&self, event: notify::Event) {
+        use notify::event::*;
+        let path = match event.kind {
+            EventKind::Modify(_) => &event.paths[0],
+            _ => {
+                return;
+            }
+        };
+
+        if let Some(path) = path.to_str() {
+            if let Some(buffer_id) = self.open_files.lock().get(path) {
+                if let Some(buffer) = self.buffers.lock().get_mut(buffer_id) {
+                    if get_mod_time(&buffer.path) == buffer.mod_time {
+                        return;
+                    }
+                    if let Ok(content) = load_file(&buffer.path) {
+                        self.send_rpc_notification(
+                            CoreNotification::OpenFileChanged {
+                                path: buffer.path.clone(),
+                                content,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn handle_workspace_fs_event(&self, event: notify::Event) {
+        if let Some(workspace) = self.workspace.lock().clone() {
+            self.send_rpc_notification(CoreNotification::FileChange { event });
+            if let Some(diff) = git_diff_new(&workspace) {
+                if diff != *self.last_diff.lock() {
+                    self.send_notification(
+                        "diff_info",
+                        json!({
+                            "diff": diff,
+                        }),
+                    );
+                    *self.last_diff.lock() = diff;
+                }
+            }
+        }
+    }
+
     fn handle_notification(&self, rpc: ProxyNotification) {
         use ProxyNotification::*;
         match rpc {
             Initialize { workspace } => {
                 *self.workspace.lock() = Some(workspace.clone());
-                let _ = self
-                    .watcher
-                    .lock()
-                    .as_mut()
-                    .unwrap()
-                    .watch(&workspace, notify::RecursiveMode::Recursive);
+                self.file_watcher.lock().as_mut().unwrap().watch(
+                    &workspace,
+                    true,
+                    WORKSPACE_EVENT_TOKEN,
+                );
                 if let Some(diff) = git_diff_new(&workspace) {
                     self.send_notification(
                         "diff_info",
@@ -408,12 +402,11 @@ impl Dispatcher {
         use ProxyRequest::*;
         match rpc {
             NewBuffer { buffer_id, path } => {
-                let _ = self
-                    .watcher
-                    .lock()
-                    .as_mut()
-                    .unwrap()
-                    .watch(&path, notify::RecursiveMode::Recursive);
+                self.file_watcher.lock().as_mut().unwrap().watch(
+                    &path,
+                    false,
+                    OPEN_FILE_EVENT_TOKEN,
+                );
                 self.open_files
                     .lock()
                     .insert(path.to_str().unwrap().to_string(), buffer_id);

@@ -234,10 +234,12 @@ impl Buffer {
         self.set_pristine();
     }
 
-    pub fn reload(&mut self, content: Rope) {
+    pub fn reload(&mut self, content: Rope) -> (RopeDelta, InvalLines) {
         let delta = LineHashDiff::compute_delta(&self.text, &content);
-        self.add_delta(delta);
+        self.this_edit_type = EditType::Other;
+        let (delta, inval_lines) = self.add_delta(delta);
         self.set_pristine();
+        (delta, inval_lines)
     }
 
     pub fn detect_indent(&mut self, syntax: Option<&Syntax>) {
@@ -529,6 +531,8 @@ impl Buffer {
 
         let deletes_bitxor = self.deletes_from_union.bitxor(&deletes_from_union);
         let max_undo_so_far = self.revs.last().unwrap().max_undo_so_far;
+        self.atomic_rev
+            .store(self.rev_counter, atomic::Ordering::Release);
         (
             Revision {
                 num: self.rev_counter,

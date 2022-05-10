@@ -334,6 +334,10 @@ pub enum LapceUICommand {
         content: Rope,
         locations: Vec<(WidgetId, EditorLocationNew)>,
     },
+    OpenFileChanged {
+        path: PathBuf,
+        content: Rope,
+    },
     ReloadBuffer {
         path: PathBuf,
         rev: u64,

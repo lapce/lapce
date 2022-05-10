@@ -98,6 +98,16 @@ impl Handler for LapceProxy {
                     );
                 });
             }
+            OpenFileChanged { path, content } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenFileChanged {
+                        path,
+                        content: Rope::from(content),
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
             ReloadBuffer { path, content, rev } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,

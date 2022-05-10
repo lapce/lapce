@@ -18,7 +18,6 @@ pub struct Buffer {
     pub rope: Rope,
     pub path: PathBuf,
     pub rev: u64,
-    pub dirty: bool,
     sender: Sender<(BufferId, u64)>,
     pub mod_time: Option<SystemTime>,
 }
@@ -29,7 +28,7 @@ impl Buffer {
         path: PathBuf,
         sender: Sender<(BufferId, u64)>,
     ) -> Buffer {
-        let rope = if let Ok(rope) = load_file(&path) {
+        let rope = if let Ok(rope) = load_rope(&path) {
             rope
         } else {
             Rope::from("")
@@ -44,7 +43,6 @@ impl Buffer {
             language_id,
             rev,
             sender,
-            dirty: false,
             mod_time,
         }
     }
@@ -53,7 +51,6 @@ impl Buffer {
         if self.rev != rev {
             return Err(anyhow!("not the right rev"));
         }
-        self.dirty = false;
         let tmp_extension = self.path.extension().map_or_else(
             || OsString::from("swp"),
             |ext| {
@@ -73,18 +70,6 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn reload(&mut self) {
-        let rope = if let Ok(rope) = load_file(&self.path) {
-            rope
-        } else {
-            Rope::from("")
-        };
-
-        self.rope = rope;
-        self.rev += 1;
-        let _ = self.sender.send((self.id, self.rev));
-    }
-
     pub fn update(
         &mut self,
         delta: &RopeDelta,
@@ -94,7 +79,6 @@ impl Buffer {
             return None;
         }
         self.rev += 1;
-        self.dirty = true;
         let content_change = get_document_content_changes(delta, self);
         self.rope = delta.apply(&self.rope);
         let content_change = match content_change {
@@ -147,7 +131,14 @@ impl Buffer {
     }
 }
 
-fn load_file(path: &Path) -> Result<Rope> {
+pub fn load_file(path: &Path) -> Result<String> {
+    let mut f = File::open(path)?;
+    let mut bytes = Vec::new();
+    f.read_to_end(&mut bytes)?;
+    Ok(std::str::from_utf8(&bytes)?.to_string())
+}
+
+fn load_rope(path: &Path) -> Result<Rope> {
     let mut f = File::open(path)?;
     let mut bytes = Vec::new();
     f.read_to_end(&mut bytes)?;

@@ -242,8 +242,14 @@ impl Document {
 
     pub fn reload(&mut self, content: Rope) {
         self.code_actions.clear();
-        self.buffer.reload(content);
-        self.on_update(None);
+        let delta = self.buffer.reload(content);
+        self.apply_deltas(&[delta]);
+    }
+
+    pub fn handle_file_changed(&mut self, content: Rope) {
+        if self.buffer.is_pristine() {
+            self.reload(content);
+        }
     }
 
     pub fn retrieve_file(&mut self, locations: Vec<(WidgetId, EditorLocationNew)>) {

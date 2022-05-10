@@ -1860,7 +1860,7 @@ dependencies = [
  "libloading",
  "log",
  "lsp-types",
- "notify 5.0.0-pre.13",
+ "notify 5.0.0-pre.15",
  "parking_lot",
  "pulldown-cmark",
  "rayon",
@@ -1903,7 +1903,7 @@ dependencies = [
  "locale_config",
  "lsp-types",
  "mio 0.6.23",
- "notify 5.0.0-pre.13",
+ "notify 5.0.0-pre.15",
  "parking_lot",
  "regex",
  "serde 1.0.130",
@@ -1924,7 +1924,7 @@ dependencies = [
  "crossbeam-channel",
  "jsonrpc-lite",
  "lsp-types",
- "notify 5.0.0-pre.13",
+ "notify 5.0.0-pre.15",
  "parking_lot",
  "serde 1.0.130",
  "serde_json",
@@ -1963,7 +1963,7 @@ dependencies = [
  "libloading",
  "log",
  "lsp-types",
- "notify 5.0.0-pre.13",
+ "notify 5.0.0-pre.15",
  "parking_lot",
  "rayon",
  "regex",
@@ -2315,19 +2315,6 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.7.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c2bdb6314ec10835cd3293dd268473a835c02b7b352e788be788b3c6ca6bb16"
-dependencies = [
- "libc",
- "log",
- "miow 0.3.7",
- "ntapi",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "mio"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52da4364ffb0e4fe33a9841a98a3f3014fb964045ce4f7a45a398243c8d6b0c9"
@@ -2543,9 +2530,9 @@ dependencies = [
 
 [[package]]
 name = "notify"
-version = "5.0.0-pre.13"
+version = "5.0.0-pre.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "245d358380e2352c2d020e8ee62baac09b3420f1f6c012a31326cfced4ad487d"
+checksum = "553f9844ad0b0824605c20fb55a661679782680410abfb1a8144c2e7e437e7a7"
 dependencies = [
  "bitflags",
  "crossbeam-channel",
@@ -2554,7 +2541,7 @@ dependencies = [
  "inotify 0.9.6",
  "kqueue",
  "libc",
- "mio 0.7.13",
+ "mio 0.8.2",
  "serde 1.0.130",
  "walkdir",
  "winapi 0.3.9",

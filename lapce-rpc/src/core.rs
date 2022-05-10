@@ -19,6 +19,10 @@ pub enum CoreNotification {
         len: usize,
         styles: Vec<LineStyle>,
     },
+    OpenFileChanged {
+        path: PathBuf,
+        content: String,
+    },
     ReloadBuffer {
         path: PathBuf,
         content: String,
