@@ -310,8 +310,6 @@ impl Buffer {
         new_deletes_from_union: Subset,
     ) -> InvalLines {
         self.rev_counter += 1;
-        self.atomic_rev
-            .store(self.rev_counter, atomic::Ordering::Release);
 
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.text.line_of_offset(iv.end) + 1;
@@ -390,6 +388,8 @@ impl Buffer {
         );
 
         let head_rev = &self.revs.last().unwrap();
+        self.atomic_rev
+            .store(self.rev_counter, atomic::Ordering::Release);
         (
             Revision {
                 num: self.rev_counter,
