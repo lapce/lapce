@@ -145,6 +145,10 @@ command = "save"
 key = "meta+o"
 command = "open_file"
 
+[[keymaps]]
+key = "meta+n"
+command = "new_file"
+
 # ----------------------------------- Editor Management -------------------------------
 
 [[keymaps]]
