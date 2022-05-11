@@ -136,7 +136,7 @@ pub enum LapceLanguage {
 // `LapceLanguage` as they will be accessed using the enum variants as indices.
 const LANGUAGES: &[SyntaxProperties] = &[
     #[cfg(feature = "lang-rust")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Rust,
         language: tree_sitter_rust::language,
         highlight: tree_sitter_rust::HIGHLIGHT_QUERY,
@@ -144,12 +144,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         code_lens: (
             &["source_file", "impl_item", "trait_item", "declaration_list"],
-            &["source_file", "use_declaration", "line_comment"]
+            &["source_file", "use_declaration", "line_comment"],
         ),
         extensions: &["rs"],
     },
     #[cfg(feature = "lang-go")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Go,
         language: tree_sitter_go::language,
         highlight: tree_sitter_go::HIGHLIGHT_QUERY,
@@ -163,12 +163,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
                 "interface_type",
                 "method_spec_list",
             ],
-            &["source_file", "comment", "line_comment"]
+            &["source_file", "comment", "line_comment"],
         ),
         extensions: &["go"],
     },
     #[cfg(feature = "lang-javascript")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Javascript,
         language: tree_sitter_javascript::language,
         highlight: tree_sitter_javascript::HIGHLIGHT_QUERY,
@@ -178,7 +178,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["js"],
     },
     #[cfg(feature = "lang-javascript")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Jsx,
         language: tree_sitter_javascript::language,
         highlight: tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
@@ -188,7 +188,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["jsx"],
     },
     #[cfg(feature = "lang-typescript")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Typescript,
         language: tree_sitter_typescript::language_typescript,
         highlight: tree_sitter_typescript::HIGHLIGHT_QUERY,
@@ -198,7 +198,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["ts"],
     },
     #[cfg(feature = "lang-typescript")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Tsx,
         language: tree_sitter_typescript::language_tsx,
         highlight: tree_sitter_typescript::HIGHLIGHT_QUERY,
@@ -208,7 +208,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["tsx"],
     },
     #[cfg(feature = "lang-python")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Python,
         language: tree_sitter_python::language,
         highlight: tree_sitter_python::HIGHLIGHT_QUERY,
@@ -224,12 +224,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
                 "decorated_definition",
                 "block",
             ],
-            &["source_file", "import_statement", "import_from_statement"]
+            &["source_file", "import_statement", "import_from_statement"],
         ),
         extensions: &["py"],
     },
     #[cfg(feature = "lang-toml")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Toml,
         language: tree_sitter_toml::language,
         highlight: tree_sitter_toml::HIGHLIGHT_QUERY,
@@ -239,7 +239,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["toml"],
     },
     #[cfg(feature = "lang-php")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Php,
         language: tree_sitter_php::language,
         highlight: tree_sitter_php::HIGHLIGHT_QUERY,
@@ -249,7 +249,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["php"],
     },
     #[cfg(feature = "lang-elixir")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Elixir,
         language: tree_sitter_elixir::language,
         highlight: tree_sitter_elixir::HIGHLIGHTS_QUERY,
@@ -259,7 +259,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["ex"],
     },
     #[cfg(feature = "lang-c")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::C,
         language: tree_sitter_c::language,
         highlight: tree_sitter_c::HIGHLIGHT_QUERY,
@@ -269,7 +269,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["c"],
     },
     #[cfg(feature = "lang-cpp")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Cpp,
         language: tree_sitter_cpp::language,
         highlight: tree_sitter_cpp::HIGHLIGHT_QUERY,
@@ -279,7 +279,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
     },
     #[cfg(feature = "lang-json")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Json,
         language: tree_sitter_json::language,
         highlight: tree_sitter_json::HIGHLIGHT_QUERY,
@@ -289,7 +289,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["json"],
     },
     #[cfg(feature = "lang-md")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Markdown,
         language: tree_sitter_md::language,
         highlight: tree_sitter_md::HIGHLIGHTS_QUERY,
@@ -299,7 +299,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["md"],
     },
     #[cfg(feature = "lang-ruby")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Ruby,
         language: tree_sitter_ruby::language,
         highlight: tree_sitter_ruby::HIGHLIGHT_QUERY,
@@ -309,7 +309,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["rb"],
     },
     #[cfg(feature = "lang-html")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Html,
         language: tree_sitter_html::language,
         highlight: tree_sitter_html::HIGHLIGHT_QUERY,
@@ -319,7 +319,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["html", "htm"],
     },
     #[cfg(feature = "lang-java")]
-    SyntaxProperties{
+    SyntaxProperties {
         id: LapceLanguage::Java,
         language: tree_sitter_java::language,
         highlight: tree_sitter_java::HIGHLIGHT_QUERY,
@@ -337,7 +337,7 @@ impl LapceLanguage {
         // isn't called in any tight loop.
         for properties in LANGUAGES {
             if properties.extensions.contains(&extension.as_str()) {
-                return Some(properties.id)
+                return Some(properties.id);
             }
         }
         None
@@ -349,7 +349,12 @@ impl LapceLanguage {
     fn properties(&self) -> &SyntaxProperties {
         let i = *self as usize;
         let l = &LANGUAGES[i];
-        debug_assert!(l.id == *self, "LANGUAGES[{i}]: Setting::id mismatch: {:?} != {:?}", l.id, self);
+        debug_assert!(
+            l.id == *self,
+            "LANGUAGES[{i}]: Setting::id mismatch: {:?} != {:?}",
+            l.id,
+            self
+        );
         l
     }
 
@@ -417,8 +422,8 @@ mod test {
     // function(s) in the module become unused.  Hence turning off the lints.
     #![allow(unused, unreachable_code)]
 
-    use std::path::PathBuf;
     use super::LapceLanguage;
+    use std::path::PathBuf;
 
     fn assert_language(expected: LapceLanguage, exts: &[&str]) {
         for ext in exts {
@@ -512,7 +517,10 @@ mod test {
     #[test]
     #[cfg(feature = "lang-cpp")]
     fn test_cpp_lang() {
-        assert_language(LapceLanguage::Cpp, &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"]);
+        assert_language(
+            LapceLanguage::Cpp,
+            &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
+        );
     }
 
     #[test]
