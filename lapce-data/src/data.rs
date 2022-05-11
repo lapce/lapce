@@ -16,7 +16,7 @@ use druid::{
 };
 
 use lapce_core::{
-    command::MultiSelectionCommand,
+    command::{FocusCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     editor::EditType,
     mode::MotionMode,
@@ -36,6 +36,7 @@ use serde_json::Value;
 use xi_rope::{Rope, RopeDelta, Transformer};
 
 use crate::{
+    alert::{AlertContentData, AlertData},
     command::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
         LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
@@ -436,6 +437,7 @@ pub struct LapceTabData {
     pub proxy_status: Arc<ProxyStatus>,
     pub keypress: Arc<KeyPressData>,
     pub settings: Arc<LapceSettingsPanelData>,
+    pub alert: Arc<AlertData>,
     pub term_tx: Arc<Sender<(TermId, TermEvent)>>,
     pub term_rx: Option<Receiver<(TermId, TermEvent)>>,
     pub window_origin: Rc<RefCell<Point>>,
@@ -467,6 +469,7 @@ impl Data for LapceTabData {
             && self.panel_active == other.panel_active
             && self.proxy_status.same(&other.proxy_status)
             && self.find.same(&other.find)
+            && self.alert.same(&other.alert)
             && self.progresses.ptr_eq(&other.progresses)
             && self.file_explorer.same(&other.file_explorer)
             && self.plugin.same(&other.plugin)
@@ -515,6 +518,7 @@ impl LapceTabData {
         let hover = Arc::new(HoverData::new());
         let source_control = Arc::new(SourceControlData::new());
         let settings = Arc::new(LapceSettingsPanelData::new());
+        let alert = Arc::new(AlertData::new());
         let plugin = Arc::new(PluginData::new());
         let file_explorer = Arc::new(FileExplorerData::new(
             tab_id,
@@ -632,6 +636,7 @@ impl LapceTabData {
             palette,
             proxy,
             settings,
+            alert,
             proxy_status: Arc::new(ProxyStatus::Connecting),
             keypress,
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
@@ -1924,6 +1929,7 @@ impl LapceMainSplitData {
         path: &Path,
         rev: u64,
         result: &Result<Value>,
+        exit_widget_id: Option<WidgetId>,
     ) {
         self.document_format(path, rev, result);
 
@@ -1939,7 +1945,7 @@ impl LapceMainSplitData {
                 if let Ok(_r) = result {
                     let _ = event_sink.submit_command(
                         LAPCE_UI_COMMAND,
-                        LapceUICommand::BufferSave(path, rev),
+                        LapceUICommand::BufferSave(path, rev, exit_widget_id),
                         Target::Auto,
                     );
                 }
@@ -2584,10 +2590,60 @@ impl LapceMainSplitData {
         *split.layout_rect.borrow_mut() = rect;
     }
 
-    pub fn editor_close(&mut self, ctx: &mut EventCtx, view_id: WidgetId) {
+    pub fn editor_close(
+        &mut self,
+        ctx: &mut EventCtx,
+        view_id: WidgetId,
+        force: bool,
+    ) {
         let editor = self.editors.get(&view_id).unwrap();
         if let BufferContent::File(path) = &editor.content {
             let doc = self.open_docs.get(path).unwrap();
+            if !force && !doc.buffer().is_pristine() {
+                let exits = self.editors.iter().any(|(_, e)| {
+                    e.content == BufferContent::File(path.to_path_buf())
+                        && e.view_id != view_id
+                });
+                if !exits {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ShowAlert(AlertContentData {
+                            title: format!(
+                                "Do you want to save the changes you made to {}?",
+                                path.file_name()
+                                    .and_then(|f| f.to_str())
+                                    .unwrap_or("")
+                            ),
+                            msg: "Your changes will be lost if you don't save them."
+                                .to_string(),
+                            buttons: vec![
+                                (
+                                    "Save".to_string(),
+                                    view_id,
+                                    LapceCommand {
+                                        kind: CommandKind::Focus(
+                                            FocusCommand::SaveAndExit,
+                                        ),
+                                        data: None,
+                                    },
+                                ),
+                                (
+                                    "Don't Save".to_string(),
+                                    view_id,
+                                    LapceCommand {
+                                        kind: CommandKind::Focus(
+                                            FocusCommand::ForceExit,
+                                        ),
+                                        data: None,
+                                    },
+                                ),
+                            ],
+                        }),
+                        Target::Widget(*self.tab_id),
+                    ));
+                    return;
+                }
+            }
             self.db.save_doc_position(&self.workspace, doc);
         }
         if let Some(tab_id) = editor.tab_id {

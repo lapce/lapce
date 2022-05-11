@@ -110,7 +110,7 @@ impl PaletteItemContent {
         ctx: &mut EventCtx,
         preview: bool,
         preview_editor_id: WidgetId,
-    ) -> Option<PaletteType> {
+    ) -> bool {
         match &self {
             PaletteItemContent::File(_, full_path) => {
                 if !preview {
@@ -181,6 +181,7 @@ impl PaletteItemContent {
                         Target::Auto,
                     ));
                 }
+                return !command.is_palette_command();
             }
             PaletteItemContent::TerminalLine(line, _content) => {
                 if !preview {
@@ -208,7 +209,7 @@ impl PaletteItemContent {
                 }
             }
         }
-        None
+        true
     }
 }
 
@@ -612,11 +613,7 @@ impl PaletteViewData {
         }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {
-            if let Some(palette_type) =
-                item.content.select(ctx, false, palette.preview_editor)
-            {
-                self.run(ctx, Some(palette_type));
-            } else {
+            if item.content.select(ctx, false, palette.preview_editor) {
                 self.cancel(ctx);
             }
         } else {
@@ -671,7 +668,7 @@ impl PaletteViewData {
 
     fn get_palette_type(&self) -> PaletteType {
         match self.palette.palette_type {
-            PaletteType::Reference | PaletteType::SshHost => {
+            PaletteType::Reference | PaletteType::SshHost | PaletteType::Theme => {
                 return self.palette.palette_type.clone();
             }
             _ => (),

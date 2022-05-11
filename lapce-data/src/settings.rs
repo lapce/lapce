@@ -37,6 +37,10 @@ impl KeyPressFocus for LapceSettingsPanelData {
         matches!(condition, "modal_focus")
     }
 
+    fn focus_only(&self) -> bool {
+        true
+    }
+
     fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 
     fn run_command(

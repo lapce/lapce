@@ -59,18 +59,14 @@ impl Clipboard for SystemClipboard {
 
 #[derive(Clone, Default)]
 pub struct TextLayoutCache {
-    font_size: usize,
-    font_family: FontFamily,
-    tab_wdith: usize,
+    config_id: u64,
     pub layouts: HashMap<usize, Arc<PietTextLayout>>,
 }
 
 impl TextLayoutCache {
     pub fn new() -> Self {
         Self {
-            font_size: 0,
-            font_family: FontFamily::SYSTEM_UI,
-            tab_wdith: 0,
+            config_id: 0,
             layouts: HashMap::new(),
         }
     }
@@ -79,20 +75,10 @@ impl TextLayoutCache {
         self.layouts.clear();
     }
 
-    pub fn check_attributes(
-        &mut self,
-        font_size: usize,
-        font_family: FontFamily,
-        tab_width: usize,
-    ) {
-        if self.font_size != font_size
-            || self.font_family != font_family
-            || self.tab_wdith != tab_width
-        {
+    pub fn check_attributes(&mut self, config_id: u64) {
+        if self.config_id != config_id {
             self.clear();
-            self.font_size = font_size;
-            self.font_family = font_family;
-            self.tab_wdith = tab_width;
+            self.config_id = config_id;
         }
     }
 }
@@ -156,6 +142,14 @@ impl BufferContent {
             BufferContent::File(_) => false,
             BufferContent::Value(_) => false,
             BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
+        }
+    }
+
+    pub fn is_settings(&self) -> bool {
+        match &self {
+            BufferContent::File(_) => false,
+            BufferContent::Value(_) => true,
+            BufferContent::Local(_) => false,
         }
     }
 }
@@ -950,11 +944,7 @@ impl Document {
         font_size: usize,
         config: &Config,
     ) -> Arc<PietTextLayout> {
-        self.text_layouts.borrow_mut().check_attributes(
-            font_size,
-            config.editor.font_family(),
-            config.editor.tab_width,
-        );
+        self.text_layouts.borrow_mut().check_attributes(config.id);
         if self.text_layouts.borrow().layouts.get(&line).is_none() {
             self.text_layouts.borrow_mut().layouts.insert(
                 line,

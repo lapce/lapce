@@ -21,6 +21,7 @@ use strum::{self, EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
+use crate::alert::AlertContentData;
 use crate::data::LapceWorkspace;
 use crate::rich_text::RichText;
 use crate::{
@@ -80,6 +81,24 @@ impl CommandKind {
 
 impl LapceCommand {
     pub const PALETTE: &'static str = "palette";
+
+    pub fn is_palette_command(&self) -> bool {
+        if let CommandKind::Workbench(cmd) = &self.kind {
+            match cmd {
+                LapceWorkbenchCommand::Palette
+                | LapceWorkbenchCommand::PaletteLine
+                | LapceWorkbenchCommand::PaletteSymbol
+                | LapceWorkbenchCommand::PaletteCommand
+                | LapceWorkbenchCommand::ChangeTheme
+                | LapceWorkbenchCommand::ConnectSshHost
+                | LapceWorkbenchCommand::ConnectWsl
+                | LapceWorkbenchCommand::PaletteWorkspace => return true,
+                _ => {}
+            }
+        }
+
+        false
+    }
 }
 
 #[derive(PartialEq)]
@@ -354,6 +373,7 @@ pub enum LapceUICommand {
         editor_view_id: WidgetId,
         location: EditorLocationNew,
     },
+    ShowAlert(AlertContentData),
     HideMenu,
     ShowMenu(Point, Arc<Vec<MenuItem>>),
     UpdateSearch(String),
@@ -414,8 +434,8 @@ pub enum LapceUICommand {
     ApplyEdits(usize, u64, Vec<TextEdit>),
     ApplyEditsAndSave(usize, u64, Result<Value>),
     DocumentFormat(PathBuf, u64, Result<Value>),
-    DocumentFormatAndSave(PathBuf, u64, Result<Value>),
-    BufferSave(PathBuf, u64),
+    DocumentFormatAndSave(PathBuf, u64, Result<Value>, Option<WidgetId>),
+    BufferSave(PathBuf, u64, Option<WidgetId>),
     UpdateSemanticStyles(BufferId, PathBuf, u64, Arc<Spans<Style>>),
     UpdateTerminalTitle(TermId, String),
     UpdateHistoryStyle {

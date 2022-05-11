@@ -36,12 +36,13 @@ use serde::Deserialize;
 use xi_rope::Rope;
 
 use crate::{
-    activity::ActivityBar, code_action::CodeAction, completion::CompletionContainer,
-    explorer::FileExplorer, hover::HoverContainer, palette::NewPalette,
-    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
-    search::new_search_panel, settings::LapceSettingsPanel,
-    source_control::new_source_control_panel, split::split_data_widget,
-    status::LapceStatusNew, svg::get_svg, terminal::TerminalPanel,
+    activity::ActivityBar, alert::AlertBox, code_action::CodeAction,
+    completion::CompletionContainer, explorer::FileExplorer, hover::HoverContainer,
+    palette::NewPalette, picker::FilePicker, plugin::Plugin,
+    problem::new_problem_panel, search::new_search_panel,
+    settings::LapceSettingsPanel, source_control::new_source_control_panel,
+    split::split_data_widget, status::LapceStatusNew, svg::get_svg,
+    terminal::TerminalPanel,
 };
 
 pub struct LapceIcon {
@@ -67,6 +68,7 @@ pub struct LapceTabNew {
     status: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     picker: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     settings: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    alert: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     panels:
         HashMap<PanelKind, WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     current_bar_hover: Option<PanelResizePosition>,
@@ -121,6 +123,8 @@ impl LapceTabNew {
 
         let settings = LapceSettingsPanel::new(data);
 
+        let alert = AlertBox::new(data);
+
         Self {
             id: data.id,
             activity: WidgetPod::new(activity),
@@ -132,6 +136,7 @@ impl LapceTabNew {
             palette: WidgetPod::new(palette.boxed()),
             status: WidgetPod::new(status.boxed()),
             settings: WidgetPod::new(settings.boxed()),
+            alert: WidgetPod::new(alert.boxed()),
             panels,
             current_bar_hover: None,
             height: 0.0,
@@ -246,14 +251,8 @@ impl LapceTabNew {
             }
         }
     }
-}
 
-impl Widget<LapceTabData> for LapceTabNew {
-    fn id(&self) -> Option<WidgetId> {
-        Some(self.id)
-    }
-
-    fn event(
+    fn handle_event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
@@ -573,19 +572,48 @@ impl Widget<LapceTabData> for LapceTabNew {
 
                         ctx.set_handled();
                     }
-                    LapceUICommand::DocumentFormatAndSave(path, rev, result) => {
-                        data.main_split
-                            .document_format_and_save(ctx, path, *rev, result);
+                    LapceUICommand::DocumentFormatAndSave(
+                        path,
+                        rev,
+                        result,
+                        exit,
+                    ) => {
+                        data.main_split.document_format_and_save(
+                            ctx, path, *rev, result, *exit,
+                        );
                         ctx.set_handled();
                     }
                     LapceUICommand::DocumentFormat(path, rev, result) => {
                         data.main_split.document_format(path, *rev, result);
                         ctx.set_handled();
                     }
-                    LapceUICommand::BufferSave(path, rev) => {
+                    LapceUICommand::ShowAlert(content) => {
+                        let alert = Arc::make_mut(&mut data.alert);
+                        alert.active = true;
+                        alert.content = content.to_owned();
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::Focus,
+                            Target::Widget(alert.widget_id),
+                        ));
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::BufferSave(path, rev, exit_widget_id) => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         if doc.rev() == *rev {
                             Arc::make_mut(doc).buffer_mut().set_pristine();
+                            if let Some(widget_id) = exit_widget_id {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
+                                        kind: CommandKind::Focus(
+                                            FocusCommand::SplitClose,
+                                        ),
+                                        data: None,
+                                    },
+                                    Target::Widget(*widget_id),
+                                ));
+                            }
                         }
                         ctx.set_handled();
                     }
@@ -965,7 +993,33 @@ impl Widget<LapceTabData> for LapceTabNew {
             }
             _ => (),
         }
-        self.settings.event(ctx, event, data, env);
+    }
+}
+
+impl Widget<LapceTabData> for LapceTabNew {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        if !event.should_propagate_to_hidden() {
+            self.alert.event(ctx, event, data, env);
+            self.settings.event(ctx, event, data, env);
+            if ctx.is_handled() {
+                return;
+            }
+        }
+        self.handle_event(ctx, event, data, env);
+        if event.should_propagate_to_hidden() {
+            self.alert.event(ctx, event, data, env);
+            self.settings.event(ctx, event, data, env);
+        }
         self.picker.event(ctx, event, data, env);
         self.palette.event(ctx, event, data, env);
         self.completion.event(ctx, event, data, env);
@@ -1028,6 +1082,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.hover.lifecycle(ctx, event, data, env);
         self.picker.lifecycle(ctx, event, data, env);
         self.settings.lifecycle(ctx, event, data, env);
+        self.alert.lifecycle(ctx, event, data, env);
 
         for (_, panel) in self.panels.iter_mut() {
             panel.lifecycle(ctx, event, data, env);
@@ -1047,6 +1102,10 @@ impl Widget<LapceTabData> for LapceTabNew {
 
         if !old_data.drag.same(&data.drag) {
             ctx.request_paint();
+        }
+
+        if !old_data.alert.active != data.alert.active {
+            ctx.request_layout();
         }
 
         if old_data
@@ -1082,6 +1141,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.status.update(ctx, data, env);
         self.picker.update(ctx, data, env);
         self.settings.update(ctx, data, env);
+        self.alert.update(ctx, data, env);
         for (_, panel) in data.panels.iter() {
             if panel.is_shown() {
                 self.panels
@@ -1386,6 +1446,11 @@ impl Widget<LapceTabData> for LapceTabNew {
             self.settings.set_origin(ctx, data, env, Point::ZERO);
         }
 
+        if data.alert.active {
+            self.alert.layout(ctx, bc, data, env);
+            self.alert.set_origin(ctx, data, env, Point::ZERO);
+        }
+
         self_size
     }
 
@@ -1459,6 +1524,7 @@ impl Widget<LapceTabData> for LapceTabNew {
         self.picker.paint(ctx, data, env);
         self.settings.paint(ctx, data, env);
         self.paint_drag(ctx, data);
+        self.alert.paint(ctx, data, env);
     }
 }
 

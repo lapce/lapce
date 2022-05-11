@@ -7,8 +7,11 @@ use druid::{
     LifeCycleCtx, MouseButton, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
+    command::{
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+    },
     config::LapceTheme,
     data::{DragContent, EditorTabChild, LapceTabData},
     document::BufferContent,
@@ -258,6 +261,12 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                 self.mouse_down(ctx, data, mouse_event);
             }
             Event::MouseUp(mouse_event) => {
+                let editor_tab = data
+                    .main_split
+                    .editor_tabs
+                    .get_mut(&self.widget_id)
+                    .unwrap();
+
                 let mut close_tab = |tab_idx: usize, was_active: bool| {
                     if was_active {
                         ctx.submit_command(Command::new(
@@ -268,17 +277,14 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     }
 
                     ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::EditorTabRemove(tab_idx, true, true),
-                        Target::Widget(self.widget_id),
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitClose),
+                            data: None,
+                        },
+                        Target::Widget(editor_tab.children[tab_idx].widget_id()),
                     ));
                 };
-
-                let editor_tab = data
-                    .main_split
-                    .editor_tabs
-                    .get_mut(&self.widget_id)
-                    .unwrap();
 
                 match self.mouse_down_target.take() {
                     // Was the left button released on the close icon that started the close?

@@ -331,6 +331,8 @@ impl Themes {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
+    #[serde(skip)]
+    pub id: u64,
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
     #[serde(skip)]
@@ -392,6 +394,7 @@ impl Config {
         }
 
         let mut config: Config = settings.try_into()?;
+        config.update_id();
 
         config.themes = Themes::default();
 
@@ -506,7 +509,16 @@ impl Config {
         Some(())
     }
 
+    fn update_id(&mut self) {
+        self.id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+    }
+
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> bool {
+        self.update_id();
+
         if self.themes.apply_theme(theme).is_err() {
             return false;
         }

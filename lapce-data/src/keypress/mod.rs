@@ -137,6 +137,9 @@ pub trait KeyPressFocus {
     fn expect_char(&self) -> bool {
         false
     }
+    fn focus_only(&self) -> bool {
+        false
+    }
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str);
 }
 
@@ -223,11 +226,13 @@ impl KeyPressData {
         if let Some(cmd) = self.commands.get(command) {
             match cmd.kind {
                 CommandKind::Workbench(_) => {
-                    ctx.submit_command(Command::new(
-                        LAPCE_COMMAND,
-                        cmd.clone(),
-                        Target::Auto,
-                    ));
+                    if !focus.focus_only() {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            cmd.clone(),
+                            Target::Auto,
+                        ));
+                    }
                     CommandExecuted::Yes
                 }
                 CommandKind::Move(_)

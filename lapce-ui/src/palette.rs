@@ -108,7 +108,6 @@ impl Widget<LapceTabData> for NewPalette {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 match command {
                     LapceUICommand::RunPalette(palette_type) => {
-                        // ctx.request_focus();
                         ctx.set_handled();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run(ctx, palette_type.to_owned());
@@ -123,7 +122,6 @@ impl Widget<LapceTabData> for NewPalette {
                         ));
                     }
                     LapceUICommand::RunPaletteReferences(locations) => {
-                        // ctx.request_focus();
                         let mut palette_data = data.palette_view_data();
                         palette_data.run_references(ctx, locations);
                         data.palette = palette_data.palette.clone();

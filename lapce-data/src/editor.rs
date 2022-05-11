@@ -1063,6 +1063,57 @@ impl LapceEditorBufferData {
         }
     }
 
+    fn save(&mut self, ctx: &mut EventCtx, exit: bool) {
+        if self.doc.buffer().is_pristine() {
+            if exit {
+                ctx.submit_command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::SplitClose),
+                        data: None,
+                    },
+                    Target::Widget(self.editor.view_id),
+                ));
+            }
+            return;
+        }
+
+        if let BufferContent::File(path) = self.doc.content() {
+            let path = path.clone();
+            let proxy = self.proxy.clone();
+            let buffer_id = self.doc.id();
+            let rev = self.doc.rev();
+            let event_sink = ctx.get_external_handle();
+            let view_id = self.editor.view_id;
+            let (sender, receiver) = bounded(1);
+            thread::spawn(move || {
+                proxy.get_document_formatting(
+                    buffer_id,
+                    Box::new(move |result| {
+                        let _ = sender.send(result);
+                    }),
+                );
+
+                let result =
+                    receiver.recv_timeout(Duration::from_secs(1)).map_or_else(
+                        |e| Err(anyhow!("{}", e)),
+                        |v| v.map_err(|e| anyhow!("{:?}", e)),
+                    );
+
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DocumentFormatAndSave(
+                        path,
+                        rev,
+                        result,
+                        if exit { Some(view_id) } else { None },
+                    ),
+                    Target::Auto,
+                );
+            });
+        }
+    }
+
     fn run_move_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -1178,9 +1229,6 @@ impl LapceEditorBufferData {
                         .split_exchange(ctx, SplitContent::EditorTab(*widget_id));
                 }
             }
-            SplitClose => {
-                self.main_split.editor_close(ctx, self.view_id);
-            }
             SplitLeft => {
                 if let Some(widget_id) = self.editor.tab_id.as_ref() {
                     self.main_split.split_move(
@@ -1216,6 +1264,12 @@ impl LapceEditorBufferData {
                         SplitMoveDirection::Down,
                     );
                 }
+            }
+            SplitClose => {
+                self.main_split.editor_close(ctx, self.view_id, false);
+            }
+            ForceExit => {
+                self.main_split.editor_close(ctx, self.view_id, true);
             }
             SearchWholeWordForward => {
                 Arc::make_mut(&mut self.find).visual = true;
@@ -1729,40 +1783,11 @@ impl LapceEditorBufferData {
                     self.inline_find(ctx, direction, &c);
                 }
             }
+            SaveAndExit => {
+                self.save(ctx, true);
+            }
             Save => {
-                if self.doc.buffer().is_pristine() {
-                    return CommandExecuted::Yes;
-                }
-
-                if let BufferContent::File(path) = self.doc.content() {
-                    let path = path.clone();
-                    let proxy = self.proxy.clone();
-                    let buffer_id = self.doc.id();
-                    let rev = self.doc.rev();
-                    let event_sink = ctx.get_external_handle();
-                    let (sender, receiver) = bounded(1);
-                    thread::spawn(move || {
-                        proxy.get_document_formatting(
-                            buffer_id,
-                            Box::new(move |result| {
-                                let _ = sender.send(result);
-                            }),
-                        );
-
-                        let result = receiver
-                            .recv_timeout(Duration::from_secs(1))
-                            .map_or_else(
-                                |e| Err(anyhow!("{}", e)),
-                                |v| v.map_err(|e| anyhow!("{:?}", e)),
-                            );
-
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::DocumentFormatAndSave(path, rev, result),
-                            Target::Auto,
-                        );
-                    });
-                }
+                self.save(ctx, false);
             }
             _ => return CommandExecuted::No,
         }
@@ -1803,6 +1828,10 @@ impl LapceEditorBufferData {
 impl KeyPressFocus for LapceEditorBufferData {
     fn get_mode(&self) -> Mode {
         self.editor.new_cursor.get_mode()
+    }
+
+    fn focus_only(&self) -> bool {
+        self.editor.content.is_settings()
     }
 
     fn expect_char(&self) -> bool {

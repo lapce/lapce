@@ -269,6 +269,10 @@ pub enum FocusCommand {
     #[strum(message = "Save")]
     #[strum(serialize = "save")]
     Save,
+    #[strum(serialize = "save_and_exit")]
+    SaveAndExit,
+    #[strum(serialize = "force_exit")]
+    ForceExit,
 }
 
 #[derive(

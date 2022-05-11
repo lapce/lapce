@@ -81,11 +81,7 @@ impl DocumentHisotry {
         line: usize,
         config: &Config,
     ) -> Arc<PietTextLayout> {
-        self.text_layouts.borrow_mut().check_attributes(
-            config.editor.font_size,
-            config.editor.font_family(),
-            config.editor.tab_width,
-        );
+        self.text_layouts.borrow_mut().check_attributes(config.id);
         if self.text_layouts.borrow().layouts.get(&line).is_none() {
             self.text_layouts
                 .borrow_mut()
