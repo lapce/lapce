@@ -767,16 +767,28 @@ impl Buffer {
     }
 
     pub fn move_word_forward(&self, offset: usize) -> usize {
-        let new_offset = WordCursor::new(&self.text, offset)
-            .next_boundary()
-            .unwrap_or(offset);
+        self.move_n_words_forward(offset, 1)
+    }
+
+    pub fn move_n_words_forward(&self, offset: usize, count: usize) -> usize {
+        let mut cursor = WordCursor::new(self.text(), offset);
+        let mut new_offset = offset;
+        for _i in 0..count {
+            new_offset = cursor.next_boundary().unwrap_or(new_offset)
+        }
         new_offset
     }
 
     pub fn move_word_backward(&self, offset: usize) -> usize {
-        let new_offset = WordCursor::new(&self.text, offset)
-            .prev_boundary()
-            .unwrap_or(offset);
+        self.move_n_words_backward(offset, 1)
+    }
+
+    pub fn move_n_words_backward(&self, offset: usize, count: usize) -> usize {
+        let mut cursor = WordCursor::new(self.text(), offset);
+        let mut new_offset = offset;
+        for _i in 0..count {
+            new_offset = cursor.prev_boundary().unwrap_or(new_offset);
+        }
         new_offset
     }
 
