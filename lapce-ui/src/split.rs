@@ -1024,53 +1024,37 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     data,
                     env,
                 );
-                non_flex_total += match self.direction {
-                    SplitDirection::Vertical => size.width,
-                    SplitDirection::Horizontal => size.height,
-                };
-                match self.direction {
-                    SplitDirection::Vertical => {
-                        if size.height > max_other_axis {
-                            max_other_axis = size.height;
-                        }
-                    }
-                    SplitDirection::Horizontal => {
-                        if size.width > max_other_axis {
-                            max_other_axis = size.width;
-                        }
-                    }
+                non_flex_total += self.direction.main_size(size);
+                let cross_size = self.direction.cross_size(size);
+                if cross_size > max_other_axis {
+                    max_other_axis = cross_size;
                 }
-                child.layout_rect = child.layout_rect.with_size(size)
+                child.layout_rect = size.to_rect();
             };
         }
+        let non_flex_total = non_flex_total;
 
-        let mut flex_sum = 0.0;
-        for child in &self.children {
-            if child.flex {
-                flex_sum += child.params;
-            }
-        }
+        let flex_sum = self
+            .children
+            .iter()
+            .filter_map(|child| child.flex.then(|| child.params))
+            .sum::<f64>();
 
-        let flex_total = if self.direction == SplitDirection::Vertical {
-            my_size.width
-        } else {
-            my_size.height
-        } - non_flex_total;
+        let total_size = self.direction.main_size(my_size);
+        let flex_total = total_size - non_flex_total;
 
-        let mut x = 0.0;
-        let mut y = 0.0;
+        let mut next_origin = Point::ZERO;
         let children_len = self.children.len();
         for (i, child) in self.children.iter_mut().enumerate() {
-            if !child.flex {
-                child.widget.set_origin(ctx, data, env, Point::new(x, y));
-                child.layout_rect = child.layout_rect.with_origin(Point::new(x, y));
-            } else {
+            child.widget.set_origin(ctx, data, env, next_origin);
+            child.layout_rect = child.layout_rect.with_origin(next_origin);
+
+            if child.flex {
                 let flex = if i == children_len - 1 {
-                    flex_total + non_flex_total
-                        - match self.direction {
-                            SplitDirection::Vertical => x,
-                            SplitDirection::Horizontal => y,
-                        }
+                    match self.direction {
+                        SplitDirection::Vertical => total_size - next_origin.x,
+                        SplitDirection::Horizontal => total_size - next_origin.y,
+                    }
                 } else {
                     (flex_total / flex_sum * child.params).round()
                 };
@@ -1080,14 +1064,12 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     SplitDirection::Horizontal => (my_size.width, flex),
                 };
                 let size = Size::new(width, height);
-                let origin = Point::new(x, y);
                 if let Some(split_data) = split_data.as_ref() {
                     let parent_origin =
                         split_data.layout_rect.borrow().origin().to_vec2();
-                    let rect = size.to_rect().with_origin(origin + parent_origin);
                     data.main_split.update_split_content_layout_rect(
-                        split_data.children[i].clone(),
-                        rect,
+                        split_data.children[i],
+                        size.to_rect().with_origin(next_origin + parent_origin),
                     );
                 }
                 let size = child.widget.layout(
@@ -1096,33 +1078,24 @@ impl Widget<LapceTabData> for LapceSplitNew {
                     data,
                     env,
                 );
-                match self.direction {
-                    SplitDirection::Vertical => {
-                        if size.height > max_other_axis {
-                            max_other_axis = size.height;
-                        }
-                    }
-                    SplitDirection::Horizontal => {
-                        if size.width > max_other_axis {
-                            max_other_axis = size.width;
-                        }
-                    }
+                let cross_size = self.direction.cross_size(size);
+                if cross_size > max_other_axis {
+                    max_other_axis = cross_size;
                 }
-                child.widget.set_origin(ctx, data, env, Point::new(x, y));
-                child.layout_rect = child
-                    .layout_rect
-                    .with_origin(Point::new(x, y))
-                    .with_size(size);
+
+                child.layout_rect = child.layout_rect.with_size(size);
             }
+
+            let child_size = child.layout_rect.size();
             match self.direction {
-                SplitDirection::Vertical => x += child.layout_rect.size().width,
-                SplitDirection::Horizontal => y += child.layout_rect.size().height,
+                SplitDirection::Vertical => next_origin.x += child_size.width,
+                SplitDirection::Horizontal => next_origin.y += child_size.height,
             }
         }
 
         match self.direction {
-            SplitDirection::Vertical => Size::new(x, max_other_axis),
-            SplitDirection::Horizontal => Size::new(max_other_axis, y),
+            SplitDirection::Vertical => Size::new(next_origin.x, max_other_axis),
+            SplitDirection::Horizontal => Size::new(max_other_axis, next_origin.y),
         }
     }
 
@@ -1186,18 +1159,13 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> 
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::PaletteCommand),
                 data: None,
             },
-            if modal {
-                LapceCommand {
-                    kind: CommandKind::Workbench(
-                        LapceWorkbenchCommand::DisableModal,
-                    ),
-                    data: None,
-                }
-            } else {
-                LapceCommand {
-                    kind: CommandKind::Workbench(LapceWorkbenchCommand::EnableModal),
-                    data: None,
-                }
+            LapceCommand {
+                kind: CommandKind::Workbench(if modal {
+                    LapceWorkbenchCommand::DisableModal
+                } else {
+                    LapceWorkbenchCommand::EnableModal
+                }),
+                data: None,
             },
             LapceCommand {
                 kind: CommandKind::Workbench(LapceWorkbenchCommand::OpenFolder),
