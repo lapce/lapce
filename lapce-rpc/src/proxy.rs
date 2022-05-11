@@ -110,6 +110,12 @@ pub enum ProxyRequest {
         rev: u64,
         buffer_id: BufferId,
     },
+    SaveBufferAs {
+        buffer_id: BufferId,
+        path: PathBuf,
+        rev: u64,
+        content: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

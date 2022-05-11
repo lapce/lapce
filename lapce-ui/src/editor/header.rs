@@ -1,4 +1,4 @@
-use std::iter::Iterator;
+use std::{iter::Iterator, path::PathBuf};
 
 use druid::{
     piet::{Text, TextLayout as TextLayoutTrait, TextLayoutBuilder},
@@ -135,10 +135,19 @@ impl LapceEditorHeader {
                 clip_rect.x1 = icon.rect.x0;
             }
         }
-        if let BufferContent::File(path) = data.doc.content() {
+        if let BufferContent::File(_) | BufferContent::Scratch(_) =
+            data.doc.content()
+        {
+            let mut path = match data.doc.content() {
+                BufferContent::File(path) => path.to_path_buf(),
+                BufferContent::Scratch(_) => {
+                    PathBuf::from(data.doc.content().file_name())
+                }
+                _ => PathBuf::from(""),
+            };
+
             ctx.with_save(|ctx| {
                 ctx.clip(clip_rect);
-                let mut path = path.clone();
                 let svg = file_svg_new(&path);
 
                 let width = 13.0;

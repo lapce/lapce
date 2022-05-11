@@ -285,7 +285,7 @@ impl LapceEditor {
         let line_height = data.config.editor.line_height as f64;
         let width = data.config.editor_char_width(text);
         match &data.editor.content {
-            BufferContent::File(_) => {
+            BufferContent::File(_) | BufferContent::Scratch(_) => {
                 if data.editor.code_lens {
                     if let Some(syntax) = data.doc.syntax() {
                         let height =

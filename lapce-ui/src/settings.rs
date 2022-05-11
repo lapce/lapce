@@ -668,7 +668,7 @@ impl LapceSettingsItem {
                 event_sink,
                 data.proxy.clone(),
             );
-            doc.reload(Rope::from(&input));
+            doc.reload(Rope::from(&input), true);
             data.main_split.value_docs.insert(name, Arc::new(doc));
             let editor = LapceEditorData::new(None, None, content, &data.config);
             let view_id = editor.view_id;

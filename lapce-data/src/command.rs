@@ -23,6 +23,7 @@ use xi_rope::{spans::Spans, Rope};
 
 use crate::alert::AlertContentData;
 use crate::data::LapceWorkspace;
+use crate::document::BufferContent;
 use crate::rich_text::RichText;
 use crate::{
     data::{EditorTabChild, SplitContent},
@@ -239,6 +240,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "New Window")]
     #[strum(serialize = "new_window")]
     NewWindow,
+
+    #[strum(message = "New File")]
+    #[strum(serialize = "new_file")]
+    NewFile,
 
     #[strum(serialize = "connect_ssh_host")]
     #[strum(message = "Connect to SSH Host")]
@@ -469,6 +474,8 @@ pub enum LapceUICommand {
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
+    SaveAs(BufferContent, PathBuf, WidgetId, bool),
+    SaveAsSuccess(BufferContent, u64, PathBuf, WidgetId, bool),
     HomeDir(PathBuf),
     FileChange(notify::Event),
     ProxyUpdateStatus(ProxyStatus),

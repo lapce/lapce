@@ -12,6 +12,7 @@ use directories::ProjectDirs;
 use druid::{ExtEventSink, Point, Rect, Size, Vec2, WidgetId};
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
+use xi_rope::Rope;
 
 use crate::{
     config::Config,
@@ -233,6 +234,7 @@ pub struct BufferInfo {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct EditorInfo {
     pub content: BufferContent,
+    pub unsaved: Option<String>,
     pub scroll_offset: (f64, f64),
     pub position: Option<Position>,
 }
@@ -284,6 +286,19 @@ impl EditorInfo {
                     data.proxy.clone(),
                 ));
                 data.open_docs.insert(path.clone(), doc);
+            }
+        } else if let BufferContent::Scratch(id) = &self.content {
+            if !data.scratch_docs.contains_key(id) {
+                let mut doc = Document::new(
+                    self.content.clone(),
+                    tab_id,
+                    event_sink,
+                    data.proxy.clone(),
+                );
+                if let Some(text) = &self.unsaved {
+                    doc.reload(Rope::from(text), false);
+                }
+                data.scratch_docs.insert(*id, Arc::new(doc));
             }
         }
         data.insert_editor(Arc::new(editor_data.clone()), config);

@@ -13,7 +13,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    ExtEventSink, FontFamily, Point, Target, Vec2, WidgetId,
+    ExtEventSink, FontFamily, Point, Size, Target, Vec2, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
@@ -32,7 +32,7 @@ use lapce_rpc::{
     buffer::{BufferId, NewBufferResponse},
     style::{LineStyle, LineStyles, Style},
 };
-use lsp_types::CodeActionResponse;
+use lsp_types::{CodeActionOrCommand, CodeActionResponse};
 use serde::{Deserialize, Serialize};
 use xi_rope::{spans::Spans, Rope, RopeDelta};
 
@@ -99,6 +99,7 @@ pub enum BufferContent {
     File(PathBuf),
     Local(LocalBufferKind),
     Value(String),
+    Scratch(BufferId),
 }
 
 impl BufferContent {
@@ -119,6 +120,7 @@ impl BufferContent {
                 LocalBufferKind::Empty => false,
             },
             BufferContent::Value(_) => true,
+            BufferContent::Scratch(_) => false,
         }
     }
 
@@ -134,6 +136,7 @@ impl BufferContent {
                 LocalBufferKind::Empty | LocalBufferKind::SourceControl => false,
             },
             BufferContent::Value(_) => true,
+            BufferContent::Scratch(_) => false,
         }
     }
 
@@ -141,6 +144,7 @@ impl BufferContent {
         match &self {
             BufferContent::File(_) => false,
             BufferContent::Value(_) => false,
+            BufferContent::Scratch(_) => false,
             BufferContent::Local(local) => matches!(local, LocalBufferKind::Search),
         }
     }
@@ -150,6 +154,17 @@ impl BufferContent {
             BufferContent::File(_) => false,
             BufferContent::Value(_) => true,
             BufferContent::Local(_) => false,
+            BufferContent::Scratch(_) => false,
+        }
+    }
+
+    pub fn file_name(&self) -> &str {
+        match self {
+            BufferContent::File(p) => {
+                p.file_name().and_then(|f| f.to_str()).unwrap_or("")
+            }
+            BufferContent::Scratch(_) => "[Untitled]",
+            _ => "",
         }
     }
 }
@@ -187,10 +202,15 @@ impl Document {
             BufferContent::File(path) => Syntax::init(path),
             BufferContent::Local(_) => None,
             BufferContent::Value(_) => None,
+            BufferContent::Scratch(_) => None,
+        };
+        let id = match &content {
+            BufferContent::Scratch(id) => *id,
+            _ => BufferId::next(),
         };
 
         Self {
-            id: BufferId::next(),
+            id,
             tab_id,
             buffer: Buffer::new(""),
             content,
@@ -219,6 +239,17 @@ impl Document {
         self.loaded
     }
 
+    pub fn set_content(&mut self, content: BufferContent) {
+        self.content = content;
+        self.syntax = match &self.content {
+            BufferContent::File(path) => Syntax::init(path),
+            BufferContent::Local(_) => None,
+            BufferContent::Value(_) => None,
+            BufferContent::Scratch(_) => None,
+        };
+        self.on_update(None);
+    }
+
     pub fn content(&self) -> &BufferContent {
         &self.content
     }
@@ -234,15 +265,15 @@ impl Document {
         self.on_update(None);
     }
 
-    pub fn reload(&mut self, content: Rope) {
+    pub fn reload(&mut self, content: Rope, set_pristine: bool) {
         self.code_actions.clear();
-        let delta = self.buffer.reload(content);
+        let delta = self.buffer.reload(content, set_pristine);
         self.apply_deltas(&[delta]);
     }
 
     pub fn handle_file_changed(&mut self, content: Rope) {
         if self.buffer.is_pristine() {
-            self.reload(content);
+            self.reload(content, true);
         }
     }
 
@@ -442,6 +473,7 @@ impl Document {
     fn notify_special(&self) {
         match &self.content {
             BufferContent::File(_) => {}
+            BufferContent::Scratch(_) => {}
             BufferContent::Local(local) => {
                 let s = self.buffer.text().to_string();
                 match local {
@@ -1382,6 +1414,44 @@ impl Document {
                 }
             }
         }
+    }
+
+    pub fn code_action_size(
+        &self,
+        text: &mut PietText,
+        offset: usize,
+        config: &Config,
+    ) -> Size {
+        let prev_offset = self.buffer.prev_code_boundary(offset);
+        let empty_vec = Vec::new();
+        let code_actions = self.code_actions.get(&prev_offset).unwrap_or(&empty_vec);
+
+        let action_text_layouts: Vec<PietTextLayout> = code_actions
+            .iter()
+            .map(|code_action| {
+                let title = match code_action {
+                    CodeActionOrCommand::Command(cmd) => cmd.title.to_string(),
+                    CodeActionOrCommand::CodeAction(action) => {
+                        action.title.to_string()
+                    }
+                };
+
+                text.new_text_layout(title)
+                    .font(FontFamily::SYSTEM_UI, 14.0)
+                    .build()
+                    .unwrap()
+            })
+            .collect();
+
+        let mut width = 0.0;
+        for text_layout in &action_text_layouts {
+            let line_width = text_layout.size().width + 10.0;
+            if line_width > width {
+                width = line_width;
+            }
+        }
+        let line_height = config.editor.line_height as f64;
+        Size::new(width, code_actions.len() as f64 * line_height)
     }
 
     pub fn reset_find(&self, current_find: &Find) {

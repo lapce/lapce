@@ -29,6 +29,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::{collections::HashSet, io::BufRead};
+use xi_rope::Rope;
 
 const OPEN_FILE_EVENT_TOKEN: WatchToken = WatchToken(1);
 const WORKSPACE_EVENT_TOKEN: WatchToken = WatchToken(2);
@@ -564,6 +565,26 @@ impl Dispatcher {
                 let buffer = buffers.get_mut(&buffer_id).unwrap();
                 let resp = buffer.save(rev).map(|_r| json!({}));
                 self.lsp.lock().save_buffer(buffer);
+                self.respond(id, resp);
+            }
+            SaveBufferAs {
+                buffer_id,
+                path,
+                rev,
+                content,
+            } => {
+                let mut buffer =
+                    Buffer::new(buffer_id, path.clone(), self.git_sender.clone());
+                buffer.rope = Rope::from(content);
+                buffer.rev = rev;
+                let resp = buffer.save(rev).map(|_r| json!({}));
+                if resp.is_ok() {
+                    self.buffers.lock().insert(buffer_id, buffer);
+                    self.open_files
+                        .lock()
+                        .insert(path.to_str().unwrap().to_string(), buffer_id);
+                    let _ = self.git_sender.send((buffer_id, 0));
+                }
                 self.respond(id, resp);
             }
             GlobalSearch { pattern } => {

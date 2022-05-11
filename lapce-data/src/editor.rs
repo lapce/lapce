@@ -1111,6 +1111,36 @@ impl LapceEditorBufferData {
                     Target::Auto,
                 );
             });
+        } else if let BufferContent::Scratch(_) = self.doc.content() {
+            let workspace = self.main_split.workspace.clone();
+            let event_sink = ctx.get_external_handle();
+            let tab_id = *self.main_split.tab_id;
+            let content = self.doc.content().clone();
+            let view_id = self.editor.view_id;
+            thread::spawn(move || {
+                let dirs = directories::UserDirs::new();
+
+                let dir = workspace
+                    .path
+                    .as_deref()
+                    .or_else(|| dirs.as_ref().map(|u| u.home_dir()))
+                    .map(|u| u.join("Untitled"));
+                let dir = dir
+                    .as_ref()
+                    .and_then(|u| u.to_str())
+                    .unwrap_or("./Untitled");
+
+                if let Some(path) =
+                    tinyfiledialogs::save_file_dialog("Save File", dir)
+                {
+                    let path = PathBuf::from(path);
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SaveAs(content, path, view_id, exit),
+                        Target::Widget(tab_id),
+                    );
+                }
+            });
         }
     }
 
@@ -1851,6 +1881,7 @@ impl KeyPressFocus for LapceEditorBufferData {
             "input_focus" => self.editor.content.is_input(),
             "editor_focus" => match self.editor.content {
                 BufferContent::File(_) => true,
+                BufferContent::Scratch(_) => true,
                 BufferContent::Local(_) => false,
                 BufferContent::Value(_) => false,
             },

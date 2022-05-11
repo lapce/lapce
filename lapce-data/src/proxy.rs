@@ -16,6 +16,7 @@ use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::buffer::BufferId;
 use lapce_rpc::core::{CoreNotification, CoreRequest};
 use lapce_rpc::plugin::PluginDescription;
+use lapce_rpc::proxy::ProxyRequest;
 use lapce_rpc::source_control::FileDiff;
 use lapce_rpc::terminal::TermId;
 use lapce_rpc::RpcHandler;
@@ -432,6 +433,23 @@ impl LapceProxy {
             &json!({ "buffer_id": buffer_id, "path": path }),
             f,
         );
+    }
+
+    pub fn save_buffer_as(
+        &self,
+        buffer_id: BufferId,
+        path: PathBuf,
+        rev: u64,
+        content: String,
+        f: Box<dyn Callback>,
+    ) {
+        let request = ProxyRequest::SaveBufferAs {
+            buffer_id,
+            path,
+            rev,
+            content,
+        };
+        self.rpc.send_rpc_request_value_async(request, f);
     }
 
     pub fn update(&self, buffer_id: BufferId, delta: &RopeDelta, rev: u64) {

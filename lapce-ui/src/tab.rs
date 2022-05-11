@@ -330,7 +330,7 @@ impl LapceTabNew {
                             .local_docs
                             .get_mut(&LocalBufferKind::Palette)
                             .unwrap();
-                        Arc::make_mut(doc).reload(Rope::from(pattern));
+                        Arc::make_mut(doc).reload(Rope::from(pattern), true);
                         let editor = data
                             .main_split
                             .editors
@@ -354,7 +354,7 @@ impl LapceTabNew {
                             .get_mut(&LocalBufferKind::Search)
                             .unwrap();
                         if &doc.buffer().text().to_string() != pattern {
-                            Arc::make_mut(doc).reload(Rope::from(pattern));
+                            Arc::make_mut(doc).reload(Rope::from(pattern), true);
                         }
                         if pattern.is_empty() {
                             Arc::make_mut(&mut data.find).unset();
@@ -624,7 +624,7 @@ impl LapceTabNew {
                         location,
                     } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
-                        Arc::make_mut(doc).reload(Rope::from(content));
+                        Arc::make_mut(doc).reload(Rope::from(content), true);
                         data.main_split.go_to_location(
                             ctx,
                             Some(*editor_view_id),
@@ -819,6 +819,22 @@ impl LapceTabNew {
                         }
                         ctx.set_handled();
                     }
+                    LapceUICommand::SaveAs(content, path, view_id, exit) => {
+                        data.main_split.save_as(ctx, content, path, *view_id, *exit);
+                        ctx.set_handled();
+                    }
+                    LapceUICommand::SaveAsSuccess(
+                        content,
+                        rev,
+                        path,
+                        view_id,
+                        exit,
+                    ) => {
+                        data.main_split.save_as_success(
+                            ctx, content, *rev, path, *view_id, *exit,
+                        );
+                        ctx.set_handled();
+                    }
                     LapceUICommand::OpenFileChanged { path, content } => {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         let doc = Arc::make_mut(doc);
@@ -828,7 +844,7 @@ impl LapceTabNew {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         if doc.rev() + 1 == *rev {
                             let doc = Arc::make_mut(doc);
-                            doc.reload(content.to_owned());
+                            doc.reload(content.to_owned(), true);
 
                             for (_, editor) in data.main_split.editors.iter_mut() {
                                 if &editor.content == doc.content()
