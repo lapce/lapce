@@ -47,3 +47,4 @@ jobs:
           with:
             command: fmt
             args: --all -- --check
+
