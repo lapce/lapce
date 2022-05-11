@@ -20,7 +20,7 @@ pub struct Cursor {
     pub horiz: Option<ColPosition>,
     pub motion_mode: Option<MotionMode>,
     pub history_selections: Vec<Selection>,
-    
+    // bugger
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
