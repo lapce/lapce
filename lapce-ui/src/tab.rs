@@ -48,7 +48,7 @@ use crate::{
 pub struct LapceIcon {
     pub rect: Rect,
     pub command: Command,
-    pub icon: String,
+    pub icon: &'static str,
 }
 
 pub struct LapceButton {
