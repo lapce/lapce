@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::time::Instant;
 
+use druid::Cursor;
 use druid::{
     kurbo::{Affine, Point, Rect, Size, Vec2},
     Insets, WidgetId,
@@ -123,10 +124,10 @@ pub enum BarHeldState {
     None,
     /// Vertical scrollbar is being dragged. Contains an `f64` with
     /// the initial y-offset of the dragging input.
-    Vertical(f64),
+    Vertical(f64, Vec2),
     /// Horizontal scrollbar is being dragged. Contains an `f64` with
     /// the initial x-offset of the dragging input.
-    Horizontal(f64),
+    Horizontal(f64, Vec2),
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -686,29 +687,27 @@ impl ScrollComponentNew {
             _ => false,
         };
 
+        if scrollbar_is_hovered || ctx.is_active() {
+            ctx.set_cursor(&Cursor::Arrow);
+        }
+
         if self.are_bars_held() {
             // if we're dragging a scrollbar
             match event {
                 Event::MouseMove(event) => {
                     match self.held {
-                        BarHeldState::Vertical(offset) => {
+                        BarHeldState::Vertical(offset, initial_scroll_offset) => {
                             let scale_y = viewport_size.height / content_size.height;
-                            let bounds = self
-                                .calc_vertical_bar_bounds(port, env)
-                                .unwrap_or(Rect::ZERO);
-                            let mouse_y = event.pos.y + scroll_offset.y;
-                            let delta = mouse_y - bounds.y0 - offset;
-                            port.pan_by(Vec2::new(0f64, (delta / scale_y).ceil()));
+                            let y = initial_scroll_offset.y
+                                + (event.pos.y - offset) / scale_y;
+                            port.pan_to(Point::new(initial_scroll_offset.x, y));
                             ctx.set_handled();
                         }
-                        BarHeldState::Horizontal(offset) => {
+                        BarHeldState::Horizontal(offset, initial_scroll_offset) => {
                             let scale_x = viewport_size.width / content_size.width;
-                            let bounds = self
-                                .calc_horizontal_bar_bounds(port, env)
-                                .unwrap_or(Rect::ZERO);
-                            let mouse_x = event.pos.x + scroll_offset.x;
-                            let delta = mouse_x - bounds.x0 - offset;
-                            port.pan_by(Vec2::new((delta / scale_x).ceil(), 0f64));
+                            let x = initial_scroll_offset.x
+                                + (event.pos.x - offset) / scale_x;
+                            port.pan_to(Point::new(x, initial_scroll_offset.y));
                             ctx.set_handled();
                         }
                         _ => (),
@@ -752,21 +751,15 @@ impl ScrollComponentNew {
                         ctx.set_active(true);
                         self.held = BarHeldState::Vertical(
                             // The bounds must be non-empty, because the point hits the scrollbar.
-                            pos.y
-                                - self
-                                    .calc_vertical_bar_bounds(port, env)
-                                    .unwrap()
-                                    .y0,
+                            event.pos.y,
+                            scroll_offset,
                         );
                     } else if self.point_hits_horizontal_bar(port, pos, env) {
                         ctx.set_active(true);
                         self.held = BarHeldState::Horizontal(
                             // The bounds must be non-empty, because the point hits the scrollbar.
-                            pos.x
-                                - self
-                                    .calc_horizontal_bar_bounds(port, env)
-                                    .unwrap()
-                                    .x0,
+                            event.pos.x,
+                            scroll_offset,
                         );
                     } else {
                     }
