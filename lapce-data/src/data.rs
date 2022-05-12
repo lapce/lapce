@@ -338,6 +338,7 @@ impl LapceWindowData {
 pub struct EditorDiagnostic {
     pub range: Option<(usize, usize)>,
     pub diagnostic: Diagnostic,
+    pub lines: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug)]
@@ -2785,7 +2786,7 @@ impl LapceMainSplitData {
 
         if direction == split.direction {
             let new_index = if shift_current { index } else { index + 1 };
-            split.children.insert(new_index, new_content.clone());
+            split.children.insert(new_index, new_content);
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::SplitAdd(new_index, new_content, false),
@@ -2794,9 +2795,9 @@ impl LapceMainSplitData {
             split_id
         } else {
             let children = if shift_current {
-                vec![new_content.clone(), from_content.clone()]
+                vec![new_content, from_content]
             } else {
-                vec![from_content.clone(), new_content.clone()]
+                vec![from_content, new_content]
             };
             let new_split = SplitData {
                 parent_split: Some(split.widget_id),

@@ -685,7 +685,7 @@ impl LapceSplitNew {
                 ));
             }
             if split_children_len == 1 {
-                let split_content = split_data.children[0].clone();
+                let split_content = split_data.children[0];
                 if let Some(parent_split_id) = split_data.parent_split {
                     let parent_split =
                         data.main_split.splits.get_mut(&parent_split_id).unwrap();
@@ -695,7 +695,7 @@ impl LapceSplitNew {
                         .iter()
                         .position(|c| c == &SplitContent::Split(self.split_id))
                     {
-                        parent_split.children[index] = split_content.clone();
+                        parent_split.children[index] = split_content;
                         split_content
                             .set_split_id(&mut data.main_split, parent_split_id);
                         ctx.submit_command(Command::new(

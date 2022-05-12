@@ -462,11 +462,12 @@ impl LapceEditorBufferData {
         _ctx: &mut EventCtx,
         offset: usize,
         is_inside: bool,
+        within_scroll: bool,
     ) -> bool {
         let hover = Arc::make_mut(&mut self.hover);
 
         if hover.status != HoverStatus::Inactive {
-            if !is_inside {
+            if !is_inside || !within_scroll {
                 hover.cancel();
                 return false;
             }

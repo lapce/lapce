@@ -81,14 +81,6 @@ impl Widget<LapceTabData> for HoverContainer {
                     ctx.request_paint();
                 }
             }
-            Event::MouseMove(_)
-            | Event::MouseDown(_)
-            | Event::MouseUp(_)
-            | Event::Wheel(_) => {
-                if data.hover.status != HoverStatus::Done {
-                    return;
-                }
-            }
             _ => {}
         }
         self.hover.event(ctx, event, data, env);

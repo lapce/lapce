@@ -282,16 +282,23 @@ impl LapceTabNew {
                     ctx.set_handled();
                 } else {
                     match self.bar_hit_test(data, mouse.pos) {
-                        Some(PanelResizePosition::Left) => {
-                            ctx.set_cursor(&druid::Cursor::ResizeLeftRight)
+                        Some(position) => {
+                            match position {
+                                PanelResizePosition::Left => {
+                                    ctx.set_cursor(&druid::Cursor::ResizeLeftRight);
+                                }
+                                PanelResizePosition::LeftSplit => {
+                                    ctx.set_cursor(&druid::Cursor::ResizeUpDown);
+                                }
+                                PanelResizePosition::Bottom => {
+                                    ctx.set_cursor(&druid::Cursor::ResizeUpDown)
+                                }
+                            }
+                            ctx.set_handled();
                         }
-                        Some(PanelResizePosition::LeftSplit) => {
-                            ctx.set_cursor(&druid::Cursor::ResizeUpDown)
+                        None => {
+                            ctx.clear_cursor();
                         }
-                        Some(PanelResizePosition::Bottom) => {
-                            ctx.set_cursor(&druid::Cursor::ResizeUpDown)
-                        }
-                        None => ctx.clear_cursor(),
                     }
                 }
             }
@@ -546,6 +553,21 @@ impl LapceTabNew {
                             .map(|d| EditorDiagnostic {
                                 range: None,
                                 diagnostic: d.clone(),
+                                lines: d
+                                    .related_information
+                                    .as_ref()
+                                    .map(|r| {
+                                        r.iter()
+                                            .map(|r| {
+                                                r.message.matches('\n').count()
+                                                    + 1
+                                                    + 1
+                                            })
+                                            .sum()
+                                    })
+                                    .unwrap_or(0)
+                                    + d.message.matches('\n').count()
+                                    + 1,
                             })
                             .collect();
                         data.main_split
@@ -1024,23 +1046,40 @@ impl Widget<LapceTabData> for LapceTabNew {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        if !event.should_propagate_to_hidden() {
-            self.alert.event(ctx, event, data, env);
-            self.settings.event(ctx, event, data, env);
-            if ctx.is_handled() {
-                return;
-            }
-        }
-        self.handle_event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
+            self.handle_event(ctx, event, data, env);
+        }
+
+        if data.alert.active || event.should_propagate_to_hidden() {
             self.alert.event(ctx, event, data, env);
+        }
+        if data.settings.shown || event.should_propagate_to_hidden() {
             self.settings.event(ctx, event, data, env);
         }
-        self.picker.event(ctx, event, data, env);
-        self.palette.event(ctx, event, data, env);
-        self.completion.event(ctx, event, data, env);
-        self.hover.event(ctx, event, data, env);
+        if data.picker.active || event.should_propagate_to_hidden() {
+            self.picker.event(ctx, event, data, env);
+        }
+        if data.palette.status != PaletteStatus::Inactive
+            || event.should_propagate_to_hidden()
+        {
+            self.palette.event(ctx, event, data, env);
+        }
+        if data.completion.status == CompletionStatus::Started
+            || event.should_propagate_to_hidden()
+        {
+            self.completion.event(ctx, event, data, env);
+        }
+        if data.hover.status == HoverStatus::Done
+            || event.should_propagate_to_hidden()
+        {
+            self.hover.event(ctx, event, data, env);
+        }
         self.code_action.event(ctx, event, data, env);
+
+        if !event.should_propagate_to_hidden() && !ctx.is_handled() {
+            self.handle_event(ctx, event, data, env);
+        }
+
         self.main_split.event(ctx, event, data, env);
         self.status.event(ctx, event, data, env);
         for (_, panel) in data.panels.clone().iter() {

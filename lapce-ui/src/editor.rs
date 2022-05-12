@@ -84,14 +84,28 @@ impl LapceEditor {
         }
     }
 
+    fn mouse_within_scroll(
+        &self,
+        editor_data: &LapceEditorBufferData,
+        point: Point,
+    ) -> bool {
+        let scroll_offset = editor_data.editor.scroll_offset;
+        let size = *editor_data.editor.size.borrow();
+
+        scroll_offset.x <= point.x
+            && point.x <= scroll_offset.x + size.width
+            && scroll_offset.y <= point.y
+            && point.y <= scroll_offset.y + size.height
+    }
+
     fn mouse_drag(
         &mut self,
         ctx: &mut EventCtx,
         editor_data: &LapceEditorBufferData,
         config: &Config,
-    ) {
+    ) -> bool {
         if !ctx.is_active() {
-            return;
+            return false;
         }
 
         let line_height = config.editor.line_height as f64;
@@ -138,7 +152,10 @@ impl LapceEditor {
             ));
 
             self.drag_timer = ctx.request_timer(Duration::from_millis(16));
+            return true;
         }
+
+        false
     }
 
     fn mouse_move(
@@ -148,10 +165,15 @@ impl LapceEditor {
         editor_data: &mut LapceEditorBufferData,
         config: &Config,
     ) {
+        let mouse_actually_moved = self.mouse_pos != mouse_pos;
         self.mouse_pos = mouse_pos;
         self.mouse_hover_timer = TimerToken::INVALID;
 
-        self.mouse_drag(ctx, editor_data, config);
+        let dragged = self.mouse_drag(ctx, editor_data, config);
+
+        if !mouse_actually_moved && !dragged {
+            return;
+        }
 
         if ctx.is_active() {
             let (new_offset, _) = editor_data.doc.offset_of_point(
@@ -173,7 +195,11 @@ impl LapceEditor {
             config.editor.font_size,
             config,
         );
-        if !editor_data.check_hover(ctx, offset, is_inside) && is_inside {
+        let within_scroll = self.mouse_within_scroll(editor_data, mouse_pos);
+        if !editor_data.check_hover(ctx, offset, is_inside, within_scroll)
+            && is_inside
+            && within_scroll
+        {
             self.mouse_hover_timer =
                 ctx.request_timer(Duration::from_millis(config.editor.hover_delay));
         }
@@ -285,7 +311,9 @@ impl LapceEditor {
         let line_height = data.config.editor.line_height as f64;
         let width = data.config.editor_char_width(text);
         match &data.editor.content {
-            BufferContent::File(_) | BufferContent::Scratch(_) => {
+            BufferContent::File(_)
+            | BufferContent::Scratch(_)
+            | BufferContent::Local(LocalBufferKind::Empty) => {
                 if data.editor.code_lens {
                     if let Some(syntax) = data.doc.syntax() {
                         let height =
@@ -1691,6 +1719,7 @@ impl Widget<LapceTabData> for LapceEditor {
     ) {
         match event {
             Event::MouseMove(mouse_event) => {
+                ctx.set_handled();
                 ctx.set_cursor(&druid::Cursor::IBeam);
                 let doc = data.main_split.editor_doc(self.view_id);
                 let editor =

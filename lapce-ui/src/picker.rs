@@ -56,11 +56,9 @@ impl Widget<LapceTabData> for FilePicker {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        if data.picker.active {
-            self.pwd.event(ctx, event, data, env);
-            self.explorer.event(ctx, event, data, env);
-            self.control.event(ctx, event, data, env);
-        }
+        self.pwd.event(ctx, event, data, env);
+        self.explorer.event(ctx, event, data, env);
+        self.control.event(ctx, event, data, env);
     }
 
     fn lifecycle(
