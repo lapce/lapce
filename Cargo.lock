@@ -1786,7 +1786,7 @@ dependencies = [
 
 [[package]]
 name = "lapce"
-version = "0.0.12"
+version = "0.1.0"
 dependencies = [
  "lapce-proxy",
  "lapce-ui",
@@ -1794,7 +1794,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-core"
-version = "0.0.12"
+version = "0.1.0"
 dependencies = [
  "bitflags",
  "itertools",
@@ -1828,7 +1828,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-data"
-version = "0.0.12"
+version = "0.1.0"
 dependencies = [
  "Inflector",
  "alacritty_terminal",
@@ -1884,7 +1884,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-proxy"
-version = "0.0.12"
+version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -1933,7 +1933,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-ui"
-version = "0.0.12"
+version = "0.1.0"
 dependencies = [
  "Inflector",
  "alacritty_terminal",
