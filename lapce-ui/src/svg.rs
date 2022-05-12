@@ -15,7 +15,7 @@ lazy_static! {
 }
 
 struct SvgStore {
-    svgs: Arc<Mutex<HashMap<String, Option<Svg>>>>,
+    svgs: Arc<Mutex<HashMap<&'static str, Option<Svg>>>>,
 }
 
 impl SvgStore {
@@ -27,18 +27,18 @@ impl SvgStore {
 
     fn get_svg_or_insert_with(
         &self,
-        name: &str,
-        or: impl FnOnce(&str) -> Option<Svg>,
+        name: &'static str,
+        create_svg: impl FnOnce() -> Option<Svg>,
     ) -> Option<Svg> {
-        let mut svgs = self.svgs.lock();
-        if !svgs.contains_key(name) {
-            svgs.insert(name.to_string(), or(name));
-        }
-        svgs.get(name).cloned().unwrap()
+        self.svgs
+            .lock()
+            .entry(name)
+            .or_insert_with(create_svg)
+            .clone()
     }
 
-    fn get_svg(&self, name: &str) -> Option<Svg> {
-        self.get_svg_or_insert_with(name, |name| {
+    fn get_svg(&self, name: &'static str) -> Option<Svg> {
+        self.get_svg_or_insert_with(name, || {
             Svg::from_str(ICONS_DIR.get_file(name)?.contents_utf8()?).ok()
         })
     }
@@ -46,12 +46,12 @@ impl SvgStore {
 
 pub fn logo_svg() -> Svg {
     SVG_STORE
-        .get_svg_or_insert_with("lapce_logo", |_| Svg::from_str(LOGO).ok())
+        .get_svg_or_insert_with("lapce_logo", || Svg::from_str(LOGO).ok())
         .unwrap()
 }
 
-pub fn get_svg(name: impl AsRef<str>) -> Option<Svg> {
-    SVG_STORE.get_svg(name.as_ref())
+pub fn get_svg(name: &'static str) -> Option<Svg> {
+    SVG_STORE.get_svg(name)
 }
 
 pub fn file_svg_new(path: &Path) -> Svg {
