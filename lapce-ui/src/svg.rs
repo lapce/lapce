@@ -1,10 +1,9 @@
-use std::{collections::HashMap, ffi::OsStr, path::Path, str::FromStr, sync::Arc};
+use std::{collections::HashMap, ffi::OsStr, path::Path, str::FromStr};
 
 use druid::{piet::Svg, Color};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use lsp_types::{CompletionItemKind, SymbolKind};
-use parking_lot::Mutex;
 
 use lapce_data::config::{Config, LOGO};
 
@@ -15,39 +14,34 @@ lazy_static! {
 }
 
 struct SvgStore {
-    svgs: Arc<Mutex<HashMap<&'static str, Option<Svg>>>>,
+    svgs: HashMap<&'static str, Option<Svg>>,
 }
 
 impl SvgStore {
     fn new() -> Self {
-        Self {
-            svgs: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
+        let mut svgs = HashMap::new();
+        svgs.insert("lapce_logo", Svg::from_str(LOGO).ok());
 
-    fn get_svg_or_insert_with(
-        &self,
-        name: &'static str,
-        create_svg: impl FnOnce() -> Option<Svg>,
-    ) -> Option<Svg> {
-        self.svgs
-            .lock()
-            .entry(name)
-            .or_insert_with(create_svg)
-            .clone()
+        for file in ICONS_DIR.files() {
+            if let Some(file_name) = file.path().file_name().and_then(OsStr::to_str)
+            {
+                let svg =
+                    file.contents_utf8().and_then(|str| Svg::from_str(str).ok());
+
+                svgs.insert(file_name, svg);
+            }
+        }
+
+        Self { svgs }
     }
 
     fn get_svg(&self, name: &'static str) -> Option<Svg> {
-        self.get_svg_or_insert_with(name, || {
-            Svg::from_str(ICONS_DIR.get_file(name)?.contents_utf8()?).ok()
-        })
+        self.svgs.get(name).and_then(Clone::clone)
     }
 }
 
 pub fn logo_svg() -> Svg {
-    SVG_STORE
-        .get_svg_or_insert_with("lapce_logo", || Svg::from_str(LOGO).ok())
-        .unwrap()
+    get_svg("lapce_logo").unwrap()
 }
 
 pub fn get_svg(name: &'static str) -> Option<Svg> {
