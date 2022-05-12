@@ -8,7 +8,7 @@ use druid::{
     piet::{Text, TextLayoutBuilder},
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, LayoutCtx,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
-    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowId,
+    UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use druid::{FontWeight, Modifiers};
 use lapce_data::command::LAPCE_COMMAND;
@@ -22,20 +22,12 @@ use lapce_data::{
     keypress::KeyPressFocus,
     palette::{PaletteStatus, PaletteType, PaletteViewData, PaletteViewLens},
 };
-use lsp_types::SymbolKind;
 
 use crate::{
     editor::view::LapceEditorView,
     scroll::{LapceIdentityWrapper, LapceScrollNew},
     svg::{file_svg_new, symbol_svg_new},
 };
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum PaletteIcon {
-    File(String),
-    Symbol(SymbolKind),
-    None,
-}
 
 pub struct NewPalette {
     widget_id: WidgetId,
@@ -424,25 +416,6 @@ impl Widget<LapceTabData> for PaletteContainer {
             self.preview.paint(ctx, data, env);
         }
     }
-}
-
-pub struct PaletteInput {
-    #[allow(dead_code)]
-    window_id: WindowId,
-
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-}
-
-pub struct PaletteContent {
-    #[allow(dead_code)]
-    window_id: WindowId,
-
-    #[allow(dead_code)]
-    tab_id: WidgetId,
-
-    #[allow(dead_code)]
-    max_items: usize,
 }
 
 pub struct NewPaletteInput {}
@@ -936,24 +909,4 @@ impl Widget<PaletteViewData> for PalettePreview {
     }
 
     fn paint(&mut self, _ctx: &mut PaintCtx, _data: &PaletteViewData, _env: &Env) {}
-}
-
-impl PaletteInput {
-    pub fn new(window_id: WindowId, tab_id: WidgetId) -> PaletteInput {
-        PaletteInput { window_id, tab_id }
-    }
-}
-
-impl PaletteContent {
-    pub fn new(
-        window_id: WindowId,
-        tab_id: WidgetId,
-        max_items: usize,
-    ) -> PaletteContent {
-        PaletteContent {
-            window_id,
-            tab_id,
-            max_items,
-        }
-    }
 }

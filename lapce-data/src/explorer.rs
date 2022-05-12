@@ -6,7 +6,6 @@ use std::sync::Arc;
 use druid::ExtEventSink;
 use druid::{Target, WidgetId};
 
-use include_dir::{include_dir, Dir};
 use lapce_rpc::file::FileNodeItem;
 use lapce_rpc::proxy::ReadDirResponse;
 
@@ -15,18 +14,12 @@ use crate::proxy::LapceProxy;
 
 use crate::{command::LapceUICommand, command::LAPCE_UI_COMMAND};
 
-#[allow(dead_code)]
-const ICONS_DIR: Dir = include_dir!("../icons");
-
 #[derive(Clone)]
 pub struct FileExplorerData {
     pub tab_id: WidgetId,
     pub widget_id: WidgetId,
     pub workspace: Option<FileNodeItem>,
     pub active_selected: Option<PathBuf>,
-
-    #[allow(dead_code)]
-    count: usize,
 }
 
 impl FileExplorerData {
@@ -64,7 +57,6 @@ impl FileExplorerData {
                 children_open_count: 0,
             }),
             active_selected: None,
-            count: 0,
         }
     }
 
