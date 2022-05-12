@@ -81,16 +81,6 @@ impl Viewport {
     }
 }
 
-#[derive(Debug, Clone)]
-enum ScrollDirection {
-    #[allow(dead_code)]
-    Bidirectional,
-    #[allow(dead_code)]
-    Vertical,
-    #[allow(dead_code)]
-    Horizontal,
-}
-
 /// Minimum length for any scrollbar to be when measured on that
 /// scrollbar's primary axis.
 pub const SCROLLBAR_MIN_SIZE: f64 = 45.0;

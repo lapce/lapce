@@ -381,7 +381,6 @@ impl CompletionData {
                 item: i.to_owned(),
                 score: 0,
                 label_score: 0,
-                index: 0,
                 indices: Vec::new(),
             })
             .collect();
@@ -458,9 +457,6 @@ impl Default for CompletionNew {
 #[derive(Clone)]
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
-
-    #[allow(dead_code)]
-    pub index: usize,
 
     pub score: i64,
     pub label_score: i64,

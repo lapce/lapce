@@ -15,12 +15,6 @@ pub struct RegisterData {
 pub struct Register {
     pub unamed: RegisterData,
     last_yank: RegisterData,
-
-    #[allow(dead_code)]
-    last_deletes: [RegisterData; 10],
-
-    #[allow(dead_code)]
-    newest_delete: usize,
 }
 
 pub enum RegisterKind {

@@ -6,7 +6,6 @@ use std::{
 };
 
 use alacritty_terminal::{
-    ansi,
     config::Program,
     event::OnResize,
     event_loop::Msg,
@@ -277,9 +276,6 @@ impl Writing {
 pub struct State {
     write_list: VecDeque<Cow<'static, [u8]>>,
     writing: Option<Writing>,
-
-    #[allow(dead_code)]
-    parser: ansi::Processor,
 }
 
 impl State {
@@ -311,7 +307,7 @@ impl State {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(target_os = "macos")]
 fn set_locale_environment() {
     let locale = locale_config::Locale::global_default()
         .to_string()

@@ -20,8 +20,6 @@ use crate::{
 };
 
 pub struct LapcePanel {
-    #[allow(dead_code)]
-    widget_id: WidgetId,
     header: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     split: WidgetPod<LapceTabData, LapceSplitNew>,
 }
@@ -132,7 +130,6 @@ impl LapcePanel {
             PanelHeaderKind::Widget(w) => w,
         };
         Self {
-            widget_id,
             split: WidgetPod::new(split),
             header: WidgetPod::new(header),
         }
@@ -174,8 +171,6 @@ pub enum PanelHeaderKind {
 }
 
 pub struct PanelSection {
-    #[allow(dead_code)]
-    widget_id: WidgetId,
     header: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     content: WidgetPod<
         LapceTabData,
@@ -185,13 +180,12 @@ pub struct PanelSection {
 
 impl PanelSection {
     pub fn new(
-        widget_id: WidgetId,
+        _widget_id: WidgetId,
         header: Option<Box<dyn Widget<LapceTabData>>>,
         content: Box<dyn Widget<LapceTabData>>,
     ) -> Self {
         let content = LapceScrollNew::new(content).vertical();
         Self {
-            widget_id,
             header: header.map(WidgetPod::new),
             content: WidgetPod::new(content),
         }
@@ -380,20 +374,17 @@ pub struct PanelMainHeader {
     text: ReadOnlyString,
     icons: Vec<LapceIcon>,
 
-    #[allow(dead_code)]
-    panel_widget_id: WidgetId,
     kind: PanelKind,
     mouse_pos: Point,
 }
 
 impl PanelMainHeader {
     pub fn new(
-        panel_widget_id: WidgetId,
+        _panel_widget_id: WidgetId,
         kind: PanelKind,
         text: ReadOnlyString,
     ) -> Self {
         Self {
-            panel_widget_id,
             kind,
             text,
             icons: Vec::new(),

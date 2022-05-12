@@ -643,7 +643,6 @@ impl CompletionState {
                 item: item.to_owned(),
                 score: -1 - index as i64,
                 label_score: -1 - index as i64,
-                index,
                 indices: Vec::new(),
             })
             .collect();
