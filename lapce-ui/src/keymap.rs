@@ -338,8 +338,8 @@ impl Widget<LapceTabData> for LapceKeymap {
                         i as f64 * self.line_height + self.line_height / 2.0,
                     );
                     let bits = [
-                        (Modes::INSERT, "Normal"),
-                        (Modes::NORMAL, "Insert"),
+                        (Modes::INSERT, "Insert"),
+                        (Modes::NORMAL, "Normal"),
                         (Modes::VISUAL, "Visual"),
                         (Modes::TERMINAL, "Terminal"),
                     ];
