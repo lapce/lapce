@@ -1,27 +1,23 @@
 use std::sync::Arc;
 
 use alacritty_terminal::{
-    ansi,
     grid::Dimensions,
     index::{Direction, Side},
-    term::{cell::Flags, search::RegexSearch, SizeInfo},
-    Term,
+    term::{cell::Flags, search::RegexSearch},
 };
 use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, FontFamily,
-    FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
-    Rect, RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
-    WidgetPod,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_core::mode::Mode;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    proxy::LapceProxy,
     split::SplitDirection,
-    terminal::{EventProxy, LapceTerminalData, LapceTerminalViewData},
+    terminal::{LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
 use unicode_width::UnicodeWidthChar;
@@ -35,47 +31,6 @@ use crate::{
 };
 
 pub type TermConfig = alacritty_terminal::config::Config;
-
-pub struct RawTerminal {
-    pub parser: ansi::Processor,
-    pub term: Term<EventProxy>,
-    pub scroll_delta: f64,
-}
-
-impl RawTerminal {
-    pub fn update_content(&mut self, content: &str) {
-        if let Ok(content) = base64::decode(content) {
-            for byte in content {
-                self.parser.advance(&mut self.term, byte);
-            }
-        }
-    }
-}
-
-impl RawTerminal {
-    pub fn new(
-        term_id: TermId,
-        proxy: Arc<LapceProxy>,
-        event_sink: ExtEventSink,
-    ) -> Self {
-        let config = TermConfig::default();
-        let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
-        let event_proxy = EventProxy {
-            proxy,
-            event_sink,
-            term_id,
-        };
-
-        let term = Term::new(&config, size, event_proxy);
-        let parser = ansi::Processor::new();
-
-        Self {
-            parser,
-            term,
-            scroll_delta: 0.0,
-        }
-    }
-}
 
 /// This struct represents the main body of the terminal, i.e. the part
 /// where the shell is presented.
@@ -299,7 +254,7 @@ impl Widget<LapceTabData> for LapceTerminalView {
     }
 }
 
-pub struct LapceTerminalHeader {
+struct LapceTerminalHeader {
     term_id: TermId,
     height: f64,
     icon_size: f64,
@@ -501,7 +456,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
     }
 }
 
-pub struct LapceTerminal {
+struct LapceTerminal {
     term_id: TermId,
     widget_id: WidgetId,
     width: f64,

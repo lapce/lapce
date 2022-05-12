@@ -33,24 +33,12 @@ use lapce_data::{
 use lsp_types::DiagnosticSeverity;
 
 pub mod container;
-pub mod diff_split;
 pub mod gutter;
 pub mod header;
 pub mod tab;
 pub mod tab_header;
 pub mod tab_header_content;
 pub mod view;
-
-pub struct LapceUI {}
-
-#[derive(Copy, Clone)]
-pub struct EditorCount(Option<usize>);
-
-#[derive(Copy, Clone)]
-pub enum EditorOperator {
-    Delete(EditorCount),
-    Yank(EditorCount),
-}
 
 #[derive(Clone, Copy)]
 enum ClickKind {
@@ -536,19 +524,19 @@ impl LapceEditor {
         let char_width = text_layout.size().width;
         let y_shift = (line_height - text_layout.size().height) / 2.0;
 
-        if data.editor.content.is_input()
-            || (data.editor.compare.is_none() && !data.editor.code_lens)
-        {
-            // Self::paint_cursor(
-            //     data,
-            //     ctx,
-            //     is_focused,
-            //     self.placeholder.as_ref(),
-            //     char_width,
-            //     env,
-            // );
-            // Self::paint_find(data, ctx, char_width, env);
-        }
+        //if data.editor.content.is_input()
+        //    || (data.editor.compare.is_none() && !data.editor.code_lens)
+        //{
+        // Self::paint_cursor(
+        //     data,
+        //     ctx,
+        //     is_focused,
+        //     self.placeholder.as_ref(),
+        //     char_width,
+        //     env,
+        // );
+        // Self::paint_find(data, ctx, char_width, env);
+        //}
         let self_size = ctx.size();
         let rect = ctx.region().bounding_box();
         let start_line = (rect.y0 / line_height).floor() as usize;

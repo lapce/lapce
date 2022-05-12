@@ -16,71 +16,6 @@ use lapce_data::{
     config::{Config, GetConfig, LapceTheme},
 };
 
-/// Represents the size and position of a rectangular "viewport" into a larger area.
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
-pub struct Viewport {
-    /// The size of the area that we have a viewport into.
-    pub content_size: Size,
-    /// The view rectangle.
-    pub rect: Rect,
-}
-
-impl Viewport {
-    /// Tries to find a position for the view rectangle that is contained in the content rectangle.
-    ///
-    /// If the supplied origin is good, returns it; if it isn't, we try to return the nearest
-    /// origin that would make the view rectangle contained in the content rectangle. (This will
-    /// fail if the content is smaller than the view, and we return `0.0` in each dimension where
-    /// the content is smaller.)
-    pub fn clamp_view_origin(&self, origin: Point) -> Point {
-        let x = origin
-            .x
-            .min(self.content_size.width - self.rect.width())
-            .max(0.0);
-        let y = origin
-            .y
-            .min(self.content_size.height - self.rect.height())
-            .max(0.0);
-        Point::new(x, y)
-    }
-
-    /// Changes the viewport offset by `delta`, while trying to keep the view rectangle inside the
-    /// content rectangle.
-    ///
-    /// Returns true if the offset actually changed. Even if `delta` is non-zero, the offset might
-    /// not change. For example, if you try to move the viewport down but it is already at the
-    /// bottom of the child widget, then the offset will not change and this function will return
-    /// false.
-    pub fn pan_by(&mut self, delta: Vec2) -> bool {
-        self.pan_to(self.rect.origin() + delta)
-    }
-
-    /// Sets the viewport origin to `pos`, while trying to keep the view rectangle inside the
-    /// content rectangle.
-    ///
-    /// Returns true if the position changed. Note that the valid values for the viewport origin
-    /// are constrained by the size of the child, and so the origin might not get set to exactly
-    /// `pos`.
-    pub fn pan_to(&mut self, origin: Point) -> bool {
-        let new_origin = self.clamp_view_origin(origin);
-        if (new_origin - self.rect.origin()).hypot2() > 1e-12 {
-            self.rect = self.rect.with_origin(new_origin);
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn force_pan_to(&mut self, origin: Point) -> bool {
-        if (origin - self.rect.origin()).hypot2() > 1e-12 {
-            self.rect = self.rect.with_origin(origin);
-            true
-        } else {
-            false
-        }
-    }
-}
-
 /// Minimum length for any scrollbar to be when measured on that
 /// scrollbar's primary axis.
 pub const SCROLLBAR_MIN_SIZE: f64 = 45.0;
@@ -88,7 +23,7 @@ pub const SCROLLBAR_MIN_SIZE: f64 = 45.0;
 /// Denotes which scrollbar, if any, is currently being hovered over
 /// by the mouse.
 #[derive(Debug, Copy, Clone)]
-pub enum BarHoveredState {
+enum BarHoveredState {
     /// Neither scrollbar is being hovered by the mouse.
     None,
     /// The vertical scrollbar is being hovered by the mouse.
@@ -97,19 +32,9 @@ pub enum BarHoveredState {
     Horizontal,
 }
 
-impl BarHoveredState {
-    /// Determines if any scrollbar is currently being hovered by the mouse.
-    pub fn is_hovered(self) -> bool {
-        matches!(
-            self,
-            BarHoveredState::Vertical | BarHoveredState::Horizontal
-        )
-    }
-}
-
 /// Denotes which scrollbar, if any, is currently being dragged.
 #[derive(Debug, Copy, Clone)]
-pub enum BarHeldState {
+enum BarHeldState {
     /// Neither scrollbar is being dragged.
     None,
     /// Vertical scrollbar is being dragged. Contains an `f64` with
@@ -121,7 +46,7 @@ pub enum BarHeldState {
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
-pub struct ViewportNew {
+struct ViewportNew {
     /// The size of the area that we have a viewport into.
     pub content_size: Size,
     /// The view rectangle.
@@ -220,7 +145,7 @@ impl ViewportNew {
     }
 }
 
-pub struct ClipBoxNew<T, W> {
+struct ClipBoxNew<T, W> {
     child: WidgetPod<T, W>,
     port: ViewportNew,
     constrain_horizontal: bool,
@@ -271,7 +196,7 @@ impl<T, W: Widget<T>> ClipBoxNew<T, W> {
     ///
     /// [`constrain_vertical`]: struct.ClipBox.html#constrain_vertical
     pub fn constrain_horizontal(mut self, constrain: bool) -> Self {
-        self.constrain_horizontal = constrain;
+        self.set_constrain_horizontal(constrain);
         self
     }
 
@@ -296,7 +221,7 @@ impl<T, W: Widget<T>> ClipBoxNew<T, W> {
     ///   the height of the child, and the viewport will set its own height to be the same as its
     ///   child's height.
     pub fn constrain_vertical(mut self, constrain: bool) -> Self {
-        self.constrain_vertical = constrain;
+        self.set_constrain_vertical(constrain);
         self
     }
 
@@ -434,7 +359,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBoxNew<T, W> {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct ScrollComponentNew {
+struct ScrollComponentNew {
     /// Current opacity for both scrollbars
     pub opacity: f64,
     /// ID for the timer which schedules scrollbar fade out
@@ -837,7 +762,7 @@ impl ScrollComponentNew {
 
 pub struct LapceScrollNew<T, W> {
     clip: ClipBoxNew<T, W>,
-    pub scroll_component: ScrollComponentNew,
+    scroll_component: ScrollComponentNew,
 }
 
 impl<T, W: Widget<T>> LapceScrollNew<T, W> {
@@ -855,15 +780,21 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
 
     /// Restrict scrolling to the vertical axis while locking child width.
     pub fn vertical(mut self) -> Self {
-        self.clip.set_constrain_vertical(false);
-        self.clip.set_constrain_horizontal(true);
+        self.clip = self
+            .clip
+            .constrain_vertical(false)
+            .constrain_horizontal(true);
+
         self
     }
 
     /// Restrict scrolling to the horizontal axis while locking child height.
     pub fn horizontal(mut self) -> Self {
-        self.clip.set_constrain_vertical(true);
-        self.clip.set_constrain_horizontal(false);
+        self.clip = self
+            .clip
+            .constrain_vertical(true)
+            .constrain_horizontal(false);
+
         self
     }
 
@@ -912,6 +843,14 @@ impl<T, W: Widget<T>> LapceScrollNew<T, W> {
     /// portion that fits, prioritizing the portion closest to the origin.
     pub fn scroll_to_visible(&mut self, region: Rect, _env: &Env) -> bool {
         self.clip.pan_to_visible(region)
+    }
+
+    pub fn reset_scrollbar_fade<F>(&mut self, request_timer: F, env: &Env)
+    where
+        F: FnOnce(Duration) -> TimerToken,
+    {
+        self.scroll_component
+            .reset_scrollbar_fade(request_timer, env)
     }
 }
 

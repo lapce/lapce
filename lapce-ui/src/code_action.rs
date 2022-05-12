@@ -21,7 +21,7 @@ use lsp_types::{
 pub struct CodeAction {}
 
 #[derive(Clone, Data)]
-pub struct CodeActionData {
+struct CodeActionData {
     pub main_split: LapceMainSplitData,
     pub config: Arc<Config>,
 }

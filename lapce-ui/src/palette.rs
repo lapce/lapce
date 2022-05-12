@@ -218,7 +218,7 @@ impl Widget<LapceTabData> for NewPalette {
     }
 }
 
-pub struct PaletteContainer {
+struct PaletteContainer {
     content_size: Size,
     line_height: f64,
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,

@@ -572,7 +572,7 @@ impl Widget<LapceTabData> for LapceKeymap {
     }
 }
 
-pub struct LapceKeymapHeader {}
+struct LapceKeymapHeader {}
 
 impl LapceKeymapHeader {
     pub fn new() -> Self {

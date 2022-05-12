@@ -20,9 +20,6 @@ use crate::{
     svg::{file_svg_new, get_svg},
 };
 
-pub const SOURCE_CONTROL_BUFFER: &str = "[Source Control Buffer]";
-pub const SEARCH_BUFFER: &str = "[Search Buffer]";
-
 pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
     let editor_data = data
         .main_split
@@ -58,7 +55,7 @@ pub fn new_source_control_panel(data: &LapceTabData) -> LapcePanel {
     )
 }
 
-pub struct SourceControlFileList {
+struct SourceControlFileList {
     widget_id: WidgetId,
     mouse_down: Option<usize>,
     line_height: f64,

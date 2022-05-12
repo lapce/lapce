@@ -24,13 +24,13 @@ use lapce_data::{
         EditorTabChild, FocusArea, LapceEditorData, LapceTabData, PanelKind,
         SplitContent, SplitData,
     },
-    keypress::{Alignment, DefaultKeyPressHandler, KeyMap, KeyPress},
+    keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
 };
 use lapce_rpc::terminal::TermId;
 
-pub struct LapceDynamicSplit {
+struct LapceDynamicSplit {
     widget_id: WidgetId,
     children: Vec<ChildWidgetNew>,
 }
@@ -80,15 +80,6 @@ pub fn split_content_widget(
                 );
             }
             split.boxed()
-        }
-    }
-}
-
-impl LapceDynamicSplit {
-    pub fn new(widget_id: WidgetId) -> Self {
-        Self {
-            widget_id,
-            children: Vec::new(),
         }
     }
 }
@@ -195,7 +186,7 @@ pub struct LapceSplitNew {
     commands: Vec<(LapceCommand, PietTextLayout, Rect, Option<KeyMap>)>,
 }
 
-pub struct ChildWidgetNew {
+struct ChildWidgetNew {
     pub widget: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     flex: bool,
     params: f64,
@@ -1203,28 +1194,4 @@ fn empty_editor_commands(modal: bool, has_workspace: bool) -> Vec<LapceCommand> 
             },
         ]
     }
-}
-
-pub fn keybinding_to_string(keypress: &KeyPress) -> String {
-    let mut keymap_str = "".to_string();
-    if keypress.mods.ctrl() {
-        keymap_str += "Ctrl+";
-    }
-    if keypress.mods.alt() {
-        keymap_str += "Alt+";
-    }
-    if keypress.mods.meta() {
-        let keyname = match std::env::consts::OS {
-            "macos" => "Cmd",
-            "windows" => "Win",
-            _ => "Meta",
-        };
-        keymap_str += keyname;
-        keymap_str += "+";
-    }
-    if keypress.mods.shift() {
-        keymap_str += "Shift+";
-    }
-    keymap_str += &keypress.key.to_string();
-    keymap_str
 }

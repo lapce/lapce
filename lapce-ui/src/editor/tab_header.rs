@@ -96,7 +96,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                         if self.content.widget_mut().scroll_to_visible(rect, env) {
                             self.content
                                 .widget_mut()
-                                .scroll_component
                                 .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
                         }
                     }

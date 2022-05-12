@@ -54,7 +54,7 @@ pub fn launch() {
     launcher.launch(data).expect("launch failed");
 }
 
-pub struct LapceAppDelegate {}
+struct LapceAppDelegate {}
 
 impl LapceAppDelegate {
     pub fn new() -> Self {

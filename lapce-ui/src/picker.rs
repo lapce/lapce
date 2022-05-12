@@ -151,7 +151,7 @@ impl Widget<LapceTabData> for FilePicker {
     }
 }
 
-pub struct FilePickerPwd {
+struct FilePickerPwd {
     icons: Vec<(Rect, Svg)>,
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
 }
@@ -308,7 +308,7 @@ impl Widget<LapceTabData> for FilePickerPwd {
     }
 }
 
-pub struct FilePickerExplorer {
+struct FilePickerExplorer {
     toggle_rects: HashMap<usize, Rect>,
     last_left_click: Option<(usize, std::time::Instant)>,
     line_height: f64,
@@ -656,7 +656,7 @@ pub fn paint_file_node_item_by_index(
     i
 }
 
-pub struct FilePickerControl {
+struct FilePickerControl {
     buttons: Vec<LapceButton>,
 }
 
