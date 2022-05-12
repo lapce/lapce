@@ -812,7 +812,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#33ee4af7f38d646d9138d1a66f7db15ce77970ed"
+source = "git+https://github.com/lapce/druid?branch=opengl#6d68dc387d6e2d156eef8f1ca78dda6cc6488b3b"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -836,7 +836,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#33ee4af7f38d646d9138d1a66f7db15ce77970ed"
+source = "git+https://github.com/lapce/druid?branch=opengl#6d68dc387d6e2d156eef8f1ca78dda6cc6488b3b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -846,7 +846,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=opengl#33ee4af7f38d646d9138d1a66f7db15ce77970ed"
+source = "git+https://github.com/lapce/druid?branch=opengl#6d68dc387d6e2d156eef8f1ca78dda6cc6488b3b"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
