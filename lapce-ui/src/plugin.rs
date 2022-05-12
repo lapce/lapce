@@ -15,7 +15,7 @@ use strum_macros::Display;
 use crate::panel::{LapcePanel, PanelHeaderKind};
 
 #[derive(Display, PartialEq)]
-pub enum PluginStatus {
+enum PluginStatus {
     Installed,
     Install,
     Upgrade,

@@ -170,7 +170,7 @@ pub enum PanelHeaderKind {
     Widget(Box<dyn Widget<LapceTabData>>),
 }
 
-pub struct PanelSection {
+struct PanelSection {
     header: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
     content: WidgetPod<
         LapceTabData,
@@ -189,15 +189,6 @@ impl PanelSection {
             header: header.map(WidgetPod::new),
             content: WidgetPod::new(content),
         }
-    }
-
-    pub fn new_simple(
-        widget_id: WidgetId,
-        header: ReadOnlyString,
-        content: Box<dyn Widget<LapceTabData>>,
-    ) -> Self {
-        let header = PanelSectionHeader::new(header).boxed();
-        Self::new(widget_id, Some(header), content)
     }
 }
 

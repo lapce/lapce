@@ -36,7 +36,7 @@ use crate::{
     svg::get_svg,
 };
 
-pub enum LapceSettingsKind {
+enum LapceSettingsKind {
     Core,
     Editor,
 }
@@ -449,11 +449,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
     }
 }
 
-pub enum SettingsValue {
-    Bool(bool),
-}
-
-pub struct LapceSettings {
+struct LapceSettings {
     widget_id: WidgetId,
     kind: LapceSettingsKind,
     children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
@@ -611,12 +607,12 @@ impl Widget<LapceTabData> for LapceSettings {
     }
 }
 
-pub struct LapceSettingsItemKeypress {
+struct LapceSettingsItemKeypress {
     input: String,
     cursor: usize,
 }
 
-pub struct LapceSettingsItem {
+struct LapceSettingsItem {
     kind: String,
     name: String,
     desc: String,

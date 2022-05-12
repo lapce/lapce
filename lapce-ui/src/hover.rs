@@ -181,7 +181,7 @@ impl Widget<LapceTabData> for HoverContainer {
 }
 
 #[derive(Default)]
-pub struct Hover {
+struct Hover {
     active_layout: TextLayout<RichText>,
 }
 

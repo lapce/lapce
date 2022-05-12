@@ -334,7 +334,7 @@ impl Widget<LapceTabData> for FileExplorer {
     }
 }
 
-pub struct FileExplorerFileList {
+struct FileExplorerFileList {
     line_height: f64,
     hovered: Option<usize>,
 }

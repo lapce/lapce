@@ -8,7 +8,8 @@ use parking_lot::Mutex;
 
 use lapce_data::config::{Config, LOGO};
 
-pub const ICONS_DIR: Dir = include_dir!("../icons");
+const ICONS_DIR: Dir = include_dir!("../icons");
+
 lazy_static! {
     static ref SVG_STORE: SvgStore = SvgStore::new();
 }

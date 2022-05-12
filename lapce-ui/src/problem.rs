@@ -47,7 +47,7 @@ pub fn new_problem_panel(data: &ProblemData) -> LapcePanel {
     )
 }
 
-pub struct ProblemContent {
+struct ProblemContent {
     severity: DiagnosticSeverity,
     mouse_pos: Point,
     line_height: f64,
