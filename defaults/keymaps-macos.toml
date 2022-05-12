@@ -63,6 +63,11 @@ command = "delete_word_backward"
 mode = "i"
 
 [[keymaps]]
+key = "meta+backspace"
+command = "delete_to_beginning_of_line"
+mode = "i"
+
+[[keymaps]]
 key = "alt+delete"
 command = "delete_word_forward"
 mode = "i"
