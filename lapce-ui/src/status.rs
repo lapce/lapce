@@ -67,7 +67,7 @@ impl LapceStatusNew {
                 };
 
                 LapceIcon {
-                    icon: p.svg_name().to_string(),
+                    icon: p.svg_name(),
                     rect: Size::new(self_size.height, self_size.height)
                         .to_rect()
                         .with_origin(Point::new(

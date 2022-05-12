@@ -331,7 +331,7 @@ impl LapceTerminalHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "close.svg".to_string(),
+            icon: "close.svg",
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -346,7 +346,7 @@ impl LapceTerminalHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "split-horizontal.svg".to_string(),
+            icon: "split-horizontal.svg",
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),

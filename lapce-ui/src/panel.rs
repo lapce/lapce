@@ -408,7 +408,7 @@ impl PanelMainHeader {
         let mut icons = Vec::new();
         let x = self_size.width - ((icons.len() + 1) as f64) * (gap + icon_size);
         let icon = LapceIcon {
-            icon: "close.svg".to_string(),
+            icon: "close.svg",
             rect: Size::new(icon_size, icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -441,7 +441,7 @@ impl PanelMainHeader {
                 let x =
                     self_size.width - ((icons.len() + 1) as f64) * (gap + icon_size);
                 let icon = LapceIcon {
-                    icon: icon_svg.to_string(),
+                    icon: icon_svg,
                     rect: Size::new(icon_size, icon_size)
                         .to_rect()
                         .with_origin(Point::new(x, gap)),

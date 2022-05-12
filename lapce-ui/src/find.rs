@@ -27,7 +27,7 @@ impl FindBox {
             .padding((10.0, 5.0));
         let icons = vec![
             LapceIcon {
-                icon: "arrow-up.svg".to_string(),
+                icon: "arrow-up.svg",
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,
@@ -39,7 +39,7 @@ impl FindBox {
                 ),
             },
             LapceIcon {
-                icon: "arrow-down.svg".to_string(),
+                icon: "arrow-down.svg",
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,
@@ -51,7 +51,7 @@ impl FindBox {
                 ),
             },
             LapceIcon {
-                icon: "close.svg".to_string(),
+                icon: "close.svg",
                 rect: Rect::ZERO,
                 command: Command::new(
                     LAPCE_COMMAND,

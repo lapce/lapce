@@ -44,8 +44,8 @@ pub fn logo_svg() -> Svg {
     svgs.get(name).cloned().unwrap().unwrap()
 }
 
-pub fn get_svg(name: &str) -> Option<Svg> {
-    SVG_STORE.get_svg(name)
+pub fn get_svg(name: impl AsRef<str>) -> Option<Svg> {
+    SVG_STORE.get_svg(name.as_ref())
 }
 
 pub fn file_svg_new(path: &Path) -> Svg {
