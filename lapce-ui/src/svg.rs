@@ -25,24 +25,29 @@ impl SvgStore {
         }
     }
 
-    fn get_svg(&self, name: &str) -> Option<Svg> {
+    fn get_svg_or_insert_with(
+        &self,
+        name: &str,
+        or: impl FnOnce(&str) -> Option<Svg>,
+    ) -> Option<Svg> {
         let mut svgs = self.svgs.lock();
         if !svgs.contains_key(name) {
-            let svg = Svg::from_str(ICONS_DIR.get_file(name)?.contents_utf8()?).ok();
-            svgs.insert(name.to_string(), svg);
+            svgs.insert(name.to_string(), or(name));
         }
         svgs.get(name).cloned().unwrap()
+    }
+
+    fn get_svg(&self, name: &str) -> Option<Svg> {
+        self.get_svg_or_insert_with(name, |name| {
+            Svg::from_str(ICONS_DIR.get_file(name)?.contents_utf8()?).ok()
+        })
     }
 }
 
 pub fn logo_svg() -> Svg {
-    let name = "lapce_logo";
-    let mut svgs = SVG_STORE.svgs.lock();
-    if !svgs.contains_key(name) {
-        let svg = Svg::from_str(LOGO).ok();
-        svgs.insert(name.to_string(), svg);
-    }
-    svgs.get(name).cloned().unwrap().unwrap()
+    SVG_STORE
+        .get_svg_or_insert_with("lapce_logo", |_| Svg::from_str(LOGO).ok())
+        .unwrap()
 }
 
 pub fn get_svg(name: impl AsRef<str>) -> Option<Svg> {
