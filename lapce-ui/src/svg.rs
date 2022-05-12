@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, str::FromStr, sync::Arc};
+use std::{collections::HashMap, ffi::OsStr, path::Path, str::FromStr, sync::Arc};
 
 use druid::{piet::Svg, Color};
 use include_dir::{include_dir, Dir};
@@ -50,52 +50,67 @@ pub fn get_svg(name: impl AsRef<str>) -> Option<Svg> {
 }
 
 pub fn file_svg_new(path: &Path) -> Svg {
-    let extension = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    let file_type = match path.file_name().and_then(|f| f.to_str()).unwrap_or("") {
-        "LICENSE" => "license",
-        _ => match extension.as_str() {
-            "rs" => "rust",
-            "md" => "markdown",
-            "cxx" | "cc" | "c++" => "cpp",
-            s => s,
-        },
+    let file_type = if path.file_name().and_then(OsStr::to_str) == Some("LICENSE") {
+        "file_type_license.svg"
+    } else {
+        path.extension()
+            .and_then(OsStr::to_str)
+            .and_then(|extension| {
+                const TYPES: &[(&[&str], &str)] = &[
+                    (&["c"], "file_type_c.svg"),
+                    (&["cxx", "cc", "c++", "cpp"], "file_type_cpp.svg"),
+                    (&["go"], "file_type_go.svg"),
+                    (&["json"], "file_type_json.svg"),
+                    (&["markdown", "md"], "file_type_markdown.svg"),
+                    (&["rs"], "file_type_rust.svg"),
+                    (&["toml"], "file_type_toml.svg"),
+                    (&["yaml"], "file_type_yaml.svg"),
+                ];
+
+                for (exts, file_type) in TYPES {
+                    for ext in exts.iter() {
+                        if extension.eq_ignore_ascii_case(ext) {
+                            return Some(*file_type);
+                        }
+                    }
+                }
+
+                None
+            })
+            .unwrap_or("default_file.svg")
     };
-    get_svg(&format!("file_type_{}.svg", file_type))
-        .unwrap_or_else(|| get_svg("default_file.svg").unwrap())
+
+    get_svg(file_type).unwrap()
 }
 
 pub fn symbol_svg_new(kind: &SymbolKind) -> Option<Svg> {
     let kind_str = match kind {
-        SymbolKind::Array => "array",
-        SymbolKind::Boolean => "boolean",
-        SymbolKind::Class => "class",
-        SymbolKind::Constant => "constant",
-        SymbolKind::EnumMember => "enum-member",
-        SymbolKind::Enum => "enum",
-        SymbolKind::Event => "event",
-        SymbolKind::Field => "field",
-        SymbolKind::File => "file",
-        SymbolKind::Interface => "interface",
-        SymbolKind::Key => "key",
-        SymbolKind::Function => "method",
-        SymbolKind::Method => "method",
-        SymbolKind::Object => "namespace",
-        SymbolKind::Namespace => "namespace",
-        SymbolKind::Number => "numeric",
-        SymbolKind::Operator => "operator",
-        SymbolKind::TypeParameter => "parameter",
-        SymbolKind::Property => "property",
-        SymbolKind::String => "string",
-        SymbolKind::Struct => "structure",
-        SymbolKind::Variable => "variable",
+        SymbolKind::Array => "symbol-array.svg",
+        SymbolKind::Boolean => "symbol-boolean.svg",
+        SymbolKind::Class => "symbol-class.svg",
+        SymbolKind::Constant => "symbol-constant.svg",
+        SymbolKind::EnumMember => "symbol-enum-member.svg",
+        SymbolKind::Enum => "symbol-enum.svg",
+        SymbolKind::Event => "symbol-event.svg",
+        SymbolKind::Field => "symbol-field.svg",
+        SymbolKind::File => "symbol-file.svg",
+        SymbolKind::Interface => "symbol-interface.svg",
+        SymbolKind::Key => "symbol-key.svg",
+        SymbolKind::Function => "symbol-method.svg",
+        SymbolKind::Method => "symbol-method.svg",
+        SymbolKind::Object => "symbol-namespace.svg",
+        SymbolKind::Namespace => "symbol-namespace.svg",
+        SymbolKind::Number => "symbol-numeric.svg",
+        SymbolKind::Operator => "symbol-operator.svg",
+        SymbolKind::TypeParameter => "symbol-parameter.svg",
+        SymbolKind::Property => "symbol-property.svg",
+        SymbolKind::String => "symbol-string.svg",
+        SymbolKind::Struct => "symbol-structure.svg",
+        SymbolKind::Variable => "symbol-variable.svg",
         _ => return None,
     };
 
-    get_svg(&format!("symbol-{}.svg", kind_str))
+    get_svg(kind_str)
 }
 
 pub fn completion_svg(
@@ -104,12 +119,29 @@ pub fn completion_svg(
 ) -> Option<(Svg, Option<Color>)> {
     let kind = kind?;
     let kind_str = match kind {
+        CompletionItemKind::Method => "symbol-method.svg",
+        CompletionItemKind::Function => "symbol-method.svg",
+        CompletionItemKind::Enum => "symbol-enum.svg",
+        CompletionItemKind::EnumMember => "symbol-enum-member.svg",
+        CompletionItemKind::Class => "symbol-class.svg",
+        CompletionItemKind::Variable => "symbol-variable.svg",
+        CompletionItemKind::Struct => "symbol-structure.svg",
+        CompletionItemKind::Keyword => "symbol-keyword.svg",
+        CompletionItemKind::Constant => "symbol-constant.svg",
+        CompletionItemKind::Property => "symbol-property.svg",
+        CompletionItemKind::Field => "symbol-field.svg",
+        CompletionItemKind::Interface => "symbol-interface.svg",
+        CompletionItemKind::Snippet => "symbol-snippet.svg",
+        CompletionItemKind::Module => "symbol-namespace.svg",
+        _ => "symbol-string.svg",
+    };
+    let theme_str = match kind {
         CompletionItemKind::Method => "method",
         CompletionItemKind::Function => "method",
         CompletionItemKind::Enum => "enum",
         CompletionItemKind::EnumMember => "enum-member",
         CompletionItemKind::Class => "class",
-        CompletionItemKind::Variable => "variable",
+        CompletionItemKind::Variable => "field",
         CompletionItemKind::Struct => "structure",
         CompletionItemKind::Keyword => "keyword",
         CompletionItemKind::Constant => "constant",
@@ -117,17 +149,12 @@ pub fn completion_svg(
         CompletionItemKind::Field => "field",
         CompletionItemKind::Interface => "interface",
         CompletionItemKind::Snippet => "snippet",
-        CompletionItemKind::Module => "namespace",
+        CompletionItemKind::Module => "builtinType",
         _ => "string",
-    };
-    let theme_str = match kind_str {
-        "namespace" => "builtinType",
-        "variable" => "field",
-        _ => kind_str,
     };
 
     Some((
-        get_svg(&format!("symbol-{}.svg", kind_str))?,
+        get_svg(kind_str)?,
         config.get_style_color(theme_str).cloned(),
     ))
 }
