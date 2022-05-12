@@ -29,7 +29,7 @@
         <!-- Application binaries -->
         <DirectoryRef Id="LapceProgramFiles">
             <Component Id="LapceExe" Guid="*">
-                <File Id="LapceExeFile" Source=".\target\release\lapce.exe" Name="lapce.exe" KeyPath="yes"/>
+                <File Id="LapceExeFile" Source=".\target\release-lto\lapce.exe" Name="lapce.exe" KeyPath="yes"/>
             </Component>
         </DirectoryRef>
 
