@@ -1,8 +1,8 @@
 [package]
 name = "lapce-rpc"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 notify = { version = "5.0.0-pre.13", features = ["serde"] }
