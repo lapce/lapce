@@ -10,7 +10,6 @@ pub mod hover;
 pub mod keymap;
 mod logging;
 pub mod menu;
-pub mod outline;
 pub mod palette;
 pub mod panel;
 pub mod picker;
