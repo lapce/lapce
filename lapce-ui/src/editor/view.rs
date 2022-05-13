@@ -1,4 +1,4 @@
-use std::{iter::Iterator, sync::Arc};
+use std::{iter::Iterator, sync::Arc, ops::Sub};
 
 use druid::{
     piet::PietText, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
@@ -11,7 +11,7 @@ use lapce_data::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::LapceTheme,
+    config::{LapceTheme, EditorConfig},
     data::{
         EditorTabChild, EditorView, FocusArea, LapceTabData, PanelData, PanelKind,
     },
@@ -271,6 +271,63 @@ impl LapceEditorView {
         }
     }
 
+    // Calculate the new view (as a Rect) for cursor to be at `position`.
+    // `cursor_center` is where the cursor is currently.
+    fn view_rect_for_position(
+        position: &EnsureVisiblePosition,
+        cursor_center: Point,
+        editor_size: &Size,
+        editor_config: &EditorConfig,
+    ) -> Rect {
+        // TODO: scroll margin (in number of lines) should be configurable.
+        const MARGIN_LINES: usize = 1;
+        let line_height = editor_config.line_height;
+
+        // The origin of a rect is its top-left corner.  Inflating a point
+        // creates a rect that centers at the point.
+        let half_width = (editor_size.width / 2.0).ceil();
+        let half_height = (editor_size.height / 2.0).ceil();
+
+        // Find the top edge of the cursor.
+        let cursor_top = cursor_center.sub(
+            (0.0, ((line_height as f64) * 0.5).floor())
+        );
+ 
+        // Find where the center of the rect to show in the editor view.
+        let view_center = match position {
+            EnsureVisiblePosition::CenterOfWindow => {
+                // Cursor line will be at the center of the view.
+                cursor_top
+            },
+            EnsureVisiblePosition::TopOfWindow => {
+                // Cursor line will be at the top edge of the view, thus the
+                // view center will be below the current cursor.y by
+                // `half_height` minus `margin`.
+                let h = (half_height as usize)
+                    .saturating_sub(MARGIN_LINES * line_height);
+                Point::new(cursor_top.x, cursor_top.y + (h as f64))
+                // TODO: When the cursor is near the top of the *buffer*, the
+                // view will not move for this command.  We need an ephemeral
+                // message, on the status bar for example, to inform the user.
+                // This is not an error or warning.
+            },
+            EnsureVisiblePosition::BottomOfWindow => {
+                // Cursor line will be shown at the bottom edge of the window,
+                // thus the view center will be above the current cursor.y by
+                // `half_height` minus `margin`.
+                let h = (half_height as usize)
+                    // Plus 1 to compensate for cursor_top.
+                    .saturating_sub((MARGIN_LINES + 1) * line_height);
+                let y = cursor_top.y as usize;
+                let y = if y > h { y - h } else { y };
+                Point::new(cursor_top.x, y as f64)
+                // TODO: See above for when cursor is near the top of the
+                // *buffer*.
+            }
+        };
+        Rect::ZERO.with_origin(view_center).inflate(half_width, half_height)
+    }
+
     pub fn ensure_cursor_position(
         &mut self,
         ctx: &mut EventCtx,
@@ -279,45 +336,15 @@ impl LapceEditorView {
         position: &EnsureVisiblePosition,
         env: &Env,
     ) {
-        // This is where the cursor currently is.
-        let cursor = Self::cursor_region(data, ctx.text()).center();
-        // FIXME: need to see how LapceEditorBufferData::scroll() handles the
-        // margin
-        //
-        // TODO: scroll margin (in number of lines) should be configurable
-        let margin = data.config.editor.line_height * 2;
-
-        // The origin of a rect is its top-left corner.  Inflating a point
-        // creates a rect that centers at the point.
-        let width = (data.editor.size.borrow().width / 2.0).ceil();
-        let height = (data.editor.size.borrow().height / 2.0).ceil();
-
-        // Find where the center will be.
-        let center = match position {
-            EnsureVisiblePosition::CenterOfWindow => {
-                // Cursor line will be at the center of the view.
-                cursor
-            },
-            EnsureVisiblePosition::TopOfWindow => {
-                // Cursor line will be at the top edge, thus center of the view
-                // is half height down.
-                let h = height as usize;
-                let h = if h > margin { h - margin } else { margin };
-                Point::new(cursor.x, cursor.y + h as f64)
-            },
-            EnsureVisiblePosition::BottomOfWindow => {
-                // Cursor line will be at the bottom edge, thus center of the
-                // view is half height up.
-                let h = height as usize;
-                let h = if h > margin { h - margin } else { margin };
-                let y = cursor.y as usize;
-                let y = if h > y { y } else { y - h };
-                Point::new(cursor.x, y as f64)
-            }
-        };
-        let rect = Rect::ZERO.with_origin(center).inflate(width, height);
+        // This is where the cursor currently is, relative to the buffer's
+        // origin.
+        let cursor_center = Self::cursor_region(data, ctx.text()).center();
 
         let editor_size = *data.editor.size.borrow();
+        let rect = Self::view_rect_for_position(
+            position, cursor_center, &editor_size, &data.config.editor
+        );
+
         let size = LapceEditor::get_size(data, ctx.text(), editor_size, panels, env);
         let scroll = self.editor.widget_mut().editor.widget_mut().inner_mut();
         scroll.set_child_size(size);
