@@ -2373,7 +2373,9 @@ impl LapceMainSplitData {
             } else if new_buffer || editor_view_id == *self.palette_preview_editor {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::EnsureCursorPosition(EnsureVisiblePosition::CenterOfWindow),
+                    LapceUICommand::EnsureCursorPosition(
+                        EnsureVisiblePosition::CenterOfWindow,
+                    ),
                     Target::Widget(editor_view_id),
                 ));
             } else {

@@ -1,4 +1,4 @@
-use std::{iter::Iterator, sync::Arc, ops::Sub};
+use std::{iter::Iterator, ops::Sub, sync::Arc};
 
 use druid::{
     piet::PietText, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
@@ -11,7 +11,7 @@ use lapce_data::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceTheme, EditorConfig},
+    config::{EditorConfig, LapceTheme},
     data::{
         EditorTabChild, EditorView, FocusArea, LapceTabData, PanelData, PanelKind,
     },
@@ -289,16 +289,15 @@ impl LapceEditorView {
         let half_height = (editor_size.height / 2.0).ceil();
 
         // Find the top edge of the cursor.
-        let cursor_top = cursor_center.sub(
-            (0.0, ((line_height as f64) * 0.5).floor())
-        );
- 
+        let cursor_top =
+            cursor_center.sub((0.0, ((line_height as f64) * 0.5).floor()));
+
         // Find where the center of the rect to show in the editor view.
         let view_center = match position {
             EnsureVisiblePosition::CenterOfWindow => {
                 // Cursor line will be at the center of the view.
                 cursor_top
-            },
+            }
             EnsureVisiblePosition::TopOfWindow => {
                 // Cursor line will be at the top edge of the view, thus the
                 // view center will be below the current cursor.y by
@@ -310,7 +309,7 @@ impl LapceEditorView {
                 // view will not move for this command.  We need an ephemeral
                 // message, on the status bar for example, to inform the user.
                 // This is not an error or warning.
-            },
+            }
             EnsureVisiblePosition::BottomOfWindow => {
                 // Cursor line will be shown at the bottom edge of the window,
                 // thus the view center will be above the current cursor.y by
@@ -325,7 +324,9 @@ impl LapceEditorView {
                 // *buffer*.
             }
         };
-        Rect::ZERO.with_origin(view_center).inflate(half_width, half_height)
+        Rect::ZERO
+            .with_origin(view_center)
+            .inflate(half_width, half_height)
     }
 
     pub fn ensure_cursor_position(
@@ -342,7 +343,10 @@ impl LapceEditorView {
 
         let editor_size = *data.editor.size.borrow();
         let rect = Self::view_rect_for_position(
-            position, cursor_center, &editor_size, &data.config.editor
+            position,
+            cursor_center,
+            &editor_size,
+            &data.config.editor,
         );
 
         let size = LapceEditor::get_size(data, ctx.text(), editor_size, panels, env);
@@ -387,7 +391,11 @@ impl LapceEditorView {
                 if (scroll_offset.y - old_scroll_offset.y).abs() > line_height * 2.0
                 {
                     self.ensure_cursor_position(
-                        ctx, data, panels, &EnsureVisiblePosition::CenterOfWindow, env
+                        ctx,
+                        data,
+                        panels,
+                        &EnsureVisiblePosition::CenterOfWindow,
+                        env,
                     );
                 }
             }
