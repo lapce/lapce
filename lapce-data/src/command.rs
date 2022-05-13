@@ -3,57 +3,103 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
+use lapce_core::buffer::DiffLines;
+use lapce_core::command::{
+    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
+};
 use lapce_core::syntax::Syntax;
 use lapce_rpc::{
     buffer::BufferId, file::FileNodeItem, plugin::PluginDescription,
     source_control::DiffInfo, style::Style, terminal::TermId,
 };
 use lsp_types::{
-    CodeActionResponse, CompletionItem, CompletionResponse, Hover, Location,
-    Position, ProgressParams, PublishDiagnosticsParams, TextEdit,
+    CodeActionResponse, CompletionItem, CompletionResponse, Location, Position,
+    ProgressParams, PublishDiagnosticsParams, TextEdit,
 };
 use serde_json::Value;
 use strum::{self, EnumMessage, IntoEnumIterator};
-use strum_macros::{Display, EnumIter, EnumMessage, EnumString};
+use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use xi_rope::{spans::Spans, Rope};
 
+use crate::alert::AlertContentData;
+use crate::data::LapceWorkspace;
+use crate::document::BufferContent;
+use crate::rich_text::RichText;
 use crate::{
-    buffer::DiffLines,
-    data::{EditorTabChild, MotionMode, SplitContent},
+    data::{EditorTabChild, SplitContent},
     editor::EditorLocationNew,
     keypress::{KeyMap, KeyPress},
     menu::MenuItem,
-    movement::{LinePosition, Movement},
     palette::{NewPaletteItem, PaletteType},
     proxy::ProxyStatus,
     search::Match,
     split::{SplitDirection, SplitMoveDirection},
-    state::LapceWorkspace,
 };
 
-pub const LAPCE_NEW_COMMAND: Selector<LapceCommandNew> =
-    Selector::new("lapce.new-command");
-pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.command");
+pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.new-command");
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
 
 #[derive(Clone, Debug)]
-pub struct LapceCommandNew {
-    pub cmd: String,
+pub struct LapceCommand {
+    pub kind: CommandKind,
     pub data: Option<serde_json::Value>,
-    pub palette_desc: Option<String>,
-    pub target: CommandTarget,
 }
 
-impl LapceCommandNew {
+#[derive(Clone, Debug)]
+pub enum CommandKind {
+    Workbench(LapceWorkbenchCommand),
+    Edit(EditCommand),
+    Move(MoveCommand),
+    Focus(FocusCommand),
+    MotionMode(MotionModeCommand),
+    MultiSelection(MultiSelectionCommand),
+}
+
+impl CommandKind {
+    pub fn desc(&self) -> Option<&'static str> {
+        match &self {
+            CommandKind::Workbench(cmd) => cmd.get_message(),
+            CommandKind::Edit(cmd) => cmd.get_message(),
+            CommandKind::Move(cmd) => cmd.get_message(),
+            CommandKind::Focus(cmd) => cmd.get_message(),
+            CommandKind::MotionMode(cmd) => cmd.get_message(),
+            CommandKind::MultiSelection(cmd) => cmd.get_message(),
+        }
+    }
+
+    pub fn str(&self) -> &'static str {
+        match &self {
+            CommandKind::Workbench(cmd) => cmd.into(),
+            CommandKind::Edit(cmd) => cmd.into(),
+            CommandKind::Move(cmd) => cmd.into(),
+            CommandKind::Focus(cmd) => cmd.into(),
+            CommandKind::MotionMode(cmd) => cmd.into(),
+            CommandKind::MultiSelection(cmd) => cmd.into(),
+        }
+    }
+}
+
+impl LapceCommand {
     pub const PALETTE: &'static str = "palette";
-}
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum CommandTarget {
-    Workbench,
-    Focus,
-    Plugin(String),
+    pub fn is_palette_command(&self) -> bool {
+        if let CommandKind::Workbench(cmd) = &self.kind {
+            match cmd {
+                LapceWorkbenchCommand::Palette
+                | LapceWorkbenchCommand::PaletteLine
+                | LapceWorkbenchCommand::PaletteSymbol
+                | LapceWorkbenchCommand::PaletteCommand
+                | LapceWorkbenchCommand::ChangeTheme
+                | LapceWorkbenchCommand::ConnectSshHost
+                | LapceWorkbenchCommand::ConnectWsl
+                | LapceWorkbenchCommand::PaletteWorkspace => return true,
+                _ => {}
+            }
+        }
+
+        false
+    }
 }
 
 #[derive(PartialEq)]
@@ -62,33 +108,70 @@ pub enum CommandExecuted {
     No,
 }
 
-pub fn lapce_internal_commands() -> IndexMap<String, LapceCommandNew> {
+pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     let mut commands = IndexMap::new();
 
     for c in LapceWorkbenchCommand::iter() {
-        let command = LapceCommandNew {
-            cmd: c.to_string(),
+        let command = LapceCommand {
+            kind: CommandKind::Workbench(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Workbench,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
     }
 
-    for c in LapceCommand::iter() {
-        let command = LapceCommandNew {
-            cmd: c.to_string(),
+    for c in EditCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::Edit(c.clone()),
             data: None,
-            palette_desc: c.get_message().map(|m| m.to_string()),
-            target: CommandTarget::Focus,
         };
-        commands.insert(command.cmd.clone(), command);
+        commands.insert(c.to_string(), command);
+    }
+
+    for c in MoveCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::Move(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
+    }
+
+    for c in FocusCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::Focus(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
+    }
+
+    for c in MotionModeCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::MotionMode(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
+    }
+
+    for c in MultiSelectionCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::MultiSelection(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
     }
 
     commands
 }
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
 pub enum LapceWorkbenchCommand {
     #[strum(serialize = "enable_modal_editing")]
     #[strum(message = "Enable Modal Editing")]
@@ -158,6 +241,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "new_window")]
     NewWindow,
 
+    #[strum(message = "New File")]
+    #[strum(serialize = "new_file")]
+    NewFile,
+
     #[strum(serialize = "connect_ssh_host")]
     #[strum(message = "Connect to SSH Host")]
     ConnectSshHost,
@@ -174,6 +261,7 @@ pub enum LapceWorkbenchCommand {
     PaletteLine,
 
     #[strum(serialize = "palette")]
+    #[strum(message = "Go to File")]
     Palette,
 
     #[strum(serialize = "palette.symbol")]
@@ -255,323 +343,33 @@ pub enum LapceWorkbenchCommand {
     SourceControlCommit,
 }
 
-#[derive(Display, EnumString, EnumIter, Clone, PartialEq, Debug, EnumMessage)]
-pub enum LapceCommand {
-    #[strum(serialize = "move_line_up")]
-    MoveLineUp,
-    #[strum(serialize = "move_line_down")]
-    MoveLineDown,
-    #[strum(serialize = "insert_cursor_above")]
-    InsertCursorAbove,
-    #[strum(serialize = "insert_cursor_below")]
-    InsertCursorBelow,
-    #[strum(serialize = "insert_cursor_end_of_line")]
-    InsertCursorEndOfLine,
-    #[strum(serialize = "select_undo")]
-    SelectUndo,
-    #[strum(serialize = "select_current_line")]
-    SelectCurrentLine,
-    #[strum(serialize = "select_all_current")]
-    SelectAllCurrent,
-    #[strum(serialize = "select_next_current")]
-    SelectNextCurrent,
-    #[strum(serialize = "select_skip_current")]
-    SelectSkipCurrent,
-    #[strum(serialize = "file_explorer")]
-    FileExplorer,
-    #[strum(serialize = "file_explorer.cancel")]
-    FileExplorerCancel,
-    #[strum(serialize = "source_control")]
-    SourceControl,
-    #[strum(serialize = "source_control.cancel")]
-    SourceControlCancel,
-    /// This will close a modal, such as the settings window or completion
-    #[strum(message = "Close Modal")]
-    #[strum(serialize = "modal.close")]
-    ModalClose,
-    #[strum(serialize = "delete_backward")]
-    DeleteBackward,
-    #[strum(serialize = "delete_forward")]
-    DeleteForward,
-    #[strum(serialize = "delete_forward_and_insert")]
-    DeleteForwardAndInsert,
-    #[strum(serialize = "delete_visual")]
-    DeleteVisual,
-    #[strum(serialize = "delete_operator")]
-    DeleteOperator,
-    #[strum(serialize = "delete_word_backward")]
-    DeleteWordBackward,
-    #[strum(serialize = "delete_word_forward")]
-    DeleteWordForward,
-    #[strum(serialize = "delete_to_beginning_of_line")]
-    DeleteToBeginningOfLine,
-    #[strum(serialize = "inline_find_right")]
-    InlineFindRight,
-    #[strum(serialize = "inline_find_left")]
-    InlineFindLeft,
-    #[strum(serialize = "repeat_last_inline_find")]
-    RepeatLastInlineFind,
-    #[strum(serialize = "down")]
-    Down,
-    #[strum(serialize = "up")]
-    Up,
-    #[strum(serialize = "left")]
-    Left,
-    #[strum(serialize = "right")]
-    Right,
-    #[strum(serialize = "page_up")]
-    PageUp,
-    #[strum(serialize = "page_down")]
-    PageDown,
-    #[strum(serialize = "scroll_up")]
-    ScrollUp,
-    #[strum(serialize = "scroll_down")]
-    ScrollDown,
-    #[strum(serialize = "list.expand")]
-    ListExpand,
-    #[strum(serialize = "list.select")]
-    ListSelect,
-    #[strum(serialize = "list.next")]
-    ListNext,
-    #[strum(serialize = "list.previous")]
-    ListPrevious,
-    #[strum(serialize = "split_vertical")]
-    SplitVertical,
-    #[strum(serialize = "split_horizontal")]
-    SplitHorizontal,
-    #[strum(serialize = "split_close")]
-    SplitClose,
-    #[strum(serialize = "split_exchange")]
-    SplitExchange,
-    #[strum(serialize = "split_right")]
-    SplitRight,
-    #[strum(serialize = "split_left")]
-    SplitLeft,
-    #[strum(serialize = "split_up")]
-    SplitUp,
-    #[strum(serialize = "split_down")]
-    SplitDown,
-    #[strum(serialize = "insert_mode")]
-    InsertMode,
-    #[strum(serialize = "insert_first_non_blank")]
-    InsertFirstNonBlank,
-
-    #[strum(message = "Toggle Line Comment")]
-    #[strum(serialize = "toggle_line_comment")]
-    ToggleLineComment,
-
-    #[strum(message = "Indent Line")]
-    #[strum(serialize = "indent_line")]
-    IndentLine,
-
-    #[strum(message = "Outdent Line")]
-    #[strum(serialize = "outdent_line")]
-    OutdentLine,
-
-    #[strum(serialize = "normal_mode")]
-    NormalMode,
-    #[strum(serialize = "toggle_visual_mode")]
-    ToggleVisualMode,
-    #[strum(serialize = "toggle_linewise_visual_mode")]
-    ToggleLinewiseVisualMode,
-    #[strum(serialize = "toggle_blockwise_visual_mode")]
-    ToggleBlockwiseVisualMode,
-    #[strum(serialize = "motion_mode_delete")]
-    MotionModeDelete,
-    #[strum(serialize = "motion_mode_indent")]
-    MotionModeIndent,
-    #[strum(serialize = "motion_mode_outdent")]
-    MotionModeOutdent,
-    #[strum(serialize = "motion_mode_yank")]
-    MotionModeYank,
-    #[strum(serialize = "new_line_above")]
-    NewLineAbove,
-    #[strum(serialize = "new_line_below")]
-    NewLineBelow,
-    #[strum(serialize = "get_completion")]
-    GetCompletion,
-    #[strum(serialize = "get_references")]
-    GetReferences,
-    #[strum(serialize = "insert_new_line")]
-    InsertNewLine,
-    #[strum(serialize = "insert_tab")]
-    InsertTab,
-    #[strum(serialize = "word_backward")]
-    WordBackward,
-    #[strum(serialize = "word_forward")]
-    WordForward,
-    #[strum(serialize = "word_end_forward")]
-    WordEndForward,
-    #[strum(message = "Document Start")]
-    #[strum(serialize = "document_start")]
-    DocumentStart,
-    #[strum(message = "Document End")]
-    #[strum(serialize = "document_end")]
-    DocumentEnd,
-    #[strum(serialize = "line_end")]
-    LineEnd,
-    #[strum(serialize = "line_start")]
-    LineStart,
-    #[strum(serialize = "line_start_non_blank")]
-    LineStartNonBlank,
-    #[strum(serialize = "go_to_line_default_last")]
-    GotoLineDefaultLast,
-    #[strum(serialize = "go_to_line_default_first")]
-    GotoLineDefaultFirst,
-    #[strum(serialize = "append")]
-    Append,
-    #[strum(serialize = "append_end_of_line")]
-    AppendEndOfLine,
-    #[strum(serialize = "yank")]
-    Yank,
-    #[strum(serialize = "paste")]
-    Paste,
-    #[strum(serialize = "clipboard_cut")]
-    ClipboardCut,
-    #[strum(serialize = "clipboard_copy")]
-    ClipboardCopy,
-    #[strum(serialize = "clipboard_paste")]
-    ClipboardPaste,
-    #[strum(serialize = "undo")]
-    Undo,
-    #[strum(serialize = "redo")]
-    Redo,
-
-    #[strum(message = "Toggle Code Lens")]
-    #[strum(serialize = "toggle_code_lens")]
-    ToggleCodeLens,
-
-    #[strum(serialize = "center_of_window")]
-    CenterOfWindow,
-
-    #[strum(message = "Go to Definition")]
-    #[strum(serialize = "goto_definition")]
-    GotoDefinition,
-
-    #[strum(serialize = "jump_location_backward")]
-    JumpLocationBackward,
-    #[strum(serialize = "jump_location_forward")]
-    JumpLocationForward,
-    #[strum(serialize = "next_error")]
-    NextError,
-    #[strum(serialize = "previous_error")]
-    PreviousError,
-    #[strum(message = "Go to Next Difference")]
-    #[strum(serialize = "next_diff")]
-    NextDiff,
-    #[strum(message = "Go to Previous Difference")]
-    #[strum(serialize = "previous_diff")]
-    PreviousDiff,
-    #[strum(serialize = "format_document")]
-    #[strum(message = "Format Document")]
-    FormatDocument,
-    #[strum(message = "Save")]
-    #[strum(serialize = "save")]
-    Save,
-    #[strum(serialize = "show_code_actions")]
-    ShowCodeActions,
-    #[strum(serialize = "match_pairs")]
-    MatchPairs,
-    #[strum(serialize = "next_unmatched_right_bracket")]
-    NextUnmatchedRightBracket,
-    #[strum(serialize = "jump_to_next_snippet_placeholder")]
-    JumpToNextSnippetPlaceholder,
-    #[strum(serialize = "jump_to_prev_snippet_placeholder")]
-    JumpToPrevSnippetPlaceholder,
-    #[strum(serialize = "previous_unmatched_left_bracket")]
-    PreviousUnmatchedLeftBracket,
-    #[strum(serialize = "next_unmatched_right_curly_bracket")]
-    NextUnmatchedRightCurlyBracket,
-    #[strum(serialize = "previous_unmatched_left_curly_bracket")]
-    PreviousUnmatchedLeftCurlyBracket,
-    #[strum(serialize = "join_lines")]
-    JoinLines,
-    #[strum(serialize = "search")]
-    Search,
-    #[strum(serialize = "select_all")]
-    SelectAll,
-    #[strum(serialize = "search_whole_word_forward")]
-    SearchWholeWordForward,
-    #[strum(serialize = "search_forward")]
-    SearchForward,
-    #[strum(serialize = "search_backward")]
-    SearchBackward,
-    #[strum(serialize = "clear_search")]
-    ClearSearch,
-    #[strum(serialize = "search_in_view")]
-    SearchInView,
-    Insert(String),
-}
-
-impl LapceCommand {
-    pub fn motion_mode_command(&self) -> Option<MotionMode> {
-        let mode = match self {
-            LapceCommand::MotionModeYank => MotionMode::Yank,
-            LapceCommand::MotionModeDelete => MotionMode::Delete,
-            LapceCommand::MotionModeIndent => MotionMode::Indent,
-            LapceCommand::MotionModeOutdent => MotionMode::Outdent,
-            _ => return None,
-        };
-        Some(mode)
-    }
-
-    pub fn move_command(&self, count: Option<usize>) -> Option<Movement> {
-        match self {
-            LapceCommand::Left => Some(Movement::Left),
-            LapceCommand::Right => Some(Movement::Right),
-            LapceCommand::Up => Some(Movement::Up),
-            LapceCommand::Down => Some(Movement::Down),
-            LapceCommand::DocumentStart => Some(Movement::DocumentStart),
-            LapceCommand::DocumentEnd => Some(Movement::DocumentEnd),
-            LapceCommand::LineStart => Some(Movement::StartOfLine),
-            LapceCommand::LineStartNonBlank => Some(Movement::FirstNonBlank),
-            LapceCommand::LineEnd => Some(Movement::EndOfLine),
-            LapceCommand::GotoLineDefaultFirst => Some(match count {
-                Some(n) => Movement::Line(LinePosition::Line(n)),
-                None => Movement::Line(LinePosition::First),
-            }),
-            LapceCommand::GotoLineDefaultLast => Some(match count {
-                Some(n) => Movement::Line(LinePosition::Line(n)),
-                None => Movement::Line(LinePosition::Last),
-            }),
-            LapceCommand::WordBackward => Some(Movement::WordBackward),
-            LapceCommand::WordForward => Some(Movement::WordForward),
-            LapceCommand::WordEndForward => Some(Movement::WordEndForward),
-            LapceCommand::MatchPairs => Some(Movement::MatchPairs),
-            LapceCommand::NextUnmatchedRightBracket => {
-                Some(Movement::NextUnmatched(')'))
-            }
-            LapceCommand::PreviousUnmatchedLeftBracket => {
-                Some(Movement::PreviousUnmatched('('))
-            }
-            LapceCommand::NextUnmatchedRightCurlyBracket => {
-                Some(Movement::NextUnmatched('}'))
-            }
-            LapceCommand::PreviousUnmatchedLeftCurlyBracket => {
-                Some(Movement::PreviousUnmatched('{'))
-            }
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub enum EnsureVisiblePosition {
     CenterOfWindow,
 }
 
+#[derive(Debug)]
 pub enum LapceUICommand {
     InitChildren,
     InitTerminalPanel(bool),
     ReloadConfig,
-    LoadBuffer {
+    InitBufferContent {
         path: PathBuf,
-        content: String,
+        content: Rope,
         locations: Vec<(WidgetId, EditorLocationNew)>,
+    },
+    OpenFileChanged {
+        path: PathBuf,
+        content: Rope,
+    },
+    ReloadBuffer {
+        path: PathBuf,
+        rev: u64,
+        content: Rope,
     },
     LoadBufferHead {
         path: PathBuf,
-        id: String,
+        version: String,
         content: Rope,
     },
     LoadBufferAndGoToPosition {
@@ -580,6 +378,7 @@ pub enum LapceUICommand {
         editor_view_id: WidgetId,
         location: EditorLocationNew,
     },
+    ShowAlert(AlertContentData),
     HideMenu,
     ShowMenu(Point, Arc<Vec<MenuItem>>),
     UpdateSearch(String),
@@ -593,7 +392,7 @@ pub enum LapceUICommand {
     CancelCompletion(usize),
     ResolveCompletion(BufferId, u64, usize, Box<CompletionItem>),
     UpdateCompletion(usize, String, CompletionResponse),
-    UpdateHover(usize, Hover),
+    UpdateHover(usize, Arc<Vec<RichText>>),
     UpdateCodeActions(PathBuf, u64, usize, CodeActionResponse),
     CancelPalette,
     ShowCodeActions,
@@ -608,18 +407,19 @@ pub enum LapceUICommand {
     FocusEditor,
     RunPalette(Option<PaletteType>),
     RunPaletteReferences(Vec<EditorLocationNew>),
+    InitPaletteInput(String),
+    UpdatePaletteInput(String),
     UpdatePaletteItems(String, Vec<NewPaletteItem>),
     FilterPaletteItems(String, String, Vec<NewPaletteItem>),
     UpdateKeymapsFilter(String),
     UpdateSettingsFile(String, serde_json::Value),
     UpdateSettingsFilter(String),
-    FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommandNew>>),
+    FilterKeymaps(String, Arc<Vec<KeyMap>>, Arc<Vec<LapceCommand>>),
     UpdatePickerPwd(PathBuf),
     UpdatePickerItems(PathBuf, HashMap<PathBuf, FileNodeItem>),
-    UpdateExplorerItems(usize, PathBuf, Vec<FileNodeItem>),
+    UpdateExplorerItems(PathBuf, HashMap<PathBuf, FileNodeItem>, bool),
     UpdateInstalledPlugins(HashMap<String, PluginDescription>),
     UpdatePluginDescriptions(Vec<PluginDescription>),
-    UpdateWindowOrigin,
     RequestLayout,
     RequestPaint,
     ResetFade,
@@ -639,8 +439,8 @@ pub enum LapceUICommand {
     ApplyEdits(usize, u64, Vec<TextEdit>),
     ApplyEditsAndSave(usize, u64, Result<Value>),
     DocumentFormat(PathBuf, u64, Result<Value>),
-    DocumentFormatAndSave(PathBuf, u64, Result<Value>),
-    BufferSave(PathBuf, u64),
+    DocumentFormatAndSave(PathBuf, u64, Result<Value>, Option<WidgetId>),
+    BufferSave(PathBuf, u64, Option<WidgetId>),
     UpdateSemanticStyles(BufferId, PathBuf, u64, Arc<Spans<Style>>),
     UpdateTerminalTitle(TermId, String),
     UpdateHistoryStyle {
@@ -666,7 +466,6 @@ pub enum LapceUICommand {
     PublishDiagnostics(PublishDiagnosticsParams),
     WorkDoneProgress(ProgressParams),
     UpdateDiffInfo(DiffInfo),
-    ReloadBuffer(BufferId, u64, String),
     EnsureVisible((Rect, (f64, f64), Option<EnsureVisiblePosition>)),
     EnsureRectVisible(Rect),
     EnsureCursorVisible(Option<EnsureVisiblePosition>),
@@ -675,7 +474,10 @@ pub enum LapceUICommand {
     Scroll((f64, f64)),
     ScrollTo((f64, f64)),
     ForceScrollTo(f64, f64),
+    SaveAs(BufferContent, PathBuf, WidgetId, bool),
+    SaveAsSuccess(BufferContent, u64, PathBuf, WidgetId, bool),
     HomeDir(PathBuf),
+    FileChange(notify::Event),
     ProxyUpdateStatus(ProxyStatus),
     CloseTerminal(TermId),
     SplitTerminal(bool, WidgetId),
@@ -704,4 +506,7 @@ pub enum LapceUICommand {
     GotoDefinition(WidgetId, usize, EditorLocationNew),
     PaletteReferences(usize, Vec<Location>),
     GotoLocation(Location),
+    ActiveFileChanged {
+        path: Option<PathBuf>,
+    },
 }

@@ -11,9 +11,10 @@ use lapce_data::{
     data::{
         DragContent, EditorTabChild, LapceEditorTabData, LapceTabData, SplitContent,
     },
+    db::EditorTabChildInfo,
+    document::{BufferContent, LocalBufferKind},
     editor::TabRect,
     split::{SplitDirection, SplitMoveDirection},
-    
 };
 
 use crate::editor::{
@@ -100,6 +101,11 @@ impl LapceEditorTab {
                 i
             };
             if focus {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::EnsureEditorTabActiveVisble,
+                    Target::Widget(editor_tab.widget_id),
+                ));
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
                     LapceUICommand::Focus,
@@ -343,6 +349,37 @@ impl Widget<LapceTabData> for LapceEditorTab {
                         ));
                         return;
                     }
+                    LapceUICommand::EnsureEditorTabActiveVisble => {
+                        if let Some(tab) =
+                            data.main_split.editor_tabs.get(&self.widget_id)
+                        {
+                            let active = &tab.children[tab.active];
+                            let EditorTabChildInfo::Editor(info) =
+                                active.child_info(data);
+
+                            if info.content
+                                == BufferContent::Local(LocalBufferKind::Empty)
+                            {
+                                // File has not yet been loaded, most likely.
+                                return;
+                            }
+
+                            ctx.submit_command(Command::new(
+                                LAPCE_UI_COMMAND,
+                                LapceUICommand::ActiveFileChanged {
+                                    path: if let BufferContent::File(path) =
+                                        info.content
+                                    {
+                                        Some(path)
+                                    } else {
+                                        None
+                                    },
+                                },
+                                Target::Widget(data.file_explorer.widget_id),
+                            ));
+                            return;
+                        }
+                    }
                     _ => (),
                 }
             }
@@ -504,6 +541,7 @@ impl TabRectRenderer for TabRect {
     ) {
         let width = 13.0;
         let height = 13.0;
+        let padding = 4.0;
         let editor_tab = data.main_split.editor_tabs.get(&widget_id).unwrap();
 
         let rect = Size::new(width, height).to_rect().with_origin(Point::new(
@@ -545,7 +583,7 @@ impl TabRectRenderer for TabRect {
                 let svg = get_svg("close.svg").unwrap();
                 ctx.draw_svg(
                     &svg,
-                    self.close_rect.inflate(-4.0, -4.0),
+                    self.close_rect.inflate(-padding, -padding),
                     Some(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
@@ -557,18 +595,18 @@ impl TabRectRenderer for TabRect {
         // Only display dirty icon if focus is not on tab bar, so that the close svg can be shown
         if !(ctx.is_hot() && self.rect.contains(mouse_pos)) {
             // See if any of the children are dirty
-            let is_dirty = match &editor_tab.children[i] {
+            let is_pristine = match &editor_tab.children[i] {
                 EditorTabChild::Editor(editor_id, _) => {
-                    let buffer = data.main_split.editor_buffer(*editor_id);
-                    buffer.dirty()
+                    let doc = data.main_split.editor_doc(*editor_id);
+                    doc.buffer().is_pristine()
                 }
             };
 
-            if is_dirty {
+            if !is_pristine {
                 let svg = get_svg("unsaved.svg").unwrap();
                 ctx.draw_svg(
                     &svg,
-                    self.close_rect.inflate(-4.0, -4.0),
+                    self.close_rect.inflate(-padding, -padding),
                     Some(
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),

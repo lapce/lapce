@@ -14,26 +14,8 @@ use strum_macros::Display;
 
 use crate::panel::{LapcePanel, PanelHeaderKind};
 
-pub struct PluginData {
-    pub widget_id: WidgetId,
-}
-
-impl PluginData {
-    pub fn new() -> Self {
-        Self {
-            widget_id: WidgetId::next(),
-        }
-    }
-}
-
-impl Default for PluginData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[derive(Display, PartialEq)]
-pub enum PluginStatus {
+enum PluginStatus {
     Installed,
     Install,
     Upgrade,
@@ -55,7 +37,7 @@ impl Plugin {
             data.plugin.widget_id,
             split_id,
             SplitDirection::Vertical,
-            PanelHeaderKind::Simple("Plugin".to_string()),
+            PanelHeaderKind::Simple("Plugin".into()),
             vec![(split_id, PanelHeaderKind::None, Self::new().boxed(), None)],
         )
     }

@@ -8,7 +8,8 @@ use parking_lot::Mutex;
 
 use lapce_data::config::{Config, LOGO};
 
-pub const ICONS_DIR: Dir = include_dir!("../icons");
+const ICONS_DIR: Dir = include_dir!("../icons");
+
 lazy_static! {
     static ref SVG_STORE: SvgStore = SvgStore::new();
 }
@@ -44,8 +45,8 @@ pub fn logo_svg() -> Svg {
     svgs.get(name).cloned().unwrap().unwrap()
 }
 
-pub fn get_svg(name: &str) -> Option<Svg> {
-    SVG_STORE.get_svg(name)
+pub fn get_svg(name: impl AsRef<str>) -> Option<Svg> {
+    SVG_STORE.get_svg(name.as_ref())
 }
 
 pub fn file_svg_new(path: &Path) -> Svg {

@@ -1,10 +1,8 @@
 use anyhow::{anyhow, Result};
 use indexmap::IndexMap;
+use lapce_core::mode::Modes;
 
-use crate::{
-    keypress::{get_modes, keypress::KeyPress, KeyMap},
-    state::Modes,
-};
+use crate::keypress::{get_modes, keypress::KeyPress, KeyMap};
 
 pub struct KeyMapLoader {
     keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>>,

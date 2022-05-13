@@ -19,6 +19,6 @@ pub struct NewBufferResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BufferHeadResponse {
-    pub id: String,
+    pub version: String,
     pub content: String,
 }

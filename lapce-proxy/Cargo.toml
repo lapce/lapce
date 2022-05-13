@@ -1,6 +1,6 @@
 [package]
 name = "lapce-proxy"
-version = "0.0.12"
+version = "0.1.0"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 

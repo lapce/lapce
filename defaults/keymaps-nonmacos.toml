@@ -150,6 +150,10 @@ command = "save"
 key = "ctrl+o"
 command = "open_file"
 
+[[keymaps]]
+key = "ctrl+n"
+command = "new_file"
+
 # ----------------------------------- Editor Management -------------------------------
 
 [[keymaps]]

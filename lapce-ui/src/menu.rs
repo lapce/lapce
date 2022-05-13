@@ -7,7 +7,7 @@ use druid::{
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetId,
 };
 use lapce_data::{
-    command::{LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND},
+    command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::LapceWindowData,
     keypress::Alignment,
@@ -55,7 +55,7 @@ impl Menu {
         let n = (mouse_event.pos.y / self.line_height).floor() as usize;
         if let Some(item) = data.menu.items.get(n) {
             ctx.submit_command(Command::new(
-                LAPCE_NEW_COMMAND,
+                LAPCE_COMMAND,
                 item.command.clone(),
                 Target::Widget(data.active_id),
             ));
@@ -135,6 +135,10 @@ impl Widget<LapceWindowData> for Menu {
         data: &LapceWindowData,
         _env: &Env,
     ) {
+        if !old_data.menu.origin.same(&data.menu.origin) {
+            ctx.request_layout();
+        }
+
         if !old_data.menu.items.same(&data.menu.items) {
             ctx.request_layout();
         }
@@ -199,7 +203,7 @@ impl Widget<LapceWindowData> for Menu {
         for (i, item) in data.menu.items.iter().enumerate() {
             let text_layout = ctx
                 .text()
-                .new_text_layout(item.text.clone())
+                .new_text_layout(item.desc().to_string())
                 .font(FontFamily::SYSTEM_UI, 13.0)
                 .text_color(
                     data.config
@@ -218,13 +222,15 @@ impl Widget<LapceWindowData> for Menu {
             );
 
             if let Some(keymaps) =
-                data.keypress.command_keymaps.get(&item.command.cmd)
+                data.keypress.command_keymaps.get(item.command.kind.str())
             {
-                let origin = Point::new(
-                    rect.x1,
-                    self.line_height * i as f64 + self.line_height / 2.0,
-                );
-                keymaps[0].paint(ctx, origin, Alignment::Right, &data.config);
+                if !keymaps.is_empty() {
+                    let origin = Point::new(
+                        rect.x1,
+                        self.line_height * i as f64 + self.line_height / 2.0,
+                    );
+                    keymaps[0].paint(ctx, origin, Alignment::Right, &data.config);
+                }
             }
         }
     }

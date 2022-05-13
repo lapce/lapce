@@ -56,8 +56,6 @@ pub struct LspState {
 
 #[derive(Clone)]
 pub struct LspClient {
-    #[allow(dead_code)]
-    language_id: String,
     exec_path: String,
     options: Option<Value>,
     state: Arc<Mutex<LspState>>,
@@ -178,11 +176,10 @@ impl LspCatalog {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn get_completion(
         &self,
         id: RequestId,
-        request_id: usize,
+        _request_id: usize,
         buffer: &Buffer,
         position: Position,
     ) {
@@ -323,11 +320,10 @@ impl LspCatalog {
         }
     }
 
-    #[allow(unused_variables)]
     pub fn get_definition(
         &self,
         id: RequestId,
-        request_id: usize,
+        _request_id: usize,
         buffer: &Buffer,
         position: Position,
     ) {
@@ -369,7 +365,7 @@ impl Default for LspCatalog {
 
 impl LspClient {
     pub fn new(
-        language_id: String,
+        _language_id: String,
         exec_path: &str,
         options: Option<Value>,
         dispatcher: Dispatcher,
@@ -381,7 +377,6 @@ impl LspClient {
         let lsp_client = Arc::new(LspClient {
             dispatcher,
             exec_path: exec_path.to_string(),
-            language_id,
             options,
             state: Arc::new(Mutex::new(LspState {
                 next_id: 0,
@@ -667,10 +662,13 @@ impl LspClient {
                 //     }),
                 //     ..Default::default()
                 // }),
-                // We could set content_format to specify our preferences but RA seems to only
-                // check if the preferences contains markdown, rather than paying attention to our
-                // given priority ordering
-                hover: Some(HoverClientCapabilities::default()),
+                hover: Some(HoverClientCapabilities {
+                    content_format: Some(vec![
+                        MarkupKind::Markdown,
+                        MarkupKind::PlainText,
+                    ]),
+                    ..Default::default()
+                }),
                 code_action: Some(CodeActionClientCapabilities {
                     code_action_literal_support: Some(CodeActionLiteralSupport {
                         code_action_kind: CodeActionKindLiteralSupport {

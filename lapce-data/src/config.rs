@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf};
+use std::{cell::RefCell, io::Write, path::PathBuf, rc::Rc};
 
 use anyhow::Result;
 use directories::ProjectDirs;
@@ -13,7 +13,7 @@ use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    state::{LapceWorkspace, LapceWorkspaceType},
+    data::{LapceWorkspace, LapceWorkspaceType},
 };
 
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");
@@ -39,6 +39,7 @@ impl LapceTheme {
     pub const EDITOR_CARET: &'static str = "editor.caret";
     pub const EDITOR_SELECTION: &'static str = "editor.selection";
     pub const EDITOR_CURRENT_LINE: &'static str = "editor.current_line";
+    pub const EDITOR_LINK: &'static str = "editor.link";
 
     pub const SOURCE_CONTROL_ADDED: &'static str = "source_control.added";
     pub const SOURCE_CONTROL_REMOVED: &'static str = "source_control.removed";
@@ -89,6 +90,8 @@ impl LapceTheme {
         druid::Key::new("lapce.input_line_padding");
     pub const INPUT_FONT_SIZE: druid::Key<u64> =
         druid::Key::new("lapce.input_font_size");
+
+    pub const MARKDOWN_BLOCKQUOTE: &'static str = "markdown.blockquote";
 }
 
 #[derive(Error, Debug)]
@@ -328,10 +331,14 @@ impl Themes {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct Config {
+    #[serde(skip)]
+    pub id: u64,
     pub lapce: LapceConfig,
     pub editor: EditorConfig,
     #[serde(skip)]
     pub themes: Themes,
+    #[serde(skip)]
+    tab_layout_info: Rc<RefCell<HashMap<(FontFamily, usize), f64>>>,
 }
 
 pub struct ConfigWatcher {
@@ -387,6 +394,7 @@ impl Config {
         }
 
         let mut config: Config = settings.try_into()?;
+        config.update_id();
 
         config.themes = Themes::default();
 
@@ -501,7 +509,16 @@ impl Config {
         Some(())
     }
 
+    fn update_id(&mut self) {
+        self.id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+    }
+
     pub fn set_theme(&mut self, theme: &str, preview: bool) -> bool {
+        self.update_id();
+
         if self.themes.apply_theme(theme).is_err() {
             return false;
         }
@@ -715,5 +732,26 @@ impl Config {
                 .open(&path);
         }
         Some(path)
+    }
+
+    pub fn tab_width(
+        &self,
+        text: &mut PietText,
+        font_family: FontFamily,
+        font_size: usize,
+    ) -> f64 {
+        let mut info = self.tab_layout_info.borrow_mut();
+        let width =
+            info.entry((font_family.clone(), font_size))
+                .or_insert_with(|| {
+                    text.new_text_layout(" a")
+                        .font(font_family.clone(), font_size as f64)
+                        .build()
+                        .unwrap()
+                        .hit_test_text_position(1)
+                        .point
+                        .x
+                });
+        self.editor.tab_width as f64 * *width
     }
 }

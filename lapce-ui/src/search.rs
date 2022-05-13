@@ -2,17 +2,15 @@ use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
     BoxConstraints, Command, Cursor, Data, Env, Event, EventCtx, FontFamily,
     FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point,
-    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{LapceTabData, PanelKind},
     editor::EditorLocationNew,
-    search::Match,
     split::SplitDirection,
 };
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{
     editor::view::LapceEditorView,
@@ -21,15 +19,6 @@ use crate::{
     split::LapceSplitNew,
     svg::file_svg_new,
 };
-
-#[derive(Clone)]
-pub struct SearchData {
-    pub active: WidgetId,
-    pub widget_id: WidgetId,
-    pub split_id: WidgetId,
-    pub editor_view_id: WidgetId,
-    pub matches: Arc<HashMap<PathBuf, Vec<Match>>>,
-}
 
 pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
     let editor_data = data
@@ -56,7 +45,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
         data.search.widget_id,
         data.search.split_id,
         SplitDirection::Vertical,
-        PanelHeaderKind::Simple("Search".to_string()),
+        PanelHeaderKind::Simple("Search".into()),
         vec![(
             data.search.split_id,
             PanelHeaderKind::None,
@@ -66,56 +55,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
     )
 }
 
-impl SearchData {
-    pub fn new() -> Self {
-        let editor_view_id = WidgetId::next();
-        Self {
-            active: editor_view_id,
-            widget_id: WidgetId::next(),
-            split_id: WidgetId::next(),
-            editor_view_id,
-            matches: Arc::new(HashMap::new()),
-        }
-    }
-
-    pub fn new_panel(&self, data: &LapceTabData) -> LapcePanel {
-        let editor_data = data
-            .main_split
-            .editors
-            .get(&data.search.editor_view_id)
-            .unwrap();
-        let input = LapceEditorView::new(editor_data.view_id, None)
-            .hide_header()
-            .hide_gutter()
-            .padding((15.0, 15.0));
-        let split = LapceSplitNew::new(self.split_id)
-            .horizontal()
-            .with_child(input.boxed(), None, 55.0)
-            .with_flex_child(
-                LapceScrollNew::new(SearchContent::new().boxed())
-                    .vertical()
-                    .boxed(),
-                None,
-                1.0,
-            );
-        LapcePanel::new(
-            PanelKind::Search,
-            self.widget_id,
-            self.split_id,
-            SplitDirection::Vertical,
-            PanelHeaderKind::Simple("Search".to_string()),
-            vec![(self.split_id, PanelHeaderKind::None, split.boxed(), None)],
-        )
-    }
-}
-
-impl Default for SearchData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub struct SearchContent {
+struct SearchContent {
     mouse_pos: Point,
     line_height: f64,
 }

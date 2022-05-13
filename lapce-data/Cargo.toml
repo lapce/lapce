@@ -1,6 +1,6 @@
 [package]
 name = "lapce-data"
-version = "0.0.12"
+version = "0.1.0"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 
@@ -36,19 +36,19 @@ parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
 include_dir = "0.6.0"
 thiserror = "1.0"
 anyhow = "1.0.32"
-strum = "0.19"
-strum_macros = "0.19"
+strum = "0.24.0"
+strum_macros = "0.24"
 lazy_static = "1.4.0"
 serde = "1.0"
 serde_json = "1.0"
-notify = "5.0.0-pre.13"
+notify = { version = "5.0.0-pre.13", features = ["serde"] }
 xi-rope = { git = "https://github.com/lapce/xi-editor", features = ["serde"] }
 xi-unicode = "0.3.0"
 fuzzy-matcher = "0.3.7"
 uuid = { version = "0.8.2", features = ["v4"] }
 lsp-types = { version = "0.89.2", features = ["proposed"] }
-druid = { git = "https://github.com/lapce/druid", features = [ "svg", "im", "serde", ] }
-#druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
+druid = { git = "https://github.com/lapce/druid", branch = "opengl", features = [ "svg", "im", "serde", ] }
+# druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 toml = { version = "0.5.8", features = ["preserve_order"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 #structdesc = { path = "../../structdesc" }
@@ -56,8 +56,5 @@ lapce-core = { path = "../lapce-core" }
 lapce-rpc = { path = "../lapce-rpc" }
 lapce-proxy = { path = "../lapce-proxy" }
 bytemuck = "1.8.0"
-
-[build-dependencies]
-cc = "1"
-anyhow = "1.0.32"
-threadpool = "1.0"
+# For parsing markdown data, such as in hovers
+pulldown-cmark = "0.9.1"

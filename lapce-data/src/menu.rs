@@ -1,20 +1,30 @@
 use std::sync::Arc;
 
 use druid::{Command, Env, EventCtx, Modifiers, Point, Target, WidgetId};
+use lapce_core::{command::FocusCommand, mode::Mode};
 
 use crate::{
     command::{
-        CommandExecuted, LapceCommand, LapceCommandNew, LapceUICommand,
-        LAPCE_UI_COMMAND,
+        CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_UI_COMMAND,
     },
     keypress::KeyPressFocus,
-    state::Mode,
 };
 
 #[derive(Debug)]
 pub struct MenuItem {
-    pub text: String,
-    pub command: LapceCommandNew,
+    pub desc: Option<String>,
+    pub command: LapceCommand,
+}
+
+impl MenuItem {
+    pub fn desc(&self) -> &str {
+        self.desc.as_deref().unwrap_or_else(|| {
+            self.command
+                .kind
+                .desc()
+                .unwrap_or_else(|| self.command.kind.str())
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -35,6 +45,8 @@ impl KeyPressFocus for MenuData {
         matches!(condition, "list_focus" | "menu_focus" | "modal_focus")
     }
 
+    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
+
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -43,7 +55,7 @@ impl KeyPressFocus for MenuData {
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        if let LapceCommand::ModalClose = command {
+        if let CommandKind::Focus(FocusCommand::ModalClose) = command.kind {
             ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::HideMenu,
@@ -59,8 +71,6 @@ impl KeyPressFocus for MenuData {
             CommandExecuted::No
         }
     }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, _c: &str) {}
 }
 
 impl MenuData {

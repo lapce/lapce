@@ -11,18 +11,22 @@ use druid::{
     WidgetExt, WidgetId, WidgetPod,
 };
 use inflector::Inflector;
+use lapce_core::{
+    command::{EditCommand, MoveCommand},
+    mode::Mode,
+};
 use lapce_data::{
-    buffer::{Buffer, BufferContent},
     command::{
-        CommandExecuted, LapceCommand, LapceUICommand, LAPCE_NEW_COMMAND,
+        CommandExecuted, CommandKind, LapceUICommand, LAPCE_COMMAND,
         LAPCE_UI_COMMAND,
     },
     config::{EditorConfig, LapceConfig, LapceTheme},
     data::{LapceEditorData, LapceTabData},
+    document::{BufferContent, Document},
     keypress::KeyPressFocus,
     proxy::VERSION,
-    state::Mode,
 };
+use xi_rope::Rope;
 
 use crate::{
     editor::view::LapceEditorView,
@@ -32,7 +36,7 @@ use crate::{
     svg::get_svg,
 };
 
-pub enum LapceSettingsKind {
+enum LapceSettingsKind {
     Core,
     Editor,
 }
@@ -80,21 +84,18 @@ pub struct LapceSettingsPanel {
     switcher_rect: Rect,
     switcher_line_height: f64,
     close_rect: Rect,
-    children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    children: Vec<WidgetPod<LapceTabData, LapceSplitNew>>,
 }
 
 impl LapceSettingsPanel {
     pub fn new(data: &LapceTabData) -> Self {
         let children = vec![
-            WidgetPod::new(Box::new(LapceSettings::new_split(
-                LapceSettingsKind::Core,
-                data,
-            )) as Box<dyn Widget<_>>),
-            WidgetPod::new(Box::new(LapceSettings::new_split(
+            WidgetPod::new(LapceSettings::new_split(LapceSettingsKind::Core, data)),
+            WidgetPod::new(LapceSettings::new_split(
                 LapceSettingsKind::Editor,
                 data,
-            ))),
-            WidgetPod::new(Box::new(LapceKeymap::new_split(data))),
+            )),
+            WidgetPod::new(LapceKeymap::new_split(data)),
         ];
         Self {
             widget_id: data.settings.panel_widget_id,
@@ -155,12 +156,12 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        if !data.settings.shown {
+        if !data.settings.shown && !event.should_propagate_to_hidden() {
             return;
         }
         match event {
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {}
-            Event::Command(cmd) if cmd.is(LAPCE_NEW_COMMAND) => {}
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {}
             _ => {
                 self.children[self.active].event(ctx, event, data, env);
             }
@@ -234,6 +235,9 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
+        if !data.settings.shown && !event.should_propagate_to_hidden() {
+            return;
+        }
         for child in self.children.iter_mut() {
             child.lifecycle(ctx, event, data, env);
         }
@@ -388,12 +392,15 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
                 );
             }
 
-            ctx.blurred_rect(
-                self.header_rect,
-                shadow_width,
-                data.config
-                    .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
-            );
+            ctx.with_save(|ctx| {
+                ctx.clip(self.header_rect.inflate(0.0, 50.0) + Vec2::new(0.0, 50.0));
+                ctx.blurred_rect(
+                    self.header_rect,
+                    shadow_width,
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_DROPDOWN_SHADOW),
+                );
+            });
             let text_layout = ctx
                 .text()
                 .new_text_layout("Settings")
@@ -442,11 +449,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
     }
 }
 
-pub enum SettingsValue {
-    Bool(bool),
-}
-
-pub struct LapceSettings {
+struct LapceSettings {
     widget_id: WidgetId,
     kind: LapceSettingsKind,
     children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
@@ -604,12 +607,12 @@ impl Widget<LapceTabData> for LapceSettings {
     }
 }
 
-pub struct LapceSettingsItemKeypress {
+struct LapceSettingsItemKeypress {
     input: String,
     cursor: usize,
 }
 
-pub struct LapceSettingsItem {
+struct LapceSettingsItem {
     kind: String,
     name: String,
     desc: String,
@@ -654,10 +657,15 @@ impl LapceSettingsItem {
         let input = input.map(|input| {
             let name = format!("{kind}.{name}");
             let content = BufferContent::Value(name.clone());
-            let mut buffer =
-                Buffer::new(content.clone(), data.id, event_sink).set_local();
-            buffer.load_content(&input);
-            data.main_split.value_buffers.insert(name, Arc::new(buffer));
+
+            let mut doc = Document::new(
+                content.clone(),
+                data.id,
+                event_sink,
+                data.proxy.clone(),
+            );
+            doc.reload(Rope::from(&input), true);
+            data.main_split.value_docs.insert(name, Arc::new(doc));
             let editor = LapceEditorData::new(None, None, content, &data.config);
             let view_id = editor.view_id;
             let input = LapceEditorView::new(editor.view_id, None)
@@ -790,28 +798,36 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
         false
     }
 
+    fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
+        self.input.insert_str(self.cursor, c);
+        self.cursor += c.len();
+    }
+
     fn run_command(
         &mut self,
         _ctx: &mut EventCtx,
-        command: &LapceCommand,
+        command: &lapce_data::command::LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        match command {
-            LapceCommand::Right => {
-                self.cursor += 1;
-                if self.cursor > self.input.len() {
-                    self.cursor = self.input.len();
+        match &command.kind {
+            CommandKind::Move(cmd) => match cmd {
+                MoveCommand::Right => {
+                    self.cursor += 1;
+                    if self.cursor > self.input.len() {
+                        self.cursor = self.input.len();
+                    }
                 }
-            }
-            LapceCommand::Left => {
-                if self.cursor == 0 {
-                    return CommandExecuted::Yes;
+                MoveCommand::Left => {
+                    if self.cursor == 0 {
+                        return CommandExecuted::Yes;
+                    }
+                    self.cursor -= 1;
                 }
-                self.cursor -= 1;
-            }
-            LapceCommand::DeleteBackward => {
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Edit(EditCommand::DeleteForward) => {
                 if self.cursor == 0 {
                     return CommandExecuted::Yes;
                 }
@@ -821,11 +837,6 @@ impl KeyPressFocus for LapceSettingsItemKeypress {
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
-    }
-
-    fn receive_char(&mut self, _ctx: &mut EventCtx, c: &str) {
-        self.input.insert_str(self.cursor, c);
-        self.cursor += c.len();
     }
 }
 
@@ -957,17 +968,16 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         if let Some(view_id) = self.input_view_id.as_ref() {
             let editor = data.main_split.editors.get(view_id).unwrap();
             if let BufferContent::Value(name) = &editor.content {
-                let buffer = data.main_split.value_buffers.get(name).unwrap();
-                let old_buffer =
-                    old_data.main_split.value_buffers.get(name).unwrap();
-                if buffer.len() != old_buffer.len()
-                    || buffer.rope().slice_to_cow(..)
-                        != old_buffer.rope().slice_to_cow(..)
+                let doc = data.main_split.value_docs.get(name).unwrap();
+                let old_doc = old_data.main_split.value_docs.get(name).unwrap();
+                if doc.buffer().len() != old_doc.buffer().len()
+                    || doc.buffer().text().slice_to_cow(..)
+                        != old_doc.buffer().text().slice_to_cow(..)
                 {
                     let new_value = match &self.value {
                         serde_json::Value::Number(_n) => {
                             if let Ok(new_n) =
-                                buffer.rope().slice_to_cow(..).parse::<i64>()
+                                doc.buffer().text().slice_to_cow(..).parse::<i64>()
                             {
                                 serde_json::json!(new_n)
                             } else {
@@ -975,7 +985,7 @@ impl Widget<LapceTabData> for LapceSettingsItem {
                             }
                         }
                         serde_json::Value::String(_s) => {
-                            serde_json::json!(&buffer.rope().slice_to_cow(..))
+                            serde_json::json!(&doc.buffer().text().slice_to_cow(..))
                         }
                         _ => return,
                     };
@@ -1024,10 +1034,6 @@ impl Widget<LapceTabData> for LapceSettingsItem {
 
         let text = ctx.text();
         let text = self.name(text, data);
-        text.set_color(
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-        );
         y += padding;
         ctx.draw_text(text, Point::new(0.0, y));
         y += text.size().height + padding;
@@ -1063,10 +1069,6 @@ impl Widget<LapceTabData> for LapceSettingsItem {
         };
         let text = ctx.text();
         let text = self.desc(text, data);
-        text.set_color(
-            data.config
-                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-        );
         ctx.draw_text(text, Point::new(x, y));
 
         if let Some(input) = self.input_widget.as_mut() {

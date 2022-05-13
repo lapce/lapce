@@ -8,8 +8,7 @@ use druid::{
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{Config, LapceTheme},
-    data::{LapceTabData, LapceTabLens, LapceWindowData},
-    state::LapceWorkspace,
+    data::{LapceTabData, LapceTabLens, LapceWindowData, LapceWorkspace},
 };
 use std::cmp::Ordering;
 use std::sync::Arc;
@@ -534,7 +533,10 @@ impl Widget<LapceWindowData> for LapceWindowNew {
             }
         }
 
-        self.tabs[data.active].paint(ctx, data, env);
+        ctx.with_save(|ctx| {
+            ctx.clip(self.tabs[data.active].layout_rect());
+            self.tabs[data.active].paint(ctx, data, env);
+        });
 
         let line_color = data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER);
         if self.tabs.len() > 1 {

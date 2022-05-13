@@ -7,6 +7,7 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
+use lapce_core::mode::Modes;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
@@ -14,7 +15,6 @@ use lapce_data::{
     keypress::{
         paint_key, Alignment, DefaultKeyPressHandler, KeyMap, KeyPress, KeyPressData,
     },
-    state::Modes,
 };
 
 use crate::{
@@ -92,7 +92,7 @@ impl LapceKeymap {
             if let Some(command) = commands_without_keymap.get(j) {
                 self.active_keymap = Some((
                     KeyMap {
-                        command: command.cmd.clone(),
+                        command: command.kind.str().to_string(),
                         key: Vec::new(),
                         modes: Modes::empty(),
                         when: None,
@@ -263,30 +263,38 @@ impl Widget<LapceTabData> for LapceKeymap {
             if i < commands_with_keymap_len {
                 let keymap = &commands_with_keymap[i];
                 if let Some(cmd) = data.keypress.commands.get(&keymap.command) {
-                    let text_layout = ctx
-                        .text()
-                        .new_text_layout(
-                            cmd.palette_desc
-                                .clone()
-                                .unwrap_or_else(|| cmd.cmd.clone()),
-                        )
-                        .font(FontFamily::SYSTEM_UI, 13.0)
-                        .text_color(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                                .clone(),
-                        )
-                        .build()
-                        .unwrap();
-                    let text_size = text_layout.size();
-                    ctx.draw_text(
-                        &text_layout,
-                        Point::new(
-                            10.0,
-                            i as f64 * self.line_height
-                                + (self.line_height - text_size.height) / 2.0,
-                        ),
-                    );
+                    ctx.with_save(|ctx| {
+                        ctx.clip(Rect::new(
+                            0.0,
+                            i as f64 * self.line_height,
+                            size.width / 2.0 - keypress_width,
+                            (i + 1) as f64 * self.line_height,
+                        ));
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(
+                                cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
+                            )
+                            .font(FontFamily::SYSTEM_UI, 13.0)
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(
+                                        LapceTheme::EDITOR_FOREGROUND,
+                                    )
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        let text_size = text_layout.size();
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                10.0,
+                                i as f64 * self.line_height
+                                    + (self.line_height - text_size.height) / 2.0,
+                            ),
+                        );
+                    });
                 }
 
                 let origin = Point::new(
@@ -330,8 +338,8 @@ impl Widget<LapceTabData> for LapceKeymap {
                         i as f64 * self.line_height + self.line_height / 2.0,
                     );
                     let bits = [
-                        (Modes::INSERT, "Normal"),
-                        (Modes::NORMAL, "Insert"),
+                        (Modes::INSERT, "Insert"),
+                        (Modes::NORMAL, "Normal"),
                         (Modes::VISUAL, "Visual"),
                         (Modes::TERMINAL, "Terminal"),
                     ];
@@ -353,31 +361,41 @@ impl Widget<LapceTabData> for LapceKeymap {
             } else {
                 let j = i - commands_with_keymap_len;
                 if let Some(command) = commands_without_keymap.get(j) {
-                    let text_layout = ctx
-                        .text()
-                        .new_text_layout(
-                            command
-                                .palette_desc
-                                .clone()
-                                .unwrap_or_else(|| command.cmd.clone()),
-                        )
-                        .font(FontFamily::SYSTEM_UI, 13.0)
-                        .text_color(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                                .clone(),
-                        )
-                        .build()
-                        .unwrap();
-                    let text_size = text_layout.size();
-                    ctx.draw_text(
-                        &text_layout,
-                        Point::new(
-                            10.0,
-                            i as f64 * self.line_height
-                                + (self.line_height - text_size.height) / 2.0,
-                        ),
-                    )
+                    ctx.with_save(|ctx| {
+                        ctx.clip(Rect::new(
+                            0.0,
+                            i as f64 * self.line_height,
+                            size.width / 2.0 - keypress_width,
+                            (i + 1) as f64 * self.line_height,
+                        ));
+                        let text_layout = ctx
+                            .text()
+                            .new_text_layout(
+                                command
+                                    .kind
+                                    .desc()
+                                    .unwrap_or_else(|| command.kind.str()),
+                            )
+                            .font(FontFamily::SYSTEM_UI, 13.0)
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(
+                                        LapceTheme::EDITOR_FOREGROUND,
+                                    )
+                                    .clone(),
+                            )
+                            .build()
+                            .unwrap();
+                        let text_size = text_layout.size();
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                10.0,
+                                i as f64 * self.line_height
+                                    + (self.line_height - text_size.height) / 2.0,
+                            ),
+                        );
+                    });
                 }
             }
         }
@@ -454,7 +472,7 @@ impl Widget<LapceTabData> for LapceKeymap {
                 let text = ctx
                     .text()
                     .new_text_layout(
-                        cmd.palette_desc.clone().unwrap_or_else(|| cmd.cmd.clone()),
+                        cmd.kind.desc().unwrap_or_else(|| cmd.kind.str()),
                     )
                     .font(FontFamily::SYSTEM_UI, 13.0)
                     .text_color(
@@ -554,7 +572,7 @@ impl Widget<LapceTabData> for LapceKeymap {
     }
 }
 
-pub struct LapceKeymapHeader {}
+struct LapceKeymapHeader {}
 
 impl LapceKeymapHeader {
     pub fn new() -> Self {
@@ -630,7 +648,7 @@ impl Widget<LapceTabData> for LapceKeymapHeader {
 
         let text_layout = ctx
             .text()
-            .new_text_layout("Keybinding")
+            .new_text_layout("Key Binding")
             .font(FontFamily::SYSTEM_UI, 14.0)
             .default_attribute(TextAttribute::Weight(FontWeight::BOLD))
             .text_color(

@@ -1,17 +1,15 @@
+use crate::svg::get_svg;
 use druid::{
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target, UpdateCtx, Widget,
 };
 use lapce_data::{
-    command::{
-        CommandTarget, LapceCommandNew, LapceWorkbenchCommand, LAPCE_NEW_COMMAND,
-    },
+    command::{CommandKind, LapceCommand, LapceWorkbenchCommand, LAPCE_COMMAND},
     config::LapceTheme,
     data::LapceTabData,
     panel::PanelPosition,
 };
 use serde_json::json;
-use crate::svg::get_svg;
 
 pub struct ActivityBar {}
 
@@ -44,26 +42,23 @@ impl Widget<LapceTabData> for ActivityBar {
                         if let Some(kind) = panel.widgets.get(index) {
                             if panel.active == *kind {
                                 ctx.submit_command(Command::new(
-                                    LAPCE_NEW_COMMAND,
-                                    LapceCommandNew {
-                                        cmd:
-                                            LapceWorkbenchCommand::TogglePanelVisual
-                                                .to_string(),
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
+                                        kind: CommandKind::Workbench(
+                                            LapceWorkbenchCommand::TogglePanelVisual,
+                                        ),
                                         data: Some(json!(kind)),
-                                        palette_desc: None,
-                                        target: CommandTarget::Workbench,
                                     },
                                     Target::Widget(data.id),
                                 ));
                             } else {
                                 ctx.submit_command(Command::new(
-                                    LAPCE_NEW_COMMAND,
-                                    LapceCommandNew {
-                                        cmd: LapceWorkbenchCommand::ShowPanel
-                                            .to_string(),
+                                    LAPCE_COMMAND,
+                                    LapceCommand {
+                                        kind: CommandKind::Workbench(
+                                            LapceWorkbenchCommand::ShowPanel,
+                                        ),
                                         data: Some(json!(kind)),
-                                        palette_desc: None,
-                                        target: CommandTarget::Workbench,
                                     },
                                     Target::Widget(data.id),
                                 ));

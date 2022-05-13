@@ -1,39 +1,35 @@
 use alacritty_terminal::{grid::Dimensions, term::cell::Flags};
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
-use druid::{
-    Command, ExtEventSink, Lens, Modifiers, Target,
-    WidgetId,
-};
-use druid::{
-    Data, Env, EventCtx,
-};
+use druid::{Command, ExtEventSink, Lens, Modifiers, Target, WidgetId};
+use druid::{Data, Env, EventCtx};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use itertools::Itertools;
+use lapce_core::command::{EditCommand, FocusCommand};
+use lapce_core::mode::Mode;
+use lapce_core::movement::Movement;
 use lsp_types::{DocumentSymbolResponse, Range, SymbolKind};
 use serde_json;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::cmp::Ordering;
 use uuid::Uuid;
 
+use crate::command::CommandKind;
+use crate::data::{LapceWorkspace, LapceWorkspaceType};
+use crate::document::BufferContent;
 use crate::{
-    buffer::BufferContent,
     command::LAPCE_UI_COMMAND,
-    command::{CommandExecuted, LapceCommand, LAPCE_NEW_COMMAND},
-    command::{LapceCommandNew, LapceUICommand},
+    command::{CommandExecuted, LAPCE_COMMAND},
+    command::{LapceCommand, LapceUICommand},
     config::Config,
     data::{FocusArea, LapceMainSplitData, LapceTabData, PanelKind},
     editor::EditorLocationNew,
     find::Find,
     keypress::{KeyPressData, KeyPressFocus},
-    movement::Movement,
     proxy::LapceProxy,
-    state::LapceWorkspace,
-    state::LapceWorkspaceType,
-    state::Mode,
     terminal::TerminalSplitData,
 };
 
@@ -104,7 +100,7 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocationNew),
     Workspace(LapceWorkspace),
     SshHost(String, String),
-    Command(LapceCommandNew),
+    Command(LapceCommand),
     Theme(String),
 }
 
@@ -114,7 +110,7 @@ impl PaletteItemContent {
         ctx: &mut EventCtx,
         preview: bool,
         preview_editor_id: WidgetId,
-    ) -> Option<PaletteType> {
+    ) -> bool {
         match &self {
             PaletteItemContent::File(_, full_path) => {
                 if !preview {
@@ -125,13 +121,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
-            #[allow(unused_variables)]
-            PaletteItemContent::DocumentSymbol {
-                kind,
-                name,
-                range,
-                container_name,
-            } => {
+            PaletteItemContent::DocumentSymbol { range, .. } => {
                 let editor_id = if preview {
                     Some(preview_editor_id)
                 } else {
@@ -186,11 +176,12 @@ impl PaletteItemContent {
             PaletteItemContent::Command(command) => {
                 if !preview {
                     ctx.submit_command(Command::new(
-                        LAPCE_NEW_COMMAND,
+                        LAPCE_COMMAND,
                         command.clone(),
                         Target::Auto,
                     ));
                 }
+                return !command.is_palette_command();
             }
             PaletteItemContent::TerminalLine(line, _content) => {
                 if !preview {
@@ -218,7 +209,7 @@ impl PaletteItemContent {
                 }
             }
         }
-        None
+        true
     }
 }
 
@@ -286,6 +277,7 @@ pub struct PaletteData {
     pub items: Vec<NewPaletteItem>,
     pub filtered_items: Vec<NewPaletteItem>,
     pub preview_editor: WidgetId,
+    pub input_editor: WidgetId,
 }
 
 impl KeyPressFocus for PaletteViewData {
@@ -297,6 +289,45 @@ impl KeyPressFocus for PaletteViewData {
         matches!(condition, "list_focus" | "palette_focus" | "modal_focus")
     }
 
+    // fn run_command(
+    //     &mut self,
+    //     ctx: &mut EventCtx,
+    //     command: &LapceCommand,
+    //     _count: Option<usize>,
+    //     _mods: Modifiers,
+    //     _env: &Env,
+    // ) -> CommandExecuted {
+    //     match command {
+    //         LapceCommand::ModalClose => {
+    //             self.cancel(ctx);
+    //         }
+    //         LapceCommand::DeleteBackward => {
+    //             self.delete_backward(ctx);
+    //         }
+    //         LapceCommand::DeleteToBeginningOfLine => {
+    //             self.delete_to_beginning_of_line(ctx);
+    //         }
+    //         LapceCommand::ListNext => {
+    //             self.next(ctx);
+    //         }
+    //         LapceCommand::ListPrevious => {
+    //             self.previous(ctx);
+    //         }
+    //         LapceCommand::ListSelect => {
+    //             self.select(ctx);
+    //         }
+    //         _ => return CommandExecuted::No,
+    //     }
+    //     CommandExecuted::Yes
+    // }
+
+    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.input.insert_str(palette.cursor, c);
+        palette.cursor += c.len();
+        self.update_palette(ctx);
+    }
+
     fn run_command(
         &mut self,
         ctx: &mut EventCtx,
@@ -305,35 +336,34 @@ impl KeyPressFocus for PaletteViewData {
         _mods: Modifiers,
         _env: &Env,
     ) -> CommandExecuted {
-        match command {
-            LapceCommand::ModalClose => {
-                self.cancel(ctx);
-            }
-            LapceCommand::DeleteBackward => {
-                self.delete_backward(ctx);
-            }
-            LapceCommand::DeleteToBeginningOfLine => {
-                self.delete_to_beginning_of_line(ctx);
-            }
-            LapceCommand::ListNext => {
-                self.next(ctx);
-            }
-            LapceCommand::ListPrevious => {
-                self.previous(ctx);
-            }
-            LapceCommand::ListSelect => {
-                self.select(ctx);
-            }
+        match &command.kind {
+            CommandKind::Focus(cmd) => match cmd {
+                FocusCommand::ModalClose => {
+                    self.cancel(ctx);
+                }
+                FocusCommand::ListNext => {
+                    self.next(ctx);
+                }
+                FocusCommand::ListPrevious => {
+                    self.previous(ctx);
+                }
+                FocusCommand::ListSelect => {
+                    self.select(ctx);
+                }
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Edit(cmd) => match cmd {
+                EditCommand::DeleteBackward => {
+                    self.delete_backward(ctx);
+                }
+                EditCommand::DeleteToBeginningOfLine => {
+                    self.delete_to_beginning_of_line(ctx);
+                }
+                _ => return CommandExecuted::No,
+            },
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
-    }
-
-    fn receive_char(&mut self, ctx: &mut EventCtx, c: &str) {
-        let palette = Arc::make_mut(&mut self.palette);
-        palette.input.insert_str(palette.cursor, c);
-        palette.cursor += c.len();
-        self.update_palette(ctx);
     }
 }
 
@@ -358,6 +388,7 @@ impl PaletteData {
             items: Vec::new(),
             filtered_items: Vec::new(),
             preview_editor,
+            input_editor: WidgetId::next(),
         }
     }
 
@@ -416,8 +447,12 @@ impl PaletteViewData {
         palette.palette_type = PaletteType::File;
         palette.items.clear();
         palette.filtered_items.clear();
-        if ctx.is_focused() {
-            ctx.resign_focus();
+        if let Some(active) = *self.main_split.active {
+            ctx.submit_command(Command::new(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(active),
+            ));
         }
     }
 
@@ -457,6 +492,11 @@ impl PaletteViewData {
         palette.status = PaletteStatus::Started;
         palette.palette_type = palette_type.unwrap_or(PaletteType::File);
         palette.input = palette.palette_type.string();
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::InitPaletteInput(palette.input.clone()),
+            Target::Widget(*self.main_split.tab_id),
+        ));
         palette.items = Vec::new();
         palette.filtered_items = Vec::new();
         palette.run_id = Uuid::new_v4().to_string();
@@ -573,11 +613,7 @@ impl PaletteViewData {
         }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.get_item() {
-            if let Some(palette_type) =
-                item.content.select(ctx, false, palette.preview_editor)
-            {
-                self.run(ctx, Some(palette_type));
-            } else {
+            if item.content.select(ctx, false, palette.preview_editor) {
                 self.cancel(ctx);
             }
         } else {
@@ -605,7 +641,13 @@ impl PaletteViewData {
         }
     }
 
-    fn update_palette(&mut self, ctx: &mut EventCtx) {
+    pub fn update_input(&mut self, ctx: &mut EventCtx, input: String) {
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.input = input;
+        self.update_palette(ctx)
+    }
+
+    pub fn update_palette(&mut self, ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.index = 0;
         let palette_type = self.get_palette_type();
@@ -626,7 +668,7 @@ impl PaletteViewData {
 
     fn get_palette_type(&self) -> PaletteType {
         match self.palette.palette_type {
-            PaletteType::Reference | PaletteType::SshHost => {
+            PaletteType::Reference | PaletteType::SshHost | PaletteType::Theme => {
                 return self.palette.palette_type.clone();
             }
             _ => (),
@@ -686,8 +728,7 @@ impl PaletteViewData {
         }));
     }
 
-    #[allow(unused_variables)]
-    fn get_ssh_hosts(&mut self, ctx: &mut EventCtx) {
+    fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {
         let workspaces = Config::recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
@@ -711,8 +752,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_workspaces(&mut self, ctx: &mut EventCtx) {
+    fn get_workspaces(&mut self, _ctx: &mut EventCtx) {
         let workspaces = Config::recent_workspaces().unwrap_or_default();
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = workspaces
@@ -744,8 +784,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_themes(&mut self, ctx: &mut EventCtx, config: &Config) {
+    fn get_themes(&mut self, _ctx: &mut EventCtx, config: &Config) {
         let palette = Arc::make_mut(&mut self.palette);
         palette.items = config
             .themes
@@ -759,8 +798,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_commands(&mut self, ctx: &mut EventCtx) {
+    fn get_commands(&mut self, _ctx: &mut EventCtx) {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
         let palette = Arc::make_mut(&mut self.palette);
@@ -769,11 +807,11 @@ impl PaletteViewData {
             .commands
             .iter()
             .filter_map(|(_, c)| {
-                if EXCLUDED_ITEMS.contains(&c.cmd.as_str()) {
+                if EXCLUDED_ITEMS.contains(&c.kind.str()) {
                     return None;
                 }
 
-                c.palette_desc.as_ref().map(|m| NewPaletteItem {
+                c.kind.desc().as_ref().map(|m| NewPaletteItem {
                     content: PaletteItemContent::Command(c.clone()),
                     filter_text: m.to_string(),
                     score: 0,
@@ -783,8 +821,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_lines(&mut self, ctx: &mut EventCtx) {
+    fn get_lines(&mut self, _ctx: &mut EventCtx) {
         if self.focus_area == FocusArea::Panel(PanelKind::Terminal) {
             if let Some(terminal) =
                 self.terminal.terminals.get(&self.terminal.active_term_id)
@@ -836,13 +873,14 @@ impl PaletteViewData {
             None => return,
         };
 
-        let buffer = self.main_split.editor_buffer(editor.view_id);
-        let last_line_number = buffer.last_line() + 1;
+        let doc = self.main_split.editor_doc(editor.view_id);
+        let last_line_number = doc.buffer().last_line() + 1;
         let last_line_number_len = last_line_number.to_string().len();
         let palette = Arc::make_mut(&mut self.palette);
-        palette.items = buffer
-            .rope()
-            .lines(0..buffer.len())
+        palette.items = doc
+            .buffer()
+            .text()
+            .lines(0..doc.buffer().len())
             .enumerate()
             .map(|(i, l)| {
                 let line_number = i + 1;
@@ -863,8 +901,7 @@ impl PaletteViewData {
             .collect();
     }
 
-    #[allow(unused_variables)]
-    fn get_global_search(&mut self, ctx: &mut EventCtx) {}
+    fn get_global_search(&mut self, _ctx: &mut EventCtx) {}
 
     fn get_document_symbols(&mut self, ctx: &mut EventCtx) {
         let editor = self.main_split.active_editor();
@@ -877,7 +914,7 @@ impl PaletteViewData {
 
         if let BufferContent::File(path) = &editor.content {
             let path = path.clone();
-            let buffer_id = self.main_split.open_files.get(&path).unwrap().id();
+            let buffer_id = self.main_split.open_docs.get(&path).unwrap().id();
             let run_id = self.palette.run_id.clone();
             let event_sink = ctx.get_external_handle();
 
@@ -986,9 +1023,8 @@ impl PaletteViewData {
         }
     }
 
-    #[allow(unused_variables)]
     fn filter_items(
-        run_id: &str,
+        _run_id: &str,
         input: &str,
         items: Vec<NewPaletteItem>,
         matcher: &SkimMatcherV2,

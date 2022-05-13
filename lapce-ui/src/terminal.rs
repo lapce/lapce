@@ -1,28 +1,22 @@
 use std::sync::Arc;
 
 use alacritty_terminal::{
-    ansi,
-    event::EventListener,
     grid::Dimensions,
     index::{Direction, Side},
-    term::{cell::Flags, search::RegexSearch, SizeInfo},
-    Term,
+    term::{cell::Flags, search::RegexSearch},
 };
 use druid::{
     piet::{Text, TextAttribute, TextLayout, TextLayoutBuilder},
-    BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, FontFamily,
-    FontWeight, KbKey, LayoutCtx, LifeCycle, LifeCycleCtx, Modifiers, MouseEvent,
-    PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx, Widget,
-    WidgetExt, WidgetId, WidgetPod,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily, FontWeight,
+    LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
+    RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use lapce_core::mode::Mode;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceTheme,
     data::{FocusArea, LapceTabData, PanelKind},
-    keypress::KeyPressFocus,
-    proxy::LapceProxy,
     split::SplitDirection,
-    state::Mode,
     terminal::{LapceTerminalData, LapceTerminalViewData},
 };
 use lapce_rpc::terminal::TermId;
@@ -36,53 +30,7 @@ use crate::{
     tab::LapceIcon,
 };
 
-const CTRL_CHARS: &[char] = &[
-    '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', '\\', ']', '^', '_',
-];
-
 pub type TermConfig = alacritty_terminal::config::Config;
-
-pub struct RawTerminal {
-    pub parser: ansi::Processor,
-    pub term: Term<EventProxy>,
-    pub scroll_delta: f64,
-}
-
-impl RawTerminal {
-    pub fn update_content(&mut self, content: &str) {
-        if let Ok(content) = base64::decode(content) {
-            for byte in content {
-                self.parser.advance(&mut self.term, byte);
-            }
-        }
-    }
-}
-
-impl RawTerminal {
-    pub fn new(
-        term_id: TermId,
-        proxy: Arc<LapceProxy>,
-        event_sink: ExtEventSink,
-    ) -> Self {
-        let config = TermConfig::default();
-        let size = SizeInfo::new(50.0, 30.0, 1.0, 1.0, 0.0, 0.0, true);
-        let event_proxy = EventProxy {
-            proxy,
-            event_sink,
-            term_id,
-        };
-
-        let term = Term::new(&config, size, event_proxy);
-        let parser = ansi::Processor::new();
-
-        Self {
-            parser,
-            term,
-            scroll_delta: 0.0,
-        }
-    }
-}
 
 /// This struct represents the main body of the terminal, i.e. the part
 /// where the shell is presented.
@@ -107,7 +55,7 @@ impl TerminalPanel {
             data.terminal.widget_id,
             split_id,
             SplitDirection::Vertical,
-            PanelHeaderKind::Simple("Terminal".to_string()),
+            PanelHeaderKind::Simple("Terminal".into()),
             vec![(
                 split_id,
                 PanelHeaderKind::None,
@@ -306,7 +254,7 @@ impl Widget<LapceTabData> for LapceTerminalView {
     }
 }
 
-pub struct LapceTerminalHeader {
+struct LapceTerminalHeader {
     term_id: TermId,
     height: f64,
     icon_size: f64,
@@ -338,7 +286,7 @@ impl LapceTerminalHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "close.svg".to_string(),
+            icon: "close.svg",
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -353,7 +301,7 @@ impl LapceTerminalHeader {
         let x =
             self_size.width - ((icons.len() + 1) as f64) * (gap + self.icon_size);
         let icon = LapceIcon {
-            icon: "split-horizontal.svg".to_string(),
+            icon: "split-horizontal.svg",
             rect: Size::new(self.icon_size, self.icon_size)
                 .to_rect()
                 .with_origin(Point::new(x, gap)),
@@ -508,7 +456,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
     }
 }
 
-pub struct LapceTerminal {
+struct LapceTerminal {
     term_id: TermId,
     widget_id: WidgetId,
     width: f64,
@@ -579,42 +527,9 @@ impl Widget<LapceTabData> for LapceTerminal {
                     key_event,
                     &mut term_data,
                     env,
-                ) {
-                    // 4 byte buffer used to store encoded characters.
-                    let mut char_buffer = [0; 4];
-                    let s = match &key_event.key {
-                        KbKey::Character(c) => {
-                            let mut s = "";
-                            let mut mods = key_event.mods;
-                            if mods.ctrl() {
-                                mods.set(Modifiers::CONTROL, false);
-                                if mods.is_empty() && c.chars().count() == 1 {
-                                    let c = c.chars().next().unwrap();
-                                    if let Some(i) =
-                                        CTRL_CHARS.iter().position(|e| &c == e)
-                                    {
-                                        s = char::from_u32(i as u32)
-                                            .unwrap()
-                                            .encode_utf8(&mut char_buffer);
-                                    }
-                                }
-                            }
-
-                            s
-                        }
-                        KbKey::Backspace => if key_event.mods.ctrl() {
-                            "\x08" // backspace
-                        } else {
-                            "\x7f" // DEL
-                        },
-                        KbKey::Tab => "\x09",
-                        KbKey::Enter => "\r",
-                        KbKey::Escape => "\x1b",
-                        _ => "",
-                    };
-                    if term_data.terminal.mode == Mode::Terminal && !s.is_empty() {
-                        term_data.receive_char(ctx, s);
-                    }
+                ) && term_data.terminal.mode == Mode::Terminal
+                {
+                    term_data.send_keypress(key_event);
                 }
                 ctx.set_handled();
                 data.keypress = keypress.clone();
@@ -889,33 +804,6 @@ impl Widget<LapceTabData> for LapceTerminal {
                     }
                 }
             }
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct EventProxy {
-    term_id: TermId,
-    proxy: Arc<LapceProxy>,
-    event_sink: ExtEventSink,
-}
-
-impl EventProxy {}
-
-impl EventListener for EventProxy {
-    fn send_event(&self, event: alacritty_terminal::event::Event) {
-        match event {
-            alacritty_terminal::event::Event::PtyWrite(s) => {
-                self.proxy.terminal_write(self.term_id, &s);
-            }
-            alacritty_terminal::event::Event::Title(title) => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateTerminalTitle(self.term_id, title),
-                    Target::Widget(self.proxy.tab_id),
-                );
-            }
-            _ => (),
         }
     }
 }

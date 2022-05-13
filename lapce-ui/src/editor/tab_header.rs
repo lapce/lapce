@@ -3,10 +3,10 @@ use druid::{
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, RenderContext, Size,
     Target, UpdateCtx, Widget, WidgetId, WidgetPod,
 };
+use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{
-        CommandTarget, LapceCommand, LapceCommandNew, LapceUICommand,
-        LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::LapceTheme,
     data::LapceTabData,
@@ -14,8 +14,7 @@ use lapce_data::{
 
 use crate::{
     editor::tab_header_content::LapceEditorTabHeaderContent, scroll::LapceScrollNew,
-    svg::get_svg,
-    tab::LapceIcon,
+    svg::get_svg, tab::LapceIcon,
 };
 
 pub struct LapceEditorTabHeader {
@@ -97,7 +96,6 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                         if self.content.widget_mut().scroll_to_visible(rect, env) {
                             self.content
                                 .widget_mut()
-                                .scroll_component
                                 .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
                         }
                     }
@@ -153,7 +151,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                 let x =
                     size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
                 let icon = LapceIcon {
-                    icon: "close.svg".to_string(),
+                    icon: "close.svg",
                     rect: Size::new(icon_size, icon_size)
                         .to_rect()
                         .with_origin(Point::new(x, gap)),
@@ -168,17 +166,15 @@ impl Widget<LapceTabData> for LapceEditorTabHeader {
                 let x =
                     size.width - ((self.icons.len() + 1) as f64) * (gap + icon_size);
                 let icon = LapceIcon {
-                    icon: "split-horizontal.svg".to_string(),
+                    icon: "split-horizontal.svg",
                     rect: Size::new(icon_size, icon_size)
                         .to_rect()
                         .with_origin(Point::new(x, gap)),
                     command: Command::new(
-                        LAPCE_NEW_COMMAND,
-                        LapceCommandNew {
-                            cmd: LapceCommand::SplitVertical.to_string(),
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(FocusCommand::SplitVertical),
                             data: None,
-                            palette_desc: None,
-                            target: CommandTarget::Focus,
                         },
                         Target::Widget(self.widget_id),
                     ),

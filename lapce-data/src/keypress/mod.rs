@@ -1,7 +1,6 @@
 #![allow(clippy::module_inception)]
 
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -15,19 +14,18 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use indexmap::IndexMap;
 use itertools::Itertools;
+use lapce_core::mode::{Mode, Modes};
 use toml;
 
 mod keypress;
 mod loader;
 
 use crate::command::{
-    lapce_internal_commands, CommandExecuted, CommandTarget, LapceCommandNew,
-    LapceUICommand, LAPCE_NEW_COMMAND, LAPCE_UI_COMMAND,
+    lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
+    LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
 };
 use crate::config::{Config, LapceTheme};
 use crate::keypress::loader::KeyMapLoader;
-use crate::state::Modes;
-use crate::{command::LapceCommand, state::Mode};
 
 pub use keypress::KeyPress;
 
@@ -139,20 +137,23 @@ pub trait KeyPressFocus {
     fn expect_char(&self) -> bool {
         false
     }
+    fn focus_only(&self) -> bool {
+        false
+    }
     fn receive_char(&mut self, ctx: &mut EventCtx, c: &str);
 }
 
 #[derive(Clone)]
 pub struct KeyPressData {
     pending_keypress: Vec<KeyPress>,
-    pub commands: Arc<IndexMap<String, LapceCommandNew>>,
+    pub commands: Arc<IndexMap<String, LapceCommand>>,
     pub keymaps: Arc<IndexMap<Vec<KeyPress>, Vec<KeyMap>>>,
     pub command_keymaps: Arc<IndexMap<String, Vec<KeyMap>>>,
 
     pub commands_with_keymap: Arc<Vec<KeyMap>>,
-    pub commands_without_keymap: Arc<Vec<LapceCommandNew>>,
+    pub commands_without_keymap: Arc<Vec<LapceCommand>>,
     pub filtered_commands_with_keymap: Arc<Vec<KeyMap>>,
-    pub filtered_commands_without_keymap: Arc<Vec<LapceCommandNew>>,
+    pub filtered_commands_without_keymap: Arc<Vec<LapceCommand>>,
     pub filter_pattern: String,
 
     count: Option<usize>,
@@ -201,7 +202,7 @@ impl KeyPressData {
         }
 
         for (_, cmd) in self.commands.iter() {
-            if !self.command_keymaps.contains_key(&cmd.cmd) {
+            if !self.command_keymaps.contains_key(cmd.kind.str()) {
                 commands_without_keymap.push(cmd.clone());
             }
         }
@@ -223,19 +224,24 @@ impl KeyPressData {
         env: &Env,
     ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
-            if let CommandTarget::Focus = cmd.target {
-                if let Ok(cmd) = LapceCommand::from_str(command) {
-                    focus.run_command(ctx, &cmd, count, mods, env)
-                } else {
-                    CommandExecuted::No
+            match cmd.kind {
+                CommandKind::Workbench(_) => {
+                    if !focus.focus_only() {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            cmd.clone(),
+                            Target::Auto,
+                        ));
+                    }
+                    CommandExecuted::Yes
                 }
-            } else {
-                ctx.submit_command(Command::new(
-                    LAPCE_NEW_COMMAND,
-                    cmd.clone(),
-                    Target::Auto,
-                ));
-                CommandExecuted::Yes
+                CommandKind::Move(_)
+                | CommandKind::Edit(_)
+                | CommandKind::Focus(_)
+                | CommandKind::MotionMode(_)
+                | CommandKind::MultiSelection(_) => {
+                    focus.run_command(ctx, cmd, count, mods, env)
+                }
             }
         } else {
             CommandExecuted::No
@@ -357,9 +363,9 @@ impl KeyPressData {
                     if let KeymapMatch::Full(command) =
                         self.match_keymap(&[keypress], focus)
                     {
-                        if let Ok(cmd) = LapceCommand::from_str(&command) {
-                            if cmd.move_command(None).is_some() {
-                                focus.run_command(ctx, &cmd, None, mods, env);
+                        if let Some(cmd) = self.commands.get(&command) {
+                            if let CommandKind::Move(_) = cmd.kind {
+                                focus.run_command(ctx, cmd, None, mods, env);
                                 return true;
                             }
                         }
@@ -488,10 +494,7 @@ impl KeyPressData {
                 .iter()
                 .filter_map(|i| {
                     let cmd = commands.get(&i.command).unwrap();
-                    let text = cmd
-                        .palette_desc
-                        .as_deref()
-                        .unwrap_or_else(|| cmd.cmd.as_str());
+                    let text = cmd.kind.desc().unwrap_or_else(|| cmd.kind.str());
 
                     matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                 })
@@ -499,14 +502,11 @@ impl KeyPressData {
                 .map(|(i, _)| i.clone())
                 .collect();
 
-            let filtered_commands_without_keymap: Vec<LapceCommandNew> =
+            let filtered_commands_without_keymap: Vec<LapceCommand> =
                 commands_without_keymap
                     .iter()
                     .filter_map(|i| {
-                        let text = i
-                            .palette_desc
-                            .as_deref()
-                            .unwrap_or_else(|| i.cmd.as_str());
+                        let text = i.kind.desc().unwrap_or_else(|| i.kind.str());
 
                         matcher.fuzzy_match(text, &pattern).map(|score| (i, score))
                     })
@@ -732,6 +732,7 @@ impl<'a> Condition<'a> {
 #[cfg(test)]
 mod test {
     use crate::keypress::{Condition, KeyPressData, KeyPressFocus};
+    use lapce_core::mode::Mode;
 
     struct MockFocus {
         accepted_conditions: &'static [&'static str],
@@ -742,7 +743,7 @@ mod test {
             self.accepted_conditions.contains(&condition)
         }
 
-        fn get_mode(&self) -> crate::state::Mode {
+        fn get_mode(&self) -> Mode {
             unimplemented!()
         }
 

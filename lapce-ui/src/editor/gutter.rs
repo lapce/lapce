@@ -4,10 +4,10 @@ use druid::{
     BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetId,
 };
+use lapce_core::buffer::DiffLines;
 use lapce_data::{
-    buffer::DiffLines,
     config::LapceTheme,
-    data::LapceTabData,
+    data::{EditorView, LapceTabData},
     editor::{LapceEditorBufferData, Syntax},
 };
 
@@ -87,7 +87,7 @@ impl Widget<LapceTabData> for LapceEditorGutter {
         _env: &Env,
     ) -> Size {
         let data = data.editor_view_content(self.view_id);
-        let last_line = data.buffer.last_line() + 1;
+        let last_line = data.doc.buffer().last_line() + 1;
         let char_width = data.config.editor_char_width(ctx.text());
         self.width = (char_width * last_line.to_string().len() as f64).ceil();
         let mut width = self.width + 16.0 + char_width * 2.0;
@@ -108,25 +108,28 @@ impl LapceEditorGutter {
         &self,
         data: &LapceEditorBufferData,
         ctx: &mut PaintCtx,
-        compare: &str,
+        version: &str,
     ) {
-        if data.buffer.history_changes.get(compare).is_none() {
+        if data.doc.get_history(version).is_none() {
             return;
         }
+        let history = data.doc.get_history(version).unwrap();
         let self_size = ctx.size();
         let rect = self_size.to_rect();
-        let changes = data.buffer.history_changes.get(compare).unwrap();
         let line_height = data.config.editor.line_height as f64;
         let scroll_offset = data.editor.scroll_offset;
         let start_line = (scroll_offset.y / line_height).floor() as usize;
         let end_line =
             (scroll_offset.y + rect.height() / line_height).ceil() as usize;
-        let current_line = data.editor.cursor.current_line(data.buffer.data());
-        let last_line = data.buffer.last_line();
+        let current_line = data
+            .doc
+            .buffer()
+            .line_of_offset(data.editor.new_cursor.offset());
+        let last_line = data.doc.buffer().last_line();
         let width = data.config.editor_char_width(ctx.text());
 
         let mut line = 0;
-        for change in changes.iter() {
+        for change in history.changes().iter() {
             match change {
                 DiffLines::Left(r) => {
                     let len = r.len();
@@ -354,21 +357,21 @@ impl LapceEditorGutter {
         let rect = ctx.size().to_rect();
         let scroll_offset = data.editor.scroll_offset;
         let empty_lens = Syntax::lens_from_normal_lines(
-            data.buffer.len(),
+            data.doc.buffer().len(),
             data.config.editor.line_height,
             data.config.editor.code_lens_font_size,
             &[],
         );
-        let lens = if let Some(syntax) = data.buffer.syntax() {
+        let lens = if let Some(syntax) = data.doc.syntax() {
             &syntax.lens
         } else {
             &empty_lens
         };
 
-        let cursor_line = data
-            .buffer
-            .line_of_offset(data.editor.cursor.offset().min(data.buffer.len()));
-        let last_line = data.buffer.line_of_offset(data.buffer.len());
+        let cursor_line = data.doc.buffer().line_of_offset(
+            data.editor.new_cursor.offset().min(data.doc.buffer().len()),
+        );
+        let last_line = data.doc.buffer().line_of_offset(data.doc.buffer().len());
         let start_line = lens
             .line_of_height(scroll_offset.y.floor() as usize)
             .min(last_line);
@@ -384,7 +387,7 @@ impl LapceEditorGutter {
         let mut y = lens.height_of_line(start_line) as f64;
         for (line, line_height) in lens.iter_chunks(start_line..end_line + 1) {
             let content = if *data.main_split.active != Some(self.view_id)
-                || data.editor.cursor.is_insert()
+                || data.editor.new_cursor.is_insert()
                 || line == cursor_line
             {
                 line + 1
@@ -441,10 +444,8 @@ impl LapceEditorGutter {
         if let Some(actions) = data.current_code_actions() {
             if !actions.is_empty() {
                 let line_height = data.config.editor.line_height as f64;
-                let offset = data.editor.cursor.offset();
-                let (line, _) = data
-                    .buffer
-                    .offset_to_line_col(offset, data.config.editor.tab_width);
+                let offset = data.editor.new_cursor.offset();
+                let (line, _) = data.doc.buffer().offset_to_line_col(offset);
                 let svg = get_svg("lightbulb.svg").unwrap();
                 let width = 16.0;
                 let height = 16.0;
@@ -469,8 +470,8 @@ impl LapceEditorGutter {
         ctx.with_save(|ctx| {
             let clip_rect = rect;
             ctx.clip(clip_rect);
-            if let Some(compare) = data.editor.compare.as_ref() {
-                self.paint_gutter_inline_diff(data, ctx, compare);
+            if let EditorView::Diff(version) = &data.editor.view {
+                self.paint_gutter_inline_diff(data, ctx, version);
                 return;
             }
             if data.editor.code_lens {
@@ -481,8 +482,11 @@ impl LapceEditorGutter {
             let scroll_offset = data.editor.scroll_offset;
             let start_line = (scroll_offset.y / line_height).floor() as usize;
             let num_lines = (ctx.size().height / line_height).floor() as usize;
-            let last_line = data.buffer.last_line();
-            let current_line = data.editor.cursor.current_line(data.buffer.data());
+            let last_line = data.doc.buffer().last_line();
+            let current_line = data
+                .doc
+                .buffer()
+                .line_of_offset(data.editor.new_cursor.offset());
             let char_width = data.config.editor_char_width(ctx.text());
 
             let line_label_length =
@@ -491,11 +495,11 @@ impl LapceEditorGutter {
 
             let sequential_line_numbers = *data.main_split.active
                 != Some(data.view_id)
-                || data.editor.cursor.is_insert();
+                || data.editor.new_cursor.is_insert();
 
             let font_family = data.config.editor.font_family();
 
-            for line in start_line..last_displayed_line {
+            for line in start_line..last_displayed_line + 1 {
                 let line_no = if sequential_line_numbers || line == current_line {
                     line + 1
                 } else {
@@ -535,13 +539,13 @@ impl LapceEditorGutter {
                 ctx.draw_text(&text_layout, Point::new(x, y));
             }
 
-            if let Some(changes) = data.buffer.history_changes.get("head") {
+            if let Some(history) = data.doc.get_history("head") {
                 let end_line =
                     (scroll_offset.y + rect.height() / line_height).ceil() as usize;
 
                 let mut line = 0;
                 let mut last_change = None;
-                for change in changes.iter() {
+                for change in history.changes().iter() {
                     let len = match change {
                         DiffLines::Left(_range) => 0,
                         DiffLines::Skip(_left, right) => right.len(),

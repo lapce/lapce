@@ -56,10 +56,10 @@ impl Widget<LapceTabData> for LapceEditorContainer {
                 let editor =
                     data.main_split.editors.get(&self.view_id).unwrap().clone();
                 let mut editor_data = data.editor_view_content(self.view_id);
-                let buffer = editor_data.buffer.clone();
+                let doc = editor_data.doc.clone();
                 editor_data
                     .sync_buffer_position(self.editor.widget().inner().offset());
-                data.update_from_editor_buffer_data(editor_data, &editor, &buffer);
+                data.update_from_editor_buffer_data(editor_data, &editor, &doc);
             }
             _ => (),
         }
