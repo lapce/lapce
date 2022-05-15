@@ -1,5 +1,5 @@
-use crate::buffer::Buffer;
 use super::WordCursor;
+use crate::buffer::Buffer;
 
 #[test]
 fn test_next_boundary_by_newline() {

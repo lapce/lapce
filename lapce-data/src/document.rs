@@ -1334,7 +1334,9 @@ impl Document {
             }
             Movement::WordEndForward => {
                 let new_offset = self.buffer.move_n_wordends_forward(
-                    offset, count, mode == Mode::Insert
+                    offset,
+                    count,
+                    mode == Mode::Insert,
                 );
                 (new_offset, None)
             }

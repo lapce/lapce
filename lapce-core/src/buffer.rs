@@ -848,10 +848,13 @@ impl Buffer {
     /// more word found.  Despite the name, `find_next` can search in either
     /// direction.
     fn find_nth_word<F>(
-        &self, offset: usize, mut count: usize, mut find_next: F
+        &self,
+        offset: usize,
+        mut count: usize,
+        mut find_next: F,
     ) -> usize
     where
-        F: FnMut(&mut WordCursor) -> Option<usize>
+        F: FnMut(&mut WordCursor) -> Option<usize>,
     {
         let mut cursor = WordCursor::new(self.text(), offset);
         let mut new_offset = offset;
@@ -860,9 +863,9 @@ impl Buffer {
             if let Some(offset) = find_next(&mut cursor) {
                 new_offset = offset;
             } else {
-                break
+                break;
             }
-             count -= 1;
+            count -= 1;
         }
         new_offset
     }
@@ -871,7 +874,12 @@ impl Buffer {
         self.find_nth_word(offset, count, |cursor| cursor.next_boundary())
     }
 
-    pub fn move_n_wordends_forward(&self, offset: usize, count: usize, inserting: bool) -> usize {
+    pub fn move_n_wordends_forward(
+        &self,
+        offset: usize,
+        count: usize,
+        inserting: bool,
+    ) -> usize {
         let mut new_offset =
             self.find_nth_word(offset, count, |cursor| cursor.end_boundary());
         if !inserting && new_offset != self.len() {
