@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use druid::{Point, Rect, Selector, Size, WidgetId, WindowId};
+use druid::{Point, Rect, Selector, SingleUse, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::{
@@ -348,7 +348,6 @@ pub enum EnsureVisiblePosition {
     CenterOfWindow,
 }
 
-#[derive(Debug)]
 pub enum LapceUICommand {
     InitChildren,
     InitTerminalPanel(bool),
@@ -452,7 +451,7 @@ pub enum LapceUICommand {
     UpdateSyntax {
         path: PathBuf,
         rev: u64,
-        syntax: Syntax,
+        syntax: SingleUse<Syntax>,
     },
     UpdateHistoryChanges {
         id: BufferId,

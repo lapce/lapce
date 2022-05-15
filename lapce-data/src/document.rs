@@ -13,7 +13,7 @@ use druid::{
     piet::{
         PietText, PietTextLayout, Text, TextAttribute, TextLayout, TextLayoutBuilder,
     },
-    ExtEventSink, FontFamily, Point, Size, Target, Vec2, WidgetId,
+    ExtEventSink, FontFamily, Point, SingleUse, Size, Target, Vec2, WidgetId,
 };
 use lapce_core::{
     buffer::{Buffer, DiffLines, InvalLines},
@@ -565,7 +565,7 @@ impl Document {
                         LapceUICommand::UpdateSyntax {
                             path,
                             rev,
-                            syntax: new_syntax,
+                            syntax: SingleUse::new(new_syntax),
                         },
                         Target::Widget(tab_id),
                     );

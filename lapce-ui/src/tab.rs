@@ -977,7 +977,9 @@ impl LapceTabNew {
                         let doc = data.main_split.open_docs.get_mut(path).unwrap();
                         let doc = Arc::make_mut(doc);
                         if doc.rev() == *rev {
-                            doc.set_syntax(Some(syntax.clone()));
+                            if let Some(syntax) = syntax.take() {
+                                doc.set_syntax(Some(syntax));
+                            }
                         }
                     }
                     LapceUICommand::UpdateHistoryChanges {
