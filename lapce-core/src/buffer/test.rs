@@ -1,9 +1,9 @@
 use super::Buffer;
 
 mod editing {
-    use xi_rope::Rope;
-    use crate::{editor::EditType, selection::Selection};
     use super::*;
+    use crate::{editor::EditType, selection::Selection};
+    use xi_rope::Rope;
 
     #[test]
     fn is_pristine() {
@@ -87,7 +87,7 @@ mod motion {
             fn v(buf: &Buffer, off: usize, n: usize, end: usize) {
                 assert_eq!(buf.move_n_wordends_forward(off, n, false), end);
             }
-    
+
             let buffer = Buffer::new("one two three  four  ");
             //                      ->012345678901234567890<-
 
@@ -109,7 +109,7 @@ mod motion {
             v(&buffer, 2, 1, 6);
             v(&buffer, 2, 2, 12);
             v(&buffer, 2, 3, 18);
-            v(&buffer, 2, 10,21);
+            v(&buffer, 2, 10, 21);
 
             let buffer = Buffer::new("one\n\ntwo\n\n\nthree\n\n\n");
             //                      ->0123 4 5678 9 0 123456 7 8 <-
