@@ -285,7 +285,7 @@ impl LapceEditor {
                 ctx.to_window(mouse_event.pos),
                 Arc::new(menu_items),
             ),
-            Target::Auto,
+            Target::Widget(*editor_data.main_split.tab_id),
         ));
     }
 

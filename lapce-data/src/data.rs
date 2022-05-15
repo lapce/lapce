@@ -52,7 +52,6 @@ use crate::{
     find::Find,
     hover::HoverData,
     keypress::KeyPressData,
-    menu::MenuData,
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
     picker::FilePickerData,
@@ -204,7 +203,6 @@ pub struct LapceWindowData {
     pub plugins: Arc<Vec<PluginDescription>>,
     pub db: Arc<LapceDb>,
     pub watcher: Arc<notify::RecommendedWatcher>,
-    pub menu: Arc<MenuData>,
     /// The size of the window.
     pub size: Size,
     /// The position of the window.
@@ -215,7 +213,6 @@ impl Data for LapceWindowData {
     fn same(&self, other: &Self) -> bool {
         self.active == other.active
             && self.tabs.same(&other.tabs)
-            && self.menu.same(&other.menu)
             && self.size.same(&other.size)
             && self.pos.same(&other.pos)
             && self.keypress.same(&other.keypress)
@@ -291,8 +288,6 @@ impl LapceWindowData {
         if let Some(path) = KeyPressData::file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        let menu = MenuData::new();
-
         Self {
             window_id,
             tabs,
@@ -304,7 +299,6 @@ impl LapceWindowData {
             config,
             db,
             watcher: Arc::new(watcher),
-            menu: Arc::new(menu),
             size: info.size,
             pos: info.pos,
         }
@@ -728,6 +722,7 @@ impl LapceTabData {
             doc,
             palette: self.palette.clone(),
             editor: editor.clone(),
+            command_keymaps: self.keypress.command_keymaps.clone(),
             config: self.config.clone(),
         }
     }

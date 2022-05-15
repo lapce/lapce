@@ -390,7 +390,6 @@ pub enum LapceUICommand {
         location: EditorLocationNew,
     },
     ShowAlert(AlertContentData),
-    HideMenu,
     ShowMenu(Point, Arc<Vec<MenuItem>>),
     UpdateSearch(String),
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),

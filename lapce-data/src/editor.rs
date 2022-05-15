@@ -13,6 +13,7 @@ use crate::document::Document;
 use crate::document::LocalBufferKind;
 use crate::hover::HoverData;
 use crate::hover::HoverStatus;
+use crate::keypress::KeyMap;
 use crate::keypress::KeyPressFocus;
 use crate::palette::PaletteData;
 use crate::proxy::path_from_url;
@@ -32,6 +33,7 @@ use druid::{
     piet::PietText, Command, Env, EventCtx, Point, Rect, Target, Vec2, WidgetId,
 };
 use druid::{ExtEventSink, MouseEvent};
+use indexmap::IndexMap;
 use lapce_core::buffer::{DiffLines, InvalLines};
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
@@ -89,6 +91,7 @@ pub struct LapceEditorBufferData {
     pub palette: Arc<PaletteData>,
     pub find: Arc<Find>,
     pub proxy: Arc<LapceProxy>,
+    pub command_keymaps: Arc<IndexMap<String, Vec<KeyMap>>>,
     pub config: Arc<Config>,
 }
 
@@ -1003,7 +1006,7 @@ impl LapceEditorBufferData {
                 },
                 Target::Widget(self.editor.view_id),
             ));
-        } else {
+        } else if mouse_event.buttons.has_left() {
             ctx.set_active(true);
         }
     }

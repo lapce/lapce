@@ -20,8 +20,8 @@ use lapce_data::{
     completion::CompletionStatus,
     config::{Config, LapceTheme},
     data::{
-        DragContent, EditorDiagnostic, FocusArea, LapceTabData, LapceWorkspace,
-        LapceWorkspaceType, PanelKind, WorkProgress,
+        DragContent, EditorDiagnostic, FocusArea, LapceData, LapceTabData,
+        LapceWorkspace, LapceWorkspaceType, PanelKind, WorkProgress,
     },
     document::LocalBufferKind,
     editor::EditorLocationNew,
@@ -355,6 +355,33 @@ impl LapceTabNew {
                     LapceUICommand::RequestPaint => {
                         ctx.request_paint();
                         ctx.set_handled();
+                    }
+                    LapceUICommand::ShowMenu(point, items) => {
+                        ctx.set_handled();
+
+                        let mut menu = druid::Menu::new("");
+                        for i in items.iter() {
+                            let mut item = druid::MenuItem::new(i.desc());
+                            if let Some(key) = data
+                                .keypress
+                                .command_keymaps
+                                .get(i.command.kind.str())
+                            {
+                                if !key.is_empty() {
+                                    item = item.hotkey(
+                                        key[0].key[0].mods,
+                                        key[0].key[0].key.clone(),
+                                    );
+                                }
+                            }
+                            item = item.command(Command::new(
+                                LAPCE_COMMAND,
+                                i.command.clone(),
+                                Target::Widget(data.id),
+                            ));
+                            menu = menu.entry(item);
+                        }
+                        ctx.show_context_menu::<LapceData>(menu, *point);
                     }
                     LapceUICommand::InitBufferContent {
                         path,
