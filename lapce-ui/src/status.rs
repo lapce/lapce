@@ -109,7 +109,7 @@ impl LapceStatusNew {
         &self,
         left: f64,
         height: f64,
-        icon: &str,
+        icon: &'static str,
         label: String,
         ctx: &mut PaintCtx,
         config: &Config,
