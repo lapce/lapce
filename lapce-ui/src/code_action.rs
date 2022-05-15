@@ -318,11 +318,11 @@ impl Widget<LapceTabData> for CodeAction {
         if !old_data.main_split.show_code_actions
             && data.main_split.show_code_actions
         {
-            ctx.request_local_layout();
+            ctx.request_layout();
         }
 
         if editor.window_origin != old_editor.window_origin {
-            ctx.request_local_layout();
+            ctx.request_layout();
         }
 
         if old_data.main_split.current_code_actions

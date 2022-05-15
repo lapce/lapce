@@ -180,17 +180,13 @@ impl Widget<LapceWindowData> for LapceWindowNew {
         env: &Env,
     ) {
         match event {
-            Event::WindowMoved(pos) => {
+            Event::WindowPosition(pos) => {
                 ctx.set_handled();
                 data.pos = *pos;
             }
-            Event::WindowSize(size, scale) => {
+            Event::WindowSize(size) => {
                 ctx.set_handled();
-                data.size = if let Some(scale) = scale {
-                    *size / *scale
-                } else {
-                    *size
-                };
+                data.size = *size;
             }
             Event::WindowConnected => {
                 ctx.submit_command(Command::new(

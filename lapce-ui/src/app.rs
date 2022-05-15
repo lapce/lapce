@@ -1,6 +1,6 @@
 use druid::{
-    AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Point, Size,
-    Widget, WidgetExt, WindowDesc, WindowId,
+    AppDelegate, AppLauncher, Command, Env, Event, LocalizedString, Menu, MenuItem,
+    Point, Size, SysMods, Widget, WidgetExt, WindowDesc, WindowHandle, WindowId,
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -45,6 +45,24 @@ pub fn launch() {
             .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
             .show_titlebar(false)
             .window_size(window_data.size)
+            .menu(|_, _, _| {
+                Menu::new("Lapce").entry(
+                    Menu::new("")
+                        .entry(MenuItem::new("About Lapce"))
+                        .separator()
+                        .entry(
+                            MenuItem::new("Hide Lapce")
+                                .command(druid::commands::HIDE_APPLICATION)
+                                .hotkey(SysMods::Cmd, "h"),
+                        )
+                        .separator()
+                        .entry(
+                            MenuItem::new("Quit Lapce")
+                                .command(druid::commands::QUIT_APP)
+                                .hotkey(SysMods::Cmd, "q"),
+                        ),
+                )
+            })
             .set_position(window_data.pos);
         launcher = launcher.with_window(window);
     }
@@ -71,28 +89,31 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
     fn event(
         &mut self,
         _ctx: &mut druid::DelegateCtx,
-        window_id: WindowId,
+        _window_id: WindowId,
         event: druid::Event,
         data: &mut LapceData,
         _env: &Env,
     ) -> Option<Event> {
-        match event {
-            Event::WindowCloseRequested => {
-                if let Some(window) = data.windows.remove(&window_id) {
-                    for (_, tab) in window.tabs.iter() {
-                        let _ = data.db.save_workspace(tab);
-                    }
-                    data.db.save_last_window(&window);
-                }
-                return None;
-            }
-            Event::ApplicationQuit => {
-                let _ = data.db.save_app(data);
-                return None;
-            }
-            _ => (),
+        if let Event::ApplicationWillTerminate = event {
+            let _ = data.db.save_app(data);
+            return None;
         }
         Some(event)
+    }
+
+    fn window_removed(
+        &mut self,
+        id: WindowId,
+        data: &mut LapceData,
+        _env: &Env,
+        _ctx: &mut druid::DelegateCtx,
+    ) {
+        if let Some(window) = data.windows.remove(&id) {
+            for (_, tab) in window.tabs.iter() {
+                let _ = data.db.save_workspace(tab);
+            }
+            data.db.save_last_window(&window);
+        }
     }
 
     fn command(
@@ -143,15 +164,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
     fn window_added(
         &mut self,
         _id: WindowId,
-        _data: &mut LapceData,
-        _env: &Env,
-        _ctx: &mut druid::DelegateCtx,
-    ) {
-    }
-
-    fn window_removed(
-        &mut self,
-        _id: WindowId,
+        _handle: WindowHandle,
         _data: &mut LapceData,
         _env: &Env,
         _ctx: &mut druid::DelegateCtx,

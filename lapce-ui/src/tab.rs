@@ -937,7 +937,6 @@ impl LapceTabNew {
                                 dir
                             })
                             .unwrap_or_else(|| "Lapce".to_string());
-                        ctx.configure_window(WindowConfig::default().set_title(dir));
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
