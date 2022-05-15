@@ -1355,24 +1355,19 @@ impl Document {
                 (new_offset, None)
             }
             Movement::WordEndForward => {
-                let mut new_offset = WordCursor::new(self.buffer.text(), offset)
-                    .end_boundary()
-                    .unwrap_or(offset);
-                if mode != Mode::Insert {
-                    new_offset = self.buffer.prev_grapheme_offset(new_offset, 1, 0);
-                }
+                let new_offset = self.buffer.move_n_wordends_forward(
+                    offset,
+                    count,
+                    mode == Mode::Insert,
+                );
                 (new_offset, None)
             }
             Movement::WordForward => {
-                let new_offset = WordCursor::new(self.buffer.text(), offset)
-                    .next_boundary()
-                    .unwrap_or(offset);
+                let new_offset = self.buffer.move_n_words_forward(offset, count);
                 (new_offset, None)
             }
             Movement::WordBackward => {
-                let new_offset = WordCursor::new(self.buffer.text(), offset)
-                    .prev_boundary()
-                    .unwrap_or(offset);
+                let new_offset = self.buffer.move_n_words_backward(offset, count);
                 (new_offset, None)
             }
             Movement::NextUnmatched(c) => {
