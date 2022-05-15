@@ -770,26 +770,8 @@ impl Buffer {
         self.move_n_words_forward(offset, 1)
     }
 
-    pub fn move_n_words_forward(&self, offset: usize, count: usize) -> usize {
-        let mut cursor = WordCursor::new(self.text(), offset);
-        let mut new_offset = offset;
-        for _i in 0..count {
-            new_offset = cursor.next_boundary().unwrap_or(new_offset)
-        }
-        new_offset
-    }
-
     pub fn move_word_backward(&self, offset: usize) -> usize {
         self.move_n_words_backward(offset, 1)
-    }
-
-    pub fn move_n_words_backward(&self, offset: usize, count: usize) -> usize {
-        let mut cursor = WordCursor::new(self.text(), offset);
-        let mut new_offset = offset;
-        for _i in 0..count {
-            new_offset = cursor.prev_boundary().unwrap_or(new_offset);
-        }
-        new_offset
     }
 
     pub fn next_grapheme_offset(
@@ -856,6 +838,50 @@ impl Buffer {
 
     pub fn len(&self) -> usize {
         self.text.len()
+    }
+
+    /// Find the nth (`count`) word starting at `offset` in either direction
+    /// depending on `find_next`.
+    ///
+    /// A `WordCursor` is created and given to the `find_next` function for the
+    /// search.  The `find_next` function should return None when there is no
+    /// more word found.  Despite the name, `find_next` can search in either
+    /// direction.
+    fn find_nth_word<F>(
+        &self, offset: usize, mut count: usize, mut find_next: F
+    ) -> usize
+    where
+        F: FnMut(&mut WordCursor) -> Option<usize>
+    {
+        let mut cursor = WordCursor::new(self.text(), offset);
+        let mut new_offset = offset;
+        while count != 0 {
+            // FIXME: wait for if-let-chain
+            if let Some(offset) = find_next(&mut cursor) {
+                new_offset = offset;
+            } else {
+                break
+            }
+             count -= 1;
+        }
+        new_offset
+    }
+
+    pub fn move_n_words_forward(&self, offset: usize, count: usize) -> usize {
+        self.find_nth_word(offset, count, |cursor| cursor.next_boundary())
+    }
+
+    pub fn move_n_wordends_forward(&self, offset: usize, count: usize, inserting: bool) -> usize {
+        let mut new_offset =
+            self.find_nth_word(offset, count, |cursor| cursor.end_boundary());
+        if !inserting && new_offset != self.len() {
+            new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
+        }
+        new_offset
+    }
+
+    pub fn move_n_words_backward(&self, offset: usize, count: usize) -> usize {
+        self.find_nth_word(offset, count, |cursor| cursor.prev_boundary())
     }
 }
 
@@ -1102,21 +1128,4 @@ pub fn rope_diff(
 }
 
 #[cfg(test)]
-mod test {
-    use xi_rope::Rope;
-
-    use crate::{editor::EditType, selection::Selection};
-
-    use super::Buffer;
-
-    #[test]
-    fn test_is_pristine() {
-        let mut buffer = Buffer::new("");
-        buffer.init_content(Rope::from("abc"));
-        buffer.edit(&[(Selection::caret(0), "d")], EditType::InsertChars);
-        buffer.edit(&[(Selection::caret(0), "e")], EditType::InsertChars);
-        buffer.do_undo();
-        buffer.do_undo();
-        assert!(buffer.is_pristine());
-    }
-}
+mod test;

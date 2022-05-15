@@ -1333,18 +1333,10 @@ impl Document {
                 (new_offset, None)
             }
             Movement::WordEndForward => {
-                let mut cursor = WordCursor::new(self.buffer.text(), offset);
-                let mut new_off = offset;
-                for _i in 0..count {
-                    new_off = {
-                        let mut off = cursor.end_boundary().unwrap_or(new_off);
-                        if mode != Mode::Insert && off != new_off {
-                            off = self.buffer.prev_grapheme_offset(off, 1, 0);
-                        }
-                        off
-                    }
-                }
-                (new_off, None)
+                let new_offset = self.buffer.move_n_wordends_forward(
+                    offset, count, mode == Mode::Insert
+                );
+                (new_offset, None)
             }
             Movement::WordForward => {
                 let new_offset = self.buffer.move_n_words_forward(offset, count);

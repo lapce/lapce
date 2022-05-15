@@ -317,3 +317,6 @@ fn classify_boundary(prev: WordProperty, next: WordProperty) -> WordBoundary {
         _ => Interior,
     }
 }
+
+#[cfg(test)]
+mod test;
