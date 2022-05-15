@@ -50,7 +50,7 @@ The guidelines about contributing to Lapce can be found in
 ### Dependencies
 #### Ubuntu
 ```sh
-sudo apt install cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3
+sudo apt install cmake pkg-config libfreetype6-dev libfontconfig-dev libxcb-xfixes0-dev libxkbcommon-dev python3
 ```
 ### Building
 ```sh
