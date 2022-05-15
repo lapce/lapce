@@ -2,8 +2,8 @@ use std::{iter::Iterator, sync::Arc};
 
 use druid::{
     piet::PietText, BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx,
-    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
+    LifeCycle, LifeCycleCtx, Modifiers, PaintCtx, Point, Rect, RenderContext,
+    SingleUse, Size, Target, Vec2, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_core::command::{EditCommand, FocusCommand};
 use lapce_data::{
@@ -623,7 +623,11 @@ impl Widget<LapceTabData> for LapceEditorView {
                         syntax.update_lens_height(line_height, lens_height);
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateSyntax { path, rev, syntax },
+                            LapceUICommand::UpdateSyntax {
+                                path,
+                                rev,
+                                syntax: SingleUse::new(syntax),
+                            },
                             Target::Widget(tab_id),
                         );
                     });
