@@ -229,6 +229,10 @@ pub enum FocusCommand {
     ScrollDown,
     #[strum(serialize = "center_of_window")]
     CenterOfWindow,
+    #[strum(serialize = "top_of_window")]
+    TopOfWindow,
+    #[strum(serialize = "bottom_of_window")]
+    BottomOfWindow,
     #[strum(serialize = "show_code_actions")]
     ShowCodeActions,
     /// This will close a modal, such as the settings window or completion

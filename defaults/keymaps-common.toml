@@ -424,6 +424,16 @@ command = "center_of_window"
 mode = "nv"
 
 [[keymaps]]
+key = "z t"
+command = "top_of_window"
+mode = "nv"
+
+[[keymaps]]
+key = "z b"
+command = "bottom_of_window"
+mode = "nv"
+
+[[keymaps]]
 key = "d"
 command = "delete_forward"
 mode = "v"
