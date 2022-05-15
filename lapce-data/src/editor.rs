@@ -1,5 +1,6 @@
 use crate::command::LapceCommand;
 use crate::command::LAPCE_COMMAND;
+use crate::command::LAPCE_SAVE_FILE_AS;
 use crate::command::{CommandExecuted, CommandKind};
 use crate::completion::{CompletionData, CompletionStatus, Snippet};
 use crate::config::Config;
@@ -25,6 +26,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{self, bounded};
 use druid::piet::PietTextLayout;
 use druid::piet::Svg;
+use druid::FileDialogOptions;
 use druid::Modifiers;
 use druid::{
     piet::PietText, Command, Env, EventCtx, Point, Rect, Target, Vec2, WidgetId,
@@ -1113,35 +1115,13 @@ impl LapceEditorBufferData {
                 );
             });
         } else if let BufferContent::Scratch(_) = self.doc.content() {
-            let workspace = self.main_split.workspace.clone();
-            let event_sink = ctx.get_external_handle();
-            let tab_id = *self.main_split.tab_id;
             let content = self.doc.content().clone();
             let view_id = self.editor.view_id;
-            thread::spawn(move || {
-                let dirs = directories::UserDirs::new();
-
-                let dir = workspace
-                    .path
-                    .as_deref()
-                    .or_else(|| dirs.as_ref().map(|u| u.home_dir()))
-                    .map(|u| u.join("Untitled"));
-                let dir = dir
-                    .as_ref()
-                    .and_then(|u| u.to_str())
-                    .unwrap_or("./Untitled");
-
-                if let Some(path) =
-                    tinyfiledialogs::save_file_dialog("Save File", dir)
-                {
-                    let path = PathBuf::from(path);
-                    let _ = event_sink.submit_command(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::SaveAs(content, path, view_id, exit),
-                        Target::Widget(tab_id),
-                    );
-                }
-            });
+            self.main_split.current_save_as =
+                Some(Arc::new((content, view_id, exit)));
+            let options =
+                FileDialogOptions::new().accept_command(LAPCE_SAVE_FILE_AS);
+            ctx.submit_command(druid::commands::SHOW_SAVE_PANEL.with(options));
         }
     }
 

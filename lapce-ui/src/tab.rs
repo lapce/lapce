@@ -5,7 +5,6 @@ use druid::{
     BoxConstraints, Command, Data, Env, Event, EventCtx, FontFamily,
     InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
     RenderContext, Size, Target, Widget, WidgetExt, WidgetId, WidgetPod,
-    WindowConfig,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -15,13 +14,14 @@ use lapce_core::{
 };
 use lapce_data::{
     command::{
-        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+        CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_OPEN_FILE,
+        LAPCE_OPEN_FOLDER, LAPCE_SAVE_FILE_AS, LAPCE_UI_COMMAND,
     },
     completion::CompletionStatus,
     config::{Config, LapceTheme},
     data::{
-        DragContent, EditorDiagnostic, FocusArea, LapceTabData, LapceWorkspaceType,
-        PanelKind, WorkProgress,
+        DragContent, EditorDiagnostic, FocusArea, LapceTabData, LapceWorkspace,
+        LapceWorkspaceType, PanelKind, WorkProgress,
     },
     document::LocalBufferKind,
     editor::EditorLocationNew,
@@ -306,6 +306,48 @@ impl LapceTabNew {
                 let command = cmd.get_unchecked(LAPCE_COMMAND);
                 data.run_command(ctx, command, None, env);
                 ctx.set_handled();
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_SAVE_FILE_AS) => {
+                ctx.set_handled();
+                let file = cmd.get_unchecked(LAPCE_SAVE_FILE_AS);
+                if let Some(info) = data.main_split.current_save_as.as_ref() {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SaveAs(
+                            info.0.clone(),
+                            file.path.clone(),
+                            info.1,
+                            info.2,
+                        ),
+                        Target::Widget(data.id),
+                    ));
+                }
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_OPEN_FOLDER) => {
+                ctx.set_handled();
+                let file = cmd.get_unchecked(LAPCE_OPEN_FOLDER);
+                let workspace = LapceWorkspace {
+                    kind: LapceWorkspaceType::Local,
+                    path: Some(file.path.clone()),
+                    last_open: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::SetWorkspace(workspace),
+                    Target::Window(data.window_id),
+                ));
+            }
+            Event::Command(cmd) if cmd.is(LAPCE_OPEN_FILE) => {
+                ctx.set_handled();
+                let file = cmd.get_unchecked(LAPCE_OPEN_FILE);
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenFile(file.path.clone()),
+                    Target::Widget(data.id),
+                ));
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
@@ -937,6 +979,7 @@ impl LapceTabNew {
                                 dir
                             })
                             .unwrap_or_else(|| "Lapce".to_string());
+                        ctx.window().set_title(&dir);
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::Focus,
