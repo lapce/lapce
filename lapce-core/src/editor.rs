@@ -713,10 +713,8 @@ impl Editor {
             ToggleLineComment => {
                 let mut lines = HashSet::new();
                 let selection = cursor.edit_selection(buffer);
-                let comment_token = syntax
-                    .map(|s| s.language.comment_token())
-                    .unwrap_or("//")
-                    .to_string();
+                let comment_token =
+                    syntax.map(|s| s.language.comment_token()).unwrap_or("//");
                 let mut had_comment = true;
                 let mut smallest_indent = usize::MAX;
                 for region in selection.regions() {
@@ -775,7 +773,7 @@ impl Editor {
                         selection.add_region(SelRegion::new(start, start, None))
                     }
                     buffer.edit(
-                        &[(&selection, &(comment_token + " "))],
+                        &[(&selection, &format!("{comment_token} "))],
                         EditType::InsertChars,
                     )
                 };
