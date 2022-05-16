@@ -210,6 +210,7 @@ impl LapceEditor {
                 editor_data.cancel_hover();
             }
             MouseButton::Right => {
+                self.mouse_hover_timer = TimerToken::INVALID;
                 self.right_click(ctx, editor_data, mouse_event, config);
                 editor_data.cancel_completion();
                 editor_data.cancel_hover();
