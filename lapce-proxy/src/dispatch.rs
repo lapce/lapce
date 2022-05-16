@@ -237,8 +237,13 @@ impl Dispatcher {
     }
 
     fn handle_fs_events(&self) {
-        let mut events =
-            { self.file_watcher.lock().as_mut().unwrap().take_events() };
+        let mut events = {
+            self.file_watcher
+                .lock()
+                .as_mut()
+                .map(|w| w.take_events())
+                .unwrap_or_default()
+        };
 
         for (token, event) in events.drain(..) {
             match token {
