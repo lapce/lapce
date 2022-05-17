@@ -4,7 +4,7 @@
     <name>Lapce</name>
     <developer_name>Dongdong Zhou, et al.</developer_name>
     <summary>Lightning-fast and powerful code editor written in Rust</summary>
-    <metadata_license>Apache-2.0</metadata_license>
+    <metadata_license>MIT</metadata_license>
     <project_license>Apache-2.0</project_license>
     <url type="homepage">https://lapce.dev/</url>
     <url type="bugtracker">https://github.com/lapce/lapce/issues</url>
