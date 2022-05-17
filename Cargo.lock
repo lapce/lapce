@@ -851,7 +851,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#46e0da805a8282f664d3500bb0a02236e8b54eab"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#3780a4f9485877318da08fb02b478658f6856163"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -874,7 +874,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#46e0da805a8282f664d3500bb0a02236e8b54eab"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#3780a4f9485877318da08fb02b478658f6856163"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -884,7 +884,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#46e0da805a8282f664d3500bb0a02236e8b54eab"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#3780a4f9485877318da08fb02b478658f6856163"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -898,6 +898,7 @@ dependencies = [
  "foreign-types",
  "gdk-sys",
  "glib-sys",
+ "glutin_wgl_sys 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk",
  "gtk-sys",
  "instant",
@@ -1625,7 +1626,7 @@ dependencies = [
  "glutin_emscripten_sys",
  "glutin_gles2_sys",
  "glutin_glx_sys",
- "glutin_wgl_sys",
+ "glutin_wgl_sys 0.1.5 (git+https://github.com/lapce/glutin?branch=new-keyboard-all)",
  "lazy_static",
  "libloading",
  "log",
@@ -1668,6 +1669,15 @@ source = "git+https://github.com/lapce/glutin?branch=new-keyboard-all#73924cf479
 dependencies = [
  "gl_generator",
  "x11-dl",
+]
+
+[[package]]
+name = "glutin_wgl_sys"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3da5951a1569dbab865c6f2a863efafff193a93caf05538d193e9e3816d21696"
+dependencies = [
+ "gl_generator",
 ]
 
 [[package]]
