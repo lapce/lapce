@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+    <id>dev.lapce.lapce</id>
+    <name>Lapce</name>
+    <developer_name>Dongdong Zhou, et al.</developer_name>
+    <summary>Lightning-fast and powerful code editor written in Rust</summary>
+    <metadata_license>Apache-2.0</metadata_license>
+    <project_license>Apache-2.0</project_license>
+    <url type="homepage">https://lapce.dev/</url>
+    <url type="bugtracker">https://github.com/lapce/lapce/issues</url>
+    <url type="help">https://docs.lapce.dev/</url>
+    <description>
+        <p>
+            Lapce is an open source code editor written in Rust. By utilising native GUI and GPU rendering, and with the performance Rust provides, Lapce is one of the fastest code editors out there.
+        </p>
+        <p>Features:</p>
+        <ul>
+            <li>Modal Editing (Vim like) support as first class citizen (can be turned off as well)</li>
+            <li>Built-in LSP (Language Server Protocol) support to give you code intelligence like code completion, diagnostics and code actions etc.</li>
+            <li>Built-in remote development support (inspired by VSCode Remote Development) for a seamless "local" experience, benefiting from the full power of the remote system.</li>
+            <li>Plugins can be written in programming languages that can compile to the WASI format (C, Rust, AssemblyScript)</li>
+            <li>Built-in terminal, so you can execute commands in your workspace, without leaving Lapce.</li>
+        </ul>
+    </description>
+    <content_rating type="oars-1.1" />
+    <launchable type="desktop-id">dev.lapce.lapce.desktop</launchable>
+    <screenshots>
+        <screenshot type="default">
+            <image>https://raw.githubusercontent.com/lapce/lapce/master/extra/images/screenshot.png</image>
+        </screenshot>
+    </screenshots>
+    <releases>
+        <release version="0.1.0" date="2022-05-12"/>
+    </releases>
+</component>
