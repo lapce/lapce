@@ -41,34 +41,61 @@ pub fn launch() {
     let data = LapceData::load(launcher.get_external_handle());
     for (_window_id, window_data) in data.windows.iter() {
         let root = build_window(window_data);
-        let window = WindowDesc::new_with_id(window_data.window_id, root)
-            .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
-            .show_titlebar(false)
-            .window_size(window_data.size)
-            .menu(|_, _, _| {
-                Menu::new("Lapce").entry(
-                    Menu::new("")
-                        .entry(MenuItem::new("About Lapce"))
-                        .separator()
-                        .entry(
-                            MenuItem::new("Hide Lapce")
-                                .command(druid::commands::HIDE_APPLICATION)
-                                .hotkey(SysMods::Cmd, "h"),
-                        )
-                        .separator()
-                        .entry(
-                            MenuItem::new("Quit Lapce")
-                                .command(druid::commands::QUIT_APP)
-                                .hotkey(SysMods::Cmd, "q"),
-                        ),
-                )
-            })
-            .set_position(window_data.pos);
+        let window = new_window_desc(
+            window_data.window_id,
+            root,
+            window_data.size,
+            window_data.pos,
+        );
         launcher = launcher.with_window(window);
     }
 
     let launcher = launcher.configure_env(|env, data| data.reload_env(env));
     launcher.launch(data).expect("launch failed");
+}
+
+fn new_window_desc<W, T: druid::Data>(
+    window_id: WindowId,
+    root: W,
+    size: Size,
+    pos: Point,
+) -> WindowDesc<T>
+where
+    W: Widget<T> + 'static,
+{
+    let mut desc = WindowDesc::new_with_id(window_id, root)
+        .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
+        .window_size(size)
+        .set_position(pos);
+
+    #[cfg(target_os = "macos")]
+    if true {
+        desc = macos_window_desc(desc);
+    }
+
+    desc
+}
+
+#[cfg(target_os = "macos")]
+fn macos_window_desc<T: druid::Data>(desc: WindowDesc<T>) -> WindowDesc<T> {
+    desc.show_titlebar(false).menu(|_, _, _| {
+        Menu::new("Lapce").entry(
+            Menu::new("")
+                .entry(MenuItem::new("About Lapce"))
+                .separator()
+                .entry(
+                    MenuItem::new("Hide Lapce")
+                        .command(druid::commands::HIDE_APPLICATION)
+                        .hotkey(SysMods::Cmd, "h"),
+                )
+                .separator()
+                .entry(
+                    MenuItem::new("Quit Lapce")
+                        .command(druid::commands::QUIT_APP)
+                        .hotkey(SysMods::Cmd, "q"),
+                ),
+        )
+    })
 }
 
 struct LapceAppDelegate {}
@@ -149,11 +176,7 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                 let root = build_window(&window_data);
                 let window_id = window_data.window_id;
                 data.windows.insert(window_id, window_data);
-                let desc = WindowDesc::new_with_id(window_id, root)
-                    .title(LocalizedString::new("Lapce").with_placeholder("Lapce"))
-                    .show_titlebar(false)
-                    .window_size(info.size)
-                    .set_position(info.pos);
+                let desc = new_window_desc(window_id, root, info.size, info.pos);
                 ctx.new_window(desc);
                 return druid::Handled::Yes;
             }
