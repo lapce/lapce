@@ -1,5 +1,5 @@
 use std::time::Duration;
-use std::{iter::Iterator, sync::Arc, time::Instant};
+use std::{iter::Iterator, sync::Arc};
 
 use druid::TimerToken;
 use druid::{
