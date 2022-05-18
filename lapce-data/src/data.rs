@@ -2326,6 +2326,8 @@ impl LapceMainSplitData {
             );
             if let Some(version) = location.history.as_ref() {
                 editor.view = EditorView::Diff(version.to_string());
+            } else {
+                editor.view = EditorView::Normal;
             }
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
