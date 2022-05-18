@@ -23,7 +23,6 @@ use serde_json::json;
 pub struct Title {
     mouse_pos: Point,
     commands: Vec<(Rect, Command)>,
-    last_mouse_up: Instant,
 }
 
 impl Title {
@@ -31,7 +30,6 @@ impl Title {
         Self {
             mouse_pos: Point::ZERO,
             commands: Vec::new(),
-            last_mouse_up: Instant::now(),
         }
     }
 
@@ -81,9 +79,9 @@ impl Widget<LapceWindowData> for Title {
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
             }
-            Event::MouseUp(_) => {
-                #[cfg(target_os = "macos")]
-                if self.last_mouse_up.elapsed().as_millis() < 500 {
+            #[cfg(target_os = "macos")]
+            Event::MouseUp(mouse_event) => {
+                if mouse_event.count >= 2 {
                     let state = match ctx.window().get_window_state() {
                         WindowState::Maximized => WindowState::Restored,
                         WindowState::Restored => WindowState::Maximized,
@@ -95,7 +93,6 @@ impl Widget<LapceWindowData> for Title {
                             .to(Target::Window(data.window_id)),
                     )
                 }
-                self.last_mouse_up = Instant::now();
             }
             _ => {}
         }
