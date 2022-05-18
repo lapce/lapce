@@ -52,6 +52,10 @@ The guidelines about contributing to Lapce can be found in
 ```sh
 sudo apt install cmake pkg-config libfontconfig-dev libgtk-3-dev
 ```
+#### Fedora
+```sh
+sudo dnf install fontconfig-devel gcc-c++ perl-FindBin perl-File-Compare cairo-devel atk-devel cairo-gobject-devel gdk-pixbuf2-devel pango-devel gtk3-devel
+```
 ### Building
 ```sh
 cargo build --release
