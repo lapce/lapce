@@ -851,7 +851,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "druid"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#744a3d4471cfbe91cd3b9a6fa2df978fa4a43c4f"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#b239301c159511c205dcab38826d2cb12b1b6f86"
 dependencies = [
  "console_error_panic_hook",
  "druid-derive",
@@ -874,7 +874,7 @@ dependencies = [
 [[package]]
 name = "druid-derive"
 version = "0.4.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#744a3d4471cfbe91cd3b9a6fa2df978fa4a43c4f"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#b239301c159511c205dcab38826d2cb12b1b6f86"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -884,7 +884,7 @@ dependencies = [
 [[package]]
 name = "druid-shell"
 version = "0.7.0"
-source = "git+https://github.com/lapce/druid?branch=shell_opengl#744a3d4471cfbe91cd3b9a6fa2df978fa4a43c4f"
+source = "git+https://github.com/lapce/druid?branch=shell_opengl#b239301c159511c205dcab38826d2cb12b1b6f86"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -897,6 +897,7 @@ dependencies = [
  "core-graphics 0.22.2",
  "foreign-types",
  "gdk-sys",
+ "gl_loader",
  "glib-sys",
  "glutin_wgl_sys 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk",
@@ -1527,6 +1528,16 @@ dependencies = [
  "khronos_api",
  "log",
  "xml-rs",
+]
+
+[[package]]
+name = "gl_loader"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e32d96dd5f881490e537041d5532320812ba096097f07fccb4626578da0b99d3"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]
