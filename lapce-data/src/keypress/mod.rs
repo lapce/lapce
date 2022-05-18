@@ -280,6 +280,9 @@ impl KeyPressData {
     fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
         let mut mods = key_event.mods;
 
+        // We don't care about NUM_LOCK
+        mods.set(Modifiers::NUM_LOCK, false);
+
         if matches!(key_event.key, KbKey::Shift | KbKey::Character(_)) {
             mods.set(Modifiers::SHIFT, false);
         }
