@@ -40,19 +40,10 @@ pub mod tab_header;
 pub mod tab_header_content;
 pub mod view;
 
-#[derive(Clone, Copy)]
-enum ClickKind {
-    Single,
-    Double,
-    Triple,
-    Quadruple,
-}
-
 pub struct LapceEditor {
     view_id: WidgetId,
     placeholder: Option<String>,
 
-    last_left_click: Option<(Instant, ClickKind, Point)>,
     mouse_pos: Point,
     /// A timer for listening for when the user has hovered for long enough to trigger showing
     /// of hover info (if there is any)
@@ -65,7 +56,6 @@ impl LapceEditor {
         Self {
             view_id,
             placeholder: None,
-            last_left_click: None,
             mouse_pos: Point::ZERO,
             mouse_hover_timer: TimerToken::INVALID,
             drag_timer: TimerToken::INVALID,
@@ -227,29 +217,17 @@ impl LapceEditor {
         editor_data: &mut LapceEditorBufferData,
         config: &Config,
     ) {
-        let mut click_kind = ClickKind::Single;
-        if let Some((instant, kind, pos)) = self.last_left_click.as_ref() {
-            if pos == &mouse_event.pos && instant.elapsed().as_millis() < 500 {
-                click_kind = match kind {
-                    ClickKind::Single => ClickKind::Double,
-                    ClickKind::Double => ClickKind::Triple,
-                    ClickKind::Triple => ClickKind::Quadruple,
-                    ClickKind::Quadruple => ClickKind::Quadruple,
-                };
-            }
-        }
-        self.last_left_click = Some((Instant::now(), click_kind, mouse_event.pos));
-        match click_kind {
-            ClickKind::Single => {
+        match mouse_event.count {
+            1 => {
                 editor_data.single_click(ctx, mouse_event, config);
             }
-            ClickKind::Double => {
+            2 => {
                 editor_data.double_click(ctx, mouse_event, config);
             }
-            ClickKind::Triple => {
+            3 => {
                 editor_data.triple_click(ctx, mouse_event, config);
             }
-            ClickKind::Quadruple => {}
+            _ => {}
         }
     }
 
