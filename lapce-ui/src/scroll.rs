@@ -702,10 +702,10 @@ impl ScrollComponentNew {
                             - diff * (start.elapsed().subsec_millis() as f64 / 20.0);
                         if self.opacity > 0.0 {
                             ctx.request_anim_frame();
-                            ctx.request_paint();
                         } else {
                             self.fade_start = None;
                         }
+                        ctx.request_paint();
                     }
                 }
                 Event::Timer(id) if *id == self.timer_id => {
