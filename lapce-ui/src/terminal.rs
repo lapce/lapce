@@ -441,7 +441,7 @@ impl Widget<LapceTabData> for LapceTerminalHeader {
                             .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
                     );
                 }
-                if let Some(svg) = get_svg(&icon.icon) {
+                if let Some(svg) = get_svg(icon.icon) {
                     ctx.draw_svg(
                         &svg,
                         icon.rect.inflate(-self.icon_padding, -self.icon_padding),

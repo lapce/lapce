@@ -184,7 +184,7 @@ impl Widget<LapceTabData> for NewPalette {
         env: &Env,
     ) {
         if !old_data.palette.same(&data.palette) {
-            ctx.request_local_layout();
+            ctx.request_layout();
             ctx.request_paint();
         }
 

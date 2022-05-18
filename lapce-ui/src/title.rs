@@ -6,7 +6,7 @@ use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder},
     BoxConstraints, Color, Command, Env, Event, EventCtx, FontFamily, LayoutCtx,
     LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size,
-    Target, UpdateCtx, Widget,
+    Target, UpdateCtx, Widget, WindowConfig, WindowState,
 };
 use lapce_data::{
     command::{
@@ -62,7 +62,7 @@ impl Widget<LapceWindowData> for Title {
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        _data: &mut LapceWindowData,
+        data: &mut LapceWindowData,
         _env: &Env,
     ) {
         match event {
@@ -78,6 +78,21 @@ impl Widget<LapceWindowData> for Title {
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event);
+            }
+            #[cfg(target_os = "macos")]
+            Event::MouseUp(mouse_event) => {
+                if mouse_event.count >= 2 {
+                    let state = match ctx.window().get_window_state() {
+                        WindowState::Maximized => WindowState::Restored,
+                        WindowState::Restored => WindowState::Maximized,
+                        WindowState::Minimized => WindowState::Maximized,
+                    };
+                    ctx.submit_command(
+                        druid::commands::CONFIGURE_WINDOW
+                            .with(WindowConfig::default().set_window_state(state))
+                            .to(Target::Window(data.window_id)),
+                    )
+                }
             }
             _ => {}
         }

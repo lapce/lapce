@@ -202,7 +202,7 @@ impl Widget<LapceTabData> for FindBox {
                 );
             }
 
-            let svg = get_svg(&icon.icon).unwrap();
+            let svg = get_svg(icon.icon).unwrap();
             ctx.draw_svg(
                 &svg,
                 icon.rect.inflate(-7.0, -7.0),

@@ -10,8 +10,8 @@ use std::{
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use druid::{
-    piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink, Lens, Point,
-    Rect, Size, Target, Vec2, WidgetId, WindowId,
+    piet::PietText, theme, Command, Data, Env, EventCtx, ExtEventSink,
+    FileDialogOptions, Lens, Point, Rect, Size, Target, Vec2, WidgetId, WindowId,
 };
 
 use lapce_core::{
@@ -37,7 +37,8 @@ use crate::{
     alert::{AlertContentData, AlertData},
     command::{
         CommandKind, EnsureVisiblePosition, LapceCommand, LapceUICommand,
-        LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
+        LapceWorkbenchCommand, LAPCE_COMMAND, LAPCE_OPEN_FILE, LAPCE_OPEN_FOLDER,
+        LAPCE_UI_COMMAND,
     },
     completion::CompletionData,
     config::{Config, ConfigWatcher, GetConfig, LapceTheme},
@@ -51,7 +52,6 @@ use crate::{
     find::Find,
     hover::HoverData,
     keypress::KeyPressData,
-    menu::MenuData,
     palette::{PaletteData, PaletteType, PaletteViewData},
     panel::PanelPosition,
     picker::FilePickerData,
@@ -203,7 +203,6 @@ pub struct LapceWindowData {
     pub plugins: Arc<Vec<PluginDescription>>,
     pub db: Arc<LapceDb>,
     pub watcher: Arc<notify::RecommendedWatcher>,
-    pub menu: Arc<MenuData>,
     /// The size of the window.
     pub size: Size,
     /// The position of the window.
@@ -214,7 +213,6 @@ impl Data for LapceWindowData {
     fn same(&self, other: &Self) -> bool {
         self.active == other.active
             && self.tabs.same(&other.tabs)
-            && self.menu.same(&other.menu)
             && self.size.same(&other.size)
             && self.pos.same(&other.pos)
             && self.keypress.same(&other.keypress)
@@ -290,8 +288,6 @@ impl LapceWindowData {
         if let Some(path) = KeyPressData::file() {
             let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
         }
-        let menu = MenuData::new();
-
         Self {
             window_id,
             tabs,
@@ -303,7 +299,6 @@ impl LapceWindowData {
             config,
             db,
             watcher: Arc::new(watcher),
-            menu: Arc::new(menu),
             size: info.size,
             pos: info.pos,
         }
@@ -727,6 +722,7 @@ impl LapceTabData {
             doc,
             palette: self.palette.clone(),
             editor: editor.clone(),
+            command_keymaps: self.keypress.command_keymaps.clone(),
             config: self.config.clone(),
         }
     }
@@ -987,36 +983,12 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::OpenFolder => {
                 if !self.workspace.kind.is_remote() {
-                    let event_sink = ctx.get_external_handle();
-                    let window_id = self.window_id;
-                    thread::spawn(move || {
-                        let dirs = directories::UserDirs::new();
-
-                        let dir = dirs
-                            .as_ref()
-                            .and_then(|u| u.home_dir().to_str())
-                            .unwrap_or(".");
-
-                        if let Some(folder) =
-                            tinyfiledialogs::select_folder_dialog("Open folder", dir)
-                        {
-                            let path = PathBuf::from(folder);
-                            let workspace = LapceWorkspace {
-                                kind: LapceWorkspaceType::Local,
-                                path: Some(path),
-                                last_open: std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_secs(),
-                            };
-
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::SetWorkspace(workspace),
-                                Target::Window(window_id),
-                            );
-                        }
-                    });
+                    let options = FileDialogOptions::new()
+                        .select_directories()
+                        .accept_command(LAPCE_OPEN_FOLDER);
+                    ctx.submit_command(
+                        druid::commands::SHOW_OPEN_PANEL.with(options),
+                    );
                 } else {
                     let picker = Arc::make_mut(&mut self.picker);
                     picker.active = true;
@@ -1036,33 +1008,11 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::OpenFile => {
                 if !self.workspace.kind.is_remote() {
-                    let workspace = self.workspace.clone();
-                    let event_sink = ctx.get_external_handle();
-                    let tab_id = self.id;
-                    thread::spawn(move || {
-                        let dirs;
-                        let dir =
-                            match workspace.path.as_deref().and_then(Path::to_str) {
-                                Some(path) => path,
-                                None => {
-                                    dirs = directories::UserDirs::new();
-                                    dirs.as_ref()
-                                        .and_then(|u| u.home_dir().to_str())
-                                        .unwrap_or(".")
-                                }
-                            };
-
-                        if let Some(path) =
-                            tinyfiledialogs::open_file_dialog("Open file", dir, None)
-                        {
-                            let path = PathBuf::from(path);
-                            let _ = event_sink.submit_command(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFile(path),
-                                Target::Widget(tab_id),
-                            );
-                        }
-                    });
+                    let options =
+                        FileDialogOptions::new().accept_command(LAPCE_OPEN_FILE);
+                    ctx.submit_command(
+                        druid::commands::SHOW_OPEN_PANEL.with(options),
+                    );
                 } else {
                     let picker = Arc::make_mut(&mut self.picker);
                     picker.active = true;
@@ -1844,6 +1794,7 @@ pub struct LapceMainSplitData {
     pub local_docs: im::HashMap<LocalBufferKind, Arc<Document>>,
     pub value_docs: im::HashMap<String, Arc<Document>>,
     pub scratch_docs: im::HashMap<BufferId, Arc<Document>>,
+    pub current_save_as: Option<Arc<(BufferContent, WidgetId, bool)>>,
     pub register: Arc<Register>,
     pub proxy: Arc<LapceProxy>,
     pub palette_preview_editor: Arc<WidgetId>,
@@ -1862,15 +1813,18 @@ impl LapceMainSplitData {
         Some(self.editors.get(&id)?.as_ref())
     }
 
-    pub fn editor_doc(&self, editor_view_id: WidgetId) -> Arc<Document> {
-        let editor = self.editors.get(&editor_view_id).unwrap();
-        let doc = match &editor.content {
+    pub fn content_doc(&self, content: &BufferContent) -> Arc<Document> {
+        match content {
             BufferContent::File(path) => self.open_docs.get(path).unwrap().clone(),
             BufferContent::Local(kind) => self.local_docs.get(kind).unwrap().clone(),
             BufferContent::Value(name) => self.value_docs.get(name).unwrap().clone(),
             BufferContent::Scratch(id) => self.scratch_docs.get(id).unwrap().clone(),
-        };
-        doc
+        }
+    }
+
+    pub fn editor_doc(&self, editor_view_id: WidgetId) -> Arc<Document> {
+        let editor = self.editors.get(&editor_view_id).unwrap();
+        self.content_doc(&editor.content)
     }
 
     pub fn document_format(
@@ -2372,6 +2326,8 @@ impl LapceMainSplitData {
             );
             if let Some(version) = location.history.as_ref() {
                 editor.view = EditorView::Diff(version.to_string());
+            } else {
+                editor.view = EditorView::Normal;
             }
             editor.content = BufferContent::File(path.clone());
             editor.compare = location.history.clone();
@@ -2481,6 +2437,7 @@ impl LapceMainSplitData {
             active: Arc::new(None),
             active_tab: Arc::new(None),
             register: Arc::new(Register::default()),
+            current_save_as: None,
             proxy,
             palette_preview_editor: Arc::new(palette_preview_editor),
             show_code_actions: false,

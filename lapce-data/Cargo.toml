@@ -22,7 +22,6 @@ alacritty_terminal = "0.16"
 config = "0.11"
 indexmap = "1.7.0"
 directories = "4.0.1"
-tinyfiledialogs = "3.8.3"
 itertools = "0.10.1"
 unicode-width = "0.1.8"
 unicode-segmentation = "1.7.1"
@@ -47,7 +46,7 @@ xi-unicode = "0.3.0"
 fuzzy-matcher = "0.3.7"
 uuid = { version = "0.8.2", features = ["v4"] }
 lsp-types = { version = "0.89.2", features = ["proposed"] }
-druid = { git = "https://github.com/lapce/druid", branch = "opengl", features = [ "svg", "im", "serde", ] }
+druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = [ "svg", "im", "serde", ] }
 # druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
 toml = { version = "0.5.8", features = ["preserve_order"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }

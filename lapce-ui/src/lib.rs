@@ -9,7 +9,6 @@ pub mod find;
 pub mod hover;
 pub mod keymap;
 mod logging;
-pub mod menu;
 pub mod palette;
 pub mod panel;
 pub mod picker;

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use druid::{Point, Rect, Selector, SingleUse, Size, WidgetId, WindowId};
+use druid::{FileInfo, Point, Rect, Selector, SingleUse, Size, WidgetId, WindowId};
 use indexmap::IndexMap;
 use lapce_core::buffer::DiffLines;
 use lapce_core::command::{
@@ -36,6 +36,10 @@ use crate::{
     split::{SplitDirection, SplitMoveDirection},
 };
 
+pub const LAPCE_OPEN_FOLDER: Selector<FileInfo> = Selector::new("lapce.open-folder");
+pub const LAPCE_OPEN_FILE: Selector<FileInfo> = Selector::new("lapce.open-file");
+pub const LAPCE_SAVE_FILE_AS: Selector<FileInfo> =
+    Selector::new("lapce.save-file-as");
 pub const LAPCE_COMMAND: Selector<LapceCommand> = Selector::new("lapce.new-command");
 pub const LAPCE_UI_COMMAND: Selector<LapceUICommand> =
     Selector::new("lapce.ui_command");
@@ -386,7 +390,6 @@ pub enum LapceUICommand {
         location: EditorLocationNew,
     },
     ShowAlert(AlertContentData),
-    HideMenu,
     ShowMenu(Point, Arc<Vec<MenuItem>>),
     UpdateSearch(String),
     GlobalSearchResult(String, Arc<HashMap<PathBuf, Vec<Match>>>),

@@ -496,7 +496,6 @@ impl Widget<LapceTabData> for LapceEditorView {
             return;
         }
 
-        let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
         match event {
             Event::MouseDown(mouse_event) => match mouse_event.button {
                 druid::MouseButton::Left => {
@@ -511,11 +510,20 @@ impl Widget<LapceTabData> for LapceEditorView {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::Focus = command {
                     self.request_focus(ctx, data, true);
+                    let editor_data = data.editor_view_content(self.view_id);
+                    self.ensure_cursor_visible(
+                        ctx,
+                        &editor_data,
+                        &data.panels,
+                        None,
+                        env,
+                    );
                 }
             }
             _ => (),
         }
 
+        let editor = data.main_split.editors.get(&self.view_id).unwrap().clone();
         let mut editor_data = data.editor_view_content(self.view_id);
         let doc = editor_data.doc.clone();
 

@@ -705,6 +705,7 @@ impl ScrollComponentNew {
                         } else {
                             self.fade_start = None;
                         }
+                        ctx.request_paint();
                     }
                 }
                 Event::Timer(id) if *id == self.timer_id => {
@@ -712,6 +713,7 @@ impl ScrollComponentNew {
                     self.timer_id = TimerToken::INVALID;
                     self.fade_start = Some(Instant::now());
                     ctx.request_anim_frame();
+                    ctx.request_paint();
                     ctx.set_handled();
                 }
                 _ => (),
