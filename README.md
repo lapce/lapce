@@ -54,7 +54,7 @@ sudo apt install cmake pkg-config libfontconfig-dev libgtk-3-dev
 ```
 #### Fedora
 ```sh
-sudo dnf install fontconfig-devel gcc-c++ perl-FindBin perl-File-Compare cairo-devel atk-devel cairo-gobject-devel gdk-pixbuf2-devel pango-devel gtk3-devel
+sudo dnf install gcc-c++ perl-FindBin perl-File-Compare gtk3-devel
 ```
 ### Building
 ```sh
