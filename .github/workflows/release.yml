@@ -59,8 +59,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install dependencies
         run: |
-          sudo apt-get install cmake pkg-config libfreetype6-dev libfontconfig1-dev \
-            libxcb-xfixes0-dev libxkbcommon-dev
+          sudo apt-get install cmake pkg-config libfontconfig-dev libgtk-3-dev
       - name: Update rust
         run: rustup update
       - name: Build
