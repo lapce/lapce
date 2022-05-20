@@ -12,6 +12,9 @@ use lapce_data::{
 use crate::logging::override_log_levels;
 use crate::window::LapceWindowNew;
 
+const LOGO_PNG: &[u8] = include_bytes!("../../extra/images/logo.png");
+const LOGO_ICO: &[u8] = include_bytes!("../../extra/windows/lapce.ico");
+
 pub fn build_window(data: &LapceWindowData) -> impl Widget<LapceData> {
     LapceWindowNew::new(data).lens(LapceWindowLens(data.window_id))
 }
@@ -68,12 +71,41 @@ where
         .window_size(size)
         .set_position(pos);
 
+    if let Some(icon) = window_icon() {
+        desc = desc.with_window_icon(icon);
+    }
+
     #[cfg(target_os = "macos")]
     if true {
         desc = macos_window_desc(desc);
     }
 
     desc
+}
+
+#[cfg(target_os = "macos")]
+fn window_icon() -> Option<druid::Icon> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn window_icon() -> Option<druid::Icon> {
+    let image = image::load_from_memory(LOGO_PNG)
+        .expect("Invalid Icon")
+        .into_rgba8();
+    let (width, height) = image.dimensions();
+    let rgba = image.into_raw();
+    Some(druid::Icon::from_rgba(rgba, width, height).expect("Failed to open icon"))
+}
+
+#[cfg(target_os = "windows")]
+fn window_icon() -> Option<druid::Icon> {
+    let image = image::load_from_memory(LOGO_ICO)
+        .expect("Invalid Icon")
+        .into_rgba8();
+    let (width, height) = image.dimensions();
+    let rgba = image.into_raw();
+    Some(druid::Icon::from_rgba(rgba, width, height).expect("Failed to open icon"))
 }
 
 #[cfg(target_os = "macos")]
