@@ -58,6 +58,16 @@ command = "word_backward"
 mode = "i"
 
 [[keymaps]]
+key = "meta+left"
+command = "line_start_non_blank"
+mode = "i"
+
+[[keymaps]]
+key = "meta+right"
+command = "line_end"
+mode = "i"
+
+[[keymaps]]
 key = "alt+backspace"
 command = "delete_word_backward"
 mode = "i"
