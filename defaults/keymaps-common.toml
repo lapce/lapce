@@ -116,6 +116,11 @@ command = "list.select"
 when = "list_focus"
 
 [[keymaps]]
+key = "tab"
+command = "list.select"
+when = "completion_focus"
+
+[[keymaps]]
 key = "enter"
 command = "list.select"
 when = "list_focus"
@@ -220,7 +225,7 @@ mode = "i"
 [[keymaps]]
 key = "tab"
 command = "insert_tab"
-when = "!in_snippet"
+when = "!in_snippet && !completion_focus"
 mode = "i"
 
 [[keymaps]]
